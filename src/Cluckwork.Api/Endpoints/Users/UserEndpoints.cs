@@ -5,6 +5,7 @@ using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Users.AssignFlock;
+using Cluckwork.Application.Features.Users.ChangeUserRole;
 using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Application.Features.Users.SetUserPassword;
 using Cluckwork.Application.Features.Users.UpdateUser;
@@ -49,6 +50,18 @@ public static class UserEndpoints
 
         // #103 — flock scoping for workers (spec §5.3). Owner-only like the
         // rest of the group.
+        // #355 — promote/demote an existing user. Owner-only like the whole
+        // group. Self-role-change is blocked before validation (see below);
+        // granting Owner requires step-up (#308), same gating as CreateUser.
+        group.MapPut("/{id:guid}/role", ChangeUserRole)
+            // A single short role name (max "ReadOnly" = 8 chars) plus JSON
+            // envelope overhead — two orders of magnitude smaller than
+            // SetUserPassword's 2048-byte password field, so 512 bytes gives
+            // comfortable margin ahead of binding.
+            .WithMaxRequestBodyBytes(512)
+            .WithName("ChangeUserRole")
+            .WithSummary("Change a user's role (promote/demote) and revoke their sessions.");
+
         group.MapGet("/{id:guid}/flock-assignments", ListAssignments)
             .WithName("ListFlockAssignments")
             .WithSummary("A user's flock assignments. No rows = account-wide access.");
@@ -195,6 +208,47 @@ public static class UserEndpoints
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
 
+    private static async Task<IResult> ChangeUserRole(
+        Guid id,
+        ChangeUserRoleRequest request,
+        [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
+        ChangeUserRoleHandler handler,
+        IValidator<ChangeUserRoleCommand> validator,
+        TenantContext tenant,
+        ICurrentUser currentUser,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved || !currentUser.IsResolved) return Results.Unauthorized();
+
+        // #355 — an Owner may not change their OWN role here. Same shape as
+        // SetUserPassword's CannotSetOwnPassword: self-targeting through this
+        // path could strip the caller's own Owner-ness (or, for a non-Owner
+        // target, revoke the caller's own live session) with no re-proof.
+        if (currentUser.UserId == id)
+            return Results.Problem(
+                "You cannot change your own role. Ask another Owner.",
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Users.CannotChangeOwnRole");
+
+        var command = new ChangeUserRoleCommand(id, request.Role, stepUpToken);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        if (result.IsSuccess) return Results.NoContent();
+        // #308 — a missing/invalid step-up grant, or a stale actor no longer
+        // Owner, is a 403 (authenticated, but lacking a required proof of
+        // current authorization) — distinct from the 404/409/422s below.
+        if (result.Error.Code is Cluckwork.Application.Common.StepUpErrorCodes.Required or "Auth.Forbidden")
+            return Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code);
+        if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        return result.Error.Code.EndsWith(".Conflict", StringComparison.Ordinal)
+            ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status409Conflict, title: result.Error.Code)
+            : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
+    }
+
     private static async Task<IResult> ListUsers(
         IIdentityProvider identity, TenantContext tenant, CancellationToken ct)
     {
@@ -209,6 +263,8 @@ public sealed record CreateUserRequest(string Email, string Password, string Rol
 public sealed record UpdateUserRequest(string? Name);
 
 public sealed record SetUserPasswordRequest(string NewPassword);
+
+public sealed record ChangeUserRoleRequest(string Role);
 
 public sealed record UserResponse(Guid Id, string Email, string? DisplayName, string Role);
 

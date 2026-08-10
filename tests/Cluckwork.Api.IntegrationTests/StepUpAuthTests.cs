@@ -479,6 +479,10 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             Guid accountId, Guid userId, string newPassword, CancellationToken ct = default) =>
             inner.SetUserPasswordAsync(accountId, userId, newPassword, ct);
 
+        public Task<Result> ChangeUserRoleAsync(
+            Guid accountId, Guid userId, string? role, Guid actingUserId, CancellationToken ct = default) =>
+            inner.ChangeUserRoleAsync(accountId, userId, role, actingUserId, ct);
+
         public Task<Result> BreakGlassResetAsync(
             Guid accountId, Guid userId, string newPassword, string? reason, CancellationToken ct = default) =>
             inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, ct);
@@ -640,7 +644,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             registry,
             services.GetRequiredService<Microsoft.AspNetCore.Http.IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
-            services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IdentityProvider>>());
+            services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IdentityProvider>>(),
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
 
         var beforeRevoke = timeProvider.GetUtcNow();
 

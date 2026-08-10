@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { KeyRound, Pencil, Plus } from "lucide-react";
+import { KeyRound, Pencil, Plus, ShieldCheck } from "lucide-react";
 import {
-  assignFlock, createUser, listFlockAssignments, listFlocks, listUsers, setUserPassword,
-  unassignFlock, updateUser,
+  assignFlock, changeUserRole, createUser, listFlockAssignments, listFlocks, listUsers,
+  setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
@@ -53,6 +53,7 @@ export function UsersPage() {
   // the write that follows. See the logout-clearing effect further down.
   const [createStepUpPassword, setCreateStepUpPassword] = useState("");
   const [pwStepUpPassword, setPwStepUpPassword] = useState("");
+  const [roleStepUpPassword, setRoleStepUpPassword] = useState("");
 
   const { isAuthenticated } = useAuth();
 
@@ -65,6 +66,7 @@ export function UsersPage() {
     if (!isAuthenticated) {
       setCreateStepUpPassword("");
       setPwStepUpPassword("");
+      setRoleStepUpPassword("");
     }
   }, [isAuthenticated]);
 
@@ -83,6 +85,13 @@ export function UsersPage() {
   const [pwValue, setPwValue] = useState("");
   const [pwConfirm, setPwConfirm] = useState("");
   const activePw = useRef<string | null>(null);
+
+  // #355 — promote/demote an existing user's role, own dialog for the same
+  // reason as password reset above: a higher-consequence action than a name
+  // edit, not one stray keystroke away from a typo.
+  const [roleUser, setRoleUser] = useState<User | null>(null);
+  const [roleValue, setRoleValue] = useState("Worker");
+  const activeRole = useRef<string | null>(null);
 
   // #103 flock scoping: expand a worker row to manage assignments.
   const [openUser, setOpenUser] = useState<string | null>(null);
@@ -318,6 +327,52 @@ export function UsersPage() {
     });
   }
 
+  // #355 — open/close the role dialog for a user, seeded with their current role.
+  function openRole(u: User) {
+    setError(null);
+    setMessage(null);
+    setRoleValue(u.role);
+    setRoleStepUpPassword("");
+    activeRole.current = u.id;
+    setRoleUser(u);
+  }
+
+  function closeRole() {
+    activeRole.current = null;
+    setRoleStepUpPassword(""); // #308 — never leave a typed proof password behind
+    setRoleUser(null);
+  }
+
+  async function onChangeRole(e: FormEvent) {
+    e.preventDefault();
+    const target = roleUser;
+    if (!target || busy) return;
+    setError(null);
+    setMessage(null);
+    const keyScope = `role:${target.id}`;
+    await run(`change-role:${target.id}`, async () => {
+      try {
+        // #308 — promoting to OWNER needs a fresh step-up grant. Same
+        // read-then-clear-before-await pattern as onCreate/onSetPassword.
+        let stepUpToken: string | undefined;
+        if (roleValue === OWNER_ROLE) {
+          const enteredPassword = roleStepUpPassword;
+          setRoleStepUpPassword("");
+          stepUpToken = (await stepUp(enteredPassword)).token;
+        }
+
+        await changeUserRole(target.id, { role: roleValue }, keyFor(keyScope), stepUpToken);
+        clearKey(keyScope); // write confirmed before any refresh (#163 review)
+        setUsers(await listUsers());
+        if (activeRole.current !== target.id) return; // dialog moved on
+        setMessage(i18n.t("users:roleChangedMessage", { email: target.email, role: roleLabel(roleValue) }));
+        closeRole();
+      } catch (err) {
+        if (activeRole.current === target.id) setError(errText(err));
+      }
+    });
+  }
+
   async function onUpdate(e: FormEvent) {
     e.preventDefault();
     const target = editUser;
@@ -405,7 +460,7 @@ export function UsersPage() {
       </Dialog>
 
       {/* Each dialog carries its own error copy while it is up. */}
-      {error && !creating && openUser === null && editUser === null && pwUser === null
+      {error && !creating && openUser === null && editUser === null && pwUser === null && roleUser === null
         && <p className="error" role="alert">{error}</p>}
       {message && <p className="success">{message}</p>}
 
@@ -430,6 +485,9 @@ export function UsersPage() {
                 </button>
                 <button className="link" onClick={() => openPassword(u)}>
                   <KeyRound size={14} aria-hidden /> {t("resetPasswordButton")}
+                </button>
+                <button className="link" onClick={() => openRole(u)}>
+                  <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
                 </button>
                 {u.role === "Worker" && (
                   <button className="link" onClick={() => void openAssignments(u.id)}>
@@ -543,6 +601,45 @@ export function UsersPage() {
             <button type="button" className="link" onClick={closePassword}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={pwUser !== null && isPending(`set-password:${pwUser.id}`)}>{t("setPasswordButton")}</BusyButton>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={roleUser !== null}
+        title={t("changeRoleTitle", { email: roleUser?.email ?? "" })}
+        onClose={closeRole}
+      >
+        <form className="inline-form" onSubmit={onChangeRole}>
+          <p className="muted">
+            {t("roleDialogHint")}
+          </p>
+          <label>{t("roleFieldLabel")}
+            <select value={roleValue} onChange={(e) => setRoleValue(e.target.value)}>
+              {ROLE_VALUES.map((v) => (
+                <option key={v} value={v}>
+                  {v === "Admin" ? t("adminRoleOption", { label: roleLabel(v) }) : roleLabel(v)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {/* #308 — prompts ONLY when the REQUESTED role is Owner; every
+              other target role stays exactly as it was. */}
+          {roleValue === OWNER_ROLE && (
+            <>
+              <p className="muted">{t("stepUpRoleHint")}</p>
+              <label>{t("stepUpFieldLabel")}
+                <input type="password" value={roleStepUpPassword} required maxLength={256}
+                  autoComplete="current-password"
+                  onChange={(e) => setRoleStepUpPassword(e.target.value)} />
+              </label>
+            </>
+          )}
+          {error && <p className="error">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={closeRole}>{tc("cancel")}</button>
+            <BusyButton type="submit" disabled={busy}
+              busy={roleUser !== null && isPending(`change-role:${roleUser.id}`)}>{t("changeRoleSubmitButton")}</BusyButton>
           </div>
         </form>
       </Dialog>

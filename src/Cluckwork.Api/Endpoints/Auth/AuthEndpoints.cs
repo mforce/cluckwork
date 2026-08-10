@@ -102,12 +102,12 @@ public static class AuthEndpoints
         // #308 — re-confirm the CURRENT password to mint a short-lived,
         // audience-limited step-up grant for a sensitive user-administration
         // operation (see StepUpGrantService for the full threat model). Open
-        // to any authenticated role (the two consumers — CreateUser,
-        // SetUserPassword — are already Owner-only), so the endpoint stays a
-        // generic building block. Carries the login rate limit for the same
-        // reason change-password does: it verifies a credential, so an
-        // attacker holding a stolen access token must not get unlimited
-        // password-guessing attempts.
+        // to any authenticated role (the three consumers — CreateUser,
+        // SetUserPassword, ChangeUserRole (#355) — are already Owner-only), so
+        // the endpoint stays a generic building block. Carries the login rate
+        // limit for the same reason change-password does: it verifies a
+        // credential, so an attacker holding a stolen access token must not
+        // get unlimited password-guessing attempts.
         group.MapPost("/step-up", StepUp)
             .RequireAuthorization()
             .RequireRateLimiting(RateLimitingOptions.LoginPolicyName)

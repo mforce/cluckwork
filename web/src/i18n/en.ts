@@ -1322,6 +1322,7 @@ export const en = {
     stepUpFieldLabel: "Your current password *",
     stepUpCreateHint: "Creating another Owner needs your current password again.",
     stepUpResetHint: "Resetting an Owner's password needs your current password again.",
+    stepUpRoleHint: "Promoting someone to Owner needs your current password again.",
 
     // Users table
     emailColumnHeader: "Email",
@@ -1329,6 +1330,8 @@ export const en = {
     roleColumnHeader: "Role",
     editButton: "edit",
     resetPasswordButton: "password",
+    changeRoleButton: "role",
+    changeRoleSubmitButton: "Change role",
     flocksButton: "flocks",
 
     // Flock-access dialog (per-worker scoping). {{email}} is the user's
@@ -1355,6 +1358,13 @@ export const en = {
     confirmPasswordFieldLabel: "Confirm new password *",
     setPasswordButton: "Set password",
 
+    // Change-role dialog (#355). {{email}} is DATA.
+    changeRoleTitle: "Change role — {{email}}",
+    roleDialogHint:
+      "Changing someone's role signs them out of every device. The "
+      + "account's last Owner cannot be demoted, and you cannot change "
+      + "your own role — ask another Owner.",
+
     // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
     // imperative i18n.t() pattern). {{email}} is DATA; {{role}} is
     // roleLabel(role) — see the namespace header comment above.
@@ -1363,6 +1373,7 @@ export const en = {
     passwordSetMessage:
       "Password set for {{email}}. They have been signed out everywhere.",
     updatedMessage: "Updated {{email}}.",
+    roleChangedMessage: "{{email}} is now {{role}}.",
   },
   // Expenses screen — category management (a dialog panel: create/deactivate/
   // reactivate) + record/correct expenses, filtered by month and category
@@ -1952,6 +1963,7 @@ export const en = {
     "auditAction.User.PasswordSet": "Password set",
     "auditAction.User.PasswordChanged": "Password changed",
     "auditAction.User.BreakGlassReset": "Break-glass reset",
+    "auditAction.User.RoleChanged": "Role changed",
     "auditAction.User.FlockAssign": "Flock assigned to user",
     "auditAction.User.FlockUnassign": "Flock unassigned from user",
     "auditAction.Account.Export": "Data exported",
@@ -2085,10 +2097,11 @@ export const en = {
     // actions. Deliberately does NOT mention "grant"/"token" — that's internal
     // mechanism, not user-facing language.
     signingInStepUp:
-      "Two actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
-      + "right there in the dialog: creating another Owner, and resetting an existing Owner's password. This "
-      + "confirms it's really you before handing out that much access — every other action on that screen "
-      + "(creating a Worker/Manager/Sales/Read-only user, resetting one of their passwords) does not ask again.",
+      "Three actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
+      + "right there in the dialog: creating another Owner, resetting an existing Owner's password, and promoting "
+      + "someone to Owner. This confirms it's really you before handing out that much access — every other action "
+      + "on that screen (creating a Worker/Manager/Sales/Read-only user, resetting one of their passwords, changing "
+      + "someone's role to anything other than Owner) does not ask again.",
     signingInCredentialEpoch:
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
       + "see a message that your credentials changed, sign in again with your current password.",
@@ -2130,7 +2143,12 @@ export const en = {
       + "creating sign-ins on the <strong>Users</strong> screen (email, password, an optional name, and role) "
       + "and assigning workers to flocks. A user's name can be changed later from the row's <strong>edit</strong> "
       + "action, and the <strong>password</strong> action sets a forgotten password without needing the old "
-      + "one. Changing an existing user's role comes with a later release. Controls you can't use are hidden, "
+      + "one. The <strong>role</strong> action promotes or demotes an existing user among the five roles — it "
+      + "refuses targeting your own sign-in, and refuses demoting the account's last Admin (owner), so the farm "
+      + "can never lock itself out of user administration. Promoting someone to Admin (owner) asks for the same "
+      + "re-confirmation as resetting an Admin's password (see below); every other role change needs no "
+      + "re-confirmation. A role change signs the affected sign-in out everywhere on its next request, the same "
+      + "way a password reset does. Controls you can't use are hidden, "
       + "and the server refuses them regardless.",
     ownPassword:
       "<strong>Your own password.</strong> Anyone, in any role, can change their own password on the "
@@ -2663,10 +2681,10 @@ export const en = {
     // #308
     glossaryStepUpAuthTerm: "Step-up authentication",
     glossaryStepUpAuthDef:
-      "An extra check on top of being signed in: before creating another Owner or resetting an existing "
-      + "Owner's password, the Users screen asks you to re-enter your current password right there in the "
-      + "dialog. It confirms it's really you before handing out that much access — every other action on "
-      + "that screen does not ask again.",
+      "An extra check on top of being signed in: before creating another Owner, resetting an existing "
+      + "Owner's password, or promoting someone to Owner, the Users screen asks you to re-enter your current "
+      + "password right there in the dialog. It confirms it's really you before handing out that much access "
+      + "— every other action on that screen does not ask again.",
 
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:

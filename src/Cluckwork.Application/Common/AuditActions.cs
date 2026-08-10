@@ -37,6 +37,7 @@ public static class AuditActions
     public const string UserUpdate = "User.Update";
     public const string UserPasswordSet = "User.PasswordSet";
     public const string UserPasswordChanged = "User.PasswordChanged";
+    public const string UserRoleChanged = "User.RoleChanged";
     public const string UserBreakGlassReset = "User.BreakGlassReset";
     public const string UserFlockAssign = "User.FlockAssign";
     public const string UserFlockUnassign = "User.FlockUnassign";

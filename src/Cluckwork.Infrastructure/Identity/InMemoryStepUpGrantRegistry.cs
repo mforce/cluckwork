@@ -17,8 +17,9 @@ namespace Cluckwork.Infrastructure.Identity;
 // is that the composite decision is indivisible, and because the contention
 // profile does not justify anything cleverer: the critical sections are a
 // dictionary probe and an insert, and the call rate is bounded by human
-// logouts plus the two privileged admin operations a step-up grant unlocks —
-// not by request volume. Prune walks the consumption table, which the same
+// logouts plus the three privileged admin operations a step-up grant unlocks
+// (#355 added role-change-to-Owner) — not by request volume. Prune walks the
+// consumption table, which the same
 // pruning keeps bounded by the grants outstanding within one 5-minute grant
 // lifetime.
 //

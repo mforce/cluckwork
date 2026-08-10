@@ -1133,6 +1133,7 @@ export const tl = {
     stepUpFieldLabel: "Ang kasalukuyan mong password *",
     stepUpCreateHint: "Ang paggawa ng isa pang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpResetHint: "Ang pag-reset ng password ng isang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpRoleHint: "Ang pag-promote ng isang tao bilang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
 
     // Users table
     emailColumnHeader: "Email",
@@ -1140,6 +1141,8 @@ export const tl = {
     roleColumnHeader: "Tungkulin",
     editButton: "i-edit",
     resetPasswordButton: "password",
+    changeRoleButton: "tungkulin",
+    changeRoleSubmitButton: "Palitan ang tungkulin",
     flocksButton: "mga kawan",
 
     // Flock-access dialog
@@ -1167,11 +1170,20 @@ export const tl = {
     confirmPasswordFieldLabel: "Kumpirmahin ang bagong password *",
     setPasswordButton: "Itakda ang password",
 
+    // Change-role dialog
+    changeRoleTitle: "Palitan ang tungkulin — {{email}}",
+    roleDialogHint:
+      "Ang pagpapalit ng tungkulin ng isang tao ay nag-sa-sign out sa "
+      + "kanila sa lahat ng device. Hindi puwedeng i-demote ang huling "
+      + "Owner ng account, at hindi mo mapapalitan ang sarili mong "
+      + "tungkulin — humingi ng tulong sa ibang Owner.",
+
     // Imperative messages
     createSuccessMessage: "Nagawa ang {{role}} account para sa {{email}}.",
     passwordMismatchMessage: "Hindi magkatugma ang mga password.",
     passwordSetMessage: "Naitakda ang password para sa {{email}}. Na-sign out na sila sa lahat ng lugar.",
     updatedMessage: "Na-update ang {{email}}.",
+    roleChangedMessage: "Si {{email}} ay {{role}} na ngayon.",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
@@ -1609,6 +1621,7 @@ export const tl = {
     "auditAction.User.PasswordSet": "Naitakda ang password",
     "auditAction.User.PasswordChanged": "Napalitan ang password",
     "auditAction.User.BreakGlassReset": "Emergency na pag-reset ng password",
+    "auditAction.User.RoleChanged": "Binago ang tungkulin",
     "auditAction.User.FlockAssign": "Na-assign ang kawan sa user",
     "auditAction.User.FlockUnassign": "Na-unassign ang kawan mula sa user",
     "auditAction.Account.Export": "Na-export ang datos",
@@ -1743,11 +1756,12 @@ export const tl = {
       + "itinuturo ka sa kung sino ang nangangasiwa ng server, sa halip na sabihing mali ang iyong mga detalye.",
     // #308 (machine-drafted, pending native review)
     signingInStepUp:
-      "May dalawang aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
-      + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng isa pang Owner, at ang pag-reset "
-      + "ng password ng isang umiiral na Owner. Kinukumpirma nito na ikaw talaga bago bigyan ng ganoong "
-      + "kalaking access — walang ibang aksyon sa screen na iyon (paggawa ng Worker/Manager/Sales/Read-only "
-      + "user, pag-reset ng password nila) ang muling nagtatanong.",
+      "May tatlong aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
+      + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng isa pang Owner, ang pag-reset "
+      + "ng password ng isang umiiral na Owner, at ang pag-promote ng isang tao maging Owner. Kinukumpirma "
+      + "nito na ikaw talaga bago bigyan ng ganoong kalaking access — walang ibang aksyon sa screen na iyon "
+      + "(paggawa ng Worker/Manager/Sales/Read-only user, pag-reset ng password nila, pagbabago ng tungkulin "
+      + "ng iba tungo sa hindi Owner) ang muling nagtatanong.",
     signingInCredentialEpoch:
       "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
       + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
@@ -1794,8 +1808,14 @@ export const tl = {
       + "(email, password, opsyonal na pangalan, at tungkulin) at nag-a-assign ng manggagawa sa mga kawan. "
       + "Puwedeng baguhin sa ibang pagkakataon ang pangalan ng isang user mula sa aksyong "
       + "<strong>i-edit</strong> ng row, at nagtatakda ang aksyong <strong>password</strong> ng nakalimutang "
-      + "password nang hindi kailangan ang luma. Ang pagbabago ng tungkulin ng isang existing na user ay "
-      + "darating sa susunod na release. Nakatago ang mga control na hindi mo puwedeng gamitin, at "
+      + "password nang hindi kailangan ang luma. Ang aksyong <strong>tungkulin</strong> ay nag-a-promote o "
+      + "nag-de-demote ng isang existing na user sa isa sa limang tungkulin — tinatanggihan ang pagtarget "
+      + "sa sarili mong sign-in, at tinatanggihan ang pag-demote sa huling Admin (may-ari) ng account, para "
+      + "hindi kailanman maiwan ang farm na walang pamamahala ng user. Ang pag-promote ng isang tao maging "
+      + "Admin (may-ari) ay humihiling ng parehong reconfirmation gaya ng pag-reset ng password ng Admin "
+      + "(tingnan sa ibaba); hindi na kailangan ng reconfirmation ang ibang pagbabago ng tungkulin. Ang "
+      + "pagbabago ng tungkulin ay nag-si-sign out sa apektadong sign-in kahit saan sa susunod nitong "
+      + "request, gaya ng pag-reset ng password. Nakatago ang mga control na hindi mo puwedeng gamitin, at "
       + "tinatanggihan pa rin ito ng server.",
     ownPassword:
       "<strong>Ang sarili mong password.</strong> Kahit sino, sa kahit anong tungkulin, ay puwedeng "
@@ -2357,10 +2377,11 @@ export const tl = {
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:
-      "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng isa pang Owner o mag-reset ng "
-      + "password ng umiiral na Owner, hinihiling ng Users screen na muling ilagay ang kasalukuyan mong "
-      + "password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago bigyan ng ganoong kalaking access "
-      + "— walang ibang aksyon sa screen na iyon ang muling nagtatanong.",
+      "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng isa pang Owner, mag-reset ng "
+      + "password ng umiiral na Owner, o mag-promote ng isang tao maging Owner, hinihiling ng Users screen "
+      + "na muling ilagay ang kasalukuyan mong password mismo sa dialog. Kinukumpirma nito na ikaw talaga "
+      + "bago bigyan ng ganoong kalaking access — walang ibang aksyon sa screen na iyon ang muling "
+      + "nagtatanong.",
 
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
