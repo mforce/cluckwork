@@ -418,11 +418,24 @@ record's own history; the audit log is the cross-cutting trail.
 
 **Record history (#494)** — the "Created by … / Last changed by …" column on
 the Flocks, Egg grades, Daily entry history, Sales and Expenses tables. Not a
-stored field: it is **derived from the audit log**, taking that record's
-earliest event as its creation and its latest as its last change. Creation
-itself became an audited action for these five in the same change (`Flock.Create`
-and siblings) — before that only corrections were on the trail. Two consequences
-follow from being derived rather than stored. A record created **before #494**
+stored field: it is **derived from the audit log**. Creation is the record's
+`*.Create` event — identified by the action, never by being first on the trail,
+because two events can share an instant and their order is then unknowable.
+Creation itself became an audited action for these five in the same change
+(`Flock.Create` and siblings) — before that only corrections were on the trail.
+
+The last change is the latest event that is neither that creation **nor a submit
+by the person who created it**. That exception is what makes the common case read
+correctly: saving a daily entry and submitting it are two events but one act, so
+a farmhand who writes the day's numbers and makes them official — changing
+nothing in between — is shown as the creator with no change against them. When
+somebody *else* submits the draft, that submit is a real change and both people
+are named, which is the accountability the submit step exists for. Correcting a
+locked entry always shows, including when the person correcting it is the one who
+created it: the exception is keyed on the action, not on the actor.
+
+Two further consequences follow from being derived rather than stored. A record
+created **before #494**
 has no creation event and is **never backfilled**, so its history column is
 blank. And who can see it is exactly who could already read the record — it adds
 no gate of its own, so a worker reading their own daily entry also sees which

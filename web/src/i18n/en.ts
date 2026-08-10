@@ -2046,6 +2046,7 @@ export const en = {
     "auditAction.EggLot.Movement": "Stock written off / recounted",
     "auditAction.Flock.Create": "Flock created",
     "auditAction.DailyEntry.Create": "Daily entry created",
+    "auditAction.DailyEntry.Submit": "Daily entry submitted",
     "auditAction.SalesOrder.Create": "Sales order created",
     "auditAction.Expense.Create": "Expense created",
     "auditAction.EggGrade.Create": "Egg grade created",
@@ -2536,6 +2537,11 @@ export const en = {
       "Flocks, Egg grades, Daily entry history, Sales and Expenses each carry a History column showing who "
       + "created the record and when, plus who last changed it if anyone has. It is read from the same audit "
       + "log, so it needs no extra permission: if you can see the record, you can see its history.",
+    auditRecordHistorySubmit:
+      "Saving a daily entry and submitting it is one act, not a change: do both yourself and the History "
+      + "column names you as the creator with no change against you. If somebody else submits your draft, "
+      + "their submit shows as the last change, so you can always see who made a day's numbers official. "
+      + "Correcting an entry after it is locked always shows, even if you are the one who created it.",
     auditRecordHistoryOlder:
       "Records created before this was added show a blank History column. Nothing is missing — there is "
       + "simply no creation entry in the log for them, and none is invented after the fact.",

@@ -1627,6 +1627,7 @@ export const es = {
     "auditAction.EggLot.Movement": "Existencias dadas de baja / recontadas",
     "auditAction.Flock.Create": "Lote creado",
     "auditAction.DailyEntry.Create": "Registro diario creado",
+    "auditAction.DailyEntry.Submit": "Registro diario enviado",
     "auditAction.SalesOrder.Create": "Pedido de venta creado",
     "auditAction.Expense.Create": "Gasto creado",
     "auditAction.EggGrade.Create": "Grado de huevo creado",
@@ -2131,6 +2132,11 @@ export const es = {
       + "que muestra quién creó el registro y cuándo, más quién lo modificó por última vez si alguien lo "
       + "hizo. Se lee del mismo registro de auditoría, así que no requiere permisos adicionales: si puede "
       + "ver el registro, puede ver su historial.",
+    auditRecordHistorySubmit:
+      "Guardar un registro diario y enviarlo es un solo acto, no un cambio: si haces ambas cosas tú, la "
+      + "columna Historial te muestra como creador y no señala ningún cambio. Si otra persona envía tu "
+      + "borrador, ese envío aparece como el último cambio, así siempre se sabe quién oficializó los "
+      + "números del día. Corregir un registro ya bloqueado siempre se muestra, aunque tú lo hayas creado.",
     auditRecordHistoryOlder:
       "Los registros creados antes de que esto se agregara muestran la columna Historial en blanco. No "
       + "falta nada — simplemente no hay una entrada de creación en el registro para ellos, y no se "

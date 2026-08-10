@@ -1690,6 +1690,7 @@ export const tl = {
     "auditAction.EggLot.Movement": "Na-write off / na-recount ang stock",
     "auditAction.Flock.Create": "Nagawa ang kawan",
     "auditAction.DailyEntry.Create": "Nagawa ang pang-araw-araw na entry",
+    "auditAction.DailyEntry.Submit": "Naisumite ang pang-araw-araw na entry",
     "auditAction.SalesOrder.Create": "Nagawa ang order ng benta",
     "auditAction.Expense.Create": "Nagawa ang gastos",
     "auditAction.EggGrade.Create": "Nagawa ang grado ng itlog",
@@ -2212,6 +2213,12 @@ export const tl = {
       + "kolum na Kasaysayan na nagpapakita kung sino ang gumawa ng record at kailan, at kung sino ang "
       + "huling nagbago kung mayroon man. Galing ito sa parehong audit log, kaya walang kailangang dagdag "
       + "na pahintulot: kung nakikita mo ang record, nakikita mo ang kasaysayan nito.",
+    auditRecordHistorySubmit:
+      "Ang pag-save at pagsumite ng pang-araw-araw na entry ay iisang gawa, hindi pagbabago: kung ikaw "
+      + "mismo ang gumawa ng dalawa, ipinapakita ka ng column na History bilang tagalikha at walang "
+      + "nakalistang pagbabago. Kung iba ang nagsumite ng iyong draft, lalabas ang pagsumite nila bilang "
+      + "huling pagbabago, kaya laging makikita kung sino ang nag-opisyal sa bilang ng araw na iyon. Ang "
+      + "pagwawasto sa naka-lock na entry ay laging ipinapakita, kahit ikaw ang gumawa nito.",
     auditRecordHistoryOlder:
       "Ang mga record na ginawa bago ito idagdag ay may blangkong kolum na Kasaysayan. Walang nawawala — "
       + "wala lang talagang entry ng paggawa sa log para sa kanila, at walang iniimbentong bago pagkatapos.",

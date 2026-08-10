@@ -386,6 +386,7 @@ export function HelpPage() {
       <ul>
         <li>{t("auditLog")}</li>
         <li>{t("auditRecordHistory")}</li>
+        <li>{t("auditRecordHistorySubmit")}</li>
         <li>{t("auditRecordHistoryOlder")}</li>
       </ul>
 

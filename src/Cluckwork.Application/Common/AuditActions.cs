@@ -57,6 +57,11 @@ public static class AuditActions
     public const string EggLotMovement = "EggLot.Movement";
     public const string FlockCreate = "Flock.Create";
     public const string DailyEntryCreate = "DailyEntry.Create";
+    // Submitting mints the egg lots, so it alters stock and belongs in the
+    // trail on its own merits. It is also the ONLY record of who made a day's
+    // numbers official, which #494 shows as the entry's last change whenever
+    // that is someone other than the person who drafted it.
+    public const string DailyEntrySubmit = "DailyEntry.Submit";
     public const string SalesOrderCreate = "SalesOrder.Create";
     public const string ExpenseCreate = "Expense.Create";
     public const string EggGradeCreate = "EggGrade.Create";
