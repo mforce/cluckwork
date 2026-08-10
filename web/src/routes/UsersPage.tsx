@@ -111,6 +111,15 @@ export function UsersPage() {
   // old worker's list or error into the new one (#154 review) — post-await
   // writes commit only while this still matches the request's target.
   const activeUser = useRef<string | null>(null);
+  // Mirrors `openUser` synchronously, for the one read that happens AFTER an
+  // `await` (the displacement guard below). `openAssignments` is async; a
+  // dismissal mid-load re-renders with `openUser=null`, but this function's
+  // own closure keeps whatever `openUser` was at the render it started in —
+  // reading the state itself there is the exact stale-closure shape that
+  // made StockPage's write-off guard silently never fire. Traced safe today
+  // (pi review of #491: every reachable interleaving still evaluates
+  // correctly), but the ref removes the trap for whoever edits this next.
+  const openUserRef = useRef<string | null>(null);
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [assignFlockId, setAssignFlockId] = useState("");
 
@@ -161,7 +170,8 @@ export function UsersPage() {
       // verdict would already be gone, and the failed load's own message
       // lands on the page behind it, about a worker the admin isn't looking
       // at.
-      if (openUser !== null && openUser !== userId) errors.abandon("flock-access");
+      if (openUserRef.current !== null && openUserRef.current !== userId) errors.abandon("flock-access");
+      openUserRef.current = userId;
       setOpenUser(userId);
     } catch (err) {
       if (activeUser.current !== userId) return;
@@ -172,6 +182,7 @@ export function UsersPage() {
 
   function closeAssignments() {
     activeUser.current = null;
+    openUserRef.current = null;
     setOpenUser(null);
     errors.abandon("flock-access");
   }
