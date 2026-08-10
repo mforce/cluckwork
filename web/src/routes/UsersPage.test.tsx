@@ -1366,3 +1366,150 @@ describe("UsersPage step-up authentication (#308)", () => {
     expect(ownerPasswordInput()).toHaveValue("");
   });
 });
+
+// #479 — one slot per PLACE a message can appear. This screen has five dialogs
+// and, before the split, one string behind all of them: every open dialog
+// rendered `{error && …}` unconditionally, so whichever failure happened last
+// appeared inside every form on screen at once.
+describe("UsersPage error placement (#479)", () => {
+  const rowFor = (email: string) => screen.getByRole("row", { name: new RegExp(email) });
+  const openRowDialog = (email: string, action: string) =>
+    fireEvent.click(within(rowFor(email)).getByRole("button", { name: action }));
+
+  it("shows a failed create inside the create dialog only", async () => {
+    mockCreateUser.mockRejectedValue(new ApiError(409, "Conflict", "That email is already registered."));
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText(/Email/), { target: { value: "dup@farm.test" } });
+    fireEvent.change(within(dialog()).getByLabelText(/^Password/), { target: { value: `Pw${Date.now()}!a` } });
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" }));
+    });
+
+    expect(within(dialog()).getByText("That email is already registered.")).toBeInTheDocument();
+    expect(screen.getAllByText("That email is already registered.")).toHaveLength(1);
+  });
+
+  it("shows a failed rename inside the edit dialog only", async () => {
+    mockUpdateUser.mockRejectedValue(new ApiError(422, "Validation failed", "That name is too long."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "edit");
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(within(dialog()).getByText("That name is too long.")).toBeInTheDocument();
+    expect(screen.getAllByText("That name is too long.")).toHaveLength(1);
+  });
+
+  it("shows a failed password reset inside the password dialog only", async () => {
+    mockSetUserPassword.mockRejectedValue(new ApiError(422, "Validation failed", "That password is too weak."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "password");
+    const pw = `Pw${Date.now()}!a`;
+    const fields = within(dialog()).getAllByLabelText(/password/i);
+    fireEvent.change(fields[0], { target: { value: pw } });
+    fireEvent.change(fields[1], { target: { value: pw } });
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" }));
+    });
+
+    expect(within(dialog()).getByText("That password is too weak.")).toBeInTheDocument();
+    expect(screen.getAllByText("That password is too weak.")).toHaveLength(1);
+  });
+
+  it("shows a mismatched password inside the password dialog, not on the page behind", async () => {
+    // Client-side validation, reachable on every mistyped confirmation — not a
+    // race. It is the dialog's own complaint about the dialog's own fields.
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "password");
+    const fields = within(dialog()).getAllByLabelText(/password/i);
+    fireEvent.change(fields[0], { target: { value: `Pw${Date.now()}!a` } });
+    fireEvent.change(fields[1], { target: { value: `Different${Date.now()}!b` } });
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" }));
+    });
+
+    const mismatch = i18n.t("users:passwordMismatchMessage");
+    expect(within(dialog()).getByText(mismatch)).toBeInTheDocument();
+    expect(screen.getAllByText(mismatch)).toHaveLength(1);
+    expect(mockSetUserPassword).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed role change inside the role dialog only", async () => {
+    mockChangeUserRole.mockRejectedValue(new ApiError(409, "Conflict", "That user is the last Owner."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "role");
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
+    });
+
+    expect(within(dialog()).getByText("That user is the last Owner.")).toBeInTheDocument();
+    expect(screen.getAllByText("That user is the last Owner.")).toHaveLength(1);
+  });
+
+  it("shows a failed flock assignment inside the flock dialog only", async () => {
+    mockAssignFlock.mockRejectedValue(new ApiError(409, "Conflict", "That flock is already assigned."));
+    await renderReady(ADMIN);
+    await act(async () => {
+      openRowDialog("worker@farm.test", "flocks");
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+
+    expect(within(dialog()).getByText("That flock is already assigned.")).toBeInTheDocument();
+    expect(screen.getAllByText("That flock is already assigned.")).toHaveLength(1);
+  });
+
+  it("keeps one dialog's failure out of another dialog opened beside it", async () => {
+    // Nothing on this screen enforces one-open-dialog: `editUser` and `pwUser`
+    // are independent state and both row buttons stay live. With one shared
+    // slot the rename's failure rendered inside the password form too — the
+    // #480 finding, on the screen that has five of them.
+    mockUpdateUser.mockRejectedValue(new ApiError(422, "Validation failed", "That name is too long."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "edit");
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    openRowDialog("worker@farm.test", "password");
+
+    const dialogs = screen.getAllByRole("dialog");
+    const password = dialogs.find((d) => within(d).queryByRole("button", { name: "Set password" }))!;
+    expect(within(password).queryByText("That name is too long.")).not.toBeInTheDocument();
+    expect(screen.getAllByText("That name is too long.")).toHaveLength(1);
+  });
+
+  it("keeps a page failure while a dialog opens and its own write fails", async () => {
+    // The flock-assignment READ fails before its dialog can open, so its
+    // message is the screen's. Opening an unrelated form must not swallow it,
+    // and that form's own failure must not replace it.
+    mockListAssignments.mockRejectedValue(new ApiError(500, "Server error", "Could not load flock access."));
+    mockCreateUser.mockRejectedValue(new ApiError(409, "Conflict", "That email is already registered."));
+    await renderReady(ADMIN);
+    await act(async () => {
+      openRowDialog("worker@farm.test", "flocks");
+    });
+    expect(screen.getByText("Could not load flock access.")).toBeInTheDocument();
+
+    openCreate();
+    expect(screen.getByText("Could not load flock access.")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog()).getByLabelText(/Email/), { target: { value: "dup@farm.test" } });
+    fireEvent.change(within(dialog()).getByLabelText(/^Password/), { target: { value: `Pw${Date.now()}!a` } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" }));
+    });
+
+    expect(within(dialog()).getByText("That email is already registered.")).toBeInTheDocument();
+    expect(screen.getByText("Could not load flock access.")).toBeInTheDocument();
+  });
+});

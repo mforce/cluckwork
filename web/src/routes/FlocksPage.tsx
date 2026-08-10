@@ -10,9 +10,11 @@ import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
 import { NumberField } from "../components/NumberField";
 import { StatusBadge } from "../components/StatusBadge";
 import { useConfirm } from "../components/useConfirm";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { useAuth } from "../auth/useAuth";
 import { ageWeeks } from "../lib/dates";
@@ -41,7 +43,10 @@ export function FlocksPage() {
   const { confirm, confirmDialog } = useConfirm();
   const [flocks, setFlocks] = useState<Flock[] | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // #479 — one slot per PLACE a message can appear: the page (mount load and
+  // the bird-ledger read), and each dialog by its own scope.
+  const errors = useDialogErrors();
+  const setPageError = errors.setPage;
   // #236: the flight guard + per-scope spinner state live in the shared hook;
   // this screen keeps only its idempotency-key and refresh discipline below.
   const { busy, isPending, run: runPending } = usePendingAction();
@@ -92,12 +97,19 @@ export function FlocksPage() {
   useEffect(() => {
     fetchFlocks()
       .then(setFlocks)
-      .catch(() => setError(i18n.t("flocks:loadFlocksFailed")));
-  }, [fetchFlocks]);
+      .catch(() => setPageError(i18n.t("flocks:loadFlocksFailed")));
+  }, [fetchFlocks, setPageError]);
 
-  async function run(scope: string, action: (key: string) => Promise<unknown>): Promise<boolean> {
+  // `errorScope` names the DIALOG a failure belongs to; `null` routes it to the
+  // page. Deplete/archive/reactivate run from row buttons, not a dialog, so
+  // they pass `null` — same place the old shared `error` used to render them.
+  async function run(
+    scope: string,
+    errorScope: string | null,
+    action: (key: string) => Promise<unknown>,
+  ): Promise<boolean> {
     const outcome = await runPending(scope, async () => {
-      setError(null);
+      errors.beginAttempt(errorScope);
       try {
         await action(keyFor(scope));
         // Refresh must succeed before the key rotates (grade-management review
@@ -106,7 +118,7 @@ export function FlocksPage() {
         clearKey(scope);
         return true;
       } catch (err) {
-        setError(errorMessage(err));
+        errors.report(errorScope, errorMessage(err));
         return false;
       }
     });
@@ -125,7 +137,7 @@ export function FlocksPage() {
       confirmLabel: i18n.t("flocks:depleteConfirmLabel"),
       destructive: true,
     });
-    if (ok) await run(`deplete:${f.id}`, (key) => depleteFlock(f.id, key));
+    if (ok) await run(`deplete:${f.id}`, null, (key) => depleteFlock(f.id, key));
   }
 
   async function onArchive(f: Flock) {
@@ -135,12 +147,16 @@ export function FlocksPage() {
       confirmLabel: i18n.t("flocks:archiveConfirmLabel"),
       destructive: true,
     });
-    if (ok) await run(`archive:${f.id}`, (key) => archiveFlock(f.id, key));
+    if (ok) await run(`archive:${f.id}`, null, (key) => archiveFlock(f.id, key));
   }
+
+  // Dismissal empties this dialog's slot and mutes the attempt still out, so a
+  // late failure is not reported against a session the user reopened.
+  const closeCreate = () => { setCreating(false); errors.abandon("create"); };
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    const ok = await run("create-flock", (key) =>
+    const ok = await run("create-flock", "create", (key) =>
       createFlock({ name, breed, placementDate: placed, initialCount: count }, key));
     if (ok) {
       setName("");
@@ -151,9 +167,10 @@ export function FlocksPage() {
     }
   }
 
+  const closeEdit = () => { setEditingId(null); errors.abandon("edit"); };
+
   function startEdit(f: Flock) {
-    setError(null);
-    setCreating(false);
+    closeCreate(); // defensive: New flock and Edit are mutually exclusive triggers
     setEditingId(f.id);
     setEditName(f.name);
     setEditBreed(f.breed);
@@ -165,7 +182,7 @@ export function FlocksPage() {
     e.preventDefault();
     const id = editingId;
     if (id === null) return;
-    const ok = await run(`update:${id}`, (key) =>
+    const ok = await run(`update:${id}`, "edit", (key) =>
       updateFlock(id, {
         name: editName, breed: editBreed,
         placementDate: editPlaced, initialCount: editCount,
@@ -177,8 +194,10 @@ export function FlocksPage() {
   // so a slow response for flock A can't render under flock B's heading.
   const ledgerRequest = useRef<string | null>(null);
 
+  const closeRecordMovement = () => { setRecording(false); errors.abandon("record-movement"); };
+
   async function openLedger(id: string) {
-    setRecording(false); // a movement dialog belongs to the ledger that opened it
+    closeRecordMovement(); // a movement dialog belongs to the ledger that opened it
     if (ledgerFlockId === id) {
       setLedgerFlockId(null);
       ledgerRequest.current = null;
@@ -192,7 +211,7 @@ export function FlocksPage() {
       const rows = await listBirdMovements(id, { limit: 50 });
       if (ledgerRequest.current === id) setMovements(rows);
     } catch {
-      if (ledgerRequest.current === id) setError(i18n.t("flocks:loadMovementsFailed"));
+      if (ledgerRequest.current === id) setPageError(i18n.t("flocks:loadMovementsFailed"));
     }
   }
 
@@ -200,7 +219,7 @@ export function FlocksPage() {
     e.preventDefault();
     if (!ledgerFlockId) return;
     const id = ledgerFlockId;
-    const ok = await run(`movement:${id}`, async (key) => {
+    const ok = await run(`movement:${id}`, "record-movement", async (key) => {
       await recordBirdMovement(id, {
         date: mvDate, type: mvType, quantity: mvQty,
         note: mvNote || undefined,
@@ -215,8 +234,8 @@ export function FlocksPage() {
     }
   }
 
-  if (error && flocks === null) {
-    return <section><h2>{t("title")}</h2><p className="error">{error}</p></section>;
+  if (errors.page && flocks === null) {
+    return <section><h2>{t("title")}</h2><p className="error">{errors.page}</p></section>;
   }
   if (flocks === null) {
     return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
@@ -229,7 +248,7 @@ export function FlocksPage() {
     <section>
       <div className="page-head">
         <h2>{t("title")}</h2>
-        <button type="button" onClick={() => { setError(null); setEditingId(null); setCreating(true); }}>
+        <button type="button" onClick={() => { closeEdit(); setCreating(true); }}>
           <Plus size={16} aria-hidden /> {t("newFlockButton")}
         </button>
       </div>
@@ -237,7 +256,7 @@ export function FlocksPage() {
         {t("intro")}
       </p>
 
-      <Dialog open={creating} title={t("newFlockDialogTitle")} onClose={() => setCreating(false)}>
+      <Dialog open={creating} title={t("newFlockDialogTitle")} onClose={closeCreate}>
         <form className="inline-form" onSubmit={onCreate}>
           <label>{t("nameLabel")}
             <input value={name} required maxLength={100}
@@ -259,16 +278,16 @@ export function FlocksPage() {
             <NumberField id={idFor("birds")} label={t("birdsLabel").toLowerCase()}
               value={count} onChange={setCount} min={1} />
           </div>
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("create-flock")} disabled={busy}>{t("addFlockButton")}</BusyButton>
           </div>
         </form>
       </Dialog>
 
       {/* Editing is admin-only, so a role change mid-edit closes it. */}
-      <Dialog open={editingId !== null && isAdmin} title={t("editFlockDialogTitle")} onClose={() => setEditingId(null)}>
+      <Dialog open={editingId !== null && isAdmin} title={t("editFlockDialogTitle")} onClose={closeEdit}>
         {/* noValidate: the row's save used to be a plain button — native
             constraint validation never ran on these fields. */}
         <form className="inline-form" noValidate onSubmit={onSaveEdit}>
@@ -289,9 +308,9 @@ export function FlocksPage() {
             <NumberField id={idFor("edit-count")} label={t("editCountLabel").toLowerCase()}
               value={editCount} onChange={setEditCount} min={1} />
           </div>
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="edit" />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setEditingId(null)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={editingId !== null && isPending(`update:${editingId}`)} disabled={busy}>
               {tc("save")}
             </BusyButton>
@@ -299,8 +318,10 @@ export function FlocksPage() {
         </form>
       </Dialog>
 
-      {/* A dialog renders its own copy of the error; don't double it. */}
-      {error && !creating && editingId === null && !recording && <p className="error">{error}</p>}
+      {/* #479 — unconditional: each dialog now renders its own failure through
+          its own slot (DialogError above), so nothing here can be a stale copy
+          of a dialog's message; this is only ever the page's own. */}
+      {errors.page && <p className="error">{errors.page}</p>}
 
       {archivedCount > 0 && (
         <label className="muted check">
@@ -361,7 +382,7 @@ export function FlocksPage() {
                   {isAdmin && f.status !== "Active" && (
                     // The undo (#57): back to Active, full capture restored.
                     <BusyButton className="link" busy={isPending(`reactivate:${f.id}`)} disabled={busy}
-                      onClick={() => void run(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key))}>
+                      onClick={() => void run(`reactivate:${f.id}`, null, (key) => reactivateFlock(f.id, key))}>
                       {t("reactivateButton")}
                     </BusyButton>
                   )}
@@ -383,12 +404,12 @@ export function FlocksPage() {
           </p>
 
           {isAdmin && (
-            <button type="button" onClick={() => { setError(null); setRecording(true); }}>
+            <button type="button" onClick={() => setRecording(true)}>
               <Plus size={16} aria-hidden /> {t("recordMovementButton")}
             </button>
           )}
 
-          <Dialog open={recording && isAdmin} title={t("recordMovementDialogTitle")} onClose={() => setRecording(false)}>
+          <Dialog open={recording && isAdmin} title={t("recordMovementDialogTitle")} onClose={closeRecordMovement}>
             <form className="inline-form" onSubmit={onRecordMovement}>
               <label>{t("dateLabel")}
                 <input type="date" value={mvDate} max={today}
@@ -412,9 +433,9 @@ export function FlocksPage() {
                 <input value={mvNote} maxLength={500}
                   onChange={(e) => setMvNote(e.target.value)} />
               </label>
-              {error && <p className="error">{error}</p>}
+              <DialogError errors={errors} scope="record-movement" />
               <div className="dialog-foot">
-                <button type="button" className="link" onClick={() => setRecording(false)}>{tc("cancel")}</button>
+                <button type="button" className="link" onClick={closeRecordMovement}>{tc("cancel")}</button>
                 <BusyButton type="submit"
                   busy={ledgerFlockId !== null && isPending(`movement:${ledgerFlockId}`)}
                   disabled={busy || mvQty === 0}>

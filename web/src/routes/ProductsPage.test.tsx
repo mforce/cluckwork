@@ -342,6 +342,91 @@ describe("ProductsPage dialog dismissal", () => {
   });
 });
 
+// #479 — one slot per PLACE a message can appear. ProductsPage has three
+// dialogs (create, edit product, edit conversion); it has no background READ
+// outside the mount load (which blocks the whole screen on failure, so it
+// can never race an open dialog). Deactivate/activate are the screen's other
+// failure source — row writes with no dialog of their own — so they stand in
+// for "the page's own failure" in the isolation tests below.
+describe("ProductsPage error placement (#479)", () => {
+  it("shows a failed create inside the dialog, not on the page behind it", async () => {
+    mockCreate.mockRejectedValue(new ApiError(422, "Validation failed", "Name already used."));
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Jumbo Carton" } });
+    fireEvent.change(within(dialog()).getByLabelText("Grade"), { target: { value: "g1" } });
+    await submitCreate();
+
+    expect(within(dialog()).getByText("Name already used.")).toBeInTheDocument();
+    // Exactly one copy: the page must not render the dialog's message too.
+    expect(screen.getAllByText("Name already used.")).toHaveLength(1);
+  });
+
+  it("shows a failed edit inside the dialog, not on the page behind it", async () => {
+    mockUpdate.mockRejectedValue(new ApiError(409, "Conflict", "Someone else changed this product."));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(within(dialog()).getByText("Someone else changed this product.")).toBeInTheDocument();
+    expect(screen.getAllByText("Someone else changed this product.")).toHaveLength(1);
+  });
+
+  it("shows a failed conversion save inside the dialog, not on the page behind it", async () => {
+    mockUpdateConversion.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Carton/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(within(dialog()).getByText("boom")).toBeInTheDocument();
+    expect(screen.getAllByText("boom")).toHaveLength(1);
+  });
+
+  it("keeps a deactivate failure out of an open create dialog", async () => {
+    // The row stays reachable in the DOM behind a portalled dialog (jsdom
+    // does not enforce the backdrop's visual occlusion), so this is a real
+    // page-scope failure landing while a dialog happens to be open.
+    mockDeactivate.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    await renderReady(ADMIN);
+    openCreate();
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "deactivate" }));
+    });
+
+    expect(within(dialog()).queryByText("boom")).not.toBeInTheDocument();
+    expect(screen.getByText("boom")).toBeInTheDocument();
+  });
+
+  it("keeps a deactivate failure on the page while the create dialog opens and its own write fails", async () => {
+    // Two live messages at once, in their own places. The page's belongs to
+    // the row action the user has not dealt with; the dialog's to the form
+    // in front of them. Neither may erase the other.
+    mockDeactivate.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    mockCreate.mockRejectedValue(new ApiError(422, "Validation failed", "Name already used."));
+    await renderReady(ADMIN);
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "deactivate" }));
+    });
+    await screen.findByText("boom");
+
+    openCreate();
+    expect(screen.getByText("boom")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Jumbo Carton" } });
+    fireEvent.change(within(dialog()).getByLabelText("Grade"), { target: { value: "g1" } });
+    await submitCreate();
+
+    expect(within(dialog()).getByText("Name already used.")).toBeInTheDocument();
+    expect(screen.getByText("boom")).toBeInTheDocument();
+  });
+});
+
 describe("ProductsPage role gating", () => {
   it("renders read-only for a non-admin — no create form, no row actions, no Actions columns", async () => {
     await renderReady(WORKER);

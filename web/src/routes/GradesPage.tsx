@@ -10,7 +10,9 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
@@ -33,7 +35,11 @@ export function GradesPage() {
   // nav link hides for workers; a direct URL just renders the list read-only.
   const { isAdmin } = useAuth();
   const [grades, setGrades] = useState<EggGrade[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // #479 — one slot per PLACE a message can appear: the initial load and the
+  // row-level activate/deactivate writes (neither is behind a dialog) belong
+  // to the page; create and edit each get their own dialog slot.
+  const errors = useDialogErrors();
+  const setPageError = errors.setPage;
   // #236: the flight guard + per-scope spinner state live in the shared hook;
   // this screen keeps only its idempotency-key and refresh discipline below.
   const { busy, isPending, run: runPending } = usePendingAction();
@@ -68,12 +74,16 @@ export function GradesPage() {
   useEffect(() => {
     fetchGrades()
       .then(setGrades)
-      .catch(() => setError(i18n.t("grades:loadGradesFailed")));
-  }, []);
+      .catch(() => setPageError(i18n.t("grades:loadGradesFailed")));
+  }, [setPageError]);
 
-  async function run(scope: string, action: (key: string) => Promise<unknown>): Promise<boolean> {
+  // `dialogScope` names the DIALOG this attempt's failure belongs to — `null`
+  // for the row-level activate/deactivate writes, which sit on the page.
+  async function run(
+    scope: string, dialogScope: string | null, action: (key: string) => Promise<unknown>,
+  ): Promise<boolean> {
     const outcome = await runPending(scope, async () => {
-      setError(null);
+      errors.beginAttempt(dialogScope);
       try {
         await action(keyFor(scope));
         // The refresh must succeed before the key rotates: if it throws, the key
@@ -82,7 +92,7 @@ export function GradesPage() {
         clearKey(scope);
         return true;
       } catch (err) {
-        setError(errorMessage(err));
+        errors.report(dialogScope, errorMessage(err));
         return false;
       }
     });
@@ -93,16 +103,32 @@ export function GradesPage() {
   }
 
   // A dialog opens on a clean form; cancelling keeps whatever was typed until
-  // the next open, so a stray Escape does not throw the entry away.
+  // the next open, so a stray Escape does not throw the entry away. Switching
+  // straight from one dialog to the other (no Cancel in between) abandons the
+  // one being displaced, so its stale verdict cannot resurface next time it
+  // reopens — the direct-switch case `abandon`-on-close alone cannot see.
   function openCreate() {
-    setError(null);
+    if (editingId !== null) errors.abandon(`edit:${editingId}`);
     setEditingId(null);
     setCreating(true);
   }
 
+  // Dismissal empties the dialog's slot and mutes the attempt still out, so a
+  // late failure is not reported against a session the user reopened.
+  function closeCreate() {
+    setCreating(false);
+    errors.abandon("create");
+  }
+
+  function closeEdit() {
+    const id = editingId;
+    setEditingId(null);
+    if (id !== null) errors.abandon(`edit:${id}`);
+  }
+
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    const ok = await run("create-grade", (key) =>
+    const ok = await run("create-grade", "create", (key) =>
       createEggGrade({ name, gradeType, sortOrder, isSaleable }, key));
     if (ok) {
       setName("");
@@ -113,7 +139,7 @@ export function GradesPage() {
   }
 
   function startEdit(g: EggGrade) {
-    setError(null);
+    if (creating) errors.abandon("create");
     setCreating(false);
     setEditingId(g.id);
     setEditName(g.name);
@@ -125,19 +151,17 @@ export function GradesPage() {
     e.preventDefault();
     const id = editingId;
     if (id === null) return;
-    const ok = await run(`update:${id}`, (key) =>
+    const ok = await run(`update:${id}`, `edit:${id}`, (key) =>
       updateEggGrade(id, { name: editName, sortOrder: editSort, isSaleable: editSaleable }, key));
     if (ok) setEditingId(null);
   }
 
-  if (error && grades === null) {
-    return <section><h2>{t("loadingTitle")}</h2><p className="error">{error}</p></section>;
+  if (errors.page && grades === null) {
+    return <section><h2>{t("loadingTitle")}</h2><p className="error">{errors.page}</p></section>;
   }
   if (grades === null) {
     return <section><h2>{t("loadingTitle")}</h2><p className="muted">{tc("loading")}</p></section>;
   }
-
-  const dialogOpen = creating || editingId !== null;
 
   return (
     <section>
@@ -154,7 +178,7 @@ export function GradesPage() {
       </p>
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
-      <Dialog open={creating && isAdmin} title={t("newGradeDialogTitle")} onClose={() => setCreating(false)}>
+      <Dialog open={creating && isAdmin} title={t("newGradeDialogTitle")} onClose={closeCreate}>
         <form className="inline-form" onSubmit={onCreate}>
           <label>{t("nameLabel")}
             <input value={name} required maxLength={50}
@@ -174,15 +198,15 @@ export function GradesPage() {
               onChange={(e) => setIsSaleable(e.target.checked)} />
             {t("saleableLabel")}
           </label>
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("create-grade")} disabled={busy}>{t("addGradeButton")}</BusyButton>
           </div>
         </form>
       </Dialog>
 
-      <Dialog open={editingId !== null && isAdmin} title={t("editGradeDialogTitle")} onClose={() => setEditingId(null)}>
+      <Dialog open={editingId !== null && isAdmin} title={t("editGradeDialogTitle")} onClose={closeEdit}>
         {/* noValidate: the row's save used to be a plain button, so native
             constraint validation never ran on these fields. */}
         <form className="inline-form" noValidate onSubmit={onSaveEdit}>
@@ -199,9 +223,9 @@ export function GradesPage() {
               onChange={(e) => setEditSaleable(e.target.checked)} />
             {t("saleableLabel")}
           </label>
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope={`edit:${editingId}`} />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setEditingId(null)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={editingId !== null && isPending(`update:${editingId}`)} disabled={busy}>
               {tc("save")}
             </BusyButton>
@@ -209,8 +233,9 @@ export function GradesPage() {
         </form>
       </Dialog>
 
-      {/* A dialog carries its own error; showing it here too would double it. */}
-      {error && !dialogOpen && <p className="error">{error}</p>}
+      {/* Unconditional since #479: this slot is the page's alone now, so there
+          is nothing a dialog's own message could double up with. */}
+      {errors.page && <p className="error">{errors.page}</p>}
 
       <table className="data">
         <thead>
@@ -240,12 +265,12 @@ export function GradesPage() {
                       onClick={() => startEdit(g)}>{t("editButton")}</button>
                     {g.active ? (
                       <BusyButton className="link" busy={isPending(`deactivate:${g.id}`)} disabled={busy}
-                        onClick={() => void run(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key))}>
+                        onClick={() => void run(`deactivate:${g.id}`, null, (key) => deactivateEggGrade(g.id, key))}>
                         {t("deactivateButton")}
                       </BusyButton>
                     ) : (
                       <BusyButton className="link" busy={isPending(`activate:${g.id}`)} disabled={busy}
-                        onClick={() => void run(`activate:${g.id}`, (key) => activateEggGrade(g.id, key))}>
+                        onClick={() => void run(`activate:${g.id}`, null, (key) => activateEggGrade(g.id, key))}>
                         {t("activateButton")}
                       </BusyButton>
                     )}
