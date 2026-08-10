@@ -320,9 +320,13 @@ export function HistoryPage() {
         setPageError(i18n.t("history:nothingToAdjustMessage", { status: fresh.status.toLowerCase() }));
       }
     } catch {
-      // The re-read itself failed; the panel is open on stale data, which is
-      // the worst thing to leave unexplained, so this one is un-muted too.
-      errors.beginAttempt("adjust");
+      // The re-read itself failed. Unlike the success path this does NOT
+      // reopen the panel, so there is no un-mute here: if the user kept the
+      // panel open no mute exists (the submit cleared it) and this report
+      // lands on the stale numbers it explains; if they dismissed — or opened
+      // a different entry's adjust, whose displacement abandons this scope —
+      // the mute is exactly what drops a message that would otherwise park in
+      // the closed slot and replay in the next dialog (pi review of #491).
       errors.report("adjust", i18n.t("history:conflictRebindFailedMessage"));
     }
   }

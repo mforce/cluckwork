@@ -1259,4 +1259,60 @@ describe("HistoryPage rebind after a dismissed conflict (#491)", () => {
     expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(120);
     expect(await screen.findByText(/re-apply your correction/)).toBeInTheDocument();
   });
+
+  // The catch is different: a FAILED re-read does not reopen the panel, so
+  // when the user dismissed mid-flight there is no session for the failure
+  // to belong to. Un-muting there anyway parks the message in the closed
+  // "adjust" slot, where the next adjust dialog — any entry's — would replay
+  // it (pi review of #491). The dismissal's mute is the mechanism that drops
+  // it; the catch must not override it.
+  it("drops the rebind-failed message after a dismissal, instead of parking it for the next dialog", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    let rejectReread!: (err: unknown) => void;
+    mockGetDailyEntry.mockReturnValueOnce(
+      new Promise((_resolve, reject) => { rejectReread = reject; }) as never);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    await act(async () => {
+      rejectReread(new ApiError(500, "Server error", "boom"));
+    });
+
+    // Dismissed session's failure lands nowhere (#474)...
+    const failed = i18n.t("history:conflictRebindFailedMessage");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText(failed)).not.toBeInTheDocument();
+
+    // ...and is not replayed into the next session either.
+    fireEvent.click(screen.getByRole("button", { name: "adjust" }));
+    expect(screen.queryByText(failed)).not.toBeInTheDocument();
+  });
+
+  // And when the user did NOT dismiss, the failed re-read's message must
+  // still land in the open panel — it sits on stale numbers, which is the
+  // worst thing to leave unexplained.
+  it("explains a failed re-read inside the panel the user kept open", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    mockGetDailyEntry.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    const dlg = screen.getByRole("dialog");
+    expect(within(dlg).getByText(i18n.t("history:conflictRebindFailedMessage"))).toBeInTheDocument();
+  });
 });
