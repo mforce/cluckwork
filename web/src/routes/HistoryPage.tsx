@@ -11,9 +11,11 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
 import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
 import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
@@ -62,7 +64,11 @@ export function HistoryPage() {
   const [flockFilter, setFlockFilter] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // #479 — one slot per PLACE a message can appear: the setup read and the
+  // void write (a row button, not behind a dialog) belong to the page; the
+  // adjust dialog's failures belong to that form.
+  const errors = useDialogErrors();
+  const setPageError = errors.setPage;
   const [message, setMessage] = useState<string | null>(null);
   // Per-row scopes (adjust:<id> / void:<id>): exactly one control spins while
   // `busy` keeps every other mutating control on the screen inert.
@@ -117,7 +123,7 @@ export function HistoryPage() {
       listEggUnitConversions(),
     ])
       .then(([f, g, units]) => { setFlocks(f); setGrades(g); setEggUnitConversions(units); })
-      .catch(() => setError(i18n.t("history:loadFlocksGradesFailed")));
+      .catch(() => setPageError(i18n.t("history:loadFlocksGradesFailed")));
   }, []);
 
   // #469 — six call sites (the filter effect, load-more, the adjust and void
@@ -166,7 +172,20 @@ export function HistoryPage() {
     return (e.crackedGradeId ? e.crackedEggs : 0) + (e.dirtyGradeId ? e.dirtyEggs : 0);
   };
 
+  // Dismissal empties the dialog's slot and mutes the attempt still out, so a
+  // late failure is not reported against a session the user reopened.
+  const closeAdjust = () => { setAdjusting(null); errors.abandon("adjust"); };
+
   function startAdjust(e: DailyEntry) {
+    // A different entry's adjust DISPLACES this session — it ends without
+    // onClose, so nothing else abandons the fixed "adjust" scope, and the
+    // displaced day's verdict would render under the next day's heading.
+    // Reachable behind the backdrop via a screen reader's virtual cursor
+    // (#480; pi review of #491). Same-id re-entry is deliberately spared: the
+    // session is still about this entry, so its failed save's verdict must
+    // survive the reseed. (The 409 rebind also re-enters same-id, but it
+    // re-arms its own scope before reporting, so it does not depend on this.)
+    if (adjusting !== null && adjusting.id !== e.id) errors.abandon("adjust");
     setAdjusting(e);
     setTotal(e.totalEggs);
     setCracked(e.crackedEggs);
@@ -262,6 +281,20 @@ export function HistoryPage() {
   // winner just added (pi review of PR #81). Only the reason survives; if
   // the entry is no longer correctable (voided meanwhile), close the panel.
   async function rebindAfterConflict(entryId: string) {
+    // This path can REOPEN a panel the user dismissed while the 409's re-read
+    // was still out, and that dismissal muted the scope — so both messages
+    // below would be dropped and the panel would spring back open showing
+    // another admin's numbers with no word of why. Found independently by two
+    // reviewers of #491.
+    //
+    // Un-muting is not a hole in #474. That rule drops the verdict of an
+    // attempt the USER walked away from. This is the app reopening the dialog
+    // uninvited and saying something new — that the entry was rebound — which
+    // is the one thing that makes the reappearance intelligible.
+    //
+    // It has to happen AFTER the re-read, not before: the dismissal that mutes
+    // the scope arrives while that request is out, so un-muting up here would
+    // simply be undone. Each un-mute therefore sits with the report it enables.
     try {
       // No reload here either: this runs from the adjust submit's 409 catch,
       // by which point runWrite has already re-read. A duplicate replacement
@@ -271,25 +304,41 @@ export function HistoryPage() {
         const keptReason = reason;
         startAdjust(fresh);
         setReason(keptReason);
-        setError(i18n.t("history:conflictRebindMessage"));
+        // The dialog is open — either still, or because startAdjust just put it
+        // back — and rebound to the winner's numbers, so this is its message.
+        errors.beginAttempt("adjust");
+        errors.report("adjust", i18n.t("history:conflictRebindMessage"));
       } else {
+        // The panel closes here, not through Cancel — nothing left to abandon,
+        // and the message belongs to the page it lands on.
         setAdjusting(null);
         // .toLowerCase() on the raw wire status is locale-fragile (it only ever
         // reads correctly in English) — tracked as a native-pass deferral
         // (#182); interpolating the lowered value keeps this task
         // text-preserving without solving the shared-component lowercase
         // problem here.
-        setError(i18n.t("history:nothingToAdjustMessage", { status: fresh.status.toLowerCase() }));
+        setPageError(i18n.t("history:nothingToAdjustMessage", { status: fresh.status.toLowerCase() }));
       }
     } catch {
-      setError(i18n.t("history:conflictRebindFailedMessage"));
+      // The re-read itself failed. Unlike the success path this does NOT
+      // reopen the panel, so there is no un-mute here: if the user kept the
+      // panel open no mute exists (the submit cleared it) and this report
+      // lands on the stale numbers it explains; if they dismissed, the mute
+      // is exactly what drops a message that would otherwise park in the
+      // closed slot and replay in the next adjust dialog (pi review of #491).
+      // A displacing open of a DIFFERENT entry's adjust is not a live
+      // alternative here — every adjust trigger is `disabled={busy}`, and
+      // `busy` covers this whole call (it runs inside the submit's own
+      // `run()`), so the only action reachable while this is out is a
+      // dismissal (adversarial review of #491).
+      errors.report("adjust", i18n.t("history:conflictRebindFailedMessage"));
     }
   }
 
   async function onAdjustSubmit(ev: FormEvent) {
     ev.preventDefault();
     if (!adjusting || busy) return;
-    setError(null);
+    errors.beginAttempt("adjust");
     setMessage(null);
     const scope = `adjust:${adjusting.id}`;
     const lines = Object.entries(lineQty)
@@ -301,7 +350,7 @@ export function HistoryPage() {
     // defense in depth rather than the primary gate. Validated before the
     // flight opens: a rejected form never reads as busy.
     if (!gradesReconciled) {
-      setError(i18n.t("history:gradesMustReconcileMessage"));
+      errors.report("adjust", i18n.t("history:gradesMustReconcileMessage"));
       return;
     }
     await run(scope, async () => {
@@ -329,7 +378,7 @@ export function HistoryPage() {
         if (err instanceof ApiError && err.status === 409) {
           await rebindAfterConflict(adjusting.id);
         } else {
-          setError(errText(err));
+          errors.report("adjust", errText(err));
         }
       }
     });
@@ -351,14 +400,19 @@ export function HistoryPage() {
     // indicator from here to settle.
     const scope = `void:${e.id}`;
     await run(scope, async () => {
-      setError(null);
+      // Void is a row action, not behind the adjust dialog — its failure is
+      // the PAGE's.
+      setPageError(null);
       setMessage(null);
       try {
         await entries.runWrite(async () => {
           await voidDailyEntry(e.id, { version: e.version, reason: voidReason }, keyFor(scope));
           settleKey(scope);
           // A stale adjust panel for the now-voided entry would only 409.
-          if (adjusting?.id === e.id) setAdjusting(null);
+          // Abandon (not a plain close): this panel wasn't dismissed by the
+          // user, so its slot must not keep a stale error, or later be
+          // written into after the user has moved on to a different entry.
+          if (adjusting?.id === e.id) { setAdjusting(null); errors.abandon("adjust"); }
           setMessage(i18n.t("history:entryVoidedMessage"));
         });
       } catch (err) {
@@ -367,15 +421,15 @@ export function HistoryPage() {
           // The void lost a race — show what actually stands now. Also close
           // a stale adjust panel for this entry: the 409 path used to leave
           // it bound to pre-conflict values while the success path closed it.
-          if (adjusting?.id === e.id) setAdjusting(null);
+          if (adjusting?.id === e.id) { setAdjusting(null); errors.abandon("adjust"); }
           // No reload of our own — runWrite already re-read in its rejection
           // path — and no claim about how that read went: the message states
           // the conflict, and the list reports its own health through the
           // hook's error banner. Saying more needed the screen to know an
           // outcome it cannot reliably observe (#469).
-          setError(i18n.t("history:voidConflictMessage"));
+          setPageError(i18n.t("history:voidConflictMessage"));
         } else {
-          setError(errText(err));
+          setPageError(errText(err));
         }
       }
     });
@@ -408,7 +462,8 @@ export function HistoryPage() {
   // The setup read (flocks + grades) failing with nothing to show is the one
   // fatal case: without those, every row renders unresolvable ids. `entries`
   // is the hook's handle, so the emptiness test is on its rows.
-  if (error && entries.rows === null) return <section><h2>{t("loadingTitle")}</h2><p className="error">{error}</p></section>;
+  if (errors.page && entries.rows === null)
+    return <section><h2>{t("loadingTitle")}</h2><p className="error">{errors.page}</p></section>;
 
   return (
     <section>
@@ -439,7 +494,7 @@ export function HistoryPage() {
         title={adjusting
           ? t("adjustDialogTitleWithEntry", { date: adjusting.date, flock: flockName(adjusting.flockId) })
           : t("adjustDialogTitle")}
-        onClose={() => setAdjusting(null)}
+        onClose={closeAdjust}
         // Two panes side by side need the room; on a phone the dialog is a
         // full-width sheet and they stack, exactly as the capture screen does.
         wide
@@ -565,9 +620,9 @@ export function HistoryPage() {
                 onChange={(e) => setReason(e.target.value)} />
             </label>
             {/* The 409 rebind reports here, beside the form it asks you to re-apply. */}
-            {error && <p className="error" role="alert">{error}</p>}
+            <DialogError errors={errors} scope="adjust" />
             <div className="dialog-foot">
-              <button type="button" className="link" onClick={() => setAdjusting(null)}>{tc("cancel")}</button>
+              <button type="button" className="link" onClick={closeAdjust}>{tc("cancel")}</button>
               {/* #394: an adjustment has no draft state — Save stays disabled
                   until grading reconciles exactly, the same rule Daily
                   Entry's submit uses. */}
@@ -579,11 +634,16 @@ export function HistoryPage() {
         )}
       </Dialog>
 
-      {/* The dialog carries its own copy while it is up. */}
-      {error && adjusting === null && <p className="error" role="alert">{error}</p>}
+      {/* #479 — unconditional: the adjust dialog's own failures live in their
+          own slot now (see DialogError above), so there is nothing here for a
+          dialog message to double up on, whether the dialog is open or not. */}
+      {errors.page && <p className="error" role="alert">{errors.page}</p>}
       {message && <p className="success" role="status">{message}</p>}
 
-      {entries.error && adjusting === null && (
+      {/* Same reasoning: the list's own health report is the page's, and
+          muting it while the dialog was open used to hide a background
+          failure the dialog had nothing to do with. */}
+      {entries.error && (
         <p className="error" role="alert">{entries.error}</p>
       )}
 
