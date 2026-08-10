@@ -77,6 +77,21 @@ describe("HelpPage", () => {
     expect(screen.getByText(/A spinning button means the save is still working/)).toBeInTheDocument();
   });
 
+  it("says the page behind a popup is out of reach, in every catalog (#482)", () => {
+    // The behaviour: everything except the topmost dialog is inert, so the
+    // background is unreachable by pointer AND by a screen reader — and Escape
+    // closes the dialog the user is in, not every open one.
+    render(<HelpPage />);
+    expect(screen.getByText(/the page behind it/i)).toBeInTheDocument();
+    expect(screen.getByText(/Escape closes the popup you are working in/i)).toBeInTheDocument();
+
+    for (const lng of ["es", "tl"] as const) {
+      const value = i18n.getResource(lng, "help", "dialogsModal") as string;
+      expect(value).toBeTruthy();
+      expect(value).not.toBe(i18n.getResource("en", "help", "dialogsModal"));
+    }
+  });
+
   it("says a failed save explains itself inside the form, in every catalog (#477)", () => {
     // Deliberately the NARROW claim: every dialog screen renders its own
     // failure inside the dialog, so this holds app-wide. The rest of the

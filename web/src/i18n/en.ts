@@ -2156,8 +2156,12 @@ export const en = {
       + "what you typed — reopen it and you start from a blank form. If a save fails, the popup stays open "
       + "with your values and the reason, so you can fix it and try again — retrying is safe, it never "
       + "records the same thing twice.",
+    dialogsModal:
+      "While a popup is open the page behind it <strong>waits</strong>: clicks, the Tab key and a screen "
+      + "reader all stay inside the form, so nothing behind it can be changed by accident, and Escape closes "
+      + "the popup you are working in.",
     dialogsInlineForms:
-      "The screens whose whole job is capture keep their form on the page: <strong>Daily entry</strong>, "
+      "The screens whose whole job is capture keep their form on the page: <strong>Daily entry</strong>,"
       + "<strong>Water</strong>, recording an expense, and adding lines to a draft order. Those you use every "
       + "day — no extra click.",
     dialogsSteppers:

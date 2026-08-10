@@ -1823,6 +1823,10 @@ export const tl = {
       + "nabigo ang pag-save, mananatiling bukas ang popup na kasama ang mga value at ang dahilan mo, "
       + "para maayos mo ito at subukan ulit — ligtas ang muling pagsubok, hindi ito kailanman nagtatala "
       + "ng parehong bagay nang dalawang beses.",
+    dialogsModal:
+      "Habang bukas ang popup, <strong>naghihintay</strong> ang page sa likod nito: ang mga click, ang Tab "
+      + "key at ang screen reader ay nananatili sa loob ng form, kaya walang nababago sa likod nang hindi "
+      + "sinasadya, at isinasara ng Escape ang popup na pinagtatrabahuhan mo.",
     dialogsInlineForms:
       "Ang mga screen na ang buong trabaho ay pagtatala ay pinapanatili ang form sa page mismo: "
       + "<strong>Araw-araw na Tala</strong>, <strong>Tubig</strong>, pagtatala ng gastos, at pagdagdag ng "
