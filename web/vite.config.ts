@@ -168,10 +168,17 @@ export default defineConfig(({ mode }) => {
           // actuals 91.96/89.11/84.62/80.32. Branches rose here rather than
           // fell — the hook concentrates the conditionals that used to be
           // spread across six screens, and they are exhaustively tested.
-          lines: 91,
-          statements: 88,
-          functions: 83,
-          branches: 79,
+          //
+          // Ratcheted after #479 (useDialogErrors + DialogError, then eleven
+          // screens migrated onto them with ~50 new placement tests): actuals
+          // 93.36/90.45/86.78/81.75. Branches rose again for the same reason
+          // #469 did — the conditionals that decided WHERE a message renders
+          // used to be per screen, and are now one tested hook plus one tested
+          // component. Floors keep the usual ~1.3pt headroom.
+          lines: 92,
+          statements: 89,
+          functions: 85,
+          branches: 80,
           // high-water locks on the fully-covered foundation (AST-aware
           // counting surfaces statements/branches the old remapper credited
           // for free, so the 100s that survived stay; the rest pin to the

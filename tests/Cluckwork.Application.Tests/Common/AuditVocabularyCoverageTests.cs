@@ -90,6 +90,13 @@ public sealed class AuditVocabularyCoverageTests
     private static List<AuditCallSite> FindCallSites()
     {
         var callSites = new List<AuditCallSite>();
+        // Every call an exemption waved through, keyed by that exemption. The
+        // exemption names ONE call, and is verified below to have matched
+        // exactly one — see KnownIndirectActionCallSites.
+        var exempted = new Dictionary<(string File, string Parameter), List<(int Line, int Index, string Searchable)>>();
+        // Non-declaration calls of the exempted forwarder, per file — so the
+        // companion caller-check below can be proven non-vacuous.
+        var forwarderCallCounts = new Dictionary<string, int>();
         var srcRoot = Path.Combine(RepositoryRoot, "src");
         var separator = Path.DirectorySeparatorChar;
 
@@ -128,7 +135,35 @@ public sealed class AuditVocabularyCoverageTests
                     var (args, _) = SplitTopLevelArguments(source, call.Index + call.Length);
                     var line = source[..call.Index].Count(c => c == '\n') + 1;
 
-                    AssertActionIsRegistryReference(relativePath, line, args[0]);
+                    // The exemption is keyed on the ACTION ARGUMENT ITSELF —
+                    // the forwarded parameter identifier — not on which method
+                    // the call sits in. An earlier version derived the
+                    // enclosing method with a declaration regex, and codex
+                    // (#492, twice) showed that shape is a trap: C# member
+                    // declarations the regex missed (generic methods,
+                    // modifier-less members, explicit interface
+                    // implementations) attributed their calls to the PREVIOUS
+                    // declaration, so a call could inherit the exemption — and
+                    // with the legitimate forwarding call removed, even an
+                    // exactly-one count stayed green. Matching the argument
+                    // text needs no notion of member declarations at all.
+                    //
+                    // The CALL INDEX rides along so the post-walk check can
+                    // require the exempted call to sit inside the forwarder's
+                    // own brace-matched body — without it, deleting the real
+                    // forwarding call and introducing a variable of the same
+                    // name in some other method would keep the count at one.
+                    var normalizedAction = Regex.Replace(args[0], @"\s+", " ").Trim();
+                    if (KnownIndirectActionCallSites.Contains((relativePath, normalizedAction)))
+                    {
+                        if (!exempted.TryGetValue((relativePath, normalizedAction), out var hits))
+                            exempted[(relativePath, normalizedAction)] = hits = [];
+                        hits.Add((line, call.Index, searchable));
+                    }
+                    else
+                    {
+                        AssertActionIsRegistryReference(relativePath, line, args[0]);
+                    }
                     callSites.Add(
                         new AuditCallSite(relativePath, line, ResolveEntityType(relativePath, line, args[1])));
                 }
@@ -155,6 +190,9 @@ public sealed class AuditVocabularyCoverageTests
                 if (afterArgs < searchable.Length && searchable[afterArgs] == '{')
                     continue;
 
+                forwarderCallCounts[relativePath] =
+                    forwarderCallCounts.GetValueOrDefault(relativePath) + 1;
+
                 // (user, newPassword, auditAction, reason, details[, ct]) — every
                 // call site today uses positional arguments, so index 2 is
                 // auditAction. A caller that switched to named arguments would
@@ -164,11 +202,110 @@ public sealed class AuditVocabularyCoverageTests
                 Assert.True(args.Length >= 3,
                     $"{relativePath}:{line} — ResetPasswordAndRevokeAsync call has fewer than 3 arguments; " +
                     "expected (user, newPassword, auditAction, ...).");
+                // Never exempt: these are the CALLERS of the one exempted
+                // forwarder, and they are precisely what has to keep passing a
+                // registry member.
                 AssertActionIsRegistryReference(relativePath, line, args[2]);
             }
         }
 
+        // The exemption names ONE call, so hold it to exactly one — and hold the
+        // rest of its story together too. Three assertions per exemption, each
+        // there because losing it was shown (codex, #492, two rounds) to open a
+        // path a mutation had "proven" closed:
+        //
+        //   1. EXACTLY ONE WriteAsync forwards the documented identifier. More
+        //      than one: a new dynamic call reusing the name is being accepted
+        //      unreviewed. Zero: the exemption is stale and reads as a live,
+        //      reviewed decision while guarding nothing.
+        //   2. The file still DECLARES the forwarder with that identifier as a
+        //      string parameter. Without this, moving the forwarding call into
+        //      some other method whose parameter happens to share the name
+        //      would keep the count at one while detaching the exemption from
+        //      the caller-check that justifies it.
+        //   3. The caller-check actually ran — at least one non-declaration
+        //      call of the forwarder was found and its action argument
+        //      registry-checked. A renamed forwarder would otherwise make that
+        //      companion loop silently match nothing, and the whole exemption
+        //      would rest on a check that no longer executes.
+        foreach (var (file, parameter) in KnownIndirectActionCallSites)
+        {
+            var matched = exempted.TryGetValue((file, parameter), out var hits) ? hits : [];
+            Assert.True(matched.Count == 1,
+                $"The indirect-action exemption for {file} (forwarded identifier '{parameter}') must cover "
+                + $"EXACTLY ONE audit.WriteAsync call, but matched {matched.Count} "
+                + $"(lines: {(matched.Count == 0 ? "none" : string.Join(", ", matched.Select(h => h.Line)))}). "
+                + "Zero means the exemption is stale; more than one means a new dynamic call site is "
+                + "being accepted unreviewed — give it a registry constant instead.");
+
+            // The one exempted call must sit INSIDE the forwarder's own body.
+            // Without this, deleting the real forwarding call and introducing a
+            // variable of the same name in some other method keeps the count at
+            // one while detaching the exemption from the caller-side check that
+            // justifies it (codex, #492 round 2). BodySpanOf brace-matches ONE
+            // known method's body — a depth counter over comment-stripped text,
+            // the same machinery SplitTopLevelArguments already trusts — rather
+            // than attempting general member parsing, which is the mistake the
+            // two retired key shapes shared.
+            var (hitLine, hitIndex, searchableSource) = matched[0];
+            var body = BodySpanOf(searchableSource, "ResetPasswordAndRevokeAsync", parameter);
+            Assert.True(body is not null,
+                $"{file} no longer declares ResetPasswordAndRevokeAsync with a 'string {parameter}' "
+                + "parameter. The exemption is justified by that forwarder's callers being checked; "
+                + "if the forwarder was renamed or reshaped, rewrite the exemption to match.");
+            Assert.True(hitIndex > body!.Value.Start && hitIndex < body.Value.End,
+                $"{file}:{hitLine} — the exempted WriteAsync forwarding '{parameter}' is OUTSIDE "
+                + "ResetPasswordAndRevokeAsync's body. The exemption covers that method's single "
+                + "forwarding call and nothing else; a call elsewhere must reference AuditActions.");
+
+            Assert.True(forwarderCallCounts.GetValueOrDefault(file) >= 1,
+                $"No non-declaration call of ResetPasswordAndRevokeAsync was found in {file} — the "
+                + "caller-side registry check ran zero times, so the exemption is resting on a check "
+                + "that never executed.");
+        }
+
         return callSites;
+    }
+
+    // The half-open span of `methodName`'s brace-delimited body in
+    // comment-stripped source, or null when no declaration carrying
+    // `string <parameter>` in its parameter list exists. Finds the declaration
+    // by shape (name, then a parameter list containing the forwarded parameter,
+    // then '{'), then walks braces with the same string-aware depth counting
+    // SplitTopLevelArguments uses. Deliberately handles exactly one method —
+    // this is not, and must not grow into, a general C# member parser.
+    private static (int Start, int End)? BodySpanOf(string searchable, string methodName, string parameter)
+    {
+        foreach (Match declaration in Regex.Matches(searchable, $@"\b{Regex.Escape(methodName)}\s*\("))
+        {
+            var (parameters, endIndex) = SplitTopLevelArguments(searchable, declaration.Index + declaration.Length);
+            if (!parameters.Any(p => Regex.IsMatch(p, $@"\bstring\s+{Regex.Escape(parameter)}\b")))
+                continue;
+
+            var i = endIndex;
+            while (i < searchable.Length && char.IsWhiteSpace(searchable[i])) i++;
+            if (i >= searchable.Length || searchable[i] != '{')
+                continue; // a call, or an expression-bodied member — not the declaration
+
+            var depth = 0;
+            var inString = false;
+            for (var j = i; j < searchable.Length; j++)
+            {
+                var c = searchable[j];
+                if (inString)
+                {
+                    if (c == '\\') { j++; continue; }
+                    if (c == '"') inString = false;
+                    continue;
+                }
+                if (c == '"') { inString = true; continue; }
+                if (c == '{') depth++;
+                else if (c == '}' && --depth == 0)
+                    return (i, j);
+            }
+        }
+
+        return null;
     }
 
     // Replaces `//` and `/* */` comment content with same-length whitespace, so
@@ -286,13 +423,32 @@ public sealed class AuditVocabularyCoverageTests
     // THOSE call sites pass an AuditActions member (AuditActions.UserPasswordSet
     // / AuditActions.UserBreakGlassReset respectively), so the value reaching
     // WriteAsync here is always a registry member, one call frame removed from
-    // this line — verified by reading, not assumed. Keyed by file+LINE (not
-    // just file) so moving this call even one line, or a new dynamic call site
-    // appearing anywhere else, fails this test and forces a human to
-    // re-confirm the exemption still applies rather than silently widening.
-    private static readonly HashSet<(string File, int Line)> KnownIndirectActionCallSites =
+    // this line — verified by reading, not assumed.
+    //
+    // Keyed by file + the FORWARDED IDENTIFIER — the exact text of the action
+    // argument at the one exempted call. The key has been through three shapes,
+    // each retired by a demonstrated failure:
+    //
+    //   file + line: broke twice in one branch from unrelated insertions above
+    //   it, and its failure message invited renumbering on faith.
+    //
+    //   file + enclosing method, derived by a declaration REGEX: codex (#492)
+    //   showed the regex misattributes calls in members it cannot parse
+    //   (generic methods, modifier-less members, explicit interface
+    //   implementations) to the PREVIOUS declaration — so a dynamic call could
+    //   inherit the exemption, and with the legitimate forwarding call removed,
+    //   even an exactly-one count stayed green. Parsing C# member boundaries
+    //   with a regex was the mistake; two rounds of patching it did not fix
+    //   that, per the two-misses rule.
+    //
+    //   file + forwarded identifier (this shape): needs no notion of members at
+    //   all. A call is exempt only if its action argument is EXACTLY this
+    //   identifier, in this file. FindCallSites then holds the story together:
+    //   exactly one such call, the forwarder still declares the identifier as a
+    //   string parameter, and the forwarder's callers were actually checked.
+    private static readonly HashSet<(string File, string Parameter)> KnownIndirectActionCallSites =
     [
-        ("Cluckwork.Infrastructure/Identity/IdentityProvider.cs", 759),
+        ("Cluckwork.Infrastructure/Identity/IdentityProvider.cs", "auditAction"),
     ];
 
     // Fails closed on anything but a direct AuditActions.X reference, a
@@ -303,8 +459,6 @@ public sealed class AuditVocabularyCoverageTests
     // therefore the coverage check above).
     private static void AssertActionIsRegistryReference(string file, int line, string actionArg)
     {
-        if (KnownIndirectActionCallSites.Contains((file, line))) return;
-
         var normalized = Regex.Replace(actionArg, @"\s+", " ").Trim();
         var isDirectReference = Regex.IsMatch(normalized, @"^AuditActions\.\w+$");
         var isTernaryOfReferences = Regex.IsMatch(

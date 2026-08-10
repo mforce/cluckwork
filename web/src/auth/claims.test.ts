@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { currentUserRole, currentUserIsAdmin, currentUserMustChangePassword } from "./claims";
+import { currentUserId, currentUserRole, currentUserIsAdmin, currentUserMustChangePassword } from "./claims";
 import { setStoredToken, setRawAccessToken } from "../test/jwt";
 
 // localStorage is reset after every test in src/test/setup.ts (single source of
@@ -129,5 +129,43 @@ describe("currentUserMustChangePassword", () => {
   it("a malformed token decodes to false, same as the other claim decoders", () => {
     setRawAccessToken("not-a-jwt");
     expect(currentUserMustChangePassword()).toBe(false);
+  });
+});
+
+// #356 (local review of #492, round 5-10) — the token's standard "sub" claim,
+// used by UsersPage's self-target guard so it does not depend on the separate,
+// failable /me fetch. Untested until this review caught it: a mutant that
+// returned a non-null garbage id on a missing/malformed "sub" survived every
+// other test file, and that id feeds a security-adjacent UI decision (hiding
+// Disable/Enable on the caller's own row) — a wrong non-null value there is
+// the dangerous direction, not just a display glitch.
+describe("currentUserId", () => {
+  it("returns null when no token is stored", () => {
+    expect(currentUserId()).toBeNull();
+  });
+
+  it("returns the sub claim when present", () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    expect(currentUserId()).toBe("u1");
+  });
+
+  it("returns null when the sub claim is absent", () => {
+    setStoredToken({ role: "Admin" });
+    expect(currentUserId()).toBeNull();
+  });
+
+  it("returns null when the sub claim is an empty string", () => {
+    setStoredToken({ sub: "", role: "Admin" });
+    expect(currentUserId()).toBeNull();
+  });
+
+  it("returns null when the sub claim is not a string", () => {
+    setStoredToken({ sub: 12345, role: "Admin" });
+    expect(currentUserId()).toBeNull();
+  });
+
+  it("a malformed token decodes to null, same as the other claim decoders", () => {
+    setRawAccessToken("not-a-jwt");
+    expect(currentUserId()).toBeNull();
   });
 });

@@ -571,6 +571,207 @@ describe("InventoryPage role gating", () => {
   });
 });
 
+describe("InventoryPage errors scoped per dialog (#479)", () => {
+  it("renders the create dialog's own failure inside it, not on the page", async () => {
+    mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "create boom"));
+    await renderReady(ADMIN);
+    const form = openDialog("New item");
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "X" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
+    });
+    expect(within(dialog()).getByText("create boom")).toBeInTheDocument();
+    expect(screen.getAllByText("create boom")).toHaveLength(1);
+  });
+
+  it("renders the edit dialog's own failure inside it, not on the page", async () => {
+    mockUpdate.mockRejectedValueOnce(new ApiError(500, "Server error", "edit boom"));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("edit boom")).toBeInTheDocument();
+    expect(screen.getAllByText("edit boom")).toHaveLength(1);
+  });
+
+  it("renders the purchase dialog's own failure inside it, not on the page", async () => {
+    mockPurchase.mockRejectedValueOnce(new ApiError(500, "Server error", "purchase boom"));
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+    expect(within(dialog()).getByText("purchase boom")).toBeInTheDocument();
+    expect(screen.getAllByText("purchase boom")).toHaveLength(1);
+  });
+
+  it("renders the correction dialog's own failure inside it, not on the page", async () => {
+    mockListLots.mockResolvedValue([LOT]);
+    mockAdjust.mockRejectedValueOnce(new ApiError(500, "Server error", "adjust boom"));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    const form = openDialog("Correct stock");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "-5" } });
+    fireEvent.change(within(form).getByLabelText(/Reason/), { target: { value: "spillage" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record correction" }));
+    });
+    expect(within(dialog()).getByText("adjust boom")).toBeInTheDocument();
+    expect(screen.getAllByText("adjust boom")).toHaveLength(1);
+  });
+
+  // The reachable bug: nothing on this screen closes one dialog when another
+  // opens except the create/edit pair, so a create dialog and the purchase
+  // dialog can be open at once. The quantity guard fires on every wrong
+  // keystroke — no race needed — and with ONE shared error slot its message
+  // used to leak into whichever other dialog happened to be open too.
+  // Bypasses the HTML min constraint via a direct submit, same technique as
+  // the WaterPage/FeedPage siblings (a real click never reaches the handler).
+  it("keeps the purchase quantity validation message inside the purchase dialog, not another open dialog or the page", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(screen.getByRole("button", { name: "New item" })); // left open
+    await openItem(PACKAGING);
+    fireEvent.click(screen.getByRole("button", { name: "Record purchase" }));
+    const purchaseDialog = screen.getByRole("dialog", { name: /Record purchase/ });
+
+    fireEvent.change(within(purchaseDialog).getByLabelText(/Quantity/), { target: { value: "-1" } });
+    const form = within(purchaseDialog).getByRole("button", { name: "Record purchase" }).closest("form")!;
+    await act(async () => { fireEvent.submit(form); });
+
+    expect(within(purchaseDialog).getByText("Quantity must be a positive number.")).toBeInTheDocument();
+    expect(screen.getAllByText("Quantity must be a positive number.")).toHaveLength(1);
+    expect(mockPurchase).not.toHaveBeenCalled();
+  });
+
+  // Displacement: the edit scope is per-item (`edit:${id}`), so a switch
+  // straight from item A's failed edit to item B leaves A's verdict parked in
+  // a slot nothing currently renders — until A's edit is REOPENED, which
+  // would replay a dead session's failure into a fresh one (pi review of
+  // #491). The row buttons behind the backdrop stay reachable to a screen
+  // reader's virtual cursor (#480).
+  it("does not replay a failed edit when that item's dialog is reopened after switching items", async () => {
+    mockUpdate.mockRejectedValueOnce(new ApiError(500, "Server error", "edit boom"));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("edit boom")).toBeInTheDocument();
+
+    // Switch straight to Egg Cartons' edit — no Cancel in between.
+    fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "edit" }));
+    expect(within(dialog()).getByLabelText(/Item name/)).toHaveValue("Egg Cartons");
+    expect(screen.queryByText("edit boom")).not.toBeInTheDocument();
+
+    // Cancel, then reopen Layer Feed: a new session, no stale verdict.
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "edit" }));
+    expect(within(dialog()).getByLabelText(/Item name/)).toHaveValue("Layer Feed");
+    expect(screen.queryByText("edit boom")).not.toBeInTheDocument();
+  });
+
+  // The purchase/adjust dialogs are bound to the ACTIVE item's panel, so
+  // opening another item's panel COULD rebind an open dialog to the new item
+  // in place — title changes, nothing else does — leaving a stale quantity
+  // and someone else's verdict sitting in a form that now claims to be about
+  // a different item. `onOpen` closes both dialogs on a genuine item switch
+  // instead (adversarial review of #491: rebinding silently is worse than
+  // closing, since the leftover values are one Enter away from a purchase
+  // recorded against the wrong item).
+  it("closes an open purchase dialog, instead of rebinding it, when a different item is opened", async () => {
+    mockPurchase.mockRejectedValueOnce(new ApiError(500, "Server error", "purchase boom"));
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+    expect(within(dialog()).getByText("purchase boom")).toBeInTheDocument();
+
+    await openItem(FEED);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("purchase boom")).not.toBeInTheDocument();
+  });
+
+  // Re-opening the SAME still-active item is not a displacement — the panel
+  // heading re-renders (loadLedger runs again) but the open purchase dialog,
+  // and whatever the user has typed into it, must survive.
+  it("keeps an open purchase dialog and its typed values when the same item is opened again", async () => {
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+
+    // Not openItem(PACKAGING): its heading wait would collide with the still-
+    // open dialog's own title naming the same item.
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "open" }));
+    });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText(/Quantity/)).toHaveValue(3);
+  });
+
+  // The panel's own Close button (`setActive(null)`) does not run the
+  // onOpen guard — `active` is already null when a DIFFERENT item is opened
+  // next, so an id comparison alone would miss it and the purchase dialog
+  // would spring back open over the new item, stale quantity and all.
+  it("does not resurrect a purchase dialog for a new item after the panel was closed and reopened elsewhere", async () => {
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+
+    // The PANEL's own close link ("close", lowercase) — not the purchase
+    // dialog's own "X" (accessible name "Close"), which already runs
+    // `closePurchase` via `onClose` and would pass this test regardless of
+    // the guard under test.
+    fireEvent.click(screen.getByRole("button", { name: "close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await openItem(FEED);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps a background ledger-read failure off an open dialog and puts it on the page instead", async () => {
+    mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
+    await renderReady(ADMIN);
+    const createDialogEl = openDialog("New item");
+    const row = screen.getByRole("row", { name: /Layer Feed/ });
+    await act(async () => {
+      fireEvent.click(within(row).getByRole("button", { name: "open" }));
+    });
+
+    expect(await screen.findByText("Could not load the movement ledger.")).toBeInTheDocument();
+    expect(within(createDialogEl).queryByText("Could not load the movement ledger.")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Could not load the movement ledger.")).toHaveLength(1);
+  });
+
+  it("keeps a page failure visible after opening a dialog and running a failing dialog write", async () => {
+    mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
+    mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "create boom"));
+    await renderReady(ADMIN);
+
+    const row = screen.getByRole("row", { name: /Layer Feed/ });
+    await act(async () => {
+      fireEvent.click(within(row).getByRole("button", { name: "open" }));
+    });
+    expect(await screen.findByText("Could not load the movement ledger.")).toBeInTheDocument();
+
+    const form = openDialog("New item");
+    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "X" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
+    });
+
+    expect(screen.getByText("Could not load the movement ledger.")).toBeInTheDocument();
+    expect(within(dialog()).getByText("create boom")).toBeInTheDocument();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // i18n wiring (#182, Task 16, batch B3 — the biggest B3 screen)
 // ---------------------------------------------------------------------------

@@ -1161,16 +1161,23 @@ export const tl = {
     stepUpCreateHint: "Ang paggawa ng isa pang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpResetHint: "Ang pag-reset ng password ng isang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpRoleHint: "Ang pag-promote ng isang tao bilang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    // #356 — walang kondisyong muling pagkumpirma (machine-drafted, pending native review)
+    stepUpDisableHint: "Ang pag-disable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpEnableHint: "Ang muling pag-enable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
 
     // Users table
     emailColumnHeader: "Email",
     nameColumnHeader: "Pangalan",
     roleColumnHeader: "Tungkulin",
+    statusColumnHeader: "Katayuan",
     editButton: "i-edit",
     resetPasswordButton: "password",
     changeRoleButton: "tungkulin",
     changeRoleSubmitButton: "Palitan ang tungkulin",
     flocksButton: "mga kawan",
+    disabledBadge: "Naka-disable",
+    disableButton: "i-disable",
+    enableButton: "i-enable",
 
     // Flock-access dialog
     flockAccessTitle: "Access sa kawan — {{email}}",
@@ -1205,12 +1212,25 @@ export const tl = {
       + "Owner ng account, at hindi mo mapapalitan ang sarili mong "
       + "tungkulin — humingi ng tulong sa ibang Owner.",
 
+    // #356 — ang iisang disable/enable dialog (machine-drafted, pending
+    // native review): ang dialog mismo ANG kumpirmasyon.
+    disableStepUpTitle: "I-disable — {{email}}",
+    enableStepUpTitle: "I-enable — {{email}}",
+    disableSubmitButton: "I-disable",
+    enableSubmitButton: "I-enable",
+    disableWarningBody:
+      "Ma-si-sign out sila sa lahat ng device kaagad at hindi na "
+      + "makakapag-sign in hangga't hindi mo sila na-e-enable ulit.",
+    disableReasonFieldLabel: "Dahilan (opsyonal)",
+
     // Imperative messages
     createSuccessMessage: "Nagawa ang {{role}} account para sa {{email}}.",
     passwordMismatchMessage: "Hindi magkatugma ang mga password.",
     passwordSetMessage: "Naitakda ang password para sa {{email}}. Na-sign out na sila sa lahat ng lugar.",
     updatedMessage: "Na-update ang {{email}}.",
     roleChangedMessage: "Si {{email}} ay {{role}} na ngayon.",
+    userDisabledMessage: "Na-disable si {{email}}.",
+    userEnabledMessage: "Na-enable ulit si {{email}}.",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
@@ -1649,6 +1669,8 @@ export const tl = {
     "auditAction.User.PasswordChanged": "Napalitan ang password",
     "auditAction.User.BreakGlassReset": "Emergency na pag-reset ng password",
     "auditAction.User.RoleChanged": "Binago ang tungkulin",
+    "auditAction.User.Disabled": "Na-disable ang user",
+    "auditAction.User.Enabled": "Na-enable ang user",
     "auditAction.User.FlockAssign": "Na-assign ang kawan sa user",
     "auditAction.User.FlockUnassign": "Na-unassign ang kawan mula sa user",
     "auditAction.Account.Export": "Na-export ang datos",
@@ -1744,9 +1766,12 @@ export const tl = {
       + "<strong>I-reload</strong>, o <strong>Bumalik sa dashboard</strong> at subukan ulit. Kung "
       + "paulit-ulit itong nangyayari, buksan ang \"Mga detalye ng error\" at magpadala ng screenshot.",
     gettingAroundWhereMessagesAppear:
-      "Kung nabigo ang pag-save, sinasabi ng form kung bakit <strong>sa loob mismo ng form</strong>, katabi ng "
-      + "mga field na tinutukoy nito — at nananatili itong bukas, para maitama mo at masubukan ulit nang hindi "
-      + "nawawala ang tinipa mo.",
+      "Ang mensahe tungkol sa isang bagay na nabigo ay lumalabas <strong>kung nasaan ang trabaho</strong>: "
+      + "kung pumupuno ka ng pop-up na form, lalabas ito sa loob ng form na iyon, katabi ng mga field na "
+      + "tinutukoy nito; kung ang screen mismo ang nabigo — halimbawa, isang listahang hindi ma-load — lalabas "
+      + "ito sa screen sa likod. Kaya't ang isang form na ayaw mag-save ay laging nagsasabi kung bakit nang "
+      + "hindi nagsasara. Kapag isinara mo ang form, nawawala ang mensahe nito: tapos na ang pagsubok na iyon, "
+      + "at nananatili ang anumang iniulat ng screen mismo.",
 
     signingInHeading: "Pag-sign in",
     signingInBasic:
@@ -1784,13 +1809,15 @@ export const tl = {
       + "naisasagawa ang hakbang na iyon sa setup, sinasabi ito sa iyo kapag sinubukan mong mag-sign in at "
       + "itinuturo ka sa kung sino ang nangangasiwa ng server, sa halip na sabihing mali ang iyong mga detalye.",
     // #308 (machine-drafted, pending native review)
+    // #308/#356 (machine-drafted, pending native review)
     signingInStepUp:
-      "May tatlong aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
+      "May limang aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
       + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng isa pang Owner, ang pag-reset "
-      + "ng password ng isang umiiral na Owner, at ang pag-promote ng isang tao maging Owner. Kinukumpirma "
-      + "nito na ikaw talaga bago bigyan ng ganoong kalaking access — walang ibang aksyon sa screen na iyon "
-      + "(paggawa ng Worker/Manager/Sales/Read-only user, pag-reset ng password nila, pagbabago ng tungkulin "
-      + "ng iba tungo sa hindi Owner) ang muling nagtatanong.",
+      + "ng password ng isang umiiral na Owner, ang pag-promote ng isang tao maging Owner, at — anuman ang "
+      + "tungkulin ng target — ang pag-disable o muling pag-enable ng isang user. Kinukumpirma nito na ikaw "
+      + "talaga bago bigyan ng ganoong kalaking access o bago alisin ito sa iba — walang ibang aksyon sa "
+      + "screen na iyon (paggawa ng Worker/Manager/Sales/Read-only user, pag-reset ng password nila, "
+      + "pagbabago ng tungkulin ng iba tungo sa hindi Owner) ang muling nagtatanong.",
     signingInCredentialEpoch:
       "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
       + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
@@ -1846,6 +1873,15 @@ export const tl = {
       + "pagbabago ng tungkulin ay nag-si-sign out sa apektadong sign-in kahit saan sa susunod nitong "
       + "request, gaya ng pag-reset ng password. Nakatago ang mga control na hindi mo puwedeng gamitin, at "
       + "tinatanggihan pa rin ito ng server.",
+    // #356 (machine-drafted, pending native review)
+    rolesDisableUser:
+      "Ang <strong>pag-disable ng sign-in</strong> (Users screen, Admin/owner lang) ay agad na pumuputol ng "
+      + "access — bawat bukas na session ng taong iyon ay natatapos sa susunod nitong request, gaya rin ng "
+      + "pagbabago ng tungkulin o pag-reset ng password. Opsyonal ang dahilan, at kahit alin pa, napupunta "
+      + "ito sa audit log. Ibinabalik ng <strong>Muling i-enable</strong> ang kanyang kakayahang mag-sign "
+      + "in, pero hindi na buhayin pa ang mga session na natapos ng pag-disable — mag-si-sign in sila ulit "
+      + "gamit ang kasalukuyan nilang password. Hindi mo puwedeng i-disable ang sarili mong sign-in, at "
+      + "hindi mo puwedeng i-disable ang huling Admin (may-ari) ng account.",
     ownPassword:
       "<strong>Ang sarili mong password.</strong> Kahit sino, sa kahit anong tungkulin, ay puwedeng "
       + "magpalit ng sariling password sa screen na <strong>Account</strong> sa pamamagitan ng pag-enter ng "
@@ -1872,6 +1908,10 @@ export const tl = {
       + "nabigo ang pag-save, mananatiling bukas ang popup na kasama ang mga value at ang dahilan mo, "
       + "para maayos mo ito at subukan ulit — ligtas ang muling pagsubok, hindi ito kailanman nagtatala "
       + "ng parehong bagay nang dalawang beses.",
+    dialogsModal:
+      "Habang bukas ang popup, <strong>naghihintay</strong> ang page sa likod nito: ang mga click, ang Tab "
+      + "key at ang screen reader ay nananatili sa loob ng form, kaya walang nababago sa likod nang hindi "
+      + "sinasadya, at isinasara ng Escape ang popup na pinagtatrabahuhan mo.",
     dialogsInlineForms:
       "Ang mga screen na ang buong trabaho ay pagtatala ay pinapanatili ang form sa page mismo: "
       + "<strong>Araw-araw na Tala</strong>, <strong>Tubig</strong>, pagtatala ng gastos, at pagdagdag ng "
@@ -2413,10 +2453,11 @@ export const tl = {
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:
       "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng isa pang Owner, mag-reset ng "
-      + "password ng umiiral na Owner, o mag-promote ng isang tao maging Owner, hinihiling ng Users screen "
-      + "na muling ilagay ang kasalukuyan mong password mismo sa dialog. Kinukumpirma nito na ikaw talaga "
-      + "bago bigyan ng ganoong kalaking access — walang ibang aksyon sa screen na iyon ang muling "
-      + "nagtatanong.",
+      + "password ng umiiral na Owner, mag-promote ng isang tao maging Owner, o mag-disable o mag-enable "
+      + "ulit ng kahit sinong user, hinihiling ng Users screen na muling ilagay ang kasalukuyan mong "
+      + "password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago bigyan — o bawiin — ang ganoong "
+      + "kalaking access. Palaging nagtatanong ang disable at enable, kahit anong role ng user; ang tatlong "
+      + "iba pa ay nagtatanong lang kapag may kinalaman sa access ng Owner.",
 
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
@@ -2598,6 +2639,16 @@ export const tl = {
       "Ang wikang ipinapakita sa interface, kada user — English, Español, o Tagalog — pinipili mula sa "
       + "Account → Preferences. Ang English ang fallback para sa anumang screen na hindi pa naisasalin, "
       + "kahit anong wika ang pinili mo.",
+
+    // #356 — appended last so it doesn't reshuffle the rows above.
+    // (machine-drafted, pending native review)
+    glossaryDisabledUserTerm: "Na-disable na user",
+    glossaryDisabledUserDef:
+      "Binawi ang access, hindi pagbura. Hindi makaka-sign in, makaka-refresh, o makakakuha ng step-up "
+      + "grant ang isang na-disable na user, at natatapos ang bawat bukas niyang session sa susunod nitong "
+      + "request. Ibinabalik ng muling pag-enable ang sign-in pero hindi ang mga lumang session na iyon — "
+      + "kahit anong ibinigay bago ang pag-disable ay hindi na kailanman gagana. Hindi puwedeng i-disable "
+      + "ang huling aktibong Admin (may-ari) ng account, at walang puwedeng mag-disable sa sarili niya.",
 
     glossaryRepoNote:
       "Nasa <code>specs/product/GLOSSARY.md</code> ng repository ang kumpletong mga depinisyon sa "

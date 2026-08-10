@@ -483,6 +483,14 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             Guid accountId, Guid userId, string? role, Guid actingUserId, CancellationToken ct = default) =>
             inner.ChangeUserRoleAsync(accountId, userId, role, actingUserId, ct);
 
+        public Task<Result> DisableUserAsync(
+            Guid accountId, Guid userId, Guid actingUserId, string? reason, CancellationToken ct = default) =>
+            inner.DisableUserAsync(accountId, userId, actingUserId, reason, ct);
+
+        public Task<Result> EnableUserAsync(
+            Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default) =>
+            inner.EnableUserAsync(accountId, userId, actingUserId, ct);
+
         public Task<Result> BreakGlassResetAsync(
             Guid accountId, Guid userId, string newPassword, string? reason, CancellationToken ct = default) =>
             inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, ct);

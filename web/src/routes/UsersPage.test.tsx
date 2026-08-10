@@ -11,12 +11,20 @@ import { FarmContext } from "../farm/FarmContext";
 import { MeContext } from "../session/SessionContext";
 import type { Me } from "../api/cluckwork";
 import {
-  assignFlock, changeUserRole, createUser, listFlockAssignments, listFlocks, listUsers,
-  setUserPassword, unassignFlock, updateUser,
+  assignFlock, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments, listFlocks,
+  listUsers, setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
 import i18n from "../i18n";
+
+// Runtime-generated, with NO static substring — GitGuardian's scanner
+// flagged an earlier version of this line even though it was already
+// randomized, because the readable "password-shaped" prefix it was appended
+// to (`Own3r!${...}`) was enough to trigger on its own. One shared value:
+// these tests assert the typed proof password is the one SENT to stepUp(),
+// so identity is what matters, not content or shape.
+const OWNER_STEP_UP_PASSWORD = crypto.randomUUID();
 
 // Network seam only; ApiError stays real (errText branches on `instanceof`).
 vi.mock("../api/cluckwork", () => ({
@@ -25,6 +33,8 @@ vi.mock("../api/cluckwork", () => ({
   updateUser: vi.fn(),
   setUserPassword: vi.fn(),
   changeUserRole: vi.fn(),
+  disableUser: vi.fn(),
+  enableUser: vi.fn(),
   listFlockAssignments: vi.fn(),
   assignFlock: vi.fn(),
   unassignFlock: vi.fn(),
@@ -44,19 +54,37 @@ const mockCreateUser = vi.mocked(createUser);
 const mockUpdateUser = vi.mocked(updateUser);
 const mockSetUserPassword = vi.mocked(setUserPassword);
 const mockChangeUserRole = vi.mocked(changeUserRole);
+const mockDisableUser = vi.mocked(disableUser);
+const mockEnableUser = vi.mocked(enableUser);
 const mockListAssignments = vi.mocked(listFlockAssignments);
 const mockAssignFlock = vi.mocked(assignFlock);
 const mockUnassignFlock = vi.mocked(unassignFlock);
 const mockListFlocks = vi.mocked(listFlocks);
 const mockStepUp = vi.mocked(stepUp);
 
-const WORKER_USER: User = { id: "u-w", email: "worker@farm.test", displayName: "Wendy", role: "Worker" };
-const ADMIN_USER: User = { id: "u-a", email: "boss@farm.test", displayName: null, role: "Admin" };
+const WORKER_USER: User = {
+  id: "u-w", email: "worker@farm.test", displayName: "Wendy", role: "Worker", disabledAt: null,
+};
+const ADMIN_USER: User = {
+  id: "u-a", email: "boss@farm.test", displayName: null, role: "Admin", disabledAt: null,
+};
 // Role wiring fixture (#182, Task 22): ReadOnly is the one role whose enum
 // label is NOT its raw wire value (enums:role.ReadOnly = "Read-only"), so it's
 // the fixture that actually distinguishes roleLabel(u.role) from a plain
 // {u.role} render.
-const READONLY_USER: User = { id: "u-r", email: "ro@farm.test", displayName: null, role: "ReadOnly" };
+const READONLY_USER: User = {
+  id: "u-r", email: "ro@farm.test", displayName: null, role: "ReadOnly", disabledAt: null,
+};
+// #356 — a disabled worker, and the ADMIN token's OWN row (id "u1" matches
+// DEFAULT_ME/the ADMIN token's sub — see renderWithProviders.tsx), used to
+// prove the self-target rows offer neither action.
+const DISABLED_USER: User = {
+  id: "u-d", email: "disabled@farm.test", displayName: "Dana", role: "Worker",
+  disabledAt: "2026-08-01T00:00:00Z",
+};
+const SELF_USER: User = {
+  id: "u1", email: "self@farm.test", displayName: null, role: "Admin", disabledAt: null,
+};
 
 const flock = (id: string, name: string, status = "Active"): Flock => ({
   id, farmId: "farm", houseId: "house", name, breed: "ISA Brown",
@@ -450,12 +478,12 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
 
     openRole(/worker@farm.test/);
     selectAdminRole();
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
     });
 
-    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
     expect(mockChangeUserRole).toHaveBeenCalledWith(
       "u-w", { role: "Admin" }, expect.any(String), "grant-789");
   });
@@ -467,7 +495,7 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
 
     openRole(/worker@farm.test/);
     selectAdminRole();
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
     });
@@ -490,7 +518,7 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
     const tree = (isAuthenticated: boolean) => (
       <MemoryRouter initialEntries={["/"]}>
         <AuthContext.Provider value={{
-          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role,
+          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
           mustChangePassword: false,
           unauthenticatedReason: null,
           login: vi.fn(), logout: vi.fn(),
@@ -515,6 +543,393 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
     view.rerender(tree(false)); // simulated logout
 
     expect(ownerPasswordInput()).toHaveValue("");
+  });
+});
+
+// #356 — disable/enable a user, both in ONE dialog that is itself the
+// confirmation: a destructive warning, an OPTIONAL reason (disable only —
+// the API's DisableUserCommand.Reason is nullable), and the mandatory
+// step-up proof (unconditional, unlike the role/password dialogs' Owner-only
+// gating).
+describe("UsersPage disable/enable (#356)", () => {
+  const disableRow = (rowName: RegExp) =>
+    within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "disable" });
+  const enableRow = (rowName: RegExp) =>
+    within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "enable" });
+
+  // Same idiom as the #236 pending-states block below (client.test.ts style):
+  // a promise this test controls, so it can assert what the component does
+  // WHILE a request is genuinely in flight, not just before/after it.
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((r) => { resolve = r; });
+    return { promise, resolve };
+  }
+
+  it("renders a disabled user's row muted with a Disabled badge, offering Enable and not Disable", async () => {
+    mockListUsers.mockResolvedValue([WORKER_USER, DISABLED_USER]);
+    await renderReady(ADMIN);
+
+    const row = screen.getByRole("row", { name: /disabled@farm.test/ });
+    expect(row).toHaveClass("muted");
+    expect(within(row).getByText("Disabled")).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "enable" })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
+
+    // The still-active sibling row stays unmuted, un-badged, and offers Disable.
+    const activeRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    expect(activeRow).not.toHaveClass("muted");
+    expect(within(activeRow).queryByText("Disabled")).not.toBeInTheDocument();
+    expect(within(activeRow).getByRole("button", { name: "disable" })).toBeInTheDocument();
+  });
+
+  it("offers neither Disable nor Enable on the caller's own row", async () => {
+    mockListUsers.mockResolvedValue([WORKER_USER, SELF_USER]);
+    await renderReady(ADMIN); // ADMIN token's sub is "u1", matching SELF_USER's id
+
+    const selfRow = screen.getByRole("row", { name: /self@farm.test/ });
+    expect(within(selfRow).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
+    expect(within(selfRow).queryByRole("button", { name: "enable" })).not.toBeInTheDocument();
+    // A non-self row in the same render is unaffected.
+    expect(within(screen.getByRole("row", { name: /worker@farm.test/ }))
+      .getByRole("button", { name: "disable" })).toBeInTheDocument();
+  });
+
+  // Round-10 codex review of #492: SessionProvider deliberately keeps the
+  // shell visible with me === null when /me fails, so the self-target guard
+  // must not depend on /me — a submit that reaches the server for a
+  // self-target only 400s, after already spending a step-up password
+  // confirmation. `me: null` here reproduces exactly that failure.
+  it("hides self-target actions from the TOKEN's id even when /me is null", async () => {
+    mockListUsers.mockResolvedValue([WORKER_USER, SELF_USER]);
+    renderWithProviders(<UsersPage />, { token: ADMIN, me: null }); // ADMIN token's sub is "u1", matching SELF_USER's id
+    await screen.findByText("worker@farm.test");
+
+    const selfRow = screen.getByRole("row", { name: /self@farm.test/ });
+    expect(within(selfRow).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
+    expect(within(selfRow).queryByRole("button", { name: "enable" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("row", { name: /worker@farm.test/ }))
+      .getByRole("button", { name: "disable" })).toBeInTheDocument();
+  });
+
+  it("wires the destructive warning into the dialog's aria-describedby", async () => {
+    mockListUsers.mockResolvedValue([WORKER_USER, ADMIN_USER, DISABLED_USER]);
+    await renderReady(ADMIN);
+    fireEvent.click(disableRow(/worker@farm.test/));
+
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    const describedBy = dialog.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toHaveTextContent(/signed out of every device/);
+
+    // Enable has no destructive-warning paragraph to point at.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(enableRow(/disabled@farm.test/));
+    const enableDialog = await screen.findByRole("dialog", { name: /Enable — disabled@farm\.test/ });
+    expect(enableDialog).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("opening Disable and closing the dialog fires no disableUser call", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(disableRow(/worker@farm.test/));
+
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockStepUp).not.toHaveBeenCalled();
+    expect(mockDisableUser).not.toHaveBeenCalled();
+  });
+
+  it("submitting with the reason left empty sends reason: null — the optional-reason regression", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-d1", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    // The reason textarea is left untouched — blank — and the dialog still
+    // submits: a mandatory reason was the bug (#356), so this is the case
+    // that must pass without ever being forced to type anything.
+    fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
+    });
+
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockDisableUser).toHaveBeenCalledWith(
+      "u-w", { reason: null }, expect.any(String), "grant-d1");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByText(/worker@farm\.test has been disabled/)).toBeInTheDocument();
+    expect(mockListUsers).toHaveBeenCalledTimes(2); // initial load + post-disable refresh
+  });
+
+  it("submitting with a reason sends that exact trimmed string", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-d1", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), {
+      target: { value: "  No longer works here  " },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
+    });
+
+    expect(mockDisableUser).toHaveBeenCalledWith(
+      "u-w", { reason: "No longer works here" }, expect.any(String), "grant-d1");
+  });
+
+  it("enabling a disabled user opens the shared dialog directly, with no reason field", async () => {
+    mockListUsers.mockResolvedValue([DISABLED_USER]);
+    mockStepUp.mockResolvedValue({ token: "grant-e1", expiresAt: "2026-01-01T00:05:00Z" });
+    mockEnableUser.mockResolvedValue(undefined);
+    renderWithProviders(<UsersPage />, { token: ADMIN });
+    await screen.findByText("disabled@farm.test");
+
+    fireEvent.click(enableRow(/disabled@farm.test/));
+    const stepUpDialog = await screen.findByRole("dialog", { name: /Enable — disabled@farm\.test/ });
+    expect(within(stepUpDialog).queryByLabelText(/Reason/)).not.toBeInTheDocument();
+    fireEvent.change(within(stepUpDialog).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => {
+      fireEvent.click(within(stepUpDialog).getByRole("button", { name: "Enable" }));
+    });
+
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockEnableUser).toHaveBeenCalledWith("u-d", expect.any(String), "grant-e1");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByText(/disabled@farm\.test has been re-enabled/)).toBeInTheDocument();
+  });
+
+  it("keeps the dialog open and shows the error in the shared error slot when a disable is rejected", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-d2", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockRejectedValue(
+      new ApiError(422, "Users.LastOwner", "Cannot disable the sole remaining owner."));
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
+    });
+
+    // Renders through the "disable-enable" scope of useDialogErrors (#491
+    // merge, #492 round-4 local review) — same DialogError component every
+    // other dialog on this screen uses.
+    expect(within(dialog).getByText(/sole remaining owner/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(mockEnableUser).not.toHaveBeenCalled();
+  });
+
+  // Local review of the #491 merge (round-4 of #492): both modes share ONE
+  // error scope ("disable-enable") since it's one dialog with a swapped
+  // title, not two. openStepUp only abandoned that scope on a DIFFERENT
+  // user, so a same-user reopen that flips MODE without ever closing (the
+  // row's button label follows u.disabledAt, which a background listUsers()
+  // refresh — triggered here by an unrelated edit — can flip while this
+  // dialog is still open) would otherwise carry the failed disable's error
+  // text into the enable dialog: a message about the wrong operation.
+  it("does not carry a failed disable's error into an enable dialog reopened for the same user", async () => {
+    mockListUsers.mockResolvedValueOnce([WORKER_USER, ADMIN_USER]);
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    mockStepUp.mockResolvedValue({ token: "grant-d3", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockRejectedValue(
+      new ApiError(422, "Users.LastOwner", "Cannot disable the sole remaining owner."));
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
+    });
+    expect(within(dialog).getByText(/sole remaining owner/)).toBeInTheDocument();
+
+    // Simulate a concurrent external disable of the SAME user: the next
+    // listUsers() refresh (triggered here by an unrelated, successful edit
+    // on a different row) reflects it, flipping worker's row to Enable —
+    // the disable dialog above stays open throughout; nothing closed it.
+    mockListUsers.mockResolvedValueOnce([
+      { ...WORKER_USER, disabledAt: "2026-08-09T12:00:00Z" }, ADMIN_USER,
+    ]);
+    mockUpdateUser.mockResolvedValue(undefined);
+    fireEvent.click(within(screen.getByRole("row", { name: /boss@farm.test/ }))
+      .getByRole("button", { name: /edit/i }));
+    const editDialog = await screen.findByRole("dialog", { name: /boss@farm\.test/ });
+    await act(async () => {
+      fireEvent.click(within(editDialog).getByRole("button", { name: "Save" }));
+    });
+    expect(await within(screen.getByRole("row", { name: /worker@farm.test/ }))
+      .findByRole("button", { name: /enable/i })).toBeInTheDocument();
+
+    // The still-open dialog is still titled Disable, still showing the old
+    // error — reopening it is a fresh user action, not automatic.
+    expect(screen.getByRole("dialog", { name: /Disable — worker@farm\.test/ })).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
+      .getByRole("button", { name: /enable/i }));
+    const enableDialog = await screen.findByRole("dialog", { name: /Enable — worker@farm\.test/ });
+    expect(within(enableDialog).queryByText(/sole remaining owner/)).not.toBeInTheDocument();
+  });
+
+  // NOT a regression test for the #356 reason/await reorder — see the report
+  // to whoever asked for this file for the full reasoning. Short version: the
+  // canonical shape for this kind of race elsewhere in the file ("discards a
+  // stale refresh from a worker whose dialog was closed and reopened for
+  // another", flock scoping above) doesn't reach here. The row's
+  // disable/enable buttons are `disabled={busy}` for the WHOLE flight (stepUp
+  // + disableUser + the listUsers refresh — confirmed directly: clicking a
+  // different row's trigger while one is pending fires no handler, matching
+  // Dialog.tsx's own comment that a busy save "leaves its row trigger
+  // disabled for one more render"), so a second dialog for another worker
+  // can never open while one is in flight, and reopening for a different
+  // TARGET is the only way `disableReason` could plausibly carry someone
+  // else's text — `onSubmitStepUp` closes over `disableReason` fresh on every
+  // render, so a value read later in the SAME invocation is identical to one
+  // read earlier regardless of any retyping into the still-open dialog in the
+  // meantime (confirmed by reverting the fix's line order locally: the
+  // suite's outcome for this exact test was unchanged — see report). This
+  // test instead pins the resulting, still-true behavior: the reason actually
+  // sent is the one present at submit time, not whatever the field holds by
+  // the time the write resolves.
+  it("sends the reason present at submit time, not a later edit made to the still-open dialog while the write is in flight", async () => {
+    const gate = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(gate.promise);
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dlg).getByLabelText(/Reason/), { target: { value: "first reason" } });
+    fireEvent.change(within(dlg).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+
+    // Submit — stepUp() hangs on the deferred, so the write is now in flight.
+    await act(async () => {
+      fireEvent.click(within(dlg).getByRole("button", { name: "Disable" }));
+    });
+
+    // While still pending, retype the SAME still-open dialog's reason field.
+    // Pre-fix, reading `disableReason` after the step-up await would pick
+    // this up and file it as worker@farm.test's disable reason.
+    fireEvent.change(within(dlg).getByLabelText(/Reason/), { target: { value: "second reason" } });
+
+    await act(async () => {
+      gate.resolve({ token: "grant-d1", expiresAt: "2026-01-01T00:05:00Z" });
+    });
+
+    expect(mockDisableUser).toHaveBeenCalledWith(
+      "u-w", { reason: "first reason" }, expect.any(String), "grant-d1");
+  });
+
+  // Every other mutation on this screen has a replay/rotate test; disable did
+  // not. Mirrors "replays the SAME create key after a failure, and rotates it
+  // after success" above.
+  it("replays the SAME disable key after a failure, and rotates it after success", async () => {
+    // Round-2 review (#492) caught the first version of this test: attempt 3
+    // disabled a DIFFERENT user, so its key came from a DIFFERENT scope
+    // (`disable:u-a` vs `disable:u-w`) and would differ from k2 whether or not
+    // a real success ever rotates anything — deleting clearKey(scope) entirely
+    // left it green. Disable can't be resubmitted on the SAME target once it
+    // succeeds (the row flips to Enable), so proving rotation on the disable
+    // scope specifically means going disable -> enable -> disable again on one
+    // user, and controlling each refresh so the row actually flips back.
+    const worker = WORKER_USER;
+    const workerDisabled: User = { ...worker, disabledAt: "2026-08-05T00:00:00Z" };
+    mockListUsers
+      .mockResolvedValueOnce([worker, ADMIN_USER]) // initial load
+      .mockResolvedValueOnce([workerDisabled, ADMIN_USER]) // after the successful disable
+      .mockResolvedValueOnce([worker, ADMIN_USER]); // after the enable — Disable is back
+    mockStepUp.mockResolvedValue({ token: "grant-d1", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+    mockDisableUser.mockResolvedValue(undefined);
+    mockEnableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dlg).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    const submit = () => within(dlg).getByRole("button", { name: "Disable" });
+
+    // Attempt 1 — fails, so the key is kept and the dialog stays open. The
+    // step-up password is cleared unconditionally the instant it's captured
+    // (#308 — read-then-clear-before-await), win or lose, so it must be
+    // retyped for the retry below; that's independent of the idempotency key.
+    await act(async () => { fireEvent.click(submit()); });
+    expect(within(dlg).getByText(/Server error|boom/)).toBeInTheDocument();
+
+    // Attempt 2 — same target/scope, refilled password → replay of the kept key.
+    fireEvent.change(within(dlg).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => { fireEvent.click(submit()); });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByText(/worker@farm\.test has been disabled/)).toBeInTheDocument();
+
+    const k1 = mockDisableUser.mock.calls[0][2];
+    const k2 = mockDisableUser.mock.calls[1][2];
+    expect(k2).toBe(k1); // failure kept the key → exact replay
+
+    // Re-enable the SAME user, so the row offers Disable again.
+    fireEvent.click(enableRow(/worker@farm.test/));
+    const enableDlg = await screen.findByRole("dialog", { name: /Enable — worker@farm\.test/ });
+    fireEvent.change(within(enableDlg).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => {
+      fireEvent.click(within(enableDlg).getByRole("button", { name: "Enable" }));
+    });
+    expect(await screen.findByText(/worker@farm\.test has been re-enabled/)).toBeInTheDocument();
+
+    // A THIRD disable, of the SAME user — the SAME "disable:u-w" scope k2 came
+    // from. Only a real post-success rotation can make this key differ from k2.
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dlg3 = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dlg3).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => { fireEvent.click(within(dlg3).getByRole("button", { name: "Disable" })); });
+
+    const k3 = mockDisableUser.mock.calls[2][2];
+    expect(k3).not.toBe(k2); // the prior success rotated it → this write is fresh
+  });
+
+  // The existing "reason left empty" test (above) never types anything into
+  // the textarea, so `disableReason || null` (missing the `.trim()`) would
+  // still pass it — this pins the trim explicitly.
+  it("sends reason: null for a whitespace-only reason, not the raw whitespace string", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-d1", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "   " } });
+    fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
+    });
+
+    expect(mockDisableUser).toHaveBeenCalledWith(
+      "u-w", { reason: null }, expect.any(String), "grant-d1");
   });
 });
 
@@ -789,7 +1204,9 @@ describe("UsersPage flock scoping", () => {
   });
 
   it("discards a stale refresh from a worker whose dialog was closed and reopened for another", async () => {
-    const WORKER_2: User = { id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker" };
+    const WORKER_2: User = {
+      id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null,
+    };
     mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
     // Call 1: open A (has Coop A). Call 2: A's post-remove refresh — hung.
     // Call 3: open B (empty). If the guard fails, A's refresh overwrites B.
@@ -1182,10 +1599,10 @@ describe("UsersPage step-up authentication (#308)", () => {
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss@farm.test" } });
     fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
     selectAdminRole();
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
 
-    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
     expect(mockCreateUser.mock.calls[0][2]).toBe("grant-123"); // the grant, as the 3rd arg
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(await screen.findByText(/account created for boss@farm\.test/i)).toBeInTheDocument();
@@ -1199,7 +1616,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss2@farm.test" } });
     fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
     selectAdminRole();
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
 
     openCreate();
@@ -1223,7 +1640,7 @@ describe("UsersPage step-up authentication (#308)", () => {
 
     // Pick Owner, type the proof password, then change your mind.
     selectAdminRole();
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Worker" } });
 
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
@@ -1279,7 +1696,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss4@farm.test" } });
     fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
     selectAdminRole();
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
 
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
 
@@ -1304,10 +1721,10 @@ describe("UsersPage step-up authentication (#308)", () => {
     const newPw = `Aa1!${crypto.randomUUID()}`;
     fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value: newPw } });
     fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: newPw } });
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" })); });
 
-    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
     expect(mockSetUserPassword).toHaveBeenCalledWith(
       "u-a", { newPassword: newPw }, expect.any(String), "grant-456");
   });
@@ -1337,7 +1754,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     const tree = (isAuthenticated: boolean) => (
       <MemoryRouter initialEntries={["/"]}>
         <AuthContext.Provider value={{
-          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role,
+          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
           // #283 — an Owner working the Users screen is already past the
           // first-run set-password gate.
           mustChangePassword: false,
@@ -1364,5 +1781,252 @@ describe("UsersPage step-up authentication (#308)", () => {
     view.rerender(tree(false)); // simulated logout
 
     expect(ownerPasswordInput()).toHaveValue("");
+  });
+});
+
+// #479 — one slot per PLACE a message can appear. This screen has five dialogs
+// and, before the split, one string behind all of them: every open dialog
+// rendered `{error && …}` unconditionally, so whichever failure happened last
+// appeared inside every form on screen at once.
+describe("UsersPage error placement (#479)", () => {
+  const rowFor = (email: string) => screen.getByRole("row", { name: new RegExp(email) });
+  const openRowDialog = (email: string, action: string) =>
+    fireEvent.click(within(rowFor(email)).getByRole("button", { name: action }));
+
+  it("shows a failed create inside the create dialog only", async () => {
+    mockCreateUser.mockRejectedValue(new ApiError(409, "Conflict", "That email is already registered."));
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText(/Email/), { target: { value: "dup@farm.test" } });
+    fireEvent.change(within(dialog()).getByLabelText(/^Password/), { target: { value: `Pw${Date.now()}!a` } });
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" }));
+    });
+
+    expect(within(dialog()).getByText("That email is already registered.")).toBeInTheDocument();
+    expect(screen.getAllByText("That email is already registered.")).toHaveLength(1);
+  });
+
+  it("shows a failed rename inside the edit dialog only", async () => {
+    mockUpdateUser.mockRejectedValue(new ApiError(422, "Validation failed", "That name is too long."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "edit");
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(within(dialog()).getByText("That name is too long.")).toBeInTheDocument();
+    expect(screen.getAllByText("That name is too long.")).toHaveLength(1);
+  });
+
+  it("shows a failed password reset inside the password dialog only", async () => {
+    mockSetUserPassword.mockRejectedValue(new ApiError(422, "Validation failed", "That password is too weak."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "password");
+    const pw = `Pw${Date.now()}!a`;
+    const fields = within(dialog()).getAllByLabelText(/password/i);
+    fireEvent.change(fields[0], { target: { value: pw } });
+    fireEvent.change(fields[1], { target: { value: pw } });
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" }));
+    });
+
+    expect(within(dialog()).getByText("That password is too weak.")).toBeInTheDocument();
+    expect(screen.getAllByText("That password is too weak.")).toHaveLength(1);
+  });
+
+  it("shows a mismatched password inside the password dialog, not on the page behind", async () => {
+    // Client-side validation, reachable on every mistyped confirmation — not a
+    // race. It is the dialog's own complaint about the dialog's own fields.
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "password");
+    const fields = within(dialog()).getAllByLabelText(/password/i);
+    fireEvent.change(fields[0], { target: { value: `Pw${Date.now()}!a` } });
+    fireEvent.change(fields[1], { target: { value: `Different${Date.now()}!b` } });
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" }));
+    });
+
+    const mismatch = i18n.t("users:passwordMismatchMessage");
+    expect(within(dialog()).getByText(mismatch)).toBeInTheDocument();
+    expect(screen.getAllByText(mismatch)).toHaveLength(1);
+    expect(mockSetUserPassword).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed role change inside the role dialog only", async () => {
+    mockChangeUserRole.mockRejectedValue(new ApiError(409, "Conflict", "That user is the last Owner."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "role");
+
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
+    });
+
+    expect(within(dialog()).getByText("That user is the last Owner.")).toBeInTheDocument();
+    expect(screen.getAllByText("That user is the last Owner.")).toHaveLength(1);
+  });
+
+  it("shows a failed flock assignment inside the flock dialog only", async () => {
+    mockAssignFlock.mockRejectedValue(new ApiError(409, "Conflict", "That flock is already assigned."));
+    await renderReady(ADMIN);
+    await act(async () => {
+      openRowDialog("worker@farm.test", "flocks");
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+
+    expect(within(dialog()).getByText("That flock is already assigned.")).toBeInTheDocument();
+    expect(screen.getAllByText("That flock is already assigned.")).toHaveLength(1);
+  });
+
+  // Displacement: each of these scopes is fixed across users, and a second
+  // user's dialog can begin without the first being dismissed — the row
+  // buttons behind the backdrop stay reachable to a screen reader's virtual
+  // cursor (#480). Without an abandon on the user switch, user A's verdict
+  // renders inside a dialog titled with user B's email (pi review of #491).
+  it("does not carry one user's failed rename into another user's edit dialog", async () => {
+    mockUpdateUser.mockRejectedValue(new ApiError(422, "Validation failed", "That name is too long."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "edit");
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("That name is too long.")).toBeInTheDocument();
+
+    openRowDialog("boss@farm.test", "edit");
+    // The dialog really swapped users — its title names the new email.
+    expect(dialog()).toHaveAccessibleName(/boss@farm\.test/);
+    expect(screen.queryByText("That name is too long.")).not.toBeInTheDocument();
+  });
+
+  it("does not carry one user's failed password reset into another user's dialog", async () => {
+    mockSetUserPassword.mockRejectedValue(new ApiError(422, "Validation failed", "That password is too weak."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "password");
+    const pw = `Pw${Date.now()}!a`;
+    const fields = within(dialog()).getAllByLabelText(/password/i);
+    fireEvent.change(fields[0], { target: { value: pw } });
+    fireEvent.change(fields[1], { target: { value: pw } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" }));
+    });
+    expect(within(dialog()).getByText("That password is too weak.")).toBeInTheDocument();
+
+    openRowDialog("boss@farm.test", "password");
+    expect(dialog()).toHaveAccessibleName(/boss@farm\.test/);
+    expect(screen.queryByText("That password is too weak.")).not.toBeInTheDocument();
+  });
+
+  it("does not carry one user's failed role change into another user's dialog", async () => {
+    mockChangeUserRole.mockRejectedValue(new ApiError(409, "Conflict", "That user is the last Owner."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "role");
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
+    });
+    expect(within(dialog()).getByText("That user is the last Owner.")).toBeInTheDocument();
+
+    openRowDialog("boss@farm.test", "role");
+    expect(dialog()).toHaveAccessibleName(/boss@farm\.test/);
+    expect(screen.queryByText("That user is the last Owner.")).not.toBeInTheDocument();
+  });
+
+  it("does not carry one worker's failed assignment into another worker's flock dialog", async () => {
+    const WORKER_2: User = { id: "u-w2", email: "second@farm.test", displayName: null, role: "Worker", disabledAt: null };
+    mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
+    mockAssignFlock.mockRejectedValue(new ApiError(409, "Conflict", "That flock is already assigned."));
+    await renderReady(ADMIN);
+    await act(async () => {
+      openRowDialog("worker@farm.test", "flocks");
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+    expect(within(dialog()).getByText("That flock is already assigned.")).toBeInTheDocument();
+
+    await act(async () => {
+      openRowDialog("second@farm.test", "flocks");
+    });
+    expect(dialog()).toHaveAccessibleName(/second@farm\.test/);
+    expect(screen.queryByText("That flock is already assigned.")).not.toBeInTheDocument();
+  });
+
+  // The load runs BEFORE the dialog rebinds — a failed load never opens the
+  // second worker's dialog (see the comment on `openAssignments`), so it
+  // must not abandon the first worker's still-open one. Abandoning up front
+  // would erase worker A's visible message while A's dialog stays open and
+  // unchanged (adversarial review of #491).
+  it("keeps worker A's dialog and its message when worker B's load fails", async () => {
+    const WORKER_2: User = { id: "u-w2", email: "second@farm.test", displayName: null, role: "Worker", disabledAt: null };
+    mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
+    mockAssignFlock.mockRejectedValue(new ApiError(409, "Conflict", "That flock is already assigned."));
+    await renderReady(ADMIN);
+    await act(async () => {
+      openRowDialog("worker@farm.test", "flocks");
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+    expect(within(dialog()).getByText("That flock is already assigned.")).toBeInTheDocument();
+
+    mockListAssignments.mockRejectedValueOnce(new ApiError(500, "Server error", "Could not load flock access."));
+    await act(async () => {
+      openRowDialog("second@farm.test", "flocks");
+    });
+
+    // Still worker A's dialog — B's never opened.
+    expect(dialog()).toHaveAccessibleName(/worker@farm\.test/);
+    expect(within(dialog()).getByText("That flock is already assigned.")).toBeInTheDocument();
+  });
+
+  it("keeps one dialog's failure out of another dialog opened beside it", async () => {
+    // Nothing on this screen enforces one-open-dialog: `editUser` and `pwUser`
+    // are independent state and both row buttons stay live. With one shared
+    // slot the rename's failure rendered inside the password form too — the
+    // #480 finding, on the screen that has five of them.
+    mockUpdateUser.mockRejectedValue(new ApiError(422, "Validation failed", "That name is too long."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "edit");
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    openRowDialog("worker@farm.test", "password");
+
+    const dialogs = screen.getAllByRole("dialog");
+    const password = dialogs.find((d) => within(d).queryByRole("button", { name: "Set password" }))!;
+    expect(within(password).queryByText("That name is too long.")).not.toBeInTheDocument();
+    expect(screen.getAllByText("That name is too long.")).toHaveLength(1);
+  });
+
+  it("keeps a page failure while a dialog opens and its own write fails", async () => {
+    // The flock-assignment READ fails before its dialog can open, so its
+    // message is the screen's. Opening an unrelated form must not swallow it,
+    // and that form's own failure must not replace it.
+    mockListAssignments.mockRejectedValue(new ApiError(500, "Server error", "Could not load flock access."));
+    mockCreateUser.mockRejectedValue(new ApiError(409, "Conflict", "That email is already registered."));
+    await renderReady(ADMIN);
+    await act(async () => {
+      openRowDialog("worker@farm.test", "flocks");
+    });
+    expect(screen.getByText("Could not load flock access.")).toBeInTheDocument();
+
+    openCreate();
+    expect(screen.getByText("Could not load flock access.")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog()).getByLabelText(/Email/), { target: { value: "dup@farm.test" } });
+    fireEvent.change(within(dialog()).getByLabelText(/^Password/), { target: { value: `Pw${Date.now()}!a` } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" }));
+    });
+
+    expect(within(dialog()).getByText("That email is already registered.")).toBeInTheDocument();
+    expect(screen.getByText("Could not load flock access.")).toBeInTheDocument();
   });
 });

@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { KeyRound, Pencil, Plus, ShieldCheck } from "lucide-react";
+import { Ban, KeyRound, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
 import {
-  assignFlock, changeUserRole, createUser, listFlockAssignments, listFlocks, listUsers,
-  setUserPassword, unassignFlock, updateUser,
+  assignFlock, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments, listFlocks,
+  listUsers, setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
+import { StatusBadge } from "../components/StatusBadge";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
@@ -32,7 +35,14 @@ export function UsersPage() {
   const { t: tc } = useTranslation("common");
 
   const [users, setUsers] = useState<User[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // #479 — one slot per PLACE a message can appear. Five dialogs on this
+  // screen, and each used to render the one shared string unconditionally,
+  // so whichever failure happened last appeared inside every open form.
+  // Scopes are fixed per dialog rather than per row: a dialog is bound to
+  // one user at a time, the `active*` refs below already drop a verdict
+  // whose target moved on, and a fixed vocabulary keeps the mute set bounded.
+  const errors = useDialogErrors();
+  const setPageError = errors.setPage;
   const [message, setMessage] = useState<string | null>(null);
   // #236 — the shared flight guard replaces the old `busy` state. `busy`
   // still inerts every trigger; isPending(scope) spins only the clicked one.
@@ -55,7 +65,15 @@ export function UsersPage() {
   const [pwStepUpPassword, setPwStepUpPassword] = useState("");
   const [roleStepUpPassword, setRoleStepUpPassword] = useState("");
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, userId: myId } = useAuth();
+  // #356 — this screen's own identity, so the disable/enable actions can be
+  // withheld from the caller's own row (the server 400s a self-target, but the
+  // UI should not present a button that can only fail). Read from the TOKEN
+  // (useAuth's userId), not the separate /me fetch (useMe): SessionProvider
+  // deliberately keeps the shell up with me === null when /me fails, which
+  // made `me?.id !== u.id` read true for every row — including the caller's
+  // own — exposing a self-target action that consumes a step-up password
+  // confirmation only to 400 (codex review of #492 round 10).
 
   // #308 — belt-and-braces: logout already navigates away (unmounting this
   // page in the normal flow) and every dialog's own close path already clears
@@ -67,6 +85,7 @@ export function UsersPage() {
       setCreateStepUpPassword("");
       setPwStepUpPassword("");
       setRoleStepUpPassword("");
+      setStepUpPassword("");
     }
   }, [isAuthenticated]);
 
@@ -93,6 +112,23 @@ export function UsersPage() {
   const [roleValue, setRoleValue] = useState("Worker");
   const activeRole = useRef<string | null>(null);
 
+  // #356 — disable/enable a user, both behind ONE dialog that is itself the
+  // confirmation: a destructive warning body, an OPTIONAL reason (disable
+  // only — the API's DisableUserCommand.Reason is nullable, capped at 200
+  // chars, and the product call was explicit that a mandatory reason just
+  // gets typed "x"), and the step-up password DisableUser/EnableUser always
+  // require (#308) regardless of the target's role. "mode" picks which
+  // endpoint + copy applies.
+  const [stepUpUser, setStepUpUser] = useState<User | null>(null);
+  const [stepUpMode, setStepUpMode] = useState<"disable" | "enable" | null>(null);
+  // #356 (codex review of #492 round 7) — wired into the Dialog below via
+  // describedBy so a screen reader announces the destructive warning right
+  // after the title, not just whatever field focus happens to land on first.
+  const disableWarningId = useId();
+  const [disableReason, setDisableReason] = useState("");
+  const [stepUpPassword, setStepUpPassword] = useState("");
+  const activeStepUp = useRef<string | null>(null);
+
   // #103 flock scoping: expand a worker row to manage assignments.
   const [openUser, setOpenUser] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<FlockAssignment[]>([]);
@@ -102,6 +138,15 @@ export function UsersPage() {
   // old worker's list or error into the new one (#154 review) — post-await
   // writes commit only while this still matches the request's target.
   const activeUser = useRef<string | null>(null);
+  // Mirrors `openUser` synchronously, for the one read that happens AFTER an
+  // `await` (the displacement guard below). `openAssignments` is async; a
+  // dismissal mid-load re-renders with `openUser=null`, but this function's
+  // own closure keeps whatever `openUser` was at the render it started in —
+  // reading the state itself there is the exact stale-closure shape that
+  // made StockPage's write-off guard silently never fire. Traced safe today
+  // (pi review of #491: every reachable interleaving still evaluates
+  // correctly), but the ref removes the trap for whoever edits this next.
+  const openUserRef = useRef<string | null>(null);
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [assignFlockId, setAssignFlockId] = useState("");
 
@@ -128,8 +173,8 @@ export function UsersPage() {
         // would 404 (conventions review of #104).
         if (active.length > 0) setAssignFlockId(active[0].id);
       })
-      .catch((err) => setError(errText(err)));
-  }, []);
+      .catch((err) => setPageError(errText(err)));
+  }, [setPageError]);
 
   // F133: flock scoping is a per-worker action, so it opens in the shared dialog
   // like the other per-row surfaces (#131) — the row button opens it, the dialog
@@ -145,19 +190,28 @@ export function UsersPage() {
       // dropdown keeps the last worker's pick — open A, choose fl2, close, open
       // B, and B shows fl2 — so a distracted admin could assign the wrong flock.
       setAssignFlockId(flocks[0]?.id ?? "");
-      setError(null);
+      // Displacement only once the load actually succeeds and the dialog is
+      // about to rebind. Abandoning up front (adversarial review of #491)
+      // would fire even when THIS load fails and openUser's dialog never
+      // moves — worker A's dialog stays open per the comment above, but its
+      // verdict would already be gone, and the failed load's own message
+      // lands on the page behind it, about a worker the admin isn't looking
+      // at.
+      if (openUserRef.current !== null && openUserRef.current !== userId) errors.abandon("flock-access");
+      openUserRef.current = userId;
       setOpenUser(userId);
     } catch (err) {
       if (activeUser.current !== userId) return;
       activeUser.current = null; // load failed → no dialog; surface on the page
-      setError(errText(err));
+      errors.setPage(errText(err));
     }
   }
 
   function closeAssignments() {
     activeUser.current = null;
+    openUserRef.current = null;
     setOpenUser(null);
-    setError(null);
+    errors.abandon("flock-access");
   }
 
   async function onAssign() {
@@ -167,14 +221,14 @@ export function UsersPage() {
     // scope here — payload-bound either way.
     const scope = `assign:${target}:${assignFlockId}`;
     await run(scope, async () => {
-      setError(null);
+      errors.beginAttempt("flock-access");
       try {
         await assignFlock(target, assignFlockId, keyFor(scope));
         const fresh = await listFlockAssignments(target);
         clearKey(scope);
         if (activeUser.current === target) setAssignments(fresh);
       } catch (err) {
-        if (activeUser.current === target) setError(errText(err));
+        if (activeUser.current === target) errors.report("flock-access", errText(err));
       }
     });
   }
@@ -187,14 +241,14 @@ export function UsersPage() {
     // what the admin sees themselves removing.
     const keyScope = `unassign:${a.id}`;
     await run(`unassign:${target}:${a.flockId}`, async () => {
-      setError(null);
+      errors.beginAttempt("flock-access");
       try {
         await unassignFlock(target, a.id, keyFor(keyScope));
         const fresh = await listFlockAssignments(target);
         clearKey(keyScope);
         if (activeUser.current === target) setAssignments(fresh);
       } catch (err) {
-        if (activeUser.current === target) setError(errText(err));
+        if (activeUser.current === target) errors.report("flock-access", errText(err));
       }
     });
   }
@@ -205,7 +259,7 @@ export function UsersPage() {
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     await run("create", async () => {
-      setError(null);
+      errors.beginAttempt("create");
       setMessage(null);
       try {
         // #308 — creating another Owner needs a fresh step-up grant. Read the
@@ -237,7 +291,7 @@ export function UsersPage() {
         // forgotten in one place, not two — the #314 lesson, relearned.
         closeCreate();
       } catch (err) {
-        setError(errText(err));
+        errors.report("create", errText(err));
       }
     });
   }
@@ -255,11 +309,18 @@ export function UsersPage() {
     setRole("Worker");
     setName("");
     setCreateStepUpPassword(""); // #308 — never leave a typed proof password behind
+    errors.abandon("create");
   }
 
   // #163 — open the edit dialog seeded with the user's current name.
+  // Each open handler below abandons its own scope when a DIFFERENT user's
+  // dialog displaces the one still open: the displaced session ends without
+  // onClose, so nothing else empties the fixed scope, and the old user's
+  // verdict would render under the new user's email in the title. The row
+  // buttons behind the backdrop stay reachable to a screen reader's virtual
+  // cursor (#480; pi review of #491). Same-user re-entry is not a displacement.
   function openEdit(u: User) {
-    setError(null);
+    if (editUser !== null && editUser.id !== u.id) errors.abandon("edit-user");
     setMessage(null);
     setEditName(u.displayName ?? "");
     activeEdit.current = u.id;
@@ -269,11 +330,12 @@ export function UsersPage() {
   function closeEdit() {
     activeEdit.current = null;
     setEditUser(null);
+    errors.abandon("edit-user");
   }
 
   // #165 — open/close the password dialog for a user.
   function openPassword(u: User) {
-    setError(null);
+    if (pwUser !== null && pwUser.id !== u.id) errors.abandon("set-password");
     setMessage(null);
     setPwValue("");
     setPwConfirm("");
@@ -290,6 +352,7 @@ export function UsersPage() {
     setPwConfirm("");
     setPwStepUpPassword("");
     setPwUser(null);
+    errors.abandon("set-password");
   }
 
   async function onSetPassword(e: FormEvent) {
@@ -298,10 +361,13 @@ export function UsersPage() {
     // The mismatch check stays OUTSIDE the flight (it is validation, not
     // work), so it keeps the old busy guard alongside the hook's.
     if (!target || busy) return;
-    setError(null);
+    // Before the validation below, not only inside run(): a mismatch never
+    // reaches run(), so without this the slot would still hold the previous
+    // attempt's verdict — and a mute left by a dismissal would swallow this.
+    errors.beginAttempt("set-password");
     setMessage(null);
     if (pwValue !== pwConfirm) {
-      setError(i18n.t("users:passwordMismatchMessage"));
+      errors.report("set-password", i18n.t("users:passwordMismatchMessage"));
       return;
     }
     const keyScope = `password:${target.id}`;
@@ -322,14 +388,14 @@ export function UsersPage() {
         setMessage(i18n.t("users:passwordSetMessage", { email: target.email }));
         closePassword();
       } catch (err) {
-        if (activePw.current === target.id) setError(errText(err));
+        if (activePw.current === target.id) errors.report("set-password", errText(err));
       }
     });
   }
 
   // #355 — open/close the role dialog for a user, seeded with their current role.
   function openRole(u: User) {
-    setError(null);
+    if (roleUser !== null && roleUser.id !== u.id) errors.abandon("change-role");
     setMessage(null);
     setRoleValue(u.role);
     setRoleStepUpPassword("");
@@ -341,13 +407,14 @@ export function UsersPage() {
     activeRole.current = null;
     setRoleStepUpPassword(""); // #308 — never leave a typed proof password behind
     setRoleUser(null);
+    errors.abandon("change-role");
   }
 
   async function onChangeRole(e: FormEvent) {
     e.preventDefault();
     const target = roleUser;
     if (!target || busy) return;
-    setError(null);
+    errors.beginAttempt("change-role");
     setMessage(null);
     const keyScope = `role:${target.id}`;
     await run(`change-role:${target.id}`, async () => {
@@ -368,7 +435,87 @@ export function UsersPage() {
         setMessage(i18n.t("users:roleChangedMessage", { email: target.email, role: roleLabel(roleValue) }));
         closeRole();
       } catch (err) {
-        if (activeRole.current === target.id) setError(errText(err));
+        if (activeRole.current === target.id) errors.report("change-role", errText(err));
+      }
+    });
+  }
+
+  // #356 — open/close the shared disable/enable dialog. The Disable and Enable
+  // row buttons call this identically; "mode" is the only difference. The
+  // reason is not a parameter: the dialog collects it itself, seeded blank,
+  // through a controlled textarea.
+  function openStepUp(u: User, mode: "disable" | "enable") {
+    // Both modes share one error scope (one dialog, one title swap), so a
+    // same-user reopen must also abandon when MODE changes, not just user:
+    // the row's Disable/Enable button flips with u.disabledAt, so a stale
+    // "Cannot disable the sole remaining owner" from a failed disable attempt
+    // could otherwise still be showing when this reopens in enable mode for
+    // the same user (local review of #492's merge-driven conversion to
+    // useDialogErrors) — a message about the wrong operation entirely.
+    if (stepUpUser !== null && (stepUpUser.id !== u.id || stepUpMode !== mode)) errors.abandon("disable-enable");
+    setMessage(null);
+    setStepUpPassword("");
+    setDisableReason("");
+    activeStepUp.current = u.id;
+    setStepUpMode(mode);
+    setStepUpUser(u);
+  }
+
+  function closeStepUp() {
+    activeStepUp.current = null;
+    setStepUpPassword(""); // #308 — never leave a typed proof password behind
+    setDisableReason("");
+    setStepUpMode(null);
+    setStepUpUser(null);
+    errors.abandon("disable-enable");
+  }
+
+  async function onSubmitStepUp(e: FormEvent) {
+    e.preventDefault();
+    const target = stepUpUser;
+    const mode = stepUpMode;
+    if (!target || !mode || busy) return;
+    errors.beginAttempt("disable-enable");
+    setMessage(null);
+    const scope = `${mode}:${target.id}`;
+    await run(scope, async () => {
+      try {
+        // #308 — read-then-clear-before-await, same pattern as every other
+        // step-up site on this screen: the proof password never sits in state
+        // across the network call that consumes it.
+        const enteredPassword = stepUpPassword;
+        setStepUpPassword("");
+
+        // #356 — grouped here with the password for readability, NOT because
+        // reading it after the await would be a bug. An earlier revision of
+        // this comment claimed exactly that ("defence in depth" against a
+        // late read filing one dialog's reason against another user), and a
+        // review probe disproved it: `disableReason` is a `const` this
+        // closure captured at THIS render, not a live ref. Retyping the
+        // textarea triggers a new render with a new `onSubmitStepUp` closure
+        // over a new `disableReason` binding — it cannot reach back and
+        // mutate the one this already-running invocation holds. So a read
+        // before or after the await, within one invocation, is provably the
+        // same value; unlike the password above, there is no state-exposure
+        // reason to move it either, since a reason is not a secret.
+        //
+        // Reason is optional: empty or whitespace sends null, never "".
+        const enteredReason = disableReason.trim() || null;
+        const token = (await stepUp(enteredPassword)).token;
+
+        if (mode === "disable") {
+          await disableUser(target.id, { reason: enteredReason }, keyFor(scope), token);
+        } else {
+          await enableUser(target.id, keyFor(scope), token);
+        }
+        clearKey(scope); // write confirmed before any refresh (#163 review)
+        setUsers(await listUsers());
+        if (activeStepUp.current !== target.id) return; // dialog moved on
+        setMessage(i18n.t(mode === "disable" ? "users:userDisabledMessage" : "users:userEnabledMessage",
+          { email: target.email }));
+        closeStepUp();
+      } catch (err) {
+        if (activeStepUp.current === target.id) errors.report("disable-enable", errText(err));
       }
     });
   }
@@ -379,7 +526,7 @@ export function UsersPage() {
     if (!target) return;
     const scope = `update:${target.id}`;
     await run(scope, async () => {
-      setError(null);
+      errors.beginAttempt("edit-user");
       setMessage(null);
       try {
         // Blank clears the name back to "—" (null); the server normalizes too.
@@ -394,19 +541,21 @@ export function UsersPage() {
         setMessage(i18n.t("users:updatedMessage", { email: target.email }));
         closeEdit();
       } catch (err) {
-        if (activeEdit.current === target.id) setError(errText(err));
+        if (activeEdit.current === target.id) errors.report("edit-user", errText(err));
       }
     });
   }
 
-  if (error && users === null) return <section><h2>{t("heading")}</h2><p className="error" role="alert">{error}</p></section>;
+  // The list read failed and there is nothing to show: a fatal page state,
+  // never a dialog's (no dialog can be open before the screen renders).
+  if (errors.page && users === null) return <section><h2>{t("heading")}</h2><p className="error" role="alert">{errors.page}</p></section>;
   if (users === null) return <section><h2>{t("heading")}</h2><p className="muted">{tc("loading")}</p></section>;
 
   return (
     <section>
       <div className="page-head">
         <h2>{t("heading")}</h2>
-        <button type="button" onClick={() => { setError(null); setMessage(null); setCreating(true); }}>
+        <button type="button" onClick={() => { setMessage(null); setCreating(true); }}>
           <Plus size={16} aria-hidden /> {t("newUserButton")}
         </button>
       </div>
@@ -451,7 +600,7 @@ export function UsersPage() {
               </label>
             </>
           )}
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy} busy={isPending("create")}>{t("createUserButton")}</BusyButton>
@@ -459,9 +608,11 @@ export function UsersPage() {
         </form>
       </Dialog>
 
-      {/* Each dialog carries its own error copy while it is up. */}
-      {error && !creating && openUser === null && editUser === null && pwUser === null && roleUser === null
-        && <p className="error" role="alert">{error}</p>}
+      {/* Unconditional since #479. The five-way guard this replaces existed
+          because every dialog rendered the same string, so the page had to
+          suppress itself whenever any of them was up. Each dialog now reads
+          a slot of its own and there is nothing here to double up on. */}
+      {errors.page && <p className="error" role="alert">{errors.page}</p>}
       {message && <p className="success">{message}</p>}
 
       <table className="data">
@@ -470,15 +621,22 @@ export function UsersPage() {
             <th>{t("emailColumnHeader")}</th>
             <th>{t("nameColumnHeader")}</th>
             <th>{t("roleColumnHeader")}</th>
+            <th>{t("statusColumnHeader")}</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
+          {/* #356 — a disabled row renders muted (ProductsPage's active/inactive
+              precedent), and offers Enable in place of Disable. Neither action
+              appears on the caller's own row: the server 400s a self-target
+              (Users.CannotDisableSelf/CannotEnableSelf), so presenting the
+              button here would only ever fail. */}
           {users.map((u) => (
-            <tr key={u.id}>
+            <tr key={u.id} className={u.disabledAt ? "muted" : undefined}>
               <td>{u.email}</td>
               <td>{u.displayName ?? "—"}</td>
               <td>{roleLabel(u.role)}</td>
+              <td>{u.disabledAt && <StatusBadge status="Inactive" label={t("disabledBadge")} />}</td>
               <td>
                 <button className="link" onClick={() => openEdit(u)}>
                   <Pencil size={14} aria-hidden /> {t("editButton")}
@@ -493,6 +651,17 @@ export function UsersPage() {
                   <button className="link" onClick={() => void openAssignments(u.id)}>
                     {t("flocksButton")}
                   </button>
+                )}
+                {myId !== u.id && (
+                  u.disabledAt ? (
+                    <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
+                      <RotateCcw size={14} aria-hidden /> {t("enableButton")}
+                    </button>
+                  ) : (
+                    <button className="link" disabled={busy} onClick={() => openStepUp(u, "disable")}>
+                      <Ban size={14} aria-hidden /> {t("disableButton")}
+                    </button>
+                  )
                 )}
               </td>
             </tr>
@@ -539,7 +708,7 @@ export function UsersPage() {
             {t("assignFlockButton")}
           </BusyButton>
         </div>
-        {error && <p className="error">{error}</p>}
+        <DialogError errors={errors} scope="flock-access" />
         <div className="dialog-foot">
           <button type="button" className="link" onClick={closeAssignments}>{t("doneButton")}</button>
         </div>
@@ -556,7 +725,7 @@ export function UsersPage() {
               onChange={(e) => setEditName(e.target.value)} />
           </label>
           <p className="muted">{t("clearNameHint")}</p>
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="edit-user" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
@@ -596,7 +765,7 @@ export function UsersPage() {
               </label>
             </>
           )}
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="set-password" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closePassword}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
@@ -635,11 +804,55 @@ export function UsersPage() {
               </label>
             </>
           )}
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="change-role" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeRole}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={roleUser !== null && isPending(`change-role:${roleUser.id}`)}>{t("changeRoleSubmitButton")}</BusyButton>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* #356 — one dialog is the whole disable/enable flow: it IS the
+          confirmation (no separate askReason step), collects the optional
+          reason (disable only — the API's reason is nullable, never
+          mandatory), and always collects the step-up password
+          UNCONDITIONALLY (#308) regardless of the target's role. */}
+      <Dialog
+        open={stepUpUser !== null}
+        title={stepUpMode === "disable"
+          ? t("disableStepUpTitle", { email: stepUpUser?.email ?? "" })
+          : t("enableStepUpTitle", { email: stepUpUser?.email ?? "" })}
+        onClose={closeStepUp}
+        describedBy={stepUpMode === "disable" ? disableWarningId : undefined}
+      >
+        <form className="inline-form" onSubmit={onSubmitStepUp}>
+          {stepUpMode === "disable" && (
+            <>
+              <p id={disableWarningId} className="confirm-body">{t("disableWarningBody")}</p>
+              <label>{t("disableReasonFieldLabel")}
+                <textarea value={disableReason} maxLength={200} rows={3}
+                  onChange={(e) => setDisableReason(e.target.value)} />
+              </label>
+            </>
+          )}
+          <p className="muted">
+            {stepUpMode === "disable" ? t("stepUpDisableHint") : t("stepUpEnableHint")}
+          </p>
+          <label>{t("stepUpFieldLabel")}
+            <input type="password" value={stepUpPassword} required maxLength={256}
+              autoComplete="current-password"
+              onChange={(e) => setStepUpPassword(e.target.value)} />
+          </label>
+          <DialogError errors={errors} scope="disable-enable" />
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={closeStepUp}>{tc("cancel")}</button>
+            <BusyButton type="submit" disabled={busy}
+              className={stepUpMode === "disable" ? "btn-danger" : undefined}
+              busy={stepUpUser !== null && stepUpMode !== null
+                && isPending(`${stepUpMode}:${stepUpUser.id}`)}>
+              {stepUpMode === "disable" ? t("disableSubmitButton") : t("enableSubmitButton")}
+            </BusyButton>
           </div>
         </form>
       </Dialog>

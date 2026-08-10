@@ -3,7 +3,7 @@ import type { DialogErrors } from "./useDialogErrors";
 /**
  * #479 — the message a dialog raised, rendered inside that dialog.
  *
- * Twenty-two of these across eleven screens. The markup lives here rather than
+ * Twenty-five of these across eleven screens. The markup lives here rather than
  * at each site for two reasons: a site that forgets it is a MISSING element,
  * which a test names, instead of a subtly wrong one; and `role="alert"` is
  * decided once (SalesPage carried it, StockPage did not).

@@ -235,6 +235,11 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<
             IValidator<Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleCommand>,
             Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleValidator>();
+        // #356 — disable carries an optional reason; enable carries no body at
+        // all and therefore has no validator.
+        services.AddScoped<
+            IValidator<Cluckwork.Application.Features.Users.DisableUser.DisableUserCommand>,
+            Cluckwork.Application.Features.Users.DisableUser.DisableUserValidator>();
         // #309 — the login DTO validator lives in the Api assembly (it validates
         // the Api LoginRequest). MAX-length only; see LoginRequestValidator.
         services.AddScoped<
@@ -310,6 +315,10 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordHandler>();
         services.AddScoped<
             Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Users.DisableUser.DisableUserHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Users.EnableUser.EnableUserHandler>();
         services.AddScoped<SetLanguageHandler>();
         services.AddScoped<SetStepperUnitHandler>();
         services.AddScoped<AdjustDailyEntryHandler>();
