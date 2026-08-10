@@ -350,6 +350,12 @@ describe("Dialog with another dialog open (#482)", () => {
     // Close the FIRST-opened one while the second is still up.
     await user.click(within(backdropOf("Dialog A")).getByRole("button", { name: "Close" }));
     expect(document.body.style.overflow).toBe("hidden"); // B is still open
+    // …and B is still the live dialog. Removing the closed entry by identity
+    // rather than popping the end of the stack is what keeps this true: a
+    // blind pop would drop B's entry, leaving the OPEN dialog inert — dead to
+    // the pointer, to Tab and to Escape — with the closed one as a phantom top
+    // (internal review of #483).
+    expect(backdropOf("Dialog B")).not.toHaveAttribute("inert");
 
     await user.click(within(backdropOf("Dialog B")).getByRole("button", { name: "Close" }));
     expect(document.body.style.overflow).toBe("visible"); // the value from before ANY dialog
