@@ -68,7 +68,9 @@ export function CustomersPage() {
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     // The hook's ref skips a same-tick re-submit (state alone waved both
-    // through); setError stays inside so a skipped run keeps the message.
+    // through); `beginAttempt` stays INSIDE run for the same reason the old
+    // `setError(null)` did — a skipped run must not blank the message the
+    // previous attempt left, because nothing new is going to replace it.
     await run("create", async () => {
       errors.beginAttempt("create");
       try {

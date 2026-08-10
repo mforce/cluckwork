@@ -272,6 +272,20 @@ export function HistoryPage() {
   // winner just added (pi review of PR #81). Only the reason survives; if
   // the entry is no longer correctable (voided meanwhile), close the panel.
   async function rebindAfterConflict(entryId: string) {
+    // This path can REOPEN a panel the user dismissed while the 409's re-read
+    // was still out, and that dismissal muted the scope — so both messages
+    // below would be dropped and the panel would spring back open showing
+    // another admin's numbers with no word of why. Found independently by two
+    // reviewers of #491.
+    //
+    // Un-muting is not a hole in #474. That rule drops the verdict of an
+    // attempt the USER walked away from. This is the app reopening the dialog
+    // uninvited and saying something new — that the entry was rebound — which
+    // is the one thing that makes the reappearance intelligible.
+    //
+    // It has to happen AFTER the re-read, not before: the dismissal that mutes
+    // the scope arrives while that request is out, so un-muting up here would
+    // simply be undone. Each un-mute therefore sits with the report it enables.
     try {
       // No reload here either: this runs from the adjust submit's 409 catch,
       // by which point runWrite has already re-read. A duplicate replacement
@@ -281,7 +295,9 @@ export function HistoryPage() {
         const keptReason = reason;
         startAdjust(fresh);
         setReason(keptReason);
-        // The dialog stays open, rebound to the winner's numbers — its message.
+        // The dialog is open — either still, or because startAdjust just put it
+        // back — and rebound to the winner's numbers, so this is its message.
+        errors.beginAttempt("adjust");
         errors.report("adjust", i18n.t("history:conflictRebindMessage"));
       } else {
         // The panel closes here, not through Cancel — nothing left to abandon,
@@ -295,7 +311,9 @@ export function HistoryPage() {
         setPageError(i18n.t("history:nothingToAdjustMessage", { status: fresh.status.toLowerCase() }));
       }
     } catch {
-      // The re-read itself failed; the panel is still open on stale data.
+      // The re-read itself failed; the panel is open on stale data, which is
+      // the worst thing to leave unexplained, so this one is un-muted too.
+      errors.beginAttempt("adjust");
       errors.report("adjust", i18n.t("history:conflictRebindFailedMessage"));
     }
   }

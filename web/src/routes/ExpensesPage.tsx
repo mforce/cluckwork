@@ -239,10 +239,13 @@ export function ExpensesPage() {
     });
   }
 
-  // A switch straight from one bound expense to another (no Cancel/close in
-  // between — the row buttons stay live while the dialog is open) abandons
-  // the one being displaced, so its stale verdict cannot resurface next time
-  // THAT expense is reopened. The 409 rebind below also calls this, on the
+  // A switch straight from one bound expense to another, with no Cancel or
+  // close in between, abandons the one being displaced, so its stale verdict
+  // cannot resurface next time THAT expense is reopened. The backdrop stops a
+  // mouse from reaching the row buttons underneath, so this is not the common
+  // path — but #480 established that it does not stop a screen reader's
+  // virtual cursor, which is the same reason the per-dialog map exists at all.
+  // The 409 rebind below also calls this, on the
   // SAME id, so this must not fire there — abandoning would mute the very
   // report the rebind is about to make.
   function startEdit(x: Expense) {
@@ -303,6 +306,13 @@ export function ExpensesPage() {
           // user who had paged deeper it collapses the window that refresh
           // just restored — and clears it outright if it fails (#469).
           startEdit(await getExpense(target.id));
+          // startEdit may have just REOPENED a dialog the user dismissed while
+          // this GET was out, and that dismissal muted this scope — so the
+          // message below would be dropped and the panel would reappear with
+          // the winner's values and no word of why (codex on #491). A forced
+          // reopen is a new session, so un-mute it. Same id as the scope `run`
+          // reports on, so this re-enables that report and nothing else.
+          errors.beginAttempt(scope);
           throw new Error(i18n.t("expenses:conflictRebindMessage"));
         }
         throw err;
@@ -322,8 +332,16 @@ export function ExpensesPage() {
       await createExpenseCategory({ name: newCategoryName.trim() }, keyFor(scope));
       setNewCategoryName("");
       setAddingCategory(false);
-      setCategories(await listExpenseCategories({ includeInactive: true }));
       setMessage(i18n.t("expenses:categoryCreatedMessage"));
+      // The dialog closed two lines ago, so its slot renders NOWHERE from here
+      // on: a refresh failure reported to it would leave the user with a stale
+      // category list and no message at all (codex on #491). The write already
+      // succeeded, so this is the screen's problem now, not the form's.
+      try {
+        setCategories(await listExpenseCategories({ includeInactive: true }));
+      } catch (err) {
+        errors.setPage(errText(err));
+      }
     });
   }
 

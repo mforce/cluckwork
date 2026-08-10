@@ -886,3 +886,57 @@ describe("ExpensesPage total is never a guess (#469, codex P2)", () => {
     expect(screen.queryByText(/0\.00/)).not.toBeInTheDocument();
   });
 });
+
+// #491 review — two ways a message could reach a slot nobody is rendering.
+// Both were found by reviewers, both reproduced here before being fixed.
+describe("ExpensesPage messages that had nowhere to land (#491)", () => {
+  it("explains the reopened correction even when it was dismissed mid-flight", async () => {
+    // The correction's Cancel is gated on busy, but Escape and the X are not,
+    // and onClose runs the same abandon. Dismiss during the 409's re-read and
+    // the panel springs back open on the winner's values; without un-muting,
+    // it does so with no word of why.
+    mockListExpenses.mockResolvedValue({
+      items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3,
+    });
+    mockAdjustExpense.mockRejectedValue(new ApiError(409, "Conflict", "stale"));
+    let resolveReread!: (e: Expense) => void;
+    mockGetExpense.mockReturnValueOnce(
+      new Promise((resolve) => { resolveReread = resolve; }) as never);
+    await renderReady("BHD");
+
+    const row = await screen.findByRole("row", { name: /Generator diesel/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save correction" }));
+    });
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await act(async () => {
+      resolveReread({ ...EXP_OLD, description: "Diesel (recount)", version: 8 });
+    });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(await screen.findByText(/changed by someone else/)).toBeInTheDocument();
+  });
+
+  it("puts a post-create category refresh failure on the page, not in the closed dialog", async () => {
+    // The write succeeded and the dialog closed; the list refresh then failed.
+    // Reported to the dialog's scope it renders nowhere at all, leaving a stale
+    // category list and no explanation.
+    mockCreateCategory.mockResolvedValue({ id: "cat-9" });
+    await renderReady();
+    // Queued AFTER the mount load, so it is the post-create refresh that fails
+    // and not the screen's own first read.
+    mockListCategories.mockRejectedValueOnce(new ApiError(500, "Server error", "Could not reload categories."));
+
+    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    fireEvent.click(screen.getByRole("button", { name: "New category" }));
+    fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Category name"), { target: { value: "Bedding" } });
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add category" }));
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Could not reload categories.")).toBeInTheDocument();
+  });
+});

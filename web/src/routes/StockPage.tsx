@@ -269,9 +269,10 @@ export function StockPage() {
     setWoDirection("remove");
     setWoQty(0);
     setWoReason("");
-    // #479 — no reset here: closeWriteOff's `abandon` already cleared and
-    // muted this dialog's slot on the way out, including a late failure from
-    // an attempt still in flight when it closed.
+    // #479 — no reset here. Every DISMISSAL goes through closeWriteOff, whose
+    // `abandon` cleared the slot and muted any attempt still in flight on the
+    // way out. The success path closes with a bare setWriteOffLot(null), where
+    // the slot is empty by construction: the attempt did not fail.
     setWriteOffLot(lot);
   }
 

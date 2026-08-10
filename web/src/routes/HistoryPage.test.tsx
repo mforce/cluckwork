@@ -1175,3 +1175,40 @@ describe("HistoryPage adjust conflict — the rebind's own failure (#469)", () =
     expect(screen.queryByText(/list could not be reloaded/i)).not.toBeInTheDocument();
   });
 });
+
+// #491 review — the 409 rebind reopens a panel the user may have dismissed
+// while the re-read was still out. Found independently by two reviewers.
+describe("HistoryPage rebind after a dismissed conflict (#491)", () => {
+  it("explains the reopened panel even when the adjust was dismissed mid-flight", async () => {
+    const WINNER: DailyEntry = {
+      ...SUBMITTED, version: 2, totalEggs: 120,
+      grades: [{ eggGradeId: "gr1", quantity: 60 }, { eggGradeId: "gr2", quantity: 60 }],
+    };
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(409, "Conflict", "conflict"));
+    // Hold the re-read open so the dismissal lands between the 409 and the rebind.
+    let resolveReread!: (e: DailyEntry) => void;
+    mockGetDailyEntry.mockReturnValueOnce(
+      new Promise((resolve) => { resolveReread = resolve; }) as never);
+    await openAdjustPanel();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade A" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Grade B" }), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    // Cancel is not gated on busy, so the user can walk away mid-rebind.
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    await act(async () => {
+      resolveReread(WINNER);
+    });
+
+    // The panel comes back on its own carrying the winner's numbers. Without
+    // the rebind message that is a form reappearing for no stated reason.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Total eggs" })).toHaveValue(120);
+    expect(await screen.findByText(/re-apply your correction/)).toBeInTheDocument();
+  });
+});

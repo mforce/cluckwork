@@ -377,3 +377,45 @@ describe("CustomersPage i18n wiring (#182, Task 24)", () => {
     });
   });
 });
+
+// #491 review, D1 — a reviewer measured this as a regression against main,
+// because main showed the message and this does not. It is the specified
+// behaviour, and it is pinned here so it stays deliberate.
+//
+// #474 → #476 → #478 spent three rounds on exactly this: a write the user
+// walked away from settles later, and the dialog it belonged to is now a
+// SECOND session they opened and are filling in. Showing the verdict there
+// attributes one attempt's failure to another attempt's form — which is the
+// misattribution the whole issue exists to remove. Showing it on the page is
+// the context-free message #474 was filed about. So it goes nowhere, and the
+// user's own dismissal is the signal that makes that acceptable.
+//
+// The re-pricing that permits this test: main's behaviour is not a better
+// alternative that was lost, it is the defect. SalesPage already ships the
+// same rule with its own test ("does not report an abandoned attempt against
+// the session that replaced it"), landed in #489.
+describe("CustomersPage abandoned attempts (#474, pinned in #491)", () => {
+  it("drops a dismissed create's failure rather than showing it in the reopened form", async () => {
+    let rejectCreate!: (err: unknown) => void;
+    mockCreate.mockReturnValueOnce(
+      new Promise((_resolve, reject) => { rejectCreate = reject; }) as never);
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Abandoned" } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "555-9" } });
+    await submit();
+
+    // Walk away mid-flight, then start a fresh one.
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    openCreate();
+    await act(async () => {
+      rejectCreate(new ApiError(422, "Validation failed", "Phone is already in use."));
+    });
+
+    // The form the user is filling in NOW is not accused of the abandoned
+    // attempt's mistake, and the page is not given a message about a form.
+    expect(within(dialog()).queryByText("Phone is already in use.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Phone is already in use.")).not.toBeInTheDocument();
+  });
+});

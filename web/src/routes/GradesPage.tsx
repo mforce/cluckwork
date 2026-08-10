@@ -104,9 +104,12 @@ export function GradesPage() {
 
   // A dialog opens on a clean form; cancelling keeps whatever was typed until
   // the next open, so a stray Escape does not throw the entry away. Switching
-  // straight from one dialog to the other (no Cancel in between) abandons the
-  // one being displaced, so its stale verdict cannot resurface next time it
-  // reopens — the direct-switch case `abandon`-on-close alone cannot see.
+  // straight from one dialog to the other, with no Cancel in between, abandons
+  // the one being displaced, so its stale verdict cannot resurface next time it
+  // reopens — the one case `abandon`-on-close alone cannot see. The backdrop
+  // stops a mouse reaching the trigger underneath, so this is the rare path;
+  // #480 established it does not stop a screen reader's virtual cursor, which
+  // is the same reason a per-dialog map exists rather than one slot.
   function openCreate() {
     if (editingId !== null) errors.abandon(`edit:${editingId}`);
     setEditingId(null);
