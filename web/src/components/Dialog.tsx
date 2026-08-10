@@ -98,6 +98,51 @@ function pushModal(backdrop: HTMLElement) {
   openStack.push(backdrop);
   document.body.style.overflow = "hidden";
   syncModalBackground();
+  scheduleModalStateNotify();
+}
+
+// #485 — everything outside the topmost dialog is inert, so it is out of the
+// accessibility tree, and a live region cannot speak from there. Un-inerting
+// it later replays nothing, so a region that was silenced under a dialog has
+// to be told when the page belongs to it again. Subscribers are handed "is
+// any dialog open", not "a dialog just closed": the settled state is the
+// useful signal, and it is the one that survives the sequences below.
+const modalStateListeners = new Set<(anyDialogOpen: boolean) => void>();
+let notifyScheduled = false;
+
+export function anyDialogOpen(): boolean {
+  return openStack.length > 0;
+}
+
+export function onModalStateChange(
+  listener: (anyDialogOpen: boolean) => void,
+): () => void {
+  modalStateListeners.add(listener);
+  return () => modalStateListeners.delete(listener);
+}
+
+// Deferred on purpose, rather than fired inline from push/popModal, for one
+// reason that is load-bearing and one that is housekeeping.
+//
+// Load-bearing: push/popModal run from Dialog's own effect, and a subscriber
+// mounted BELOW the dialog in the tree has not run its own effect yet at that
+// point — an inline call would reach nobody, and the subscriber would keep an
+// initial value it read before the dialog existed. A microtask runs once every
+// effect in the commit has, so whoever is listening by then hears the truth.
+//
+// Housekeeping: a commit that swaps dialog A for dialog B pops to empty and
+// pushes straight back, and StrictMode's dev-mode replay does setup ->
+// cleanup -> setup on every first open. Coalescing collapses each of those
+// into the single question worth asking — what is true now? Subscribers are
+// expected to be idempotent regardless, so this is cheapness, not correctness.
+function scheduleModalStateNotify() {
+  if (notifyScheduled) return;
+  notifyScheduled = true;
+  queueMicrotask(() => {
+    notifyScheduled = false;
+    const open = anyDialogOpen();
+    for (const listener of modalStateListeners) listener(open);
+  });
 }
 
 function popModal(backdrop: HTMLElement) {
@@ -108,6 +153,7 @@ function popModal(backdrop: HTMLElement) {
     overflowBeforeAnyDialog = null;
   }
   syncModalBackground();
+  scheduleModalStateNotify();
 }
 
 // F131: the shared modal shell. Add/edit forms used to sit inline above (or

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/useAuth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { BottomNav } from "../components/BottomNav";
+import { useMissedAnnouncement } from "../components/useMissedAnnouncement";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { FarmBrand } from "../components/FarmBrand";
 import { useFarm } from "../farm/useFarm";
@@ -33,6 +34,15 @@ export function AppLayout() {
 
   const groups = navGroups(role, isAdmin);
   const tabs = tabEntries(groups);
+
+  // #485 — the banner below is a role="alert" and announces itself, except
+  // when a dialog has it inert. A read that fails while the user is mid-dialog
+  // is exactly when that bites: the warning is on screen the moment they close
+  // it, but nothing would ever have said so.
+  const farmWarning = loadFailed
+    ? (farm === null ? t("farmLoadFailedNeverLoaded") : t("farmLoadFailedStale"))
+    : null;
+  const missedFarmWarning = useMissedAnnouncement(farmWarning);
 
   // Per-page document.title: the active nav entry's translated label + the
   // shared suffix (e.g. "Dashboard — Cluckwork"), so the browser tab/history
@@ -85,23 +95,33 @@ export function AppLayout() {
       </aside>
 
       <main className="content" id="main-content" tabIndex={-1}>
+        {/* Carries the warning the banner below could not announce because a
+            dialog had it inert (#485), and stays empty otherwise so the two
+            never say the same thing twice.
+
+            `aria-live="assertive"` + `aria-atomic` rather than `role="alert"`,
+            which is shorthand for exactly that pair. The distinction matters
+            because this element is always mounted, and `role="alert"` is how
+            ~20 error banners across the app mark themselves — the E2E suite
+            reads "no alert on screen" as "nothing has gone wrong", so a
+            permanent one would answer every such query and quietly retire the
+            check. The CONDITIONAL banner below keeps the role, and with it its
+            place in that net. */}
+        <p className="sr-only" aria-live="assertive" aria-atomic="true">{missedFarmWarning}</p>
+
         {/* A farm we never got is not a cosmetic loss: §4.5 formatting and —
             since #123 — every date field's ceiling come from it, so without a
             farm the pickers silently follow the DEVICE's day and the screen
             looks perfectly healthy while being a day out. Say so, and offer the
-            read again, rather than degrade in silence (codex review of #123). */}
-        {loadFailed && (
+            read again, rather than degrade in silence (codex review of #123).
+            The wording is picked above, where the offscreen region reads it
+            too: never got one -> the pickers follow the DEVICE's day; got one
+            then a re-read failed -> what is on screen is what a save was meant
+            to replace, so a new timezone silently does not apply (round 2:
+            codex + pi). */}
+        {farmWarning !== null && (
           <p className="warn farm-warning" role="alert">
-            {farm === null
-              // Never got one: §4.5 formatting and every date field's ceiling
-              // come from the farm, so without it the pickers follow the
-              // DEVICE's day.
-              ? t("farmLoadFailedNeverLoaded")
-              // Got one, then a re-read failed. The farm on screen is whatever
-              // was last read — which after a settings save is the value the
-              // save was meant to replace, so a new timezone silently does not
-              // apply anywhere (round 2: codex + pi).
-              : t("farmLoadFailedStale")}{" "}
+            {farmWarning}{" "}
             <button type="button" className="link" onClick={() => void refresh()}>
               {t("tryAgain")}
             </button>

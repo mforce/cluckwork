@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useMissedAnnouncement } from "../components/useMissedAnnouncement";
 import { registerServiceWorker } from "./registerServiceWorker";
 
 // #142 — "a new version is ready" affordance.
@@ -11,8 +12,9 @@ import { registerServiceWorker } from "./registerServiceWorker";
 // component — without it an update would wait forever and clients would silently
 // run a stale shell against a newer API.
 //
-// Renders nothing at all until an update is genuinely waiting, so it costs a
-// hook and no layout in the normal case.
+// Renders no visible UI until an update is genuinely waiting — only the
+// always-present offscreen region below, empty and occupying no layout until
+// there is a missed announcement to make (#485).
 export function UpdatePrompt() {
   const { t } = useTranslation("pwa");
   // Holds the activator handed over by the registration; its presence IS the
@@ -41,7 +43,11 @@ export function UpdatePrompt() {
     return () => teardown.abort();
   }, []);
 
-  if (!activate || dismissed) return null;
+  const waiting = activate !== null && !dismissed;
+  // #485 — the banner below announces itself on the ordinary path. It cannot
+  // when a dialog is open, because it is inert then and out of the
+  // accessibility tree; this covers only that case.
+  const missed = useMissedAnnouncement(waiting ? t("updateAvailable") : null);
 
   async function onReload() {
     if (busy || !activate) return;
@@ -56,23 +62,38 @@ export function UpdatePrompt() {
   }
 
   return (
-    // polite + status: announced by a screen reader without stealing focus from
-    // whatever is being typed.
-    <div className="update-banner" role="status" aria-live="polite">
-      <span className="update-banner-text">{t("updateAvailable")}</span>
-      <div className="update-banner-actions">
-        <button type="button" onClick={onReload} disabled={busy}>
-          {busy ? t("reloading") : t("reload")}
-        </button>
-        <button
-          type="button"
-          className="update-banner-later"
-          onClick={() => setDismissed(true)}
-          disabled={busy}
-        >
-          {t("later")}
-        </button>
-      </div>
-    </div>
+    <>
+      {/* Carries the announcement the banner below could not make because a
+          dialog had it inert (#485), and stays empty the rest of the time so
+          the two never say the same sentence twice.
+
+          `aria-live` + `aria-atomic` rather than `role="status"`, which is
+          just shorthand for that pair: this element is always mounted, and a
+          permanent node holding a live ROLE would answer every
+          `getByRole("status"/"alert")` query in the app. Those roles mean "a
+          message is on screen" here — ~20 error banners use `role="alert"` —
+          and the E2E suite reads their absence as "nothing has gone wrong". */}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{missed}</p>
+      {waiting && (
+        // polite + status: announced by a screen reader without stealing focus
+        // from whatever is being typed.
+        <div className="update-banner" role="status" aria-live="polite">
+          <span className="update-banner-text">{t("updateAvailable")}</span>
+          <div className="update-banner-actions">
+            <button type="button" onClick={onReload} disabled={busy}>
+              {busy ? t("reloading") : t("reload")}
+            </button>
+            <button
+              type="button"
+              className="update-banner-later"
+              onClick={() => setDismissed(true)}
+              disabled={busy}
+            >
+              {t("later")}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
