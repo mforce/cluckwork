@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { Dialog } from "./Dialog";
@@ -333,6 +333,30 @@ function TwoHost() {
 const backdropOf = (name: string) =>
   screen.getByRole("dialog", { name }).closest(".dialog-backdrop") as HTMLElement;
 
+// Like TwoHost, but A can also close WITHOUT going through its own trigger,
+// onClose, or Escape — a "Close A directly" button stands in for an
+// unrelated effect elsewhere calling setA(false) while the user is busy in
+// B, which is what "programmatically" means below: A closing is not
+// something the user did from inside B, or even noticed.
+function TwoHostWithProgrammaticClose() {
+  const [a, setA] = useState(false);
+  const [b, setB] = useState(false);
+  return (
+    <>
+      <button onClick={() => setA(true)}>Open A</button>
+      <button onClick={() => setB(true)}>Open B</button>
+      <button onClick={() => setA(false)}>Close A directly</button>
+      <Dialog open={a} title="Dialog A" onClose={() => setA(false)}>
+        <input aria-label="A field" />
+      </Dialog>
+      <Dialog open={b} title="Dialog B" onClose={() => setB(false)}>
+        <input aria-label="B field one" />
+        <input aria-label="B field two" />
+      </Dialog>
+    </>
+  );
+}
+
 describe("Dialog with another dialog open (#482)", () => {
   it("keeps the scroll lock until the LAST dialog closes, then restores it", async () => {
     // The defect this pins: each instance snapshotted and restored
@@ -407,6 +431,31 @@ describe("Dialog with another dialog open (#482)", () => {
     await user.click(within(backdropOf("Dialog B")).getByRole("button", { name: "Close" }));
 
     expect(screen.getByLabelText("A field")).toHaveFocus();
+  });
+
+  // The redirect above must not fire when it isn't needed. A (bottom) can
+  // close from an unrelated effect while the user is genuinely mid-typing in
+  // B (top) — B never moved, so A's cleanup running is not the user's cue to
+  // yank focus off whatever field they are in and back to B's first one
+  // (codex review of #483, against 4dfa12e7's first attempt).
+  it("leaves focus alone when it is already inside the dialog that stays open", async () => {
+    const user = userEvent.setup();
+    render(<TwoHostWithProgrammaticClose />);
+    await user.click(screen.getByRole("button", { name: "Open A" }));
+    await user.click(screen.getByRole("button", { name: "Open B" }));
+
+    const secondField = screen.getByLabelText("B field two");
+    await user.click(secondField);
+    expect(secondField).toHaveFocus();
+
+    // fireEvent, not userEvent: a real click on a button focuses it first,
+    // which would move focus off `secondField` regardless of Dialog's own
+    // logic and prove nothing. This dispatches only the click, standing in
+    // for a close that isn't a focus-moving user interaction at all — a
+    // prop change, a timer, code elsewhere calling the same setter.
+    fireEvent.click(screen.getByRole("button", { name: "Close A directly" }));
+
+    expect(secondField).toHaveFocus();
   });
 });
 

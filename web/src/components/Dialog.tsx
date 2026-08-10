@@ -143,19 +143,22 @@ export function Dialog({ open, title, onClose, focusKey, describedBy, wide, chil
     return () => {
       if (backdrop !== null) popModal(backdrop);
       const trigger = returnFocusTo.current;
-      // If another dialog is still open, IT is what the page now shows —
-      // this one's own trigger sits in whatever the page was when THIS
-      // dialog opened, which the remaining dialog has since made inert
-      // (or, if the trigger happens to be inside the remaining dialog
-      // itself, restoring to it is exactly right). A trigger outside it is
-      // no longer a legitimate focus target: real browsers refuse to focus
-      // an inert element, and a screen reader's virtual cursor can reach
-      // that trigger the same way it reached this dialog's own opener in
-      // the first place (#480). Land inside the dialog that is now topmost
-      // instead (adversarial review of #483).
+      // If another dialog is still open, IT is what the page now shows. Check
+      // where focus actually IS, not this dialog's own (possibly irrelevant)
+      // trigger: a lower dialog can close programmatically — an unrelated
+      // effect, not the user's own click — while focus is already correctly
+      // inside the dialog on top, mid-typing (codex review of #483). Moving
+      // it from there based on THIS dialog's stale trigger would yank the
+      // cursor out from under the user. Only redirect when focus is genuinely
+      // NOT already inside the dialog that remains open — because it's on
+      // this closing dialog's own (about-to-vanish) content, or on a page
+      // element the remaining dialog has made inert, reachable the same way
+      // a screen reader's virtual cursor reached this dialog's own opener in
+      // the first place (#480).
       const remainingTop = openStack[openStack.length - 1] ?? null;
       if (remainingTop !== null) {
-        if (!(trigger instanceof HTMLElement) || !remainingTop.contains(trigger)) {
+        const active = document.activeElement;
+        if (!(active instanceof HTMLElement) || !remainingTop.contains(active)) {
           // The BODY, not the whole panel — same reasoning as the initial-
           // focus effect below: the panel's own DOM order puts the close
           // button before the form fields, so querying the panel would land
