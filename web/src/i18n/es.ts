@@ -1649,9 +1649,11 @@ export const es = {
       + "<strong>Recargar</strong>, o <strong>Volver al panel</strong> e inténtelo de nuevo. Si sigue "
       + "sucediendo, abra \"Detalles del error\" y envíe una captura de pantalla.",
     gettingAroundWhereMessagesAppear:
-      "Si un guardado falla, el formulario le dice por qué <strong>dentro del formulario</strong>, junto a los "
-      + "campos a los que se refiere — y permanece abierto, para que pueda corregirlo e intentarlo de nuevo sin "
-      + "perder lo que escribió.",
+      "El mensaje de algo que falló aparece <strong>donde está el trabajo</strong>: si estaba llenando un "
+      + "formulario emergente, aparece dentro de ese formulario, junto a los campos a los que se refiere; si "
+      + "fue la pantalla misma — una lista que no cargó, por ejemplo — aparece en la pantalla de atrás. Así, "
+      + "un formulario que se niega a guardar siempre le dice por qué sin cerrarse. Al cerrar el formulario se "
+      + "descarta su mensaje: ese intento terminó, y lo que informó la pantalla misma se queda.",
 
     signingInHeading: "Iniciar sesión",
     signingInBasic:
