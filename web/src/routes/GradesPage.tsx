@@ -144,6 +144,11 @@ export function GradesPage() {
   function startEdit(g: EggGrade) {
     if (creating) errors.abandon("create");
     setCreating(false);
+    // A different grade's edit DISPLACES this one the same way (see openCreate
+    // above): the session ends without onClose, and its per-id slot would
+    // otherwise replay the dead session's failure when THAT grade's edit is
+    // reopened later (pi review of #491).
+    if (editingId !== null && editingId !== g.id) errors.abandon(`edit:${editingId}`);
     setEditingId(g.id);
     setEditName(g.name);
     setEditSort(g.sortOrder);

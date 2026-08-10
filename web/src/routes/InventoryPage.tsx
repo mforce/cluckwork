@@ -205,6 +205,11 @@ export function InventoryPage() {
 
   function startEdit(i: InventoryItem) {
     closeCreate();
+    // A different item's edit DISPLACES this one: the session ends without
+    // onClose, and its per-id slot would otherwise replay the dead session's
+    // failure when THAT item's edit is reopened later. Reachable behind the
+    // backdrop via a screen reader's virtual cursor (#480; pi review of #491).
+    if (editingId !== null && editingId !== i.id) errors.abandon(`edit:${editingId}`);
     setEditingId(i.id);
     setEditName(i.name);
     setEditUnit(i.unit);
@@ -226,6 +231,14 @@ export function InventoryPage() {
   }
 
   async function onOpen(i: InventoryItem) {
+    // The purchase/adjust dialogs are bound to the ACTIVE panel — switching
+    // items REBINDS an open one in place (its title changes, nothing closes
+    // it), so a verdict reported under the old item would sit inside a dialog
+    // now naming a different one. Same displacement rule as startEdit above.
+    if (active !== null && active.id !== i.id) {
+      errors.abandon("purchase");
+      errors.abandon("adjust");
+    }
     setActive(i);
     setMovements([]);
     try {

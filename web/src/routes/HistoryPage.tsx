@@ -177,6 +177,15 @@ export function HistoryPage() {
   const closeAdjust = () => { setAdjusting(null); errors.abandon("adjust"); };
 
   function startAdjust(e: DailyEntry) {
+    // A different entry's adjust DISPLACES this session — it ends without
+    // onClose, so nothing else abandons the fixed "adjust" scope, and the
+    // displaced day's verdict would render under the next day's heading.
+    // Reachable behind the backdrop via a screen reader's virtual cursor
+    // (#480; pi review of #491). Same-id re-entry is deliberately spared: the
+    // session is still about this entry, so its failed save's verdict must
+    // survive the reseed. (The 409 rebind also re-enters same-id, but it
+    // re-arms its own scope before reporting, so it does not depend on this.)
+    if (adjusting !== null && adjusting.id !== e.id) errors.abandon("adjust");
     setAdjusting(e);
     setTotal(e.totalEggs);
     setCracked(e.crackedEggs);

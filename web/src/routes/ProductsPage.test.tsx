@@ -386,6 +386,52 @@ describe("ProductsPage error placement (#479)", () => {
     expect(screen.getAllByText("boom")).toHaveLength(1);
   });
 
+  // Displacement: a second dialog session begins without the first being
+  // dismissed, so `abandon`-on-close never runs. The scope is fixed ("edit"),
+  // so whatever the previous product's attempt left is sitting in the very
+  // slot the next product's dialog renders (pi review of #491).
+  it("does not carry one product's failed edit into another product's dialog", async () => {
+    mockUpdate.mockRejectedValue(new ApiError(409, "Conflict", "Someone else changed this product."));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("Someone else changed this product.")).toBeInTheDocument();
+
+    // The row behind the backdrop is not mouse-reachable, but #480 established
+    // a screen reader's virtual cursor still gets there — the same door the
+    // per-dialog map exists for.
+    fireEvent.click(within(screen.getByRole("row", { name: /Legacy Tray/ })).getByRole("button", { name: "edit" }));
+
+    // The dialog really did swap records — otherwise the assertion below would
+    // pass for the wrong reason.
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Legacy Tray");
+    expect(within(dialog()).queryByText("Someone else changed this product.")).not.toBeInTheDocument();
+  });
+
+  it("does not carry one conversion's failed save into another conversion's dialog", async () => {
+    // A second EDITABLE conversion, added here rather than to the shared
+    // fixtures: conversion→conversion is the displacement this scope has, and
+    // the default catalog's only other row ("Individual") carries no edit
+    // button to displace with.
+    const CONV_FLAT: EggUnitConversion = { id: "conv-flat", unitCode: "Flat", eggsPerUnit: 20, active: true, version: 1 };
+    mockListConversions.mockResolvedValue([CONV_INDIVIDUAL, CONV_CARTON, CONV_FLAT]);
+    mockUpdateConversion.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Carton/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("boom")).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole("row", { name: /Flat/ })).getByRole("button", { name: "edit" }));
+    // Swapped to the Flat conversion (20 eggs), so a leftover would be visible
+    // under a heading about a different unit entirely.
+    expect(within(dialog()).getByLabelText("Eggs per unit")).toHaveValue(20);
+    expect(screen.queryByText("boom")).not.toBeInTheDocument();
+  });
+
   it("keeps a deactivate failure out of an open create dialog", async () => {
     // The row stays reachable in the DOM behind a portalled dialog (jsdom
     // does not enforce the backdrop's visual occlusion), so this is a real

@@ -811,6 +811,54 @@ describe("HistoryPage error placement (#479)", () => {
     expect(screen.getAllByText("boom")).toHaveLength(1);
   });
 
+  // Displacement: the adjust scope is fixed ("adjust"), and a second entry's
+  // adjust can begin without the first being dismissed — the row buttons
+  // behind the backdrop are reachable to a screen reader's virtual cursor
+  // (#480). Without an abandon on the switch, day A's failed save renders
+  // inside day B's dialog (pi review of #491).
+  it("does not carry one entry's failed adjust into another entry's dialog", async () => {
+    const RECONCILED_2: DailyEntry = { ...RECONCILED, id: "de7", date: "2026-07-18" };
+    mockListDailyEntries.mockResolvedValue([RECONCILED, RECONCILED_2]);
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    const [firstAdjust, secondAdjust] = await screen.findAllByRole("button", { name: "adjust" });
+
+    fireEvent.click(firstAdjust);
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+    expect(within(dialog()).getByText("boom")).toBeInTheDocument();
+
+    fireEvent.click(secondAdjust);
+    // The dialog really swapped entries (startAdjust reseeds Reason empty) —
+    // otherwise the absence below could pass for the wrong reason.
+    expect(screen.getByLabelText(/Reason/)).toHaveValue("");
+    expect(screen.queryByText("boom")).not.toBeInTheDocument();
+  });
+
+  // The other half of the displacement rule: re-entering the SAME entry is
+  // not a displacement. Clicking the row's adjust button again with that
+  // entry's dialog already open reseeds the form, but the session is still
+  // about this entry — its failed save's verdict must survive the re-entry,
+  // not be abandoned as if the user had moved to a different day.
+  it("keeps a save failure visible after re-entering the same entry's adjust", async () => {
+    mockAdjustDailyEntry.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    mockListDailyEntries.mockResolvedValue([RECONCILED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    const adjustButton = await screen.findByRole("button", { name: "adjust" });
+
+    fireEvent.click(adjustButton);
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+    expect(within(dialog()).getByText("boom")).toBeInTheDocument();
+
+    fireEvent.click(adjustButton); // same entry, dialog still open — reseed only
+    expect(within(dialog()).getByText("boom")).toBeInTheDocument();
+  });
+
   it("keeps the flocks/grades setup failure out of the open adjust dialog", async () => {
     // Only the setup read fails — grades still load, so the dialog's own
     // fields render normally and the failure has nothing to do with them.

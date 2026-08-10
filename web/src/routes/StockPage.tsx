@@ -269,10 +269,16 @@ export function StockPage() {
     setWoDirection("remove");
     setWoQty(0);
     setWoReason("");
-    // #479 — no reset here. Every DISMISSAL goes through closeWriteOff, whose
-    // `abandon` cleared the slot and muted any attempt still in flight on the
-    // way out. The success path closes with a bare setWriteOffLot(null), where
-    // the slot is empty by construction: the attempt did not fail.
+    // #479 — no reset for a plain open. Every DISMISSAL goes through
+    // closeWriteOff, whose `abandon` cleared the slot and muted any attempt
+    // still in flight on the way out. The success path closes with a bare
+    // setWriteOffLot(null), where the slot is empty by construction: the
+    // attempt did not fail. The one door left: a DIFFERENT lot's write-off
+    // opened over this one DISPLACES it without any close running, and the
+    // scope is fixed — so the displaced lot's verdict would render under the
+    // new lot's date. Reachable behind the backdrop via a screen reader's
+    // virtual cursor (#480; pi review of #491).
+    if (writeOffLot !== null && writeOffLot.id !== lot.id) errors.abandon("write-off");
     setWriteOffLot(lot);
   }
 

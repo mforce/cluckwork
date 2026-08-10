@@ -495,6 +495,31 @@ describe("StockPage error placement (#479)", () => {
     expect(screen.getAllByText("network down")).toHaveLength(1);
   });
 
+  // Displacement: the write-off scope is fixed ("write-off"), and a second
+  // lot's write-off can begin without the first being dismissed — the row
+  // buttons behind the backdrop are reachable to a screen reader's virtual
+  // cursor (#480). Without an abandon on the switch, lot A's failed write-off
+  // renders under lot B's date in the dialog title (pi review of #491).
+  it("does not carry one lot's failed write-off into another lot's dialog", async () => {
+    const LOT_2: EggLotRow = { ...LOTS[0], id: "lot2", productionDate: "2026-07-02", quantityAvailable: 50 };
+    mockGetStock.mockResolvedValue(ROWS);
+    mockListEggLots.mockResolvedValue([LOTS[0], LOT_2]);
+    mockRecordEggLotMovement.mockRejectedValue(new Error("network down"));
+    render(<StockPage />);
+    await screen.findByText("Grade A");
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    const lotRow1 = await screen.findByRole("row", { name: /2026-07-01/ });
+    fireEvent.click(within(lotRow1).getByRole("button", { name: "write off" }));
+    fillAndSubmit();
+    await screen.findByText("network down");
+
+    const lotRow2 = screen.getByRole("row", { name: /2026-07-02/ });
+    fireEvent.click(within(lotRow2).getByRole("button", { name: "write off" }));
+    // The dialog really swapped lots — its title names the new lot's date.
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
+    expect(screen.queryByText("network down")).not.toBeInTheDocument();
+  });
+
   it("keeps a movements-load failure out of the open write-off dialog", async () => {
     mockListEggLotMovements.mockRejectedValue(new Error("boom"));
     const lotRow = await openLotRowAndWriteOff();

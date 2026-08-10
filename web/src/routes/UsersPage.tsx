@@ -145,6 +145,7 @@ export function UsersPage() {
   // closes it. Load the assignments before opening so the panel is never empty
   // mid-flight; a load failure surfaces on the page and the dialog stays shut.
   async function openAssignments(userId: string) {
+    if (openUser !== null && openUser !== userId) errors.abandon("flock-access");
     activeUser.current = userId;
     try {
       const list = await listFlockAssignments(userId);
@@ -267,7 +268,14 @@ export function UsersPage() {
   }
 
   // #163 — open the edit dialog seeded with the user's current name.
+  // Each open handler below abandons its own scope when a DIFFERENT user's
+  // dialog displaces the one still open: the displaced session ends without
+  // onClose, so nothing else empties the fixed scope, and the old user's
+  // verdict would render under the new user's email in the title. The row
+  // buttons behind the backdrop stay reachable to a screen reader's virtual
+  // cursor (#480; pi review of #491). Same-user re-entry is not a displacement.
   function openEdit(u: User) {
+    if (editUser !== null && editUser.id !== u.id) errors.abandon("edit-user");
     setMessage(null);
     setEditName(u.displayName ?? "");
     activeEdit.current = u.id;
@@ -282,6 +290,7 @@ export function UsersPage() {
 
   // #165 — open/close the password dialog for a user.
   function openPassword(u: User) {
+    if (pwUser !== null && pwUser.id !== u.id) errors.abandon("set-password");
     setMessage(null);
     setPwValue("");
     setPwConfirm("");
@@ -341,6 +350,7 @@ export function UsersPage() {
 
   // #355 — open/close the role dialog for a user, seeded with their current role.
   function openRole(u: User) {
+    if (roleUser !== null && roleUser.id !== u.id) errors.abandon("change-role");
     setMessage(null);
     setRoleValue(u.role);
     setRoleStepUpPassword("");

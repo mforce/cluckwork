@@ -646,6 +646,59 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     expect(mockPurchase).not.toHaveBeenCalled();
   });
 
+  // Displacement: the edit scope is per-item (`edit:${id}`), so a switch
+  // straight from item A's failed edit to item B leaves A's verdict parked in
+  // a slot nothing currently renders — until A's edit is REOPENED, which
+  // would replay a dead session's failure into a fresh one (pi review of
+  // #491). The row buttons behind the backdrop stay reachable to a screen
+  // reader's virtual cursor (#480).
+  it("does not replay a failed edit when that item's dialog is reopened after switching items", async () => {
+    mockUpdate.mockRejectedValueOnce(new ApiError(500, "Server error", "edit boom"));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("edit boom")).toBeInTheDocument();
+
+    // Switch straight to Egg Cartons' edit — no Cancel in between.
+    fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "edit" }));
+    expect(within(dialog()).getByLabelText(/Item name/)).toHaveValue("Egg Cartons");
+    expect(screen.queryByText("edit boom")).not.toBeInTheDocument();
+
+    // Cancel, then reopen Layer Feed: a new session, no stale verdict.
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "edit" }));
+    expect(within(dialog()).getByLabelText(/Item name/)).toHaveValue("Layer Feed");
+    expect(screen.queryByText("edit boom")).not.toBeInTheDocument();
+  });
+
+  // The purchase/adjust dialogs are bound to the ACTIVE item's panel, so
+  // opening another item's panel rebinds an open dialog to the new item in
+  // place — its title changes, but nothing closes it, so a failure reported
+  // under the old item would sit inside a dialog now naming a different one
+  // (same displacement class as the edit dialogs; pi review of #491).
+  it("does not carry one item's failed purchase into the dialog rebound to another item", async () => {
+    mockPurchase.mockRejectedValueOnce(new ApiError(500, "Server error", "purchase boom"));
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+    expect(within(dialog()).getByText("purchase boom")).toBeInTheDocument();
+
+    // Open the other item's panel directly — openItem's heading wait would
+    // collide with the rebound dialog's own title naming the same item.
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "open" }));
+    });
+    // Still open, rebound to the other item's panel.
+    expect(dialog()).toHaveAccessibleName(/Layer Feed/);
+    expect(screen.queryByText("purchase boom")).not.toBeInTheDocument();
+  });
+
   it("keeps a background ledger-read failure off an open dialog and puts it on the page instead", async () => {
     mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
     await renderReady(ADMIN);

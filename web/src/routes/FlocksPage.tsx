@@ -171,6 +171,12 @@ export function FlocksPage() {
 
   function startEdit(f: Flock) {
     closeCreate(); // defensive: New flock and Edit are mutually exclusive triggers
+    // A different flock's edit DISPLACES this one — the session ends without
+    // onClose, so nothing else abandons the fixed "edit" scope, and the
+    // displaced flock's verdict would render inside the next flock's dialog.
+    // Reachable behind the backdrop via a screen reader's virtual cursor
+    // (#480; pi review of #491). Same-flock re-entry is not a displacement.
+    if (editingId !== null && editingId !== f.id) errors.abandon("edit");
     setEditingId(f.id);
     setEditName(f.name);
     setEditBreed(f.breed);

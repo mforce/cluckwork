@@ -1468,6 +1468,78 @@ describe("UsersPage error placement (#479)", () => {
     expect(screen.getAllByText("That flock is already assigned.")).toHaveLength(1);
   });
 
+  // Displacement: each of these scopes is fixed across users, and a second
+  // user's dialog can begin without the first being dismissed — the row
+  // buttons behind the backdrop stay reachable to a screen reader's virtual
+  // cursor (#480). Without an abandon on the user switch, user A's verdict
+  // renders inside a dialog titled with user B's email (pi review of #491).
+  it("does not carry one user's failed rename into another user's edit dialog", async () => {
+    mockUpdateUser.mockRejectedValue(new ApiError(422, "Validation failed", "That name is too long."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "edit");
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("That name is too long.")).toBeInTheDocument();
+
+    openRowDialog("boss@farm.test", "edit");
+    // The dialog really swapped users — its title names the new email.
+    expect(dialog()).toHaveAccessibleName(/boss@farm\.test/);
+    expect(screen.queryByText("That name is too long.")).not.toBeInTheDocument();
+  });
+
+  it("does not carry one user's failed password reset into another user's dialog", async () => {
+    mockSetUserPassword.mockRejectedValue(new ApiError(422, "Validation failed", "That password is too weak."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "password");
+    const pw = `Pw${Date.now()}!a`;
+    const fields = within(dialog()).getAllByLabelText(/password/i);
+    fireEvent.change(fields[0], { target: { value: pw } });
+    fireEvent.change(fields[1], { target: { value: pw } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" }));
+    });
+    expect(within(dialog()).getByText("That password is too weak.")).toBeInTheDocument();
+
+    openRowDialog("boss@farm.test", "password");
+    expect(dialog()).toHaveAccessibleName(/boss@farm\.test/);
+    expect(screen.queryByText("That password is too weak.")).not.toBeInTheDocument();
+  });
+
+  it("does not carry one user's failed role change into another user's dialog", async () => {
+    mockChangeUserRole.mockRejectedValue(new ApiError(409, "Conflict", "That user is the last Owner."));
+    await renderReady(ADMIN);
+    openRowDialog("worker@farm.test", "role");
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
+    });
+    expect(within(dialog()).getByText("That user is the last Owner.")).toBeInTheDocument();
+
+    openRowDialog("boss@farm.test", "role");
+    expect(dialog()).toHaveAccessibleName(/boss@farm\.test/);
+    expect(screen.queryByText("That user is the last Owner.")).not.toBeInTheDocument();
+  });
+
+  it("does not carry one worker's failed assignment into another worker's flock dialog", async () => {
+    const WORKER_2: User = { id: "u-w2", email: "second@farm.test", displayName: null, role: "Worker" };
+    mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
+    mockAssignFlock.mockRejectedValue(new ApiError(409, "Conflict", "That flock is already assigned."));
+    await renderReady(ADMIN);
+    await act(async () => {
+      openRowDialog("worker@farm.test", "flocks");
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+    expect(within(dialog()).getByText("That flock is already assigned.")).toBeInTheDocument();
+
+    await act(async () => {
+      openRowDialog("second@farm.test", "flocks");
+    });
+    expect(dialog()).toHaveAccessibleName(/second@farm\.test/);
+    expect(screen.queryByText("That flock is already assigned.")).not.toBeInTheDocument();
+  });
+
   it("keeps one dialog's failure out of another dialog opened beside it", async () => {
     // Nothing on this screen enforces one-open-dialog: `editUser` and `pwUser`
     // are independent state and both row buttons stay live. With one shared

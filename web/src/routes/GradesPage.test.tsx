@@ -252,6 +252,33 @@ describe("GradesPage error placement (#479)", () => {
     expect(screen.getAllByText("Name already exists.")).toHaveLength(1);
   });
 
+  // Displacement: the edit scope is per-grade (`edit:${id}`), so a switch
+  // straight from grade A's failed edit to grade B leaves A's verdict parked
+  // in a slot nothing currently renders — until A's edit is REOPENED, which
+  // would replay a dead session's failure into a fresh one (pi review of
+  // #491). The row buttons behind the backdrop stay reachable to a screen
+  // reader's virtual cursor (#480).
+  it("does not replay a failed edit when that grade's dialog is reopened after switching grades", async () => {
+    mockUpdate.mockRejectedValue(new ApiError(422, "Validation failed", "Name already exists."));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "edit" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(within(dialog()).getByText("Name already exists.")).toBeInTheDocument();
+
+    // Switch straight to Legacy's edit — no Cancel in between.
+    fireEvent.click(within(screen.getByRole("row", { name: /Legacy/ })).getByRole("button", { name: "edit" }));
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Legacy");
+    expect(screen.queryByText("Name already exists.")).not.toBeInTheDocument();
+
+    // Cancel, then reopen Grade A: a new session, no stale verdict.
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "edit" }));
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Grade A");
+    expect(screen.queryByText("Name already exists.")).not.toBeInTheDocument();
+  });
+
   // GradesPage's only background READ is the initial list load, which blocks
   // the create trigger from rendering at all when it fails — so there is no
   // read that can race an open dialog here. The row-level deactivate/activate

@@ -188,9 +188,19 @@ export function ProductsPage() {
     }
   }
 
+  // Opening a dialog over a still-open one is a DISPLACEMENT: the first
+  // session ends without `onClose` ever running, so its `abandon` never fires
+  // and whatever verdict it left is still in the slot the next session
+  // renders. The backdrop keeps a mouse off the row buttons underneath, but
+  // #480 established it does not stop a screen reader's virtual cursor — the
+  // same door the per-dialog map exists for. A displacing open therefore
+  // abandons what it displaces, INCLUDING its own scope when that scope is
+  // fixed across records (pi review of #491). Never on the same record: a 409
+  // rebind reopens the identical scope and then reports into it.
   function startEdit(p: Product) {
     closeCreate();
     closeEditConversion();
+    if (editingId !== null && editingId !== p.id) errors.abandon("edit");
     setEditingId(p.id);
     setEditName(p.name);
     setEditUnit(p.defaultUnit);
@@ -199,6 +209,17 @@ export function ProductsPage() {
       ? ""
       : (p.defaultPriceMinorUnits / 10 ** p.currencyMinorUnit).toFixed(p.currencyMinorUnit));
     setEditNotes(p.notes ?? "");
+  }
+
+  // Same displacement rule as startEdit, for the conversion dialog's own
+  // fixed scope.
+  function startEditConversion(c: EggUnitConversion) {
+    closeCreate();
+    closeEdit();
+    if (editingConvId !== null && editingConvId !== c.id) errors.abandon("edit-conversion");
+    setEditingConvId(c.id);
+    setEditEggs(c.eggsPerUnit);
+    setEditConvActive(c.active);
   }
 
   async function onSaveEdit(e: FormEvent) {
@@ -421,13 +442,7 @@ export function ProductsPage() {
                     <span className="muted">{t("alwaysOneMessage")}</span>
                   ) : (
                     <button className="link" disabled={busy}
-                      onClick={() => {
-                        closeCreate();
-                        closeEdit();
-                        setEditingConvId(c.id);
-                        setEditEggs(c.eggsPerUnit);
-                        setEditConvActive(c.active);
-                      }}>
+                      onClick={() => startEditConversion(c)}>
                       {t("editButton")}
                     </button>
                   )}
