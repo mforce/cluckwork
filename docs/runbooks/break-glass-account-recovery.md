@@ -108,18 +108,41 @@ A clear message is written to **stderr**, e.g.:
   FROM "AspNetUsers"
   WHERE "NormalizedEmail" = UPPER('owner@example.com');
 
-  -- 2. Re-enable that one row. This is a manual stand-in for EnableUserAsync
-  --    (src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs) — it does
-  --    NOT rotate ConcurrencyStamp the way that method does, but nothing can
-  --    race it here: the whole /users group is Owner-only and, by definition
-  --    of the state you're in, every Owner is disabled.
-  UPDATE "AspNetUsers" SET "DisabledAt" = NULL, "DisabledBy" = NULL WHERE "Id" = '<owner-id-from-step-1>';
+  -- 2. Re-enable that row AND revoke everything a normal disable would have.
+  --    This is a manual stand-in for BOTH DisableUserAsync's revocation and
+  --    EnableUserAsync's flag-clear (IdentityProvider.cs) — never just the
+  --    latter. You cannot assume DisabledAt on this row came from the app's
+  --    own disable path: a hand-edited or restored database may have set it
+  --    directly, without ever bumping CredentialEpoch, rotating the stamps,
+  --    or revoking refresh tokens. Clearing DisabledAt alone would then
+  --    immediately reactivate any access token still matching the current
+  --    epoch, any still-active refresh token, and any outstanding step-up
+  --    grant (#308) — exactly the credentials a normal disable exists to
+  --    kill. Fail closed: do all of it, atomically (codex review of #492,
+  --    round 6). gen_random_uuid() is native since Postgres 13 — no
+  --    extension needed on this deploy's Postgres 18.
+  BEGIN;
+
+  UPDATE "AspNetUsers"
+  SET "DisabledAt" = NULL,
+      "DisabledBy" = NULL,
+      "CredentialEpoch" = "CredentialEpoch" + 1,
+      "SecurityStamp" = gen_random_uuid()::text,
+      "ConcurrencyStamp" = gen_random_uuid()::text
+  WHERE "Id" = '<owner-id-from-step-1>';
+
+  UPDATE refresh_tokens
+  SET "RevokedAt" = now()
+  WHERE "UserId" = '<owner-id-from-step-1>' AND "RevokedAt" IS NULL;
+
+  COMMIT;
   ```
 
-  This is DB surgery, not the app's own audited path — it writes **no** `User.Enabled` audit row, unlike a normal
-  re-enable. Record what you did (who, when, why, which row) somewhere durable outside the database, the same way
-  you would for any other manual production change. Sign in once you're done, and re-run this command if the
-  password is also unknown.
+  This is DB surgery, not the app's own audited path — it writes **no** `User.Enabled`/`RefreshToken.Revoked` audit
+  row, unlike a normal re-enable. Record what you did (who, when, why, which row) somewhere durable outside the
+  database, the same way you would for any other manual production change. Sign in once you're done — with a
+  **fresh** login, since every prior access and refresh token for this user is now dead by construction — and
+  re-run this command if the password is also unknown.
 - `Invalid --account '<x>' — must be a GUID.`
 
 Nothing is changed on a failure.
