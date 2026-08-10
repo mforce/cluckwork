@@ -96,10 +96,18 @@ export function AppLayout() {
 
       <main className="content" id="main-content" tabIndex={-1}>
         {/* Assertive, and separate from the visible banner: the banner carries
-            a Try again button, and an alert region containing a control gets
-            the control read out as part of the warning. Empty until there is
-            something to warn about (#485). */}
-        <p className="sr-only" role="alert">{farmAnnouncement}</p>
+            a Try again button, and an alert region wrapped round a control
+            gets the control read out as part of the warning. Empty until there
+            is something to warn about (#485).
+
+            `aria-live="assertive"` + `aria-atomic` rather than `role="alert"`,
+            which is shorthand for exactly that pair. The distinction matters
+            because this element is always mounted: `role="alert"` is how ~20
+            error banners across the app mark themselves, and the E2E suite
+            reads "no alert on screen" as "nothing has gone wrong". A permanent
+            one would answer all of those queries and quietly retire the
+            check. */}
+        <p className="sr-only" aria-live="assertive" aria-atomic="true">{farmAnnouncement}</p>
 
         {/* A farm we never got is not a cosmetic loss: §4.5 formatting and —
             since #123 — every date field's ceiling come from it, so without a

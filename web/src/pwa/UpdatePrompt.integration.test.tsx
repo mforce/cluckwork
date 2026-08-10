@@ -23,7 +23,13 @@ vi.mock("./registerServiceWorker", () => ({ registerServiceWorker: vi.fn() }));
 const mockRegister = vi.mocked(registerServiceWorker);
 
 /** The always-mounted announcer, distinct from the visible banner. */
-const announcer = () => screen.getByRole("status");
+// Role-less on purpose (see UpdatePrompt.tsx): this region is always mounted,
+// and a permanent `role="status"` would answer every such query in the app.
+function announcer(): HTMLElement {
+  const el = document.querySelector<HTMLElement>(".sr-only[aria-live]");
+  if (el === null) throw new Error("no live-region announcer rendered");
+  return el;
+}
 const visibleBanner = () => document.querySelector(".update-banner");
 
 /** Renders the given tree and hands back the captured update callback. */
@@ -204,6 +210,23 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
     expect(announcer()).toHaveTextContent("A new version of Cluckwork is ready");
+  });
+
+  it("claims no live ARIA role, so it cannot answer the app's error queries", async () => {
+    // Same regression as AppLayout's: `role="status"`/`role="alert"` mean "a
+    // message is on screen" throughout this app, and `.sr-only` is visible to
+    // a browser (a 1px box, not `display:none`). A permanently-mounted node
+    // holding one of those roles answers every query for them. The announcer
+    // therefore spells out `aria-live` + `aria-atomic`, which is all those
+    // roles are shorthand for, and claims neither.
+    const { announce } = await renderWithUpdate(<UpdatePrompt />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    await announce();
+    expect(announcer()).toHaveTextContent("A new version of Cluckwork is ready");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("says nothing when there is no update, dialog or not", async () => {

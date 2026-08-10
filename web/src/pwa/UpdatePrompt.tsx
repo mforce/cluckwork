@@ -63,12 +63,19 @@ export function UpdatePrompt() {
 
   return (
     <>
-      {/* polite + status: announced without stealing focus from whatever is
-          being typed. Mounted unconditionally and empty until there is
-          something to say — a live region has to be in the accessibility tree
-          BEFORE its text changes, and the visible banner spends its life going
-          in and out of that tree as dialogs open (#485). */}
-      <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
+      {/* Polite: announced without stealing focus from whatever is being
+          typed. Mounted unconditionally and empty until there is something to
+          say — a live region has to be in the accessibility tree BEFORE its
+          text changes, and the visible banner spends its life going in and out
+          of that tree as dialogs open (#485).
+
+          `aria-live` + `aria-atomic` rather than `role="status"`, which is
+          just shorthand for the pair: this element is always present, and a
+          permanently-mounted node holding a live ROLE would answer every
+          `getByRole("status"/"alert")` query in the app. Those roles mean "a
+          message is on screen" here — ~20 error banners use `role="alert"`,
+          and the E2E suite reads its absence as "nothing has gone wrong". */}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
       {waiting && (
         <div className="update-banner">
           {/* The announcer above is the accessible copy of this sentence;

@@ -18,6 +18,16 @@ afterEach(() => document.documentElement.removeAttribute("data-theme"));
 const sidebar = () => within(screen.getByRole("navigation", { name: "Primary" }));
 const tabbar = () => within(screen.getByRole("navigation", { name: "Sections" }));
 
+// Since #485 the farm warning is announced from an always-mounted live region
+// that deliberately carries no ARIA role — `role="alert"` is how the app's ~20
+// error banners mark themselves, and a permanent one would answer every query
+// for them. Located by its live-region attributes instead.
+function announcer(): HTMLElement {
+  const el = document.querySelector<HTMLElement>(".sr-only[aria-live]");
+  if (el === null) throw new Error("no live-region announcer rendered");
+  return el;
+}
+
 describe("AppLayout sidebar", () => {
   it("groups the nav and gates links by role — an admin sees Setup destinations", () => {
     renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
@@ -69,11 +79,10 @@ describe("AppLayout sidebar", () => {
       </MemoryRouter>);
 
     // Since #485 the words and the control sit in two places on purpose: the
-    // sr-only alert region carries the announcement (an alert wrapped round a
-    // button gets the button read out as part of the warning, and it has to
-    // be able to speak from outside an inert subtree), the visible banner
+    // live region carries the announcement (a region wrapped round a button
+    // gets the button read out as part of the warning), the visible banner
     // carries the button.
-    expect(screen.getByRole("alert"))
+    expect(announcer())
       .toHaveTextContent(/dates follow this device rather than the farm/);
     const banner = document.querySelector<HTMLElement>(".farm-warning");
     expect(banner).not.toBeNull();
@@ -98,7 +107,7 @@ describe("AppLayout sidebar", () => {
         </AuthProvider>
       </MemoryRouter>);
 
-    expect(screen.getByRole("alert")).toHaveTextContent(/may be out of date/);
+    expect(announcer()).toHaveTextContent(/may be out of date/);
     // ...and not the never-loaded wording, which would be wrong here.
     expect(screen.queryByText(/dates follow this device/)).not.toBeInTheDocument();
   });
@@ -108,10 +117,10 @@ describe("AppLayout sidebar", () => {
       token: { sub: "u1", role: "Admin" },
       farm: account({ name: "Hen House" }),
     });
-    // The alert region is always mounted since #485 — a live region has to be
-    // in the accessibility tree BEFORE its text changes — so "says nothing"
+    // The region is always mounted since #485 — a live region has to be in
+    // the accessibility tree BEFORE its text changes — so "says nothing"
     // means it is empty, and no warning is drawn.
-    expect(screen.getByRole("alert")).toHaveTextContent("");
+    expect(announcer()).toHaveTextContent("");
     expect(document.querySelector(".farm-warning")).toBeNull();
   });
 
@@ -270,7 +279,7 @@ describe("AppLayout i18n wiring (#182, Task 7)", () => {
               </FarmContext.Provider>
             </AuthProvider>
           </MemoryRouter>);
-        expect(screen.getByRole("alert")).toHaveTextContent("NAV-NEVERLOADED-MARKER");
+        expect(announcer()).toHaveTextContent("NAV-NEVERLOADED-MARKER");
         expect(screen.getByRole("button", { name: "NAV-TRYAGAIN-MARKER" })).toBeInTheDocument();
       });
     });
@@ -288,7 +297,7 @@ describe("AppLayout i18n wiring (#182, Task 7)", () => {
             </FarmContext.Provider>
           </AuthProvider>
         </MemoryRouter>);
-      expect(screen.getByRole("alert")).toHaveTextContent("NAV-STALE-MARKER");
+      expect(announcer()).toHaveTextContent("NAV-STALE-MARKER");
     });
   });
 

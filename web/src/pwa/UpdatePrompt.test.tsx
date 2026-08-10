@@ -52,11 +52,11 @@ describe("UpdatePrompt (#142)", () => {
 
     expect(banner()).toBeInTheDocument();
     // Announced politely so a screen reader doesn't steal focus mid-entry —
-    // from the sr-only region, which since #485 is where the announcement
-    // lives (the visible banner is inert whenever a dialog is open).
-    expect(screen.getByRole("status")).toHaveTextContent(
-      /new version of Cluckwork is ready/i,
-    );
+    // from the sr-only live region, which since #485 is where the
+    // announcement lives (the visible banner is inert whenever a dialog is
+    // open). Role-less by design; see UpdatePrompt.tsx.
+    const live = document.querySelector(".sr-only[aria-live='polite']");
+    expect(live).toHaveTextContent(/new version of Cluckwork is ready/i);
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
   });
 

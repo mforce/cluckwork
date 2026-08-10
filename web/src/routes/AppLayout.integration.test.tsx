@@ -34,7 +34,13 @@ function Shell({ loadFailed, children }: { loadFailed: boolean; children?: React
   );
 }
 
-const announcer = () => screen.getByRole("alert");
+// Role-less on purpose (see AppLayout.tsx): `role="alert"` is how the app's
+// error banners mark themselves, and this region is always mounted.
+function announcer(): HTMLElement {
+  const el = document.querySelector<HTMLElement>(".sr-only[aria-live]");
+  if (el === null) throw new Error("no live-region announcer rendered");
+  return el;
+}
 const visibleWarning = () => document.querySelector(".farm-warning");
 
 describe("AppLayout farm warning announcement survives a dialog's inertness (#485)", () => {
@@ -72,10 +78,27 @@ describe("AppLayout farm warning announcement survives a dialog's inertness (#48
     expect(announcer()).toHaveTextContent(/dates follow this device rather than the farm/);
   });
 
-  it("keeps the Try again button out of the alert region", async () => {
-    // An alert containing a control gets the control read out as part of the
-    // warning; the visible banner keeps the button, the announcer keeps the
-    // words.
+  it("exposes no alert role on a healthy screen, announcer notwithstanding", async () => {
+    // The regression this pins actually happened: the announcer first shipped
+    // as `role="alert"`, and because `.sr-only` is a 1px box rather than
+    // `display:none`, it counted as VISIBLE. Ten Playwright specs assert
+    // `getByRole("alert")` is hidden as their way of saying "nothing has gone
+    // wrong on this screen" — a permanently-mounted one answered all of them
+    // and turned the check into a tautology. Caught by CI; kept here, where it
+    // costs milliseconds instead of a four-minute browser run.
+    await act(async () => { render(<Shell loadFailed={false} />); });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    // ...while the announcer is still there, still able to speak.
+    expect(announcer()).toBeInTheDocument();
+    expect(announcer()).toHaveAttribute("aria-live", "assertive");
+  });
+
+  it("keeps the Try again button out of the live region", async () => {
+    // A live region containing a control gets the control read out as part of
+    // the warning; the visible banner keeps the button, the announcer keeps
+    // the words.
     await act(async () => { render(<Shell loadFailed />); });
 
     expect(announcer()).toHaveTextContent(/dates follow this device rather than the farm/);
