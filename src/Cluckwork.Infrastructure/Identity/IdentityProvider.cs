@@ -650,10 +650,24 @@ public sealed class IdentityProvider(
     // caller's password proof is already gone and resubmitting the identical
     // request answers 403, not success. The copy says so rather than promising
     // a retry that cannot work.
+    // Used ONLY by the disable/enable paths, where that sentence is always
+    // true. The password-reset paths use ResetConcurrencyConflict below.
     private static Error ConcurrencyConflict() => Error.Conflict(
         "Users.Conflict",
         "The user was modified by another request, and your password confirmation has already been used. "
         + "Reload, confirm your password again, and retry.");
+
+    // #356 (codex review of #492 round 2) — the reset paths need their own
+    // copy: SetUserPassword requires step-up only for an Owner target, and
+    // offline `recover-admin` has no password-confirmation grant at all, so
+    // the disable/enable wording above ("your password confirmation has
+    // already been used") would instruct those callers to redo something
+    // their flow never asked for. Same Users.Conflict code — only the
+    // human-facing sentence differs.
+    private static Error ResetConcurrencyConflict() => Error.Conflict(
+        "Users.Conflict",
+        "The user was modified by another request. Reload and retry; "
+        + "you may be asked to confirm your password again.");
 
     // Re-verify the ACTOR is still authorized, INSIDE the caller's account-
     // locked transaction. ASP.NET's authorization middleware checked their role
@@ -947,9 +961,11 @@ public sealed class IdentityProvider(
                 // a throw. Without this split the loser is told "the new
                 // password was rejected" — a 422 whose only actionable reading
                 // is "choose a stronger password", for a password that was
-                // never the problem.
+                // never the problem. Reset-flavoured copy: this path serves
+                // non-Owner resets with no step-up and the offline recover-admin
+                // verb, neither of which spent a password confirmation.
                 return Result.Failure(IsConcurrencyFailure(reset)
-                    ? ConcurrencyConflict()
+                    ? ResetConcurrencyConflict()
                     : Error.Validation("Users.PasswordRejected", Describe(reset)));
 
             // #283 — any successful password reset clears a pending first-run gate.

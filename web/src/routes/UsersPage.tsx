@@ -431,19 +431,18 @@ export function UsersPage() {
         const enteredPassword = stepUpPassword;
         setStepUpPassword("");
 
-        // #356 — captured HERE, with the password, rather than read from state
-        // after the await below.
-        //
-        // Stated precisely, because the obvious stronger claim is not true
-        // today: `usePendingAction` keeps every row trigger `disabled={busy}`
-        // for the whole flight, so a SECOND dialog cannot currently be opened
-        // for a different user mid-request, and no test driven through this
-        // component can make the read order observable. This is defence in
-        // depth, not a fix for a reachable bug. It is still the right order —
-        // the moment the busy gate is relaxed, or a second entry point to this
-        // dialog appears, a late read would file one dialog's text as the
-        // reason on another user's disable, and the audit trail is exactly the
-        // wrong place to discover that. Same discipline as the password above.
+        // #356 — grouped here with the password for readability, NOT because
+        // reading it after the await would be a bug. An earlier revision of
+        // this comment claimed exactly that ("defence in depth" against a
+        // late read filing one dialog's reason against another user), and a
+        // review probe disproved it: `disableReason` is a `const` this
+        // closure captured at THIS render, not a live ref. Retyping the
+        // textarea triggers a new render with a new `onSubmitStepUp` closure
+        // over a new `disableReason` binding — it cannot reach back and
+        // mutate the one this already-running invocation holds. So a read
+        // before or after the await, within one invocation, is provably the
+        // same value; unlike the password above, there is no state-exposure
+        // reason to move it either, since a reason is not a secret.
         //
         // Reason is optional: empty or whitespace sends null, never "".
         const enteredReason = disableReason.trim() || null;

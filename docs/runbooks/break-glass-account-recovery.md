@@ -96,9 +96,30 @@ A clear message is written to **stderr**, e.g.:
   disable and the demote path — but a hand-edited or restored database can arrive in it, and that is exactly the
   population this runbook serves. `bootstrap-admin` does **not** rescue it: it counts Owner role rows without
   excluding `DisabledAt`, so a disabled Owner still reads as "already provisioned" and it exits `0` having done
-  nothing. Until #357 ships, recovery from that state is direct DB surgery —
-  `UPDATE "AspNetUsers" SET "DisabledAt" = NULL, "DisabledBy" = NULL WHERE "Id" = '<owner-id>';` — followed by
-  re-running this command if the password is also unknown.
+  nothing. Until #357 ships, recovery from that state is direct DB surgery, run against the account's database
+  with an interactive `psql` session (or the deploy's own DB-access path — never paste connection strings into
+  this document):
+
+  ```sql
+  -- 1. Find the account and the disabled Owner(s) on it. You have an EMAIL, not
+  --    an id — that's the whole reason you're here — so start from NormalizedEmail,
+  --    case-insensitively, exactly like the app's own lookup.
+  SELECT "Id", "Email", "AccountId", "DisabledAt", "DisabledBy"
+  FROM "AspNetUsers"
+  WHERE "NormalizedEmail" = UPPER('owner@example.com');
+
+  -- 2. Re-enable that one row. This is a manual stand-in for EnableUserAsync
+  --    (src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs) — it does
+  --    NOT rotate ConcurrencyStamp the way that method does, but nothing can
+  --    race it here: the whole /users group is Owner-only and, by definition
+  --    of the state you're in, every Owner is disabled.
+  UPDATE "AspNetUsers" SET "DisabledAt" = NULL, "DisabledBy" = NULL WHERE "Id" = '<owner-id-from-step-1>';
+  ```
+
+  This is DB surgery, not the app's own audited path — it writes **no** `User.Enabled` audit row, unlike a normal
+  re-enable. Record what you did (who, when, why, which row) somewhere durable outside the database, the same way
+  you would for any other manual production change. Sign in once you're done, and re-run this command if the
+  password is also unknown.
 - `Invalid --account '<x>' — must be a GUID.`
 
 Nothing is changed on a failure.

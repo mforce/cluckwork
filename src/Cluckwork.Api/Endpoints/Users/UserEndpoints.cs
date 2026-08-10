@@ -232,8 +232,15 @@ public static class UserEndpoints
         // generic NotFound/422 mapping below.
         if (result.Error.Code == Cluckwork.Application.Common.StepUpErrorCodes.Required)
             return Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code);
-        return result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
-            ? Results.NotFound()
+        if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        // #356 — a reset can now lose a concurrency race: disable/enable rotate
+        // the target's stamps, so a SetUserPassword racing one of them fails
+        // with Users.Conflict rather than a password-policy error. Without this
+        // branch that surfaced as a 422 the SPA reads as "password rejected"
+        // (codex review of #492 round 2).
+        return result.Error.Code.EndsWith(".Conflict", StringComparison.Ordinal)
+            ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status409Conflict, title: result.Error.Code)
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
 
@@ -370,10 +377,11 @@ public sealed record SetUserPasswordRequest(string NewPassword);
 public sealed record ChangeUserRoleRequest(string Role);
 
 // #356 — the body is optional: an EMPTY application/json body binds null and
-// means "no reason given". Sending no Content-Type at all is not the same
-// thing — the body parameter gives this endpoint application/json Accepts
-// metadata, so the consumes matcher drops it and Program.cs's `/api/{**rest}`
-// catch-all answers 404 rather than 415. Pinned by Disable_WithNoBodyAtAll_Is204.
+// means "no reason given" (pinned by Disable_WithNoBodyAtAll_Is204). Sending
+// no Content-Type at all is not the same thing — the body parameter gives
+// this endpoint application/json Accepts metadata, so the consumes matcher
+// drops it and Program.cs's `/api/{**rest}` catch-all answers 404 rather than
+// 415 (pinned separately by Disable_WithNoContentTypeAtAll_Is404_NotUnsupportedMediaType).
 public sealed record DisableUserRequest(string? Reason);
 
 // #356 — DisabledAt is null for an active user, and the SPA renders the row

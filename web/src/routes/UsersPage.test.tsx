@@ -18,6 +18,11 @@ import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
 import i18n from "../i18n";
 
+// Runtime-generated (GitGuardian: no literal secrets, even in tests). One
+// shared value: these tests assert the typed proof password is the one SENT,
+// so identity is what matters, not content.
+const OWNER_STEP_UP_PASSWORD = `Own3r!${crypto.randomUUID()}`;
+
 // Network seam only; ApiError stays real (errText branches on `instanceof`).
 vi.mock("../api/cluckwork", () => ({
   listUsers: vi.fn(),
@@ -470,12 +475,12 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
 
     openRole(/worker@farm.test/);
     selectAdminRole();
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
     });
 
-    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
     expect(mockChangeUserRole).toHaveBeenCalledWith(
       "u-w", { role: "Admin" }, expect.any(String), "grant-789");
   });
@@ -487,7 +492,7 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
 
     openRole(/worker@farm.test/);
     selectAdminRole();
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
     });
@@ -610,13 +615,13 @@ describe("UsersPage disable/enable (#356)", () => {
     // submits: a mandatory reason was the bug (#356), so this is the case
     // that must pass without ever being forced to type anything.
     fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
-      target: { value: "OwnerCurrentPw!1" },
+      target: { value: OWNER_STEP_UP_PASSWORD },
     });
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
     });
 
-    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
     expect(mockDisableUser).toHaveBeenCalledWith(
       "u-w", { reason: null }, expect.any(String), "grant-d1");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -635,7 +640,7 @@ describe("UsersPage disable/enable (#356)", () => {
       target: { value: "  No longer works here  " },
     });
     fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
-      target: { value: "OwnerCurrentPw!1" },
+      target: { value: OWNER_STEP_UP_PASSWORD },
     });
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
@@ -656,13 +661,13 @@ describe("UsersPage disable/enable (#356)", () => {
     const stepUpDialog = await screen.findByRole("dialog", { name: /Enable — disabled@farm\.test/ });
     expect(within(stepUpDialog).queryByLabelText(/Reason/)).not.toBeInTheDocument();
     fireEvent.change(within(stepUpDialog).getByLabelText(/Your current password/), {
-      target: { value: "OwnerCurrentPw!1" },
+      target: { value: OWNER_STEP_UP_PASSWORD },
     });
     await act(async () => {
       fireEvent.click(within(stepUpDialog).getByRole("button", { name: "Enable" }));
     });
 
-    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
     expect(mockEnableUser).toHaveBeenCalledWith("u-d", expect.any(String), "grant-e1");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(await screen.findByText(/disabled@farm\.test has been re-enabled/)).toBeInTheDocument();
@@ -677,7 +682,7 @@ describe("UsersPage disable/enable (#356)", () => {
     fireEvent.click(disableRow(/worker@farm.test/));
     const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
     fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
-      target: { value: "OwnerCurrentPw!1" },
+      target: { value: OWNER_STEP_UP_PASSWORD },
     });
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
@@ -721,7 +726,7 @@ describe("UsersPage disable/enable (#356)", () => {
     const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
     fireEvent.change(within(dlg).getByLabelText(/Reason/), { target: { value: "first reason" } });
     fireEvent.change(within(dlg).getByLabelText(/Your current password/), {
-      target: { value: "OwnerCurrentPw!1" },
+      target: { value: OWNER_STEP_UP_PASSWORD },
     });
 
     // Submit — stepUp() hangs on the deferred, so the write is now in flight.
@@ -746,15 +751,30 @@ describe("UsersPage disable/enable (#356)", () => {
   // not. Mirrors "replays the SAME create key after a failure, and rotates it
   // after success" above.
   it("replays the SAME disable key after a failure, and rotates it after success", async () => {
+    // Round-2 review (#492) caught the first version of this test: attempt 3
+    // disabled a DIFFERENT user, so its key came from a DIFFERENT scope
+    // (`disable:u-a` vs `disable:u-w`) and would differ from k2 whether or not
+    // a real success ever rotates anything — deleting clearKey(scope) entirely
+    // left it green. Disable can't be resubmitted on the SAME target once it
+    // succeeds (the row flips to Enable), so proving rotation on the disable
+    // scope specifically means going disable -> enable -> disable again on one
+    // user, and controlling each refresh so the row actually flips back.
+    const worker = WORKER_USER;
+    const workerDisabled: User = { ...worker, disabledAt: "2026-08-05T00:00:00Z" };
+    mockListUsers
+      .mockResolvedValueOnce([worker, ADMIN_USER]) // initial load
+      .mockResolvedValueOnce([workerDisabled, ADMIN_USER]) // after the successful disable
+      .mockResolvedValueOnce([worker, ADMIN_USER]); // after the enable — Disable is back
     mockStepUp.mockResolvedValue({ token: "grant-d1", expiresAt: "2026-01-01T00:05:00Z" });
     mockDisableUser.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
     mockDisableUser.mockResolvedValue(undefined);
+    mockEnableUser.mockResolvedValue(undefined);
     await renderReady(ADMIN);
 
     fireEvent.click(disableRow(/worker@farm.test/));
     const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
     fireEvent.change(within(dlg).getByLabelText(/Your current password/), {
-      target: { value: "OwnerCurrentPw!1" },
+      target: { value: OWNER_STEP_UP_PASSWORD },
     });
     const submit = () => within(dlg).getByRole("button", { name: "Disable" });
 
@@ -767,7 +787,7 @@ describe("UsersPage disable/enable (#356)", () => {
 
     // Attempt 2 — same target/scope, refilled password → replay of the kept key.
     fireEvent.change(within(dlg).getByLabelText(/Your current password/), {
-      target: { value: "OwnerCurrentPw!1" },
+      target: { value: OWNER_STEP_UP_PASSWORD },
     });
     await act(async () => { fireEvent.click(submit()); });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -777,17 +797,25 @@ describe("UsersPage disable/enable (#356)", () => {
     const k2 = mockDisableUser.mock.calls[1][2];
     expect(k2).toBe(k1); // failure kept the key → exact replay
 
-    // The disabled scope can't be resubmitted (the row now offers Enable, not
-    // Disable) — so, as with the other per-target scopes on this screen,
-    // rotation is proven on the next disable, here a different user.
-    fireEvent.click(disableRow(/boss@farm.test/));
-    const dlg2 = await screen.findByRole("dialog", { name: /Disable — boss@farm\.test/ });
-    fireEvent.change(within(dlg2).getByLabelText(/Your current password/), {
-      target: { value: "OwnerCurrentPw!1" },
+    // Re-enable the SAME user, so the row offers Disable again.
+    fireEvent.click(enableRow(/worker@farm.test/));
+    const enableDlg = await screen.findByRole("dialog", { name: /Enable — worker@farm\.test/ });
+    fireEvent.change(within(enableDlg).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
     });
     await act(async () => {
-      fireEvent.click(within(dlg2).getByRole("button", { name: "Disable" }));
+      fireEvent.click(within(enableDlg).getByRole("button", { name: "Enable" }));
     });
+    expect(await screen.findByText(/worker@farm\.test has been re-enabled/)).toBeInTheDocument();
+
+    // A THIRD disable, of the SAME user — the SAME "disable:u-w" scope k2 came
+    // from. Only a real post-success rotation can make this key differ from k2.
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dlg3 = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dlg3).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => { fireEvent.click(within(dlg3).getByRole("button", { name: "Disable" })); });
 
     const k3 = mockDisableUser.mock.calls[2][2];
     expect(k3).not.toBe(k2); // the prior success rotated it → this write is fresh
@@ -805,7 +833,7 @@ describe("UsersPage disable/enable (#356)", () => {
     const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
     fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "   " } });
     fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
-      target: { value: "OwnerCurrentPw!1" },
+      target: { value: OWNER_STEP_UP_PASSWORD },
     });
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
@@ -1482,10 +1510,10 @@ describe("UsersPage step-up authentication (#308)", () => {
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss@farm.test" } });
     fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
     selectAdminRole();
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
 
-    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
     expect(mockCreateUser.mock.calls[0][2]).toBe("grant-123"); // the grant, as the 3rd arg
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(await screen.findByText(/account created for boss@farm\.test/i)).toBeInTheDocument();
@@ -1499,7 +1527,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss2@farm.test" } });
     fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
     selectAdminRole();
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
 
     openCreate();
@@ -1523,7 +1551,7 @@ describe("UsersPage step-up authentication (#308)", () => {
 
     // Pick Owner, type the proof password, then change your mind.
     selectAdminRole();
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Worker" } });
 
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
@@ -1579,7 +1607,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss4@farm.test" } });
     fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
     selectAdminRole();
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
 
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
 
@@ -1604,10 +1632,10 @@ describe("UsersPage step-up authentication (#308)", () => {
     const newPw = `Aa1!${crypto.randomUUID()}`;
     fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value: newPw } });
     fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: newPw } });
-    fireEvent.change(ownerPasswordInput(), { target: { value: "OwnerCurrentPw!1" } });
+    fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" })); });
 
-    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
     expect(mockSetUserPassword).toHaveBeenCalledWith(
       "u-a", { newPassword: newPw }, expect.any(String), "grant-456");
   });

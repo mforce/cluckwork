@@ -557,12 +557,14 @@ public sealed class DisableUserTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task Disable_WithNoContentTypeAtAll_Is404_NotUnsupportedMediaType()
     {
-        // Surprising enough to pin rather than describe in a comment. The body
-        // parameter gives this endpoint application/json Accepts metadata, so a
-        // request with no Content-Type is dropped from the candidate set by the
-        // consumes matcher — and Program.cs's `/api/{**rest}` catch-all then
-        // answers 404, NOT the 415 the shape suggests. A future reader debugging
-        // "why is my POST 404-ing" should find this asserted, not inferred.
+        // Surprising enough to pin rather than describe in a comment. Asserts
+        // the OBSERVABLE status, not the mechanism behind it — this alone does
+        // not distinguish "the consumes matcher dropped the endpoint and
+        // Program.cs's catch-all answered" from "ASP.NET's own unmatched-route
+        // default", both of which are 404. The narrower claim about WHICH path
+        // produces it lives only in the comment on DisableUserRequest; a future
+        // reader debugging "why is my POST 404-ing" should at least find the
+        // status asserted here, not purely inferred from that comment.
         var (owner, accountId, _) = await OwnerAsync();
         var (email, id) = await SeedUserAsync(accountId, "Manager");
 

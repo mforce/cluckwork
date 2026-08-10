@@ -593,6 +593,51 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task PasswordResetLosingTheCas_OverHttp_Is409_NotA422()
+    {
+        // The endpoint half of the finding above (codex, #492 round 2): the
+        // direct-DI test pins the ERROR CODE, but SetUserPassword's endpoint
+        // mapping had no ".Conflict" branch, so over HTTP the same loss
+        // surfaced as a 422 the SPA reads as "password rejected". Target is a
+        // Manager, so no step-up header is involved and the 409 is purely the
+        // concurrency mapping.
+        var owner = Unique("owner");
+        var target = Unique("target");
+        var accountId = await SeedOwnerFarmAsync(owner);
+        await factory.SeedUserAsync(accountId, target, "Manager");
+        var targetId = await UserIdAsync(accountId, target);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(owner));
+
+        var tenant = new TenantContext();
+        tenant.Resolve(accountId);
+        await using var fenceDb = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options, tenant);
+        await using var fenceTx = await fenceDb.Database.BeginTransactionAsync();
+        await fenceDb.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM "AspNetUsers" WHERE "Id" = {targetId} FOR UPDATE""");
+        var fencePid = await fenceDb.BackendPidAsync();
+
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/users/{targetId}/password")
+        {
+            Content = JsonContent.Create(new { newPassword = $"Aa1!{Guid.NewGuid():N}" }),
+        };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var reset = Task.Run(() => client.SendAsync(request));
+        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(reset, fencePid),
+            "the reset's UPDATE must park behind the user-row fence");
+
+        await fenceDb.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "AspNetUsers" SET "ConcurrencyStamp" = {Guid.NewGuid().ToString()} WHERE "Id" = {targetId}""");
+        await fenceTx.CommitAsync();
+
+        var response = await reset;
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("Users.Conflict",
+            (await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>())!.Title);
+    }
+
+    [Fact]
     public async Task StaleOwnerActor_OverHttp_Is403_NotA422()
     {
         // The endpoint's `"Auth.Forbidden" => 403` mapping is otherwise
