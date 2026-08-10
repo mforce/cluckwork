@@ -518,38 +518,9 @@ public sealed class IdentityProvider(
             if (user is null)
                 return Result.Failure(Error.NotFound("Users", userId));
 
-            // Re-verify the ACTOR is still authorized. ASP.NET's
-            // authorization middleware checked their role once, at the
-            // START of the request — before this transaction, and before
-            // the account lock, ever ran. Without this, an Owner whose OWN
-            // demotion committed while their UNRELATED "promote someone
-            // else" request sat queued behind the lock could still complete
-            // that promotion after being demoted. A disabled actor retains
-            // its Owner ROLE ROW (only auth is blocked), so DisabledAt is
-            // checked here too, not just effective role.
-            //
-            // MUST be a fresh, untracked read (AsNoTracking + a plain join,
-            // not db.Users.FirstOrDefaultAsync/userManager.GetRolesAsync):
-            // the Owner-promotion path already ran this actor through
-            // StepUpGrantService.ValidateAsync's userManager.FindByIdAsync
-            // BEFORE this transaction started, on this SAME scoped
-            // DbContext. EF's identity map means any later tracked query for
-            // the same PK returns that cached instance's property values —
-            // NOT a fresh row — silently defeating this whole re-check
-            // (codex review, PR #475).
-            var actorRow = await db.Users.AsNoTracking()
-                .Where(u => u.Id == actingUserId && u.AccountId == accountId)
-                .Select(u => new { u.DisabledAt })
-                .SingleOrDefaultAsync(token);
-            if (actorRow is null || actorRow.DisabledAt is not null)
-                return Result.Failure(AppError.Forbidden());
-            var actorIsOwner = await (
-                from userRole in db.UserRoles
-                join r in db.Roles on userRole.RoleId equals r.Id
-                where userRole.UserId == actingUserId && r.Name == Cluckwork.Domain.Accounts.Roles.Owner
-                select r.Name).AnyAsync(token);
-            if (!actorIsOwner)
-                return Result.Failure(AppError.Forbidden());
+            var actor = await RequireActiveOwnerAsync(accountId, actingUserId, token);
+            if (actor.IsFailure)
+                return actor;
 
             var currentRoleNames = (await userManager.GetRolesAsync(user)).ToList();
 
@@ -577,17 +548,7 @@ public sealed class IdentityProvider(
             if (currentRoleNames.Contains(Cluckwork.Domain.Accounts.Roles.Owner)
                 && role != Cluckwork.Domain.Accounts.Roles.Owner)
             {
-                var otherActiveOwners = await (
-                    from userRole in db.UserRoles
-                    join r in db.Roles on userRole.RoleId equals r.Id
-                    join u in db.Users on userRole.UserId equals u.Id
-                    where r.Name == Cluckwork.Domain.Accounts.Roles.Owner
-                        && u.AccountId == accountId
-                        && u.Id != userId
-                        && u.DisabledAt == null
-                    select u.Id).CountAsync(token);
-
-                if (otherActiveOwners == 0)
+                if (await CountOtherActiveOwnersAsync(accountId, userId, token) == 0)
                     return Result.Failure(Error.Validation(
                         "Users.LastOwner",
                         "This is the account's last Owner — promote another user before demoting this one."));
@@ -681,6 +642,240 @@ public sealed class IdentityProvider(
 
     private static bool IsConcurrencyFailure(IdentityResult result) =>
         result.Errors.Any(e => e.Code == "ConcurrencyFailure");
+
+    // #356 — deliberately NOT the role path's bare "Reload and retry." wording.
+    // Disable/enable require step-up UNCONDITIONALLY, and the grant is
+    // single-use and is spent BEFORE the account lock is taken (see
+    // DisableUserHandler's note), so by the time this conflict is raised the
+    // caller's password proof is already gone and resubmitting the identical
+    // request answers 403, not success. The copy says so rather than promising
+    // a retry that cannot work.
+    private static Error ConcurrencyConflict() => Error.Conflict(
+        "Users.Conflict",
+        "The user was modified by another request, and your password confirmation has already been used. "
+        + "Reload, confirm your password again, and retry.");
+
+    // Re-verify the ACTOR is still authorized, INSIDE the caller's account-
+    // locked transaction. ASP.NET's authorization middleware checked their role
+    // once, at the START of the request — before the transaction, and before
+    // the account lock, ever ran. Without this, an Owner whose own demotion (or
+    // disable) committed while their UNRELATED request sat queued behind the
+    // lock could still complete it afterwards. A disabled actor retains its
+    // Owner ROLE ROW — only authentication is blocked — so DisabledAt is
+    // checked here too, not just effective role.
+    //
+    // MUST be a fresh, untracked read (AsNoTracking + a plain join, not
+    // db.Users.FirstOrDefaultAsync/userManager.GetRolesAsync): the step-up
+    // paths already ran this actor through StepUpGrantService.ValidateAsync's
+    // userManager.FindByIdAsync BEFORE the transaction started, on this SAME
+    // scoped DbContext. EF's identity map means any later TRACKED query for the
+    // same PK returns that cached instance's property values — NOT a fresh row
+    // — silently defeating this whole re-check (codex review, PR #475).
+    //
+    // Shared by ChangeUserRoleAsync (#355) and DisableUserAsync/
+    // EnableUserAsync (#356): "who may remove an Owner's access" is one rule,
+    // and three copies of it is three chances to fix only two.
+    private async Task<Result> RequireActiveOwnerAsync(
+        Guid accountId, Guid actingUserId, CancellationToken token)
+    {
+        var actorRow = await db.Users.AsNoTracking()
+            .Where(u => u.Id == actingUserId && u.AccountId == accountId)
+            .Select(u => new { u.DisabledAt })
+            .SingleOrDefaultAsync(token);
+        if (actorRow is null || actorRow.DisabledAt is not null)
+            return Result.Failure(AppError.Forbidden());
+
+        var actorIsOwner = await (
+            from userRole in db.UserRoles
+            join r in db.Roles on userRole.RoleId equals r.Id
+            where userRole.UserId == actingUserId && r.Name == Cluckwork.Domain.Accounts.Roles.Owner
+            select r.Name).AnyAsync(token);
+
+        return actorIsOwner ? Result.Success() : Result.Failure(AppError.Forbidden());
+    }
+
+    // Owners of this account, EXCLUDING `excludingUserId`, who are not disabled.
+    // Both callers of the last-Owner guard ask the same question, and the
+    // DisabledAt exclusion is the part that is easy to omit: a naive count sees
+    // an already-disabled co-Owner as a survivor and lets the only WORKING
+    // Owner be removed.
+    private Task<int> CountOtherActiveOwnersAsync(
+        Guid accountId, Guid excludingUserId, CancellationToken token) => (
+            from userRole in db.UserRoles
+            join r in db.Roles on userRole.RoleId equals r.Id
+            join u in db.Users on userRole.UserId equals u.Id
+            where r.Name == Cluckwork.Domain.Accounts.Roles.Owner
+                && u.AccountId == accountId
+                && u.Id != excludingUserId
+                && u.DisabledAt == null
+            select u.Id).CountAsync(token);
+
+    // #356 — disable a user. See IIdentityProvider for the full contract; the
+    // load-bearing part is that this is NOT just a flag write. The flag is what
+    // CredentialEpochMiddleware reads today (#364); the EPOCH BUMP is what
+    // makes a later re-enable safe, because it leaves every pre-disable access
+    // token permanently behind the account's current epoch.
+    //
+    // AmbientTransaction shape mirrors ChangeUserRoleAsync: it joins
+    // IdempotencyMiddleware's ambient request transaction when one is open, and
+    // on the owned path (a non-HTTP caller) is NOT retried — a replay would
+    // re-run the mutation and re-append the audit row (#269).
+    public Task<Result> DisableUserAsync(
+        Guid accountId, Guid userId, Guid actingUserId, string? reason,
+        CancellationToken ct = default) =>
+        AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+        {
+            // The account-wide lock, taken UNCONDITIONALLY — even for a target
+            // who could never affect the Owner count. The last-active-Owner
+            // guard is NOT race-safe on ConcurrencyStamp: two Owners disabling
+            // each other touch DIFFERENT rows and share no concurrency token,
+            // so both would read "two active Owners" and both would commit.
+            // The result is VALIDATED, not discarded: GetCurrentLockedAsync
+            // resolves from the ambient TenantContext, not from the accountId
+            // parameter, so a caller whose tenant context does not match must
+            // fail rather than silently locking (and guarding) another account.
+            var lockedAccount = await accounts.GetCurrentLockedAsync(token);
+            if (lockedAccount is null || lockedAccount.Id != accountId)
+                return Result.Failure(Error.NotFound("Accounts", accountId));
+
+            var user = await db.Users.FirstOrDefaultAsync(
+                u => u.Id == userId && u.AccountId == accountId, token);
+            if (user is null)
+                return Result.Failure(Error.NotFound("Users", userId));
+
+            var actor = await RequireActiveOwnerAsync(accountId, actingUserId, token);
+            if (actor.IsFailure)
+                return actor;
+
+            // TRUE NO-OP: already disabled. Skips the second epoch bump, the
+            // restamped DisabledAt (which would rewrite the answer to "when
+            // were they disabled") and the audit row.
+            if (user.DisabledAt is not null)
+                return Result.Success();
+
+            var targetIsOwner = await (
+                from userRole in db.UserRoles
+                join r in db.Roles on userRole.RoleId equals r.Id
+                where userRole.UserId == userId && r.Name == Cluckwork.Domain.Accounts.Roles.Owner
+                select r.Name).AnyAsync(token);
+            if (targetIsOwner
+                && await CountOtherActiveOwnersAsync(accountId, userId, token) == 0)
+            {
+                return Result.Failure(Error.Validation(
+                    "Users.LastOwner",
+                    "This is the account's last active Owner — promote or re-enable another Owner first."));
+            }
+
+            var now = timeProvider.GetUtcNow();
+            user.DisabledAt = now;
+            user.DisabledBy = actingUserId;
+
+            // Rotate the target's SecurityStamp. CredentialEpoch kills bearer
+            // and refresh tokens, but a step-up grant (#308) is a THIRD,
+            // separate credential validated against SecurityStamp — without
+            // this, a grant minted moments before the disable would still be
+            // spendable once the user is re-enabled. Identity's
+            // UserStore.UpdateAsync swallows a concurrency loss into a FAILED
+            // IdentityResult rather than throwing, so the result is inspected
+            // for the exact "ConcurrencyFailure" code separately from whatever
+            // the SaveChangesAsync catch below handles.
+            var stampRotated = await userManager.UpdateSecurityStampAsync(user);
+            if (!stampRotated.Succeeded)
+                return Result.Failure(IsConcurrencyFailure(stampRotated)
+                    ? ConcurrencyConflict()
+                    : Error.Validation("Users.DisableFailed", Describe(stampRotated)));
+
+            user.CredentialEpoch++;
+            await RevokeAllActiveForUserAsync(user.Id, now, token);
+
+            await audit.WriteAsync(AuditActions.UserDisabled, "User", user.Id,
+                reason: reason, details: null, ct: token);
+
+            try
+            {
+                await db.SaveChangesAsync(token);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Result.Failure(ConcurrencyConflict());
+            }
+            await transaction.CommitAsync(token);
+            return Result.Success();
+        }, ct);
+
+    // #356 — re-enable. Deliberately asymmetric with DisableUserAsync: it
+    // clears the two Disabled* columns and audits, and touches NOTHING else.
+    // No epoch bump, no restored pre-disable epoch, no stamp rotation, no
+    // token re-issue. That asymmetry IS the feature — it is what stops a
+    // re-enable from resurrecting every access token the disable killed.
+    public Task<Result> EnableUserAsync(
+        Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default) =>
+        AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+        {
+            // Same unconditional lock as the disable path. Enable removes no
+            // Owner, so there is no survivor count to protect — the lock is
+            // here so a disable and an enable of the same user serialize
+            // instead of interleaving into an inconsistent DisabledAt/epoch
+            // pair.
+            var lockedAccount = await accounts.GetCurrentLockedAsync(token);
+            if (lockedAccount is null || lockedAccount.Id != accountId)
+                return Result.Failure(Error.NotFound("Accounts", accountId));
+
+            var user = await db.Users.FirstOrDefaultAsync(
+                u => u.Id == userId && u.AccountId == accountId, token);
+            if (user is null)
+                return Result.Failure(Error.NotFound("Users", userId));
+
+            var actor = await RequireActiveOwnerAsync(accountId, actingUserId, token);
+            if (actor.IsFailure)
+                return actor;
+
+            // TRUE NO-OP: already active. No audit row for a non-event.
+            if (user.DisabledAt is null)
+                return Result.Success();
+
+            // Both columns describe ONE live fact. Leaving DisabledBy behind
+            // would be a column that reads as current and is not; the history
+            // lives in the audit trail, which both directions write.
+            user.DisabledAt = null;
+            user.DisabledBy = null;
+
+            // Rotate the stamp — and note this does NOT breach the "enable
+            // touches nothing else" asymmetry, which exists to stop a re-enable
+            // REVIVING a credential. A rotation only ever invalidates.
+            //
+            // It is here because a plain SaveChangesAsync leaves ConcurrencyStamp
+            // untouched, while Identity's UserStore.UpdateAsync issues a
+            // FULL-ENTITY update guarded on that same stamp. So an Owner's
+            // concurrent SetUserPassword — which reads the user tracked, then
+            // spends the whole PBKDF2 window in GeneratePasswordResetTokenAsync
+            // /ResetPasswordAsync before writing — would still match the
+            // unrotated stamp and write DisabledAt back from its pre-enable
+            // snapshot. The Owner would have received 204 and a User.Enabled
+            // audit row for an enable that was silently undone, with the user
+            // still locked out. Rotating makes that stale write lose its CAS and
+            // surface as Users.Conflict instead. Pinned by
+            // ConcurrentStampChange_DuringTheEnableItself_Is409.
+            var stampRotated = await userManager.UpdateSecurityStampAsync(user);
+            if (!stampRotated.Succeeded)
+                return Result.Failure(IsConcurrencyFailure(stampRotated)
+                    ? ConcurrencyConflict()
+                    : Error.Validation("Users.EnableFailed", Describe(stampRotated)));
+
+            await audit.WriteAsync(AuditActions.UserEnabled, "User", user.Id,
+                reason: null, details: null, ct: token);
+
+            try
+            {
+                await db.SaveChangesAsync(token);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Result.Failure(ConcurrencyConflict());
+            }
+            await transaction.CommitAsync(token);
+            return Result.Success();
+        }, ct);
 
     public async Task<Result> BreakGlassResetAsync(
         Guid accountId, Guid userId, string newPassword, string? reason,
@@ -857,14 +1052,16 @@ public sealed class IdentityProvider(
             .GroupBy(x => x.UserId)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(x => Rank(x.Name)).First().Name!);
 
+        // #356 — disabled users are LISTED, not filtered out: an Owner cannot
+        // re-enable someone the list refuses to show them.
         var rows = await db.Users
             .Where(u => u.AccountId == accountId)
             .OrderBy(u => u.Email)
-            .Select(u => new { u.Id, u.Email, u.DisplayName })
+            .Select(u => new { u.Id, u.Email, u.DisplayName, u.DisabledAt })
             .ToListAsync(ct);
         return rows
             .Select(u => new UserSummary(
-                u.Id, u.Email!, u.DisplayName, lookup.GetValueOrDefault(u.Id, "Worker")))
+                u.Id, u.Email!, u.DisplayName, lookup.GetValueOrDefault(u.Id, "Worker"), u.DisabledAt))
             .ToList();
     }
 

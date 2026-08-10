@@ -128,7 +128,8 @@ public sealed class AuditVocabularyCoverageTests
                     var (args, _) = SplitTopLevelArguments(source, call.Index + call.Length);
                     var line = source[..call.Index].Count(c => c == '\n') + 1;
 
-                    AssertActionIsRegistryReference(relativePath, line, args[0]);
+                    AssertActionIsRegistryReference(
+                        relativePath, line, args[0], EnclosingMethod(searchable, call.Index));
                     callSites.Add(
                         new AuditCallSite(relativePath, line, ResolveEntityType(relativePath, line, args[1])));
                 }
@@ -164,7 +165,12 @@ public sealed class AuditVocabularyCoverageTests
                 Assert.True(args.Length >= 3,
                     $"{relativePath}:{line} — ResetPasswordAndRevokeAsync call has fewer than 3 arguments; " +
                     "expected (user, newPassword, auditAction, ...).");
-                AssertActionIsRegistryReference(relativePath, line, args[2]);
+                // A sentinel that is deliberately not a real method name, so no
+                // exemption can ever match here: these are the CALLERS of the
+                // one exempted forwarder, and they are precisely what has to
+                // keep passing a registry member.
+                AssertActionIsRegistryReference(
+                    relativePath, line, args[2], "(caller of ResetPasswordAndRevokeAsync)");
             }
         }
 
@@ -286,14 +292,35 @@ public sealed class AuditVocabularyCoverageTests
     // THOSE call sites pass an AuditActions member (AuditActions.UserPasswordSet
     // / AuditActions.UserBreakGlassReset respectively), so the value reaching
     // WriteAsync here is always a registry member, one call frame removed from
-    // this line — verified by reading, not assumed. Keyed by file+LINE (not
-    // just file) so moving this call even one line, or a new dynamic call site
-    // appearing anywhere else, fails this test and forces a human to
-    // re-confirm the exemption still applies rather than silently widening.
-    private static readonly HashSet<(string File, int Line)> KnownIndirectActionCallSites =
+    // this line — verified by reading, not assumed.
+    //
+    // Keyed by file + ENCLOSING METHOD, not file + line. It was keyed by line
+    // until #356, and that was the wrong shape: the exemption names a specific
+    // CALL, and a line number is not a durable name for one. #356 broke it
+    // twice by inserting unrelated methods above it, and the failure it
+    // produces ("audit.WriteAsync's action argument is 'auditAction'") points
+    // at a line the author did not touch and invites renumbering on faith —
+    // which is exactly how a genuinely new dynamic call site would get waved
+    // through. Keying on the method keeps the exemption just as narrow (a
+    // second dynamic call site anywhere else, including elsewhere in this same
+    // file, still fails) while surviving edits that only move it.
+    private static readonly HashSet<(string File, string Method)> KnownIndirectActionCallSites =
     [
-        ("Cluckwork.Infrastructure/Identity/IdentityProvider.cs", 759),
+        ("Cluckwork.Infrastructure/Identity/IdentityProvider.cs", "ResetPasswordAndRevokeAsync"),
     ];
+
+    // The nearest preceding member declaration — a line STARTING with an access
+    // modifier and reaching a '(' without crossing '=' or ';', so properties and
+    // expression-bodied members cannot masquerade as one. Lambdas carry no
+    // access modifier, so a WriteAsync inside AmbientTransaction.RunAsync's
+    // delegate still resolves to the method that opened it.
+    private static string EnclosingMethod(string searchable, int index)
+    {
+        var declarations = Regex.Matches(
+            searchable[..index],
+            @"(?m)^[ \t]*(?:public|private|protected|internal)[^\n=;]*?\b(\w+)\s*\(");
+        return declarations.Count > 0 ? declarations[^1].Groups[1].Value : "(unknown)";
+    }
 
     // Fails closed on anything but a direct AuditActions.X reference, a
     // `cond ? AuditActions.A : AuditActions.B` ternary of two such references,
@@ -301,9 +328,10 @@ public sealed class AuditVocabularyCoverageTests
     // literal (the exact regression #258 exists to prevent) trips this
     // immediately instead of silently bypassing AuditActions' registry (and
     // therefore the coverage check above).
-    private static void AssertActionIsRegistryReference(string file, int line, string actionArg)
+    private static void AssertActionIsRegistryReference(
+        string file, int line, string actionArg, string enclosingMethod)
     {
-        if (KnownIndirectActionCallSites.Contains((file, line))) return;
+        if (KnownIndirectActionCallSites.Contains((file, enclosingMethod))) return;
 
         var normalized = Regex.Replace(actionArg, @"\s+", " ").Trim();
         var isDirectReference = Regex.IsMatch(normalized, @"^AuditActions\.\w+$");

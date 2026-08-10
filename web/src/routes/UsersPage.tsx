@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { KeyRound, Pencil, Plus, ShieldCheck } from "lucide-react";
+import { Ban, KeyRound, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
 import {
-  assignFlock, changeUserRole, createUser, listFlockAssignments, listFlocks, listUsers,
-  setUserPassword, unassignFlock, updateUser,
+  assignFlock, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments, listFlocks,
+  listUsers, setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { StatusBadge } from "../components/StatusBadge";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { ROLE_VALUES, roleLabel } from "../i18n/enums";
 import { useAuth } from "../auth/useAuth";
+import { useMe } from "../session/SessionContext";
 
 // #308 — the one Owner-level role name gated by step-up, shared by the create
 // and reset-password flows below. Matches Cluckwork.Domain.Accounts.Roles.Owner.
@@ -56,6 +58,10 @@ export function UsersPage() {
   const [roleStepUpPassword, setRoleStepUpPassword] = useState("");
 
   const { isAuthenticated } = useAuth();
+  // #356 — this screen's own identity, so the disable/enable actions can be
+  // withheld from the caller's own row (the server 400s a self-target, but the
+  // UI should not present a button that can only fail).
+  const me = useMe();
 
   // #308 — belt-and-braces: logout already navigates away (unmounting this
   // page in the normal flow) and every dialog's own close path already clears
@@ -67,6 +73,7 @@ export function UsersPage() {
       setCreateStepUpPassword("");
       setPwStepUpPassword("");
       setRoleStepUpPassword("");
+      setStepUpPassword("");
     }
   }, [isAuthenticated]);
 
@@ -92,6 +99,19 @@ export function UsersPage() {
   const [roleUser, setRoleUser] = useState<User | null>(null);
   const [roleValue, setRoleValue] = useState("Worker");
   const activeRole = useRef<string | null>(null);
+
+  // #356 — disable/enable a user, both behind ONE dialog that is itself the
+  // confirmation: a destructive warning body, an OPTIONAL reason (disable
+  // only — the API's DisableUserCommand.Reason is nullable, capped at 200
+  // chars, and the product call was explicit that a mandatory reason just
+  // gets typed "x"), and the step-up password DisableUser/EnableUser always
+  // require (#308) regardless of the target's role. "mode" picks which
+  // endpoint + copy applies.
+  const [stepUpUser, setStepUpUser] = useState<User | null>(null);
+  const [stepUpMode, setStepUpMode] = useState<"disable" | "enable" | null>(null);
+  const [disableReason, setDisableReason] = useState("");
+  const [stepUpPassword, setStepUpPassword] = useState("");
+  const activeStepUp = useRef<string | null>(null);
 
   // #103 flock scoping: expand a worker row to manage assignments.
   const [openUser, setOpenUser] = useState<string | null>(null);
@@ -373,6 +393,64 @@ export function UsersPage() {
     });
   }
 
+  // #356 — open/close the shared disable/enable dialog. The Disable and Enable
+  // row buttons call this identically; "mode" is the only difference. The
+  // reason is not a parameter: the dialog collects it itself, seeded blank,
+  // through a controlled textarea.
+  function openStepUp(u: User, mode: "disable" | "enable") {
+    setError(null);
+    setMessage(null);
+    setStepUpPassword("");
+    setDisableReason("");
+    activeStepUp.current = u.id;
+    setStepUpMode(mode);
+    setStepUpUser(u);
+  }
+
+  function closeStepUp() {
+    activeStepUp.current = null;
+    setStepUpPassword(""); // #308 — never leave a typed proof password behind
+    setDisableReason("");
+    setStepUpMode(null);
+    setStepUpUser(null);
+  }
+
+  async function onSubmitStepUp(e: FormEvent) {
+    e.preventDefault();
+    const target = stepUpUser;
+    const mode = stepUpMode;
+    if (!target || !mode || busy) return;
+    setError(null);
+    setMessage(null);
+    const scope = `${mode}:${target.id}`;
+    await run(scope, async () => {
+      try {
+        // #308 — read-then-clear-before-await, same pattern as every other
+        // step-up site on this screen: the proof password never sits in state
+        // across the network call that consumes it.
+        const enteredPassword = stepUpPassword;
+        setStepUpPassword("");
+        const token = (await stepUp(enteredPassword)).token;
+
+        if (mode === "disable") {
+          // #356 — reason is optional: an empty/whitespace-only textarea
+          // sends null, never "" (the API contract's nullable field).
+          await disableUser(target.id, { reason: disableReason.trim() || null }, keyFor(scope), token);
+        } else {
+          await enableUser(target.id, keyFor(scope), token);
+        }
+        clearKey(scope); // write confirmed before any refresh (#163 review)
+        setUsers(await listUsers());
+        if (activeStepUp.current !== target.id) return; // dialog moved on
+        setMessage(i18n.t(mode === "disable" ? "users:userDisabledMessage" : "users:userEnabledMessage",
+          { email: target.email }));
+        closeStepUp();
+      } catch (err) {
+        if (activeStepUp.current === target.id) setError(errText(err));
+      }
+    });
+  }
+
   async function onUpdate(e: FormEvent) {
     e.preventDefault();
     const target = editUser;
@@ -461,6 +539,7 @@ export function UsersPage() {
 
       {/* Each dialog carries its own error copy while it is up. */}
       {error && !creating && openUser === null && editUser === null && pwUser === null && roleUser === null
+        && stepUpUser === null
         && <p className="error" role="alert">{error}</p>}
       {message && <p className="success">{message}</p>}
 
@@ -470,15 +549,22 @@ export function UsersPage() {
             <th>{t("emailColumnHeader")}</th>
             <th>{t("nameColumnHeader")}</th>
             <th>{t("roleColumnHeader")}</th>
+            <th>{t("statusColumnHeader")}</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
+          {/* #356 — a disabled row renders muted (ProductsPage's active/inactive
+              precedent), and offers Enable in place of Disable. Neither action
+              appears on the caller's own row: the server 400s a self-target
+              (Users.CannotDisableSelf/CannotEnableSelf), so presenting the
+              button here would only ever fail. */}
           {users.map((u) => (
-            <tr key={u.id}>
+            <tr key={u.id} className={u.disabledAt ? "muted" : undefined}>
               <td>{u.email}</td>
               <td>{u.displayName ?? "—"}</td>
               <td>{roleLabel(u.role)}</td>
+              <td>{u.disabledAt && <StatusBadge status="Inactive" label={t("disabledBadge")} />}</td>
               <td>
                 <button className="link" onClick={() => openEdit(u)}>
                   <Pencil size={14} aria-hidden /> {t("editButton")}
@@ -493,6 +579,17 @@ export function UsersPage() {
                   <button className="link" onClick={() => void openAssignments(u.id)}>
                     {t("flocksButton")}
                   </button>
+                )}
+                {me?.id !== u.id && (
+                  u.disabledAt ? (
+                    <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
+                      <RotateCcw size={14} aria-hidden /> {t("enableButton")}
+                    </button>
+                  ) : (
+                    <button className="link" disabled={busy} onClick={() => openStepUp(u, "disable")}>
+                      <Ban size={14} aria-hidden /> {t("disableButton")}
+                    </button>
+                  )
                 )}
               </td>
             </tr>
@@ -640,6 +737,49 @@ export function UsersPage() {
             <button type="button" className="link" onClick={closeRole}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={roleUser !== null && isPending(`change-role:${roleUser.id}`)}>{t("changeRoleSubmitButton")}</BusyButton>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* #356 — one dialog is the whole disable/enable flow: it IS the
+          confirmation (no separate askReason step), collects the optional
+          reason (disable only — the API's reason is nullable, never
+          mandatory), and always collects the step-up password
+          UNCONDITIONALLY (#308) regardless of the target's role. */}
+      <Dialog
+        open={stepUpUser !== null}
+        title={stepUpMode === "disable"
+          ? t("disableStepUpTitle", { email: stepUpUser?.email ?? "" })
+          : t("enableStepUpTitle", { email: stepUpUser?.email ?? "" })}
+        onClose={closeStepUp}
+      >
+        <form className="inline-form" onSubmit={onSubmitStepUp}>
+          {stepUpMode === "disable" && (
+            <>
+              <p className="confirm-body">{t("disableWarningBody")}</p>
+              <label>{t("disableReasonFieldLabel")}
+                <textarea value={disableReason} maxLength={200} rows={3}
+                  onChange={(e) => setDisableReason(e.target.value)} />
+              </label>
+            </>
+          )}
+          <p className="muted">
+            {stepUpMode === "disable" ? t("stepUpDisableHint") : t("stepUpEnableHint")}
+          </p>
+          <label>{t("stepUpFieldLabel")}
+            <input type="password" value={stepUpPassword} required maxLength={256}
+              autoComplete="current-password"
+              onChange={(e) => setStepUpPassword(e.target.value)} />
+          </label>
+          {error && <p className="error">{error}</p>}
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={closeStepUp}>{tc("cancel")}</button>
+            <BusyButton type="submit" disabled={busy}
+              className={stepUpMode === "disable" ? "btn-danger" : undefined}
+              busy={stepUpUser !== null && stepUpMode !== null
+                && isPending(`${stepUpMode}:${stepUpUser.id}`)}>
+              {stepUpMode === "disable" ? t("disableSubmitButton") : t("enableSubmitButton")}
+            </BusyButton>
           </div>
         </form>
       </Dialog>

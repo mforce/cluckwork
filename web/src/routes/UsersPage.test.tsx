@@ -11,8 +11,8 @@ import { FarmContext } from "../farm/FarmContext";
 import { MeContext } from "../session/SessionContext";
 import type { Me } from "../api/cluckwork";
 import {
-  assignFlock, changeUserRole, createUser, listFlockAssignments, listFlocks, listUsers,
-  setUserPassword, unassignFlock, updateUser,
+  assignFlock, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments, listFlocks,
+  listUsers, setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
@@ -25,6 +25,8 @@ vi.mock("../api/cluckwork", () => ({
   updateUser: vi.fn(),
   setUserPassword: vi.fn(),
   changeUserRole: vi.fn(),
+  disableUser: vi.fn(),
+  enableUser: vi.fn(),
   listFlockAssignments: vi.fn(),
   assignFlock: vi.fn(),
   unassignFlock: vi.fn(),
@@ -44,19 +46,37 @@ const mockCreateUser = vi.mocked(createUser);
 const mockUpdateUser = vi.mocked(updateUser);
 const mockSetUserPassword = vi.mocked(setUserPassword);
 const mockChangeUserRole = vi.mocked(changeUserRole);
+const mockDisableUser = vi.mocked(disableUser);
+const mockEnableUser = vi.mocked(enableUser);
 const mockListAssignments = vi.mocked(listFlockAssignments);
 const mockAssignFlock = vi.mocked(assignFlock);
 const mockUnassignFlock = vi.mocked(unassignFlock);
 const mockListFlocks = vi.mocked(listFlocks);
 const mockStepUp = vi.mocked(stepUp);
 
-const WORKER_USER: User = { id: "u-w", email: "worker@farm.test", displayName: "Wendy", role: "Worker" };
-const ADMIN_USER: User = { id: "u-a", email: "boss@farm.test", displayName: null, role: "Admin" };
+const WORKER_USER: User = {
+  id: "u-w", email: "worker@farm.test", displayName: "Wendy", role: "Worker", disabledAt: null,
+};
+const ADMIN_USER: User = {
+  id: "u-a", email: "boss@farm.test", displayName: null, role: "Admin", disabledAt: null,
+};
 // Role wiring fixture (#182, Task 22): ReadOnly is the one role whose enum
 // label is NOT its raw wire value (enums:role.ReadOnly = "Read-only"), so it's
 // the fixture that actually distinguishes roleLabel(u.role) from a plain
 // {u.role} render.
-const READONLY_USER: User = { id: "u-r", email: "ro@farm.test", displayName: null, role: "ReadOnly" };
+const READONLY_USER: User = {
+  id: "u-r", email: "ro@farm.test", displayName: null, role: "ReadOnly", disabledAt: null,
+};
+// #356 — a disabled worker, and the ADMIN token's OWN row (id "u1" matches
+// DEFAULT_ME/the ADMIN token's sub — see renderWithProviders.tsx), used to
+// prove the self-target rows offer neither action.
+const DISABLED_USER: User = {
+  id: "u-d", email: "disabled@farm.test", displayName: "Dana", role: "Worker",
+  disabledAt: "2026-08-01T00:00:00Z",
+};
+const SELF_USER: User = {
+  id: "u1", email: "self@farm.test", displayName: null, role: "Admin", disabledAt: null,
+};
 
 const flock = (id: string, name: string, status = "Active"): Flock => ({
   id, farmId: "farm", houseId: "house", name, breed: "ISA Brown",
@@ -518,6 +538,151 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
   });
 });
 
+// #356 — disable/enable a user, both in ONE dialog that is itself the
+// confirmation: a destructive warning, an OPTIONAL reason (disable only —
+// the API's DisableUserCommand.Reason is nullable), and the mandatory
+// step-up proof (unconditional, unlike the role/password dialogs' Owner-only
+// gating).
+describe("UsersPage disable/enable (#356)", () => {
+  const disableRow = (rowName: RegExp) =>
+    within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "disable" });
+  const enableRow = (rowName: RegExp) =>
+    within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "enable" });
+
+  it("renders a disabled user's row muted with a Disabled badge, offering Enable and not Disable", async () => {
+    mockListUsers.mockResolvedValue([WORKER_USER, DISABLED_USER]);
+    await renderReady(ADMIN);
+
+    const row = screen.getByRole("row", { name: /disabled@farm.test/ });
+    expect(row).toHaveClass("muted");
+    expect(within(row).getByText("Disabled")).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "enable" })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
+
+    // The still-active sibling row stays unmuted, un-badged, and offers Disable.
+    const activeRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    expect(activeRow).not.toHaveClass("muted");
+    expect(within(activeRow).queryByText("Disabled")).not.toBeInTheDocument();
+    expect(within(activeRow).getByRole("button", { name: "disable" })).toBeInTheDocument();
+  });
+
+  it("offers neither Disable nor Enable on the caller's own row", async () => {
+    mockListUsers.mockResolvedValue([WORKER_USER, SELF_USER]);
+    await renderReady(ADMIN); // ADMIN token's sub is "u1", matching SELF_USER's id
+
+    const selfRow = screen.getByRole("row", { name: /self@farm.test/ });
+    expect(within(selfRow).queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
+    expect(within(selfRow).queryByRole("button", { name: "enable" })).not.toBeInTheDocument();
+    // A non-self row in the same render is unaffected.
+    expect(within(screen.getByRole("row", { name: /worker@farm.test/ }))
+      .getByRole("button", { name: "disable" })).toBeInTheDocument();
+  });
+
+  it("opening Disable and closing the dialog fires no disableUser call", async () => {
+    await renderReady(ADMIN);
+    fireEvent.click(disableRow(/worker@farm.test/));
+
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockStepUp).not.toHaveBeenCalled();
+    expect(mockDisableUser).not.toHaveBeenCalled();
+  });
+
+  it("submitting with the reason left empty sends reason: null — the optional-reason regression", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-d1", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    // The reason textarea is left untouched — blank — and the dialog still
+    // submits: a mandatory reason was the bug (#356), so this is the case
+    // that must pass without ever being forced to type anything.
+    fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
+      target: { value: "OwnerCurrentPw!1" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
+    });
+
+    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockDisableUser).toHaveBeenCalledWith(
+      "u-w", { reason: null }, expect.any(String), "grant-d1");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByText(/worker@farm\.test has been disabled/)).toBeInTheDocument();
+    expect(mockListUsers).toHaveBeenCalledTimes(2); // initial load + post-disable refresh
+  });
+
+  it("submitting with a reason sends that exact trimmed string", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-d1", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), {
+      target: { value: "  No longer works here  " },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
+      target: { value: "OwnerCurrentPw!1" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
+    });
+
+    expect(mockDisableUser).toHaveBeenCalledWith(
+      "u-w", { reason: "No longer works here" }, expect.any(String), "grant-d1");
+  });
+
+  it("enabling a disabled user opens the shared dialog directly, with no reason field", async () => {
+    mockListUsers.mockResolvedValue([DISABLED_USER]);
+    mockStepUp.mockResolvedValue({ token: "grant-e1", expiresAt: "2026-01-01T00:05:00Z" });
+    mockEnableUser.mockResolvedValue(undefined);
+    renderWithProviders(<UsersPage />, { token: ADMIN });
+    await screen.findByText("disabled@farm.test");
+
+    fireEvent.click(enableRow(/disabled@farm.test/));
+    const stepUpDialog = await screen.findByRole("dialog", { name: /Enable — disabled@farm\.test/ });
+    expect(within(stepUpDialog).queryByLabelText(/Reason/)).not.toBeInTheDocument();
+    fireEvent.change(within(stepUpDialog).getByLabelText(/Your current password/), {
+      target: { value: "OwnerCurrentPw!1" },
+    });
+    await act(async () => {
+      fireEvent.click(within(stepUpDialog).getByRole("button", { name: "Enable" }));
+    });
+
+    expect(mockStepUp).toHaveBeenCalledWith("OwnerCurrentPw!1");
+    expect(mockEnableUser).toHaveBeenCalledWith("u-d", expect.any(String), "grant-e1");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByText(/disabled@farm\.test has been re-enabled/)).toBeInTheDocument();
+  });
+
+  it("keeps the dialog open and shows the error in the shared error slot when a disable is rejected", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-d2", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockRejectedValue(
+      new ApiError(422, "Users.LastOwner", "Cannot disable the sole remaining owner."));
+    await renderReady(ADMIN);
+
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dialog).getByLabelText(/Your current password/), {
+      target: { value: "OwnerCurrentPw!1" },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
+    });
+
+    // The error rendered inside the still-open dialog IS the shared `error`
+    // slot (#356 — not a scoped dialogErrors map, deliberately out of scope
+    // here; #479's job).
+    expect(within(dialog).getByText(/sole remaining owner/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(mockEnableUser).not.toHaveBeenCalled();
+  });
+});
+
 describe("UsersPage dialog dismissal", () => {
   it("closes the create dialog on Cancel without writing", async () => {
     await renderReady(ADMIN);
@@ -789,7 +954,9 @@ describe("UsersPage flock scoping", () => {
   });
 
   it("discards a stale refresh from a worker whose dialog was closed and reopened for another", async () => {
-    const WORKER_2: User = { id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker" };
+    const WORKER_2: User = {
+      id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null,
+    };
     mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
     // Call 1: open A (has Coop A). Call 2: A's post-remove refresh — hung.
     // Call 3: open B (empty). If the guard fails, A's refresh overwrites B.

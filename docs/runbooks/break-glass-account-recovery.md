@@ -84,6 +84,13 @@ A clear message is written to **stderr**, e.g.:
 
 - `Recovery failed: Recovery.NotFound — Recovery '<email>' was not found.` — check the email.
 - `Recovery failed: Recovery.Ambiguous — N users share the email ... pass --account <id>` — add `--account`.
+- `Recovery failed: Recovery.UserDisabled — '<email>' was disabled at <time>. …` — the user was **disabled**
+  (#356), not merely locked out. A password reset would not restore their access: a disabled user is refused
+  before the password is ever checked. Have another Owner re-enable them from **Users → Enable**, then re-run
+  this command if the password is still unknown. This command refuses rather than resetting precisely so it
+  cannot hand you a credential that silently does not work; clearing the disabled flag from the CLI is not yet
+  supported (tracked with the `--user-id` lookup in #357). The account can always reach an Owner who is able to
+  re-enable: the last **active** Owner cannot be disabled.
 - `Invalid --account '<x>' — must be a GUID.`
 
 Nothing is changed on a failure.

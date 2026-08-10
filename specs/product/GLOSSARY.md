@@ -651,6 +651,28 @@ credential reset can invalidate access tokens immediately without a per-request
 revocation list. The epoch readers ship before the mutations that advance it;
 deploys must drain older replicas before enabling those mutations.
 
+**Disabled user (#356)** — an Owner-only Users-screen action that revokes a
+colleague's access without deleting them. A disabled user cannot sign in,
+cannot refresh an existing session, and cannot obtain or spend a **step-up
+grant**; every one of their live sessions stops working on its very next
+request, not once the access token's ~15-minute lifetime happens to run out —
+the disable bumps the target's **credential epoch** (see above), rotates
+their security stamp, and revokes every refresh token, mirroring the side
+effects a role change applies. Re-enabling is reversible but deliberately
+**not symmetric**: it clears only the disabled flag — it does NOT roll the
+credential epoch back, so every credential issued before the disable stays
+permanently dead and the user signs back in fresh; nothing minted before the
+disable is ever revived. The account's last active Owner cannot be disabled
+(refused inside the same account-locked transaction that guards a demotion),
+and nobody can disable themselves (refused at the endpoint before validation
+even runs). This is not deletion: a disabled user's row, their audit trail,
+and every record elsewhere that names them (created-by trails, refresh-token
+history, orders they raised) are untouched; hard delete of a user account is
+out of scope here (personal-data erasure is #272). Break-glass recovery
+**refuses** a disabled target rather than resetting its password — a reset
+would not restore access, because a disabled user is turned away before the
+password is ever checked; re-enable them first.
+
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets
 a 409 and retries against fresh state. Append-only aggregates (bird
@@ -733,17 +755,23 @@ is checked against it — so an already-issued access token is rejected on its
 very next request, not merely bounded by the ~15-min access-token lifetime.
 
 **Step-up authentication (#308)** — a fresh proof of identity required, on top
-of a normal valid Owner access token, before three specific actions:
+of a normal valid Owner access token, before five specific actions:
 **creating another Owner**, **resetting an existing Owner's password**, and
-**changing a user's role to Owner** (#355). The threat it closes: a
-stolen-but-still-valid Owner access token (good for ~15 min — merely holding
-it bumps no credential epoch, see **Credential epoch** above) is otherwise
-enough on its own to mint a second, independent Owner or take over an existing
-one, turning short-lived token theft into durable account control. Every other
-action on the Users screen — creating a Worker/Manager/Sales/Read-only user,
-resetting one of their passwords, editing a display name, flock assignment,
-changing a role to anything OTHER than Owner — is **unchanged and ungated**;
-the point is to gate exactly the operations that can multiply or hand over
+**changing a user's role to Owner** (#355) — plus, since #356, **disabling**
+or **re-enabling** a user, gated UNCONDITIONALLY rather than only when the
+target holds Owner. The first three close one threat: a stolen-but-still-valid
+Owner access token (good for ~15 min — merely holding it bumps no credential
+epoch, see **Credential epoch** above) is otherwise enough on its own to mint
+a second, independent Owner or take over an existing one, turning short-lived
+token theft into durable account control. Disable/enable close a related one
+that isn't Owner-scoped: any disable revokes real access outright, and
+re-enabling an Owner would otherwise hand back exactly what a stolen token's
+disable took away — so, unlike the role-change gating above, there is no
+"ordinary farm administration" case here left ungated. Every other action on
+the Users screen — creating a Worker/Manager/Sales/Read-only user, resetting
+one of their passwords, editing a display name, flock assignment, changing a
+role to anything OTHER than Owner — is **unchanged and ungated**; the point is
+to gate exactly the operations that can multiply, hand over, or cut off
 account control, not to add a blanket prompt to ordinary farm administration.
 The mechanism is **current-password re-confirmation**: the Users screen shows
 an inline "your current password" field only when the action needs it (never

@@ -158,4 +158,55 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
         Assert.True(result.IsFailure);
         Assert.Equal("Recovery.EmailRequired", result.Error.Code);
     }
+
+    [Fact]
+    public async Task Recover_DisabledUser_FailsLoudly_AndChangesNothing()
+    {
+        // #356 — without this refusal, break-glass becomes a SILENT FALSE GREEN
+        // against a disabled user: LoginAsync rejects them before the password
+        // is ever checked, so the command would print a working-looking
+        // credential, write a User.BreakGlassReset audit row and exit 0 for an
+        // account that is still locked out — in the one emergency the tool
+        // exists for. #265 requires it to be fail-loud, never a silent no-op.
+        var email = $"disabled-{Guid.NewGuid():N}@test.local";
+        await _factory.SeedUserAsync(SeedDefaults.AccountId, email, Roles.Owner);
+
+        Guid userId;
+        string hashBefore;
+        string stampBefore;
+        using (var s = Scope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AppDbContext>();
+            var user = await db.Users.IgnoreQueryFilters().SingleAsync(u => u.Email == email);
+            user.DisabledAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+            userId = user.Id;
+            hashBefore = user.PasswordHash!;
+            stampBefore = user.SecurityStamp!;
+        }
+
+        using (var s = Scope())
+        {
+            var svc = s.ServiceProvider.GetRequiredService<AdminRecoveryService>();
+            var result = await svc.RecoverAsync(email, accountId: null, reason: "drill");
+
+            Assert.True(result.IsFailure, "recovering a disabled user must NOT report success");
+            Assert.Equal("Recovery.UserDisabled", result.Error.Code);
+        }
+
+        // "Changes nothing" is the other half: a refusal that had already reset
+        // the password would still have burned the credential it refused to fix.
+        using (var s = Scope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AppDbContext>();
+            var after = await db.Users.IgnoreQueryFilters().SingleAsync(u => u.Id == userId);
+            Assert.Equal(hashBefore, after.PasswordHash);
+            Assert.Equal(stampBefore, after.SecurityStamp);
+            Assert.NotNull(after.DisabledAt);
+            Assert.False(
+                await db.AuditEvents.IgnoreQueryFilters()
+                    .AnyAsync(a => a.Action == "User.BreakGlassReset" && a.EntityId == userId),
+                "a refused recovery must not leave a break-glass audit row claiming it happened");
+        }
+    }
 }

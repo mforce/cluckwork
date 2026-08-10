@@ -38,7 +38,7 @@ public sealed class AdminRecoveryService(
         var normalizedEmail = userManager.NormalizeEmail(normalized);
         var matches = await db.Users
             .Where(u => u.NormalizedEmail == normalizedEmail && (accountId == null || u.AccountId == accountId))
-            .Select(u => new { u.Id, u.AccountId, u.Email })
+            .Select(u => new { u.Id, u.AccountId, u.Email, u.DisabledAt })
             .ToListAsync(ct);
 
         if (matches.Count == 0)
@@ -49,6 +49,28 @@ public sealed class AdminRecoveryService(
                 $"{matches.Count} users share the email '{normalized}' across accounts — pass --account <id> to disambiguate."));
 
         var target = matches[0];
+
+        // #356 — refuse a DISABLED target, loudly, instead of handing the
+        // operator a password that cannot work. LoginAsync rejects a disabled
+        // user before it ever checks the password, so resetting one would print
+        // a fresh credential to stdout, write a User.BreakGlassReset audit row
+        // and exit 0 for an account that is still locked out: a silent false
+        // green in the one tool that exists for an emergency, and a direct
+        // breach of the #265 rule that break-glass is fail-loud and never a
+        // silent no-op.
+        //
+        // Refusing is this slice's job; CLEARING DisabledAt here is not — that
+        // ships with the --user-id lookup, because locating by email is
+        // circular once an email typo is what locked the account. Until then
+        // the operator gets an actionable error rather than a lie. The advice
+        // is always followable: the last-active-Owner guard means an account
+        // can never be left with zero Owners able to sign in and re-enable.
+        if (target.DisabledAt is not null)
+            return Result.Failure<AdminRecoveryResult>(Error.Validation(
+                "Recovery.UserDisabled",
+                $"'{target.Email}' was disabled at {target.DisabledAt:u}. Resetting the password would NOT restore " +
+                "access — a disabled user is refused before the password is checked. Re-enable them from the " +
+                "Users screen first, then re-run this command if the password is still unknown."));
 
         // Resolve the tenant to the target account BEFORE the reset so
         // IAuditWriter (which fails closed on an unresolved tenant) can stamp the

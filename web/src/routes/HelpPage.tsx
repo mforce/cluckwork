@@ -169,6 +169,10 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="rolesAdmin" components={{ strong: <strong /> }} />
         </li>
+        <li>
+          {/* #356 — disable/re-enable a colleague's sign-in. */}
+          <Trans ns="help" i18nKey="rolesDisableUser" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <p>
@@ -605,6 +609,9 @@ export function HelpPage() {
           </tr>
           <tr><th scope="row">{t("glossaryUiLanguageTerm")}</th>
             <td>{t("glossaryUiLanguageDef")}</td></tr>
+          {/* #356 — appended last so it doesn't reshuffle the rows above. */}
+          <tr><th scope="row">{t("glossaryDisabledUserTerm")}</th>
+            <td>{t("glossaryDisabledUserDef")}</td></tr>
         </tbody>
       </table>
 

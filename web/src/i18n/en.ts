@@ -1323,16 +1323,28 @@ export const en = {
     stepUpCreateHint: "Creating another Owner needs your current password again.",
     stepUpResetHint: "Resetting an Owner's password needs your current password again.",
     stepUpRoleHint: "Promoting someone to Owner needs your current password again.",
+    // #356 — disable/enable's step-up is UNCONDITIONAL (every disable/enable
+    // needs it, not just an Owner target), so these hints are shown every time
+    // rather than only once a sensitive role is picked.
+    stepUpDisableHint: "Disabling a user needs your current password again.",
+    stepUpEnableHint: "Re-enabling a user needs your current password again.",
 
     // Users table
     emailColumnHeader: "Email",
     nameColumnHeader: "Name",
     roleColumnHeader: "Role",
+    statusColumnHeader: "Status",
     editButton: "edit",
     resetPasswordButton: "password",
     changeRoleButton: "role",
     changeRoleSubmitButton: "Change role",
     flocksButton: "flocks",
+    // #356 — row actions and their badge. Disabled rows render muted with this
+    // badge (StatusBadge tinted via the "Inactive" status, labelled distinctly
+    // so it always reads "Disabled" rather than the generic "Inactive").
+    disabledBadge: "Disabled",
+    disableButton: "disable",
+    enableButton: "enable",
 
     // Flock-access dialog (per-worker scoping). {{email}} is the user's
     // email — DATA, not client copy.
@@ -1365,6 +1377,23 @@ export const en = {
       + "account's last Owner cannot be demoted, and you cannot change "
       + "your own role — ask another Owner.",
 
+    // #356 — the single disable/enable dialog: it IS the confirmation, shared
+    // by both modes (unconditional step-up proof, unlike the conditional
+    // Owner-only prompts above). {{email}} is DATA.
+    disableStepUpTitle: "Disable — {{email}}",
+    enableStepUpTitle: "Enable — {{email}}",
+    disableSubmitButton: "Disable",
+    enableSubmitButton: "Enable",
+    // Destructive warning shown in the disable dialog body — what disabling
+    // actually does, since this dialog is the only confirmation there is.
+    disableWarningBody:
+      "They will be signed out of every device immediately and won't be "
+      + "able to sign in again until you re-enable them.",
+    // The reason is OPTIONAL (DisableUserCommand.Reason is nullable) — the
+    // label says so plainly rather than following the "Field *" = required
+    // convention used elsewhere on this page.
+    disableReasonFieldLabel: "Reason (optional)",
+
     // Imperative messages (event handlers — see CONTRIBUTING-i18n.md's
     // imperative i18n.t() pattern). {{email}} is DATA; {{role}} is
     // roleLabel(role) — see the namespace header comment above.
@@ -1374,6 +1403,8 @@ export const en = {
       "Password set for {{email}}. They have been signed out everywhere.",
     updatedMessage: "Updated {{email}}.",
     roleChangedMessage: "{{email}} is now {{role}}.",
+    userDisabledMessage: "{{email}} has been disabled.",
+    userEnabledMessage: "{{email}} has been re-enabled.",
   },
   // Expenses screen — category management (a dialog panel: create/deactivate/
   // reactivate) + record/correct expenses, filtered by month and category
@@ -1964,6 +1995,8 @@ export const en = {
     "auditAction.User.PasswordChanged": "Password changed",
     "auditAction.User.BreakGlassReset": "Break-glass reset",
     "auditAction.User.RoleChanged": "Role changed",
+    "auditAction.User.Disabled": "User disabled",
+    "auditAction.User.Enabled": "User enabled",
     "auditAction.User.FlockAssign": "Flock assigned to user",
     "auditAction.User.FlockUnassign": "Flock unassigned from user",
     "auditAction.Account.Export": "Data exported",
@@ -2097,10 +2130,11 @@ export const en = {
     // actions. Deliberately does NOT mention "grant"/"token" — that's internal
     // mechanism, not user-facing language.
     signingInStepUp:
-      "Three actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
-      + "right there in the dialog: creating another Owner, resetting an existing Owner's password, and promoting "
-      + "someone to Owner. This confirms it's really you before handing out that much access — every other action "
-      + "on that screen (creating a Worker/Manager/Sales/Read-only user, resetting one of their passwords, changing "
+      "Five actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
+      + "right there in the dialog: creating another Owner, resetting an existing Owner's password, promoting "
+      + "someone to Owner, and — whatever the target's role — disabling or re-enabling a user. This confirms it's "
+      + "really you before handing out that much access or cutting someone else's off; every other action on that "
+      + "screen (creating a Worker/Manager/Sales/Read-only user, resetting one of their passwords, changing "
       + "someone's role to anything other than Owner) does not ask again.",
     signingInCredentialEpoch:
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
@@ -2150,6 +2184,14 @@ export const en = {
       + "re-confirmation. A role change signs the affected sign-in out everywhere on its next request, the same "
       + "way a password reset does. Controls you can't use are hidden, "
       + "and the server refuses them regardless.",
+    // #356 — disable/re-enable a colleague's sign-in.
+    rolesDisableUser:
+      "<strong>Disabling a sign-in</strong> (Users screen, Admin/owner only) cuts off access immediately — "
+      + "every one of that person's open sessions ends on its very next request, the same as a role change or "
+      + "password reset. A reason is optional, and either way it lands in the audit log. "
+      + "<strong>Re-enable</strong> restores their ability to sign in, but never revives the sessions the "
+      + "disable ended — they sign in fresh with their existing password. You can't disable your own sign-in, "
+      + "and you can't disable the account's last Admin (owner).",
     ownPassword:
       "<strong>Your own password.</strong> Anyone, in any role, can change their own password on the "
       + "<strong>Account</strong> screen by entering the current one and a new one (at least 12 characters). "
@@ -2834,6 +2876,14 @@ export const en = {
       "The per-user language the interface is shown in — English, Español, or Tagalog — chosen from "
       + "Account → Preferences. English is the fallback for any screen not yet translated, whatever "
       + "language you picked.",
+
+    // #356 — appended last so it doesn't reshuffle the rows above.
+    glossaryDisabledUserTerm: "Disabled user",
+    glossaryDisabledUserDef:
+      "Revoked access, not deletion. A disabled user can't sign in, refresh, or get a step-up grant, and "
+      + "every session they had open ends on its very next request. Re-enabling restores sign-in but not "
+      + "those old sessions — anything issued before the disable never works again. The account's last "
+      + "active Admin (owner) can't be disabled, and nobody can disable themselves.",
 
     glossaryRepoNote:
       "Full spec-language definitions live in the repository's <code>specs/product/GLOSSARY.md</code>.",

@@ -1093,16 +1093,23 @@ export const es = {
     stepUpCreateHint: "Crear otro propietario requiere volver a ingresar tu contraseña actual.",
     stepUpResetHint: "Restablecer la contraseña de un propietario requiere volver a ingresar tu contraseña actual.",
     stepUpRoleHint: "Ascender a alguien a propietario requiere volver a ingresar tu contraseña actual.",
+    // #356 — re-confirmación incondicional (machine-drafted, pending native review)
+    stepUpDisableHint: "Deshabilitar a un usuario requiere volver a ingresar tu contraseña actual.",
+    stepUpEnableHint: "Volver a habilitar a un usuario requiere volver a ingresar tu contraseña actual.",
 
     // Users table
     emailColumnHeader: "Correo electrónico",
     nameColumnHeader: "Nombre",
     roleColumnHeader: "Rol",
+    statusColumnHeader: "Estado",
     editButton: "editar",
     resetPasswordButton: "contraseña",
     changeRoleButton: "rol",
     changeRoleSubmitButton: "Cambiar rol",
     flocksButton: "lotes",
+    disabledBadge: "Deshabilitado",
+    disableButton: "deshabilitar",
+    enableButton: "habilitar",
 
     // Flock-access dialog
     flockAccessTitle: "Acceso a lotes — {{email}}",
@@ -1135,12 +1142,25 @@ export const es = {
       + "dispositivos. No se puede degradar al último propietario de la "
       + "cuenta, y no puedes cambiar tu propio rol — pide a otro propietario.",
 
+    // #356 — el diálogo único de deshabilitar/habilitar (machine-drafted,
+    // pending native review): el diálogo mismo ES la confirmación.
+    disableStepUpTitle: "Deshabilitar — {{email}}",
+    enableStepUpTitle: "Habilitar — {{email}}",
+    disableSubmitButton: "Deshabilitar",
+    enableSubmitButton: "Habilitar",
+    disableWarningBody:
+      "Se cerrará su sesión en todos los dispositivos de inmediato y no "
+      + "podrá volver a iniciar sesión hasta que lo vuelvas a habilitar.",
+    disableReasonFieldLabel: "Motivo (opcional)",
+
     // Imperative messages
     createSuccessMessage: "Cuenta de {{role}} creada para {{email}}.",
     passwordMismatchMessage: "Las contraseñas no coinciden.",
     passwordSetMessage: "Contraseña establecida para {{email}}. Se cerró la sesión en todos los dispositivos.",
     updatedMessage: "Se actualizó {{email}}.",
     roleChangedMessage: "{{email}} ahora es {{role}}.",
+    userDisabledMessage: "{{email}} ha sido deshabilitado.",
+    userEnabledMessage: "{{email}} ha sido vuelto a habilitar.",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
@@ -1559,6 +1579,8 @@ export const es = {
     "auditAction.User.PasswordChanged": "Contraseña cambiada",
     "auditAction.User.BreakGlassReset": "Restablecimiento de emergencia",
     "auditAction.User.RoleChanged": "Rol cambiado",
+    "auditAction.User.Disabled": "Usuario deshabilitado",
+    "auditAction.User.Enabled": "Usuario habilitado",
     "auditAction.User.FlockAssign": "Lote asignado al usuario",
     "auditAction.User.FlockUnassign": "Lote desasignado del usuario",
     "auditAction.Account.Export": "Datos exportados",
@@ -1690,11 +1712,13 @@ export const es = {
       + "configuración, al intentar iniciar sesión se le indica esto y se le remite a quien administra el "
       + "servidor, en lugar de afirmar que sus datos eran incorrectos.",
     // #308 (machine-drafted, pending native review)
+    // #308/#356 (machine-drafted, pending native review)
     signingInStepUp:
-      "Tres acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
+      "Cinco acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
       + "actual</strong> directamente en el diálogo: crear otro propietario, restablecer la contraseña de un "
-      + "propietario existente, y ascender a alguien a propietario. Esto confirma que realmente es usted antes "
-      + "de otorgar tanto acceso — ninguna otra acción en esa pantalla (crear un usuario "
+      + "propietario existente, ascender a alguien a propietario, y — sin importar el rol del destinatario — "
+      + "deshabilitar o volver a habilitar un usuario. Esto confirma que realmente es usted antes de otorgar "
+      + "tanto acceso o de retirárselo a otra persona — ninguna otra acción en esa pantalla (crear un usuario "
       + "Worker/Manager/Sales/Read-only, restablecer su contraseña, cambiar el rol de alguien a algo distinto "
       + "de propietario) vuelve a preguntar.",
     signingInCredentialEpoch:
@@ -1749,6 +1773,15 @@ export const es = {
       + "cambio de rol cierra la sesión afectada en todas partes en su siguiente solicitud, igual que un "
       + "restablecimiento de contraseña. Los controles que no puede usar "
       + "están ocultos, y el servidor los rechaza de todos modos.",
+    // #356 (machine-drafted, pending native review)
+    rolesDisableUser:
+      "<strong>Deshabilitar un inicio de sesión</strong> (pantalla Usuarios, solo Admin/propietario) corta el "
+      + "acceso de inmediato — cada una de las sesiones abiertas de esa persona termina en su siguiente "
+      + "solicitud, igual que un cambio de rol o un restablecimiento de contraseña. El motivo es opcional y, "
+      + "de cualquier forma, queda en el registro de auditoría. <strong>Volver a habilitar</strong> restaura "
+      + "su capacidad de iniciar sesión, pero nunca revive las sesiones que terminó la deshabilitación — "
+      + "inician sesión de nuevo con su contraseña actual. No puede deshabilitar su propio inicio de sesión, "
+      + "ni puede deshabilitar al último Administrador (propietario) de la cuenta.",
     ownPassword:
       "<strong>Su propia contraseña.</strong> Cualquiera, en cualquier rol, puede cambiar su propia "
       + "contraseña en la pantalla <strong>Cuenta</strong> ingresando la actual y una nueva (al menos 12 "
@@ -2466,6 +2499,17 @@ export const es = {
       "El idioma por usuario en que se muestra la interfaz — inglés, español o tagalo — elegido desde "
       + "Cuenta → Preferencias. El inglés es el idioma de reserva para cualquier pantalla aún no "
       + "traducida, sea cual sea el idioma que eligió.",
+
+    // #356 — appended last so it doesn't reshuffle the rows above.
+    // (machine-drafted, pending native review)
+    glossaryDisabledUserTerm: "Usuario deshabilitado",
+    glossaryDisabledUserDef:
+      "Acceso revocado, no eliminación. Un usuario deshabilitado no puede iniciar sesión, refrescar su "
+      + "sesión ni obtener un step-up grant, y cada sesión que tenía abierta termina en su siguiente "
+      + "solicitud. Volver a habilitarlo restaura el inicio de sesión pero no esas sesiones anteriores — "
+      + "todo lo emitido antes de la deshabilitación deja de funcionar para siempre. El último "
+      + "Administrador (propietario) activo de la cuenta no puede deshabilitarse, y nadie puede "
+      + "deshabilitarse a sí mismo.",
 
     glossaryRepoNote:
       "Las definiciones completas en lenguaje de especificación viven en "
