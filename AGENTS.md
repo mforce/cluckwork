@@ -97,7 +97,7 @@ is tolerable only when no portable phrasing works; prefer the neutral term.
 
 ### Deploy invariant: exactly ONE serving API instance (#271, #338)
 
-**Run one serving instance.** More than one breaks three separate things, and
+**Run one serving instance.** More than one breaks four separate things, and
 none of them announces itself as "you are running two replicas". This is a
 *requirement* the app imposes on its host, so it lives here; the concrete
 replica count and how it is pinned are deploy-side.
@@ -123,7 +123,7 @@ exception, which its per-account `catch` logs as `Lock sweep failed for account
 as a database fault, not as "two replicas are sweeping", which is the sense in
 which the duplicate stays invisible.
 
-**Three independent blockers, all of which must close before scaling** — and
+**Four independent blockers, all of which must close before scaling** — and
 they are not all in #271:
 
 - **#271 — background work has no single-runner guarantee** (this section's
@@ -137,15 +137,39 @@ they are not all in #271:
   usable **once per replica**, and a logout honoured by one replica is invisible
   to the others. These grants gate privileged account-control operations, so
   this is the blocker with teeth — closing #271 alone does not license scaling.
-- **The per-IP login limiter (#143) is in-process.** `AddRateLimiter`'s
-  partitions live in each process, so N replicas allow roughly N times the
-  intended attempts per IP before lockout. No open issue tracks this one;
-  it is recorded here rather than left to be rediscovered.
+- **The IP-keyed auth limiters (#143) are in-process.** `AddRateLimiter`'s
+  partitions live in each process — login, refresh, and client-error reports
+  alike — so N replicas allow roughly N times the intended attempts per IP
+  before lockout.
+- **The per-account report concurrency cap (#311) is in-process.**
+  `ReportConcurrencyLimiter` is a singleton owning a `PartitionedRateLimiter<Guid>`
+  (`Api/RateLimiting/ReportConcurrencyLimiter.cs`, registered at
+  `Hosting/CluckworkRateLimitingServiceCollectionExtensions.cs`), so one account
+  can hold up to N × `ReportsConcurrency.PermitLimit` heavyweight report queries
+  in flight — the DB/CPU ceiling that cap exists to bound, multiplied by the
+  replica count.
+
+The last two have no open issue; they are recorded here rather than left to be
+rediscovered.
+
+**How this list was derived, because it was twice derived wrongly.** Both misses
+were the same shape — a process-local limiter — and the second one lived in a
+file the first sweep had already opened. So do not extend this list from memory.
+Re-derive it: enumerate **every** `AddSingleton`/`AddHostedService` under `src/`
+plus every in-memory state primitive (`ConcurrentDictionary`, `IMemoryCache`,
+`PartitionedRateLimiter`, `Channel`, `SemaphoreSlim`, mutable statics), then
+classify each one as safe or not. That walk is currently 13 singletons and 1
+hosted service; the four above are what survives it. Excluded deliberately, so
+the next walk need not re-litigate them: `TimeProvider.System`, the Serilog
+diagnostic contexts, `IValidateOptions`/`IAuthorizationMiddlewareResultHandler`
+(all stateless), and `FirstRunProvisioningLatch` — a monotonic one-way cache of
+"the default account has an Owner", where a per-replica copy costs at most a few
+extra reads and cannot go stale in the unsafe direction.
 
 **#307 (multi-replica HTTP write idempotency) is CLOSED**, so the request-path
 half is genuinely done — do not read that closure, or #271's, as permission to
 scale. Documenting the invariant, as this section does, is the interim
-mitigation, not the close for any of the three.
+mitigation, not the close for any of the four.
 
 The run-then-exit verbs (`migrate`, `seed`, `recover-admin`, `bootstrap-admin`,
 `healthcheck`) are unaffected: they do not start the host's hosted services.
