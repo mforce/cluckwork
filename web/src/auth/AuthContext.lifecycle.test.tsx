@@ -25,13 +25,14 @@ const mockSetOnUnauthenticated = vi.mocked(setOnUnauthenticated);
 const mockRestoreSession = vi.mocked(restoreSession);
 
 function Probe() {
-  const { role, isAdmin, isAuthenticated, mustChangePassword, login, logout } = useAuth();
+  const { role, isAdmin, isAuthenticated, mustChangePassword, userId, login, logout } = useAuth();
   return (
     <div>
       <span data-testid="role">{role}</span>
       <span data-testid="admin">{String(isAdmin)}</span>
       <span data-testid="auth">{String(isAuthenticated)}</span>
       <span data-testid="pending-pw">{String(mustChangePassword)}</span>
+      <span data-testid="user-id">{userId ?? "null"}</span>
       <button onClick={() => void login("a@b.co", "pw")}>login</button>
       <button onClick={() => void logout()}>logout</button>
     </div>
@@ -250,6 +251,42 @@ describe("AuthProvider lifecycle", () => {
     });
 
     expect(screen.getByTestId("pending-pw")).toHaveTextContent("false");
+  });
+
+  // #356 (local review of #492, round 5-10) — userId is decoded through the
+  // SAME refreshClaims path as role/mustChangePassword above, and it gates a
+  // security-adjacent UI decision (UsersPage's self-target guard), so it gets
+  // the same login/rotation/logout coverage the other claims already have —
+  // this was the actual gap the review found, not the decoder itself.
+  it("derives userId from the token's sub claim on mount", async () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    renderAuth();
+    expect(screen.getByTestId("user-id")).toHaveTextContent("u1");
+  });
+
+  it("re-derives userId when the token is rotated (onTokensChanged from a refresh)", async () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    renderAuth();
+    expect(screen.getByTestId("user-id")).toHaveTextContent("u1");
+
+    const onTokensChanged = mockSetOnTokensChanged.mock.calls[0][0];
+    setStoredToken({ sub: "u2", role: "Admin" });
+    await act(async () => onTokensChanged!());
+
+    expect(screen.getByTestId("user-id")).toHaveTextContent("u2");
+  });
+
+  it("logout clears userId back to null", async () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    mockApiLogout.mockImplementation(async () => clearAccessToken());
+    renderAuth();
+    expect(screen.getByTestId("user-id")).toHaveTextContent("u1");
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("logout"));
+    });
+
+    expect(screen.getByTestId("user-id")).toHaveTextContent("null");
   });
 
   it("unregisters its client callbacks on unmount", () => {

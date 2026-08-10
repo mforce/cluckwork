@@ -656,6 +656,9 @@ export interface User {
   email: string;
   displayName: string | null;
   role: string; // "Admin" | "Worker"
+  // #356 — ISO timestamp of when this user was disabled, or null while active.
+  // The SPA renders the row muted with a "Disabled" badge when this is set.
+  disabledAt: string | null;
 }
 
 export const listUsers = () => apiGet<User[]>("/users");
@@ -707,6 +710,26 @@ export const changeUserRole = (
   id: string, body: { role: string }, key?: string, stepUpToken?: string,
 ) => apiPut<void>(
   `/users/${id}/role`, body, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
+
+// #356 — disable a user: revokes every session and refuses further sign-in.
+// Unlike setUserPassword/changeUserRole, whose step-up is gated only when the
+// TARGET holds Owner, stepUpToken is required UNCONDITIONALLY here — a disable
+// revokes access outright regardless of the target's role. Server also refuses
+// self-targeting (400 Users.CannotDisableSelf), surfaced as an ordinary
+// ApiError like every other domain refusal.
+export const disableUser = (
+  id: string, body: { reason: string | null }, key?: string, stepUpToken?: string,
+) => apiPost<void>(
+  `/users/${id}/disable`, body, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
+
+// #356 — re-enable a disabled user. No body: there is no free-text field, only
+// the route id and the step-up header (required unconditionally, same as
+// disable — re-enabling an Owner restores exactly the access a disable took
+// away).
+export const enableUser = (
+  id: string, key?: string, stepUpToken?: string,
+) => apiPost<void>(
+  `/users/${id}/enable`, undefined, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
 
 // Formats minor units per the order's snapshotted currency (JPY has 0 decimals).
 export function formatMoney(minorUnits: number, currencyCode: string, minorUnit: number): string {

@@ -236,6 +236,55 @@ describe("HelpPage", () => {
     expect(within(adjustFixCell).getByText(/The previous values stay visible on the entry/)).toBeInTheDocument();
   });
 
+  it("documents disabling and re-enabling a user, immediately and without deleting old sessions (#356)", () => {
+    render(<HelpPage />);
+    expect(screen.getByRole("heading", { name: "Who can do what", level: 3 })).toBeInTheDocument();
+    // Takes effect immediately — on the very next request, not at token expiry.
+    // ("...ends on its very next request" also appears in the glossary row
+    // below, so this asserts the phrase unique to the roles bullet.)
+    expect(screen.getByText(/cuts off access immediately/i)).toBeInTheDocument();
+    expect(screen.getByText(/the same as a role change or password reset/i)).toBeInTheDocument();
+    // A reason is optional, and recorded either way.
+    // ("lands in the audit log" also appears in the Audit log section below,
+    // so this asserts the fuller phrase unique to the roles bullet.)
+    expect(screen.getByText(/A reason is optional/i)).toBeInTheDocument();
+    expect(screen.getByText(/either way it lands in the audit log/i)).toBeInTheDocument();
+    // Re-enabling restores sign-in but not the old sessions.
+    expect(screen.getByText(/never revives the sessions the disable ended/i)).toBeInTheDocument();
+    expect(screen.getByText(/sign in fresh with their existing password/i)).toBeInTheDocument();
+    // Self-target and last-Owner refusals.
+    expect(screen.getByText(/can't disable your own sign-in/i)).toBeInTheDocument();
+    expect(screen.getByText(/can't disable the account's last Admin \(owner\)/i)).toBeInTheDocument();
+  });
+
+  it("counts disable/enable among the step-up-gated actions, alongside the three Owner-scoped ones (#356)", () => {
+    // #356 added two more step-up-gated actions to the Users screen. The old
+    // "Three actions ... every other action ... does not ask again" copy
+    // would otherwise misstate disable/enable as ungated the moment this
+    // feature shipped — this pins the corrected count and wording.
+    render(<HelpPage />);
+    expect(screen.getByText(/Five actions on the/i)).toBeInTheDocument();
+    expect(screen.getByText(/disabling or re-enabling a user/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Three actions on the/i)).not.toBeInTheDocument();
+  });
+
+  it("documents the Disabled user term in the in-app glossary (#356)", () => {
+    render(<HelpPage />);
+    expect(screen.getByRole("rowheader", { name: "Disabled user" })).toBeInTheDocument();
+    expect(screen.getByText(/Revoked access, not deletion/i)).toBeInTheDocument();
+  });
+
+  it("ships es/tl for the disable-user roles bullet and glossary row, not English placeholders (#356)", () => {
+    for (const catalog of [es, tl]) {
+      expect(catalog.help.rolesDisableUser).toBeTruthy();
+      expect(catalog.help.rolesDisableUser).not.toBe(en.help.rolesDisableUser);
+      expect(catalog.help.glossaryDisabledUserTerm).toBeTruthy();
+      expect(catalog.help.glossaryDisabledUserTerm).not.toBe(en.help.glossaryDisabledUserTerm);
+      expect(catalog.help.glossaryDisabledUserDef).toBeTruthy();
+      expect(catalog.help.glossaryDisabledUserDef).not.toBe(en.help.glossaryDisabledUserDef);
+    }
+  });
+
   it("scroll-spies the contents rail — the section in view is marked current", () => {
     render(<HelpPage />);
     const toc = screen.getByRole("navigation", { name: "Help contents" });
@@ -325,6 +374,16 @@ describe("HelpPage i18n wiring (#182, Task 32)", () => {
     });
   });
 
+  // #356 — the disable/enable roles bullet, same shape as the other
+  // <Trans>-rendered bullets above.
+  it("reads the disable-user roles bullet from the catalog, not a hardcoded literal", () => {
+    withOverride("rolesDisableUser", "DISABLE-USER-MARKER", () => {
+      render(<HelpPage />);
+      expect(screen.getByText("DISABLE-USER-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/cuts off access immediately/i)).not.toBeInTheDocument();
+    });
+  });
+
   // The multi-tag <Trans> proof: override a key whose en value carries BOTH
   // a <strong> and an <em> tag (signingInRateLimit) with a marker of the same
   // shape, and assert real STRONG/EM elements come out the other end — not
@@ -402,6 +461,19 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
         expect(screen.getByRole("rowheader", { name: "REPORT-THROTTLE-TERM-MARKER" })).toBeInTheDocument();
         expect(screen.getByText("REPORT-THROTTLE-DEF-MARKER")).toBeInTheDocument();
         expect(screen.queryByRole("rowheader", { name: "Too many reports at once" })).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  // #356 — the Disabled user row, appended last in the table (same shape as
+  // the FIFO/step-up rows above).
+  it("reads the Disabled user glossary row's term and definition from the catalog, not a hardcoded literal", () => {
+    withOverride("glossaryDisabledUserTerm", "DISABLED-USER-TERM-MARKER", () => {
+      withOverride("glossaryDisabledUserDef", "DISABLED-USER-DEF-MARKER", () => {
+        render(<HelpPage />);
+        expect(screen.getByRole("rowheader", { name: "DISABLED-USER-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("DISABLED-USER-DEF-MARKER")).toBeInTheDocument();
+        expect(screen.queryByRole("rowheader", { name: "Disabled user" })).not.toBeInTheDocument();
       });
     });
   });
