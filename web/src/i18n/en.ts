@@ -2161,7 +2161,7 @@ export const en = {
       + "reader all stay inside the form, so nothing behind it can be changed by accident, and Escape closes "
       + "the popup you are working in.",
     dialogsInlineForms:
-      "The screens whose whole job is capture keep their form on the page: <strong>Daily entry</strong>,"
+      "The screens whose whole job is capture keep their form on the page: <strong>Daily entry</strong>, "
       + "<strong>Water</strong>, recording an expense, and adding lines to a draft order. Those you use every "
       + "day — no extra click.",
     dialogsSteppers:

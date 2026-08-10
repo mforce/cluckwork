@@ -92,6 +92,23 @@ describe("HelpPage", () => {
     }
   });
 
+  // codex on #483: the string-concatenated en catalog entry lost the space
+  // between two adjacent <Trans> segments, rendering "Daily entry,Water"
+  // with nothing between the names. Nothing asserted the joined text before,
+  // so it shipped silently — this is that assertion.
+  it("keeps a space between adjacent inline-form names", () => {
+    // The two names sit in separate <strong> elements either side of the
+    // regression's missing space, so the joined text is not any single
+    // node's own — read the item's full textContent instead of getByText,
+    // which only matches within one node.
+    render(<HelpPage />);
+    // "Daily entry" and "Water" both appear elsewhere on the page (nav, other
+    // sections); "recording an expense" is unique to this list item.
+    const item = screen.getByText(/recording an expense/).closest("li");
+    expect(item).not.toBeNull();
+    expect(item!.textContent).toMatch(/Daily entry,\s+Water/);
+  });
+
   it("says a failed save explains itself inside the form, in every catalog (#477)", () => {
     // Deliberately the NARROW claim: every dialog screen renders its own
     // failure inside the dialog, so this holds app-wide. The rest of the
