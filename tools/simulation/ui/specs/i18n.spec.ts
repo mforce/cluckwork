@@ -82,7 +82,14 @@ test.describe("i18n", () => {
     // itself hang converts one failure into a cascade across the whole file.
     try {
       await page.goto("/account", { timeout: 10_000 });
-      const reset = languagePersisted(page, "en");
+      // Settled at creation so it can never float. If the selectOption below
+      // throws — the select missing, the page not reaching /account — control
+      // leaves through the catch without awaiting this, and its timeout then
+      // surfaces as an unhandled rejection. Measured: that fails EVERY test in
+      // the file with "page.waitForResponse: Test ended.", including ones that
+      // never touch the language switch, which is precisely the cascade this
+      // best-effort hook exists to prevent (#486 review).
+      const reset = languagePersisted(page, "en").catch(() => undefined);
       await languageSelect(page).selectOption("en", { timeout: 10_000 });
       // Wait for the persist to land, not just the local switch — the point of
       // the reset is the SERVER-side preference, which is what the next run
