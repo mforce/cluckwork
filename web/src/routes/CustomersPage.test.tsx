@@ -164,6 +164,85 @@ describe("CustomersPage dialog dismissal", () => {
   });
 });
 
+// #479 — one slot per PLACE a message can appear. Both failures the issue names
+// are on this screen: a balances read writing into the slot the create form
+// renders, and the form's own failure moving onto the page when it is dismissed.
+describe("CustomersPage error placement (#479)", () => {
+  it("shows a failed create inside the dialog, not on the page behind it", async () => {
+    mockCreate.mockRejectedValue(new ApiError(422, "Validation failed", "Phone is already in use."));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Dup" } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "555-1" } });
+
+    await submit();
+
+    expect(within(dialog()).getByText("Phone is already in use.")).toBeInTheDocument();
+    // Exactly one copy: the page must not render the dialog's message too.
+    expect(screen.getAllByText("Phone is already in use.")).toHaveLength(1);
+  });
+
+  it("keeps a dismissed create's failure off the page", async () => {
+    // The #474 complaint, one screen over: the page copy used to be guarded on
+    // `!creating`, so cancelling the form MOVED its message onto the screen
+    // behind, where it reads as a failure about nothing the user is looking at.
+    mockCreate.mockRejectedValue(new ApiError(422, "Validation failed", "Phone is already in use."));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Dup" } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "555-1" } });
+    await submit();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByText("Phone is already in use.")).not.toBeInTheDocument();
+  });
+
+  it("keeps a balances failure out of the open create dialog", async () => {
+    // The admin case from the issue: the balances read sets no `busy` and the
+    // New customer trigger is not gated on it, so the dialog can already be up
+    // when it rejects. Sharing one slot put "could not load balances" under the
+    // name and phone fields, as though the form had refused them.
+    let rejectBalances!: (err: unknown) => void;
+    mockBalances.mockReturnValueOnce(
+      new Promise((_resolve, reject) => { rejectBalances = reject; }) as never);
+    renderWithProviders(<CustomersPage />, { token: ADMIN });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openCreate();
+
+    await act(async () => {
+      rejectBalances(new ApiError(500, "Server error", "boom"));
+    });
+
+    const message = i18n.t("customers:loadBalancesErrorMessage");
+    expect(within(dialog()).queryByText(message)).not.toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it("keeps a page failure while the dialog opens and its own write fails", async () => {
+    // Two live messages at once, in their own places. The page's belongs to the
+    // list read the user has not dealt with; the dialog's to the form in front
+    // of them. Neither may erase the other.
+    mockList.mockRejectedValue(new ApiError(500, "Server error", "boom"));
+    mockCreate.mockRejectedValue(new ApiError(422, "Validation failed", "Phone is already in use."));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    const listFailure = i18n.t("customers:loadCustomersErrorMessage");
+    await screen.findByText(listFailure);
+
+    openCreate();
+    expect(screen.getByText(listFailure)).toBeInTheDocument();
+
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Dup" } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "555-1" } });
+    await submit();
+
+    expect(within(dialog()).getByText("Phone is already in use.")).toBeInTheDocument();
+    expect(screen.getByText(listFailure)).toBeInTheDocument();
+  });
+});
+
 describe("CustomersPage outstanding balances (admin)", () => {
   it("shows each customer's outstanding via formatMoney, with an explicit zero for one with no orders", async () => {
     renderWithProviders(<CustomersPage />, { token: ADMIN });

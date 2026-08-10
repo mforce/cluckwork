@@ -8,6 +8,8 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { DialogError } from "../components/DialogError";
+import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
@@ -22,7 +24,10 @@ export function CustomersPage() {
   const { isAdmin } = useAuth();
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [balances, setBalances] = useState<CustomerBalances | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // #479 — one slot per PLACE a message can appear. Both reads below belong to
+  // the page; the create form's failures belong to the form.
+  const errors = useDialogErrors();
+  const setPageError = errors.setPage;
 
   const [creating, setCreating] = useState(false); // F131: capture moved into a dialog
   const [name, setName] = useState("");
@@ -34,16 +39,20 @@ export function CustomersPage() {
   const createKey = useRef<string>(newId());
 
   const load = () =>
-    listCustomers().then(setCustomers).catch(() => setError(i18n.t("customers:loadCustomersErrorMessage")));
+    listCustomers().then(setCustomers)
+      .catch(() => setPageError(i18n.t("customers:loadCustomersErrorMessage")));
 
   useEffect(() => { void load(); }, []);
 
   useEffect(() => {
     if (!isAdmin) return;
+    // The balances read sets no `busy` and the New customer trigger is not
+    // gated on it, so this can reject with the form already open. Its failure
+    // is the SCREEN's — nothing about the name and phone the user is typing.
     listCustomerBalances()
       .then(setBalances)
-      .catch(() => setError(i18n.t("customers:loadBalancesErrorMessage")));
-  }, [isAdmin]);
+      .catch(() => setPageError(i18n.t("customers:loadBalancesErrorMessage")));
+  }, [isAdmin, setPageError]);
 
   const outstandingFor = (customerId: string) => {
     if (balances === null) return null;
@@ -52,12 +61,16 @@ export function CustomersPage() {
     return row?.outstandingMinorUnits ?? 0;
   };
 
+  // Dismissal empties the form's slot and mutes the attempt still out, so a
+  // late failure is not reported against a session the user reopened.
+  const closeCreate = () => { setCreating(false); errors.abandon("create"); };
+
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     // The hook's ref skips a same-tick re-submit (state alone waved both
     // through); setError stays inside so a skipped run keeps the message.
     await run("create", async () => {
-      setError(null);
+      errors.beginAttempt("create");
       try {
         await createCustomer({
           name, phone,
@@ -70,7 +83,7 @@ export function CustomersPage() {
         setCreating(false);
         await load();
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : String(err));
+        errors.report("create", err instanceof ApiError ? err.message : String(err));
       }
     });
   }
@@ -79,12 +92,12 @@ export function CustomersPage() {
     <section>
       <div className="page-head">
         <h2>{t("title")}</h2>
-        <button type="button" onClick={() => { setError(null); setCreating(true); }}>
+        <button type="button" onClick={() => setCreating(true)}>
           <Plus size={16} aria-hidden /> {t("newCustomerButton")}
         </button>
       </div>
 
-      <Dialog open={creating} title={t("newCustomerButton")} onClose={() => setCreating(false)}>
+      <Dialog open={creating} title={t("newCustomerButton")} onClose={closeCreate}>
         <form className="inline-form" onSubmit={onCreate}>
           <label>{t("nameFieldLabel")}
             <input value={name} required onChange={(e) => setName(e.target.value)} />
@@ -101,16 +114,21 @@ export function CustomersPage() {
           <label>{t("noteFieldLabel")}
             <input value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
-          {error && <p className="error">{error}</p>}
+          <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
-            <button type="button" className="link" onClick={() => setCreating(false)}>{tc("cancel")}</button>
+            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={busy}>{t("addCustomerButton")}</BusyButton>
           </div>
         </form>
       </Dialog>
 
-      {/* The dialog carries its own copy while it is up. */}
-      {error && !creating && <p className="error">{error}</p>}
+      {/* Unconditional since #479. The `!creating` guard this replaces was the
+          #474 complaint one screen over: with a single slot, dismissing a
+          failed create MOVED its message out here, where it reads as a
+          screen-level failure about nothing the user is looking at. The
+          dialog's message now lives in a slot only the dialog renders, so
+          there is nothing here to double up on or to inherit. */}
+      {errors.page && <p className="error">{errors.page}</p>}
 
       {customers === null ? (
         <p className="muted">{tc("loading")}</p>
