@@ -124,31 +124,44 @@ async function announcerWrites(page: Page): Promise<string[]> {
 }
 
 /**
- * Wait until the modal sweep has actually reached the page behind the dialog.
+ * Wait until the modal effect has run — WITHOUT asserting its outcome.
  *
- * **`toBeVisible()` on the dialog is NOT a settling signal for this.** The
+ * **`toBeVisible()` on the dialog is not a settling signal for this.** The
  * dialog's own DOM presence is committed during render, but `syncModalBackground()`
  * runs from `pushModal`/`popModal` inside a plain `useEffect` — a passive effect
  * that fires after paint. So the two land in different frames, and a read taken
- * straight after `toBeVisible()` is racing the attribute it depends on. The
- * reads below happened to pass only because `ax.node()` makes four CDP round
- * trips before it looks at anything, which is slack, not a guarantee.
+ * straight after `toBeVisible()` races the state it depends on.
  *
- * `#root` is the body child that holds both announcers, and the sweep marks
- * body children — so its `inert` state IS the sweep's state.
+ * The signal is `document.body.style.overflow`, and the choice is deliberate.
+ * `pushModal` sets it on the line *before* it calls `syncModalBackground()`, and
+ * `popModal` restores it on the line before its own call, so observing it proves
+ * the sweep has run — while saying nothing about what the sweep DID.
  *
- * This is also an assertion in its own right: if the sweep stops marking the
- * background, this fails here with a message that says so, which is how
- * `a11y-inert-sweep-removed` gets caught.
+ * **That holds for ONE dialog, which is all this spec opens, and breaks for a
+ * nested one — so do not reuse this helper for a stack without fixing it.**
+ * `pushModal` sets `overflow` unconditionally, so it is already `"hidden"` when
+ * a second dialog opens and this would return on the first poll, having proved
+ * nothing about the second sweep. `popModal` restores it only when the stack
+ * empties, so closing an inner dialog would leave this polling for a change
+ * that never comes. Scoped rather than stated absolutely, because an unqualified
+ * version of this claim is the exact defect this PR has now corrected four times.
+ *
+ * The obvious alternative, polling `#root`'s `inert` attribute, was tried first
+ * and is wrong: it is the sweep's own outcome, so `a11y-inert-sweep-removed`
+ * killed the test HERE and execution never reached the accessibility-tree
+ * assertions below. The mutation run went green while the assertions this spec
+ * exists for had no mutant at all (codex round 1 on #504). A settling signal
+ * must never be the thing under test.
  */
-async function expectModalBackgroundInert(page: Page, inert: boolean): Promise<void> {
+async function waitForModalEffect(page: Page, open: boolean): Promise<void> {
   await expect
-    .poll(() => page.evaluate(() => document.getElementById("root")?.hasAttribute("inert") ?? null), {
-      message: inert
-        ? "the #483 modal sweep never marked the page behind the dialog inert"
-        : "the #483 modal sweep never un-marked the page after the last dialog closed",
+    .poll(() => page.evaluate(() => document.body.style.overflow), {
+      message: open
+        ? "the dialog never locked body scroll — its open effect did not run, so nothing below "
+          + "can be attributed to the modal sweep"
+        : "body scroll was never restored — the dialog's close effect did not run",
     })
-    .toBe(inert);
+    .toBe(open ? "hidden" : "");
 }
 
 test.describe("live regions under a modal", () => {
@@ -205,7 +218,7 @@ test.describe("live regions under a modal", () => {
     await newCustomer.click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await expectModalBackgroundInert(page, true);
+    await waitForModalEffect(page, true);
 
     // THE POINT OF THE SPEC. Both announcers are still in the DOM and still
     // carry their live attributes, and Chromium has dropped them out of the
@@ -240,7 +253,7 @@ test.describe("live regions under a modal", () => {
 
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
-    await expectModalBackgroundInert(page, false);
+    await waitForModalEffect(page, false);
 
     // ...and the page belongs to the announcers again. This is the un-inerting
     // that replays nothing, which is the whole reason #499's hook exists.
@@ -290,10 +303,10 @@ test.describe("live regions under a modal", () => {
     for (let i = 0; i < 2; i++) {
       await page.getByRole("button", { name: tEn("customers:newCustomerButton") }).click();
       await expect(page.getByRole("dialog")).toBeVisible();
-      await expectModalBackgroundInert(page, true);
+      await waitForModalEffect(page, true);
       await page.keyboard.press("Escape");
       await expect(page.getByRole("dialog")).toBeHidden();
-      await expectModalBackgroundInert(page, false);
+      await waitForModalEffect(page, false);
       await settleNonEvent(page);
 
       expect(
@@ -303,9 +316,18 @@ test.describe("live regions under a modal", () => {
     }
 
     // The cumulative check: across both cycles and everything after them, the
-    // announcer was never written to at all. This is the assertion that does
-    // not depend on when it was read.
-    await settleNonEvent(page);
+    // announcer was never written to at all.
+    //
+    // The observer removes the timing dependence BETWEEN reads, not at the end
+    // of the test — inspecting the array is itself a moment, and a write
+    // scheduled after it still escapes (codex round 1 on #504, correcting an
+    // earlier claim here that the bound was no longer load-bearing). So the
+    // final drain is long, and `a11y-announcer-writes-late` validates it by
+    // writing well after the close: the bound is chosen against a mutant rather
+    // than guessed. It bounds a REGRESSION's latency, which is unknowable in
+    // general; for the real close path — microtasks and one React render, no
+    // timers — it is enormous.
+    await page.waitForTimeout(1200);
     expect(
       await announcerWrites(page),
       "the offscreen announcer was written to during the dialog cycles — a standing warning was "

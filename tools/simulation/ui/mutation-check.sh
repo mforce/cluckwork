@@ -72,20 +72,27 @@ declare -A SPEC_FOR=(
   [a11y-announcer-duplicates-banner]="specs/a11y-live-regions.spec.ts"
   [a11y-announcer-renags-on-close]="specs/a11y-live-regions.spec.ts"
   [a11y-announcer-writes-transiently]="specs/a11y-live-regions.spec.ts"
+  [a11y-announcer-writes-late]="specs/a11y-live-regions.spec.ts"
+  [a11y-inert-never-lifted]="specs/a11y-live-regions.spec.ts"
 )
 
-# The third test in a11y-live-regions.spec.ts is deliberately NOT MAPPED to a
-# mutant of its own: it records what CHROMIUM does for two designs #501 has not
-# taken, and a mutant of this app cannot change Chromium's mind.
+# The third test in a11y-live-regions.spec.ts (recorded browser facts) has no
+# mutant of its OWN, and that is correct: it records what Chromium does for two
+# designs #501 has not taken, and no mutant of this app can change Chromium's
+# mind. But it is not unmutated either — its FACT 2 opens with a precondition on
+# product behaviour (the injected probe IS inerted by the sweep), so
+# `a11y-inert-sweep-removed`'s GREP_FOR runs BOTH tests and both must go red.
 #
-# An earlier version of this note claimed something stronger and FALSE — that
-# "no mutant of this app can break it". It can: that test's FACT 2 first asserts
-# the injected probe IS inerted by the sweep, which `a11y-inert-sweep-removed`
-# breaks. That assertion is a precondition on product behaviour, and it goes red
-# under that mutant exactly as it should. It is simply already counted as test
-# 1's coverage, not separate coverage, which is the real reason there is no
-# third mapping. (Caught by an adversarial review of this PR; the operational
-# reason nobody noticed is that GREP_FOR narrows each run to one test title.)
+# This note has now been wrong twice, in opposite directions, which is worth
+# recording as the pattern rather than just fixing:
+#   1. It claimed "no mutant of this app can break it" — false; the precondition
+#      above breaks under the inert mutant.
+#   2. Corrected to say it "goes red under that mutant" — also false at the
+#      time, because GREP_FOR selected only the first test, so the harness never
+#      executed it. A true statement about code that never runs is not coverage.
+# Both were caught by review, not by the harness (codex round 1 on #504). The
+# EXPECT_MSG_FOR table below is the structural answer: it makes the harness
+# check WHICH assertion a mutant dies on, instead of trusting prose like this.
 
 declare -A GREP_FOR=(
   [audit-gate-removed]="direct link to /audit"
@@ -100,15 +107,34 @@ declare -A GREP_FOR=(
   [payment-never-settles]="takes an order from new customer"
   [export-returns-nothing]="export downloads a real file"
   [language-persist-dropped]="renders that language across the shell"
-  [a11y-inert-sweep-removed]="leave the accessibility tree"
+  [a11y-inert-sweep-removed]="leave the accessibility tree|recorded browser facts"
   [a11y-announcer-duplicates-banner]="standing farm warning"
   [a11y-announcer-renags-on-close]="standing farm warning"
   [a11y-announcer-writes-transiently]="standing farm warning"
+  [a11y-announcer-writes-late]="standing farm warning"
+  [a11y-inert-never-lifted]="leave the accessibility tree"
 )
 
 # Mutants whose RED is known not to prove the guarantee they name. See the header.
 declare -A FALSE_KILLS=(
   [nav-role-gate-bypassed]="the server rejects the forged token, so sign-in fails before the nav assertion runs"
+)
+
+# The assertion each mutant must die ON — a substring of the expected failure
+# message. Without this a mutant that trips some EARLIER assertion is recorded
+# as a clean kill, and the assertion it was written for keeps no coverage at
+# all. That happened three times on #504 alone; see the kill-detection block.
+#
+# Populated for the a11y mutants, which is where the failure was found. It is
+# deliberately opt-in: a wrong expectation demotes a real kill, so an entry is
+# only added once the run has been observed to print it.
+declare -A EXPECT_MSG_FOR=(
+  [a11y-inert-sweep-removed]="is still in the accessibility tree with a dialog open"
+  [a11y-announcer-duplicates-banner]="duplicated a warning the visible banner already made"
+  [a11y-announcer-renags-on-close]="re-announced a standing warning after dialog cycle"
+  [a11y-announcer-writes-transiently]="was written to during the dialog cycles"
+  [a11y-announcer-writes-late]="was written to during the dialog cycles"
+  [a11y-inert-never-lifted]="never returned to the accessibility tree"
 )
 
 MUTANTS=("$@")
@@ -119,7 +145,8 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            nav-role-gate-bypassed payment-never-settles export-returns-nothing
            language-persist-dropped
            a11y-inert-sweep-removed a11y-announcer-duplicates-banner
-           a11y-announcer-renags-on-close a11y-announcer-writes-transiently)
+           a11y-announcer-renags-on-close a11y-announcer-writes-transiently
+           a11y-announcer-writes-late a11y-inert-never-lifted)
 fi
 
 rule() { printf '\n%s\n' "────────────────────────────────────────────────────────────────────────"; }
@@ -206,7 +233,26 @@ for name in "${MUTANTS[@]}"; do
       echo "     INCONCLUSIVE — the run errored without a test failure (see $log)"
       survived+=("$name (no test failure)")
     elif grep -qE "^[[:space:]]*(Error: )?expect\((received|locator)\)" "$log"; then
-      if [ -n "${FALSE_KILLS[$name]:-}" ]; then
+      # An assertion failed — but WHICH one? Three times running, a mutant on
+      # PR #504 died at an assertion EARLIER than the one it names, leaving the
+      # assertion it was written for uncovered while the run printed a clean
+      # kill: an `inert` poll used as a settling signal, an announcer mutant
+      # that fired before the loop below it, and a precondition the `-g` filter
+      # never executed. Reviewers caught all three; the harness caught none,
+      # because "something failed" was the only question it asked.
+      #
+      # So a mutant MAY declare the text it expects to die on, and the kill then
+      # counts only if the log contains it. Optional by design: retrofitting the
+      # older mutants would mean guessing what each currently dies on, and a
+      # wrong expectation here demotes a genuine kill — the one failure mode
+      # this whole script exists to avoid.
+      want="${EXPECT_MSG_FOR[$name]:-}"
+      if [ -n "$want" ] && ! grep -qF -- "$want" "$log"; then
+        echo "     WRONG ASSERTION — it died, but not on the one it names."
+        echo "                   expected to find: $want"
+        echo "                   The guarantee in its name is NOT covered. See $log"
+        survived+=("$name (killed at the wrong assertion)")
+      elif [ -n "${FALSE_KILLS[$name]:-}" ]; then
         echo "     KILLED, BUT FALSE — ${FALSE_KILLS[$name]}."
         echo "                   Counted separately; it is NOT evidence for that guarantee."
         false_killed+=("$name")

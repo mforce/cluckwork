@@ -31,7 +31,7 @@
 //
 // ================== THE SECOND BOUNDARY: DOM-LEVEL MUTANTS (#501) ==================
 //
-// The four `a11y-*` mutants below do NOT go through the network. They inject a
+// The six `a11y-*` mutants below do NOT go through the network. They inject a
 // script into the page and break the DOM the way the corresponding regression
 // would leave it. That was added for #501, whose guarantees are entirely
 // client-side — a live region's presence in the accessibility tree is never
@@ -44,14 +44,14 @@
 // real code change if that change happened to leave a different trace. For
 // `a11y-inert-sweep-removed` the two coincide exactly — reverting #483's sweep
 // IS "no `inert` attribute on the background", which is what the mutant
-// produces. For the three announcer mutants the match is close but not identical:
+// produces. For the four announcer mutants the match is close but not identical:
 // the real regression is #499's hook deciding to write when it should not, and
 // the mutants write the same text from outside. Both leave the screen reader in
 // the same state, which is the state the spec judges.
 //
-// **Three announcer mutants, not one, because one mutant covered one third of
-// the test it named.** They differ only in WHEN they write, and each is the
-// only one of the three that reaches its assertion:
+// **Six mutants for one spec, because each earlier version covered a fraction
+// of the test it named.** The four announcer mutants differ only in WHEN they
+// write, and each is the only one that reaches its assertion:
 //   * `a11y-announcer-duplicates-banner` writes from first paint, so it kills
 //     the ordinary-path check — and kills it BEFORE the dialog loop below runs,
 //     which left the anti-nag half of that test (half its title) unchecked.
@@ -60,10 +60,17 @@
 //   * `a11y-announcer-writes-transiently` writes and clears within ~80ms, which
 //     every point-in-time read in the test passes over; only the cumulative
 //     MutationObserver assertion sees it.
-// The first hole was found by an adversarial review of this PR, the second by
-// applying the same question to the fix. In both cases the harness reported a
-// clean kill and said nothing — a mutant killing SOMETHING is not evidence that
-// it killed the thing its name claims.
+//   * `a11y-announcer-writes-late` writes once, well after the last close, so
+//     it is the only one that validates that assertion's final drain.
+// The two inert mutants split the same way: `a11y-inert-sweep-removed` breaks
+// the marking, `a11y-inert-never-lifted` breaks the UN-marking, and neither
+// reaches the other's assertion.
+//
+// Each hole was found by a review, and each by asking the same question of the
+// previous fix — four rounds of it. Every time, the harness reported a clean
+// kill and said nothing, because a mutant killing SOMETHING is not evidence
+// that it killed the thing its name claims. `EXPECT_MSG_FOR` in
+// mutation-check.sh now asks that question mechanically.
 //
 // Do not reach for this shape when a network mutant would do. It is here
 // because the alternative for #501 was no mutation coverage at all.
@@ -387,6 +394,95 @@ export const MUTANTS: Record<string, Mutant> = {
           if (wasInert && !nowInert && banner && region) {
             region.textContent = banner.textContent;
             setTimeout(() => { region.textContent = ""; }, 80);
+          }
+          wasInert = nowInert;
+        };
+        new MutationObserver(check).observe(document, {
+          attributes: true,
+          childList: true,
+          subtree: true,
+          attributeFilter: ["inert"],
+        });
+      });
+    },
+  },
+
+  "a11y-inert-never-lifted": {
+    breaks:
+      "the RETURN half of #483's sweep — the background is marked inert on open and never "
+      + "un-marked on close, so the announcers stay out of the accessibility tree for good",
+    caughtBy:
+      "a11y-live-regions.spec.ts — the offscreen announcers leave the accessibility tree while "
+      + "a dialog is open (specifically its final 'never returned' assertion)",
+    apply: async (page) => {
+      // The mirror of `a11y-inert-sweep-removed`, and it exists because that
+      // one does NOT cover this: stripping `inert` as fast as it is set says
+      // nothing about whether the sweep lifts it again. The spec asserted the
+      // return path from the first draft, and no mutant reached that assertion
+      // for four review rounds (found by an agent review of the codex round-1
+      // fixes — the fourth instance on this PR of an assertion whose mutant
+      // died somewhere else, which is why the harness now checks EXPECT_MSG_FOR).
+      //
+      // Re-adding on removal, rather than blocking the removal, keeps the
+      // settling signal intact: `popModal` restores body overflow before it
+      // calls the sweep, so `waitForModalEffect(false)` still resolves and the
+      // test proceeds to the assertion this is aimed at.
+      await page.addInitScript(() => {
+        let sawInert = false;
+        new MutationObserver(() => {
+          const root = document.getElementById("root");
+          if (root === null) return;
+          if (root.hasAttribute("inert")) { sawInert = true; return; }
+          // Only once a dialog has genuinely inerted it — otherwise this would
+          // inert the page at load and break every test for the wrong reason.
+          if (sawInert) root.setAttribute("inert", "");
+        }).observe(document, {
+          attributes: true,
+          subtree: true,
+          attributeFilter: ["inert"],
+        });
+      });
+    },
+  },
+
+  "a11y-announcer-writes-late": {
+    breaks:
+      "the announcer by writing the warning ~500ms after the last dialog closes — a screen "
+      + "reader still speaks it, long after any snapshot the test happens to take",
+    caughtBy:
+      "a11y-live-regions.spec.ts — a standing farm warning ... not re-announced (the final "
+      + "cumulative assertion, and the only mutant that validates its 1200ms drain)",
+    apply: async (page) => {
+      // Validates a BOUND, which is the only honest way to have one. The
+      // in-loop reads and the transient mutant both concern writes that land
+      // promptly; nothing showed the final drain was long enough to catch a
+      // slow one, so the drain was an unvalidated guess (codex round 1 on
+      // #504).
+      //
+      // It fires only on the LAST close, and that is not arbitrary. A first
+      // version wrote 500ms after EVERY close, and the harness's new
+      // EXPECT_MSG_FOR check immediately reported it as killed at the wrong
+      // assertion: cycle one's delayed write was still on screen when cycle
+      // two's in-loop read happened, so it died there and left the final drain
+      // just as unvalidated as before. Firing once, 600ms after the second
+      // close, lands it after that read (250ms) and inside the drain (1200ms),
+      // which is the only window where the cumulative assertion is the one
+      // doing the work.
+      //
+      // The count is coupled to the spec running two cycles. If that changes,
+      // this dies at the wrong assertion again and the harness says so — which
+      // is the coupling being visible rather than silent.
+      await page.addInitScript(() => {
+        let wasInert = false;
+        let closes = 0;
+        const check = () => {
+          const root = document.getElementById("root");
+          const banner = document.querySelector("p.farm-warning");
+          const region = document.querySelector('main.content > p.sr-only[aria-live="assertive"]');
+          const nowInert = root?.hasAttribute("inert") ?? false;
+          if (wasInert && !nowInert && banner && region && ++closes === 2) {
+            const text = banner.textContent;
+            setTimeout(() => { region.textContent = text; }, 600);
           }
           wasInert = nowInert;
         };
