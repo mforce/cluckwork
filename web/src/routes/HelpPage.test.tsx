@@ -109,15 +109,21 @@ describe("HelpPage", () => {
     expect(item!.textContent).toMatch(/Daily entry,\s+Water/);
   });
 
-  it("says a failed save explains itself inside the form, in every catalog (#477)", () => {
-    // Deliberately the NARROW claim: every dialog screen renders its own
-    // failure inside the dialog, so this holds app-wide. The rest of the
-    // two-slot behaviour — an unrelated failure never landing in the form,
-    // and dismissal dropping only the form's own message — is Sales-only
-    // today, so Help does not promise it (codex review of #478).
+  it("says where a failure message appears, in every catalog (#479)", () => {
+    // #478 narrowed this to "a failed save explains itself inside the form"
+    // because only Sales had the two-slot split then — CustomersPage's
+    // background balance-load failure landed inside its own New customer
+    // dialog, the exact opposite of the wider claim. #479 gave every dialog
+    // screen its own page/dialog split (#489/#491), so the full behaviour —
+    // a form's failure rendered inside that form, the screen's on the
+    // screen, and closing the form dropping only its own — now holds
+    // app-wide. Asserted per catalog because the i18n policy ships es/tl
+    // with the English, and a missing key would render the key.
     render(<HelpPage />);
-    expect(screen.getByText(/the form tells you why/i)).toBeInTheDocument();
-    expect(screen.getByText(/it stays open, so you can correct it and try again/i)).toBeInTheDocument();
+    expect(screen.getByText(/if you were filling in a pop-up form, it appears inside that form/i))
+      .toBeInTheDocument();
+    // …and closing it drops that message rather than moving it to the screen.
+    expect(screen.getByText(/Closing the form drops its message/i)).toBeInTheDocument();
 
     for (const lng of ["es", "tl"] as const) {
       const value = i18n.getResource(lng, "help", "gettingAroundWhereMessagesAppear") as string;
