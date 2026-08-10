@@ -18,10 +18,13 @@ import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
 import i18n from "../i18n";
 
-// Runtime-generated (GitGuardian: no literal secrets, even in tests). One
-// shared value: these tests assert the typed proof password is the one SENT,
-// so identity is what matters, not content.
-const OWNER_STEP_UP_PASSWORD = `Own3r!${crypto.randomUUID()}`;
+// Runtime-generated, with NO static substring — GitGuardian's scanner
+// flagged an earlier version of this line even though it was already
+// randomized, because the readable "password-shaped" prefix it was appended
+// to (`Own3r!${...}`) was enough to trigger on its own. One shared value:
+// these tests assert the typed proof password is the one SENT to stepUp(),
+// so identity is what matters, not content or shape.
+const OWNER_STEP_UP_PASSWORD = crypto.randomUUID();
 
 // Network seam only; ApiError stays real (errText branches on `instanceof`).
 vi.mock("../api/cluckwork", () => ({

@@ -160,6 +160,77 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
     }
 
     [Fact]
+    public async Task Recover_RaceWithAConcurrentDisable_NeverReportsSuccessForADisabledUser()
+    {
+        // #492 round 3 (codex) — the upfront DisabledAt check in RecoverAsync
+        // is a fast, UNLOCKED read. Without a re-check serialized against the
+        // disable path's own account lock, a disable landing between that read
+        // and BreakGlassResetAsync actually running would let recovery reset
+        // the password, write the audit row, print a credential that cannot
+        // work, and exit 0 anyway — the identical false-green Recovery.
+        // UserDisabled exists to prevent, reached one race window later.
+        //
+        // Constructed deterministically with the same account-row fence
+        // DisableUserRaceTests uses, not by timing luck: park RecoverAsync on
+        // the lock AFTER its upfront check has already passed (the target is
+        // still active at that point), disable the target through a SEPARATE
+        // connection while it's queued, then release. A correct recovery must
+        // now refuse; a naive one — upfront check only — would still succeed.
+        var email = $"race-{Guid.NewGuid():N}@test.local";
+        var accountId = await _factory.SeedAccountWithUserAsync(email);
+        Guid userId;
+        using (var setup = Scope())
+        {
+            var identity = setup.ServiceProvider.GetRequiredService<IIdentityProvider>();
+            setup.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+            userId = (await identity.ListUsersAsync(accountId)).Single(u => u.Email == email).Id;
+        }
+
+        var tenant = new TenantContext();
+        tenant.Resolve(accountId);
+        await using var fenceDb = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_factory.ConnectionString).Options, tenant);
+        await using var fenceTx = await fenceDb.Database.BeginTransactionAsync();
+        await fenceDb.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM "Accounts" WHERE "Id" = {accountId} FOR UPDATE""");
+        var fencePid = await fenceDb.BackendPidAsync();
+
+        var recover = Task.Run(async () =>
+        {
+            using var scope = Scope();
+            var svc = scope.ServiceProvider.GetRequiredService<AdminRecoveryService>();
+            return await svc.RecoverAsync(email, accountId, reason: "race probe");
+        });
+        Assert.True(await _factory.WaitUntilDoneOrBlockedAsync(recover, fencePid),
+            "recovery must park on the account lock after its upfront check, not sail past it");
+
+        // Disabled through a SEPARATE connection while recovery is queued — the
+        // upfront check already ran and saw an ACTIVE user.
+        await using (var disablingDb = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_factory.ConnectionString).Options, tenant))
+        {
+            var user = await disablingDb.Users.SingleAsync(u => u.Id == userId);
+            user.DisabledAt = DateTimeOffset.UtcNow;
+            await disablingDb.SaveChangesAsync();
+        }
+
+        await fenceTx.CommitAsync(); // releases the lock; the disable is already durable
+
+        var result = await recover;
+
+        Assert.True(result.IsFailure, "recovery must not report success for a user disabled while it was queued");
+        Assert.Equal("Recovery.UserDisabled", result.Error.Code);
+
+        await using var verifyDb = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_factory.ConnectionString).Options, tenant);
+        var after = await verifyDb.Users.IgnoreQueryFilters().SingleAsync(u => u.Id == userId);
+        Assert.False(
+            await verifyDb.AuditEvents.IgnoreQueryFilters()
+                .AnyAsync(a => a.Action == "User.BreakGlassReset" && a.EntityId == userId),
+            "a recovery that lost this race must not leave an audit row claiming it happened");
+    }
+
+    [Fact]
     public async Task Recover_DisabledUser_FailsLoudly_AndChangesNothing()
     {
         // #356 — without this refusal, break-glass becomes a SILENT FALSE GREEN
