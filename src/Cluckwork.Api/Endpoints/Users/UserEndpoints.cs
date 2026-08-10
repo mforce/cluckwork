@@ -67,11 +67,16 @@ public static class UserEndpoints
 
         // #356 — disable / re-enable. Separate verbs (following
         // POST /products/{id}/deactivate) rather than a PUT carrying a boolean:
-        // the two directions are not symmetric — a disable bumps the credential
-        // epoch, rotates the security stamp and revokes every refresh token,
-        // while an enable deliberately does none of that. Owner-only via the
-        // group; step-up is required in BOTH directions, because re-enabling an
-        // Owner restores exactly the access disabling one took away.
+        // the two directions are not symmetric on the CREDENTIAL EPOCH — a
+        // disable bumps it and revokes every refresh token, while an enable
+        // deliberately leaves the epoch alone and does not revive sessions
+        // (that asymmetry is what keeps every pre-disable access token dead).
+        // Both DO rotate the security stamp (round-3/5/7 review of #492): an
+        // enable's rotation is required, not optional — it stops a stale
+        // concurrent password-reset write from silently restoring DisabledAt.
+        // Owner-only via the group; step-up is required in BOTH directions,
+        // because re-enabling an Owner restores exactly the access disabling
+        // one took away.
         group.MapPost("/{id:guid}/disable", DisableUser)
             // A single optional ≤200-char reason. System.Text.Json escapes
             // non-ASCII as \uXXXX (6 bytes/char), so the worst case is ~1.2 KB

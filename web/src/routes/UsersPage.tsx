@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Ban, KeyRound, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
@@ -118,6 +118,10 @@ export function UsersPage() {
   // endpoint + copy applies.
   const [stepUpUser, setStepUpUser] = useState<User | null>(null);
   const [stepUpMode, setStepUpMode] = useState<"disable" | "enable" | null>(null);
+  // #356 (codex review of #492 round 7) — wired into the Dialog below via
+  // describedBy so a screen reader announces the destructive warning right
+  // after the title, not just whatever field focus happens to land on first.
+  const disableWarningId = useId();
   const [disableReason, setDisableReason] = useState("");
   const [stepUpPassword, setStepUpPassword] = useState("");
   const activeStepUp = useRef<string | null>(null);
@@ -817,11 +821,12 @@ export function UsersPage() {
           ? t("disableStepUpTitle", { email: stepUpUser?.email ?? "" })
           : t("enableStepUpTitle", { email: stepUpUser?.email ?? "" })}
         onClose={closeStepUp}
+        describedBy={stepUpMode === "disable" ? disableWarningId : undefined}
       >
         <form className="inline-form" onSubmit={onSubmitStepUp}>
           {stepUpMode === "disable" && (
             <>
-              <p className="confirm-body">{t("disableWarningBody")}</p>
+              <p id={disableWarningId} className="confirm-body">{t("disableWarningBody")}</p>
               <label>{t("disableReasonFieldLabel")}
                 <textarea value={disableReason} maxLength={200} rows={3}
                   onChange={(e) => setDisableReason(e.target.value)} />

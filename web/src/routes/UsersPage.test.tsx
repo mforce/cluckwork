@@ -595,6 +595,23 @@ describe("UsersPage disable/enable (#356)", () => {
       .getByRole("button", { name: "disable" })).toBeInTheDocument();
   });
 
+  it("wires the destructive warning into the dialog's aria-describedby", async () => {
+    mockListUsers.mockResolvedValue([WORKER_USER, ADMIN_USER, DISABLED_USER]);
+    await renderReady(ADMIN);
+    fireEvent.click(disableRow(/worker@farm.test/));
+
+    const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    const describedBy = dialog.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toHaveTextContent(/signed out of every device/);
+
+    // Enable has no destructive-warning paragraph to point at.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(enableRow(/disabled@farm.test/));
+    const enableDialog = await screen.findByRole("dialog", { name: /Enable — disabled@farm\.test/ });
+    expect(enableDialog).not.toHaveAttribute("aria-describedby");
+  });
+
   it("opening Disable and closing the dialog fires no disableUser call", async () => {
     await renderReady(ADMIN);
     fireEvent.click(disableRow(/worker@farm.test/));
