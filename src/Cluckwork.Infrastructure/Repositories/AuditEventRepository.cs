@@ -109,6 +109,26 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
         // IS NOT DISTINCT FROM rather than "=", so an entity with no creation row
         // (a record predating #494) keeps its events instead of having them all
         // NULL-propagate out of the result.
+        //
+        // KNOWN RESIDUAL, accepted rather than overlooked (#508). Which candidate
+        // wins is still decided by ORDER BY, and the "Id" tiebreak carries no
+        // chronology — AuditWriter mints a random v4 Guid. So two reportable
+        // changes sharing an OccurredAtUtc resolve arbitrarily, and the wrong
+        // actor can be named as the last changer. The timestamp shown is right
+        // either way; only the name is at risk.
+        //
+        // It is narrow but genuinely reachable, so do not dismiss it: most
+        // concurrent changes to one record cannot collide, because the aggregate
+        // Version token serialises them and the loser 409s having written
+        // nothing. RecordBirdMovement escapes that — it writes an audit event
+        // against the FLOCK's id while only inserting a movement row, never
+        // touching Flock.Version, so it does not serialise against Flock.Update.
+        //
+        // Fixing it properly needs a durable monotonic column on AuditEvents,
+        // i.e. a migration — the one thing #494 was specified not to do. Tracked
+        // separately in #508 rather than smuggled in here. There is deliberately
+        // NO test pinning the current arbitrary outcome: that would promote a
+        // known loss into a specification.
         var promotionActions = new[] { "%.Submit", "%.Confirm" };
         var latest = await db.AuditEvents.FromSqlInterpolated($"""
             WITH creator AS (
