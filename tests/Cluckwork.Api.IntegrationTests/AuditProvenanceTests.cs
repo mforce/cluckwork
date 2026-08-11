@@ -296,6 +296,81 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(Base.AddMinutes(5), provenance.LastChangedAtUtc);
     }
 
+    // The LAST-CHANGE query has its own tenant predicate, in two places — the
+    // outer SELECT and the `creator` CTE — and Provenance_IsScopedToTheTenant
+    // does NOT hold either one: it gives each account a distinct entityId, so
+    // the foreign row is already gone before those predicates are consulted.
+    // Both survived deletion against the whole suite (adversarial review of PR
+    // #503), which made the comment claiming they were guarded a false
+    // assurance rather than a guard.
+    //
+    // So this shares ONE entityId across two accounts. Not reachable in
+    // production — ids are unique — but it is the only shape in which those
+    // predicates do any work, and a guard that never exercises the line it
+    // claims to protect is worse than none.
+    //
+    // Kills both: drop the outer predicate and the rival's later Adjust becomes
+    // the last change; drop the CTE's predicate and the CTE picks the rival's
+    // EARLIER Create as the creator, so ana's self-submit stops being
+    // suppressed and surfaces as a change.
+    [Fact]
+    public async Task Provenance_LastChange_IsScopedToTheTenant()
+    {
+        var mine = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var theirs = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        var rival = Guid.NewGuid();
+
+        await SeedEventsAsync(theirs,
+            // Earlier than my creation, so an unscoped CTE would prefer it.
+            Event(theirs, entityId, "DailyEntry.Create", "rival@other.test", -10, "DailyEntry", rival),
+            // Later than my submit, so an unscoped outer query would prefer it.
+            Event(theirs, entityId, "DailyEntry.Adjust", "rival@other.test", 9, "DailyEntry", rival));
+        await SeedEventsAsync(mine,
+            Event(mine, entityId, "DailyEntry.Create", "ana@farm.test", 0, "DailyEntry", ana),
+            Event(mine, entityId, "DailyEntry.Submit", "ana@farm.test", 5, "DailyEntry", ana));
+
+        var result = await WithRepositoryAsync(mine, repo =>
+            repo.GetProvenanceAsync("DailyEntry", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Equal("ana@farm.test", provenance.CreatedByEmail);
+        Assert.Null(provenance.LastChangedByEmail);
+        Assert.Null(provenance.LastChangedAtUtc);
+    }
+
+    // The CTE that resolves the creator selects by ACTION, exactly as the outer
+    // creation query does. Position cannot be substituted for it, so an event
+    // that merely sorts earlier must not be mistaken for the creation.
+    //
+    // The fixture is deliberately unnatural — a correction dated before the
+    // record exists — because that is the only arrangement in which position
+    // and action disagree. It pins the mechanism, not a reachable sequence.
+    [Fact]
+    public async Task Provenance_TheCreatorForTheExclusion_IsFoundByActionNotByPosition()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "DailyEntry.Adjust", "bo@farm.test", -5, "DailyEntry"),
+            Event(accountId, entityId, "DailyEntry.Create", "ana@farm.test", 0, "DailyEntry", ana),
+            Event(accountId, entityId, "DailyEntry.Submit", "ana@farm.test", 5, "DailyEntry", ana));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("DailyEntry", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Equal("ana@farm.test", provenance.CreatedByEmail);
+        // ana's submit is suppressed as a self-promotion, so bo's correction is
+        // the last change. Were the CTE to take the earliest event instead of
+        // the ".Create" one, it would call bo the creator, ana's submit would
+        // stop matching, and ana would surface here instead.
+        Assert.Equal("bo@farm.test", provenance.LastChangedByEmail);
+        Assert.Equal(Base.AddMinutes(-5), provenance.LastChangedAtUtc);
+    }
+
     [Fact]
     public async Task Provenance_IsScopedToTheTenant()
     {
@@ -498,9 +573,12 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
         var orderId = await CreatedIdAsync(await client.PostWithKeyAsync(
             "/api/v1/sales", Guid.NewGuid().ToString(),
             new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
-        await client.PostWithKeyAsync(
+        var addItem = await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
             new { productId, quantity = 10, unitPriceMinorUnits = 100 });
+        // A silently-failing add-item leaves an empty order that cannot confirm,
+        // which would make every test built on this fixture vacuous.
+        Assert.Equal(HttpStatusCode.Created, addItem.StatusCode);
         return (client, email, accountId, orderId);
     }
 
@@ -544,8 +622,10 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
     public async Task SalesOrderList_WhenTheCreatorConfirmsTheirOwnOrder_ReportsNoChange()
     {
         var (client, email, _, orderId) = await DraftSalesOrderAsync();
-        await client.PostWithKeyAsync(
+        // Asserted, not discarded — see the daily-entry twin above.
+        var confirm = await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
 
         var rows = await client.GetFromJsonAsync<List<ProvenanceRowDto>>("/api/v1/sales");
 
@@ -575,13 +655,7 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
             $"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString());
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var actions = await factory.WithTenantScopeAsync(accountId, async db =>
-            await db.AuditEvents
-                .Where(e => e.EntityId == id && e.EntityType == "DailyEntry")
-                .Select(e => e.Action)
-                .ToListAsync());
-
-        Assert.Contains("DailyEntry.Submit", actions);
+        Assert.Contains("DailyEntry.Submit", await ActionsForAsync(accountId, id, "DailyEntry"));
     }
 
     // The end-to-end shape of #494's answer: one person writes the day's numbers
@@ -595,8 +669,12 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
     public async Task DailyEntryList_WhenTheCreatorSubmitsTheirOwnDraft_ReportsNoChange()
     {
         var (client, email, _, id) = await DraftDailyEntryAsync();
-        await client.PostWithKeyAsync(
+        // Asserted, not discarded: a submit that started 422ing would leave the
+        // trail at ".Create" only, and this test would stay green while pinning
+        // nothing (adversarial review of PR #503).
+        var submit = await client.PostWithKeyAsync(
             $"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
 
         var rows = await client.GetFromJsonAsync<List<ProvenanceRowDto>>("/api/v1/daily-entries");
 

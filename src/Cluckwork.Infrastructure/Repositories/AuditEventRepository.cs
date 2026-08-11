@@ -1,5 +1,6 @@
 namespace Cluckwork.Infrastructure.Repositories;
 
+using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Audit;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Infrastructure.Persistence;
@@ -58,7 +59,15 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
     // and has no LINQ translation. EF would otherwise compose the tenant query
     // filter over this — IgnoreQueryFilters opts out of that, so the hand-written
     // AccountId predicate is then the ONLY thing scoping the read to the tenant.
-    // Both must stay: drop the predicate and every account's trail is visible.
+    //
+    // There are THREE such predicates below, not one: the `created` query, the
+    // `creator` CTE, and the outer last-change query. Each is held by a named
+    // test, and it took an adversarial pass to notice that two of them were not:
+    // Provenance_IsScopedToTheTenant covers only `created`, because it gives each
+    // account a DISTINCT entityId, so the other two predicates never ran in it
+    // and survived deletion against the whole suite. Provenance_LastChange_
+    // IsScopedToTheTenant shares ONE id across accounts and is what actually
+    // holds them. Do not trust this comment over a mutation run.
     private async Task<Dictionary<Guid, EntityProvenance>> GetProvenanceChunkAsync(
         string entityType, Guid[] ids, CancellationToken ct)
     {
@@ -106,9 +115,15 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
         // correcting it is the one who created it.
         //
         // Identity is ActorUserId, not the email — the email is a snapshot label.
-        // IS NOT DISTINCT FROM rather than "=", so an entity with no creation row
-        // (a record predating #494) keeps its events instead of having them all
-        // NULL-propagate out of the result.
+        //
+        // IS NOT DISTINCT FROM rather than "=" keeps the predicate total when the
+        // LEFT JOIN finds no creator. Be honest about its status: it is NOT
+        // currently load-bearing. A record with no creation row is dropped from
+        // the result by `created` keying below, before the difference could be
+        // observed, so mutating this to a plain "=" changes no outcome and no
+        // test can catch it (adversarial review of PR #503). It stays because a
+        // NULL-propagating predicate is a trap for whoever next changes that
+        // keying — not because it prevents something reachable today.
         //
         // KNOWN RESIDUAL, accepted rather than overlooked (#508). Which candidate
         // wins is still decided by ORDER BY, and the "Id" tiebreak carries no
@@ -129,7 +144,16 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
         // separately in #508 rather than smuggled in here. There is deliberately
         // NO test pinning the current arbitrary outcome: that would promote a
         // known loss into a specification.
-        var promotionActions = new[] { "%.Submit", "%.Confirm" };
+        // EXACT actions, not a "%.Submit"/"%.Confirm" pattern. Creation rightly
+        // uses a wildcard — any ".Create" IS a creation — but promotion is a
+        // closed two-member set, and a pattern would silently swallow a future
+        // action that merely ends the same way (a Payment.Confirm, say), dropping
+        // its actor from history with no error (pi review of PR #503).
+        var promotionActions = new[]
+        {
+            AuditActions.DailyEntrySubmit,
+            AuditActions.SalesOrderConfirm,
+        };
         var latest = await db.AuditEvents.FromSqlInterpolated($"""
             WITH creator AS (
                 SELECT DISTINCT ON ("EntityId") "EntityId", "ActorUserId"
@@ -147,7 +171,7 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
               AND e."EntityType" = {entityType}
               AND e."EntityId" = ANY({ids})
               AND e."Action" NOT LIKE {createAction}
-              AND NOT (e."Action" LIKE ANY({promotionActions})
+              AND NOT (e."Action" = ANY({promotionActions})
                        AND e."ActorUserId" IS NOT DISTINCT FROM c."ActorUserId")
             ORDER BY e."EntityId", e."OccurredAtUtc" DESC, e."Id" DESC
             """)
