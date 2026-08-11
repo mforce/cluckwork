@@ -31,7 +31,7 @@
 //
 // ================== THE SECOND BOUNDARY: DOM-LEVEL MUTANTS (#501) ==================
 //
-// The eight `a11y-*` mutants below do NOT go through the network. They inject a
+// The nine `a11y-*` mutants below do NOT go through the network. They inject a
 // script into the page and break the DOM the way the corresponding regression
 // would leave it. That was added for #501, whose guarantees are entirely
 // client-side — a live region's presence in the accessibility tree is never
@@ -67,8 +67,10 @@
 // reaches the other's assertion. The last two are the odd ones out, and both
 // exist because an assertion nothing can falsify is not an assertion:
 // `a11y-dialog-hidden-from-tree` breaks the spec's own CONTROL, and
-// `a11y-probe-live-off-ignored` breaks a RECORDED BROWSER FACT rather than any
-// product behaviour.
+// `a11y-probe-live-off-ignored` and `a11y-probe-alert-control-broken` break a
+// RECORDED BROWSER FACT rather than any product behaviour — one per side of it,
+// because "aria-live=off suppresses role=alert" only means anything if an
+// otherwise identical element still reports assertive.
 //
 // Each hole was found by a review asking the same question of the previous
 // fix — thirteen rounds of it, and it was still producing findings at the end,
@@ -478,6 +480,33 @@ export const MUTANTS: Record<string, Mutant> = {
       await page.addInitScript(() => {
         const strip = () => {
           document.getElementById("probe-alert-off")?.removeAttribute("aria-live");
+        };
+        new MutationObserver(strip).observe(document, { childList: true, subtree: true });
+      });
+    },
+  },
+
+  "a11y-probe-alert-control-broken": {
+    breaks:
+      "FACT 1's CONTROL — `role=\"alert\"` is stripped from the plain probe, so it stops "
+      + "reporting implicit assertive politeness and the contrast the fact rests on is gone",
+    caughtBy:
+      "a11y-live-regions.spec.ts — recorded browser facts (the control assertions, which "
+      + "`a11y-probe-live-off-ignored` leaves untouched)",
+    apply: async (page) => {
+      // The sibling mutant strips `aria-live` from the OFF probe, so it kills
+      // the `live === null` assertion while leaving the control passing — the
+      // control could then be deleted and that mutant would still be counted
+      // as killed (codex round 14, on round 13's fix). This one falsifies the
+      // control instead.
+      //
+      // Both are needed because FACT 1 is a two-sided claim: `null` means
+      // "suppressed" only if an otherwise identical element reports
+      // `assertive`. One mutant per side, and `EXPECT_MSG_FOR` requires each
+      // to die on its own.
+      await page.addInitScript(() => {
+        const strip = () => {
+          document.getElementById("probe-alert-plain")?.removeAttribute("role");
         };
         new MutationObserver(strip).observe(document, { childList: true, subtree: true });
       });

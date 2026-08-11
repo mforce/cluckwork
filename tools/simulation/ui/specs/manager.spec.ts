@@ -360,11 +360,15 @@ test.describe("Manager", () => {
       // sitting on the page after the last one fetched and the uniqueness check
       // below would call identity proven anyway (codex round 13). Whether the
       // walk finished is therefore asserted, not assumed.
+      // The terminal page is inspected AFTER every fetch, including the last one
+      // the cap allows. Checking only before each fetch meant a 25th click that
+      // returned the short page exited the loop without ever looking at it, and
+      // a fully-traversed list then failed claiming it had not been traversed
+      // (codex round 14 — a false failure introduced by round 13's guard).
       const PAGE_CAP = 25;
-      let reachedEnd = false;
-      for (let i = 0; i < PAGE_CAP; i++) {
+      let reachedEnd = latest().size < LOT_PAGE;
+      for (let i = 0; i < PAGE_CAP && !reachedEnd; i++) {
         const seen = pages().length;
-        if (latest().size < LOT_PAGE) { reachedEnd = true; break; } // short page = end of list
 
         const more = page.getByRole("button", { name: tEn("stock:loadMoreButton") });
         // It reappears once the previous fetch commits; a genuine end-of-list
@@ -373,6 +377,7 @@ test.describe("Manager", () => {
         await more.waitFor({ state: "visible" });
         await more.click();
         await expect.poll(() => pages().length).toBeGreaterThan(seen);
+        reachedEnd = latest().size < LOT_PAGE;
       }
 
       expect(
