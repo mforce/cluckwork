@@ -424,15 +424,26 @@ because two events can share an instant and their order is then unknowable.
 Creation itself became an audited action for these five in the same change
 (`Flock.Create` and siblings) — before that only corrections were on the trail.
 
-The last change is the latest event that is neither that creation **nor a submit
-by the person who created it**. That exception is what makes the common case read
-correctly: saving a daily entry and submitting it are two events but one act, so
-a farmhand who writes the day's numbers and makes them official — changing
-nothing in between — is shown as the creator with no change against them. When
-somebody *else* submits the draft, that submit is a real change and both people
-are named, which is the accountability the submit step exists for. Correcting a
-locked entry always shows, including when the person correcting it is the one who
-created it: the exception is keyed on the action, not on the actor.
+The last change is the latest event that is neither that creation **nor a
+promotion by the person who created it**. A *promotion* is the action that turns
+a draft into the official record — `DailyEntry.Submit` and `SalesOrder.Confirm`,
+the two moments that mint or allocate stock. That exception is what makes the
+common case read correctly: saving a daily entry and submitting it are two events
+but one act, so a farmhand who writes the day's numbers and makes them official —
+changing nothing in between — is shown as the creator with no change against
+them. When somebody *else* submits the draft, that submit is a real change and
+both people are named, which is the accountability the submit step exists for.
+
+The exception is keyed on the action, not on the actor, and covers promotion
+only. Correcting a locked entry always shows, including when the corrector
+created it. So does **cancelling** a draft order: `SalesOrder.Cancel` kills the
+record rather than promoting it, so cancelling your own order stays a reportable
+change.
+
+Editing a draft is **not** on the trail at all — re-recording a daily entry, or
+adding, changing and removing sales-order lines, write no event, because none of
+them alters stock. A draft order whose lines you are still assembling therefore
+reports no change, which is correct rather than missing.
 
 Two further consequences follow from being derived rather than stored. A record
 created **before #494**

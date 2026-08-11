@@ -63,6 +63,12 @@ public static class AuditActions
     // that is someone other than the person who drafted it.
     public const string DailyEntrySubmit = "DailyEntry.Submit";
     public const string SalesOrderCreate = "SalesOrder.Create";
+    // Confirming allocates stock FIFO — the order's equivalent of submitting a
+    // daily entry, and treated identically by #494's record history.
+    public const string SalesOrderConfirm = "SalesOrder.Confirm";
+    // Cancel is Draft-only so it releases nothing, but it is terminal: a record
+    // somebody killed must say who.
+    public const string SalesOrderCancel = "SalesOrder.Cancel";
     public const string ExpenseCreate = "Expense.Create";
     public const string EggGradeCreate = "EggGrade.Create";
 }

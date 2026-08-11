@@ -1692,6 +1692,8 @@ export const tl = {
     "auditAction.DailyEntry.Create": "Nagawa ang pang-araw-araw na entry",
     "auditAction.DailyEntry.Submit": "Naisumite ang pang-araw-araw na entry",
     "auditAction.SalesOrder.Create": "Nagawa ang order ng benta",
+    "auditAction.SalesOrder.Confirm": "Nakumpirma ang order ng benta",
+    "auditAction.SalesOrder.Cancel": "Kinansela ang order ng benta",
     "auditAction.Expense.Create": "Nagawa ang gastos",
     "auditAction.EggGrade.Create": "Nagawa ang grado ng itlog",
 
@@ -2217,8 +2219,11 @@ export const tl = {
       "Ang pag-save at pagsumite ng pang-araw-araw na entry ay iisang gawa, hindi pagbabago: kung ikaw "
       + "mismo ang gumawa ng dalawa, ipinapakita ka ng column na History bilang tagalikha at walang "
       + "nakalistang pagbabago. Kung iba ang nagsumite ng iyong draft, lalabas ang pagsumite nila bilang "
-      + "huling pagbabago, kaya laging makikita kung sino ang nag-opisyal sa bilang ng araw na iyon. Ang "
-      + "pagwawasto sa naka-lock na entry ay laging ipinapakita, kahit ikaw ang gumawa nito.",
+      + "huling pagbabago, kaya laging makikita kung sino ang nag-opisyal sa bilang ng araw na iyon. Ganito "
+      + "rin ang pagkumpirma ng order ng benta. Ang pagwawasto sa naka-lock na entry ay laging ipinapakita, "
+      + "kahit ikaw ang gumawa nito, gayundin ang pagkansela ng sarili mong draft na order. Ang pag-edit ng "
+      + "draft — muling pagtatala ng entry, o pagdaragdag at pagtanggal ng linya sa order — ay hindi "
+      + "sinusubaybayan, dahil wala roong gumagalaw sa stock.",
     auditRecordHistoryOlder:
       "Ang mga record na ginawa bago ito idagdag ay may blangkong kolum na Kasaysayan. Walang nawawala — "
       + "wala lang talagang entry ng paggawa sa log para sa kanila, at walang iniimbentong bago pagkatapos.",

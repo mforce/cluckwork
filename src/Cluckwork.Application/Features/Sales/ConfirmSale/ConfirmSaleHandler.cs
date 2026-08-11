@@ -15,6 +15,7 @@ public sealed class ConfirmSaleHandler(
     IEggGradeRepository eggGrades,
     ISalesOrderAllocationRepository allocations,
     IEggInventoryMovementRepository eggMovements,
+    IAuditWriter audit,
     IUnitOfWork unitOfWork,
     IClock clock,
     IFarmClock farmClock,
@@ -111,6 +112,13 @@ public sealed class ConfirmSaleHandler(
             }
 
             await allocations.AddRangeAsync(allocationRows, transactionCt);
+
+            // #494 — INSIDE the transaction, so the event commits with the FIFO
+            // allocations or rolls back with them. Every failure path above
+            // returns false before reaching here, so a confirm that did not
+            // happen leaves no trace.
+            await audit.WriteAsync(
+                AuditActions.SalesOrderConfirm, nameof(SalesOrder), order.Id, ct: transactionCt);
             return true;
         }, ct);
 

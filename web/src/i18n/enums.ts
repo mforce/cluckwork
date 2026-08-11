@@ -291,6 +291,7 @@ export const AUDIT_ACTION_VALUES = [
   "Product.Create", "Product.Update", "Product.Activate",
   "Product.Deactivate", "EggUnitConversion.Update", "EggLot.Movement",
   "Flock.Create", "DailyEntry.Create", "DailyEntry.Submit", "SalesOrder.Create",
+  "SalesOrder.Confirm", "SalesOrder.Cancel",
   "Expense.Create", "EggGrade.Create",
 ] as const;
 export type AuditActionValue = (typeof AUDIT_ACTION_VALUES)[number];
@@ -337,6 +338,8 @@ const AUDIT_ACTION_KEYS = {
   "DailyEntry.Create": "enums:auditAction.DailyEntry.Create",
   "DailyEntry.Submit": "enums:auditAction.DailyEntry.Submit",
   "SalesOrder.Create": "enums:auditAction.SalesOrder.Create",
+  "SalesOrder.Confirm": "enums:auditAction.SalesOrder.Confirm",
+  "SalesOrder.Cancel": "enums:auditAction.SalesOrder.Cancel",
   "Expense.Create": "enums:auditAction.Expense.Create",
   "EggGrade.Create": "enums:auditAction.EggGrade.Create",
 } as const satisfies Record<AuditActionValue, EnumsKey>;

@@ -85,15 +85,21 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
             .ToListAsync(ct);
 
         // The last change is the latest event that is neither the creation NOR a
-        // Submit by the creator. That second exclusion is the whole of #494's
-        // "saving a draft and submitting it is one act, not a change" rule:
-        // writing the day's numbers down and making them official, with nothing
+        // PROMOTION by the creator. That second exclusion is the whole of #494's
+        // "drafting a record and making it official is one act, not a change"
+        // rule: writing the day's numbers down and submitting them, with nothing
         // altered in between, should not read as if somebody corrected them.
         //
+        // A promotion is the action that turns a draft into the official record:
+        // DailyEntry.Submit and SalesOrder.Confirm are the two, and both mint
+        // stock at that moment. Deliberately NOT every draft-to-terminal move —
+        // SalesOrder.Cancel kills a draft rather than promoting it, so
+        // cancelling your own order stays a reportable change.
+        //
         // Stated as an EXCLUSION from the candidate set, deliberately — not as
-        // "if the last event is a self-submit, report nothing". The latter also
-        // discards any earlier change the submit happens to sit on top of, which
-        // would hide a real edit by a different person.
+        // "if the last event is a self-promotion, report nothing". The latter
+        // also discards any earlier change the promotion happens to sit on top
+        // of, which would hide a real edit by a different person.
         //
         // Keyed on the action, never on the actor alone: correcting a locked
         // entry is a stock-altering change and must show even when the person
@@ -103,7 +109,7 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
         // IS NOT DISTINCT FROM rather than "=", so an entity with no creation row
         // (a record predating #494) keeps its events instead of having them all
         // NULL-propagate out of the result.
-        var submitAction = $"%.Submit";
+        var promotionActions = new[] { "%.Submit", "%.Confirm" };
         var latest = await db.AuditEvents.FromSqlInterpolated($"""
             WITH creator AS (
                 SELECT DISTINCT ON ("EntityId") "EntityId", "ActorUserId"
@@ -121,7 +127,7 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
               AND e."EntityType" = {entityType}
               AND e."EntityId" = ANY({ids})
               AND e."Action" NOT LIKE {createAction}
-              AND NOT (e."Action" LIKE {submitAction}
+              AND NOT (e."Action" LIKE ANY({promotionActions})
                        AND e."ActorUserId" IS NOT DISTINCT FROM c."ActorUserId")
             ORDER BY e."EntityId", e."OccurredAtUtc" DESC, e."Id" DESC
             """)

@@ -2048,6 +2048,8 @@ export const en = {
     "auditAction.DailyEntry.Create": "Daily entry created",
     "auditAction.DailyEntry.Submit": "Daily entry submitted",
     "auditAction.SalesOrder.Create": "Sales order created",
+    "auditAction.SalesOrder.Confirm": "Sales order confirmed",
+    "auditAction.SalesOrder.Cancel": "Sales order cancelled",
     "auditAction.Expense.Create": "Expense created",
     "auditAction.EggGrade.Create": "Egg grade created",
 
@@ -2541,7 +2543,9 @@ export const en = {
       "Saving a daily entry and submitting it is one act, not a change: do both yourself and the History "
       + "column names you as the creator with no change against you. If somebody else submits your draft, "
       + "their submit shows as the last change, so you can always see who made a day's numbers official. "
-      + "Correcting an entry after it is locked always shows, even if you are the one who created it.",
+      + "Confirming a sales order works the same way. Correcting an entry after it is locked always shows, "
+      + "even if you created it, and so does cancelling your own draft order. Editing a draft — re-recording "
+      + "an entry, or adding and removing order lines — is not tracked, because none of it moves stock.",
     auditRecordHistoryOlder:
       "Records created before this was added show a blank History column. Nothing is missing — there is "
       + "simply no creation entry in the log for them, and none is invented after the fact.",

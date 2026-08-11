@@ -1629,6 +1629,8 @@ export const es = {
     "auditAction.DailyEntry.Create": "Registro diario creado",
     "auditAction.DailyEntry.Submit": "Registro diario enviado",
     "auditAction.SalesOrder.Create": "Pedido de venta creado",
+    "auditAction.SalesOrder.Confirm": "Pedido de venta confirmado",
+    "auditAction.SalesOrder.Cancel": "Pedido de venta cancelado",
     "auditAction.Expense.Create": "Gasto creado",
     "auditAction.EggGrade.Create": "Grado de huevo creado",
 
@@ -2136,7 +2138,10 @@ export const es = {
       "Guardar un registro diario y enviarlo es un solo acto, no un cambio: si haces ambas cosas tú, la "
       + "columna Historial te muestra como creador y no señala ningún cambio. Si otra persona envía tu "
       + "borrador, ese envío aparece como el último cambio, así siempre se sabe quién oficializó los "
-      + "números del día. Corregir un registro ya bloqueado siempre se muestra, aunque tú lo hayas creado.",
+      + "números del día. Confirmar un pedido de venta funciona igual. Corregir un registro ya bloqueado "
+      + "siempre se muestra, aunque tú lo hayas creado, y cancelar tu propio pedido en borrador también. "
+      + "Editar un borrador — volver a registrar una entrada, o agregar y quitar líneas de un pedido — no "
+      + "se registra, porque nada de eso mueve existencias.",
     auditRecordHistoryOlder:
       "Los registros creados antes de que esto se agregara muestran la columna Historial en blanco. No "
       + "falta nada — simplemente no hay una entrada de creación en el registro para ellos, y no se "

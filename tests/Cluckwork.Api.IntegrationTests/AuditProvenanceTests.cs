@@ -233,6 +233,69 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(Base.AddMinutes(2), provenance.LastChangedAtUtc);
     }
 
+    // Sales orders take the identical shape: a draft order is created, then
+    // CONFIRMED, and confirming is what allocates stock. So the same exclusion
+    // covers it — the pattern is "an action that promotes a draft to official",
+    // of which Submit and Confirm are the two instances.
+    [Fact]
+    public async Task Provenance_WhenTheCreatorConfirmsTheirOwnOrder_ReportsNoChange()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "SalesOrder.Create", "ana@farm.test", 0, "SalesOrder", ana),
+            Event(accountId, entityId, "SalesOrder.Confirm", "ana@farm.test", 5, "SalesOrder", ana));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("SalesOrder", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Equal("ana@farm.test", provenance.CreatedByEmail);
+        Assert.Null(provenance.LastChangedByEmail);
+        Assert.Null(provenance.LastChangedAtUtc);
+    }
+
+    [Fact]
+    public async Task Provenance_WhenSomeoneElseConfirmsTheOrder_ReportsTheConfirmer()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "SalesOrder.Create", "ana@farm.test", 0, "SalesOrder"),
+            Event(accountId, entityId, "SalesOrder.Confirm", "bo@farm.test", 5, "SalesOrder"));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("SalesOrder", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Equal("ana@farm.test", provenance.CreatedByEmail);
+        Assert.Equal("bo@farm.test", provenance.LastChangedByEmail);
+        Assert.Equal(Base.AddMinutes(5), provenance.LastChangedAtUtc);
+    }
+
+    // Cancelling is not stock-altering — Cancel is Draft-only, so nothing has
+    // been allocated yet — but it is TERMINAL, and a record that somebody killed
+    // must say who. Not covered by the promotion exclusion: cancelling your own
+    // draft is a real change, unlike confirming it.
+    [Fact]
+    public async Task Provenance_WhenTheCreatorCancelsTheirOwnOrder_StillReportsTheChange()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "SalesOrder.Create", "ana@farm.test", 0, "SalesOrder", ana),
+            Event(accountId, entityId, "SalesOrder.Cancel", "ana@farm.test", 5, "SalesOrder", ana));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("SalesOrder", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Equal("ana@farm.test", provenance.LastChangedByEmail);
+        Assert.Equal(Base.AddMinutes(5), provenance.LastChangedAtUtc);
+    }
+
     [Fact]
     public async Task Provenance_IsScopedToTheTenant()
     {
@@ -415,6 +478,78 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
                 grades = new[] { new { eggGradeId = grades["Large"], quantity = 100 } },
             }));
         return (client, email, accountId, id);
+    }
+
+    private async Task<(HttpClient Client, string Email, Guid AccountId, Guid OrderId)> DraftSalesOrderAsync()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var productId = await factory.SeedProductAsync(accountId, farmId, grades["Large"], "Large Eggs");
+        // Confirm allocates stock FIFO, so there has to be stock to draw from —
+        // otherwise every confirm below 422s and the tests pass for no reason.
+        await factory.SeedEggLotAsync(accountId, grades["Large"], 500);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var customerId = await CreatedIdAsync(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Mercado Central", phone = "555-0100" }));
+        var orderId = await CreatedIdAsync(await client.PostWithKeyAsync(
+            "/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
+        await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { productId, quantity = 10, unitPriceMinorUnits = 100 });
+        return (client, email, accountId, orderId);
+    }
+
+    private async Task<List<string>> ActionsForAsync(Guid accountId, Guid entityId, string entityType) =>
+        await factory.WithTenantScopeAsync(accountId, async db =>
+            await db.AuditEvents
+                .Where(e => e.EntityId == entityId && e.EntityType == entityType)
+                .Select(e => e.Action)
+                .ToListAsync());
+
+    // Confirming allocates stock FIFO, so it belongs on the trail for the same
+    // reason submitting a daily entry does.
+    [Fact]
+    public async Task SalesOrderConfirm_WritesAnAuditEvent()
+    {
+        var (client, _, accountId, orderId) = await DraftSalesOrderAsync();
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        Assert.Contains("SalesOrder.Confirm", await ActionsForAsync(accountId, orderId, "SalesOrder"));
+    }
+
+    [Fact]
+    public async Task SalesOrderCancel_WritesAnAuditEvent()
+    {
+        var (client, _, accountId, orderId) = await DraftSalesOrderAsync();
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/cancel", Guid.NewGuid().ToString());
+        // 204, unlike confirm's 200 — cancel returns no body.
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        Assert.Contains("SalesOrder.Cancel", await ActionsForAsync(accountId, orderId, "SalesOrder"));
+    }
+
+    // End to end: one person drafts an order and confirms it. Two events, one
+    // act — the row still reports a creator and no change.
+    [Fact]
+    public async Task SalesOrderList_WhenTheCreatorConfirmsTheirOwnOrder_ReportsNoChange()
+    {
+        var (client, email, _, orderId) = await DraftSalesOrderAsync();
+        await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
+
+        var rows = await client.GetFromJsonAsync<List<ProvenanceRowDto>>("/api/v1/sales");
+
+        AssertCreatedBy(rows!.Single(r => r.Id == orderId), email);
     }
 
     [Fact]
