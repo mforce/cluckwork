@@ -233,29 +233,45 @@ test.describe("Manager", () => {
     // `loadMoreLots` has parsed the body and React has committed
     // `setLotsLoading(false)` (codex rounds 8 and 9). A short page, by
     // contrast, can only mean the list is exhausted.
-    // Mirrors LOT_PAGE in web/src/routes/StockPage.tsx. Asserted against the
-    // real responses below, so a change there fails here with a message rather
-    // than a hang.
+    // Mirrors LOT_PAGE in web/src/routes/StockPage.tsx:26. Asserted EXACTLY
+    // against the `limit` each request actually sends, so a change in either
+    // direction fails here with a message. An earlier version asserted only
+    // `<= LOT_PAGE`, which a lowered page size satisfies silently — a full
+    // 25-row page would then read as a short final page (codex round 11).
     const LOT_PAGE = 50;
-    const lotPageSizes: number[] = [];
+
+    // Every lot page the server sent, KEYED TO ITS REQUEST. Position alone is
+    // not enough: `from.fill(today)` starts a request against the *previous*
+    // window, and if that body parses after a positional mark its empty page
+    // is attributed to the final reload and read as end-of-list. The window a
+    // page belongs to is in its query string, so that is what identifies it.
+    interface LotPage { from: string; to: string; offset: number; limit: number; size: number }
+    const lotPages: LotPage[] = [];
     page.on("response", (response) => {
-      if (!response.url().includes("/stock/lots")) return;
+      const url = new URL(response.url());
+      if (!url.pathname.endsWith("/stock/lots")) return;
       if (response.request().method() !== "GET" || !response.ok()) return;
+      const from = url.searchParams.get("from") ?? "";
+      const to = url.searchParams.get("to") ?? "";
+      const offset = Number(url.searchParams.get("offset") ?? "0");
+      const limit = Number(url.searchParams.get("limit") ?? "0");
       void response
         .json()
         .then((body: unknown) => {
           const items = Array.isArray(body)
             ? body
             : (body as { items?: unknown[] } | null)?.items;
-          if (Array.isArray(items)) lotPageSizes.push(items.length);
+          if (Array.isArray(items)) lotPages.push({ from, to, offset, limit, size: items.length });
         })
         .catch(() => {
-          /* a body that cannot be read tells us nothing; the poll below waits */
+          /* an unreadable body tells us nothing; the polls below wait */
         });
     });
 
     await page.goto("/stock");
-    const openedLots = lotPageSizes.length;
+    // No date bounds until the filter section at the end.
+    const WHOLE_HISTORY = { from: "", to: "" };
+    const openedLots = lotPages.length;
     await page
       .getByRole("row")
       .filter({ has: page.getByRole("cell", { name: "Large", exact: true }) })
@@ -293,7 +309,10 @@ test.describe("Manager", () => {
     // test, so without it the poll below is satisfied by pages from an EARLIER
     // walk and the loop can read a stale short page as end-of-list before this
     // reload has even responded (codex round 10).
-    const ourLotIndex = async (mark: number): Promise<number> => {
+    const ourLotIndex = async (
+      mark: number,
+      window: { from: string; to: string },
+    ): Promise<number> => {
       // Page to the end. The loop is driven by the SERVER's page sizes, never
       // by the pager button: while the last page came back full there is more
       // to fetch, and a short page means the list is exhausted. The button is
@@ -302,26 +321,32 @@ test.describe("Manager", () => {
       await expect(
         page.getByRole("columnheader", { name: tEn("stock:producedOnHeader") }),
       ).toBeVisible();
-      // Pages belonging to THIS reload only.
-      const pages = () => lotPageSizes.slice(mark);
+      // Pages from THIS reload and THIS window. The mark excludes earlier
+      // walks; the window excludes a request the previous filter value started,
+      // whose body can land after the mark and would otherwise be read as this
+      // reload's end-of-list.
+      const pages = () =>
+        lotPages.slice(mark).filter((p) => p.from === window.from && p.to === window.to);
       await expect.poll(() => pages().length).toBeGreaterThan(0);
 
-      // The page size is a CONSTANT, not something to infer per reload. Taking
-      // it from this reload's first page is wrong whenever that page is short:
-      // narrowed to a single day the first page comes back with fewer than
-      // LOT_PAGE lots, "short page" then compares a number against itself, the
-      // loop never exits, and it waits for a pager the app correctly never
-      // renders. That is what `hasMoreLots = page.length === LOT_PAGE` in
-      // StockPage means — a short page is the end, and only a short page is.
+      // The mirrored page size, checked against what the app actually asked
+      // for — exactly, in both directions.
       expect(
-        pages()[0]!,
-        `a lot page came back larger than LOT_PAGE (${LOT_PAGE}); StockPage's page size changed `
-          + `and this loop's end-of-list test is now wrong`,
-      ).toBeLessThanOrEqual(LOT_PAGE);
+        pages()[0]!.limit,
+        `StockPage requested limit=${pages()[0]!.limit} but this spec mirrors LOT_PAGE=${LOT_PAGE}; `
+          + `its end-of-list test is now wrong in one direction or the other`,
+      ).toBe(LOT_PAGE);
+
+      // A short page is the end of the list, and only a short page is — the
+      // same rule StockPage itself applies as `hasMoreLots = page.length ===
+      // LOT_PAGE`. The last page of THIS walk is the one with the highest
+      // offset, not the last recorded, because responses can settle out of
+      // order.
+      const latest = () => pages().reduce((a, b) => (b.offset > a.offset ? b : a));
 
       for (let i = 0; i < 25; i++) {
         const seen = pages().length;
-        if (pages()[seen - 1]! < LOT_PAGE) break; // short page = end of list
+        if (latest().size < LOT_PAGE) break; // short page = end of list
 
         const more = page.getByRole("button", { name: tEn("stock:loadMoreButton") });
         // It reappears once the previous fetch commits; a genuine end-of-list
@@ -353,7 +378,7 @@ test.describe("Manager", () => {
       return at;
     };
 
-    const index = await ourLotIndex(openedLots);
+    const index = await ourLotIndex(openedLots, WHOLE_HISTORY);
     const lotRow = todayRows.nth(index);
     await lotRow.getByRole("button", { name: tEn("stock:writeOffButton") }).click();
 
@@ -362,7 +387,7 @@ test.describe("Manager", () => {
       .filter({ has: page.getByRole("button", { name: tEn("stock:writeOffSubmitButton") }) });
     await writeOff.getByLabel(tEn("stock:writeOffQuantityLabel"), { exact: true }).fill("2");
     await writeOff.getByLabel(tEn("stock:writeOffReasonLabel")).fill("E2E cooler breakage");
-    const submittedWriteOff = lotPageSizes.length;
+    const submittedWriteOff = lotPages.length;
     await writeOff.getByRole("button", { name: tEn("stock:writeOffSubmitButton") }).click();
 
     await expect(writeOff).toBeHidden();
@@ -372,7 +397,7 @@ test.describe("Manager", () => {
     // to page one, so the earlier index no longer points at anything reliable.
     // Produced is unchanged, which is the point: the write-off moved the
     // balance without restating the day's laying.
-    const afterWriteOff = await ourLotIndex(submittedWriteOff);
+    const afterWriteOff = await ourLotIndex(submittedWriteOff, WHOLE_HISTORY);
     expect((await balances())[afterWriteOff]).toEqual([String(eggs), String(eggs - 2)]);
 
     // ---- #465: the date filter reaches lots server-side -------------------
@@ -382,12 +407,13 @@ test.describe("Manager", () => {
     await expect(page.getByText(tEn("stock:noLotsMessage"))).toBeVisible();
     // …and narrowing to exactly today brings it back, corrected balance intact.
     await page.getByLabel(tEn("stock:fromLabel"), { exact: true }).fill(today);
-    // Marked before the LAST fill: each fill triggers its own reload, and only
-    // the final one describes the window being asserted.
-    const narrowedToToday = lotPageSizes.length;
+    // Marked before the LAST fill, and matched on the window itself: each fill
+    // starts its own request, and the intermediate one (from=today with the
+    // old `to`) can settle after this mark.
+    const narrowedToToday = lotPages.length;
     await page.getByLabel(tEn("stock:toLabel"), { exact: true }).fill(today);
     // Re-resolved again: changing the window refetches from offset zero.
-    const afterFilter = await ourLotIndex(narrowedToToday);
+    const afterFilter = await ourLotIndex(narrowedToToday, { from: today, to: today });
     expect(
       (await balances())[afterFilter],
       "narrowing the window to today did not bring back the corrected lot",

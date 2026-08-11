@@ -98,6 +98,19 @@ path. What scenario 4 would add is only the `assertive` politeness in place of
 `polite` — worth knowing, not worth inventing a debug affordance for. It is
 marked NOT RUNNABLE below rather than left as steps that quietly do nothing.
 
+**Two stacked dialogs (scenario 3) — NOT REACHABLE, and #483 is the reason.**
+Every `confirm`/`askReason` in the app is triggered by a PAGE-level control —
+all ten call sites checked, e.g. HistoryPage's void button lives in a table row,
+not inside the adjust dialog. With a dialog open the page behind it is inert, so
+none of those controls can be activated. The one documented case of two dialogs
+being open at once is the pre-#483 virtual-cursor bug that #483 exists to fix.
+
+`Dialog.tsx` still keeps a STACK, and that is not a contradiction: it is
+defensive, and #482's own history is a bug caused by assuming only one dialog
+could ever be open. But defensive support is not a reachable flow, and a manual
+tester cannot produce one. If a nested flow is ever added, this row becomes
+runnable and should be un-struck.
+
 **Same-commit (scenario 6) — NOT REACHABLE either.** Opening a dialog and
 triggering a message are two sequential human actions, so a manual tester
 cannot land both in one React commit. Only an automated harness could, and the
@@ -115,15 +128,16 @@ For each: **PASS** = the expected utterance, once. Record the actual speech.
 |---|---|---|---|
 | 1 | Update banner appears, **no dialog open** | "A new version is ready" spoken once | Silence, or the sentence twice (the offscreen region duplicating the banner) |
 | 2 | Update banner appears **while a dialog is open** | Silence while the dialog is up; spoken **once** just after it closes | Silence after closing too — this is #485 unfixed |
-| 3 | As 2, but with **two dialogs** stacked | Spoken only after the **last** one closes | Spoken as the inner dialog closes, while still inside the outer one |
+| 3 | ~~As 2, but with **two dialogs** stacked~~ | **NOT RUNNABLE** — no product path opens a second dialog (see above) | — |
 | 4 | ~~Farm warning fails **while a dialog is open**~~ | **NOT RUNNABLE** — no product path makes this read happen mid-dialog (see above). Covered in mechanism by 2; differs only in politeness | — |
 | 5 | A **standing** banner, dialogs opened and closed repeatedly | Nothing re-spoken on any close | The warning read out on every close — the nagging #499's retain rule prevents |
 | 6 | ~~Message raised in the **same commit** that opens a dialog~~ | **NOT RUNNABLE** by hand — two human actions cannot share one React commit | — |
 
-**Scenarios 4 and 6 are marked NOT RUNNABLE rather than dropped**, because the
-questions behind them are real and someone will otherwise re-derive them. 4
-needs a farm re-read to happen while a dialog is open, which no product path
-offers; 6 needs two things in one React commit, which no human can time. #499's
+**Scenarios 3, 4 and 6 are marked NOT RUNNABLE rather than dropped**, because
+the questions behind them are real and someone will otherwise re-derive them. 3
+needs a second dialog, which #483 makes unreachable; 4 needs a farm re-read
+while a dialog is open, which no product path offers; 6 needs two things in one
+React commit, which no human can time. #499's
 same-commit predicate therefore stays unverified by observation and errs toward
 announcing, on the grounds that a duplicate beats silence.
 
