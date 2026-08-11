@@ -188,8 +188,11 @@ test.describe("Manager", () => {
     await signIn(castMember("Manager"));
     const today = farmToday(farm.timeZoneId);
     const flockName = `E2E WriteOff Flock ${Date.now()}`;
-    // 41–98, effectively unique per run — and disjoint from the 38–40 the
-    // flow spec above uses, so its same-day lot can never match the filter.
+    // 41–98, disjoint from the 38–40 the flow spec above uses so its same-day
+    // lot can never match the filter. NOT unique per run, despite what this
+    // comment claimed until #506: 58 values and one new lot per run collide
+    // quickly on a reused fixture. The lot is pinned by its BALANCE below, not
+    // by this number.
     const eggs = 41 + (Date.now() % 58);
 
     const flockId = await createFlock(page, flockName, today);
@@ -221,12 +224,48 @@ test.describe("Manager", () => {
     // contains any 2-digit count as a substring (that exact false match
     // shipped in this spec's first draft). Today's date + the exact produced
     // count pins the one lot this test created.
-    const lotRow = page
+    // Today's date plus the produced count does NOT pin one lot, and the
+    // comment that used to claim it did was wrong (#506): `eggs` draws from 58
+    // values and every run adds another same-day lot to this grade, so by the
+    // tenth run against one fixture a collision is likelier than not. `.first()`
+    // then selected an EARLIER run's lot — already written off, so the balance
+    // assertions below failed. That is how a mutation baseline came to fail
+    // here, in a spec the PR doing the mutating never touched.
+    //
+    // What pins it is the AVAILABLE column, because it distinguishes this run's
+    // lot from every earlier one at each point in time: untouched before the
+    // write-off, exactly two short after it. So the row is addressed by the
+    // balance it should have AT THAT MOMENT, and the assertion is that such a
+    // row exists.
+    // Columns are addressed POSITIONALLY — produced is td 2, available is td 3.
+    // Two `filter({ has: cell })` clauses naming the same text are satisfied by
+    // the SAME cell, so the obvious version ("a row with a cell `eggs` and a
+    // cell `available`") degenerates, while they are equal, into "a row
+    // containing `eggs` anywhere". That version clicked write-off on a lot
+    // whose AVAILABLE happened to equal our produced count, quietly took a
+    // stranger's lot from -2 to -4, and left ours untouched for the assertion
+    // below to miss.
+    const exactly = (n: number) => new RegExp(`^\\s*${n}\\s*$`);
+    const lotAtBalance = (available: number) => page
       .getByRole("row")
       .filter({ has: page.getByRole("cell", { name: today, exact: true }) })
-      .filter({ has: page.getByRole("cell", { name: String(eggs), exact: true }) })
+      .filter({ has: page.locator("td:nth-child(2)").filter({ hasText: exactly(eggs) }) })
+      .filter({ has: page.locator("td:nth-child(3)").filter({ hasText: exactly(available) }) })
       .first();
-    await lotRow.getByRole("button", { name: tEn("stock:writeOffButton") }).click();
+
+    // Deliberately NOT one locator reused across the write-off. The first
+    // version of this fix defined the row as "produced == available" and then
+    // let the existing post-write-off assertions re-use it — but the write-off
+    // changes available, so the locator stopped matching the very row it had
+    // just acted on, and the spec failed two lines later on a row that was
+    // perfectly correct.
+    const untouchedLot = lotAtBalance(eggs);
+    await expect(
+      untouchedLot,
+      `no untouched lot for ${today} with ${eggs} produced — the entry above created no lot, or `
+        + `an earlier run left one half-written-off (reset.sh clears that)`,
+    ).toBeVisible();
+    await untouchedLot.getByRole("button", { name: tEn("stock:writeOffButton") }).click();
 
     const writeOff = page
       .getByRole("dialog")
@@ -239,9 +278,12 @@ test.describe("Manager", () => {
     const announcement = page.locator('p[role="status"]');
     await expect(announcement).toContainText(prefixOf("en", "stock:writeOffRecordedMessage"));
     // The lot row shows the new balance; produced is untouched — the write-off
-    // never restated the day's laying.
-    await expect(lotRow.getByRole("cell", { name: String(eggs - 2), exact: true })).toBeVisible();
-    await expect(lotRow.getByRole("cell", { name: String(eggs), exact: true })).toBeVisible();
+    // never restated the day's laying. Re-addressed at its new balance, since
+    // the row is identified by the pair (produced, available) and the write-off
+    // has just moved one of them.
+    const writtenOffLot = lotAtBalance(eggs - 2);
+    await expect(writtenOffLot).toBeVisible();
+    await expect(writtenOffLot.getByRole("cell", { name: String(eggs), exact: true })).toBeVisible();
 
     // ---- #465: the date filter reaches lots server-side -------------------
     // A window that cannot contain this lot empties the table…
@@ -251,7 +293,7 @@ test.describe("Manager", () => {
     // …and narrowing to exactly today brings it back, corrected balance intact.
     await page.getByLabel(tEn("stock:fromLabel"), { exact: true }).fill(today);
     await page.getByLabel(tEn("stock:toLabel"), { exact: true }).fill(today);
-    await expect(lotRow.getByRole("cell", { name: String(eggs - 2), exact: true })).toBeVisible();
+    await expect(lotAtBalance(eggs - 2)).toBeVisible();
   });
 
   test("can reach the admin destinations a Worker cannot", async ({ signIn, nav }) => {
