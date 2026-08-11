@@ -337,6 +337,115 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
         Assert.Null(provenance.LastChangedAtUtc);
     }
 
+    // ...but only while the creator is the ONLY person who touched the draft.
+    // Once somebody else has edited it, hiding the creator's own later edit
+    // misattributes the record: the column named bo, whose numbers ana then
+    // overwrote, while ana's numbers are the ones that went into stock. Wrong
+    // person, wrong timestamp — found independently by two reviewers of PR #503
+    // and decided by the owner on 2026-08-10.
+    //
+    // The submit is still hidden even here: it is reported on its own line, and
+    // repeating it as "last changed" would say the act of making a record
+    // official changed it.
+    [Fact]
+    public async Task Provenance_WhenTheCreatorRevertsSomeoneElsesEdit_NamesTheCreatorsOwnEdit()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "DailyEntry.Create", "ana@farm.test", 0, "DailyEntry", ana),
+            Event(accountId, entityId, "DailyEntry.Update", "bo@farm.test", 2, "DailyEntry"),
+            Event(accountId, entityId, "DailyEntry.Update", "ana@farm.test", 6, "DailyEntry", ana),
+            Event(accountId, entityId, "DailyEntry.Submit", "ana@farm.test", 8, "DailyEntry", ana));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("DailyEntry", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Equal("ana@farm.test", provenance.CreatedByEmail);
+        Assert.Equal("ana@farm.test", provenance.LastChangedByEmail);
+        // +6, not +8: her edit, not her submit.
+        Assert.Equal(Base.AddMinutes(6), provenance.LastChangedAtUtc);
+        Assert.Equal(Base.AddMinutes(8), provenance.MadeOfficialAtUtc);
+    }
+
+    // The same rule on the sales-order shape, and the reason it is stated over
+    // the whole drafting set rather than over DailyEntry.Update alone.
+    [Fact]
+    public async Task Provenance_WhenTheCreatorReworksLinesAfterSomeoneElse_NamesTheCreatorsOwnEdit()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "SalesOrder.Create", "ana@farm.test", 0, "SalesOrder", ana),
+            Event(accountId, entityId, "SalesOrder.UpdateItem", "bo@farm.test", 2, "SalesOrder"),
+            Event(accountId, entityId, "SalesOrder.RemoveItem", "ana@farm.test", 6, "SalesOrder", ana),
+            Event(accountId, entityId, "SalesOrder.Confirm", "ana@farm.test", 8, "SalesOrder", ana));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("SalesOrder", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Equal("ana@farm.test", provenance.LastChangedByEmail);
+        Assert.Equal(Base.AddMinutes(6), provenance.LastChangedAtUtc);
+        Assert.Equal(Base.AddMinutes(8), provenance.MadeOfficialAtUtc);
+    }
+
+    // "Somebody else touched this draft" is decided over THIS tenant's trail.
+    // A foreign account's edit of a colliding id must not unhide ana's own
+    // edit — which would report a change to a record nobody but ana ever
+    // touched, sourced from a row she is not allowed to see.
+    [Fact]
+    public async Task Provenance_WhetherADraftWasSharedIsScopedToTheTenant()
+    {
+        var mine = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var theirs = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+
+        await SeedEventsAsync(theirs,
+            Event(theirs, entityId, "DailyEntry.Create", "rival@other.test", 0, "DailyEntry"),
+            Event(theirs, entityId, "DailyEntry.Update", "other@other.test", 1, "DailyEntry"));
+        await SeedEventsAsync(mine,
+            Event(mine, entityId, "DailyEntry.Create", "ana@farm.test", 0, "DailyEntry", ana),
+            Event(mine, entityId, "DailyEntry.Update", "ana@farm.test", 6, "DailyEntry", ana),
+            Event(mine, entityId, "DailyEntry.Submit", "ana@farm.test", 8, "DailyEntry", ana));
+
+        var result = await WithRepositoryAsync(mine, repo =>
+            repo.GetProvenanceAsync("DailyEntry", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Null(provenance.LastChangedByEmail);
+        Assert.Null(provenance.LastChangedAtUtc);
+    }
+
+    // ...and over THIS entity's trail. Two records in one batch: a shared one
+    // and a solitary one. The solitary record must stay quiet, or the batch
+    // size silently changes what a record says about itself.
+    [Fact]
+    public async Task Provenance_WhetherADraftWasSharedIsScopedToTheRecord()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var solitary = Guid.NewGuid();
+        var shared = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, solitary, "DailyEntry.Create", "ana@farm.test", 0, "DailyEntry", ana),
+            Event(accountId, solitary, "DailyEntry.Update", "ana@farm.test", 6, "DailyEntry", ana),
+            Event(accountId, shared, "DailyEntry.Create", "ana@farm.test", 0, "DailyEntry", ana),
+            Event(accountId, shared, "DailyEntry.Update", "bo@farm.test", 2, "DailyEntry"),
+            Event(accountId, shared, "DailyEntry.Update", "ana@farm.test", 6, "DailyEntry", ana));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("DailyEntry", [solitary, shared]));
+
+        Assert.Null(result[solitary].LastChangedByEmail);
+        Assert.Equal("ana@farm.test", result[shared].LastChangedByEmail);
+        Assert.Equal(Base.AddMinutes(6), result[shared].LastChangedAtUtc);
+    }
+
     // The case the whole option exists for: a worker writes the numbers, someone
     // else makes them official. Both people must be visible — that is the
     // accountability the submit step is for.
@@ -653,6 +762,29 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
 
         Assert.True(result.ContainsKey(known));
         Assert.False(result.ContainsKey(untouched));
+    }
+
+    // The id list is a predicate on the read, not a filter applied afterwards.
+    // Dropping it left every requested record's answer CORRECT — the creator and
+    // the shared-draft set are both resolved per EntityId — so nothing else in
+    // this file noticed, and the dictionary quietly grew a row for every record
+    // of that type in the account. A caller enumerating it would then hand out
+    // provenance for records the page never asked about.
+    [Fact]
+    public async Task Provenance_ReturnsOnlyTheRecordsItWasAskedFor()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var asked = Guid.NewGuid();
+        var notAsked = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, asked, "Flock.Create", "ana@farm.test", 0),
+            Event(accountId, notAsked, "Flock.Create", "bo@farm.test", 0),
+            Event(accountId, notAsked, "Flock.Update", "bo@farm.test", 5));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("Flock", [asked]));
+
+        Assert.Equal([asked], result.Keys.ToArray());
     }
 
     [Fact]

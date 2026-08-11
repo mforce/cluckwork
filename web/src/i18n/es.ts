@@ -2150,7 +2150,9 @@ export const es = {
       + "siempre se muestra, aunque tú lo hayas creado, y cancelar tu propio pedido en borrador también. "
       + "Editar tu propio borrador antes de enviarlo queda oculto: eso es simplemente escribirlo. Pero si "
       + "otra persona edita tu borrador, su cambio sí se muestra, para que nunca sea invisible quien puso "
-      + "los números que entraron en existencias.",
+      + "los números que entraron en existencias. Y a partir de ese momento también se muestran tus "
+      + "propias ediciones posteriores: si dejas los números como querías, la columna te nombra a ti y "
+      + "marca la hora en que lo hiciste, no la edición que reemplazaste.",
     auditRecordHistoryOlder:
       "Los registros creados antes de que esto se agregara no muestran la línea de \"creado por\": "
       + "simplemente no hay una entrada de creación en el registro para ellos, y no se inventa ninguna "

@@ -2557,7 +2557,9 @@ export const en = {
       + "Correcting an entry after it is locked always shows, "
       + "even if you created it, and so does cancelling your own draft order. Editing your own draft before "
       + "submitting it stays hidden — that is just writing it. But if somebody else edits your draft, their "
-      + "change is shown, so the person whose numbers went into stock is never invisible.",
+      + "change is shown, so the person whose numbers went into stock is never invisible. And once they "
+      + "have, your own later edits are shown too: if you put the numbers back the way you wanted them, "
+      + "the column names you and the time you did it, not the edit you overwrote.",
     auditRecordHistoryOlder:
       "Records created before this was added show no \"created by\" line — there is simply no creation "
       + "entry in the log for them, and none is invented after the fact. If such a record has been changed "

@@ -55,21 +55,25 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
         return all;
     }
 
-    // One chunk, two round trips. Raw SQL because DISTINCT ON is Postgres-only
+    // One chunk, three round trips. Raw SQL because DISTINCT ON is Postgres-only
     // and has no LINQ translation. EF would otherwise compose the tenant query
     // filter over this — IgnoreQueryFilters opts out of that, so the hand-written
     // AccountId predicate is then the ONLY thing scoping the read to the tenant.
     //
-    // There are FOUR such predicates below: the `created` query, the `creator`
-    // CTE, the outer last-change query, and `promoted`. The same is true of the
-    // EntityType predicate. Both sets were once mostly unguarded, and BOTH times
-    // the cause was identical: the obvious test gives each account (or type) a
-    // DISTINCT entityId, so the later predicates never run in it and survive
-    // deletion against the whole suite. Provenance_LastChange_IsScopedToTheTenant
+    // There are THREE such predicates below, one per round trip, and the same is
+    // true of the EntityType and EntityId predicates. Keeping it to one per query
+    // is deliberate rather than tidy: this scoping triple was twice shipped
+    // mostly unguarded, both times for the identical reason — the obvious test
+    // gives each account (or type) a DISTINCT entityId, so a duplicate predicate
+    // never runs in it and survives deletion against the whole suite. Copies of a
+    // predicate are what let that happen, so the last-change query derives its
+    // creator and its "was this draft shared" set from ONE `scoped` CTE rather
+    // than re-stating the triple per CTE.
+    //
+    // What actually holds the three: Provenance_LastChange_IsScopedToTheTenant
     // and Provenance_EveryQueryIsScopedToTheEntityType share ONE id across
-    // accounts and types respectively, which is what actually holds them; the
-    // fourth tenant predicate is held by Provenance_MadeOfficial_IsScopedToThe-
-    // Tenant. Do not trust this comment over a mutation run.
+    // accounts and types respectively; Provenance_MadeOfficial_IsScopedToThe-
+    // Tenant holds `promoted`. Do not trust this comment over a mutation run.
     private async Task<Dictionary<Guid, EntityProvenance>> GetProvenanceChunkAsync(
         string entityType, Guid[] ids, CancellationToken ct)
     {
@@ -107,6 +111,33 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
         // makes a shared draft attributable: rewrite a colleague's numbers before
         // they submit and your edit is the last change, even though they are
         // still the creator and their own submit stays hidden.
+        //
+        // ...and only while the creator is the ONLY person who drafted it, which
+        // is what the `shared` CTE decides. Once somebody else has edited the
+        // draft, the creator's own later edits stop being quiet housekeeping and
+        // become the answer to "whose numbers are these" — hiding them named the
+        // colleague whose work was overwritten, and dated the record to an edit
+        // that no longer exists in it. Their PROMOTION stays hidden either way:
+        // it has its own line, and repeating it as the last change would say that
+        // making a record official changed it. Held by Provenance_WhenTheCreator-
+        // RevertsSomeoneElsesEdit_NamesTheCreatorsOwnEdit.
+        //
+        // "Somebody else" is IS DISTINCT FROM, so a creatorless legacy record
+        // counts as shared. Harmless rather than overlooked: the exclusion this
+        // gates on cannot fire there anyway — nothing IS NOT DISTINCT FROM a
+        // creator that does not exist.
+        //
+        // `shared` counts DRAFTING by somebody else, not any event by somebody
+        // else, and that narrowing has NO test — deliberately, because no fixture
+        // can currently tell the two apart without being fiction. Every foreign
+        // non-drafting action on these two aggregates (Adjust, Void, Cancel)
+        // only becomes possible once drafting has ended, so the creator has no
+        // later draft edit left for the wider rule to unhide. The line stays
+        // because the narrow rule is the one intended, and the day something
+        // audits an entry it did not draft — a Lock event from the sweep, a
+        // payment against an order — the wider version would silently start
+        // reporting the creator's own edits as changes. Reported as a surviving
+        // mutant rather than papered over with a contrived test.
         //
         // Deliberately NOT every draft-to-terminal move — SalesOrder.Cancel kills
         // a draft rather than making it official, so cancelling your own order
@@ -178,24 +209,35 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
             AuditActions.SalesOrderRemoveItem,
         }).ToArray();
         var latest = await db.AuditEvents.FromSqlInterpolated($"""
-            WITH creator AS (
-                SELECT DISTINCT ON ("EntityId") "EntityId", "ActorUserId"
+            WITH scoped AS (
+                SELECT *
                 FROM "AuditEvents"
                 WHERE "AccountId" = {accountId}
                   AND "EntityType" = {entityType}
                   AND "EntityId" = ANY({ids})
-                  AND "Action" LIKE {createAction}
+            ),
+            creator AS (
+                SELECT DISTINCT ON ("EntityId") "EntityId", "ActorUserId"
+                FROM scoped
+                WHERE "Action" LIKE {createAction}
                 ORDER BY "EntityId", "OccurredAtUtc" ASC, "Id" ASC
+            ),
+            shared AS (
+                SELECT DISTINCT s."EntityId"
+                FROM scoped s
+                LEFT JOIN creator c ON c."EntityId" = s."EntityId"
+                WHERE s."Action" = ANY({draftingActions})
+                  AND s."ActorUserId" IS DISTINCT FROM c."ActorUserId"
             )
             SELECT DISTINCT ON (e."EntityId") e.*
-            FROM "AuditEvents" e
+            FROM scoped e
             LEFT JOIN creator c ON c."EntityId" = e."EntityId"
-            WHERE e."AccountId" = {accountId}
-              AND e."EntityType" = {entityType}
-              AND e."EntityId" = ANY({ids})
-              AND e."Action" NOT LIKE {createAction}
+            LEFT JOIN shared sh ON sh."EntityId" = e."EntityId"
+            WHERE e."Action" NOT LIKE {createAction}
               AND NOT (e."Action" = ANY({draftingActions})
-                       AND e."ActorUserId" IS NOT DISTINCT FROM c."ActorUserId")
+                       AND e."ActorUserId" IS NOT DISTINCT FROM c."ActorUserId"
+                       AND (e."Action" = ANY({promotionActions})
+                            OR sh."EntityId" IS NULL))
             ORDER BY e."EntityId", e."OccurredAtUtc" DESC, e."Id" DESC
             """)
             .IgnoreQueryFilters()

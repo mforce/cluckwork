@@ -458,6 +458,14 @@ case: your own edits to your own draft are part of writing it, so they are hidde
 along with your own submit, and only a **different** person's edit surfaces as a
 change.
 
+That hiding stops the moment the draft stops being yours alone. **Once somebody
+else has edited it, your own later edits are shown too** — because by then they
+are the answer to "whose numbers are these". Hiding them named the colleague
+whose work you overwrote and dated the record to an edit that no longer exists
+in it, while the numbers that went into stock were yours. Your own *promotion*
+stays hidden even here: it has its own "Submitted …" line, and repeating it as
+the last change would say that making a record official changed it.
+
 Two further consequences follow from being derived rather than stored. A record
 created **before #494** has no creation event and is **never backfilled**, so it
 shows no "created by" line — but that half is independent of the rest: if it has

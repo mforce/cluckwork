@@ -2232,7 +2232,9 @@ export const tl = {
       + "kahit ikaw ang gumawa nito, gayundin ang pagkansela ng sarili mong draft na order. Nakatago ang "
       + "pag-edit mo sa sarili mong draft bago isumite — bahagi lang iyon ng pagsulat nito. Ngunit kung iba "
       + "ang nag-edit ng draft mo, ipinapakita ang pagbabago nila, kaya hindi kailanman nawawala ang taong "
-      + "naglagay ng mga bilang na pumasok sa stock.",
+      + "naglagay ng mga bilang na pumasok sa stock. At mula noon, ipinapakita na rin ang sarili mong mga "
+      + "susunod na pag-edit: kung ibinalik mo ang mga bilang sa gusto mo, ikaw ang pinapangalanan ng "
+      + "column at ang oras na ginawa mo iyon, hindi ang pag-edit na pinalitan mo.",
     auditRecordHistoryOlder:
       "Ang mga record na ginawa bago ito idagdag ay walang linyang \"ginawa ni\" — wala lang talagang "
       + "entry ng paggawa sa log para sa kanila, at walang iniimbentong bago pagkatapos. Kung nabago ang "
