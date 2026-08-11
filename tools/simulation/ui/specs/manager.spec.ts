@@ -233,6 +233,10 @@ test.describe("Manager", () => {
     // `loadMoreLots` has parsed the body and React has committed
     // `setLotsLoading(false)` (codex rounds 8 and 9). A short page, by
     // contrast, can only mean the list is exhausted.
+    // Mirrors LOT_PAGE in web/src/routes/StockPage.tsx. Asserted against the
+    // real responses below, so a change there fails here with a message rather
+    // than a hang.
+    const LOT_PAGE = 50;
     const lotPageSizes: number[] = [];
     page.on("response", (response) => {
       if (!response.url().includes("/stock/lots")) return;
@@ -251,6 +255,7 @@ test.describe("Manager", () => {
     });
 
     await page.goto("/stock");
+    const openedLots = lotPageSizes.length;
     await page
       .getByRole("row")
       .filter({ has: page.getByRole("cell", { name: "Large", exact: true }) })
@@ -283,7 +288,12 @@ test.describe("Manager", () => {
     // So the row is re-resolved whenever it is needed, and the resolution is
     // only allowed to succeed if exactly one same-day lot carries this run's
     // produced count.
-    const ourLotIndex = async (): Promise<number> => {
+    // `mark` is the recorder's length taken BEFORE the action that reloads the
+    // list. Every call must pass one: the recorder accumulates for the whole
+    // test, so without it the poll below is satisfied by pages from an EARLIER
+    // walk and the loop can read a stale short page as end-of-list before this
+    // reload has even responded (codex round 10).
+    const ourLotIndex = async (mark: number): Promise<number> => {
       // Page to the end. The loop is driven by the SERVER's page sizes, never
       // by the pager button: while the last page came back full there is more
       // to fetch, and a short page means the list is exhausted. The button is
@@ -292,12 +302,26 @@ test.describe("Manager", () => {
       await expect(
         page.getByRole("columnheader", { name: tEn("stock:producedOnHeader") }),
       ).toBeVisible();
-      await expect.poll(() => lotPageSizes.length).toBeGreaterThan(0);
-      const fullPage = lotPageSizes[0]!;
+      // Pages belonging to THIS reload only.
+      const pages = () => lotPageSizes.slice(mark);
+      await expect.poll(() => pages().length).toBeGreaterThan(0);
+
+      // The page size is a CONSTANT, not something to infer per reload. Taking
+      // it from this reload's first page is wrong whenever that page is short:
+      // narrowed to a single day the first page comes back with fewer than
+      // LOT_PAGE lots, "short page" then compares a number against itself, the
+      // loop never exits, and it waits for a pager the app correctly never
+      // renders. That is what `hasMoreLots = page.length === LOT_PAGE` in
+      // StockPage means — a short page is the end, and only a short page is.
+      expect(
+        pages()[0]!,
+        `a lot page came back larger than LOT_PAGE (${LOT_PAGE}); StockPage's page size changed `
+          + `and this loop's end-of-list test is now wrong`,
+      ).toBeLessThanOrEqual(LOT_PAGE);
 
       for (let i = 0; i < 25; i++) {
-        const seen = lotPageSizes.length;
-        if (lotPageSizes[seen - 1]! < fullPage) break; // short page = end of list
+        const seen = pages().length;
+        if (pages()[seen - 1]! < LOT_PAGE) break; // short page = end of list
 
         const more = page.getByRole("button", { name: tEn("stock:loadMoreButton") });
         // It reappears once the previous fetch commits; a genuine end-of-list
@@ -305,7 +329,7 @@ test.describe("Manager", () => {
         // than a normal exit.
         await more.waitFor({ state: "visible" });
         await more.click();
-        await expect.poll(() => lotPageSizes.length).toBeGreaterThan(seen);
+        await expect.poll(() => pages().length).toBeGreaterThan(seen);
       }
 
       // `evaluateAll` does not auto-wait, unlike an assertion on a locator, so
@@ -329,7 +353,7 @@ test.describe("Manager", () => {
       return at;
     };
 
-    const index = await ourLotIndex();
+    const index = await ourLotIndex(openedLots);
     const lotRow = todayRows.nth(index);
     await lotRow.getByRole("button", { name: tEn("stock:writeOffButton") }).click();
 
@@ -338,6 +362,7 @@ test.describe("Manager", () => {
       .filter({ has: page.getByRole("button", { name: tEn("stock:writeOffSubmitButton") }) });
     await writeOff.getByLabel(tEn("stock:writeOffQuantityLabel"), { exact: true }).fill("2");
     await writeOff.getByLabel(tEn("stock:writeOffReasonLabel")).fill("E2E cooler breakage");
+    const submittedWriteOff = lotPageSizes.length;
     await writeOff.getByRole("button", { name: tEn("stock:writeOffSubmitButton") }).click();
 
     await expect(writeOff).toBeHidden();
@@ -347,7 +372,7 @@ test.describe("Manager", () => {
     // to page one, so the earlier index no longer points at anything reliable.
     // Produced is unchanged, which is the point: the write-off moved the
     // balance without restating the day's laying.
-    const afterWriteOff = await ourLotIndex();
+    const afterWriteOff = await ourLotIndex(submittedWriteOff);
     expect((await balances())[afterWriteOff]).toEqual([String(eggs), String(eggs - 2)]);
 
     // ---- #465: the date filter reaches lots server-side -------------------
@@ -357,9 +382,12 @@ test.describe("Manager", () => {
     await expect(page.getByText(tEn("stock:noLotsMessage"))).toBeVisible();
     // …and narrowing to exactly today brings it back, corrected balance intact.
     await page.getByLabel(tEn("stock:fromLabel"), { exact: true }).fill(today);
+    // Marked before the LAST fill: each fill triggers its own reload, and only
+    // the final one describes the window being asserted.
+    const narrowedToToday = lotPageSizes.length;
     await page.getByLabel(tEn("stock:toLabel"), { exact: true }).fill(today);
     // Re-resolved again: changing the window refetches from offset zero.
-    const afterFilter = await ourLotIndex();
+    const afterFilter = await ourLotIndex(narrowedToToday);
     expect(
       (await balances())[afterFilter],
       "narrowing the window to today did not bring back the corrected lot",
