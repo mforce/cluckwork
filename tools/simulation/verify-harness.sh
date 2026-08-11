@@ -34,7 +34,7 @@
 #     "AllowedHosts OK (cluckwork-sim.local)" while the app would receive `*`
 #     and fail its boot. reset.sh documents that exact precedence 40 lines up,
 #     for COMPOSE_PROJECT_NAME. Reproduced, not theorised.
-#   * it checked `AllowedHosts` was non-empty and had no `*` — but Program.cs
+#   * it checked `AllowedHosts` was non-empty and had no `*` — but the app
 #     splits on ';', trims and drops empties, so `; ;` passed here and failed
 #     the boot.
 #   * it grepped the compose FILE for Database__AllowInsecureConnection, so the
@@ -52,7 +52,7 @@
 # ================== WHAT THIS IS NOT ==================
 #
 # It is NOT a boot simulator, and must not grow into one. The app raises
-# InvalidOperationException from ~15 sites across 7 files (Program.cs,
+# InvalidOperationException from ~15 sites across 7 files (ServingBootGuards,
 # RateLimitingOptions, OtlpOptions, PostgresConnectionString,
 # DatabaseResilienceOptions, the two Hosting extensions). Mirroring all of them
 # here means reimplementing the app's config validation in Python and keeping
@@ -229,7 +229,8 @@ else:
     ok.append(f"FarmBanner upload limit OK ({banner_limit} bytes)")
 
 # --- #319 AllowedHosts ---------------------------------------------------
-# Parsed EXACTLY as Program.cs does: split on ';', trim, drop empties, then
+# Parsed EXACTLY as ServingBootGuards.EnsureAllowedHostsPinned does: split on
+# ';', trim, drop empties, then
 # require at least one entry and none equal to '*'. A raw non-empty/no-'*'
 # check passes "; ;" and fails the boot.
 raw = env.get("AllowedHosts")

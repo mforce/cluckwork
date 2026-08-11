@@ -39,10 +39,17 @@ using Serilog;
 if (args is [HealthCheckCliCommand.Verb, ..])
     return await HealthCheckCliCommand.RunAsync(args);
 
+// #347 — decide ONCE what this process was started to be. Every role-scoped boot
+// guard below takes this rather than relying on where its statement sits
+// relative to the CLI dispatch. `healthcheck` is a one-shot verb too and is
+// classified as one (see ProcessRoles.OneShotVerbs); its early return above is
+// a startup-cost optimisation, not what makes it safe.
+var processRole = ProcessRoles.From(args);
+
 var builder = WebApplication.CreateBuilder(args);
 
 var telemetry = builder.Services.AddCluckworkTelemetry(
-    builder.Configuration, builder.Environment, !CliDispatcher.IsCliInvocation(args));
+    builder.Configuration, builder.Environment, processRole);
 
 var persistence = builder.Services.AddCluckworkPersistence(
     builder.Configuration,
@@ -92,6 +99,13 @@ var app = builder.Build();
 foreach (var connectionStringWarning in persistence.ConnectionStringWarnings)
     app.Logger.LogWarning("{ConnectionStringWarning}", connectionStringWarning);
 
+// #260/#319 — Production boot guards for the SERVING process's security posture.
+// Deliberately called BEFORE the CLI dispatch below: what spares the one-shot
+// verbs is the role check inside, not this call's position, and putting it here
+// is the standing demonstration of that (#347). See Hosting/ServingBootGuards.cs.
+ServingBootGuards.EnsureServingConfiguration(
+    processRole, app.Environment, builder.Configuration, rateLimiting);
+
 // One-off operator commands (seed / migrate / recover-admin) run then EXIT
 // before the web host starts — Kestrel and the hosted services never run for
 // these. Each lives in Cluckwork.Api.Cli; the dispatcher returns the exit
@@ -99,56 +113,6 @@ foreach (var connectionStringWarning in persistence.ConnectionStringWarnings)
 // from the ~180 inline lines that used to sit here (#288).
 if (await CliDispatcher.TryRunAsync(app, args) is int cliExitCode)
     return cliExitCode;
-
-// #260 — proxy-trust boot guard, SERVING process only. The forwarded-headers
-// middleware above honours X-Forwarded-Proto/-For solely from the trustedProxies
-// networks; with that list empty in Production two controls silently go inert:
-// HSTS (#144) never sees the real HTTPS scheme and stops emitting, and the per-IP
-// login rate limiter (#143) collapses to one global bucket (every request looks
-// like it came from the proxy hop). Fail the boot loudly rather than run degraded.
-// Placed AFTER the CLI dispatcher's return so the one-off migrate/seed/recover-admin
-// verbs — which never serve traffic — are unaffected. Opt out only for a rare
-// direct-TLS-exposure deploy via RateLimiting:AllowNoTrustedProxies.
-// Gated on IsProduction() (not !IsDevelopment()) deliberately: the integration
-// Testing env is also empty-proxied and must still boot; a real Staging serving
-// env, if ever introduced, would be added to this gate.
-if (app.Environment.IsProduction()
-    && rateLimiting.TrustedProxies.Length == 0
-    && !rateLimiting.Options.AllowNoTrustedProxies)
-{
-    throw new InvalidOperationException(
-        "RateLimiting:TrustedProxies is empty in Production, so the app trusts no "
-        + "proxy's X-Forwarded-* headers. Two security controls then silently go "
-        + "inert: HSTS (#144) never sees the real HTTPS scheme and stops emitting, "
-        + "and the per-IP login rate limiter (#143) collapses to a single global "
-        + "bucket. Fix ONE of: (1) set RateLimiting:TrustedProxies to the edge "
-        + "proxy/load-balancer network CIDR (the hop that terminates TLS and adds "
-        + "X-Forwarded-*); or (2) for a rare deploy that terminates TLS itself with "
-        + "no fronting proxy, set RateLimiting:AllowNoTrustedProxies=true to "
-        + "acknowledge the direct-exposure trade-off and boot anyway.");
-}
-
-// #319 — AllowedHosts boot guard, SERVING process only. appsettings.json defaults
-// AllowedHosts to "*"; a deploy that omits or misnames the host variable (a blank
-// ${CLUCKWORK_HOST} substitution was observed) then silently disables Host-header
-// filtering (#144) and a forged Host header is accepted. Fail the boot loudly
-// unless a concrete public host is pinned. Loopback is force-added for health
-// probes later (AddCluckworkEdgeSecurity), so it need not appear in config here.
-// Placed AFTER the CLI dispatcher's return (like #260) so the one-off migrate/
-// seed/recover-admin verbs are unaffected; healthcheck already early-dispatches.
-if (app.Environment.IsProduction())
-{
-    var configuredHosts = (builder.Configuration["AllowedHosts"] ?? string.Empty)
-        .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-    var hasConcretePublicHost = configuredHosts.Length > 0 && configuredHosts.All(h => h != "*");
-    if (!hasConcretePublicHost)
-        throw new InvalidOperationException(
-            "AllowedHosts is missing, blank, or wildcard ('*') in Production, so Host-header "
-            + "filtering (#144) is off and a forged Host header is accepted. Set AllowedHosts to "
-            + "the concrete public hostname the app serves (the deployment supplies it as "
-            + "CLUCKWORK_HOST). Loopback (localhost/127.0.0.1/[::1]) is always allowed for "
-            + "container health probes, so it need not be listed.");
-}
 
 // One boot line makes export misconfiguration observable — a typo'd env var
 // name otherwise silently disables the whole pipeline (#226 review).

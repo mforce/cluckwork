@@ -10,15 +10,18 @@ using Serilog;
 
 internal static class CluckworkTelemetryServiceCollectionExtensions
 {
-    // isServingProcess is false for the one-off CLI verbs (migrate / seed /
-    // recover-admin). They dispatch after Build(), so a throw during service
-    // registration would abort them before CliDispatcher ever ran — see the
-    // endpoint-resolution block below for why that matters.
+    // role is OneShot for the operator verbs (migrate / seed / recover-admin /
+    // bootstrap-admin / healthcheck). They dispatch after Build(), so a throw
+    // during service registration would abort them before CliDispatcher ever ran
+    // — see the endpoint-resolution block below for why that matters. #347: the
+    // role is computed once in Program.cs and passed in, so this is the guard's
+    // own declared scope rather than a positional bool whose meaning lives at a
+    // call site far away.
     public static CluckworkTelemetryRegistration AddCluckworkTelemetry(
         this IServiceCollection services,
         IConfiguration configuration,
         IHostEnvironment environment,
-        bool isServingProcess = true)
+        ProcessRole role = ProcessRole.Serving)
     {
         // ReadFrom.Services lets DI-registered enrichers/sinks join the pipeline —
         // the integration tests tap the logger this way (#214).
@@ -68,7 +71,7 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
                 traceEndpoint = otlp.ResolveTraceEndpoint(isProduction);
                 metricsEndpoint = otlp.ResolveMetricsEndpoint(isProduction);
             }
-            catch (InvalidOperationException ex) when (!isServingProcess)
+            catch (InvalidOperationException ex) when (role is ProcessRole.OneShot)
             {
                 // A one-off verb must not die on a telemetry misconfiguration it
                 // does not depend on. `recover-admin` in particular is the

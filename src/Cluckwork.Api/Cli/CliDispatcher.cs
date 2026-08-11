@@ -20,13 +20,13 @@ public static class CliDispatcher
         new BootstrapAdminCliCommand(),
     ];
 
-    // Whether these args will dispatch to a one-off verb rather than start the
-    // web host. TryRunAsync can only answer this AFTER Build(), but service
-    // registration needs to know sooner: a registration-time guard that throws
-    // would abort a verb before it ever dispatched. Same reason #260/#319 place
-    // their serving-process guards after this dispatcher.
-    public static bool IsCliInvocation(string[] args) =>
-        args.Length > 0 && Array.Exists(Commands, c => c.Name == args[0]);
+    // Whether these args dispatch to a one-off verb rather than start the web
+    // host is answered by ProcessRoles.From(args) (Hosting/ProcessRole.cs), which
+    // reads Commands above so the two can't disagree. It deliberately does NOT
+    // live here: this dispatcher only knows the four verbs that run AFTER
+    // Build(), and `healthcheck` — dispatched before the host exists — is a
+    // one-shot process too. A predicate built from Commands alone called it
+    // Serving (#347).
 
     public static async Task<int?> TryRunAsync(WebApplication app, string[] args)
     {

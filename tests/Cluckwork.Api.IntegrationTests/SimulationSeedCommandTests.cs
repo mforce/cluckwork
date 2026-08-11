@@ -76,7 +76,9 @@ public sealed class SimulationSeedCommandTests : IClassFixture<SimulationSeedCom
         psi.Environment["ConnectionStrings__Default"] = connectionString ?? _factory.ConnectionString;
         psi.Environment["Database__Provider"] = "Postgres";
         // The Testcontainers DB is plaintext; opt out of the #262 Production TLS floor so the
-        // simulation seed verb runs (it returns before the #260 serving guard, so only this is needed).
+        // simulation seed verb runs. Only this one: the #260/#319 serving guards
+        // check ProcessRole and skip a one-shot verb (#347), and the TLS floor
+        // applies to both roles by design.
         psi.Environment["Database__AllowInsecureConnection"] = "true";
         psi.Environment["Jwt__Issuer"] = "cluckwork-test";
         psi.Environment["Jwt__Audience"] = "cluckwork-api-test";
