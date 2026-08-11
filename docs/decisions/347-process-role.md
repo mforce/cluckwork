@@ -64,11 +64,11 @@ Mutation evidence, run before the claim:
 |---|---|
 | baseline, unmutated | **green** |
 | `EnsureServingConfiguration` drops its `role` check | **red** (`migrate` aborts on #260) |
-| #316's degrade filter flipped to `Serving` | **red** — this is #331 verbatim |
+| #316's degrade filter flipped to `Serving` | **red** — #331 verbatim |
 | `healthcheck` removed from `OneShotVerbs` | **red** (registry suite) |
 | the #319 `AllowedHosts` guard deleted outright | **red** — *survived v2 entirely* |
 | the #260 `TrustedProxies` guard neutered | **red** — *survived v2 entirely* |
-| `healthcheck`'s early return removed from `Program.cs` | **red** (the assertion fires, exit 134) |
+| `healthcheck`'s early return removed from `Program.cs` | **red** (the new assertion fires, exit 134) |
 | restored | **green** |
 
 The two marked rows are the ones that matter: under v2 both mutants left every arm green, which is how the dead disjuncts were found. They are the reason the per-guard table exists, and they are the regression check on it.
@@ -77,4 +77,4 @@ Two process notes, because each nearly produced false evidence.
 
 The first mutation script restored with `git checkout --`, which **silently refuses to restore untracked files**. Two of the three targets were new files, so mutants stacked instead of reverting and two "red" results were measured against an already-mutated tree. Snapshot by file copy, and assert the restored tree is green again.
 
-And a mutant being red is not the same as being red *for the stated reason*. The fourth was re-run on its own to confirm it fails on arm 3's timeout — the serving process boots clean, logging `OTLP export enabled` — rather than on arm 1 or 2, which is the entire claim behind adding arm 3.
+And a mutant being red is not the same as being red *for the stated reason*. Each mutant is re-checked against the specific arm it should redden: the two single-guard rows must fail their own guard's arm — the serving process otherwise boots clean, logging `OTLP export enabled` — and not the one-shot arm, which is the whole claim behind deriving an arm per guard.
