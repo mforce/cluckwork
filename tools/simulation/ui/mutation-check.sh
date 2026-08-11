@@ -346,10 +346,18 @@ fi
 echo "  survived    : ${#survived[@]}  ${survived[*]:-}"
 echo "  restore     : $restore"
 
-if [ ${#survived[@]} -ne 0 ] || [ "$restore" != "GREEN" ]; then
+if [ ${#survived[@]} -ne 0 ] || [ ${#unverified[@]} -ne 0 ] || [ "$restore" != "GREEN" ]; then
   echo
   echo "NOT CLEAN. A surviving mutant means that spec does not test what it claims;"
-  echo "a red restore means a mutant left state behind. Report it, do not delete it."
+  echo "an UNVERIFIED one means nobody knows WHICH assertion it killed, which is the same"
+  echo "problem wearing a friendlier word; a red restore means a mutant left state behind."
+  echo "Report it, do not delete it."
+  # UNVERIFIED belongs in this condition (codex round 4 on #504). Without it the
+  # run printed the warning and exited 0, which made the required-declaration
+  # contract advisory: a newly added mutant could contribute no verified
+  # coverage at all while `npm run mutation` stayed green. A guard that reports
+  # a problem and then passes is precisely the failure this script exists to
+  # prevent, and it had just been reintroduced one section above.
   exit 1
 fi
 echo
