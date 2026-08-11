@@ -286,16 +286,25 @@ jobs:
       #   * WORKFLOW-COMMAND INJECTION. Everything dumped here is application
       #     output, and a logged request path or error string containing
       #     `::endgroup::` would close the group early while `::error::` would
-      #     forge an annotation. This is NOT reachable today, and the reason is
-      #     an accident worth naming: `docker compose logs` prefixes every line
-      #     with the container name (`app-1  | …`) unless `--no-log-prefix` is
-      #     passed, and GitHub only parses a workflow command at the START of a
-      #     line — so the prefix is what blocks it. An invariant nothing states
-      #     is an invariant nobody preserves, and "add --no-log-prefix, it reads
-      #     better" is a plausible future edit. So the dump is also wrapped in
-      #     `::stop-commands::`, GitHub's documented answer, and no longer
-      #     depends on that default. The token must be unpredictable: a fixed
-      #     one could itself be emitted by the logs to turn parsing back on.
+      #     forge an annotation. The anonymous /api/v1/client-errors report
+      #     (#217) is the concrete caller-controlled route into this log.
+      #
+      #     NOT reachable today, and two reviewers disagreed about why, so it
+      #     was MEASURED rather than argued. A probe step emitted
+      #     `probe-1  | ::warning::X` and `::warning::Y` on a real run
+      #     (f6793fe3, reverted in 81794277): exactly ONE annotation appeared,
+      #     the unprefixed one. `docker compose logs` prefixes every line with
+      #     the container name unless `--no-log-prefix` is passed, and GitHub
+      #     parses a workflow command only at the START of a line — so the
+      #     prefix is what blocks it.
+      #
+      #     The wrapper below is therefore belt-and-braces, NOT a fix for a live
+      #     hole — do not let this comment claim otherwise. It is kept because
+      #     the protection was an undocumented dependency on a docker-compose
+      #     default, and "add --no-log-prefix, it reads better" is a plausible
+      #     future edit that would silently reopen it. The token must be
+      #     unpredictable: a fixed one could itself be emitted by the logs to
+      #     turn parsing back on.
       #   * A HARDCODED SERVICE LIST GOES STALE. Naming the services by hand
       #     meant a service added to the compose file was silently absent, and a
       #     RENAMED one left a group that looks like it ran and is empty. The
