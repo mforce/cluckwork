@@ -220,52 +220,71 @@ test.describe("Manager", () => {
       .getByRole("button", { name: tEn("stock:lotsButton") })
       .click();
 
-    // Exact CELL matches, not hasText: a grade summary row's 5-digit balance
-    // contains any 2-digit count as a substring (that exact false match
-    // shipped in this spec's first draft). Today's date + the exact produced
-    // count pins the one lot this test created.
-    // Today's date plus the produced count does NOT pin one lot, and the
-    // comment that used to claim it did was wrong (#506): `eggs` draws from 58
-    // values and every run adds another same-day lot to this grade, so by the
-    // tenth run against one fixture a collision is likelier than not. `.first()`
-    // then selected an EARLIER run's lot — already written off, so the balance
-    // assertions below failed. That is how a mutation baseline came to fail
-    // here, in a spec the PR doing the mutating never touched.
+    // ---- Finding THIS run's lot, which took four attempts (#506) ----------
     //
-    // What pins it is the AVAILABLE column, because it distinguishes this run's
-    // lot from every earlier one at each point in time: untouched before the
-    // write-off, exactly two short after it. So the row is addressed by the
-    // balance it should have AT THAT MOMENT, and the assertion is that such a
-    // row exists.
-    // Columns are addressed POSITIONALLY — produced is td 2, available is td 3.
-    // Two `filter({ has: cell })` clauses naming the same text are satisfied by
-    // the SAME cell, so the obvious version ("a row with a cell `eggs` and a
-    // cell `available`") degenerates, while they are equal, into "a row
-    // containing `eggs` anywhere". That version clicked write-off on a lot
-    // whose AVAILABLE happened to equal our produced count, quietly took a
-    // stranger's lot from -2 to -4, and left ours untouched for the assertion
-    // below to miss.
-    const exactly = (n: number) => new RegExp(`^\\s*${n}\\s*$`);
-    const lotAtBalance = (available: number) => page
+    // Exact CELL matches, not hasText: a grade summary row's 5-digit balance
+    // contains any 2-digit count as a substring (that false match shipped in
+    // this spec's first draft).
+    //
+    // Beyond that, none of the obvious ways to name the row survive a fixture
+    // this spec has already run against, and each failed differently:
+    //
+    //   * "today + a cell holding `eggs`, .first()" — the original. `eggs`
+    //     draws from 58 values and every run leaves another same-day lot on
+    //     this grade, so it eventually selects an EARLIER run's lot, already
+    //     written off. That is how a mutation baseline came to fail here, in a
+    //     spec the PR doing the mutating never touched.
+    //   * "produced == available" as one reusable locator — the write-off
+    //     changes `available`, so the locator stopped matching the row it had
+    //     just acted on, and the spec failed two lines later on a correct row.
+    //   * two `filter({ has: cell })` clauses naming the same text — satisfied
+    //     by the SAME cell, so while produced equals available it degenerates
+    //     into "a row containing that number anywhere". It clicked write-off on
+    //     a lot whose AVAILABLE matched our produced count, took a stranger's
+    //     lot from -2 to -4, and left ours for the next assertion to miss.
+    //   * "(produced, available) positionally", re-evaluated after the
+    //     write-off — an earlier completed run leaves a row with exactly
+    //     (today, eggs, eggs - 2) too, and `ListAsync` breaks date ties by
+    //     GUID, so `.first()` can assert against that stranger instead. The
+    //     balance assertions then pass without ever inspecting our row.
+    //
+    // So the row is resolved ONCE, to an INDEX among today's rows, before
+    // anything is clicked — and every later assertion addresses that same
+    // index. Ordering is date desc then lot id, and this run adds no further
+    // lots, so the index is stable across the write-off and the date-filter
+    // round trip below.
+    const todayRows = page
       .getByRole("row")
-      .filter({ has: page.getByRole("cell", { name: today, exact: true }) })
-      .filter({ has: page.locator("td:nth-child(2)").filter({ hasText: exactly(eggs) }) })
-      .filter({ has: page.locator("td:nth-child(3)").filter({ hasText: exactly(available) }) })
-      .first();
+      .filter({ has: page.getByRole("cell", { name: today, exact: true }) });
 
-    // Deliberately NOT one locator reused across the write-off. The first
-    // version of this fix defined the row as "produced == available" and then
-    // let the existing post-write-off assertions re-use it — but the write-off
-    // changes available, so the locator stopped matching the very row it had
-    // just acted on, and the spec failed two lines later on a row that was
-    // perfectly correct.
-    const untouchedLot = lotAtBalance(eggs);
-    await expect(
-      untouchedLot,
-      `no untouched lot for ${today} with ${eggs} produced — the entry above created no lot, or `
-        + `an earlier run left one half-written-off (reset.sh clears that)`,
-    ).toBeVisible();
-    await untouchedLot.getByRole("button", { name: tEn("stock:writeOffButton") }).click();
+    const balances = async () => todayRows.evaluateAll((rows) =>
+      rows.map((row) => {
+        const cells = row.querySelectorAll("td");
+        return [cells[1]?.textContent?.trim() ?? "", cells[2]?.textContent?.trim() ?? ""];
+      }));
+
+    // Untouched — available still equals produced — is what distinguishes this
+    // run's brand-new lot from every earlier run's finished one.
+    // `evaluateAll` does NOT auto-wait, unlike an assertion on a locator, so
+    // this polls: read immediately after opening the lot list and it returns
+    // [] because the table has not rendered, which reads as "this run created
+    // no lot" rather than "ask again in a moment".
+    let index = -1;
+    await expect
+      .poll(async () => {
+        const rows = await balances();
+        index = rows.findIndex(([produced, available]) =>
+          produced === String(eggs) && available === String(eggs));
+        return index;
+      }, {
+        message:
+          `no untouched lot for ${today} with ${eggs} produced — the entry above created no lot, `
+          + `or an earlier run left one half-written-off`,
+      })
+      .toBeGreaterThanOrEqual(0);
+
+    const lotRow = todayRows.nth(index);
+    await lotRow.getByRole("button", { name: tEn("stock:writeOffButton") }).click();
 
     const writeOff = page
       .getByRole("dialog")
@@ -277,13 +296,14 @@ test.describe("Manager", () => {
     await expect(writeOff).toBeHidden();
     const announcement = page.locator('p[role="status"]');
     await expect(announcement).toContainText(prefixOf("en", "stock:writeOffRecordedMessage"));
-    // The lot row shows the new balance; produced is untouched — the write-off
-    // never restated the day's laying. Re-addressed at its new balance, since
-    // the row is identified by the pair (produced, available) and the write-off
-    // has just moved one of them.
-    const writtenOffLot = lotAtBalance(eggs - 2);
-    await expect(writtenOffLot).toBeVisible();
-    await expect(writtenOffLot.getByRole("cell", { name: String(eggs), exact: true })).toBeVisible();
+    // THE SAME ROW, by index — not "a row that now looks written off". Produced
+    // is untouched, so the write-off never restated the day's laying, and the
+    // balance moved on the lot this test actually clicked.
+    await expect
+      .poll(async () => (await balances())[index], {
+        message: "the lot this run wrote off does not show the corrected balance",
+      })
+      .toEqual([String(eggs), String(eggs - 2)]);
 
     // ---- #465: the date filter reaches lots server-side -------------------
     // A window that cannot contain this lot empties the table…
@@ -293,7 +313,11 @@ test.describe("Manager", () => {
     // …and narrowing to exactly today brings it back, corrected balance intact.
     await page.getByLabel(tEn("stock:fromLabel"), { exact: true }).fill(today);
     await page.getByLabel(tEn("stock:toLabel"), { exact: true }).fill(today);
-    await expect(lotAtBalance(eggs - 2)).toBeVisible();
+    await expect
+      .poll(async () => (await balances())[index], {
+        message: "narrowing the window to today did not bring back the corrected lot",
+      })
+      .toEqual([String(eggs), String(eggs - 2)]);
   });
 
   test("can reach the admin destinations a Worker cannot", async ({ signIn, nav }) => {
