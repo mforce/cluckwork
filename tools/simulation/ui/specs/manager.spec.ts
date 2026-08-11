@@ -357,6 +357,34 @@ test.describe("Manager", () => {
         await expect.poll(() => pages().length).toBeGreaterThan(seen);
       }
 
+      // EVERY FETCHED PAGE MUST BE ON SCREEN before identity is judged. The
+      // recorder observes a response when its body parses, which is before
+      // `loadMoreLots` commits the rows to React — so paging can exit on the
+      // terminal short page while that page is still uncommitted. The
+      // uniqueness poll below would then see one matching row, pass, and act on
+      // a lot whose twin simply had not rendered yet (codex round 12).
+      //
+      // Offsets within a walk are disjoint and this run adds no lots mid-walk
+      // (one worker, its own lot created before the list was opened), so the
+      // rendered count must equal the sum of the pages fetched. StockPage
+      // dedupes by id on append, so a SHORTFALL means offsets drifted — worth
+      // failing on rather than waiting out.
+      const lotRowsOnScreen = async () =>
+        page.getByRole("row").evaluateAll((rows) =>
+          rows.filter((row) => {
+            const first = row.querySelector("td");
+            return first !== null && /^\d{4}-\d{2}-\d{2}$/.test(first.textContent?.trim() ?? "");
+          }).length);
+
+      const fetched = pages().reduce((total, p) => total + p.size, 0);
+      await expect
+        .poll(lotRowsOnScreen, {
+          message:
+            `${fetched} lot rows were fetched for this window but the table never showed that `
+            + `many; if it settled lower, offset paging re-served rows and the dedupe dropped them`,
+        })
+        .toBe(fetched);
+
       // `evaluateAll` does not auto-wait, unlike an assertion on a locator, so
       // this polls rather than reading once.
       let at = -1;

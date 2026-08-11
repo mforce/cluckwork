@@ -165,8 +165,26 @@ supplies the AT half.
   still reports `assertive`). What is unknown is whether every AT honours that
   suppression — one that does not would announce twice, forever.
 
-A scenario 1 or 5 failure means the current design speaks twice and should be
-replaced. A scenario 2/3/4 failure means #485 is not actually fixed.
+**What this pass can and cannot decide**, restricted to the scenarios that can
+actually be run:
+
+| Outcome | What it establishes |
+|---|---|
+| Scenario 1 or 5 fails | The current design speaks twice. Replace it. |
+| **Scenario 2 fails** | **#485 is not fixed** — this is the only scenario that tests the missed-then-delivered path end to end. |
+| Scenario 2 passes | #485 is fixed for the update banner, on the pairings tested. |
+
+Nothing here decides the **farm warning** path (scenario 4) or the
+**same-commit** predicate (scenario 6), and stacking (scenario 3) is not
+reachable at all. The farm warning shares `useMissedAnnouncement` with the
+update banner, so scenario 2 is mechanism-level evidence for it and nothing
+more: the two differ in politeness (`assertive` vs `polite`), and no AT has
+been observed making that distinction here. The same-commit predicate stays
+unverified by observation.
+
+An earlier version of this section said a scenario 2/3/4 failure means #485 is
+unfixed. Two of those three cannot be performed, so the rule promised more than
+the checklist can deliver.
 
 ---
 
