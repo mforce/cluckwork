@@ -17,6 +17,14 @@ namespace Cluckwork.Application.Features.Audit;
 // and the actor, which only the repository query has. See
 // AuditEventRepository.GetProvenanceChunkAsync for the exclusion, including the
 // known same-instant residual it does not solve (#508).
+//
+// MadeOfficialAtUtc is WHEN the promotion happened, reported whether or not the
+// promoter was named above. Suppressing a self-promotion from "last changed by"
+// must not also lose the instant stock was minted, which is recorded nowhere
+// else on the record's own page — DailyEntry has no SubmittedAt, only
+// LockedAtUtc. Null for anything with no promotion step (flocks, egg grades,
+// expenses) and for a draft still awaiting one.
 public sealed record EntityProvenance(
     string CreatedByEmail, DateTimeOffset CreatedAtUtc,
-    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc);
+    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc,
+    DateTimeOffset? MadeOfficialAtUtc);

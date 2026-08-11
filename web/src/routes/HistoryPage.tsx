@@ -685,7 +685,7 @@ export function HistoryPage() {
                       ? "—"
                       : e.grades.map((g) => `${gradeName(g.eggGradeId)} ${g.quantity}`).join(", ")}
                   </td>
-                  <ProvenanceCell history={e} />
+                  <ProvenanceCell history={e} official="submitted" />
                   <td>
                     {/* Drafts are edited on the Daily entry screen (#85) —
                         open to workers too; adjust/void stay admin-only. */}

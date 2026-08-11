@@ -10,12 +10,17 @@ import { ProvenanceCell } from "./ProvenanceCell";
 const CREATED = "2026-05-01T08:00:00+00:00";
 const CHANGED = "2026-05-03T14:30:00+00:00";
 
-function renderCell(history: Parameters<typeof ProvenanceCell>[0]["history"]) {
+const OFFICIAL = "2026-05-05T09:15:00+00:00";
+
+function renderCell(
+  history: Parameters<typeof ProvenanceCell>[0]["history"],
+  official?: Parameters<typeof ProvenanceCell>[0]["official"],
+) {
   return render(
     <table>
       <tbody>
         <tr>
-          <ProvenanceCell history={history} />
+          <ProvenanceCell history={history} official={official} />
         </tr>
       </tbody>
     </table>,
@@ -92,5 +97,66 @@ describe("ProvenanceCell", () => {
     });
     expect(screen.queryByText(/Created by/i)).not.toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  // #494 — the promotion instant. A self-submit is excluded from "last changed
+  // by", so without this line the moment stock was minted would appear nowhere
+  // on the record's own page.
+  it("reports when a daily entry was submitted, even with no change to report", () => {
+    renderCell(
+      {
+        createdByEmail: "ana@farm.test",
+        createdAtUtc: CREATED,
+        lastChangedByEmail: null,
+        lastChangedAtUtc: null,
+        madeOfficialAtUtc: OFFICIAL,
+      },
+      "submitted",
+    );
+    expect(screen.getByText(/Submitted 2026-05-05 09:15:00/)).toBeInTheDocument();
+    expect(screen.queryByText(/Last changed/i)).not.toBeInTheDocument();
+  });
+
+  it("calls it confirmed on a sales order, not submitted", () => {
+    renderCell(
+      {
+        createdByEmail: "ana@farm.test",
+        createdAtUtc: CREATED,
+        lastChangedByEmail: null,
+        lastChangedAtUtc: null,
+        madeOfficialAtUtc: OFFICIAL,
+      },
+      "confirmed",
+    );
+    expect(screen.getByText(/Confirmed 2026-05-05 09:15:00/)).toBeInTheDocument();
+    expect(screen.queryByText(/Submitted/i)).not.toBeInTheDocument();
+  });
+
+  it("stays silent on a resource with no promotion step", () => {
+    // Flocks, egg grades and expenses pass no `official`, so the line cannot
+    // render even if the field somehow arrived — the caller declares whether
+    // the concept applies at all.
+    renderCell({
+      createdByEmail: "ana@farm.test",
+      createdAtUtc: CREATED,
+      lastChangedByEmail: null,
+      lastChangedAtUtc: null,
+      madeOfficialAtUtc: OFFICIAL,
+    });
+    expect(screen.queryByText(/Submitted|Confirmed/i)).not.toBeInTheDocument();
+  });
+
+  it("stays silent on a draft that has not been submitted yet", () => {
+    renderCell(
+      {
+        createdByEmail: "ana@farm.test",
+        createdAtUtc: CREATED,
+        lastChangedByEmail: null,
+        lastChangedAtUtc: null,
+        madeOfficialAtUtc: null,
+      },
+      "submitted",
+    );
+    expect(screen.queryByText(/Submitted/i)).not.toBeInTheDocument();
   });
 });

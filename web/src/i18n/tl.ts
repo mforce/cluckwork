@@ -12,6 +12,8 @@ export const tl = {
   common: {
     "recordHistory.createdBy": "Ginawa ni {{email}} noong {{at}}",
     "recordHistory.lastChangedBy": "Huling binago ni {{email}} noong {{at}}",
+    "recordHistory.submittedAt": "Naisumite noong {{at}}",
+    "recordHistory.confirmedAt": "Nakumpirma noong {{at}}",
     recordHistoryHeader: "Kasaysayan",
     cancel: "Kanselahin",
     save: "I-save",
@@ -2220,7 +2222,9 @@ export const tl = {
       + "mismo ang gumawa ng dalawa, ipinapakita ka ng column na History bilang tagalikha at walang "
       + "nakalistang pagbabago. Kung iba ang nagsumite ng iyong draft, lalabas ang pagsumite nila bilang "
       + "huling pagbabago, kaya laging makikita kung sino ang nag-opisyal sa bilang ng araw na iyon. Ganito "
-      + "rin ang pagkumpirma ng order ng benta. Ang pagwawasto sa naka-lock na entry ay laging ipinapakita, "
+      + "rin ang pagkumpirma ng order ng benta. Sa alinmang paraan, ipinapakita ng column na History kung "
+      + "KAILAN ito naisumite, dahil iyon ang sandaling pumasok sa stock ang mga itlog, at kung kailan "
+      + "inilaan ang stock para sa order. Ang pagwawasto sa naka-lock na entry ay laging ipinapakita, "
       + "kahit ikaw ang gumawa nito, gayundin ang pagkansela ng sarili mong draft na order. Ang pag-edit ng "
       + "draft — muling pagtatala ng entry, o pagdaragdag at pagtanggal ng linya sa order — ay hindi "
       + "sinusubaybayan, dahil wala roong gumagalaw sa stock.",

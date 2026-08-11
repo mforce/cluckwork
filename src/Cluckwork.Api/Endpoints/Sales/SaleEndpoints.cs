@@ -232,7 +232,8 @@ public static class SaleEndpoints
             i.Id, i.ProductId, i.EggGradeId, i.Unit.ToString(), i.BaseUnitFactor,
             i.Quantity, i.QuantityBase,
             i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit)).ToList(),
-        p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc);
+        p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc,
+        p?.MadeOfficialAtUtc);
 
     private static async Task<IResult> VoidSale(
         Guid id,
@@ -309,7 +310,10 @@ public sealed record SalesOrderResponse(
     // #494 provenance, derived from the audit trail: null together for a
     // record created before that shipped (no backfill).
     string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
-    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc);
+    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc,
+    // #494 — when the order was confirmed, i.e. when its stock was allocated.
+    // Carried separately because a self-confirm is excluded from LastChanged*.
+    DateTimeOffset? MadeOfficialAtUtc);
 
 public sealed record CreateSalesOrderRequest(Guid CustomerId, DateOnly OrderDate);
 

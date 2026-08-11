@@ -165,6 +165,92 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
         Assert.Null(provenance.LastChangedAtUtc);
     }
 
+    // Suppressing the self-promotion from "last changed BY" must not also lose
+    // WHEN it happened. The promotion is the instant stock is minted, and it is
+    // recorded nowhere else on the record's own page: DailyEntry has no
+    // SubmittedAt field, only LockedAtUtc. Draft Monday, submit Friday — before
+    // this, the row read "created Monday" and Friday existed only in the admin
+    // audit log (adversarial review of PR #503).
+    [Fact]
+    public async Task Provenance_WhenTheCreatorSubmitsTheirOwnDraft_StillReportsWhen()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "DailyEntry.Create", "ana@farm.test", 0, "DailyEntry", ana),
+            Event(accountId, entityId, "DailyEntry.Submit", "ana@farm.test", 5760, "DailyEntry", ana));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("DailyEntry", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Null(provenance.LastChangedByEmail);
+        // Four days later — the moment the eggs entered stock.
+        Assert.Equal(Base.AddMinutes(5760), provenance.MadeOfficialAtUtc);
+    }
+
+    // Reported whoever promoted it, so the two pages never disagree about when
+    // the record became official.
+    [Fact]
+    public async Task Provenance_WhenSomeoneElseSubmits_StillReportsWhenItBecameOfficial()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "DailyEntry.Create", "ana@farm.test", 0, "DailyEntry"),
+            Event(accountId, entityId, "DailyEntry.Submit", "bo@farm.test", 5, "DailyEntry"));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("DailyEntry", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Equal("bo@farm.test", provenance.LastChangedByEmail);
+        Assert.Equal(Base.AddMinutes(5), provenance.MadeOfficialAtUtc);
+    }
+
+    // The promotion lookup is a THIRD query with its own tenant predicate, so it
+    // needs its own guard — the lesson from the last-change query, where two
+    // predicates sat unguarded because every test used distinct ids per account.
+    [Fact]
+    public async Task Provenance_MadeOfficial_IsScopedToTheTenant()
+    {
+        var mine = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var theirs = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+
+        // Mine is still a draft. Theirs, sharing the id, has been submitted.
+        await SeedEventsAsync(mine,
+            Event(mine, entityId, "DailyEntry.Create", "ana@farm.test", 0, "DailyEntry"));
+        await SeedEventsAsync(theirs,
+            Event(theirs, entityId, "DailyEntry.Create", "rival@other.test", 1, "DailyEntry"),
+            Event(theirs, entityId, "DailyEntry.Submit", "rival@other.test", 2, "DailyEntry"));
+
+        var result = await WithRepositoryAsync(mine, repo =>
+            repo.GetProvenanceAsync("DailyEntry", [entityId]));
+
+        // Drop the promotion query's AccountId and my draft would claim to have
+        // been made official — by an event belonging to another farm.
+        Assert.Null(result[entityId].MadeOfficialAtUtc);
+    }
+
+    // A record with no promotion step at all — flocks, grades, expenses — and a
+    // draft still awaiting one. Nothing to report, and no zero-date invented.
+    [Fact]
+    public async Task Provenance_WithNoPromotion_ReportsNoOfficialInstant()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "Flock.Create", "ana@farm.test", 0),
+            Event(accountId, entityId, "Flock.Update", "bo@farm.test", 30));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("Flock", [entityId]));
+
+        Assert.Null(result[entityId].MadeOfficialAtUtc);
+    }
+
     // The case the whole option exists for: a worker writes the numbers, someone
     // else makes them official. Both people must be visible — that is the
     // accountability the submit step is for.
@@ -437,7 +523,8 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
 
     private sealed record ProvenanceRowDto(
         Guid Id, string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
-        string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc);
+        string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc,
+        DateTimeOffset? MadeOfficialAtUtc);
     private sealed record ExpenseListDto(List<ProvenanceRowDto> Items);
     private sealed record CreatedDto(Guid Id);
 
@@ -629,7 +716,9 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
 
         var rows = await client.GetFromJsonAsync<List<ProvenanceRowDto>>("/api/v1/sales");
 
-        AssertCreatedBy(rows!.Single(r => r.Id == orderId), email);
+        var row = rows!.Single(r => r.Id == orderId);
+        AssertCreatedBy(row, email);
+        Assert.NotNull(row.MadeOfficialAtUtc);
     }
 
     [Fact]
@@ -678,7 +767,12 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
 
         var rows = await client.GetFromJsonAsync<List<ProvenanceRowDto>>("/api/v1/daily-entries");
 
-        AssertCreatedBy(rows!.Single(r => r.Id == id), email);
+        var row = rows!.Single(r => r.Id == id);
+        AssertCreatedBy(row, email);
+        // The submit is excluded from "last changed by", but WHEN it happened
+        // still has to reach the page — it is the instant the eggs entered
+        // stock, and the entry stores no SubmittedAt of its own.
+        Assert.NotNull(row.MadeOfficialAtUtc);
     }
 
     // Most callers hand this a clamped page, but the egg-grade list has no

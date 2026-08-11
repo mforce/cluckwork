@@ -102,7 +102,8 @@ public static class DailyEntryEndpoints
         e.Version, e.AdjustReason, e.VoidReason, e.LockedAtUtc,
         // The audit snapshot is stored as JSON; embed it as an object, not a string.
         e.AdjustedFromJson is null ? null : JsonSerializer.Deserialize<JsonElement>(e.AdjustedFromJson),
-        p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc);
+        p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc,
+        p?.MadeOfficialAtUtc);
 
     private static async Task<IResult> AdjustDailyEntry(
         Guid id,
@@ -244,7 +245,11 @@ public sealed record DailyEntryResponse(
     // #494 provenance, derived from the audit trail: null together for a
     // record created before that shipped (no backfill).
     string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
-    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc);
+    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc,
+    // #494 — when the entry was submitted, i.e. when its eggs entered stock.
+    // Carried separately because a self-submit is excluded from LastChanged*,
+    // and the entry itself stores no SubmittedAt.
+    DateTimeOffset? MadeOfficialAtUtc);
 
 public sealed record GradeLineResponse(Guid EggGradeId, int Quantity);
 

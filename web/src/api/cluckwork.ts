@@ -18,6 +18,10 @@ export interface RecordHistory {
   createdAtUtc: string | null;
   lastChangedByEmail: string | null;
   lastChangedAtUtc: string | null;
+  // #494 — when the record became official. Only resources with a promotion
+  // step send it (daily entries submit, sales orders confirm), hence optional:
+  // flocks, egg grades and expenses have no such moment.
+  madeOfficialAtUtc?: string | null;
 }
 
 export interface EggGrade extends RecordHistory {

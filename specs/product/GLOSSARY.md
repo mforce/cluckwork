@@ -434,6 +434,14 @@ changing nothing in between — is shown as the creator with no change against
 them. When somebody *else* submits the draft, that submit is a real change and
 both people are named, which is the accountability the submit step exists for.
 
+Suppressing the promoter's *name* must not lose the promotion's *time*, so the
+column also carries **when** the record became official — "Submitted …" on a
+daily entry, "Confirmed …" on a sales order — shown whoever did it. That instant
+is when stock is minted or allocated, and it lives nowhere else on the record's
+own page: a daily entry stores no submission timestamp of its own, only
+`LockedAtUtc`. Blank for a draft awaiting promotion, and absent entirely on
+flocks, egg grades and expenses, which have no promotion step.
+
 The exception is keyed on the action, not on the actor, and covers promotion
 only. Correcting a locked entry always shows, including when the corrector
 created it. So does **cancelling** a draft order: `SalesOrder.Cancel` kills the

@@ -7,6 +7,8 @@ export const es = {
   common: {
     "recordHistory.createdBy": "Creado por {{email}} el {{at}}",
     "recordHistory.lastChangedBy": "Última modificación por {{email}} el {{at}}",
+    "recordHistory.submittedAt": "Enviado el {{at}}",
+    "recordHistory.confirmedAt": "Confirmado el {{at}}",
     recordHistoryHeader: "Historial",
     cancel: "Cancelar",
     save: "Guardar",
@@ -2138,7 +2140,9 @@ export const es = {
       "Guardar un registro diario y enviarlo es un solo acto, no un cambio: si haces ambas cosas tú, la "
       + "columna Historial te muestra como creador y no señala ningún cambio. Si otra persona envía tu "
       + "borrador, ese envío aparece como el último cambio, así siempre se sabe quién oficializó los "
-      + "números del día. Confirmar un pedido de venta funciona igual. Corregir un registro ya bloqueado "
+      + "números del día. En ambos casos la columna Historial indica CUÁNDO se envió, porque ese es el "
+      + "momento en que los huevos entraron en existencias. Confirmar un pedido de venta funciona igual y "
+      + "muestra cuándo se asignaron las existencias. Corregir un registro ya bloqueado "
       + "siempre se muestra, aunque tú lo hayas creado, y cancelar tu propio pedido en borrador también. "
       + "Editar un borrador — volver a registrar una entrada, o agregar y quitar líneas de un pedido — no "
       + "se registra, porque nada de eso mueve existencias.",

@@ -8,6 +8,11 @@ export const en = {
     // appears only when something happened after creation.
     "recordHistory.createdBy": "Created by {{email}} on {{at}}",
     "recordHistory.lastChangedBy": "Last changed by {{email}} on {{at}}",
+    // #494 — when the record became official. Shown even when the person who
+    // submitted or confirmed it is the same person who created it, because that
+    // case is excluded from "last changed by" and the instant would be lost.
+    "recordHistory.submittedAt": "Submitted {{at}}",
+    "recordHistory.confirmedAt": "Confirmed {{at}}",
     recordHistoryHeader: "History",
     cancel: "Cancel",
     save: "Save",
@@ -2543,7 +2548,9 @@ export const en = {
       "Saving a daily entry and submitting it is one act, not a change: do both yourself and the History "
       + "column names you as the creator with no change against you. If somebody else submits your draft, "
       + "their submit shows as the last change, so you can always see who made a day's numbers official. "
-      + "Confirming a sales order works the same way. Correcting an entry after it is locked always shows, "
+      + "Either way the History column tells you WHEN it was submitted, since that is when the eggs "
+      + "entered stock. Confirming a sales order works the same way, and shows when stock was allocated. "
+      + "Correcting an entry after it is locked always shows, "
       + "even if you created it, and so does cancelling your own draft order. Editing a draft — re-recording "
       + "an entry, or adding and removing order lines — is not tracked, because none of it moves stock.",
     auditRecordHistoryOlder:

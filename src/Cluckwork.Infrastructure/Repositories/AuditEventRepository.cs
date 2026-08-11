@@ -179,10 +179,35 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
             .AsNoTracking()
             .ToListAsync(ct);
 
+        // WHEN the record became official, reported whether or not the promoter
+        // was named as the last changer. Excluding a self-promotion from "last
+        // changed by" must not lose the instant stock was minted — it appears
+        // nowhere else on the record's own page, since DailyEntry carries no
+        // SubmittedAt (only LockedAtUtc).
+        //
+        // A separate round trip rather than something clever folded into the
+        // queries above: those two are the ones under mutation guard, and this
+        // is a plain indexed lookup on the same (AccountId, EntityId) index.
+        // At most one promotion exists per entity — neither DailyEntry nor
+        // SalesOrder has a path back to Draft — so ordering here is a formality.
+        var promoted = await db.AuditEvents.FromSqlInterpolated($"""
+            SELECT DISTINCT ON ("EntityId") *
+            FROM "AuditEvents"
+            WHERE "AccountId" = {accountId}
+              AND "EntityType" = {entityType}
+              AND "EntityId" = ANY({ids})
+              AND "Action" = ANY({promotionActions})
+            ORDER BY "EntityId", "OccurredAtUtc" ASC, "Id" ASC
+            """)
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .ToListAsync(ct);
+
         // Keyed off `created`: a record whose trail holds no creation event —
         // anything predating #494 — reports nothing at all rather than
         // attributing it to whoever happened to correct it first.
         var latestById = latest.ToDictionary(e => e.EntityId);
+        var promotedById = promoted.ToDictionary(e => e.EntityId);
         return created.ToDictionary(
             e => e.EntityId,
             e =>
@@ -190,7 +215,8 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
                 var last = latestById.GetValueOrDefault(e.EntityId);
                 return new EntityProvenance(
                     e.ActorEmail, e.OccurredAtUtc,
-                    last?.ActorEmail, last?.OccurredAtUtc);
+                    last?.ActorEmail, last?.OccurredAtUtc,
+                    promotedById.GetValueOrDefault(e.EntityId)?.OccurredAtUtc);
             });
     }
 }

@@ -929,7 +929,7 @@ export function SalesPage() {
                   <td>{customerName(o.customerId)}</td>
                   <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
                   <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
-                  <ProvenanceCell history={o} />
+                  <ProvenanceCell history={o} official="confirmed" />
                   <td><button className="link" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</button></td>
                 </tr>
               ))}
