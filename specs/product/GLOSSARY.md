@@ -442,11 +442,13 @@ own page: a daily entry stores no submission timestamp of its own, only
 `LockedAtUtc`. Blank for a draft awaiting promotion, and absent entirely on
 flocks, egg grades and expenses, which have no promotion step.
 
-The exception is keyed on the action, not on the actor, and covers promotion
-only. Correcting a locked entry always shows, including when the corrector
-created it. So does **cancelling** a draft order: `SalesOrder.Cancel` kills the
-record rather than promoting it, so cancelling your own order stays a reportable
-change.
+The exception covers **drafting** — the creator's own edits to their own draft,
+and the promotion that ends it — and nothing else. Correcting a locked entry
+always shows, including when the corrector created it. So does **cancelling** a
+draft order: `SalesOrder.Cancel` kills the record rather than making it official,
+so cancelling your own order stays a reportable change. It is keyed on the action
+*and* the actor together, which is why the same draft edit is hidden for the
+person who created the record and shown for anybody else.
 
 Editing a draft **is** recorded, even though it alters no stock, because it is
 the only thing binding a person to the numbers. Without it, someone who rewrites
@@ -457,9 +459,11 @@ along with your own submit, and only a **different** person's edit surfaces as a
 change.
 
 Two further consequences follow from being derived rather than stored. A record
-created **before #494**
-has no creation event and is **never backfilled**, so its history column is
-blank. And who can see it is exactly who could already read the record — it adds
+created **before #494** has no creation event and is **never backfilled**, so it
+shows no "created by" line — but that half is independent of the rest: if it has
+since been changed, that change still shows, with the created line simply absent.
+The column is entirely blank only for a record with nothing on the trail at all.
+And who can see it is exactly who could already read the record — it adds
 no gate of its own, so a worker reading their own daily entry also sees which
 manager corrected it. The actor is shown as the plain **email snapshot** the
 audit log already keeps, deliberately not a live-joined name: a later rename or

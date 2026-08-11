@@ -93,6 +93,32 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(Base.AddMinutes(90), provenance.LastChangedAtUtc);
     }
 
+    // A legacy record whose ONLY event is a drafting action — no ".Create", so
+    // the LEFT JOIN finds no creator and c."ActorUserId" is NULL.
+    //
+    // This is what makes IS NOT DISTINCT FROM load-bearing, which it was NOT
+    // before the result stopped being keyed off the creation event. With a plain
+    // "=", NULL comparison yields SQL NULL, NOT (drafting AND NULL) is NULL, and
+    // WHERE drops the row entirely — so a real, attributable change silently
+    // disappears rather than merely failing to be excluded (conventions review of
+    // PR #503, which caught the comment claiming this could not happen).
+    [Fact]
+    public async Task Provenance_ForALegacyRecordWhoseOnlyEventIsDrafting_StillReportsIt()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "DailyEntry.Submit", "bo@farm.test", 30, "DailyEntry"));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("DailyEntry", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Null(provenance.CreatedByEmail);
+        Assert.Equal("bo@farm.test", provenance.LastChangedByEmail);
+        Assert.Equal(Base.AddMinutes(30), provenance.LastChangedAtUtc);
+    }
+
     [Fact]
     public async Task Provenance_WithSeveralEvents_ReportsTheEarliestAndTheLatest()
     {
@@ -515,6 +541,71 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
         // stop matching, and ana would surface here instead.
         Assert.Equal("bo@farm.test", provenance.LastChangedByEmail);
         Assert.Equal(Base.AddMinutes(-5), provenance.LastChangedAtUtc);
+    }
+
+    // Every member of the drafting set, not just the two a page-level test
+    // happens to exercise. UpdateItem and RemoveItem could both be deleted from
+    // that set with the FULL 1104-test suite still green, while their two
+    // siblings were held — the "two of four covered" shape that reads as
+    // complete (adversarial review of PR #503).
+    [Fact]
+    public async Task Provenance_WhenTheCreatorReworksTheirOwnOrderLines_ReportsNoChange()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "SalesOrder.Create", "ana@farm.test", 0, "SalesOrder", ana),
+            Event(accountId, entityId, "SalesOrder.AddItem", "ana@farm.test", 1, "SalesOrder", ana),
+            Event(accountId, entityId, "SalesOrder.UpdateItem", "ana@farm.test", 2, "SalesOrder", ana),
+            Event(accountId, entityId, "SalesOrder.RemoveItem", "ana@farm.test", 3, "SalesOrder", ana),
+            Event(accountId, entityId, "SalesOrder.Confirm", "ana@farm.test", 4, "SalesOrder", ana));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("SalesOrder", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Equal("ana@farm.test", provenance.CreatedByEmail);
+        // Assembling your own order is one act. Drop any member of the drafting
+        // set and that member resurfaces here as "somebody changed your work".
+        Assert.Null(provenance.LastChangedByEmail);
+        Assert.Null(provenance.LastChangedAtUtc);
+    }
+
+    // The EntityType predicate appears FOUR times, and three of them survived
+    // deletion against the whole suite — the same miss as the tenant predicate,
+    // in the same file, found the same way. Provenance_IgnoresEventsOfAnother-
+    // EntityType holds only the `created` query, because its single foreign
+    // event is a ".Create" that the other queries exclude by action anyway.
+    //
+    // One id, four entity types, arranged so each unguarded predicate changes a
+    // different answer:
+    //   outer last-change  — a foreign Archive would become the last change
+    //   creator CTE        — a foreign, EARLIER Create would win the creator slot,
+    //                        un-suppressing ana's own submit
+    //   promoted           — a foreign, EARLIER Confirm would become the instant
+    //                        this entry supposedly became official
+    [Fact]
+    public async Task Provenance_EveryQueryIsScopedToTheEntityType()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        var rival = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "SalesOrder.Confirm", "rival@farm.test", -20, "SalesOrder", rival),
+            Event(accountId, entityId, "Flock.Create", "rival@farm.test", -10, "Flock", rival),
+            Event(accountId, entityId, "DailyEntry.Create", "ana@farm.test", 0, "DailyEntry", ana),
+            Event(accountId, entityId, "DailyEntry.Submit", "ana@farm.test", 5, "DailyEntry", ana),
+            Event(accountId, entityId, "Flock.Archive", "rival@farm.test", 90, "Flock", rival));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("DailyEntry", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Equal("ana@farm.test", provenance.CreatedByEmail);
+        Assert.Null(provenance.LastChangedByEmail);
+        Assert.Equal(Base.AddMinutes(5), provenance.MadeOfficialAtUtc);
     }
 
     [Fact]

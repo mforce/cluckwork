@@ -2234,8 +2234,10 @@ export const tl = {
       + "ang nag-edit ng draft mo, ipinapakita ang pagbabago nila, kaya hindi kailanman nawawala ang taong "
       + "naglagay ng mga bilang na pumasok sa stock.",
     auditRecordHistoryOlder:
-      "Ang mga record na ginawa bago ito idagdag ay may blangkong kolum na Kasaysayan. Walang nawawala — "
-      + "wala lang talagang entry ng paggawa sa log para sa kanila, at walang iniimbentong bago pagkatapos.",
+      "Ang mga record na ginawa bago ito idagdag ay walang linyang \"ginawa ni\" — wala lang talagang "
+      + "entry ng paggawa sa log para sa kanila, at walang iniimbentong bago pagkatapos. Kung nabago ang "
+      + "ganoong record pagkatapos, ipinapakita pa rin ang pagbabagong iyon; blangko lang ang kolum na "
+      + "Kasaysayan kapag wala talagang anuman.",
 
     exportHeading: "Export at Backup (admin)",
     exportCsv:

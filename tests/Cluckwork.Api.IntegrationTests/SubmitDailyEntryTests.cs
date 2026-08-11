@@ -322,8 +322,11 @@ public sealed class SubmitDailyEntryTests(CluckworkWebApplicationFactory factory
         var again = await RecordAsync(client, Body2(718, 700));
         Assert.Equal(entryId, again);
 
+        // Ordered explicitly: the assertion below compares a sequence, and an
+        // unordered query gives Postgres no obligation to return one.
         var events = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
             .Where(e => e.EntityType == "DailyEntry" && e.EntityId == entryId)
+            .OrderBy(e => e.OccurredAtUtc).ThenBy(e => e.Action)
             .Select(e => e.Action)
             .ToListAsync());
 

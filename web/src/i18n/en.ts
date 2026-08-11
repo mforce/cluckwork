@@ -2559,8 +2559,9 @@ export const en = {
       + "submitting it stays hidden — that is just writing it. But if somebody else edits your draft, their "
       + "change is shown, so the person whose numbers went into stock is never invisible.",
     auditRecordHistoryOlder:
-      "Records created before this was added show a blank History column. Nothing is missing — there is "
-      + "simply no creation entry in the log for them, and none is invented after the fact.",
+      "Records created before this was added show no \"created by\" line — there is simply no creation "
+      + "entry in the log for them, and none is invented after the fact. If such a record has been changed "
+      + "since, that change still shows; the History column is empty only when there is nothing at all.",
 
     // Export & backup
     exportHeading: "Export & backup (admin)",

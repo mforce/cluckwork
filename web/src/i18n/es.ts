@@ -2152,9 +2152,10 @@ export const es = {
       + "otra persona edita tu borrador, su cambio sí se muestra, para que nunca sea invisible quien puso "
       + "los números que entraron en existencias.",
     auditRecordHistoryOlder:
-      "Los registros creados antes de que esto se agregara muestran la columna Historial en blanco. No "
-      + "falta nada — simplemente no hay una entrada de creación en el registro para ellos, y no se "
-      + "inventa ninguna después.",
+      "Los registros creados antes de que esto se agregara no muestran la línea de \"creado por\": "
+      + "simplemente no hay una entrada de creación en el registro para ellos, y no se inventa ninguna "
+      + "después. Si un registro así se modificó luego, ese cambio sí se muestra; la columna Historial "
+      + "queda vacía solo cuando no hay absolutamente nada.",
 
     exportHeading: "Exportar y respaldo (admin)",
     exportCsv:

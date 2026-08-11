@@ -60,14 +60,16 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
     // filter over this — IgnoreQueryFilters opts out of that, so the hand-written
     // AccountId predicate is then the ONLY thing scoping the read to the tenant.
     //
-    // There are THREE such predicates below, not one: the `created` query, the
-    // `creator` CTE, and the outer last-change query. Each is held by a named
-    // test, and it took an adversarial pass to notice that two of them were not:
-    // Provenance_IsScopedToTheTenant covers only `created`, because it gives each
-    // account a DISTINCT entityId, so the other two predicates never ran in it
-    // and survived deletion against the whole suite. Provenance_LastChange_
-    // IsScopedToTheTenant shares ONE id across accounts and is what actually
-    // holds them. Do not trust this comment over a mutation run.
+    // There are FOUR such predicates below: the `created` query, the `creator`
+    // CTE, the outer last-change query, and `promoted`. The same is true of the
+    // EntityType predicate. Both sets were once mostly unguarded, and BOTH times
+    // the cause was identical: the obvious test gives each account (or type) a
+    // DISTINCT entityId, so the later predicates never run in it and survive
+    // deletion against the whole suite. Provenance_LastChange_IsScopedToTheTenant
+    // and Provenance_EveryQueryIsScopedToTheEntityType share ONE id across
+    // accounts and types respectively, which is what actually holds them; the
+    // fourth tenant predicate is held by Provenance_MadeOfficial_IsScopedToThe-
+    // Tenant. Do not trust this comment over a mutation run.
     private async Task<Dictionary<Guid, EntityProvenance>> GetProvenanceChunkAsync(
         string entityType, Guid[] ids, CancellationToken ct)
     {
@@ -122,13 +124,18 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
         // Identity is ActorUserId, not the email — the email is a snapshot label.
         //
         // IS NOT DISTINCT FROM rather than "=" keeps the predicate total when the
-        // LEFT JOIN finds no creator. Be honest about its status: it is NOT
-        // currently load-bearing. A record with no creation row is dropped from
-        // the result by `created` keying below, before the difference could be
-        // observed, so mutating this to a plain "=" changes no outcome and no
-        // test can catch it (adversarial review of PR #503). It stays because a
-        // NULL-propagating predicate is a trap for whoever next changes that
-        // keying — not because it prevents something reachable today.
+        // LEFT JOIN finds no creator, and it IS load-bearing. It was not while
+        // the result was keyed off the creation event — such records never
+        // reached the output — but that keying is gone (see below), so a legacy
+        // record whose only event is a drafting action now does reach it. Under a
+        // plain "=", Guid = NULL yields SQL NULL, NOT (drafting AND NULL) is NULL,
+        // and WHERE drops the row outright, losing a real attributable change
+        // rather than merely failing to exclude it. Held by
+        // Provenance_ForALegacyRecordWhoseOnlyEventIsDrafting_StillReportsIt.
+        //
+        // This comment previously asserted the opposite and was left behind when
+        // the keying changed in the same branch — the sentence that would have
+        // licensed the next person to simplify the line.
         //
         // KNOWN RESIDUAL, accepted rather than overlooked (#508). Which candidate
         // wins is still decided by ORDER BY, and the "Id" tiebreak carries no
