@@ -224,8 +224,9 @@ jobs:
       #   * `--tail` is per RUN, not per service, and the app emits one compact
       #     JSON line per HTTP request (#404). 200 lines covered 01:01:00-01:01:19
       #     — the last 19 SECONDS — while the failing test ran 01:00:21-01:00:33.
-      #     The relevant window had already scrolled off. The whole run is ~3
-      #     minutes, so the volume is bounded; there is nothing to cap.
+      #     The relevant window had already scrolled off. The run is ~3 minutes,
+      #     so per-service volume is bounded — for every service but one, see
+      #     the collector measurement below.
       #   * Interleaved services put the app's lines out of reach even when they
       #     were present. Per-service, in collapsible groups, so the app log is
       #     one click rather than a scroll through Postgres chatter.
@@ -241,6 +242,33 @@ jobs:
       # above deletes them because they carry request bodies, and #392 closed
       # that leak on purpose. Do not reopen it to get diagnosability that is
       # already available here — see #487 for the decision.
+      #
+      # What the app log DOES carry, checked rather than assumed: 603 of 628
+      # lines are `HTTP {RequestMethod} {RequestPath} responded {StatusCode}`,
+      # which is method/path/status and no body. The db log is 60 lines and
+      # carries one `STATEMENT:` — the expected pre-migration probe for
+      # __EFMigrationsHistory. Residual, recorded so it is a known trade and not
+      # an accident: Postgres includes bind parameters in the DETAIL of a
+      # FAILING statement, so a failed Identity insert could put a password HASH
+      # (never a plaintext password) in the job log. Accepted — the harness
+      # credentials are generated per run by bootstrap.sh and die with the
+      # stack.
+      #
+      # The one real credential printer is structurally excluded, and only by an
+      # implementation detail: `bootstrap-admin` prints a freshly generated
+      # temporary password to stdout (#283), but reset.sh runs it as
+      # `compose run --rm app`, a separate one-off container that is gone before
+      # this step executes — `compose logs app` reads the PERSISTENT service.
+      # Fold those verbs into the long-lived container and this dump starts
+      # carrying that password.
+      #
+      # The collector is the one stream NOT covered by SensitiveDataRedaction-
+      # Enricher (the OTLP path is documented as unredacted). Under the current
+      # config its spans carry no headers and no raw SQL — no
+      # EnrichWithHttpRequest, no SetDbStatementForText — so the 200 capped
+      # lines are safe today. Turn either of those on and this step publishes
+      # them on every green run.
+      #
       # Per-service volume is NOT uniform, which the first version of this step
       # got wrong. Measured on its own run: app 623 lines, db 60,
       # otel-collector 52075 — the collector's debug exporter echoes every span
@@ -252,19 +280,56 @@ jobs:
       # is capped. 603 of those 623 app lines are
       # `HTTP {RequestMethod} {RequestPath} responded {StatusCode}` (#404), which
       # is the evidence a trace would have been uploaded for.
+      #
+      # Two review findings, both closed below rather than argued away:
+      #
+      #   * WORKFLOW-COMMAND INJECTION. Everything dumped here is application
+      #     output, and a logged request path or error string containing
+      #     `::endgroup::` would close the group early while `::error::` would
+      #     forge an annotation. This is NOT reachable today, and the reason is
+      #     an accident worth naming: `docker compose logs` prefixes every line
+      #     with the container name (`app-1  | …`) unless `--no-log-prefix` is
+      #     passed, and GitHub only parses a workflow command at the START of a
+      #     line — so the prefix is what blocks it. An invariant nothing states
+      #     is an invariant nobody preserves, and "add --no-log-prefix, it reads
+      #     better" is a plausible future edit. So the dump is also wrapped in
+      #     `::stop-commands::`, GitHub's documented answer, and no longer
+      #     depends on that default. The token must be unpredictable: a fixed
+      #     one could itself be emitted by the logs to turn parsing back on.
+      #   * A HARDCODED SERVICE LIST GOES STALE. Naming the services by hand
+      #     meant a service added to the compose file was silently absent, and a
+      #     RENAMED one left a group that looks like it ran and is empty. The
+      #     list is now derived from `docker compose config --services`, so new
+      #     services are covered by construction — the same "walk everything,
+      #     exclude deliberately" rule AGENTS.md applies to guards. Only the
+      #     cap stays by name, which is a property of that one service.
       - name: Stack logs
         if: always()
         run: |
-          set -uo pipefail
-          compose_logs() {
-            service="$1"; shift
-            echo "::group::docker logs — $service"
+          set -euo pipefail
+          compose() {
             docker compose -p cluckwork-sim \
               --env-file tools/simulation/.env.sim \
-              -f tools/simulation/docker-compose.sim.yml \
-              logs --no-color "$@" "$service" || true
-            echo "::endgroup::"
+              -f tools/simulation/docker-compose.sim.yml "$@"
           }
-          compose_logs app
-          compose_logs db
-          compose_logs otel-collector --tail 200
+
+          services="$(compose config --services 2>/dev/null | sort || true)"
+          if [ -z "$services" ]; then
+            echo "::warning::no compose services resolved — the stack config is unreadable, so this run has no logs to diagnose from"
+            exit 0
+          fi
+
+          token="stop-$(openssl rand -hex 16)"
+          for service in $services; do
+            # Capped only for the collector — see the measurement above.
+            case "$service" in
+              otel-collector) tail_args="--tail 200" ;;
+              *)              tail_args="" ;;
+            esac
+            echo "::group::docker logs — $service"
+            echo "::stop-commands::${token}"
+            # shellcheck disable=SC2086 # deliberate word-split: empty means no cap
+            compose logs --no-color $tail_args "$service" || true
+            echo "::${token}::"
+            echo "::endgroup::"
+          done
