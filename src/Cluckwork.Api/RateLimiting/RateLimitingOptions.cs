@@ -59,8 +59,26 @@ public sealed class RateLimitingOptions
         public int QueueLimit { get; init; }
     }
 
-    public IPNetwork[] ParseTrustedProxies() =>
-        [.. TrustedProxies.Select(IPNetwork.Parse)];
+    // #347 review — a malformed entry used to surface as a bare
+    // `FormatException: An invalid IP network was specified.` from deep inside
+    // IPNetwork.Parse, naming neither the setting nor the value, and (being a
+    // FormatException) it also slipped past the role filter that spares the
+    // one-shot verbs. Both problems are the same fix: fail as a named
+    // InvalidOperationException, like every other configuration guard here.
+    public IPNetwork[] ParseTrustedProxies()
+    {
+        var networks = new IPNetwork[TrustedProxies.Length];
+        for (var i = 0; i < TrustedProxies.Length; i++)
+        {
+            var entry = TrustedProxies[i];
+            if (!IPNetwork.TryParse(entry, out networks[i]))
+                throw new InvalidOperationException(
+                    $"RateLimiting:TrustedProxies[{i}] is not a valid CIDR network: '{entry}'. "
+                    + "Use an address and prefix length, e.g. '10.0.0.0/8' or '2001:db8::/32'.");
+        }
+
+        return networks;
+    }
 
     // Fail fast at boot rather than throwing inside the partition factory on the
     // first auth request (which would surface as a 500 on the login path).
@@ -70,7 +88,7 @@ public sealed class RateLimitingOptions
         ValidateWindow(nameof(Refresh), Refresh);
         ValidateWindow(nameof(ClientErrors), ClientErrors);
         ValidateConcurrency(nameof(ReportsConcurrency), ReportsConcurrency);
-        ParseTrustedProxies(); // throws FormatException on a bad CIDR
+        ParseTrustedProxies(); // throws a named InvalidOperationException on a bad CIDR
     }
 
     private static void ValidateWindow(string name, FixedWindow window)

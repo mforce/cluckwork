@@ -10,15 +10,18 @@ using Serilog;
 
 internal static class CluckworkTelemetryServiceCollectionExtensions
 {
-    // isServingProcess is false for the one-off CLI verbs (migrate / seed /
-    // recover-admin). They dispatch after Build(), so a throw during service
-    // registration would abort them before CliDispatcher ever ran — see the
-    // endpoint-resolution block below for why that matters.
+    // role is OneShot for the operator verbs (migrate / seed / recover-admin /
+    // bootstrap-admin / healthcheck). They dispatch after Build(), so a throw
+    // during service registration would abort them before CliDispatcher ever ran
+    // — see the endpoint-resolution block below for why that matters. #347: the
+    // role is computed once in Program.cs and passed in, so this is the guard's
+    // own declared scope rather than a positional bool whose meaning lives at a
+    // call site far away.
     public static CluckworkTelemetryRegistration AddCluckworkTelemetry(
         this IServiceCollection services,
         IConfiguration configuration,
         IHostEnvironment environment,
-        bool isServingProcess = true)
+        ProcessRole role = ProcessRole.Serving)
     {
         // ReadFrom.Services lets DI-registered enrichers/sinks join the pipeline —
         // the integration tests tap the logger this way (#214).
@@ -55,32 +58,52 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
 
         // OTLP export is config-gated (#214). Endpoint and protocol are validated
         // eagerly so configuration errors fail at boot.
-        var otlp = configuration.GetSection(OtlpOptions.SectionName).Get<OtlpOptions>()
-            ?? new OtlpOptions();
-        var protocol = otlp.ParseProtocol();
         var isProduction = environment.IsProduction();
+        var otlp = new OtlpOptions();
+        var protocol = OtlpOptions.DefaultProtocol;
         Uri? traceEndpoint = null;
         Uri? metricsEndpoint = null;
-        if (otlp.Enabled)
+        try
         {
-            try
+            // Everything that can reject this section sits INSIDE this boundary —
+            // binding, protocol parsing, endpoint resolution — and that
+            // completeness is the whole point. Two rounds of review each found one
+            // more part of it outside: first ParseProtocol (so `Otlp:Protocol=bogus`
+            // killed `recover-admin` with SIGABRT 134, #331 verbatim, three lines
+            // from its own fix), then the BINDING itself (so a non-boolean
+            // `Otlp:AllowInsecureEndpoint` threw from Get<OtlpOptions>() before any
+            // of it ran). Scope the subsystem, not the setting that bit you.
+            otlp = configuration.GetSection(OtlpOptions.SectionName).Get<OtlpOptions>()
+                ?? new OtlpOptions();
+            protocol = otlp.ParseProtocol();
+            if (otlp.Enabled)
             {
                 traceEndpoint = otlp.ResolveTraceEndpoint(isProduction);
                 metricsEndpoint = otlp.ResolveMetricsEndpoint(isProduction);
             }
-            catch (InvalidOperationException ex) when (!isServingProcess)
-            {
-                // A one-off verb must not die on a telemetry misconfiguration it
-                // does not depend on. `recover-admin` in particular is the
-                // break-glass path for a locked-out farm (#265) and is
-                // deliberately NOT environment-gated — an unrelated bad
-                // Otlp:Endpoint blocking an emergency password reset would be a
-                // worse failure than the one this validation prevents. Degrade to
-                // export DISABLED rather than exporting insecurely: the verb runs,
-                // and nothing leaves the process over an unvalidated endpoint.
-                Console.Error.WriteLine(
-                    $"warning: OTLP export disabled for this command — {ex.Message}");
-            }
+        }
+        catch (InvalidOperationException ex) when (role is ProcessRole.OneShot)
+        {
+            // A one-off verb must not die on a telemetry misconfiguration it does
+            // not depend on. `recover-admin` in particular is the break-glass path
+            // for a locked-out farm (#265) and is deliberately NOT
+            // environment-gated — an unrelated bad Otlp:* setting blocking an
+            // emergency password reset would be a worse failure than the one this
+            // validation prevents. Degrade to export DISABLED rather than
+            // exporting insecurely: the verb runs, and nothing leaves the process
+            // over an unvalidated endpoint.
+            //
+            // Everything is reset, not just the part that threw: if the trace
+            // endpoint resolved and the metrics endpoint did not, keeping the
+            // first would export half a signal set from a configuration this
+            // process has already declared unusable — and a partially bound
+            // `otlp` would still feed Headers to an exporter.
+            otlp = new OtlpOptions();
+            protocol = OtlpOptions.DefaultProtocol;
+            traceEndpoint = null;
+            metricsEndpoint = null;
+            Console.Error.WriteLine(
+                $"warning: OTLP export disabled for this command — {ex.Message}");
         }
 
         Action<OtlpExporterOptions> ConfigureOtlpExporter(Uri endpoint) => options =>

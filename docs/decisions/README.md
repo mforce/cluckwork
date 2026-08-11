@@ -23,6 +23,7 @@ follow the `→` link from the `AGENTS.md` bullet to get here.
 | [Seed command and simulation profile (#280, #284, #279)](280-seed-and-simulation.md) | AGENTS · Conventions |
 | [First-run admin provisioning: `bootstrap-admin` (#283)](283-first-run-admin-provisioning.md) | AGENTS · Conventions |
 | [Migrate command + prod migration split (#263)](263-migrate-command.md) | AGENTS · Conventions |
+| [Process role, not statement order (#347)](347-process-role.md) | AGENTS · Conventions |
 | [Production Postgres TLS floor + libpq mapping (#261/#262)](261-postgres-tls-floor.md) | AGENTS · Conventions |
 | [GSS/Kerberos negotiation off by default (#332)](332-gss-kerberos.md) | AGENTS · Conventions |
 | [Container health probe: the `healthcheck` verb (#266)](266-container-health-probe.md) | AGENTS · Conventions |
@@ -40,4 +41,6 @@ The five short-enough Conventions bullets that kept their full rationale inline 
 `AGENTS.md` — break-glass recovery (#265), farm timezone (#264), the proxy-trust
 boot guard (#260), the design-time migration connection (#318), and container
 image hardening (#267) — have no record here because none of their text was
-relocated.
+relocated. #260 is the partial exception: its *rule* is still inline, but why it
+applies to the serving process and not to the CLI verbs now lives in the
+[#347 record](347-process-role.md) along with #319 and #316.

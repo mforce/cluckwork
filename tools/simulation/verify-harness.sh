@@ -34,7 +34,7 @@
 #     "AllowedHosts OK (cluckwork-sim.local)" while the app would receive `*`
 #     and fail its boot. reset.sh documents that exact precedence 40 lines up,
 #     for COMPOSE_PROJECT_NAME. Reproduced, not theorised.
-#   * it checked `AllowedHosts` was non-empty and had no `*` — but Program.cs
+#   * it checked `AllowedHosts` was non-empty and had no `*` — but the app
 #     splits on ';', trims and drops empties, so `; ;` passed here and failed
 #     the boot.
 #   * it grepped the compose FILE for Database__AllowInsecureConnection, so the
@@ -52,7 +52,7 @@
 # ================== WHAT THIS IS NOT ==================
 #
 # It is NOT a boot simulator, and must not grow into one. The app raises
-# InvalidOperationException from ~15 sites across 7 files (Program.cs,
+# InvalidOperationException from ~15 sites across 7 files (ServingBootGuards,
 # RateLimitingOptions, OtlpOptions, PostgresConnectionString,
 # DatabaseResilienceOptions, the two Hosting extensions). Mirroring all of them
 # here means reimplementing the app's config validation in Python and keeping
@@ -179,7 +179,7 @@ if grep -qi 'variable is not set' "$compose_err"; then
 fi
 
 python3 - "$resolved_json" <<'PY' || exit 1
-import json, sys
+import json, re, sys
 from urllib.parse import urlsplit
 
 cfg = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -229,7 +229,8 @@ else:
     ok.append(f"FarmBanner upload limit OK ({banner_limit} bytes)")
 
 # --- #319 AllowedHosts ---------------------------------------------------
-# Parsed EXACTLY as Program.cs does: split on ';', trim, drop empties, then
+# Parsed EXACTLY as ServingBootGuards.EnsureAllowedHostsPinned does: split on
+# ';', trim, drop empties, then
 # require at least one entry and none equal to '*'. A raw non-empty/no-'*'
 # check passes "; ;" and fails the boot.
 raw = env.get("AllowedHosts")
@@ -304,6 +305,44 @@ else:
     else:
         ok.append(f"Otlp endpoint OK ({parts.scheme}"
                   f"{', plaintext explicitly acknowledged' if parts.scheme != 'https' else ''})")
+
+# --- #510 JWT signing keys ------------------------------------------------
+# The serving boot now refuses to start unless BOTH PEMs are present and
+# actually import. The generic "variable is not set" check above cannot see
+# this: a variable set to a BLANK, or to deploy/.env.example's `replace-me`
+# armor, is set as far as compose is concerned and dies at boot instead.
+#
+# On the header's "do not add guards speculatively" rule: this one has NOT
+# broken the harness — bootstrap.sh generates a real keypair, so a freshly
+# bootstrapped .env.sim satisfies it. It is here because the AGENTS.md #370 rule
+# requires a new boot guard to reach all three harness files, and because the
+# thing it catches is one this repo actively SHIPS: deploy/.env.example's
+# `replace-me` body is a plausible copy-paste source for a hand-edited .env.sim.
+# It also cannot produce the failure mode the header is really about — it only
+# ever appends to `fail`, so it can turn a green red, never a red green.
+#
+# Deliberately NOT a reimplementation of ImportFromPem — the claim is bounded to
+# "this is a real key rather than a placeholder": armor present, and a body that
+# is substantial base64. Chasing app parity in a checker is how a checker drifts
+# from the thing it mirrors.
+for key in ("Jwt__PublicKeyPem", "Jwt__PrivateKeyPem"):
+    raw = env.get(key)
+    if raw is None or not str(raw).strip():
+        fail.append(f"{key} is missing or blank on the app service — "
+                    "#510 fails the Production boot")
+        continue
+    pem = str(raw).replace("\\n", "\n")
+    body = "".join(
+        line for line in pem.splitlines()
+        if line.strip() and not line.startswith("-----"))
+    if "-----BEGIN" not in pem or "-----END" not in pem:
+        fail.append(f"{key} has no PEM armor — #510 fails the Production boot")
+    elif len(body) < 64 or not re.fullmatch(r"[A-Za-z0-9+/=]+", body):
+        fail.append(f"{key} carries a placeholder body, not a key "
+                    "(deploy/.env.example ships `replace-me`) — "
+                    "#510 fails the Production boot; regenerate with bootstrap.sh")
+    else:
+        ok.append(f"{key} OK (PEM armor, {len(body)}-char base64 body)")
 
 for line in ok:
     print(f"  {line}")

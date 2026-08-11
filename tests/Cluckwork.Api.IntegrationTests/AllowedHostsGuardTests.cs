@@ -11,10 +11,11 @@ using Microsoft.AspNetCore.Hosting;
 // public host is pinned. The base factory runs "Testing" (guard dormant); this
 // factory flips to Production with a concrete host so the good path boots, and the
 // failure cases derive a host that removes the concrete value — mirroring
-// TrustedProxyGuardTests. CLI-verb ordering (the guard sits AFTER the CLI
-// dispatcher's return) is covered by MigrateCommandTests, which already run in
-// Production with no AllowedHosts set — i.e. the appsettings "*" wildcard — and
-// must stay green, proving migrate never reaches this serving-only guard.
+// TrustedProxyGuardTests. That the guard leaves the one-shot CLI verbs alone is
+// no longer a matter of where it sits (#347 moved it ahead of the dispatcher and
+// gave it an explicit ProcessRole check): it is covered by ProcessRoleGuardTests,
+// and by MigrateCommandTests, which already runs in Production with no
+// AllowedHosts set — i.e. the appsettings "*" wildcard — and must stay green.
 public sealed class AllowedHostsProductionFactory : CluckworkWebApplicationFactory
 {
     public const string PublicHost = "cluckwork.example";

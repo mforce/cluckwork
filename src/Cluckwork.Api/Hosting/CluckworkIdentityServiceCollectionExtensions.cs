@@ -13,9 +13,14 @@ using Microsoft.IdentityModel.Tokens;
 
 internal static class CluckworkIdentityServiceCollectionExtensions
 {
+    // role is OneShot for the operator verbs. Nothing here issues or validates a
+    // token for them — see the key guard below, which is serving-only for that
+    // reason and would otherwise be a fresh instance of the #331 class this file
+    // now has to avoid (#347/#510).
     public static IServiceCollection AddCluckworkIdentity(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ProcessRole role = ProcessRole.Serving)
     {
         services.AddScoped<CurrentUserContext>();
         services.AddScoped<ICurrentUser>(sp =>
@@ -41,15 +46,32 @@ internal static class CluckworkIdentityServiceCollectionExtensions
 
         services.Configure<JwtOptions>(
             configuration.GetSection(JwtOptions.SectionName));
-        var jwtPublicKeyPem = PemKey.Normalize(configuration["Jwt:PublicKeyPem"]
-            ?? throw new InvalidOperationException(
-                "Jwt:PublicKeyPem is not configured."));
+        // #510 — this guard used to be dead for every real deployment, and the
+        // key's CONTENT was never checked at boot at all.
+        //
+        // `configuration[...] ?? throw` only catches NULL. The shipped
+        // appsettings.json carries `"PublicKeyPem": ""`, so a deployment that
+        // loses its environment variable gets an EMPTY STRING and sailed past —
+        // the guard fired only when appsettings.json was absent entirely, which
+        // is not how the image runs. And ImportFromPem sat inside the AddJwtBearer
+        // delegate, so a malformed key was a per-request failure: the farm booted,
+        // /health/ready went green, the container HEALTHCHECK passed, and every
+        // authenticated request 500'd. An orchestrator saw a healthy instance that
+        // rejected every login.
+        //
+        // Both halves are fixed here, at boot, matching the fail-closed stance of
+        // the #261/#262 TLS floor and the #264 tzdata canary — a farm with no
+        // usable signing key must not pretend to be up.
+        var jwtPublicKeyPem = EnsureUsablePublicKey(configuration, role);
 
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
                 var rsa = RSA.Create();
+                // Still imported here because RSA is not thread-safe and this
+                // instance is the one the options hold; the boot-time import
+                // above is what decides whether the key is usable at all.
                 rsa.ImportFromPem(jwtPublicKeyPem);
 
                 options.MapInboundClaims = false;
@@ -68,6 +90,7 @@ internal static class CluckworkIdentityServiceCollectionExtensions
             });
 
         services.AddAuthorization(options => options.AddCluckworkPolicies());
+
         services.AddSingleton<
             Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler,
             ForbiddenProblemResultHandler>();
@@ -101,5 +124,56 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         services.AddScoped<IStepUpGrantService, StepUpGrantService>();
 
         return services;
+    }
+
+    // Serving-only (#347). A one-shot verb neither issues nor validates a token —
+    // `recover-admin` resets a password, `bootstrap-admin` creates an Owner,
+    // `migrate` applies DDL — so requiring a signing key of them would abort the
+    // break-glass path over configuration it does not use. That is precisely the
+    // #331 class, and making a NEW guard eager is how it would come back; this is
+    // why #510's fix belongs with #347 rather than before it.
+    //
+    // OneShotVerbMinimalConfigTests pins it from the other side: its environment
+    // carries no Jwt:* at all, so a verb that started demanding one goes red.
+    private static string EnsureUsablePublicKey(IConfiguration configuration, ProcessRole role)
+    {
+        var publicKeyPem = configuration["Jwt:PublicKeyPem"];
+        if (role is not ProcessRole.Serving)
+            return publicKeyPem ?? string.Empty;
+
+        // BOTH keys, because both fail the same way and only one of them was ever
+        // looked at here. The private key is read per-request by JwtTokenService
+        // and StepUpGrantService, so a corrupt one boots green and then 500s the
+        // login it is needed for — the same defect as the public key, one file
+        // over.
+        EnsureUsable("Jwt:PublicKeyPem", publicKeyPem);
+        EnsureUsable("Jwt:PrivateKeyPem", configuration["Jwt:PrivateKeyPem"]);
+        return PemKey.Normalize(publicKeyPem!);
+    }
+
+    private static void EnsureUsable(string key, string? pem)
+    {
+        // IsNullOrWhiteSpace, not `?? throw`: the shipped appsettings.json carries
+        // an EMPTY string for both keys, so a null check is unreachable in any
+        // real deployment and the guard was decorative (#510).
+        if (string.IsNullOrWhiteSpace(pem))
+            throw new InvalidOperationException(
+                $"{key} is not configured. The API cannot sign or validate tokens without it, "
+                + "so it refuses to start rather than accept traffic it must reject.");
+
+        using var rsa = RSA.Create();
+        try
+        {
+            rsa.ImportFromPem(PemKey.Normalize(pem));
+        }
+        catch (Exception ex) when (ex is ArgumentException or CryptographicException)
+        {
+            // Named, and at BOOT. Previously this surfaced per-request from inside
+            // the AddJwtBearer delegate: /health/ready stayed green, the container
+            // HEALTHCHECK passed, and every authenticated request 500'd — an
+            // orchestrator saw a healthy instance that rejected every login.
+            throw new InvalidOperationException(
+                $"{key} is not a usable PEM key: {ex.Message}", ex);
+        }
     }
 }
