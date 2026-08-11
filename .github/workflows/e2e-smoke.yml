@@ -303,6 +303,15 @@ jobs:
       #     services are covered by construction — the same "walk everything,
       #     exclude deliberately" rule AGENTS.md applies to guards. Only the
       #     cap stays by name, which is a property of that one service.
+      # TEMPORARY — remove before merge. Settles a factual disagreement between
+      # two reviewers about whether Compose's line prefix blocks workflow-command
+      # parsing. Whichever annotations this run produces is the answer.
+      - name: TEMP injection probe
+        if: always()
+        run: |
+          echo "probe-1  | ::warning::PREFIXED_MARKER_WAS_PARSED"
+          echo "::warning::UNPREFIXED_MARKER_WAS_PARSED"
+
       - name: Stack logs
         if: always()
         run: |
