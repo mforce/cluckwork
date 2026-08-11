@@ -407,21 +407,37 @@ test.describe("live regions under a modal", () => {
     // paragraph reports. Asserting `live === null` on its own would therefore
     // have passed even if `aria-live="off"` were being ignored completely. The
     // pair is the evidence: same role, one attribute apart, different answers.
+    // All four assertions are `expect.soft` and all four carry a named message,
+    // because the fact rests on FOUR independent sides and a hard assertion on
+    // an early one hides every later one. Three consecutive review rounds found
+    // that same hole one level further out each time: the fact had no mutant
+    // (round 14), then the control had no mutant (round 15), then the control's
+    // second assertion was unreachable behind its first (round 16). Soft
+    // assertions make every side report on the same run, so `EXPECT_MSG_FOR`
+    // can require the specific side a mutant claims to break — one mutant per
+    // side, see the four `a11y-probe-*` entries in `mutants.ts`.
     const alertPlain = await ax.node("#probe-alert-plain");
-    expect(alertPlain.role, "an explicit role=alert stopped resolving to alert").toBe("alert");
-    expect(
+    expect.soft(
+      alertPlain.role,
+      "SIDE 1 — an explicit role=alert stopped resolving to alert",
+    ).toBe("alert");
+    expect.soft(
       alertPlain.live,
-      "role=alert no longer carries implicit assertive politeness — the control this fact is "
-        + "measured against has moved",
+      "SIDE 2 — role=alert no longer carries implicit assertive politeness — the control this "
+        + "fact is measured against has moved",
     ).toBe("assertive");
 
     const alertOff = await ax.node("#probe-alert-off");
-    expect(alertOff.role).toBe("alert");
-    expect(
+    expect.soft(
+      alertOff.role,
+      "SIDE 3 — the off probe stopped resolving to alert, so the pair no longer differs by "
+        + "aria-live alone and the comparison below compares two different things",
+    ).toBe("alert");
+    expect.soft(
       alertOff.live,
-      "aria-live=\"off\" no longer suppresses the implicit politeness of role=alert (the control "
-        + "above still reports assertive) — the \"offscreen region is the only announcer\" design "
-        + "in #501 rests on it doing so",
+      "SIDE 4 — aria-live=\"off\" no longer suppresses the implicit politeness of role=alert (the "
+        + "control above still reports assertive) — the \"offscreen region is the only announcer\" "
+        + "design in #501 rests on it doing so",
     ).toBeNull();
 
     // FACT 2 — would exempting one subtree from the inert sweep put it back in

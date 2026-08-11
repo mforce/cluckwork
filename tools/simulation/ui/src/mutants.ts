@@ -31,7 +31,7 @@
 //
 // ================== THE SECOND BOUNDARY: DOM-LEVEL MUTANTS (#501) ==================
 //
-// The nine `a11y-*` mutants below do NOT go through the network. They inject a
+// The eleven `a11y-*` mutants below do NOT go through the network. They inject a
 // script into the page and break the DOM the way the corresponding regression
 // would leave it. That was added for #501, whose guarantees are entirely
 // client-side — a live region's presence in the accessibility tree is never
@@ -49,7 +49,7 @@
 // the mutants write the same text from outside. Both leave the screen reader in
 // the same state, which is the state the spec judges.
 //
-// **Eight mutants for one spec, because each earlier version covered a fraction
+// **Eleven mutants for one spec, because each earlier version covered a fraction
 // of the test it named.** The four announcer mutants differ only in WHEN they
 // write, and each is the only one that reaches its assertion:
 //   * `a11y-announcer-duplicates-banner` writes from first paint, so it kills
@@ -66,11 +66,26 @@
 // the marking, `a11y-inert-never-lifted` breaks the UN-marking, and neither
 // reaches the other's assertion. The last two are the odd ones out, and both
 // exist because an assertion nothing can falsify is not an assertion:
-// `a11y-dialog-hidden-from-tree` breaks the spec's own CONTROL, and
-// `a11y-probe-live-off-ignored` and `a11y-probe-alert-control-broken` break a
-// RECORDED BROWSER FACT rather than any product behaviour — one per side of it,
-// because "aria-live=off suppresses role=alert" only means anything if an
-// otherwise identical element still reports assertive.
+// `a11y-dialog-hidden-from-tree` breaks the spec's own CONTROL, and the four
+// `a11y-probe-*` mutants break a RECORDED BROWSER FACT rather than any product
+// behaviour.
+//
+// **Four of them for one fact, because that fact has four independent sides.**
+// "aria-live=off suppresses role=alert" means nothing unless an otherwise
+// identical element still reports assertive, so the evidence is a PAIR, and a
+// pair has four things that can rot: each probe's role, and each probe's
+// resolved politeness. Three review rounds each found the next side uncovered
+// (14: the fact; 15: the control; 16: the control's second assertion, sitting
+// unreachable behind a hard assertion on its first). The spec's four FACT 1
+// assertions are therefore `expect.soft` and individually named SIDE 1..4, and
+// each mutant declares exactly the side(s) it must die on:
+//   * `a11y-probe-alert-control-broken` strips the plain probe's role — SIDES
+//     1 AND 2, which cannot be separated this way (no role, no politeness).
+//   * `a11y-probe-alert-control-silenced` silences the plain probe while
+//     keeping its role — SIDE 2 alone, which is what makes SIDE 2 falsifiable
+//     independently of SIDE 1.
+//   * `a11y-probe-off-role-dropped` strips the OFF probe's role — SIDE 3.
+//   * `a11y-probe-live-off-ignored` strips the OFF probe's aria-live — SIDE 4.
 //
 // Each hole was found by a review asking the same question of the previous
 // fix — thirteen rounds of it, and it was still producing findings at the end,
@@ -488,25 +503,65 @@ export const MUTANTS: Record<string, Mutant> = {
 
   "a11y-probe-alert-control-broken": {
     breaks:
-      "FACT 1's CONTROL — `role=\"alert\"` is stripped from the plain probe, so it stops "
-      + "reporting implicit assertive politeness and the contrast the fact rests on is gone",
+      "FACT 1 SIDES 1 AND 2 — `role=\"alert\"` is stripped from the plain probe, so it neither "
+      + "resolves to alert nor reports implicit assertive politeness",
     caughtBy:
-      "a11y-live-regions.spec.ts — recorded browser facts (the control assertions, which "
-      + "`a11y-probe-live-off-ignored` leaves untouched)",
+      "a11y-live-regions.spec.ts — recorded browser facts (SIDE 1 and SIDE 2 together; the two "
+      + "cannot be separated by removing the role, which is why SIDE 2 has its own mutant)",
     apply: async (page) => {
-      // The sibling mutant strips `aria-live` from the OFF probe, so it kills
-      // the `live === null` assertion while leaving the control passing — the
-      // control could then be deleted and that mutant would still be counted
-      // as killed (codex round 14, on round 13's fix). This one falsifies the
-      // control instead.
-      //
-      // Both are needed because FACT 1 is a two-sided claim: `null` means
-      // "suppressed" only if an otherwise identical element reports
-      // `assertive`. One mutant per side, and `EXPECT_MSG_FOR` requires each
-      // to die on its own.
+      // This one necessarily breaks two sides at once — an element with no
+      // role has no implicit politeness either — so `EXPECT_MSG_FOR` requires
+      // BOTH messages. That is only checkable because the spec's four FACT 1
+      // assertions are soft; while SIDE 1 was hard, execution stopped there
+      // and SIDE 2 could have been deleted with this mutant still counted as
+      // killed (codex round 16, on round 15's fix).
       await page.addInitScript(() => {
         const strip = () => {
           document.getElementById("probe-alert-plain")?.removeAttribute("role");
+        };
+        new MutationObserver(strip).observe(document, { childList: true, subtree: true });
+      });
+    },
+  },
+
+  "a11y-probe-alert-control-silenced": {
+    breaks:
+      "FACT 1 SIDE 2 ALONE — the plain probe keeps `role=\"alert\"` but is given "
+      + "`aria-live=\"off\"`, so it still resolves to alert while losing its implicit politeness",
+    caughtBy:
+      "a11y-live-regions.spec.ts — recorded browser facts (SIDE 2 only; SIDE 1 must still pass)",
+    apply: async (page) => {
+      // The isolating half of the pair above: same role, no politeness. If the
+      // implicit-politeness assertion were weakened, nothing else in the suite
+      // would notice — `a11y-probe-alert-control-broken` kills SIDE 1 first and
+      // would report red regardless.
+      await page.addInitScript(() => {
+        const silence = () => {
+          document.getElementById("probe-alert-plain")?.setAttribute("aria-live", "off");
+        };
+        new MutationObserver(silence).observe(document, { childList: true, subtree: true });
+      });
+    },
+  },
+
+  "a11y-probe-off-role-dropped": {
+    breaks:
+      "FACT 1 SIDE 3 — `role` is stripped from the OFF probe, so the pair no longer differs by "
+      + "`aria-live` alone and the comparison is between two different elements",
+    caughtBy:
+      "a11y-live-regions.spec.ts — recorded browser facts (SIDE 3 alone; measured, not assumed — "
+      + "SIDE 4 keeps PASSING under this mutant, because a paragraph carrying only "
+      + "`aria-live=\"off\"` also reports no live property, which is precisely the ambiguity the "
+      + "control exists to resolve)",
+    apply: async (page) => {
+      // `alertOff.role` was the one FACT 1 assertion with neither a message nor
+      // a mutant (codex round 16). It is load-bearing: the recorded fact is
+      // "same role, one attribute apart, different answers", and if the off
+      // probe is not an alert then its `live === null` says nothing about
+      // whether `aria-live="off"` suppressed anything.
+      await page.addInitScript(() => {
+        const strip = () => {
+          document.getElementById("probe-alert-off")?.removeAttribute("role");
         };
         new MutationObserver(strip).observe(document, { childList: true, subtree: true });
       });

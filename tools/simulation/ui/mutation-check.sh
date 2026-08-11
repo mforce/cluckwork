@@ -77,6 +77,8 @@ declare -A SPEC_FOR=(
   [a11y-dialog-hidden-from-tree]="specs/a11y-live-regions.spec.ts"
   [a11y-probe-live-off-ignored]="specs/a11y-live-regions.spec.ts"
   [a11y-probe-alert-control-broken]="specs/a11y-live-regions.spec.ts"
+  [a11y-probe-alert-control-silenced]="specs/a11y-live-regions.spec.ts"
+  [a11y-probe-off-role-dropped]="specs/a11y-live-regions.spec.ts"
 )
 
 # The third test in a11y-live-regions.spec.ts (recorded browser facts) has no
@@ -124,6 +126,8 @@ declare -A GREP_FOR=(
   [a11y-dialog-hidden-from-tree]="leave the accessibility tree"
   [a11y-probe-live-off-ignored]="recorded browser facts"
   [a11y-probe-alert-control-broken]="recorded browser facts"
+  [a11y-probe-alert-control-silenced]="recorded browser facts"
+  [a11y-probe-off-role-dropped]="recorded browser facts"
 )
 
 # Mutants whose RED is known not to prove the guarantee they name. See the header.
@@ -174,8 +178,11 @@ the injected probe is a body child but the modal sweep did not inert it"
   [a11y-announcer-writes-transiently]="was written to during the dialog cycles"
   [a11y-announcer-writes-late]="was written to during the dialog cycles"
   [a11y-dialog-hidden-from-tree]="the dialog's own controls are not exposed either"
-  [a11y-probe-live-off-ignored]="no longer suppresses the implicit politeness of role=alert"
-  [a11y-probe-alert-control-broken]="an explicit role=alert stopped resolving to alert"
+  [a11y-probe-live-off-ignored]="SIDE 4 — aria-live=\"off\" no longer suppresses"
+  [a11y-probe-alert-control-broken]="SIDE 1 — an explicit role=alert stopped resolving to alert
+SIDE 2 — role=alert no longer carries implicit assertive politeness"
+  [a11y-probe-alert-control-silenced]="SIDE 2 — role=alert no longer carries implicit assertive politeness"
+  [a11y-probe-off-role-dropped]="SIDE 3 — the off probe stopped resolving to alert"
 )
 
 MUTANTS=("$@")
@@ -189,7 +196,8 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            a11y-announcer-renags-on-close a11y-announcer-writes-transiently
            a11y-announcer-writes-late a11y-inert-never-lifted
            a11y-dialog-hidden-from-tree a11y-probe-live-off-ignored
-           a11y-probe-alert-control-broken)
+           a11y-probe-alert-control-broken a11y-probe-alert-control-silenced
+           a11y-probe-off-role-dropped)
 fi
 
 rule() { printf '\n%s\n' "────────────────────────────────────────────────────────────────────────"; }
