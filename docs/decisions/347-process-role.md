@@ -67,6 +67,18 @@ Both directions are per-row, which is not symmetry for its own sake: two rows ke
 
 **And the table itself is enforced, because it was not.** Deleting the #319 row deleted its arms and the suite went from green to green — so the v2 survivor was re-openable by editing the *test*, and any guard added later was covered by nothing. "Adding a guard is a row" was an invariant living in a comment, which is a bug unless a line enforces it. `ServingGuardCoverageTests` now reflects over the three places a serving-only guard can be added — `ServingBootGuards`' check methods, `RateLimitingOptions`' validation methods, and every `IValidateOptions<>` registered with `.ValidateOnStart()` — and fails when one has no row, in both directions so a rename cannot leave a stale entry claiming coverage.
 
+### The mechanism's first consumer: #510
+
+#510 is the **opposite** failure from everything above — a serving guard that does not fire *at all* — and it is folded in here because its fix **depends on this mechanism**.
+
+Two halves, both live. `configuration["Jwt:PublicKeyPem"] ?? throw` catches only **null**, and the shipped `appsettings.json` carries `""`, so the guard fired only when `appsettings.json` was absent entirely — which is not how the image runs. And `ImportFromPem` sat inside the `AddJwtBearer` options delegate, so a corrupt key was a **per-request** failure: the farm booted, `/health/ready` went green, the container `HEALTHCHECK` passed, and every authenticated request 500'd. An orchestrator saw a healthy instance that rejected every login.
+
+Both are now boot-time, fail-closed, for **both** keys — the private one is read per-request by `JwtTokenService` and `StepUpGrantService` and had exactly the same defect one file over.
+
+**And that is why it could not land before #347.** Making this check eager without a role scope would have made it a brand-new instance of the #331 class, in the most security-sensitive file of the set: `recover-admin` — the break-glass path — would have started demanding a signing key it never uses. It takes `ProcessRole` and is skipped for one-shot verbs. `OneShotVerbMinimalConfigTests` pins that from the other side, since its environment carries no `Jwt:*` at all; the mutation that makes the guard role-blind reddens it.
+
+It also moved the coverage walk: the guard landed in `CluckworkIdentityServiceCollectionExtensions`, a **third** file, which a `ServingBootGuards`-only reflection could not see. The walk is now over the whole `Cluckwork.Api.Hosting` namespace — the same "walk everything, exclude deliberately" correction, applied one more time to the place that kept producing misses.
+
 ### Then stop enumerating: assert the property
 
 The table above is still a list, and it kept being one entry short. Five instances of this bug class were found across four review rounds — the #316 endpoint (#331 itself), `ParseProtocol` beside it, the OTLP config **binding** beside that, all of `RateLimitingOptions.Validate`, and its binding — **each found immediately after the previous "scope that subsystem" fix**. Five is not five unlucky misses; it is the method failing, and the answer is not a sixth row.

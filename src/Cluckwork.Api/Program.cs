@@ -55,7 +55,7 @@ var persistence = builder.Services.AddCluckworkPersistence(
     builder.Configuration,
     builder.Environment);
 
-builder.Services.AddCluckworkIdentity(builder.Configuration);
+builder.Services.AddCluckworkIdentity(builder.Configuration, processRole);
 
 var rateLimiting = builder.Services.AddCluckworkRateLimiting(
     builder.Configuration, processRole);

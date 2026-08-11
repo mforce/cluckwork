@@ -23,24 +23,44 @@ using Microsoft.Extensions.Options;
 // — that would be the tautology the registry test was corrected for.
 public sealed class ServingGuardCoverageTests
 {
-    // 1. Guards inside ServingBootGuards. Every private static check method
-    //    there is one, by construction of the class. Reflection rather than a
-    //    list, so a fourth method added tomorrow fails this immediately.
+    // 1. Guard methods anywhere in Cluckwork.Api.Hosting, not just inside
+    //    ServingBootGuards.
+    //
+    //    Scoping this to one type was the same "list what I thought of" method
+    //    that produced every other miss in this PR: #510's JWT key guard landed
+    //    in CluckworkIdentityServiceCollectionExtensions, a THIRD file, and a
+    //    ServingBootGuards-only walk could not see it. Walk the namespace and
+    //    exclude deliberately.
     [Fact]
     public void EveryServingBootGuardMethod_HasACoveringRow()
     {
-        var guardMethods = typeof(ServingBootGuards)
-            .GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+        var guardMethods = typeof(ServingBootGuards).Assembly
+            .GetTypes()
+            .Where(t => t.Namespace == typeof(ServingBootGuards).Namespace)
+            .SelectMany(t => t.GetMethods(BindingFlags.NonPublic | BindingFlags.Static))
             .Where(m => m.Name.StartsWith("Ensure", StringComparison.Ordinal))
             .Select(m => m.Name)
+            .Distinct(StringComparer.Ordinal)
             .ToArray();
 
         // The mapping is deliberately explicit and tiny: a method name cannot be
-        // derived from a config key, and guessing would let a rename pass.
-        var covered = new Dictionary<string, string>(StringComparer.Ordinal)
+        // derived from a config key, and guessing would let a rename pass. One
+        // entry per method, listing every token that method is responsible for —
+        // per VIOLATION, so a method with two branches owes two rows.
+        var covered = new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            ["EnsureTrustedProxiesConfigured"] = "RateLimiting:TrustedProxies is empty",
-            ["EnsureAllowedHostsPinned"] = "AllowedHosts is missing, blank, or wildcard",
+            ["EnsureTrustedProxiesConfigured"] = ["RateLimiting:TrustedProxies is empty"],
+            ["EnsureAllowedHostsPinned"] = ["AllowedHosts is missing, blank, or wildcard"],
+            // #510 — the role gate; its rows' one-shot arms are what prove a verb
+            // still runs with no signing key at all.
+            ["EnsureUsablePublicKey"] = ["Jwt:PublicKeyPem is not configured"],
+            // ...and the check itself, run once per key, two branches each.
+            ["EnsureUsable"] =
+            [
+                "Jwt:PublicKeyPem is not a usable PEM key",
+                "Jwt:PrivateKeyPem is not configured",
+                "Jwt:PrivateKeyPem is not a usable PEM key",
+            ],
         };
 
         Assert.NotEmpty(guardMethods);
@@ -61,7 +81,7 @@ public sealed class ServingGuardCoverageTests
             $"this mapping names ServingBootGuards method(s) that no longer exist: "
             + $"{string.Join(", ", stale)}. Was one renamed or removed?");
 
-        foreach (var token in covered.Values)
+        foreach (var token in covered.Values.SelectMany(t => t))
             Assert.Contains(token, ProcessRoleGuardTests.CoveredGuardTokens);
     }
 

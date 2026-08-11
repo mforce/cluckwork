@@ -188,6 +188,33 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         // The first derivation missed both because it walked `IsProduction` and
         // explicit `throw` sites, which is "list what I thought of" one
         // abstraction level up. ServingGuardCoverageTests now enumerates them.
+        // #510, folded in here because its fix DEPENDS on this PR's mechanism:
+        // making the JWT key check eager without a role scope would have been a
+        // brand-new instance of the #331 class, in the most security-sensitive
+        // file of the set. Four rows because there are four violations — each key
+        // can be missing or unusable, and only one of the four ever failed the
+        // boot before.
+        //
+        // Satisfy supplies a real generated pair (see Start); these rows break one
+        // half of it at a time.
+        new("#510 public missing", "Jwt:PublicKeyPem is not configured",
+            Violate: psi => psi.Environment["Jwt__PublicKeyPem"] = "   ",
+            Satisfy: psi => psi.Environment["Jwt__PublicKeyPem"] = TestJwtKeys.PublicKeyPem),
+
+        new("#510 public unusable", "Jwt:PublicKeyPem is not a usable PEM key",
+            Violate: psi => psi.Environment["Jwt__PublicKeyPem"] =
+                "-----BEGIN PUBLIC KEY-----\\nnot-base64\\n-----END PUBLIC KEY-----",
+            Satisfy: psi => psi.Environment["Jwt__PublicKeyPem"] = TestJwtKeys.PublicKeyPem),
+
+        new("#510 private missing", "Jwt:PrivateKeyPem is not configured",
+            Violate: psi => psi.Environment["Jwt__PrivateKeyPem"] = "   ",
+            Satisfy: psi => psi.Environment["Jwt__PrivateKeyPem"] = TestJwtKeys.PrivateKeyPem),
+
+        new("#510 private unusable", "Jwt:PrivateKeyPem is not a usable PEM key",
+            Violate: psi => psi.Environment["Jwt__PrivateKeyPem"] =
+                "-----BEGIN PRIVATE KEY-----\\nnot-base64\\n-----END PRIVATE KEY-----",
+            Satisfy: psi => psi.Environment["Jwt__PrivateKeyPem"] = TestJwtKeys.PrivateKeyPem),
+
         // Each cap is TWO rows, not one. Both validators have a floor branch
         // (<= 0) and a distinct CEILING branch (> the domain constant), and the
         // first version violated only the floor — so deleting either ceiling
