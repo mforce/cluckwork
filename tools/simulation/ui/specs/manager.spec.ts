@@ -223,6 +223,33 @@ test.describe("Manager", () => {
       tEn("dailyEntry:submittedMessage").replace("{{count}}", "1"))).toBeVisible();
 
     // ---- The write-off itself ---------------------------------------------
+    //
+    // Record the size of every lot page the SERVER sends. This is the only
+    // unambiguous end-of-list signal available: the pager button is rendered
+    // `{hasMoreLots && !lotsLoading}`, so its absence means either "no more
+    // pages" or "a fetch is in flight", and two bugs in this spec came from
+    // reading it in the second state as though it were the first. Waiting for
+    // the response did not fix that either — `waitForResponse` resolves before
+    // `loadMoreLots` has parsed the body and React has committed
+    // `setLotsLoading(false)` (codex rounds 8 and 9). A short page, by
+    // contrast, can only mean the list is exhausted.
+    const lotPageSizes: number[] = [];
+    page.on("response", (response) => {
+      if (!response.url().includes("/stock/lots")) return;
+      if (response.request().method() !== "GET" || !response.ok()) return;
+      void response
+        .json()
+        .then((body: unknown) => {
+          const items = Array.isArray(body)
+            ? body
+            : (body as { items?: unknown[] } | null)?.items;
+          if (Array.isArray(items)) lotPageSizes.push(items.length);
+        })
+        .catch(() => {
+          /* a body that cannot be read tells us nothing; the poll below waits */
+        });
+    });
+
     await page.goto("/stock");
     await page
       .getByRole("row")
@@ -230,51 +257,21 @@ test.describe("Manager", () => {
       .getByRole("button", { name: tEn("stock:lotsButton") })
       .click();
 
-    // ---- Finding THIS run's lot, which took four attempts (#506) ----------
-    //
-    // Exact CELL matches, not hasText: a grade summary row's 5-digit balance
-    // contains any 2-digit count as a substring (that false match shipped in
-    // this spec's first draft).
-    //
-    // Beyond that, none of the obvious ways to name the row survive a fixture
-    // this spec has already run against, and each failed differently:
-    //
-    //   * "today + a cell holding `eggs`, .first()" — the original. `eggs`
-    //     draws from 58 values and every run leaves another same-day lot on
-    //     this grade, so it eventually selects an EARLIER run's lot, already
-    //     written off. That is how a mutation baseline came to fail here, in a
-    //     spec the PR doing the mutating never touched.
-    //   * "produced == available" as one reusable locator — the write-off
-    //     changes `available`, so the locator stopped matching the row it had
-    //     just acted on, and the spec failed two lines later on a correct row.
-    //   * two `filter({ has: cell })` clauses naming the same text — satisfied
-    //     by the SAME cell, so while produced equals available it degenerates
-    //     into "a row containing that number anywhere". It clicked write-off on
-    //     a lot whose AVAILABLE matched our produced count, took a stranger's
-    //     lot from -2 to -4, and left ours for the next assertion to miss.
-    //   * "(produced, available) positionally", re-evaluated after the
-    //     write-off — an earlier completed run leaves a row with exactly
-    //     (today, eggs, eggs - 2) too, and `ListAsync` breaks date ties by
-    //     GUID, so `.first()` can assert against that stranger instead. The
-    //     balance assertions then pass without ever inspecting our row.
-    //
-    // So the row is resolved ONCE, to an INDEX among today's rows, before
-    // anything is clicked — and every later assertion addresses that same
-    // index. Ordering is date desc then lot id, and this run adds no further
-    // lots, so the index is stable across the write-off and the date-filter
-    // round trip below.
     const todayRows = page
       .getByRole("row")
       .filter({ has: page.getByRole("cell", { name: today, exact: true }) });
 
+    // Produced (td 2) and available (td 3) for every same-day row, read
+    // positionally. `filter({ has: cell })` cannot express this: two clauses
+    // naming the same text are satisfied by the SAME cell, so while produced
+    // equals available it collapses into "a row containing that number
+    // anywhere" — which once made this spec write off a stranger's lot.
     const balances = async () => todayRows.evaluateAll((rows) =>
       rows.map((row) => {
         const cells = row.querySelectorAll("td");
         return [cells[1]?.textContent?.trim() ?? "", cells[2]?.textContent?.trim() ?? ""];
       }));
 
-    // Untouched — available still equals produced — is what distinguishes this
-    // run's brand-new lot from every earlier run's finished one.
     // IDENTITY IS THE PRODUCED COUNT, asserted unique — not a row position and
     // not a balance. Position cannot be carried: every refetch (the write-off,
     // and the date-filter round trip below) resets the list to page one, so an
@@ -287,42 +284,28 @@ test.describe("Manager", () => {
     // only allowed to succeed if exactly one same-day lot carries this run's
     // produced count.
     const ourLotIndex = async (): Promise<number> => {
-      // The list is SERVER-PAGED at 50 and same-day rows tie-break by lot id,
-      // so a brand-new lot can sort onto a later page. Wait for the table
-      // FIRST: asking whether "load more" is visible before the panel renders
-      // returns false, breaks the loop, leaves one page loaded, and reads as
-      // "this run created no lot". That is the third read-before-settle bug in
-      // this PR, so it is called out rather than quietly fixed.
+      // Page to the end. The loop is driven by the SERVER's page sizes, never
+      // by the pager button: while the last page came back full there is more
+      // to fetch, and a short page means the list is exhausted. The button is
+      // still what gets clicked, but it is no longer what decides.
       await expect(page.getByRole("heading", { name: tEn("stock:lotsHeading") })).toBeVisible();
       await expect(
         page.getByRole("columnheader", { name: tEn("stock:producedOnHeader") }),
       ).toBeVisible();
+      await expect.poll(() => lotPageSizes.length).toBeGreaterThan(0);
+      const fullPage = lotPageSizes[0]!;
+
       for (let i = 0; i < 25; i++) {
+        const seen = lotPageSizes.length;
+        if (lotPageSizes[seen - 1]! < fullPage) break; // short page = end of list
+
         const more = page.getByRole("button", { name: tEn("stock:loadMoreButton") });
-        if (!(await more.isVisible())) break;
-        const rowsBefore = await page.getByRole("row").count();
-
-        // Each click is tied to ITS response. `StockPage` renders the button
-        // only `{hasMoreLots && !lotsLoading}`, so it disappears for the
-        // duration of every fetch — which means "the button is gone" answers
-        // two different questions and, mid-flight, answers the wrong one. A
-        // previous version polled for "rows grew OR the button went away", was
-        // satisfied instantly by the in-flight hide, and stopped after one page
-        // (codex round 8). Deciding only once the response has landed makes the
-        // button's absence mean end-of-list again.
-        const page2 = page.waitForResponse(
-          (r) => r.url().includes("/stock/lots") && r.request().method() === "GET",
-        );
+        // It reappears once the previous fetch commits; a genuine end-of-list
+        // was already caught above, so a timeout here is a real failure rather
+        // than a normal exit.
+        await more.waitFor({ state: "visible" });
         await more.click();
-        await page2;
-
-        // Then let React commit that page: either rows arrive, or the list is
-        // exhausted and the button stays gone. The final page adds nothing, so
-        // demanding growth would turn the end of the list into a failure.
-        await expect
-          .poll(async () =>
-            (await page.getByRole("row").count()) > rowsBefore || !(await more.isVisible()))
-          .toBe(true);
+        await expect.poll(() => lotPageSizes.length).toBeGreaterThan(seen);
       }
 
       // `evaluateAll` does not auto-wait, unlike an assertion on a locator, so
