@@ -11,15 +11,41 @@ using Microsoft.Extensions.Logging;
 
 internal static class CluckworkRateLimitingServiceCollectionExtensions
 {
+    // #347 review — role is OneShot for the operator verbs. Every limiter built
+    // here exists to shape INBOUND HTTP, which a run-then-exit verb never serves,
+    // so this whole section is serving-only machinery and its validation must be
+    // scoped like one. It was not: a malformed CIDR or a nonzero
+    // ReportsConcurrency:QueueLimit aborted `migrate`/`recover-admin` at service
+    // registration — #331's shape again, and a stranger inconsistency than that,
+    // because RateLimiting:TrustedProxies being EMPTY was already correctly
+    // serving-only (#260) while the SAME key being malformed was hostile to every
+    // role.
     public static CluckworkRateLimitingRegistration AddCluckworkRateLimiting(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ProcessRole role = ProcessRole.Serving)
     {
         var rateLimiting = configuration
             .GetSection(RateLimitingOptions.SectionName)
             .Get<RateLimitingOptions>() ?? new RateLimitingOptions();
-        rateLimiting.Validate();
-        var trustedProxies = rateLimiting.ParseTrustedProxies();
+        IPNetwork[] trustedProxies;
+        try
+        {
+            rateLimiting.Validate();
+            trustedProxies = rateLimiting.ParseTrustedProxies();
+        }
+        catch (InvalidOperationException ex) when (role is ProcessRole.OneShot)
+        {
+            // Same degrade as the OTLP one: warn on stderr and carry on with
+            // defaults that nothing in this process will consult, rather than
+            // taking out an operational escape hatch over configuration for a
+            // server this process is not going to be. Defaults, not the operator's
+            // values — the operator's are the ones just declared unusable.
+            Console.Error.WriteLine(
+                $"warning: rate limiting not configured for this command — {ex.Message}");
+            rateLimiting = new RateLimitingOptions();
+            trustedProxies = [];
+        }
 
         services.AddRateLimiter(limiter =>
         {

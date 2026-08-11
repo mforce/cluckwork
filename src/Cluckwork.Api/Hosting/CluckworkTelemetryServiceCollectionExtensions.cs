@@ -60,30 +60,46 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
         // eagerly so configuration errors fail at boot.
         var otlp = configuration.GetSection(OtlpOptions.SectionName).Get<OtlpOptions>()
             ?? new OtlpOptions();
-        var protocol = otlp.ParseProtocol();
         var isProduction = environment.IsProduction();
+        var protocol = OtlpOptions.DefaultProtocol;
         Uri? traceEndpoint = null;
         Uri? metricsEndpoint = null;
-        if (otlp.Enabled)
+        try
         {
-            try
+            // #347 review — ParseProtocol MUST sit inside this try. It used to be
+            // three lines above it, outside, which left #331 live in a second
+            // form: `Otlp:Protocol=bogus` killed `recover-admin` with SIGABRT 134,
+            // the break-glass verb taken out by a telemetry typo. The existing
+            // #331 regression test stepped over it by setting a valid protocol
+            // alongside the bad endpoint it was testing. Validate the WHOLE
+            // telemetry configuration in one place so no part of it can be
+            // serving-only by accident.
+            protocol = otlp.ParseProtocol();
+            if (otlp.Enabled)
             {
                 traceEndpoint = otlp.ResolveTraceEndpoint(isProduction);
                 metricsEndpoint = otlp.ResolveMetricsEndpoint(isProduction);
             }
-            catch (InvalidOperationException ex) when (role is ProcessRole.OneShot)
-            {
-                // A one-off verb must not die on a telemetry misconfiguration it
-                // does not depend on. `recover-admin` in particular is the
-                // break-glass path for a locked-out farm (#265) and is
-                // deliberately NOT environment-gated — an unrelated bad
-                // Otlp:Endpoint blocking an emergency password reset would be a
-                // worse failure than the one this validation prevents. Degrade to
-                // export DISABLED rather than exporting insecurely: the verb runs,
-                // and nothing leaves the process over an unvalidated endpoint.
-                Console.Error.WriteLine(
-                    $"warning: OTLP export disabled for this command — {ex.Message}");
-            }
+        }
+        catch (InvalidOperationException ex) when (role is ProcessRole.OneShot)
+        {
+            // A one-off verb must not die on a telemetry misconfiguration it does
+            // not depend on. `recover-admin` in particular is the break-glass path
+            // for a locked-out farm (#265) and is deliberately NOT
+            // environment-gated — an unrelated bad Otlp:* setting blocking an
+            // emergency password reset would be a worse failure than the one this
+            // validation prevents. Degrade to export DISABLED rather than
+            // exporting insecurely: the verb runs, and nothing leaves the process
+            // over an unvalidated endpoint.
+            //
+            // BOTH endpoints are cleared, not just the one that threw: if the
+            // trace endpoint resolved and the metrics endpoint did not, keeping
+            // the first would export half a signal set from a configuration this
+            // process has already declared unusable.
+            traceEndpoint = null;
+            metricsEndpoint = null;
+            Console.Error.WriteLine(
+                $"warning: OTLP export disabled for this command — {ex.Message}");
         }
 
         Action<OtlpExporterOptions> ConfigureOtlpExporter(Uri endpoint) => options =>

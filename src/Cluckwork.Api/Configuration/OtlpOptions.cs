@@ -31,9 +31,14 @@ public sealed class OtlpOptions
 
     public bool Enabled => !string.IsNullOrWhiteSpace(Endpoint);
 
+    // What an unset Otlp:Protocol means, and what a one-shot verb falls back to
+    // when it degrades to export-disabled (#347) — nothing is exported in that
+    // state, so the value only has to be a definite one rather than the right one.
+    public const OtlpExportProtocol DefaultProtocol = OtlpExportProtocol.Grpc;
+
     public OtlpExportProtocol ParseProtocol() => Protocol?.Trim().ToLowerInvariant() switch
     {
-        null or "" or "grpc" => OtlpExportProtocol.Grpc,
+        null or "" or "grpc" => DefaultProtocol,
         "http/protobuf" => OtlpExportProtocol.HttpProtobuf,
         var other => throw new InvalidOperationException(
             $"Otlp:Protocol must be 'grpc' or 'http/protobuf', got '{other}'.")

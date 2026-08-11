@@ -17,13 +17,24 @@ That is not a property anyone can read off the guard, and getting it wrong is no
 
 | Guard | Role | Where |
 |---|---|---|
-| #260 trusted proxies | `Serving` only | `ServingBootGuards.EnsureServingConfiguration` |
+| #260 trusted proxies (empty) | `Serving` only | `ServingBootGuards.EnsureServingConfiguration` |
 | #319 AllowedHosts | `Serving` only | `ServingBootGuards.EnsureServingConfiguration` |
-| #316 OTLP endpoint | `Serving` throws; `OneShot` degrades to export-disabled | `AddCluckworkTelemetry` |
+| #316 OTLP endpoint **and protocol** | `Serving` throws; `OneShot` degrades to export-disabled | `AddCluckworkTelemetry` |
+| All of `RateLimitingOptions.Validate` — malformed CIDR, window limits, the #311 queue limit | `Serving` throws; `OneShot` degrades to defaults | `AddCluckworkRateLimiting` |
+| `FarmLogo` / `FarmBanner` upload caps | `Serving` only, **by mechanism** | `AddCluckworkFeatures`, via `.ValidateOnStart()` |
 | #261/#262 Postgres TLS floor | **both** | `AddCluckworkPersistence`, unconditional |
 | #264 tzdata/ICU canary | **both** | `AddCluckworkPersistence`, unconditional |
 
-Three details are load-bearing.
+**Scope the whole subsystem, not the one setting that bit you.** Rows 3 and 4 read as they do because the first pass scoped exactly the setting #331 named and nothing else, which left two live bugs of the same shape — both found in review, both reproduced against the real binary:
+
+- `AddCluckworkTelemetry` role-checked the *endpoint* resolution, but `ParseProtocol()` sat three lines above the `try`. `Otlp:Protocol=bogus` therefore killed `recover-admin` with SIGABRT 134 — **#331 verbatim, still reproducible, immediately next to its own fix.** The #331 regression test stepped straight over it by setting a valid protocol alongside the bad endpoint it was testing.
+- `RateLimitingOptions.Validate()` ran at registration with no role check, so a malformed CIDR or a nonzero `ReportsConcurrency:QueueLimit` aborted every verb. That left `RateLimiting:TrustedProxies` **empty** correctly serving-only while the **same key malformed** was hostile to all roles — opposite classifications for one key, visible from nowhere.
+
+Rate limiting is inbound-HTTP machinery a run-then-exit verb never serves, so the whole of its validation is serving-only. Its degrade falls back to **defaults, not the operator's values** — the operator's are the ones just declared unusable. A malformed CIDR now also fails as a named `InvalidOperationException` rather than a bare `FormatException` from inside `IPNetwork.Parse`, which named neither the setting nor the value and (not being an `InvalidOperationException`) also slipped past the role filter.
+
+The last serving-only row is serving-only for a different **reason**: `.ValidateOnStart()` runs from `Host.StartAsync`, and `CliDispatcher` operates on the built host without ever starting it. Those two behave correctly today and are listed because nothing said so — convert either to an eager check inside `AddCluckworkFeatures`, the shape #316 had, and every verb aborts.
+
+Three further details are load-bearing.
 
 **`EnsureServingConfiguration` is called BEFORE the CLI dispatch, on purpose.** Leaving it below would have worked and proved nothing. A serving-only guard sitting *ahead* of the dispatcher and still not touching the verbs is the #331 failure mode disarmed rather than avoided, and it is the worked example the next guard author needs. Move that call again and nothing breaks — that is the point.
 
@@ -48,7 +59,13 @@ The first two versions both asserted *"the boot died naming ONE OF these guards"
 - **v1** — three guards, one disjunction. #316 is validated during **service registration**, ahead of `ServingBootGuards`, so the boot always died there. #260 and #319 were never proven hostile at all.
 - **v2** — added an arm that satisfied #316, and repeated the mistake one level down. `EnsureServingConfiguration` calls #260 then #319 unconditionally, so the boot always died at #260 and the `AllowedHosts` disjunct was dead. **A mutant deleting the #319 call outright survived every arm.**
 
-Two misses of the same shape mean the method is wrong, not that the list needs another entry ([guard-writing rules](407-writing-a-guard.md)). So v3 has no list of arms. Every serving-only guard is a **row in a table**, and the suite derives one arm per row: violate exactly that guard, **satisfy every other**, and require the boot to die naming that guard **and not naming any other**. No arm ever has two violations to choose between, so guard ordering cannot hide anything, and the negative half turns "a different guard caught it" from silently green into red. Adding a fourth guard is adding a row.
+Two misses of the same shape mean the method is wrong, not that the list needs another entry ([guard-writing rules](407-writing-a-guard.md)). So v3 has no list of arms. Every serving-only guard is a **row in a table**, and the suite derives **two** arms per row: one runs `migrate` with that guard violated and requires exit 0 (the guarantee), the other starts a serving process with that guard violated and **every other satisfied**, and requires it to die naming that guard **and not naming any other**. No arm ever has two violations to choose between, so guard ordering cannot hide anything, and the negative half turns "a different guard caught it" from silently green into red.
+
+Both directions are per-row, which is not symmetry for its own sake: two rows key on the **same setting in mutually exclusive states** (`RateLimiting:TrustedProxies` absent vs malformed), so a single combined "violate everything" run structurally cannot violate both, and whichever lost would have been covered by nothing — the dead-disjunct shape one level further out. Violations are applied *after* every `Satisfy` for the same reason; the first attempt at that pair failed loudly because a later `Satisfy` un-violated the row under test, which is what the negative assertions are for.
+
+**Rows are per VIOLATION, not per subsystem.** `Otlp:Endpoint` and `Otlp:Protocol` are separate rows because they had separate role behaviour, and that is exactly how the second #331 was found.
+
+**And the table itself is enforced, because it was not.** Deleting the #319 row deleted its arms and the suite went from green to green — so the v2 survivor was re-openable by editing the *test*, and any guard added later was covered by nothing. "Adding a guard is a row" was an invariant living in a comment, which is a bug unless a line enforces it. `ServingGuardCoverageTests` now reflects over the three places a serving-only guard can be added — `ServingBootGuards`' check methods, `RateLimitingOptions`' validation methods, and every `IValidateOptions<>` registered with `.ValidateOnStart()` — and fails when one has no row, in both directions so a rename cannot leave a stale entry claiming coverage.
 
 The same "list what I thought of" method had also sprung three leaks in how the child process's environment was built. The subprocess inherits the test host's environment and **#260's condition is the ABSENCE of `RateLimiting__*`**, so v2 stripped that prefix — but the strip was `Ordinal` while Linux environment keys are case-sensitive and .NET configuration keys are not (`ratelimiting__…` survived it), `ASPNETCORE_`- and `DOTNET_`-prefixed variables bind to the same configuration keys with the prefix removed, and `Otlp__` was never stripped at all — so an inherited `Otlp__AllowInsecureEndpoint` (a documented sim-harness setting) would have silently voided the #316 arm. The child environment is now **built from scratch**: cleared, then a small allow-list of OS variables, then every application setting stated explicitly.
 
@@ -68,10 +85,13 @@ Mutation evidence, run before the claim:
 | `healthcheck` removed from `OneShotVerbs` | **red** (registry suite) |
 | the #319 `AllowedHosts` guard deleted outright | **red** — *survived v2 entirely* |
 | the #260 `TrustedProxies` guard neutered | **red** — *survived v2 entirely* |
-| `healthcheck`'s early return removed from `Program.cs` | **red** (the new assertion fires, exit 134) |
+| rate-limiting validation's role scope reverted | **red** — the live bug above |
+| a row deleted from the table | **red** — *was silent before the coverage suite* |
+| `ParseProtocol` moved back outside the role-checked `try` | **red** — the other live bug above |
+| `healthcheck`'s early return removed from `Program.cs` | **red** (the assertion fires, exit 134) |
 | restored | **green** |
 
-The two marked rows are the ones that matter: under v2 both mutants left every arm green, which is how the dead disjuncts were found. They are the reason the per-guard table exists, and they are the regression check on it.
+The marked rows are the ones that matter. The two "survived v2" mutants are how the dead disjuncts were found and are the regression check on the per-guard table. The "row deleted" mutant is the regression check on the coverage suite — before it, deleting a row was green.
 
 Two process notes, because each nearly produced false evidence.
 
