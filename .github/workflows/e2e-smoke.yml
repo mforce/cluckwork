@@ -241,15 +241,30 @@ jobs:
       # above deletes them because they carry request bodies, and #392 closed
       # that leak on purpose. Do not reopen it to get diagnosability that is
       # already available here — see #487 for the decision.
+      # Per-service volume is NOT uniform, which the first version of this step
+      # got wrong. Measured on its own run: app 623 lines, db 60,
+      # otel-collector 52075 — the collector's debug exporter echoes every span
+      # and was 98.8% of the whole dump. Uncapped it re-creates, at the job-log
+      # level, the same "the app's lines are out of reach" problem this step
+      # exists to fix, and pushes a green run toward GitHub's log ceiling for no
+      # diagnostic gain: the collector is a telemetry SINK, never the subject of
+      # a Playwright failure. So app and db are dumped whole and the collector
+      # is capped. 603 of those 623 app lines are
+      # `HTTP {RequestMethod} {RequestPath} responded {StatusCode}` (#404), which
+      # is the evidence a trace would have been uploaded for.
       - name: Stack logs
         if: always()
         run: |
           set -uo pipefail
-          for service in app db otel-collector; do
+          compose_logs() {
+            service="$1"; shift
             echo "::group::docker logs — $service"
             docker compose -p cluckwork-sim \
               --env-file tools/simulation/.env.sim \
               -f tools/simulation/docker-compose.sim.yml \
-              logs --no-color "$service" || true
+              logs --no-color "$@" "$service" || true
             echo "::endgroup::"
-          done
+          }
+          compose_logs app
+          compose_logs db
+          compose_logs otel-collector --tail 200
