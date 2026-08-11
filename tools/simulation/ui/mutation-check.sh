@@ -68,7 +68,41 @@ declare -A SPEC_FOR=(
   [payment-never-settles]="specs/sales.spec.ts"
   [export-returns-nothing]="specs/owner.spec.ts"
   [language-persist-dropped]="specs/i18n.spec.ts"
+  [a11y-inert-sweep-removed]="specs/a11y-live-regions.spec.ts"
+  [a11y-announcer-duplicates-banner]="specs/a11y-live-regions.spec.ts"
+  [a11y-announcer-renags-on-close]="specs/a11y-live-regions.spec.ts"
+  [a11y-announcer-writes-transiently]="specs/a11y-live-regions.spec.ts"
+  [a11y-announcer-writes-late]="specs/a11y-live-regions.spec.ts"
+  [a11y-inert-never-lifted]="specs/a11y-live-regions.spec.ts"
+  [a11y-dialog-hidden-from-tree]="specs/a11y-live-regions.spec.ts"
+  [a11y-probe-live-off-ignored]="specs/a11y-live-regions.spec.ts"
+  [a11y-probe-alert-control-broken]="specs/a11y-live-regions.spec.ts"
+  [a11y-probe-alert-control-silenced]="specs/a11y-live-regions.spec.ts"
+  [a11y-probe-off-role-dropped]="specs/a11y-live-regions.spec.ts"
 )
+
+# The third test in a11y-live-regions.spec.ts (recorded browser facts) has no
+# mutant of its OWN, and that is correct: it records what Chromium does for two
+# designs #501 has not taken, and no mutant of this app can change Chromium's
+# mind. But it is not unmutated either — its FACT 2 opens with a precondition on
+# product behaviour (the injected probe IS inerted by the sweep), so
+# `a11y-inert-sweep-removed`'s GREP_FOR runs BOTH tests and both must go red.
+#
+# This note has now been wrong twice, in opposite directions, which is worth
+# recording as the pattern rather than just fixing:
+#   1. It claimed "no mutant of this app can break it" — false; the precondition
+#      above breaks under the inert mutant.
+#   2. Corrected to say it "goes red under that mutant" — also false at the
+#      time, because GREP_FOR selected only the first test, so the harness never
+#      executed it. A true statement about code that never runs is not coverage.
+#   3. Corrected again by widening GREP_FOR so both tests run — still not
+#      enough on its own, because one failure ends the run and the second test's
+#      precondition could quietly stop failing (codex round 2).
+# None of the three was caught by the harness. It is now: EXPECT_MSG_FOR lists
+# the browser-facts precondition as one of the messages `a11y-inert-sweep-removed`
+# must produce, so the claim in this comment is checked on every run instead of
+# being trusted. Prose asserting coverage is not coverage — that is the whole
+# lesson of this paragraph's three revisions.
 
 declare -A GREP_FOR=(
   [audit-gate-removed]="direct link to /audit"
@@ -83,11 +117,72 @@ declare -A GREP_FOR=(
   [payment-never-settles]="takes an order from new customer"
   [export-returns-nothing]="export downloads a real file"
   [language-persist-dropped]="renders that language across the shell"
+  [a11y-inert-sweep-removed]="leave the accessibility tree|recorded browser facts"
+  [a11y-announcer-duplicates-banner]="standing farm warning"
+  [a11y-announcer-renags-on-close]="standing farm warning"
+  [a11y-announcer-writes-transiently]="standing farm warning"
+  [a11y-announcer-writes-late]="standing farm warning"
+  [a11y-inert-never-lifted]="leave the accessibility tree"
+  [a11y-dialog-hidden-from-tree]="leave the accessibility tree"
+  [a11y-probe-live-off-ignored]="recorded browser facts"
+  [a11y-probe-alert-control-broken]="recorded browser facts"
+  [a11y-probe-alert-control-silenced]="recorded browser facts"
+  [a11y-probe-off-role-dropped]="recorded browser facts"
 )
 
 # Mutants whose RED is known not to prove the guarantee they name. See the header.
 declare -A FALSE_KILLS=(
   [nav-role-gate-bypassed]="the server rejects the forged token, so sign-in fails before the nav assertion runs"
+)
+
+# The assertion each mutant must die ON. One substring per line; EVERY line must
+# appear in the run's log or the kill does not count.
+#
+# **Required, not optional.** The first version made this opt-in and populated
+# only the a11y mutants. That still counted the other twelve as coverage on the
+# strength of "some assertion failed" — the exact thing this table exists to
+# stop — while the headline presented them as verified (codex round 2 on #504).
+# A mutant with no entry is now reported UNVERIFIED and kept out of the killed
+# count.
+#
+# Every line below was COPIED FROM AN OBSERVED RUN, never guessed. Three mutants
+# trip assertions that carry no custom message, so the distinctive part is
+# Playwright's locator line instead; that is weaker, and it is the honest limit
+# of this technique rather than a reason to skip them.
+#
+# Multi-line entries exist because one mutant can be required to break several
+# assertions: the two inert mutants must fail for BOTH announcers (they are
+# judged with expect.soft precisely so both reach the log), and
+# a11y-inert-sweep-removed must additionally fail the browser-facts precondition
+# its GREP_FOR now runs.
+declare -A EXPECT_MSG_FOR=(
+  [audit-gate-removed]="/audit rendered no error for a ReadOnly user"
+  [users-gate-removed]="/users rendered no error for a ReadOnly user"
+  [flock-scope-removed]="the unassigned-flock write was NOT refused"
+  [stock-pager-inert]="getByRole('button', { name: 'history', exact: true })"
+  [stock-summary-broken]="fell back to \"—\" (its fetch failed)"
+  [report-range-bound-removed]="getByRole('button', { name: 'retry' })"
+  [refresh-always-fails]="the silent refresh itself failed"
+  [logout-not-honoured]="a live refresh cookie survived the logout"
+  [nav-role-gate-bypassed]="getByRole('complementary')"
+  [payment-never-settles]="so the payment did not settle the balance"
+  [export-returns-nothing]="the export downloaded 0 bytes"
+  [language-persist-dropped]="the es preference did not survive a reload"
+  [a11y-inert-sweep-removed]="main.content > p.sr-only[aria-live=\"assertive\"] is still exposed to assistive technology with a dialog open
+#root > p.sr-only[aria-live=\"polite\"] is still exposed to assistive technology with a dialog open
+the injected probe is a body child but the modal sweep did not inert it"
+  [a11y-inert-never-lifted]="main.content > p.sr-only[aria-live=\"assertive\"] never returned to the accessibility tree
+#root > p.sr-only[aria-live=\"polite\"] never returned to the accessibility tree"
+  [a11y-announcer-duplicates-banner]="duplicated a warning the visible banner already made"
+  [a11y-announcer-renags-on-close]="re-announced a standing warning after dialog cycle"
+  [a11y-announcer-writes-transiently]="was written to during the dialog cycles"
+  [a11y-announcer-writes-late]="was written to during the dialog cycles"
+  [a11y-dialog-hidden-from-tree]="the dialog's own controls are not exposed either"
+  [a11y-probe-live-off-ignored]="SIDE 4 — aria-live=\"off\" no longer suppresses"
+  [a11y-probe-alert-control-broken]="SIDE 1 — an explicit role=alert stopped resolving to alert
+SIDE 2 — role=alert no longer carries implicit assertive politeness"
+  [a11y-probe-alert-control-silenced]="SIDE 2 — role=alert no longer carries implicit assertive politeness"
+  [a11y-probe-off-role-dropped]="SIDE 3 — the off probe stopped resolving to alert"
 )
 
 MUTANTS=("$@")
@@ -96,7 +191,13 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            stock-pager-inert stock-summary-broken report-range-bound-removed
            refresh-always-fails logout-not-honoured
            nav-role-gate-bypassed payment-never-settles export-returns-nothing
-           language-persist-dropped)
+           language-persist-dropped
+           a11y-inert-sweep-removed a11y-announcer-duplicates-banner
+           a11y-announcer-renags-on-close a11y-announcer-writes-transiently
+           a11y-announcer-writes-late a11y-inert-never-lifted
+           a11y-dialog-hidden-from-tree a11y-probe-live-off-ignored
+           a11y-probe-alert-control-broken a11y-probe-alert-control-silenced
+           a11y-probe-off-role-dropped)
 fi
 
 rule() { printf '\n%s\n' "────────────────────────────────────────────────────────────────────────"; }
@@ -120,7 +221,7 @@ rule
 echo "PHASE 2/3 — MUTANTS (each must turn its spec RED)"
 rule
 
-killed=(); survived=(); false_killed=()
+killed=(); survived=(); false_killed=(); unverified=()
 for name in "${MUTANTS[@]}"; do
   spec="${SPEC_FOR[$name]:-}"
   pattern="${GREP_FOR[$name]:-}"
@@ -183,7 +284,38 @@ for name in "${MUTANTS[@]}"; do
       echo "     INCONCLUSIVE — the run errored without a test failure (see $log)"
       survived+=("$name (no test failure)")
     elif grep -qE "^[[:space:]]*(Error: )?expect\((received|locator)\)" "$log"; then
-      if [ -n "${FALSE_KILLS[$name]:-}" ]; then
+      # An assertion failed — but WHICH one? Three times running, a mutant on
+      # PR #504 died at an assertion EARLIER than the one it names, leaving the
+      # assertion it was written for uncovered while the run printed a clean
+      # kill: an `inert` poll used as a settling signal, an announcer mutant
+      # that fired before the loop below it, and a precondition the `-g` filter
+      # never executed. Reviewers caught all three; the harness caught none,
+      # because "something failed" was the only question it asked.
+      #
+      # So every mutant DECLARES the text it must die on, and the kill counts
+      # only if the log contains all of it. A first version made this opt-in and
+      # filled in the a11y mutants alone; that still counted the other twelve on
+      # "something failed", and the headline still called them coverage (codex
+      # round 2). A mutant with no declaration is now UNVERIFIED, not killed.
+      want="${EXPECT_MSG_FOR[$name]:-}"
+      missing=""
+      if [ -n "$want" ]; then
+        while IFS= read -r line; do
+          [ -z "$line" ] && continue
+          grep -qF -- "$line" "$log" || missing+="                     - ${line}"$'\n'
+        done <<< "$want"
+      fi
+      if [ -z "$want" ]; then
+        echo "     UNVERIFIED — no expected assertion declared, so this red is not evidence."
+        echo "                   Run it, read the failure, add it to EXPECT_MSG_FOR."
+        unverified+=("$name")
+      elif [ -n "$missing" ]; then
+        echo "     WRONG ASSERTION — it died, but not on every assertion it names."
+        echo "                   never appeared in the log:"
+        printf '%s' "$missing"
+        echo "                   The guarantee in its name is NOT covered. See $log"
+        survived+=("$name (killed at the wrong assertion)")
+      elif [ -n "${FALSE_KILLS[$name]:-}" ]; then
         echo "     KILLED, BUT FALSE — ${FALSE_KILLS[$name]}."
         echo "                   Counted separately; it is NOT evidence for that guarantee."
         false_killed+=("$name")
@@ -215,6 +347,10 @@ echo "RESULT"
 rule
 echo "  baseline    : GREEN"
 echo "  killed      : ${#killed[@]}  ${killed[*]:-}"
+if [ ${#unverified[@]} -gt 0 ]; then
+  echo "  UNVERIFIED  : ${#unverified[@]}  ${unverified[*]}"
+  echo "                red, but no declared assertion — NOT counted as coverage."
+fi
 if [ ${#false_killed[@]} -ne 0 ]; then
   echo "  FALSE kills : ${#false_killed[@]}  ${false_killed[*]}"
   echo "                red, but for the wrong reason — NOT counted as coverage."
@@ -225,10 +361,18 @@ fi
 echo "  survived    : ${#survived[@]}  ${survived[*]:-}"
 echo "  restore     : $restore"
 
-if [ ${#survived[@]} -ne 0 ] || [ "$restore" != "GREEN" ]; then
+if [ ${#survived[@]} -ne 0 ] || [ ${#unverified[@]} -ne 0 ] || [ "$restore" != "GREEN" ]; then
   echo
   echo "NOT CLEAN. A surviving mutant means that spec does not test what it claims;"
-  echo "a red restore means a mutant left state behind. Report it, do not delete it."
+  echo "an UNVERIFIED one means nobody knows WHICH assertion it killed, which is the same"
+  echo "problem wearing a friendlier word; a red restore means a mutant left state behind."
+  echo "Report it, do not delete it."
+  # UNVERIFIED belongs in this condition (codex round 4 on #504). Without it the
+  # run printed the warning and exited 0, which made the required-declaration
+  # contract advisory: a newly added mutant could contribute no verified
+  # coverage at all while `npm run mutation` stayed green. A guard that reports
+  # a problem and then passes is precisely the failure this script exists to
+  # prevent, and it had just been reintroduced one section above.
   exit 1
 fi
 echo

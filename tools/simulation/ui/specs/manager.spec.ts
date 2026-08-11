@@ -68,7 +68,18 @@ async function openDailyEntryAwaitingPrefill(page: Page, flockId: string, today:
   await page.goto("/daily-entry");
   await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
   const select = page.getByLabel(tEn("dailyEntry:flockLabel"));
-  await expect(select.locator(`option[value="${flockId}"]`)).toHaveCount(1);
+  // A missing option here is almost always FIXTURE EXHAUSTION, not a bug in the
+  // app or this spec, and the bare count assertion said none of that. The
+  // flocks endpoint defaults to 100 rows ordered BY NAME, and every run of this
+  // file leaves another "E2E ..." flock behind — they cluster alphabetically and
+  // the newest sorts last, so past ~100 accumulated runs the flock this test
+  // just created is the first one truncated away.
+  await expect(
+    select.locator(`option[value="${flockId}"]`),
+    `the flock this test just created is not in the Daily Entry dropdown. That list is the `
+      + `first 100 flocks BY NAME, and each run of this spec adds one — run reset.sh. If the `
+      + `fixture is fresh, this is a real regression in the flock list instead.`,
+  ).toHaveCount(1);
   await select.selectOption(flockId);
   await prefill;
   await expect(page.getByRole("button", { name: tEn("dailyEntry:submitButton") })).toBeEnabled();
@@ -188,15 +199,28 @@ test.describe("Manager", () => {
     await signIn(castMember("Manager"));
     const today = farmToday(farm.timeZoneId);
     const flockName = `E2E WriteOff Flock ${Date.now()}`;
-    // 41–98, effectively unique per run — and disjoint from the 38–40 the
-    // flow spec above uses, so its same-day lot can never match the filter.
-    const eggs = 41 + (Date.now() % 58);
+    // The produced count is this run's HANDLE on its own lot, so it has to be
+    // unlikely to repeat: 200–9999, disjoint from the 38–40 the flow spec uses
+    // and from the 41–98 older fixtures are full of. `TotalEggs` has no upper
+    // bound in RecordDailyEntryValidator, so a four-digit day is accepted.
+    //
+    // It was 41 + (Date.now() % 58) until #506 — 58 values, one new same-day
+    // lot per run, so a collision arrived within a few runs and the spec then
+    // acted on an earlier run's lot. Widening is not a proof of uniqueness, so
+    // the lookup below ASSERTS there is exactly one match rather than taking
+    // the first.
+    const eggs = 200 + (Date.now() % 9800);
 
     const flockId = await createFlock(page, flockName, today);
 
     await openDailyEntryAwaitingPrefill(page, flockId, today);
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill(String(eggs));
     await page.getByLabel("Large", { exact: true }).fill(String(eggs));
+    // The fills survived to the submit. #464's prefill can wipe them, and a
+    // wiped form submits an all-zeros day whose banner looks identical.
+    await expect(page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }))
+      .toHaveValue(String(eggs));
+    await expect(page.getByLabel("Large", { exact: true })).toHaveValue(String(eggs));
     await page.getByRole("button", { name: tEn("dailyEntry:submitButton") }).click();
     await page
       .getByRole("dialog", { name: tEn("dailyEntry:confirmSubmitTitle") })
@@ -210,22 +234,210 @@ test.describe("Manager", () => {
       tEn("dailyEntry:submittedMessage").replace("{{count}}", "1"))).toBeVisible();
 
     // ---- The write-off itself ---------------------------------------------
+    //
+    // Record the size of every lot page the SERVER sends. This is the only
+    // unambiguous end-of-list signal available: the pager button is rendered
+    // `{hasMoreLots && !lotsLoading}`, so its absence means either "no more
+    // pages" or "a fetch is in flight", and two bugs in this spec came from
+    // reading it in the second state as though it were the first. Waiting for
+    // the response did not fix that either — `waitForResponse` resolves before
+    // `loadMoreLots` has parsed the body and React has committed
+    // `setLotsLoading(false)` (codex rounds 8 and 9). A short page, by
+    // contrast, can only mean the list is exhausted.
+    // Mirrors LOT_PAGE in web/src/routes/StockPage.tsx:26. Asserted EXACTLY
+    // against the `limit` each request actually sends, so a change in either
+    // direction fails here with a message. An earlier version asserted only
+    // `<= LOT_PAGE`, which a lowered page size satisfies silently — a full
+    // 25-row page would then read as a short final page (codex round 11).
+    const LOT_PAGE = 50;
+
+    // Every lot page the server sent, KEYED TO ITS REQUEST. Position alone is
+    // not enough: `from.fill(today)` starts a request against the *previous*
+    // window, and if that body parses after a positional mark its empty page
+    // is attributed to the final reload and read as end-of-list. The window a
+    // page belongs to is in its query string, so that is what identifies it.
+    interface LotPage { from: string; to: string; offset: number; limit: number; size: number }
+    const lotPages: LotPage[] = [];
+    page.on("response", (response) => {
+      const url = new URL(response.url());
+      if (!url.pathname.endsWith("/stock/lots")) return;
+      if (response.request().method() !== "GET" || !response.ok()) return;
+      const from = url.searchParams.get("from") ?? "";
+      const to = url.searchParams.get("to") ?? "";
+      const offset = Number(url.searchParams.get("offset") ?? "0");
+      const limit = Number(url.searchParams.get("limit") ?? "0");
+      void response
+        .json()
+        .then((body: unknown) => {
+          const items = Array.isArray(body)
+            ? body
+            : (body as { items?: unknown[] } | null)?.items;
+          if (Array.isArray(items)) lotPages.push({ from, to, offset, limit, size: items.length });
+        })
+        .catch(() => {
+          /* an unreadable body tells us nothing; the polls below wait */
+        });
+    });
+
     await page.goto("/stock");
+    // No date bounds until the filter section at the end.
+    const WHOLE_HISTORY = { from: "", to: "" };
+    const openedLots = lotPages.length;
     await page
       .getByRole("row")
       .filter({ has: page.getByRole("cell", { name: "Large", exact: true }) })
       .getByRole("button", { name: tEn("stock:lotsButton") })
       .click();
 
-    // Exact CELL matches, not hasText: a grade summary row's 5-digit balance
-    // contains any 2-digit count as a substring (that exact false match
-    // shipped in this spec's first draft). Today's date + the exact produced
-    // count pins the one lot this test created.
-    const lotRow = page
+    const todayRows = page
       .getByRole("row")
-      .filter({ has: page.getByRole("cell", { name: today, exact: true }) })
-      .filter({ has: page.getByRole("cell", { name: String(eggs), exact: true }) })
-      .first();
+      .filter({ has: page.getByRole("cell", { name: today, exact: true }) });
+
+    // Produced (td 2) and available (td 3) for every same-day row, read
+    // positionally. `filter({ has: cell })` cannot express this: two clauses
+    // naming the same text are satisfied by the SAME cell, so while produced
+    // equals available it collapses into "a row containing that number
+    // anywhere" — which once made this spec write off a stranger's lot.
+    const balances = async () => todayRows.evaluateAll((rows) =>
+      rows.map((row) => {
+        const cells = row.querySelectorAll("td");
+        return [cells[1]?.textContent?.trim() ?? "", cells[2]?.textContent?.trim() ?? ""];
+      }));
+
+    // IDENTITY IS THE PRODUCED COUNT, asserted unique — not a row position and
+    // not a balance. Position cannot be carried: every refetch (the write-off,
+    // and the date-filter round trip below) resets the list to page one, so an
+    // index captured earlier points somewhere else or nowhere. Balances cannot
+    // identify either: an abandoned earlier run leaves an untouched twin and a
+    // completed one leaves a written-off twin, both indistinguishable from ours
+    // by balance alone (codex rounds 6 and 7).
+    //
+    // So the row is re-resolved whenever it is needed, and the resolution is
+    // only allowed to succeed if exactly one same-day lot carries this run's
+    // produced count.
+    // `mark` is the recorder's length taken BEFORE the action that reloads the
+    // list. Every call must pass one: the recorder accumulates for the whole
+    // test, so without it the poll below is satisfied by pages from an EARLIER
+    // walk and the loop can read a stale short page as end-of-list before this
+    // reload has even responded (codex round 10).
+    const ourLotIndex = async (
+      mark: number,
+      window: { from: string; to: string },
+    ): Promise<number> => {
+      // Page to the end. The loop is driven by the SERVER's page sizes, never
+      // by the pager button: while the last page came back full there is more
+      // to fetch, and a short page means the list is exhausted. The button is
+      // still what gets clicked, but it is no longer what decides.
+      await expect(page.getByRole("heading", { name: tEn("stock:lotsHeading") })).toBeVisible();
+      await expect(
+        page.getByRole("columnheader", { name: tEn("stock:producedOnHeader") }),
+      ).toBeVisible();
+      // Pages from THIS reload and THIS window. The mark excludes earlier
+      // walks; the window excludes a request the previous filter value started,
+      // whose body can land after the mark and would otherwise be read as this
+      // reload's end-of-list.
+      const pages = () =>
+        lotPages.slice(mark).filter((p) => p.from === window.from && p.to === window.to);
+      await expect.poll(() => pages().length).toBeGreaterThan(0);
+
+      // The mirrored page size, checked against what the app actually asked
+      // for — exactly, in both directions.
+      expect(
+        pages()[0]!.limit,
+        `StockPage requested limit=${pages()[0]!.limit} but this spec mirrors LOT_PAGE=${LOT_PAGE}; `
+          + `its end-of-list test is now wrong in one direction or the other`,
+      ).toBe(LOT_PAGE);
+
+      // A short page is the end of the list, and only a short page is — the
+      // same rule StockPage itself applies as `hasMoreLots = page.length ===
+      // LOT_PAGE`. The last page of THIS walk is the one with the highest
+      // offset, not the last recorded, because responses can settle out of
+      // order.
+      const latest = () => pages().reduce((a, b) => (b.offset > a.offset ? b : a));
+
+      // The cap is a runaway guard, NOT an exit. Falling out of it means the
+      // list was never paged to the end, so a duplicate produced count could be
+      // sitting on the page after the last one fetched and the uniqueness check
+      // below would call identity proven anyway (codex round 13). Whether the
+      // walk finished is therefore asserted, not assumed.
+      // The terminal page is inspected AFTER every fetch, including the last one
+      // the cap allows. Checking only before each fetch meant a 25th click that
+      // returned the short page exited the loop without ever looking at it, and
+      // a fully-traversed list then failed claiming it had not been traversed
+      // (codex round 14 — a false failure introduced by round 13's guard).
+      const PAGE_CAP = 25;
+      let reachedEnd = latest().size < LOT_PAGE;
+      for (let i = 0; i < PAGE_CAP && !reachedEnd; i++) {
+        const seen = pages().length;
+
+        const more = page.getByRole("button", { name: tEn("stock:loadMoreButton") });
+        // It reappears once the previous fetch commits; a genuine end-of-list
+        // was already caught above, so a timeout here is a real failure rather
+        // than a normal exit.
+        await more.waitFor({ state: "visible" });
+        await more.click();
+        await expect.poll(() => pages().length).toBeGreaterThan(seen);
+        reachedEnd = latest().size < LOT_PAGE;
+      }
+
+      expect(
+        reachedEnd,
+        `paged ${PAGE_CAP} times without reaching a short page — this window holds more than `
+          + `${PAGE_CAP * LOT_PAGE} lots, so the uniqueness check below cannot see them all and `
+          + `identity is not proven. Run reset.sh, or raise the cap deliberately.`,
+      ).toBe(true);
+
+      // EVERY FETCHED PAGE MUST BE ON SCREEN before identity is judged. The
+      // recorder observes a response when its body parses, which is before
+      // `loadMoreLots` commits the rows to React — so paging can exit on the
+      // terminal short page while that page is still uncommitted. The
+      // uniqueness poll below would then see one matching row, pass, and act on
+      // a lot whose twin simply had not rendered yet (codex round 12).
+      //
+      // Offsets within a walk are disjoint and this run adds no lots mid-walk
+      // (one worker, its own lot created before the list was opened), so the
+      // rendered count must equal the sum of the pages fetched. StockPage
+      // dedupes by id on append, so a SHORTFALL means offsets drifted — worth
+      // failing on rather than waiting out.
+      const lotRowsOnScreen = async () =>
+        page.getByRole("row").evaluateAll((rows) =>
+          rows.filter((row) => {
+            const first = row.querySelector("td");
+            return first !== null && /^\d{4}-\d{2}-\d{2}$/.test(first.textContent?.trim() ?? "");
+          }).length);
+
+      const fetched = pages().reduce((total, p) => total + p.size, 0);
+      await expect
+        .poll(lotRowsOnScreen, {
+          message:
+            `${fetched} lot rows were fetched for this window but the table never showed that `
+            + `many; if it settled lower, offset paging re-served rows and the dedupe dropped them`,
+        })
+        .toBe(fetched);
+
+      // `evaluateAll` does not auto-wait, unlike an assertion on a locator, so
+      // this polls rather than reading once.
+      let at = -1;
+      await expect
+        .poll(async () => {
+          const rows = await balances();
+          const hits = rows
+            .map(([produced], index) => (produced === String(eggs) ? index : -1))
+            .filter((index) => index >= 0);
+          at = hits.length === 1 ? hits[0]! : -1;
+          return hits.length;
+        }, {
+          message:
+            `expected exactly one same-day lot with ${eggs} produced. Zero means the entry above `
+            + `created no lot; more than one means this run's produced count collided with `
+            + `another run's and the spec cannot tell which lot is its own`,
+        })
+        .toBe(1);
+      return at;
+    };
+
+    const index = await ourLotIndex(openedLots, WHOLE_HISTORY);
+    const lotRow = todayRows.nth(index);
     await lotRow.getByRole("button", { name: tEn("stock:writeOffButton") }).click();
 
     const writeOff = page
@@ -233,15 +445,18 @@ test.describe("Manager", () => {
       .filter({ has: page.getByRole("button", { name: tEn("stock:writeOffSubmitButton") }) });
     await writeOff.getByLabel(tEn("stock:writeOffQuantityLabel"), { exact: true }).fill("2");
     await writeOff.getByLabel(tEn("stock:writeOffReasonLabel")).fill("E2E cooler breakage");
+    const submittedWriteOff = lotPages.length;
     await writeOff.getByRole("button", { name: tEn("stock:writeOffSubmitButton") }).click();
 
     await expect(writeOff).toBeHidden();
     const announcement = page.locator('p[role="status"]');
     await expect(announcement).toContainText(prefixOf("en", "stock:writeOffRecordedMessage"));
-    // The lot row shows the new balance; produced is untouched — the write-off
-    // never restated the day's laying.
-    await expect(lotRow.getByRole("cell", { name: String(eggs - 2), exact: true })).toBeVisible();
-    await expect(lotRow.getByRole("cell", { name: String(eggs), exact: true })).toBeVisible();
+    // THE SAME LOT, re-resolved — the write-off refetched the list and reset it
+    // to page one, so the earlier index no longer points at anything reliable.
+    // Produced is unchanged, which is the point: the write-off moved the
+    // balance without restating the day's laying.
+    const afterWriteOff = await ourLotIndex(submittedWriteOff, WHOLE_HISTORY);
+    expect((await balances())[afterWriteOff]).toEqual([String(eggs), String(eggs - 2)]);
 
     // ---- #465: the date filter reaches lots server-side -------------------
     // A window that cannot contain this lot empties the table…
@@ -250,8 +465,17 @@ test.describe("Manager", () => {
     await expect(page.getByText(tEn("stock:noLotsMessage"))).toBeVisible();
     // …and narrowing to exactly today brings it back, corrected balance intact.
     await page.getByLabel(tEn("stock:fromLabel"), { exact: true }).fill(today);
+    // Marked before the LAST fill, and matched on the window itself: each fill
+    // starts its own request, and the intermediate one (from=today with the
+    // old `to`) can settle after this mark.
+    const narrowedToToday = lotPages.length;
     await page.getByLabel(tEn("stock:toLabel"), { exact: true }).fill(today);
-    await expect(lotRow.getByRole("cell", { name: String(eggs - 2), exact: true })).toBeVisible();
+    // Re-resolved again: changing the window refetches from offset zero.
+    const afterFilter = await ourLotIndex(narrowedToToday, { from: today, to: today });
+    expect(
+      (await balances())[afterFilter],
+      "narrowing the window to today did not bring back the corrected lot",
+    ).toEqual([String(eggs), String(eggs - 2)]);
   });
 
   test("can reach the admin destinations a Worker cannot", async ({ signIn, nav }) => {
