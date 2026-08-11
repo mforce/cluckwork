@@ -215,9 +215,41 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: Stack logs on failure
-        if: failure()
+      # #487 — a Playwright failure here used to be undiagnosable from its own
+      # artifacts, and by the time anyone noticed, the evidence was gone.
+      #
+      # THREE separate reasons the old `logs --tail 200` on failure was not
+      # enough, all measured on #486's run:
+      #
+      #   * `--tail` is per RUN, not per service, and the app emits one compact
+      #     JSON line per HTTP request (#404). 200 lines covered 01:01:00-01:01:19
+      #     — the last 19 SECONDS — while the failing test ran 01:00:21-01:00:33.
+      #     The relevant window had already scrolled off. The whole run is ~3
+      #     minutes, so the volume is bounded; there is nothing to cap.
+      #   * Interleaved services put the app's lines out of reach even when they
+      #     were present. Per-service, in collapsible groups, so the app log is
+      #     one click rather than a scroll through Postgres chatter.
+      #   * `if: failure()` kept NOTHING from a green run. Isolating #486 as
+      #     timing rather than code meant comparing a red run against a green
+      #     one, and that comparison was impossible — the green run had no logs
+      #     at all. `if: always()` is most of this step's value.
+      #
+      # These logs are also the ANSWER to what a Playwright trace would have
+      # been uploaded for. The trace's draw is its network log ("was the request
+      # issued, and what did it return"), and the app's per-request JSON lines
+      # carry that already. Traces are deliberately NOT uploaded: the strip step
+      # above deletes them because they carry request bodies, and #392 closed
+      # that leak on purpose. Do not reopen it to get diagnosability that is
+      # already available here — see #487 for the decision.
+      - name: Stack logs
+        if: always()
         run: |
-          docker compose -p cluckwork-sim \
-            --env-file tools/simulation/.env.sim \
-            -f tools/simulation/docker-compose.sim.yml logs --tail 200 || true
+          set -uo pipefail
+          for service in app db otel-collector; do
+            echo "::group::docker logs — $service"
+            docker compose -p cluckwork-sim \
+              --env-file tools/simulation/.env.sim \
+              -f tools/simulation/docker-compose.sim.yml \
+              logs --no-color "$service" || true
+            echo "::endgroup::"
+          done
