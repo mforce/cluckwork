@@ -344,9 +344,16 @@ test.describe("Manager", () => {
       // order.
       const latest = () => pages().reduce((a, b) => (b.offset > a.offset ? b : a));
 
-      for (let i = 0; i < 25; i++) {
+      // The cap is a runaway guard, NOT an exit. Falling out of it means the
+      // list was never paged to the end, so a duplicate produced count could be
+      // sitting on the page after the last one fetched and the uniqueness check
+      // below would call identity proven anyway (codex round 13). Whether the
+      // walk finished is therefore asserted, not assumed.
+      const PAGE_CAP = 25;
+      let reachedEnd = false;
+      for (let i = 0; i < PAGE_CAP; i++) {
         const seen = pages().length;
-        if (latest().size < LOT_PAGE) break; // short page = end of list
+        if (latest().size < LOT_PAGE) { reachedEnd = true; break; } // short page = end of list
 
         const more = page.getByRole("button", { name: tEn("stock:loadMoreButton") });
         // It reappears once the previous fetch commits; a genuine end-of-list
@@ -356,6 +363,13 @@ test.describe("Manager", () => {
         await more.click();
         await expect.poll(() => pages().length).toBeGreaterThan(seen);
       }
+
+      expect(
+        reachedEnd,
+        `paged ${PAGE_CAP} times without reaching a short page — this window holds more than `
+          + `${PAGE_CAP * LOT_PAGE} lots, so the uniqueness check below cannot see them all and `
+          + `identity is not proven. Run reset.sh, or raise the cap deliberately.`,
+      ).toBe(true);
 
       // EVERY FETCHED PAGE MUST BE ON SCREEN before identity is judged. The
       // recorder observes a response when its body parses, which is before

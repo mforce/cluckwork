@@ -170,7 +170,8 @@ actually be run:
 
 | Outcome | What it establishes |
 |---|---|
-| Scenario 1 or 5 fails | The current design speaks twice. Replace it. |
+| Scenario 1 speaks **twice**, or scenario 5 re-announces | The offscreen region is duplicating the visible banner. The current design speaks twice; replace it. |
+| Scenario 1 is **silent** | The opposite failure: the visible banner is not announcing on the ordinary path at all. Not a duplication problem — check the banner's own `role`/`aria-live` before touching `useMissedAnnouncement`. |
 | **Scenario 2 fails** | **#485 is not fixed** — this is the only scenario that tests the missed-then-delivered path end to end. |
 | Scenario 2 passes | #485 is fixed for the update banner, on the pairings tested. |
 
@@ -182,9 +183,12 @@ more: the two differ in politeness (`assertive` vs `polite`), and no AT has
 been observed making that distinction here. The same-commit predicate stays
 unverified by observation.
 
-An earlier version of this section said a scenario 2/3/4 failure means #485 is
-unfixed. Two of those three cannot be performed, so the rule promised more than
-the checklist can deliver.
+Two earlier versions of this section were wrong in different ways, both worth
+recording. It first said a scenario 2/3/4 failure means #485 is unfixed — two of
+those three cannot be performed. It then collapsed scenario 1 into "the design
+speaks twice", when scenario 1 has two failure modes pointing in opposite
+directions: silence means the visible banner never announced, which is not a
+duplication problem and would send a reader to the wrong code.
 
 ---
 

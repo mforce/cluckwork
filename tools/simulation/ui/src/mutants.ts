@@ -31,7 +31,7 @@
 //
 // ================== THE SECOND BOUNDARY: DOM-LEVEL MUTANTS (#501) ==================
 //
-// The seven `a11y-*` mutants below do NOT go through the network. They inject a
+// The eight `a11y-*` mutants below do NOT go through the network. They inject a
 // script into the page and break the DOM the way the corresponding regression
 // would leave it. That was added for #501, whose guarantees are entirely
 // client-side — a live region's presence in the accessibility tree is never
@@ -49,7 +49,7 @@
 // the mutants write the same text from outside. Both leave the screen reader in
 // the same state, which is the state the spec judges.
 //
-// **Seven mutants for one spec, because each earlier version covered a fraction
+// **Eight mutants for one spec, because each earlier version covered a fraction
 // of the test it named.** The four announcer mutants differ only in WHEN they
 // write, and each is the only one that reaches its assertion:
 //   * `a11y-announcer-duplicates-banner` writes from first paint, so it kills
@@ -64,17 +64,23 @@
 //     it is the only one that validates that assertion's final drain.
 // The two inert mutants split the same way: `a11y-inert-sweep-removed` breaks
 // the marking, `a11y-inert-never-lifted` breaks the UN-marking, and neither
-// reaches the other's assertion. `a11y-dialog-hidden-from-tree` is the seventh
-// and the odd one out — it breaks the spec's CONTROL rather than a product
-// guarantee, because a control nothing can falsify is not a control.
+// reaches the other's assertion. The last two are the odd ones out, and both
+// exist because an assertion nothing can falsify is not an assertion:
+// `a11y-dialog-hidden-from-tree` breaks the spec's own CONTROL, and
+// `a11y-probe-live-off-ignored` breaks a RECORDED BROWSER FACT rather than any
+// product behaviour.
 //
 // Each hole was found by a review asking the same question of the previous
-// fix — six rounds of it, and the question was still producing findings at the
-// end, so do not read this list as exhausted. Every time, the harness reported
-// a clean kill and said nothing, because a mutant killing SOMETHING is not
-// evidence that it killed the thing its name claims. `EXPECT_MSG_FOR` in
-// mutation-check.sh now asks that question mechanically, which is the only
-// reason to expect the seventh round to go differently from the first six.
+// fix — thirteen rounds of it, and it was still producing findings at the end,
+// so do not read this list as exhausted. The last one is the sharpest example:
+// FACT 1's assertions, including the load-bearing `role="alert"` control, had
+// no mutant reaching them at all and could have been deleted without changing
+// the verdict — found only because the review was explicitly asked to re-read
+// the a11y half, which twelve rounds of findings elsewhere had left untouched.
+// Every time, the harness reported a clean kill and said nothing, because a
+// mutant killing SOMETHING is not evidence that it killed the thing its name
+// claims. `EXPECT_MSG_FOR` in mutation-check.sh now asks that question
+// mechanically.
 //
 // Do not reach for this shape when a network mutant would do. It is here
 // because the alternative for #501 was no mutation coverage at all.
@@ -445,6 +451,35 @@ export const MUTANTS: Record<string, Mutant> = {
           subtree: true,
           attributeFilter: ["inert"],
         });
+      });
+    },
+  },
+
+  "a11y-probe-live-off-ignored": {
+    breaks:
+      "the browser fact that `aria-live=\"off\"` suppresses the implicit politeness of "
+      + "`role=\"alert\"` — the attribute is stripped from the probe after insertion, which is "
+      + "what a Chromium that stopped honouring it would look like",
+    caughtBy:
+      "a11y-live-regions.spec.ts — recorded browser facts for the two deferred designs "
+      + "(specifically FACT 1, the aria-live=\"off\" assertion and its role=alert control)",
+    apply: async (page) => {
+      // FACT 1 had no mutant at all: all the other a11y mutants target the
+      // modal sweep, the control, or the announcer, and none of them touches
+      // the injected probes. Its assertions — including the load-bearing
+      // `role="alert"` control that must still report `assertive` — could have
+      // been weakened or deleted without changing the mutation verdict (codex
+      // round 13, answering a standing request to re-read the a11y half).
+      //
+      // Stripping the attribute rather than editing the spec is the faithful
+      // shape: the recorded fact is "Chromium honours aria-live=off here", and
+      // a Chromium that stopped would leave the element resolving to its
+      // implicit assertive politeness, exactly as this does.
+      await page.addInitScript(() => {
+        const strip = () => {
+          document.getElementById("probe-alert-off")?.removeAttribute("aria-live");
+        };
+        new MutationObserver(strip).observe(document, { childList: true, subtree: true });
       });
     },
   },
