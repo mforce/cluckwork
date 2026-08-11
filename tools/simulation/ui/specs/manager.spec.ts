@@ -297,14 +297,28 @@ test.describe("Manager", () => {
       await expect(
         page.getByRole("columnheader", { name: tEn("stock:producedOnHeader") }),
       ).toBeVisible();
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 25; i++) {
         const more = page.getByRole("button", { name: tEn("stock:loadMoreButton") });
         if (!(await more.isVisible())) break;
         const rowsBefore = await page.getByRole("row").count();
+
+        // Each click is tied to ITS response. `StockPage` renders the button
+        // only `{hasMoreLots && !lotsLoading}`, so it disappears for the
+        // duration of every fetch — which means "the button is gone" answers
+        // two different questions and, mid-flight, answers the wrong one. A
+        // previous version polled for "rows grew OR the button went away", was
+        // satisfied instantly by the in-flight hide, and stopped after one page
+        // (codex round 8). Deciding only once the response has landed makes the
+        // button's absence mean end-of-list again.
+        const page2 = page.waitForResponse(
+          (r) => r.url().includes("/stock/lots") && r.request().method() === "GET",
+        );
         await more.click();
-        // Either more rows arrive or the button goes away — the final page adds
-        // nothing, and demanding growth turns the end of the list into a
-        // failure.
+        await page2;
+
+        // Then let React commit that page: either rows arrive, or the list is
+        // exhausted and the button stays gone. The final page adds nothing, so
+        // demanding growth would turn the end of the list into a failure.
         await expect
           .poll(async () =>
             (await page.getByRole("row").count()) > rowsBefore || !(await more.isVisible()))
