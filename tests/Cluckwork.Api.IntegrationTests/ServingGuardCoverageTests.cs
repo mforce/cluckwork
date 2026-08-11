@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.RateLimiting;
 using Microsoft.Extensions.Configuration;
@@ -145,19 +146,44 @@ public sealed class ServingGuardCoverageTests
         // skipped for every one-shot verb, which is exactly the property the
         // table exists to pin. The row's token is the config key the validator
         // names, so match on the section prefix the options type is named for.
-        var uncovered = validatedOptionTypes
-            .Where(t => !ProcessRoleGuardTests.CoveredGuardTokens.Any(token =>
-                token.StartsWith(
-                    t.Replace("Options", string.Empty, StringComparison.Ordinal) + ":",
-                    StringComparison.Ordinal)))
-            .ToArray();
+        //
+        // Counted per BRANCH, not per type. Enumerating types only asked "is this
+        // validator represented at all", and both upload-cap validators have a
+        // floor branch AND a distinct ceiling branch while the table violated
+        // only the floor — so deleting either ceiling check was green (#347
+        // review round 5, codex). A validator's failure count is the number of
+        // ValidateOptionsResult.Fail sites in its source, which is a boring
+        // source scan on purpose: it cannot silently under-report the way
+        // reflection over branches would have to guess.
+        foreach (var type in validatedOptionTypes)
+        {
+            var prefix = type.Replace("Options", string.Empty, StringComparison.Ordinal) + ":";
+            var rows = ProcessRoleGuardTests.CoveredGuardTokens
+                .Count(token => token.StartsWith(prefix, StringComparison.Ordinal));
+            var branches = FailureBranchCount(type);
 
-        Assert.True(
-            uncovered.Length == 0,
-            "these options types are validated at host start — so they fail a serving boot and "
-            + "are skipped for one-shot verbs — but have no row in "
-            + $"ProcessRoleGuardTests.ServingOnlyGuards: {string.Join(", ", uncovered)}. "
-            + "Add a row so the one-shot arms prove the verbs survive them.");
+            Assert.True(
+                rows >= branches,
+                $"{type} is validated at host start — so it fails a serving boot and is skipped "
+                + $"for one-shot verbs — but has {rows} row(s) in "
+                + $"ProcessRoleGuardTests.ServingOnlyGuards for {branches} failure branch(es). "
+                + "Rows are per VIOLATION, not per validator: add a row violating each branch, "
+                + "or a deleted check stays green.");
+        }
+    }
+
+    // The validator lives beside its options type, named for it.
+    private static int FailureBranchCount(string optionsTypeName)
+    {
+        var file = Directory
+            .EnumerateFiles(Path.Combine(RepositoryRoot(), "src"), $"{optionsTypeName}.cs",
+                SearchOption.AllDirectories)
+            .SingleOrDefault();
+
+        Assert.NotNull(file);
+        return Regex.Matches(
+            File.ReadAllText(file!),
+            @"ValidateOptionsResult\s*\.\s*Fail\s*\(").Count;
     }
 
     // 4. …and the same question asked of the WHOLE source tree, because the
@@ -169,13 +195,20 @@ public sealed class ServingGuardCoverageTests
     //    Deliberately a file-level sweep rather than a cleverer parse: it needs to
     //    answer "did a new registration site appear", and the boring version of
     //    that cannot quietly under-report.
+    //
+    //    The match is whitespace-tolerant and does NOT require the leading dot.
+    //    The first version looked for the literal `.ValidateOnStart()`, which a
+    //    line break before the parentheses, a space, or a static call through
+    //    OptionsBuilderExtensions all slip past — a sweep whose whole job is
+    //    "did a registration appear anywhere" must not be defeated by formatting
+    //    (#347 review round 5, codex).
     [Fact]
     public void NoValidateOnStartRegistrationOutsideTheEnumeratedExtension()
     {
         var sourceRoot = Path.Combine(RepositoryRoot(), "src");
         var sites = Directory
             .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
-            .Where(f => File.ReadAllText(f).Contains(".ValidateOnStart()", StringComparison.Ordinal))
+            .Where(f => Regex.IsMatch(File.ReadAllText(f), @"ValidateOnStart\s*\("))
             .Select(f => Path.GetFileName(f))
             .OrderBy(f => f, StringComparer.Ordinal)
             .ToArray();

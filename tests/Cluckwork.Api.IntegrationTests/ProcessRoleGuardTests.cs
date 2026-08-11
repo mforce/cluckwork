@@ -188,12 +188,29 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         // The first derivation missed both because it walked `IsProduction` and
         // explicit `throw` sites, which is "list what I thought of" one
         // abstraction level up. ServingGuardCoverageTests now enumerates them.
-        new("FarmLogo", "FarmLogo:MaxUploadBytes",
+        // Each cap is TWO rows, not one. Both validators have a floor branch
+        // (<= 0) and a distinct CEILING branch (> the domain constant), and the
+        // first version violated only the floor — so deleting either ceiling
+        // check left every arm green. That is the one-row-per-violation rule
+        // broken inside the table that states it (#347 review round 5, codex).
+        // The ceiling token carries the violated VALUE, so the two rows for one
+        // setting cannot satisfy each other's negative assertion.
+        new("FarmLogo floor", "FarmLogo:MaxUploadBytes must be greater than zero",
             Violate: psi => psi.Environment["FarmLogo__MaxUploadBytes"] = "0",
             Satisfy: psi => psi.Environment["FarmLogo__MaxUploadBytes"] = "2097152"),
 
-        new("FarmBanner", "FarmBanner:MaxUploadBytes",
+        // ImageSanitizer.MaxByteLengthCeiling is 5 MiB — one byte over it.
+        new("FarmLogo ceiling", "FarmLogo:MaxUploadBytes (5242881) cannot exceed",
+            Violate: psi => psi.Environment["FarmLogo__MaxUploadBytes"] = "5242881",
+            Satisfy: psi => psi.Environment["FarmLogo__MaxUploadBytes"] = "2097152"),
+
+        new("FarmBanner floor", "FarmBanner:MaxUploadBytes must be greater than zero",
             Violate: psi => psi.Environment["FarmBanner__MaxUploadBytes"] = "0",
+            Satisfy: psi => psi.Environment["FarmBanner__MaxUploadBytes"] = "5242880"),
+
+        // ImageSanitizer.MaxBannerByteLengthCeiling is 15 MiB — one byte over it.
+        new("FarmBanner ceiling", "FarmBanner:MaxUploadBytes (15728641) cannot exceed",
+            Violate: psi => psi.Environment["FarmBanner__MaxUploadBytes"] = "15728641",
             Satisfy: psi => psi.Environment["FarmBanner__MaxUploadBytes"] = "5242880"),
     ];
 

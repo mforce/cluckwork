@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Diagnostics;
 using System.Reflection;
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // #347 — every one-shot verb must run under a Production environment containing
@@ -93,9 +94,15 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
         { "migrate", "Production" },
         { "recover-admin --email nobody@example.test", "Production" },
         { "bootstrap-admin --email owner@example.test", "Production" },
-        // The seed profiles are deliberately blocked in Production (#280), so
-        // their minimal environment is a non-Production one.
+        // Seeding is deliberately blocked in Production (#280), so BOTH sides of
+        // that are cases. The Testing arm is the one that actually seeds.
         { "seed --profile demo", "Testing" },
+        // ...and the Production arm, which must reach its own refusal. Testing
+        // alone would bypass every Production-gated guard, so a new guard that
+        // checks IsProduction() WITHOUT respecting ProcessRole would abort seed
+        // before it ever got to say no, and every row here would stay green
+        // (#347 review round 5, codex). A clean exit 1 is the assertion.
+        { "seed --profile demo", "Production" },
         // Not an ICliCommand, and therefore the one verb ProcessRoles has to name
         // by hand — which is exactly how it came to be classified as a SERVING
         // process before this PR. Nothing here reads configuration (the verb
@@ -128,6 +135,34 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
             exitCode is 0 or 1,
             $"`{verbAndArgs}` exited {exitCode}; a one-shot verb exits 0 on success or 1 on its "
             + $"own clean failure, never a crash. stdout={stdout}\nstderr={stderr}");
+    }
+
+    // EveryOneShotVerb is hand-written, and a hand-written list is what this
+    // whole suite exists to stop trusting: a new ICliCommand expands
+    // ProcessRoles.OneShotVerbs automatically, so it would be classified
+    // correctly in production and exercised by nothing here (#347 review round 5,
+    // codex). Hold the cases against the real registry.
+    [Fact]
+    public void EveryDispatchedVerb_HasAMinimalConfigCase()
+    {
+        var tested = EveryOneShotVerb()
+            .Select(row => ((string)row[0]).Split(' ')[0])
+            .ToHashSet(StringComparer.Ordinal);
+
+        var uncovered = ProcessRoles.OneShotVerbs.Where(v => !tested.Contains(v)).ToArray();
+
+        Assert.True(
+            uncovered.Length == 0,
+            $"verb(s) classified OneShot but never run here: {string.Join(", ", uncovered)}. "
+            + "Add a case with the minimal configuration that verb genuinely needs — a verb no "
+            + "arm executes is covered by nothing.");
+
+        // The other direction: a case naming a verb the dispatcher no longer
+        // classifies is testing a command that cannot be reached.
+        var stale = tested.Where(v => !ProcessRoles.OneShotVerbs.Contains(v)).ToArray();
+        Assert.True(
+            stale.Length == 0,
+            $"case(s) name verb(s) absent from ProcessRoles.OneShotVerbs: {string.Join(", ", stale)}.");
     }
 
     // ── The malformed half ────────────────────────────────────────────────────
