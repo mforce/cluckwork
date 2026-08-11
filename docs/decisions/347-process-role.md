@@ -67,6 +67,21 @@ Both directions are per-row, which is not symmetry for its own sake: two rows ke
 
 **And the table itself is enforced, because it was not.** Deleting the #319 row deleted its arms and the suite went from green to green — so the v2 survivor was re-openable by editing the *test*, and any guard added later was covered by nothing. "Adding a guard is a row" was an invariant living in a comment, which is a bug unless a line enforces it. `ServingGuardCoverageTests` now reflects over the three places a serving-only guard can be added — `ServingBootGuards`' check methods, `RateLimitingOptions`' validation methods, and every `IValidateOptions<>` registered with `.ValidateOnStart()` — and fails when one has no row, in both directions so a rename cannot leave a stale entry claiming coverage.
 
+### Then stop enumerating: assert the property
+
+The table above is still a list, and it kept being one entry short. Five instances of this bug class were found across four review rounds — the #316 endpoint (#331 itself), `ParseProtocol` beside it, the OTLP config **binding** beside that, all of `RateLimitingOptions.Validate`, and its binding — **each found immediately after the previous "scope that subsystem" fix**. Five is not five unlucky misses; it is the method failing, and the answer is not a sixth row.
+
+`OneShotVerbMinimalConfigTests` asserts the property instead: **a verb gets a connection string and its own arguments, and nothing else may stop it.** The child environment is built from scratch, so no ambient `Otlp__*`/`Jwt__*` can mask the defect.
+
+**A guard fires on one of two inputs, and one test catches only one of them.** This was nearly shipped overstated — the file first claimed all five instances "would have been caught here", and a mutation run refuted it:
+
+- **ABSENT config** — #260's empty `TrustedProxies`, #319's missing `AllowedHosts`. Caught by the minimal-config arms, which supply nothing.
+- **MALFORMED config** — a bad protocol, an unparseable CIDR, a non-numeric `PermitLimit`, a non-boolean `AllowInsecureEndpoint`. Minimal config is **well-formed by construction**, so binding and validation both succeed and the guard never runs. Hoisting either binding back outside its `try` kills the table's arms and leaves every minimal-config case **green**.
+
+Four of the five instances are the malformed shape, so minimal config alone would have caught **one**. `NoServingOnlySection_CanAbortAVerbByBeingUnparseable` is the other half: one deliberately unparseable value per serving-only section, **one section per case** so no arm hides behind another's throw — the dead-disjunct defect is available here too. The value breaks the **binding** rather than a validation rule, because binding is the outer of the two and the round that found the binding bugs found exactly that shape: validation correctly role-scoped while `Get<T>()` was not.
+
+The section set is **walked, not listed** — every type with a `SectionName` constant in either assembly must be probed or excluded with a stated reason. Two are excluded: `Database:Resilience` (every verb opens the same database, so its retry settings are the verb's own configuration — the one section eagerly bound for both roles on purpose) and `Simulation` (it is `seed --profile simulation`'s own input, where a broken value **must** fail the verb).
+
 The same "list what I thought of" method had also sprung three leaks in how the child process's environment was built. The subprocess inherits the test host's environment and **#260's condition is the ABSENCE of `RateLimiting__*`**, so v2 stripped that prefix — but the strip was `Ordinal` while Linux environment keys are case-sensitive and .NET configuration keys are not (`ratelimiting__…` survived it), `ASPNETCORE_`- and `DOTNET_`-prefixed variables bind to the same configuration keys with the prefix removed, and `Otlp__` was never stripped at all — so an inherited `Otlp__AllowInsecureEndpoint` (a documented sim-harness setting) would have silently voided the #316 arm. The child environment is now **built from scratch**: cleared, then a small allow-list of OS variables, then every application setting stated explicitly.
 
 One smaller thing from the same review, same family: `SeedCommandRunner`'s timeout message asserted the seed suites' regression ("falling through into `app.Run()`"), which for the serving arms means the exact opposite — a timeout there means the boot *succeeded* — so the message is now per-caller.
@@ -80,7 +95,7 @@ Mutation evidence, run before the claim:
 | Mutation | Result |
 |---|---|
 | baseline, unmutated | **green** |
-| `EnsureServingConfiguration` drops its `role` check | **red** (`migrate` aborts on #260) |
+| `EnsureServingConfiguration` drops its `role` check | **red** (`migrate` aborts on #260; 9 of 12 property cases) |
 | #316's degrade filter flipped to `Serving` | **red** — #331 verbatim |
 | `healthcheck` removed from `OneShotVerbs` | **red** (registry suite) |
 | the #319 `AllowedHosts` guard deleted outright | **red** — *survived v2 entirely* |
@@ -88,13 +103,17 @@ Mutation evidence, run before the claim:
 | rate-limiting validation's role scope reverted | **red** — the live bug above |
 | a row deleted from the table | **red** — *was silent before the coverage suite* |
 | `ParseProtocol` moved back outside the role-checked `try` | **red** — the other live bug above |
+| OTLP `Get<OtlpOptions>()` moved back outside the `try` | **red** — table arms **and** the `Otlp` hostile case |
+| rate-limiting `Get<RateLimitingOptions>()` moved back outside it | **red** — table arms **and** the `RateLimiting` hostile case |
 | `healthcheck`'s early return removed from `Program.cs` | **red** (the assertion fires, exit 134) |
 | restored | **green** |
 
 The marked rows are the ones that matter. The two "survived v2" mutants are how the dead disjuncts were found and are the regression check on the per-guard table. The "row deleted" mutant is the regression check on the coverage suite — before it, deleting a row was green.
 
-Two process notes, because each nearly produced false evidence.
+Three process notes, because each nearly produced false evidence.
 
 The first mutation script restored with `git checkout --`, which **silently refuses to restore untracked files**. Two of the three targets were new files, so mutants stacked instead of reverting and two "red" results were measured against an already-mutated tree. Snapshot by file copy, and assert the restored tree is green again.
 
 And a mutant being red is not the same as being red *for the stated reason*. Each mutant is re-checked against the specific arm it should redden: the two single-guard rows must fail their own guard's arm — the serving process otherwise boots clean, logging `OTLP export enabled` — and not the one-shot arm, which is the whole claim behind deriving an arm per guard.
+
+Third, and the one that came closest to shipping: **a mutation run refuted a claim already written into the source.** The property test's own header said all five instances "would have been caught here"; the two binding mutants were red overall but left every one of its cases green, because the enumerated arms were doing the killing. Overstating the newer, structurally stronger test is worse than a plain gap — the whole point of adding it was to stop relying on the list, and a reader who believes that claim stops adding rows. It is why the two-shapes distinction above exists at all, and why the hostile-section arms were written. **Run the mutation against the specific test the claim names, not against the suite.**
