@@ -14,6 +14,7 @@ import { BusyButton } from "../components/BusyButton";
 import { NumberField } from "../components/NumberField";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
+import { ProvenanceCell } from "../components/ProvenanceCell";
 import { useDialogErrors } from "../components/useDialogErrors";
 import { useConfirm } from "../components/useConfirm";
 import { usePagedList } from "../components/usePagedList";
@@ -918,7 +919,7 @@ export function SalesPage() {
         <>
           <table className="data">
             <thead>
-              <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}</th><th>{t("total")}</th><th></th></tr>
+              <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}</th><th>{t("total")}</th><th>{tc("recordHistoryHeader")}</th><th></th></tr>
             </thead>
             <tbody>
               {orders.rows.map((o) => (
@@ -928,6 +929,7 @@ export function SalesPage() {
                   <td>{customerName(o.customerId)}</td>
                   <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
                   <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
+                  <ProvenanceCell history={o} official="confirmed" />
                   <td><button className="link" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</button></td>
                 </tr>
               ))}

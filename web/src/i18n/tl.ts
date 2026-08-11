@@ -10,6 +10,11 @@
 //   label, until that screen itself is externalized to the catalog (#182).
 export const tl = {
   common: {
+    "recordHistory.createdBy": "Ginawa ni {{email}} noong {{at}}",
+    "recordHistory.lastChangedBy": "Huling binago ni {{email}} noong {{at}}",
+    "recordHistory.submittedAt": "Naisumite noong {{at}}",
+    "recordHistory.confirmedAt": "Nakumpirma noong {{at}}",
+    recordHistoryHeader: "Kasaysayan",
     cancel: "Kanselahin",
     save: "I-save",
     close: "Isara",
@@ -1687,6 +1692,18 @@ export const tl = {
     "auditAction.Product.Deactivate": "Na-deactivate ang produkto",
     "auditAction.EggUnitConversion.Update": "Na-update ang conversion ng yunit ng itlog",
     "auditAction.EggLot.Movement": "Na-write off / na-recount ang stock",
+    "auditAction.Flock.Create": "Nagawa ang kawan",
+    "auditAction.DailyEntry.Create": "Nagawa ang pang-araw-araw na entry",
+    "auditAction.DailyEntry.Update": "Na-edit ang draft ng pang-araw-araw na entry",
+    "auditAction.DailyEntry.Submit": "Naisumite ang pang-araw-araw na entry",
+    "auditAction.SalesOrder.AddItem": "Nagdagdag ng linya sa order",
+    "auditAction.SalesOrder.UpdateItem": "Binago ang linya ng order",
+    "auditAction.SalesOrder.RemoveItem": "Inalis ang linya ng order",
+    "auditAction.SalesOrder.Create": "Nagawa ang order ng benta",
+    "auditAction.SalesOrder.Confirm": "Nakumpirma ang order ng benta",
+    "auditAction.SalesOrder.Cancel": "Kinansela ang order ng benta",
+    "auditAction.Expense.Create": "Nagawa ang gastos",
+    "auditAction.EggGrade.Create": "Nagawa ang grado ng itlog",
 
     "entityType.Account": "Account",
     "entityType.DailyEntry": "Araw-araw na Entry",
@@ -2201,6 +2218,30 @@ export const tl = {
       + "awtomatiko: sino ang gumawa nito, kailan (UTC), ano ang naapektuhan, at ang dahilan kung mayroon. "
       + "Isinusulat ito kasabay ng pagbabago mismo — walang naiiwang bakas ang isang nabigong aksyon, "
       + "palaging may naiiwan ang isang matagumpay — at hindi kailanman ine-edit, ng kahit sino.",
+    auditRecordHistory:
+      "Ang Mga kawan, Grado ng itlog, Kasaysayan ng pang-araw-araw na entry, Benta at Gastos ay may "
+      + "kolum na Kasaysayan na nagpapakita kung sino ang gumawa ng record at kailan, at kung sino ang "
+      + "huling nagbago kung mayroon man. Galing ito sa parehong audit log, kaya walang kailangang dagdag "
+      + "na pahintulot: kung nakikita mo ang record, nakikita mo ang kasaysayan nito.",
+    auditRecordHistorySubmit:
+      "Ang pag-save at pagsumite ng pang-araw-araw na entry ay iisang gawa, hindi pagbabago: kung ikaw "
+      + "mismo ang gumawa ng dalawa, ipinapakita ka ng column na History bilang tagalikha at walang "
+      + "nakalistang pagbabago. Kung iba ang nagsumite ng iyong draft, lalabas ang pagsumite nila bilang "
+      + "huling pagbabago, kaya laging makikita kung sino ang nag-opisyal sa bilang ng araw na iyon. Ganito "
+      + "rin ang pagkumpirma ng order ng benta. Sa alinmang paraan, ipinapakita ng column na History kung "
+      + "KAILAN ito naisumite, dahil iyon ang sandaling pumasok sa stock ang mga itlog, at kung kailan "
+      + "inilaan ang stock para sa order. Ang pagwawasto sa naka-lock na entry ay laging ipinapakita, "
+      + "kahit ikaw ang gumawa nito, gayundin ang pagkansela ng sarili mong draft na order. Nakatago ang "
+      + "pag-edit mo sa sarili mong draft bago isumite — bahagi lang iyon ng pagsulat nito. Ngunit kung iba "
+      + "ang nag-edit ng draft mo, ipinapakita ang pagbabago nila, kaya hindi kailanman nawawala ang taong "
+      + "naglagay ng mga bilang na pumasok sa stock. At mula noon, ipinapakita na rin ang sarili mong mga "
+      + "susunod na pag-edit: kung ibinalik mo ang mga bilang sa gusto mo, ikaw ang pinapangalanan ng "
+      + "column at ang oras na ginawa mo iyon, hindi ang pag-edit na pinalitan mo.",
+    auditRecordHistoryOlder:
+      "Ang mga record na ginawa bago ito idagdag ay walang linyang \"ginawa ni\" — wala lang talagang "
+      + "entry ng paggawa sa log para sa kanila, at walang iniimbentong bago pagkatapos. Kung nabago ang "
+      + "ganoong record pagkatapos, ipinapakita pa rin ang pagbabagong iyon; blangko lang ang kolum na "
+      + "Kasaysayan kapag wala talagang anuman.",
 
     exportHeading: "Export at Backup (admin)",
     exportCsv:

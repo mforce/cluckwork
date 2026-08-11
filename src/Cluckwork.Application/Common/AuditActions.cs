@@ -55,4 +55,30 @@ public static class AuditActions
     public const string ProductDeactivate = "Product.Deactivate";
     public const string EggUnitConversionUpdate = "EggUnitConversion.Update";
     public const string EggLotMovement = "EggLot.Movement";
+    public const string FlockCreate = "Flock.Create";
+    public const string DailyEntryCreate = "DailyEntry.Create";
+    // Submitting mints the egg lots, so it alters stock and belongs in the
+    // trail on its own merits. It is also the ONLY record of who made a day's
+    // numbers official, which #494 shows as the entry's last change whenever
+    // that is someone other than the person who drafted it.
+    public const string DailyEntrySubmit = "DailyEntry.Submit";
+    // Editing a DRAFT. Recorded even though it moves no stock, because it is
+    // the only thing that binds a person to the numbers: without it, a farmhand
+    // who rewrites somebody else's draft before it is submitted leaves no trace
+    // at all, and the submitter is credited with their work. #494's record
+    // history hides these when the editor is the record's own creator, so the
+    // common case of drafting your own entry stays quiet.
+    public const string DailyEntryUpdate = "DailyEntry.Update";
+    public const string SalesOrderAddItem = "SalesOrder.AddItem";
+    public const string SalesOrderUpdateItem = "SalesOrder.UpdateItem";
+    public const string SalesOrderRemoveItem = "SalesOrder.RemoveItem";
+    public const string SalesOrderCreate = "SalesOrder.Create";
+    // Confirming allocates stock FIFO — the order's equivalent of submitting a
+    // daily entry, and treated identically by #494's record history.
+    public const string SalesOrderConfirm = "SalesOrder.Confirm";
+    // Cancel is Draft-only so it releases nothing, but it is terminal: a record
+    // somebody killed must say who.
+    public const string SalesOrderCancel = "SalesOrder.Cancel";
+    public const string ExpenseCreate = "Expense.Create";
+    public const string EggGradeCreate = "EggGrade.Create";
 }

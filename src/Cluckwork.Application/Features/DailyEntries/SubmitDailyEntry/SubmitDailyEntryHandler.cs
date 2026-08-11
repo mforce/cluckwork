@@ -26,6 +26,7 @@ public sealed class SubmitDailyEntryHandler(
     IFlockRepository flocks,
     IFlockScopeGuard flockScope,
     IClock clock,
+    IAuditWriter audit,
     IUnitOfWork unitOfWork,
     ILogger<SubmitDailyEntryHandler> logger)
 {
@@ -126,6 +127,12 @@ public sealed class SubmitDailyEntryHandler(
                 note: "Daily entry mortality",
                 dailyEntryId: entry.Id), ct);
         }
+
+        // #494 — appended to THIS unit of work, so the event commits with the
+        // lots and movements or not at all. Placed after every failure return
+        // above: a submit that never happened must leave no trace.
+        await audit.WriteAsync(
+            AuditActions.DailyEntrySubmit, nameof(DailyEntry), entry.Id, ct: ct);
 
         // A concurrent submit that loses the Version race throws
         // DbUpdateConcurrencyException here; the API's global error handler maps it

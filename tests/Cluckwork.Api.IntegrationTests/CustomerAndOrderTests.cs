@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 // #10 + #11 — customers and the order create/add-item surface. The final test
 // drives the whole MVP loop through the public API alone (no harness seeding
@@ -442,5 +443,26 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         Assert.NotNull(stock);
         Assert.Equal(350, stock.Single(s => s.EggGradeId == grades["Large"]).Available);
         Assert.Equal(200, stock.Single(s => s.EggGradeId == grades["Medium"]).Available);
+    }
+
+    // #494 — creation wasn't on the audit trail at all; only corrections were.
+    [Fact]
+    public async Task SalesOrder_Create_WritesAuditEvent()
+    {
+        var (client, accountId, _, _, _) = await SetupAsync("Large");
+
+        var customerId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Mercado Central", phone = "555-0100" }));
+        var orderId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
+
+        var events = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .Where(e => e.EntityType == "SalesOrder" && e.EntityId == orderId)
+            .ToListAsync());
+
+        var created = Assert.Single(events);
+        Assert.Equal("SalesOrder.Create", created.Action);
     }
 }

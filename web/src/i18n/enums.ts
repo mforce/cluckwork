@@ -290,6 +290,10 @@ export const AUDIT_ACTION_VALUES = [
   "Account.SetBanner", "Account.RemoveBanner", "Account.UpdateSettings",
   "Product.Create", "Product.Update", "Product.Activate",
   "Product.Deactivate", "EggUnitConversion.Update", "EggLot.Movement",
+  "Flock.Create", "DailyEntry.Create", "DailyEntry.Update", "DailyEntry.Submit",
+  "SalesOrder.Create", "SalesOrder.Confirm", "SalesOrder.Cancel",
+  "SalesOrder.AddItem", "SalesOrder.UpdateItem", "SalesOrder.RemoveItem",
+  "Expense.Create", "EggGrade.Create",
 ] as const;
 export type AuditActionValue = (typeof AUDIT_ACTION_VALUES)[number];
 const AUDIT_ACTION_KEYS = {
@@ -331,6 +335,18 @@ const AUDIT_ACTION_KEYS = {
   "Product.Deactivate": "enums:auditAction.Product.Deactivate",
   "EggUnitConversion.Update": "enums:auditAction.EggUnitConversion.Update",
   "EggLot.Movement": "enums:auditAction.EggLot.Movement",
+  "Flock.Create": "enums:auditAction.Flock.Create",
+  "DailyEntry.Create": "enums:auditAction.DailyEntry.Create",
+  "DailyEntry.Update": "enums:auditAction.DailyEntry.Update",
+  "DailyEntry.Submit": "enums:auditAction.DailyEntry.Submit",
+  "SalesOrder.AddItem": "enums:auditAction.SalesOrder.AddItem",
+  "SalesOrder.UpdateItem": "enums:auditAction.SalesOrder.UpdateItem",
+  "SalesOrder.RemoveItem": "enums:auditAction.SalesOrder.RemoveItem",
+  "SalesOrder.Create": "enums:auditAction.SalesOrder.Create",
+  "SalesOrder.Confirm": "enums:auditAction.SalesOrder.Confirm",
+  "SalesOrder.Cancel": "enums:auditAction.SalesOrder.Cancel",
+  "Expense.Create": "enums:auditAction.Expense.Create",
+  "EggGrade.Create": "enums:auditAction.EggGrade.Create",
 } as const satisfies Record<AuditActionValue, EnumsKey>;
 export function auditActionLabel(value: AuditActionValue | (string & {})): string {
   const key = AUDIT_ACTION_KEYS[value as AuditActionValue];

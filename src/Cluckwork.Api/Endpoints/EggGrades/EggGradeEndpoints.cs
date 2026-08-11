@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Endpoints.EggGrades;
 
 using Cluckwork.Api.Validation;
+using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.EggGrades.CreateEggGrade;
 using Cluckwork.Application.Features.EggGrades.SetEggGradeActive;
@@ -47,22 +48,30 @@ public static class EggGradeEndpoints
     }
 
     private static async Task<IResult> ListEggGrades(
-        IEggGradeRepository grades, TenantContext tenant, CancellationToken ct,
+        IEggGradeRepository grades, IAuditEventRepository audit,
+        TenantContext tenant, CancellationToken ct,
         bool includeInactive = false)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var list = includeInactive
             ? await grades.ListAllAsync(ct)
             : await grades.ListActiveAsync(farmId: null, ct);
-        return Results.Ok(list.Select(ToResponse));
+        // This list is unpaginated, so the batch is however many grades the
+        // farm has; the lookup chunks internally rather than refusing a big one.
+        var provenance = await audit.GetProvenanceAsync(
+            nameof(EggGrade), list.Select(g => g.Id).ToList(), ct);
+        return Results.Ok(list.Select(g => ToResponse(g, provenance.GetValueOrDefault(g.Id))));
     }
 
     private static async Task<IResult> GetEggGrade(
-        Guid id, IEggGradeRepository grades, TenantContext tenant, CancellationToken ct)
+        Guid id, IEggGradeRepository grades, IAuditEventRepository audit,
+        TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var grade = await grades.GetByIdAsync(id, ct);
-        return grade is null ? Results.NotFound() : Results.Ok(ToResponse(grade));
+        if (grade is null) return Results.NotFound();
+        var provenance = await audit.GetProvenanceAsync(nameof(EggGrade), [id], ct);
+        return Results.Ok(ToResponse(grade, provenance.GetValueOrDefault(id)));
     }
 
     private static async Task<IResult> CreateEggGrade(
@@ -126,9 +135,10 @@ public static class EggGradeEndpoints
             : Results.Problem(error.Description, statusCode: 422, title: error.Code);
     }
 
-    private static EggGradeResponse ToResponse(EggGrade g) =>
+    private static EggGradeResponse ToResponse(EggGrade g, EntityProvenance? p) =>
         new(g.Id, g.FarmId, g.Name, g.GradeType.ToString(), g.SortOrder, g.IsSaleable,
-            g.DailyEntryKind.ToString(), g.Active);
+            g.DailyEntryKind.ToString(), g.Active,
+            p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc);
 }
 
 // FarmId included from day one — grades are farm-scoped (spec §9.1) and a
@@ -141,7 +151,11 @@ public sealed record EggGradeResponse(
     // lets the Grading pane leave the two counter-fed grades out; the server
     // refuses them regardless, so this is the affordance, not the enforcement.
     string DailyEntryKind,
-    bool Active);
+    bool Active,
+    // #494 provenance, derived from the audit trail: null together for a
+    // record created before that shipped (no backfill).
+    string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
+    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc);
 
 public sealed record CreateEggGradeRequest(
     string Name, string GradeType, int SortOrder, bool IsSaleable);

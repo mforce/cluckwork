@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 // #87 — basic expenses: farm-scoped category catalog (grade pattern) and
 // money-out records with a snapshotted currency, server-side period totals,
@@ -239,5 +240,24 @@ public sealed class ExpensesTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(1, after!.Version);
         Assert.True(after.AmountMinorUnits is 60_00 or 40_00);
         Assert.Equal(after.AmountMinorUnits == 60_00 ? "first" : "second", after.Description);
+    }
+
+    // #494 — creation wasn't on the audit trail at all; only corrections were.
+    [Fact]
+    public async Task Expense_Create_WritesAuditEvent()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var categoryId = await CreateCategoryAsync(client, "Feed");
+        var id = await CreateExpenseAsync(client, categoryId, 25_00);
+
+        var events = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .Where(e => e.EntityType == "Expense" && e.EntityId == id)
+            .ToListAsync());
+
+        var created = Assert.Single(events);
+        Assert.Equal("Expense.Create", created.Action);
     }
 }

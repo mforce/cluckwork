@@ -11,6 +11,7 @@ import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
+import { ProvenanceCell } from "../components/ProvenanceCell";
 import { StatusBadge } from "../components/StatusBadge";
 import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
@@ -253,6 +254,7 @@ export function GradesPage() {
             <th>{t("sortHeader")}</th>
             <th>{t("saleableHeader")}</th>
             <th>{t("statusHeader")}</th>
+            <th>{tc("recordHistoryHeader")}</th>
             <th></th>
           </tr>
         </thead>
@@ -264,6 +266,7 @@ export function GradesPage() {
               <td>{g.sortOrder}</td>
               <td>{g.isSaleable ? <span className="badge badge-ok">{t("saleableYesBadge")}</span> : "—"}</td>
               <td><StatusBadge status={g.active ? "Active" : "Inactive"} label={statusLabel(g.active ? "Active" : "Inactive")} /></td>
+              <ProvenanceCell history={g} />
               <td>
                 {isAdmin && (
                   <>

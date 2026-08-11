@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { InventoryPage } from "./InventoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { account } from "../test/fixtures";
+import { account, NO_RECORD_HISTORY } from "../test/fixtures";
 import {
   activateInventoryItem, createInventoryItem, deactivateInventoryItem, getAccount,
   listFlocks, listInventoryItems, listInventoryLots, listInventoryMovements,
@@ -70,6 +70,7 @@ const PACKAGING: InventoryItem = {
 const INACTIVE: InventoryItem = { ...FEED, id: "it3", name: "Old Additive", category: "Additive", active: false };
 
 const FLOCK: Flock = {
+  ...NO_RECORD_HISTORY,
   id: "fl1", farmId: "f1", houseId: "h1", name: "Flock One", breed: "ISA",
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status: "Active",
 };

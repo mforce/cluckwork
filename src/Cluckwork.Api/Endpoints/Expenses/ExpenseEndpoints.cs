@@ -2,6 +2,7 @@ namespace Cluckwork.Api.Endpoints.Expenses;
 
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Accounts;
+using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.Expenses;
 using Cluckwork.Application.Features.Expenses.AdjustExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
@@ -114,6 +115,7 @@ public static class ExpenseEndpoints
     private static async Task<IResult> ListExpenses(
         IExpenseRepository expenses,
         IAccountRepository accounts,
+        IAuditEventRepository audit,
         TenantContext tenant,
         CancellationToken ct,
         DateOnly? from = null,
@@ -132,20 +134,25 @@ public static class ExpenseEndpoints
         // Single-farm MVP: every expense carries the account currency, so one
         // label fits the total. Multi-currency totals arrive with multi-farm.
         var account = await accounts.GetCurrentAsync(ct);
+        var provenance = await audit.GetProvenanceAsync(
+            nameof(Expense), list.Select(e => e.Id).ToList(), ct);
 
         return Results.Ok(new ExpenseListResponse(
-            list.Select(ToResponse).ToList(),
+            list.Select(e => ToResponse(e, provenance.GetValueOrDefault(e.Id))).ToList(),
             total,
             account?.DefaultCurrencyCode ?? "",
             account?.DefaultCurrencyMinorUnit ?? 2));
     }
 
     private static async Task<IResult> GetExpense(
-        Guid id, IExpenseRepository expenses, TenantContext tenant, CancellationToken ct)
+        Guid id, IExpenseRepository expenses, IAuditEventRepository audit,
+        TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var expense = await expenses.GetByIdAsync(id, ct);
-        return expense is null ? Results.NotFound() : Results.Ok(ToResponse(expense));
+        if (expense is null) return Results.NotFound();
+        var provenance = await audit.GetProvenanceAsync(nameof(Expense), [id], ct);
+        return Results.Ok(ToResponse(expense, provenance.GetValueOrDefault(id)));
     }
 
     private static async Task<IResult> CreateExpense(
@@ -177,6 +184,7 @@ public static class ExpenseEndpoints
         AdjustExpenseHandler handler,
         IValidator<AdjustExpenseCommand> validator,
         IExpenseRepository expenses,
+        IAuditEventRepository audit,
         TenantContext tenant,
         CancellationToken ct)
     {
@@ -194,9 +202,12 @@ public static class ExpenseEndpoints
         if (result.IsFailure) return MapFailure(result.Error);
 
         // The corrected row (fresh version) so the client can rebind its edit
-        // state without a second round trip.
+        // state without a second round trip. The adjust just wrote its own
+        // audit event, so this read reports the correction as the last change.
         var updated = await expenses.GetByIdAsync(id, ct);
-        return updated is null ? Results.NotFound() : Results.Ok(ToResponse(updated));
+        if (updated is null) return Results.NotFound();
+        var provenance = await audit.GetProvenanceAsync(nameof(Expense), [id], ct);
+        return Results.Ok(ToResponse(updated, provenance.GetValueOrDefault(id)));
     }
 
     private static IResult MapFailure(Cluckwork.Domain.Common.Error error)
@@ -212,10 +223,11 @@ public static class ExpenseEndpoints
     private static ExpenseCategoryResponse ToResponse(ExpenseCategory c) =>
         new(c.Id, c.FarmId, c.Name, c.Active);
 
-    private static ExpenseResponse ToResponse(Expense e) =>
+    private static ExpenseResponse ToResponse(Expense e, EntityProvenance? p) =>
         new(e.Id, e.FarmId, e.ExpenseCategoryId, e.Date, e.Description,
             e.AmountMinorUnits, e.CurrencyCode, e.CurrencyMinorUnit,
-            e.FlockId, e.Note, e.Version);
+            e.FlockId, e.Note, e.Version,
+            p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc);
 }
 
 public sealed record ExpenseCategoryResponse(Guid Id, Guid FarmId, string Name, bool Active);
@@ -225,7 +237,11 @@ public sealed record UpdateExpenseCategoryRequest(string Name, bool Active);
 public sealed record ExpenseResponse(
     Guid Id, Guid FarmId, Guid ExpenseCategoryId, DateOnly Date, string Description,
     long AmountMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
-    Guid? FlockId, string? Note, int Version);
+    Guid? FlockId, string? Note, int Version,
+    // #494 provenance, derived from the audit trail: null together for a
+    // record created before that shipped (no backfill).
+    string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
+    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc);
 
 public sealed record ExpenseListResponse(
     List<ExpenseResponse> Items, long TotalMinorUnits, string CurrencyCode, int CurrencyMinorUnit);

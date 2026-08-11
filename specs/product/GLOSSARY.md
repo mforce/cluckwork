@@ -416,6 +416,69 @@ update or delete surface anywhere. Admin-only viewer at /audit. The
 entity-local snapshots (`AdjustedFromJson` etc.) remain — they are the
 record's own history; the audit log is the cross-cutting trail.
 
+**Record history (#494)** — the "Created by … / Last changed by …" column on
+the Flocks, Egg grades, Daily entry history, Sales and Expenses tables. Not a
+stored field: it is **derived from the audit log**. Creation is the record's
+`*.Create` event — identified by the action, never by being first on the trail,
+because two events can share an instant and their order is then unknowable.
+Creation itself became an audited action for these five in the same change
+(`Flock.Create` and siblings) — before that only corrections were on the trail.
+
+The last change is the latest event that is neither that creation **nor a
+promotion by the person who created it**. A *promotion* is the action that turns
+a draft into the official record — `DailyEntry.Submit` and `SalesOrder.Confirm`,
+the two moments that mint or allocate stock. That exception is what makes the
+common case read correctly: saving a daily entry and submitting it are two events
+but one act, so a farmhand who writes the day's numbers and makes them official —
+changing nothing in between — is shown as the creator with no change against
+them. When somebody *else* submits the draft, that submit is a real change and
+both people are named, which is the accountability the submit step exists for.
+
+Suppressing the promoter's *name* must not lose the promotion's *time*, so the
+column also carries **when** the record became official — "Submitted …" on a
+daily entry, "Confirmed …" on a sales order — shown whoever did it. That instant
+is when stock is minted or allocated, and it lives nowhere else on the record's
+own page: a daily entry stores no submission timestamp of its own, only
+`LockedAtUtc`. Blank for a draft awaiting promotion, and absent entirely on
+flocks, egg grades and expenses, which have no promotion step.
+
+The exception covers **drafting** — the creator's own edits to their own draft,
+and the promotion that ends it — and nothing else. Correcting a locked entry
+always shows, including when the corrector created it. So does **cancelling** a
+draft order: `SalesOrder.Cancel` kills the record rather than making it official,
+so cancelling your own order stays a reportable change. It is keyed on the action
+*and* the actor together, which is why the same draft edit is hidden for the
+person who created the record and shown for anybody else.
+
+Editing a draft **is** recorded, even though it alters no stock, because it is
+the only thing binding a person to the numbers. Without it, someone who rewrites
+a colleague's draft before it is submitted leaves no trace and the submitter is
+credited with their work. The rule above is what keeps that quiet in the ordinary
+case: your own edits to your own draft are part of writing it, so they are hidden
+along with your own submit, and only a **different** person's edit surfaces as a
+change.
+
+That hiding stops the moment the draft stops being yours alone. **Once somebody
+else has edited it, your own later edits are shown too** — because by then they
+are the answer to "whose numbers are these". Hiding them named the colleague
+whose work you overwrote and dated the record to an edit that no longer exists
+in it, while the numbers that went into stock were yours. Your own *promotion*
+stays hidden even here: it has its own "Submitted …" line, and repeating it as
+the last change would say that making a record official changed it.
+
+Two further consequences follow from being derived rather than stored. A record
+created **before #494** has no creation event and is **never backfilled**, so it
+shows no "created by" line — but that half is independent of the rest: if it has
+since been changed, that change still shows, with the created line simply absent.
+The column is entirely blank only for a record with nothing on the trail at all.
+And who can see it is exactly who could already read the record — it adds
+no gate of its own, so a worker reading their own daily entry also sees which
+manager corrected it. The actor is shown as the plain **email snapshot** the
+audit log already keeps, deliberately not a live-joined name: a later rename or
+disable must not rewrite what old history displays. Distinct from the audit
+log's own admin-only viewer at /audit, which is the full cross-cutting trail —
+this is the one-line summary on the record's own page.
+
 **Hen-day % (#91)** — eggs collected ÷ hen-days × 100 (spec §19.3). A
 hen-day is one bird alive for one day; the day's bird count comes from the
 bird ledger (placements + movements). The production report shows it per

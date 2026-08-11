@@ -11,7 +11,7 @@ import {
 import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
 import { FarmContext } from "../farm/FarmContext";
-import { account, farmState } from "../test/fixtures";
+import { account, farmState, NO_RECORD_HISTORY } from "../test/fixtures";
 import i18n from "../i18n";
 
 // DailyEntry has no auth deps — mock only the API seam it loads from. The
@@ -43,16 +43,18 @@ const mockListWaterUsage = vi.mocked(listWaterUsage);
 const mockCreateFlock = vi.mocked(createFlock);
 
 const FLOCK: Flock = {
+  ...NO_RECORD_HISTORY,
   id: "f1", farmId: "farm1", houseId: "h1", name: "Hen House 1", breed: "ISA",
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status: "Active",
 };
 const GRADES: EggGrade[] = [
-  { id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true },
-  { id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true },
+  { ...NO_RECORD_HISTORY, id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true },
+  { ...NO_RECORD_HISTORY, id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true },
 ];
 // #396 — saleable AND active, so it passes every pre-existing filter. The only
 // thing that keeps it out of the Grading pane is its kind.
 const CRACKED: EggGrade = {
+  ...NO_RECORD_HISTORY,
   id: "gr-cracked", farmId: "farm1", name: "Cracked", gradeType: "Quality",
   sortOrder: 3, isSaleable: true, dailyEntryKind: "Cracked", active: true,
 };
@@ -259,6 +261,7 @@ describe("DailyEntryPage prefill gating", () => {
 
   it("locks the form when the day already has a submitted entry", async () => {
     const existing: DailyEntry = {
+      ...NO_RECORD_HISTORY,
       id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date: todayIso(), status: "Submitted",
       totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1, crackedGradeId: null, dirtyGradeId: null,
       grades: [{ eggGradeId: "gr1", quantity: 60 }, { eggGradeId: "gr2", quantity: 25 }],
@@ -282,6 +285,7 @@ describe("DailyEntryPage prefill gating", () => {
   // en.ts's `enums` header comment).
   it("shows the harmonized 'adjusted' label, not the raw status, for a manager-adjusted day", async () => {
     const existing: DailyEntry = {
+      ...NO_RECORD_HISTORY,
       id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date: todayIso(), status: "ManagerAdjusted",
       totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1, crackedGradeId: null, dirtyGradeId: null,
       grades: [{ eggGradeId: "gr1", quantity: 60 }, { eggGradeId: "gr2", quantity: 25 }],
@@ -463,6 +467,7 @@ describe("DailyEntryPage structure", () => {
 
 describe("DailyEntryPage draft badge", () => {
   const draftFor = (date: string) => ({
+    ...NO_RECORD_HISTORY,
     id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date, status: "Draft",
     totalEggs: 40, crackedEggs: 1, dirtyEggs: 0, discardedEggs: 0, mortalityCount: 0, crackedGradeId: null, dirtyGradeId: null,
     grades: [], version: 1, adjustReason: null, voidReason: null,
@@ -1081,6 +1086,7 @@ describe("DailyEntryPage i18n wiring (#182, Task 11)", () => {
   // "submitted" here.
   it("interpolates the enum-labelled status into the entry-locked banner from the catalog", async () => {
     const existing: DailyEntry = {
+      ...NO_RECORD_HISTORY,
       id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date: todayIso(), status: "Submitted",
       totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1, crackedGradeId: null, dirtyGradeId: null,
       grades: [], version: 1, adjustReason: null, voidReason: null, lockedAtUtc: "2026-07-20T10:00:00Z", adjustedFrom: null,

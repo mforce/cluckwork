@@ -5,6 +5,11 @@
 // on-screen label, until that screen itself is externalized to the catalog (#182).
 export const es = {
   common: {
+    "recordHistory.createdBy": "Creado por {{email}} el {{at}}",
+    "recordHistory.lastChangedBy": "Última modificación por {{email}} el {{at}}",
+    "recordHistory.submittedAt": "Enviado el {{at}}",
+    "recordHistory.confirmedAt": "Confirmado el {{at}}",
+    recordHistoryHeader: "Historial",
     cancel: "Cancelar",
     save: "Guardar",
     close: "Cerrar",
@@ -1623,6 +1628,18 @@ export const es = {
     "auditAction.Product.Deactivate": "Producto desactivado",
     "auditAction.EggUnitConversion.Update": "Conversión de unidad de huevo actualizada",
     "auditAction.EggLot.Movement": "Existencias dadas de baja / recontadas",
+    "auditAction.Flock.Create": "Lote creado",
+    "auditAction.DailyEntry.Create": "Registro diario creado",
+    "auditAction.DailyEntry.Update": "Borrador de registro diario editado",
+    "auditAction.DailyEntry.Submit": "Registro diario enviado",
+    "auditAction.SalesOrder.AddItem": "Línea de pedido agregada",
+    "auditAction.SalesOrder.UpdateItem": "Línea de pedido modificada",
+    "auditAction.SalesOrder.RemoveItem": "Línea de pedido eliminada",
+    "auditAction.SalesOrder.Create": "Pedido de venta creado",
+    "auditAction.SalesOrder.Confirm": "Pedido de venta confirmado",
+    "auditAction.SalesOrder.Cancel": "Pedido de venta cancelado",
+    "auditAction.Expense.Create": "Gasto creado",
+    "auditAction.EggGrade.Create": "Grado de huevo creado",
 
     "entityType.Account": "Cuenta",
     "entityType.DailyEntry": "Entrada diaria",
@@ -2119,6 +2136,29 @@ export const es = {
       + "automáticamente: quién lo hizo, cuándo (UTC), qué afectó, y el motivo cuando se dio uno. Se "
       + "escribe junto con el cambio mismo — una acción fallida no deja rastro, una exitosa siempre lo hace "
       + "— y nunca es editable, por nadie.",
+    auditRecordHistory:
+      "Lotes, Grados de huevo, Historial de registro diario, Ventas y Gastos tienen una columna Historial "
+      + "que muestra quién creó el registro y cuándo, más quién lo modificó por última vez si alguien lo "
+      + "hizo. Se lee del mismo registro de auditoría, así que no requiere permisos adicionales: si puede "
+      + "ver el registro, puede ver su historial.",
+    auditRecordHistorySubmit:
+      "Guardar un registro diario y enviarlo es un solo acto, no un cambio: si haces ambas cosas tú, la "
+      + "columna Historial te muestra como creador y no señala ningún cambio. Si otra persona envía tu "
+      + "borrador, ese envío aparece como el último cambio, así siempre se sabe quién oficializó los "
+      + "números del día. En ambos casos la columna Historial indica CUÁNDO se envió, porque ese es el "
+      + "momento en que los huevos entraron en existencias. Confirmar un pedido de venta funciona igual y "
+      + "muestra cuándo se asignaron las existencias. Corregir un registro ya bloqueado "
+      + "siempre se muestra, aunque tú lo hayas creado, y cancelar tu propio pedido en borrador también. "
+      + "Editar tu propio borrador antes de enviarlo queda oculto: eso es simplemente escribirlo. Pero si "
+      + "otra persona edita tu borrador, su cambio sí se muestra, para que nunca sea invisible quien puso "
+      + "los números que entraron en existencias. Y a partir de ese momento también se muestran tus "
+      + "propias ediciones posteriores: si dejas los números como querías, la columna te nombra a ti y "
+      + "marca la hora en que lo hiciste, no la edición que reemplazaste.",
+    auditRecordHistoryOlder:
+      "Los registros creados antes de que esto se agregara no muestran la línea de \"creado por\": "
+      + "simplemente no hay una entrada de creación en el registro para ellos, y no se inventa ninguna "
+      + "después. Si un registro así se modificó luego, ese cambio sí se muestra; la columna Historial "
+      + "queda vacía solo cuando no hay absolutamente nada.",
 
     exportHeading: "Exportar y respaldo (admin)",
     exportCsv:

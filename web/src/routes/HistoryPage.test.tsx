@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act } from "@testing-library/react";
 import { HistoryPage } from "./HistoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { account } from "../test/fixtures";
+import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 import {
   adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
   listFlocks, voidDailyEntry,
@@ -32,15 +32,17 @@ const mockAdjustDailyEntry = vi.mocked(adjustDailyEntry);
 const mockGetDailyEntry = vi.mocked(getDailyEntry);
 
 const FLOCK: Flock = {
+  ...NO_RECORD_HISTORY,
   id: "f1", farmId: "farm1", houseId: "h1", name: "Hen House 1", breed: "ISA",
   placementDate: "2026-01-01", initialCount: 100, currentBirds: 98, status: "Active",
 };
 const ARCHIVED_FLOCK: Flock = { ...FLOCK, id: "f2", name: "Old Coop", status: "Archived" };
-const GRADE_A: EggGrade = { id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
-const GRADE_B: EggGrade = { id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true };
+const GRADE_A: EggGrade = { ...NO_RECORD_HISTORY, id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
+const GRADE_B: EggGrade = { ...NO_RECORD_HISTORY, id: "gr2", farmId: "farm1", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true };
 
 // sellable = 100 − 2 − 3 − 5 = 90; two graded lines summing to 60 (within).
 const SUBMITTED: DailyEntry = {
+  ...NO_RECORD_HISTORY,
   id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date: "2026-07-19", status: "Submitted",
   totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1, crackedGradeId: null, dirtyGradeId: null,
   grades: [{ eggGradeId: "gr1", quantity: 40 }, { eggGradeId: "gr2", quantity: 20 }],
@@ -86,6 +88,27 @@ async function openAdjustPanel() {
 // occur in sibling cells, so a text query can pass against the wrong column.
 const conditionCell = (row: HTMLElement) => within(row).getAllByRole("cell")[5];
 
+// #494 — the record-history column is a shared component, well tested on its
+// own; what is NOT tested by that unit suite is the per-page WIRING that hands
+// it the CORRECT row's history object. A page passing the wrong variable (a
+// different row, or a stray constant) would go uncaught otherwise.
+describe("HistoryPage record history column (#494)", () => {
+  it("shows the record history column for the row that has one", async () => {
+    const HISTORY_ENTRY: DailyEntry = { ...SUBMITTED, ...RECORD_HISTORY, id: "de-hist", date: "2026-07-20" };
+    mockListDailyEntries.mockResolvedValue([SUBMITTED, HISTORY_ENTRY]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    const historyRow = await screen.findByRole("row", { name: /2026-07-20/ });
+    expect(within(historyRow).getByText(/ana@farm\.test/)).toBeInTheDocument();
+    expect(within(historyRow).getByText(/bo@farm\.test/)).toBeInTheDocument();
+
+    // The OTHER row must not carry the history row's data — this is what
+    // catches every row being wired to the same object.
+    const otherRow = screen.getByRole("row", { name: /2026-07-19/ });
+    expect(within(otherRow).queryByText(/ana@farm\.test/)).not.toBeInTheDocument();
+  });
+});
+
 describe("HistoryPage condition column", () => {
   it("counts only the conditions this entry resolved to a grade", async () => {
     // cracked 2 resolved (a grade id), dirty 3 did NOT (null) — so 2, not 5.
@@ -127,6 +150,7 @@ describe("HistoryPage condition column", () => {
 // half only — an existing line stays correctable whatever it names.
 describe("HistoryPage adjust panel excludes counter-fed grades", () => {
   const CRACKED: EggGrade = {
+    ...NO_RECORD_HISTORY,
     id: "gr-cracked", farmId: "farm1", name: "Cracked", gradeType: "Quality",
     sortOrder: 3, isSaleable: true, dailyEntryKind: "Cracked", active: true,
   };

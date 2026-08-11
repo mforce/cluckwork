@@ -8,6 +8,7 @@ import {
 import type { EggGrade } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
+import { NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 
 // Network seam only; ApiError stays real (errorMessage branches on it).
 vi.mock("../api/cluckwork", () => ({
@@ -24,8 +25,8 @@ const mockUpdate = vi.mocked(updateEggGrade);
 const mockDeactivate = vi.mocked(deactivateEggGrade);
 const mockActivate = vi.mocked(activateEggGrade);
 
-const GRADE_A: EggGrade = { id: "g1", farmId: "f", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
-const GRADE_OLD: EggGrade = { id: "g2", farmId: "f", name: "Legacy", gradeType: "Quality", sortOrder: 2, isSaleable: false, dailyEntryKind: "Manual", active: false };
+const GRADE_A: EggGrade = { ...NO_RECORD_HISTORY, id: "g1", farmId: "f", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
+const GRADE_OLD: EggGrade = { ...NO_RECORD_HISTORY, id: "g2", farmId: "f", name: "Legacy", gradeType: "Quality", sortOrder: 2, isSaleable: false, dailyEntryKind: "Manual", active: false };
 
 const ADMIN = { sub: "u1", role: "Admin" };
 const WORKER = { sub: "u1" };
@@ -61,8 +62,36 @@ describe("GradesPage display", () => {
     expect(within(rowA).getByText("yes")).toBeInTheDocument(); // saleable
     expect(within(rowA).getByText("Active")).toBeInTheDocument();
     const rowOld = screen.getByRole("row", { name: /Legacy/ });
-    expect(within(rowOld).getByText("—")).toBeInTheDocument(); // not saleable
+    // By cell, not by text: the record-history column (#494) also renders "—"
+    // for a fixture with no history, so a row-wide text query is ambiguous.
+    // Columns: name, type, sort, saleable, status, history, actions.
+    expect(within(rowOld).getAllByRole("cell")[3]).toHaveTextContent("—"); // not saleable
     expect(within(rowOld).getByText("Inactive")).toBeInTheDocument();
+  });
+});
+
+// #494 — the record-history column is a shared component, well tested on its
+// own; what is NOT tested by that unit suite is the per-page WIRING that hands
+// it the CORRECT row's history object. A page passing the wrong variable (a
+// different row, or a stray constant) would go uncaught otherwise.
+describe("GradesPage record history column (#494)", () => {
+  it("shows the record history column for the row that has one", async () => {
+    const GRADE_HISTORY: EggGrade = {
+      ...RECORD_HISTORY,
+      id: "g9", farmId: "f", name: "Provenance Grade", gradeType: "Size",
+      sortOrder: 3, isSaleable: true, dailyEntryKind: "Manual", active: true,
+    };
+    mockList.mockResolvedValue([GRADE_A, GRADE_HISTORY]);
+    await renderReady(ADMIN);
+
+    const historyRow = screen.getByRole("row", { name: /Provenance Grade/ });
+    expect(within(historyRow).getByText(/ana@farm\.test/)).toBeInTheDocument();
+    expect(within(historyRow).getByText(/bo@farm\.test/)).toBeInTheDocument();
+
+    // The OTHER row must not carry the history row's data — this is what
+    // catches every row being wired to the same object.
+    const otherRow = screen.getByRole("row", { name: /Grade A/ });
+    expect(within(otherRow).queryByText(/ana@farm\.test/)).not.toBeInTheDocument();
   });
 });
 

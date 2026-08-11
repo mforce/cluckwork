@@ -4,6 +4,16 @@
 // is a build error.
 export const en = {
   common: {
+    // #494 — the record-history cell shown on the list screens. "Last changed"
+    // appears only when something happened after creation.
+    "recordHistory.createdBy": "Created by {{email}} on {{at}}",
+    "recordHistory.lastChangedBy": "Last changed by {{email}} on {{at}}",
+    // #494 — when the record became official. Shown even when the person who
+    // submitted or confirmed it is the same person who created it, because that
+    // case is excluded from "last changed by" and the instant would be lost.
+    "recordHistory.submittedAt": "Submitted {{at}}",
+    "recordHistory.confirmedAt": "Confirmed {{at}}",
+    recordHistoryHeader: "History",
     cancel: "Cancel",
     save: "Save",
     close: "Close",
@@ -2040,6 +2050,18 @@ export const en = {
     "auditAction.Product.Deactivate": "Product deactivated",
     "auditAction.EggUnitConversion.Update": "Egg unit conversion updated",
     "auditAction.EggLot.Movement": "Stock written off / recounted",
+    "auditAction.Flock.Create": "Flock created",
+    "auditAction.DailyEntry.Create": "Daily entry created",
+    "auditAction.DailyEntry.Update": "Daily entry draft edited",
+    "auditAction.DailyEntry.Submit": "Daily entry submitted",
+    "auditAction.SalesOrder.AddItem": "Order line added",
+    "auditAction.SalesOrder.UpdateItem": "Order line changed",
+    "auditAction.SalesOrder.RemoveItem": "Order line removed",
+    "auditAction.SalesOrder.Create": "Sales order created",
+    "auditAction.SalesOrder.Confirm": "Sales order confirmed",
+    "auditAction.SalesOrder.Cancel": "Sales order cancelled",
+    "auditAction.Expense.Create": "Expense created",
+    "auditAction.EggGrade.Create": "Egg grade created",
 
     // entity type (AuditPage table entity cell) — AuditEvent.entityType.
     "entityType.Account": "Account",
@@ -2523,6 +2545,26 @@ export const en = {
       + "it, when (UTC), what it touched, and the reason where one was given. Written together with the "
       + "change itself — a failed action leaves no trace, a successful one always does — and never editable, "
       + "by anyone.",
+    auditRecordHistory:
+      "Flocks, Egg grades, Daily entry history, Sales and Expenses each carry a History column showing who "
+      + "created the record and when, plus who last changed it if anyone has. It is read from the same audit "
+      + "log, so it needs no extra permission: if you can see the record, you can see its history.",
+    auditRecordHistorySubmit:
+      "Saving a daily entry and submitting it is one act, not a change: do both yourself and the History "
+      + "column names you as the creator with no change against you. If somebody else submits your draft, "
+      + "their submit shows as the last change, so you can always see who made a day's numbers official. "
+      + "Either way the History column tells you WHEN it was submitted, since that is when the eggs "
+      + "entered stock. Confirming a sales order works the same way, and shows when stock was allocated. "
+      + "Correcting an entry after it is locked always shows, "
+      + "even if you created it, and so does cancelling your own draft order. Editing your own draft before "
+      + "submitting it stays hidden — that is just writing it. But if somebody else edits your draft, their "
+      + "change is shown, so the person whose numbers went into stock is never invisible. And once they "
+      + "have, your own later edits are shown too: if you put the numbers back the way you wanted them, "
+      + "the column names you and the time you did it, not the edit you overwrote.",
+    auditRecordHistoryOlder:
+      "Records created before this was added show no \"created by\" line — there is simply no creation "
+      + "entry in the log for them, and none is invented after the fact. If such a record has been changed "
+      + "since, that change still shows; the History column is empty only when there is nothing at all.",
 
     // Export & backup
     exportHeading: "Export & backup (admin)",
