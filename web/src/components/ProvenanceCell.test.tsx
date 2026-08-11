@@ -87,8 +87,7 @@ describe("ProvenanceCell", () => {
     expect(screen.getByText(/bo@farm\.test/)).toBeInTheDocument();
   });
 
-  it("renders a placeholder for a record that predates the feature", () => {
-    // No backfill: all four arrive null together and there is nothing to claim.
+  it("renders a placeholder only when there is nothing at all to say", () => {
     renderCell({
       createdByEmail: null,
       createdAtUtc: null,
@@ -97,6 +96,21 @@ describe("ProvenanceCell", () => {
     });
     expect(screen.queryByText(/Created by/i)).not.toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("still reports the change on a record whose creation predates the feature", () => {
+    // No backfill, so no creator line — but the change has real attribution and
+    // must not go down with it. An earlier revision rendered this whole cell as
+    // the placeholder, discarding cy entirely.
+    renderCell({
+      createdByEmail: null,
+      createdAtUtc: null,
+      lastChangedByEmail: "cy@farm.test",
+      lastChangedAtUtc: CHANGED,
+    });
+    expect(screen.getByText(/cy@farm\.test/)).toBeInTheDocument();
+    expect(screen.queryByText(/Created by/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 
   // #494 — the promotion instant. A self-submit is excluded from "last changed

@@ -108,6 +108,16 @@ public sealed class RecordDailyEntryHandler(
         if (result.IsFailure)
             return Result.Failure<Guid>(result.Error).LogFailure(logger, "RecordDailyEntry");
 
+        // #494 — a later call against the same natural key REWRITES an existing
+        // draft. Recorded after the failure check above, so a rejected re-record
+        // leaves no trace. It moves no stock, but it is the only thing binding a
+        // person to the numbers: without it, someone rewriting a colleague's
+        // draft before submission is invisible and the submitter is credited
+        // with their work. Record history hides this when the editor IS the
+        // creator, so drafting your own entry stays quiet.
+        if (existing is not null)
+            await audit.WriteAsync(AuditActions.DailyEntryUpdate, nameof(DailyEntry), entry.Id, ct: ct);
+
         await unitOfWork.SaveChangesAsync(ct);
         logger.LogInformation(
             "Daily entry {DailyEntryId} recorded for flock {FlockId} on {EntryDate}: {TotalEggs} eggs",

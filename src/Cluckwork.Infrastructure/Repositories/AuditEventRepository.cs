@@ -93,17 +93,22 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
             .AsNoTracking()
             .ToListAsync(ct);
 
-        // The last change is the latest event that is neither the creation NOR a
-        // PROMOTION by the creator. That second exclusion is the whole of #494's
-        // "drafting a record and making it official is one act, not a change"
-        // rule: writing the day's numbers down and submitting them, with nothing
-        // altered in between, should not read as if somebody corrected them.
+        // The last change is the latest event that is neither the creation NOR
+        // the creator's OWN DRAFTING of it. That second exclusion is the whole of
+        // #494's "writing a record and making it official is one act, not a
+        // change" rule: filling in the day's numbers and submitting them should
+        // not read as if somebody corrected your work.
         //
-        // A promotion is the action that turns a draft into the official record:
-        // DailyEntry.Submit and SalesOrder.Confirm are the two, and both mint
-        // stock at that moment. Deliberately NOT every draft-to-terminal move —
-        // SalesOrder.Cancel kills a draft rather than promoting it, so
-        // cancelling your own order stays a reportable change.
+        // Drafting = editing a draft, plus the promotion that ends it
+        // (DailyEntry.Submit, SalesOrder.Confirm — the moments stock is minted or
+        // allocated). Excluded ONLY when the actor is the creator, which is what
+        // makes a shared draft attributable: rewrite a colleague's numbers before
+        // they submit and your edit is the last change, even though they are
+        // still the creator and their own submit stays hidden.
+        //
+        // Deliberately NOT every draft-to-terminal move — SalesOrder.Cancel kills
+        // a draft rather than making it official, so cancelling your own order
+        // stays a reportable change.
         //
         // Stated as an EXCLUSION from the candidate set, deliberately — not as
         // "if the last event is a self-promotion, report nothing". The latter
@@ -145,15 +150,26 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
         // NO test pinning the current arbitrary outcome: that would promote a
         // known loss into a specification.
         // EXACT actions, not a "%.Submit"/"%.Confirm" pattern. Creation rightly
-        // uses a wildcard — any ".Create" IS a creation — but promotion is a
-        // closed two-member set, and a pattern would silently swallow a future
-        // action that merely ends the same way (a Payment.Confirm, say), dropping
-        // its actor from history with no error (pi review of PR #503).
+        // uses a wildcard — any ".Create" IS a creation — but these are closed
+        // sets, and a pattern would silently swallow a future action that merely
+        // ends the same way (a Payment.Confirm, say), dropping its actor from
+        // history with no error (pi review of PR #503).
+        //
+        // TWO sets, deliberately not one. Promotion alone answers "when did this
+        // become official"; drafting is what the creator may do to their own
+        // record without it counting as a change.
         var promotionActions = new[]
         {
             AuditActions.DailyEntrySubmit,
             AuditActions.SalesOrderConfirm,
         };
+        var draftingActions = promotionActions.Concat(new[]
+        {
+            AuditActions.DailyEntryUpdate,
+            AuditActions.SalesOrderAddItem,
+            AuditActions.SalesOrderUpdateItem,
+            AuditActions.SalesOrderRemoveItem,
+        }).ToArray();
         var latest = await db.AuditEvents.FromSqlInterpolated($"""
             WITH creator AS (
                 SELECT DISTINCT ON ("EntityId") "EntityId", "ActorUserId"
@@ -171,7 +187,7 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
               AND e."EntityType" = {entityType}
               AND e."EntityId" = ANY({ids})
               AND e."Action" NOT LIKE {createAction}
-              AND NOT (e."Action" = ANY({promotionActions})
+              AND NOT (e."Action" = ANY({draftingActions})
                        AND e."ActorUserId" IS NOT DISTINCT FROM c."ActorUserId")
             ORDER BY e."EntityId", e."OccurredAtUtc" DESC, e."Id" DESC
             """)
@@ -203,20 +219,33 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
             .AsNoTracking()
             .ToListAsync(ct);
 
-        // Keyed off `created`: a record whose trail holds no creation event —
-        // anything predating #494 — reports nothing at all rather than
-        // attributing it to whoever happened to correct it first.
+        // Keyed off EVERY id with any event, not off `created` alone. A record
+        // predating #494 has no creation event and never gets one — but it can
+        // still have changes with real attribution, and keying off `created`
+        // discarded those too, rendering the column completely blank for a flock
+        // somebody archived yesterday (adversarial review of PR #503).
+        //
+        // Refusing to invent a creator and throwing away a provable change are
+        // separate decisions. Only the first is intended: absent creation stays
+        // null rather than being filled in from the first correction.
+        var createdById = created.ToDictionary(e => e.EntityId);
         var latestById = latest.ToDictionary(e => e.EntityId);
         var promotedById = promoted.ToDictionary(e => e.EntityId);
-        return created.ToDictionary(
-            e => e.EntityId,
-            e =>
-            {
-                var last = latestById.GetValueOrDefault(e.EntityId);
-                return new EntityProvenance(
-                    e.ActorEmail, e.OccurredAtUtc,
-                    last?.ActorEmail, last?.OccurredAtUtc,
-                    promotedById.GetValueOrDefault(e.EntityId)?.OccurredAtUtc);
-            });
+
+        return createdById.Keys
+            .Concat(latestById.Keys)
+            .Concat(promotedById.Keys)
+            .Distinct()
+            .ToDictionary(
+                id => id,
+                id =>
+                {
+                    var create = createdById.GetValueOrDefault(id);
+                    var last = latestById.GetValueOrDefault(id);
+                    return new EntityProvenance(
+                        create?.ActorEmail, create?.OccurredAtUtc,
+                        last?.ActorEmail, last?.OccurredAtUtc,
+                        promotedById.GetValueOrDefault(id)?.OccurredAtUtc);
+                });
     }
 }

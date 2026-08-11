@@ -34,21 +34,26 @@ export function ProvenanceCell({
   const { t } = useTranslation("common");
   const { createdByEmail, createdAtUtc, lastChangedByEmail, lastChangedAtUtc } = history;
 
-  // Null together: a record created before #494 shipped has no creation event
-  // and gets no backfill, so there is nothing to claim about it.
-  if (!createdByEmail || !createdAtUtc) {
-    return <td className="muted">—</td>;
-  }
-
+  // The three lines are INDEPENDENT. A record predating #494 has no creation
+  // event and never gets one, but it can still carry a change with real
+  // attribution — so a missing creator hides that one line, not the whole cell.
+  // The placeholder is for a record with nothing at all to say.
+  const created = createdByEmail && createdAtUtc;
   const changed = lastChangedByEmail && lastChangedAtUtc;
   const officialAt = official && history.madeOfficialAtUtc;
 
+  if (!created && !changed && !officialAt) {
+    return <td className="muted">—</td>;
+  }
+
   return (
     <td>
-      <div>{t("recordHistory.createdBy", {
-        email: createdByEmail,
-        at: formatInstant(createdAtUtc),
-      })}</div>
+      {created && (
+        <div>{t("recordHistory.createdBy", {
+          email: createdByEmail,
+          at: formatInstant(createdAtUtc),
+        })}</div>
+      )}
       {officialAt && (
         <div className="muted">{t(
           official === "submitted"

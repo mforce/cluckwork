@@ -327,6 +327,11 @@ public sealed class SubmitDailyEntryTests(CluckworkWebApplicationFactory factory
             .Select(e => e.Action)
             .ToListAsync());
 
-        Assert.Equal(["DailyEntry.Create"], events);
+        // The re-record DOES leave a trace now — a draft edit is attributable,
+        // so that rewriting a colleague's numbers before submission is visible
+        // (#494). What must never happen is a second CREATION, which would give
+        // the entry two candidate authors and let the later one win.
+        Assert.Equal(["DailyEntry.Create", "DailyEntry.Update"], events);
+        Assert.Single(events, a => a == "DailyEntry.Create");
     }
 }

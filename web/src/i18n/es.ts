@@ -1629,7 +1629,11 @@ export const es = {
     "auditAction.EggLot.Movement": "Existencias dadas de baja / recontadas",
     "auditAction.Flock.Create": "Lote creado",
     "auditAction.DailyEntry.Create": "Registro diario creado",
+    "auditAction.DailyEntry.Update": "Borrador de registro diario editado",
     "auditAction.DailyEntry.Submit": "Registro diario enviado",
+    "auditAction.SalesOrder.AddItem": "Línea de pedido agregada",
+    "auditAction.SalesOrder.UpdateItem": "Línea de pedido modificada",
+    "auditAction.SalesOrder.RemoveItem": "Línea de pedido eliminada",
     "auditAction.SalesOrder.Create": "Pedido de venta creado",
     "auditAction.SalesOrder.Confirm": "Pedido de venta confirmado",
     "auditAction.SalesOrder.Cancel": "Pedido de venta cancelado",
@@ -2144,8 +2148,9 @@ export const es = {
       + "momento en que los huevos entraron en existencias. Confirmar un pedido de venta funciona igual y "
       + "muestra cuándo se asignaron las existencias. Corregir un registro ya bloqueado "
       + "siempre se muestra, aunque tú lo hayas creado, y cancelar tu propio pedido en borrador también. "
-      + "Editar un borrador — volver a registrar una entrada, o agregar y quitar líneas de un pedido — no "
-      + "se registra, porque nada de eso mueve existencias.",
+      + "Editar tu propio borrador antes de enviarlo queda oculto: eso es simplemente escribirlo. Pero si "
+      + "otra persona edita tu borrador, su cambio sí se muestra, para que nunca sea invisible quien puso "
+      + "los números que entraron en existencias.",
     auditRecordHistoryOlder:
       "Los registros creados antes de que esto se agregara muestran la columna Historial en blanco. No "
       + "falta nada — simplemente no hay una entrada de creación en el registro para ellos, y no se "

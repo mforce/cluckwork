@@ -24,7 +24,13 @@ namespace Cluckwork.Application.Features.Audit;
 // else on the record's own page — DailyEntry has no SubmittedAt, only
 // LockedAtUtc. Null for anything with no promotion step (flocks, egg grades,
 // expenses) and for a draft still awaiting one.
+// Created* is nullable because the two halves are INDEPENDENT. A record from
+// before #494 has no creation event and never gets one — but it may well have
+// changes with real attribution, and an earlier revision discarded those too by
+// keying the whole result off the creation. Refusing to invent a creator and
+// throwing away a change we can prove are separate decisions; only the first
+// was intended (adversarial review of PR #503).
 public sealed record EntityProvenance(
-    string CreatedByEmail, DateTimeOffset CreatedAtUtc,
+    string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
     string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc,
     DateTimeOffset? MadeOfficialAtUtc);

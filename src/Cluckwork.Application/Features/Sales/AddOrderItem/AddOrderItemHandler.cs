@@ -13,6 +13,7 @@ public sealed class AddOrderItemHandler(
     IProductRepository products,
     IEggGradeRepository eggGrades,
     IEggUnitConversionRepository conversions,
+    IAuditWriter audit,
     IUnitOfWork unitOfWork)
 {
     public async Task<Result<Guid>> HandleAsync(
@@ -100,6 +101,9 @@ public sealed class AddOrderItemHandler(
             unit, conversion.EggsPerUnit, command.Quantity, unitPrice);
         if (result.IsFailure)
             return Result.Failure<Guid>(result.Error);
+
+        // #494 — see RemoveOrderItemHandler: draft-only, recorded for attribution.
+        await audit.WriteAsync(AuditActions.SalesOrderAddItem, nameof(SalesOrder), order.Id, ct: ct);
 
         // EF assigns the item id during save (deliberately not client-set).
         await unitOfWork.SaveChangesAsync(ct);

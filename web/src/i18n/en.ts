@@ -2051,7 +2051,11 @@ export const en = {
     "auditAction.EggLot.Movement": "Stock written off / recounted",
     "auditAction.Flock.Create": "Flock created",
     "auditAction.DailyEntry.Create": "Daily entry created",
+    "auditAction.DailyEntry.Update": "Daily entry draft edited",
     "auditAction.DailyEntry.Submit": "Daily entry submitted",
+    "auditAction.SalesOrder.AddItem": "Order line added",
+    "auditAction.SalesOrder.UpdateItem": "Order line changed",
+    "auditAction.SalesOrder.RemoveItem": "Order line removed",
     "auditAction.SalesOrder.Create": "Sales order created",
     "auditAction.SalesOrder.Confirm": "Sales order confirmed",
     "auditAction.SalesOrder.Cancel": "Sales order cancelled",
@@ -2551,8 +2555,9 @@ export const en = {
       + "Either way the History column tells you WHEN it was submitted, since that is when the eggs "
       + "entered stock. Confirming a sales order works the same way, and shows when stock was allocated. "
       + "Correcting an entry after it is locked always shows, "
-      + "even if you created it, and so does cancelling your own draft order. Editing a draft — re-recording "
-      + "an entry, or adding and removing order lines — is not tracked, because none of it moves stock.",
+      + "even if you created it, and so does cancelling your own draft order. Editing your own draft before "
+      + "submitting it stays hidden — that is just writing it. But if somebody else edits your draft, their "
+      + "change is shown, so the person whose numbers went into stock is never invisible.",
     auditRecordHistoryOlder:
       "Records created before this was added show a blank History column. Nothing is missing — there is "
       + "simply no creation entry in the log for them, and none is invented after the fact.",

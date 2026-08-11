@@ -1692,7 +1692,11 @@ export const tl = {
     "auditAction.EggLot.Movement": "Na-write off / na-recount ang stock",
     "auditAction.Flock.Create": "Nagawa ang kawan",
     "auditAction.DailyEntry.Create": "Nagawa ang pang-araw-araw na entry",
+    "auditAction.DailyEntry.Update": "Na-edit ang draft ng pang-araw-araw na entry",
     "auditAction.DailyEntry.Submit": "Naisumite ang pang-araw-araw na entry",
+    "auditAction.SalesOrder.AddItem": "Nagdagdag ng linya sa order",
+    "auditAction.SalesOrder.UpdateItem": "Binago ang linya ng order",
+    "auditAction.SalesOrder.RemoveItem": "Inalis ang linya ng order",
     "auditAction.SalesOrder.Create": "Nagawa ang order ng benta",
     "auditAction.SalesOrder.Confirm": "Nakumpirma ang order ng benta",
     "auditAction.SalesOrder.Cancel": "Kinansela ang order ng benta",
@@ -2225,9 +2229,10 @@ export const tl = {
       + "rin ang pagkumpirma ng order ng benta. Sa alinmang paraan, ipinapakita ng column na History kung "
       + "KAILAN ito naisumite, dahil iyon ang sandaling pumasok sa stock ang mga itlog, at kung kailan "
       + "inilaan ang stock para sa order. Ang pagwawasto sa naka-lock na entry ay laging ipinapakita, "
-      + "kahit ikaw ang gumawa nito, gayundin ang pagkansela ng sarili mong draft na order. Ang pag-edit ng "
-      + "draft — muling pagtatala ng entry, o pagdaragdag at pagtanggal ng linya sa order — ay hindi "
-      + "sinusubaybayan, dahil wala roong gumagalaw sa stock.",
+      + "kahit ikaw ang gumawa nito, gayundin ang pagkansela ng sarili mong draft na order. Nakatago ang "
+      + "pag-edit mo sa sarili mong draft bago isumite — bahagi lang iyon ng pagsulat nito. Ngunit kung iba "
+      + "ang nag-edit ng draft mo, ipinapakita ang pagbabago nila, kaya hindi kailanman nawawala ang taong "
+      + "naglagay ng mga bilang na pumasok sa stock.",
     auditRecordHistoryOlder:
       "Ang mga record na ginawa bago ito idagdag ay may blangkong kolum na Kasaysayan. Walang nawawala — "
       + "wala lang talagang entry ng paggawa sa log para sa kanila, at walang iniimbentong bago pagkatapos.",

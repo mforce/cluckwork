@@ -67,10 +67,15 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
 
     // A record that predates #494 has no ".Create" event, only corrections.
     // Naming its first corrector as its author would be a claim the trail does
-    // not support — an outright false attribution, not merely missing data. It
-    // reports no creator at all, and the column renders blank.
+    // not support — an outright false attribution, not merely missing data.
+    //
+    // But refusing to invent a creator is a separate decision from discarding a
+    // change we DO have attribution for, and an earlier revision made both at
+    // once by keying the whole result off the creation event: a flock archived
+    // by cy yesterday rendered completely blank (adversarial review of PR #503).
+    // Now the two halves are independent — no creator, real last change.
     [Fact]
-    public async Task Provenance_ForALegacyRecordWithOnlyCorrections_NamesNoCreator()
+    public async Task Provenance_ForALegacyRecordWithOnlyCorrections_NamesNoCreatorButKeepsTheChange()
     {
         var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
         var entityId = Guid.NewGuid();
@@ -81,7 +86,11 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
         var result = await WithRepositoryAsync(accountId, repo =>
             repo.GetProvenanceAsync("Flock", [entityId]));
 
-        Assert.False(result.ContainsKey(entityId));
+        var provenance = result[entityId];
+        Assert.Null(provenance.CreatedByEmail);
+        Assert.Null(provenance.CreatedAtUtc);
+        Assert.Equal("cy@farm.test", provenance.LastChangedByEmail);
+        Assert.Equal(Base.AddMinutes(90), provenance.LastChangedAtUtc);
     }
 
     [Fact]
@@ -249,6 +258,57 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
             repo.GetProvenanceAsync("Flock", [entityId]));
 
         Assert.Null(result[entityId].MadeOfficialAtUtc);
+    }
+
+    // The masked-co-author case. bo rewrites ana's draft and ana submits it: the
+    // numbers that became stock are bo's, and before draft edits were recorded
+    // this read "created by ana, never changed" — crediting ana with bo's work
+    // (adversarial review of PR #503).
+    //
+    // ana's own submit is still hidden, because it is her own drafting. bo's
+    // edit is not, because bo is not the creator.
+    [Fact]
+    public async Task Provenance_WhenSomeoneElseEditsTheDraft_NamesThemEvenIfTheCreatorSubmits()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "DailyEntry.Create", "ana@farm.test", 0, "DailyEntry", ana),
+            Event(accountId, entityId, "DailyEntry.Update", "bo@farm.test", 2, "DailyEntry"),
+            Event(accountId, entityId, "DailyEntry.Submit", "ana@farm.test", 5, "DailyEntry", ana));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("DailyEntry", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Equal("ana@farm.test", provenance.CreatedByEmail);
+        Assert.Equal("bo@farm.test", provenance.LastChangedByEmail);
+        Assert.Equal(Base.AddMinutes(2), provenance.LastChangedAtUtc);
+        // The submit still happened, and when it happened is still reported.
+        Assert.Equal(Base.AddMinutes(5), provenance.MadeOfficialAtUtc);
+    }
+
+    // The other half of the same rule, and the reason it is keyed on the actor:
+    // editing your OWN draft before submitting must stay quiet, or every entry
+    // reads as having been corrected by the person who wrote it.
+    [Fact]
+    public async Task Provenance_WhenTheCreatorEditsTheirOwnDraft_ReportsNoChange()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        await SeedEventsAsync(accountId,
+            Event(accountId, entityId, "DailyEntry.Create", "ana@farm.test", 0, "DailyEntry", ana),
+            Event(accountId, entityId, "DailyEntry.Update", "ana@farm.test", 2, "DailyEntry", ana),
+            Event(accountId, entityId, "DailyEntry.Submit", "ana@farm.test", 5, "DailyEntry", ana));
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("DailyEntry", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Null(provenance.LastChangedByEmail);
+        Assert.Null(provenance.LastChangedAtUtc);
     }
 
     // The case the whole option exists for: a worker writes the numbers, someone
@@ -735,6 +795,44 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
     // belongs in the trail on its own merits. It is also the ONLY source for the
     // "who made this official" half of a daily entry's record history — without
     // this event, a manager submitting a worker's draft leaves no trace at all.
+    // Re-recording against the same natural key rewrites an existing draft. It
+    // moves no stock, but it is the only thing binding a person to the numbers,
+    // so it is on the trail — see Provenance_WhenSomeoneElseEditsTheDraft_...
+    [Fact]
+    public async Task DailyEntryDraftEdit_WritesAnAuditEvent()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var houseId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        // Same natural key both times, so the second call appends to the first
+        // entry rather than creating a second one.
+        object Body(int total) => new
+        {
+            farmId, houseId, flockId,
+            date = DateOnly.FromDateTime(DateTime.UtcNow.Date),
+            totalEggs = total, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+            mortalityCount = 0,
+            grades = new[] { new { eggGradeId = grades["Large"], quantity = total } },
+        };
+
+        var id = await CreatedIdAsync(await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), Body(100)));
+        var again = await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), Body(500));
+        Assert.Equal(HttpStatusCode.Created, again.StatusCode);
+
+        var actions = await ActionsForAsync(accountId, id, "DailyEntry");
+        Assert.Contains("DailyEntry.Update", actions);
+        // Still exactly one creation: two would give the entry two candidate
+        // authors and let the later one win.
+        Assert.Single(actions, a => a == "DailyEntry.Create");
+    }
+
     [Fact]
     public async Task DailyEntrySubmit_WritesAnAuditEvent()
     {

@@ -448,10 +448,13 @@ created it. So does **cancelling** a draft order: `SalesOrder.Cancel` kills the
 record rather than promoting it, so cancelling your own order stays a reportable
 change.
 
-Editing a draft is **not** on the trail at all — re-recording a daily entry, or
-adding, changing and removing sales-order lines, write no event, because none of
-them alters stock. A draft order whose lines you are still assembling therefore
-reports no change, which is correct rather than missing.
+Editing a draft **is** recorded, even though it alters no stock, because it is
+the only thing binding a person to the numbers. Without it, someone who rewrites
+a colleague's draft before it is submitted leaves no trace and the submitter is
+credited with their work. The rule above is what keeps that quiet in the ordinary
+case: your own edits to your own draft are part of writing it, so they are hidden
+along with your own submit, and only a **different** person's edit surfaces as a
+change.
 
 Two further consequences follow from being derived rather than stored. A record
 created **before #494**
