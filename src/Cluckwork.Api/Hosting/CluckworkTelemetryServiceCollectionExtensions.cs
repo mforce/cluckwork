@@ -58,22 +58,23 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
 
         // OTLP export is config-gated (#214). Endpoint and protocol are validated
         // eagerly so configuration errors fail at boot.
-        var otlp = configuration.GetSection(OtlpOptions.SectionName).Get<OtlpOptions>()
-            ?? new OtlpOptions();
         var isProduction = environment.IsProduction();
+        var otlp = new OtlpOptions();
         var protocol = OtlpOptions.DefaultProtocol;
         Uri? traceEndpoint = null;
         Uri? metricsEndpoint = null;
         try
         {
-            // #347 review — ParseProtocol MUST sit inside this try. It used to be
-            // three lines above it, outside, which left #331 live in a second
-            // form: `Otlp:Protocol=bogus` killed `recover-admin` with SIGABRT 134,
-            // the break-glass verb taken out by a telemetry typo. The existing
-            // #331 regression test stepped over it by setting a valid protocol
-            // alongside the bad endpoint it was testing. Validate the WHOLE
-            // telemetry configuration in one place so no part of it can be
-            // serving-only by accident.
+            // Everything that can reject this section sits INSIDE this boundary —
+            // binding, protocol parsing, endpoint resolution — and that
+            // completeness is the whole point. Two rounds of review each found one
+            // more part of it outside: first ParseProtocol (so `Otlp:Protocol=bogus`
+            // killed `recover-admin` with SIGABRT 134, #331 verbatim, three lines
+            // from its own fix), then the BINDING itself (so a non-boolean
+            // `Otlp:AllowInsecureEndpoint` threw from Get<OtlpOptions>() before any
+            // of it ran). Scope the subsystem, not the setting that bit you.
+            otlp = configuration.GetSection(OtlpOptions.SectionName).Get<OtlpOptions>()
+                ?? new OtlpOptions();
             protocol = otlp.ParseProtocol();
             if (otlp.Enabled)
             {
@@ -92,10 +93,13 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
             // exporting insecurely: the verb runs, and nothing leaves the process
             // over an unvalidated endpoint.
             //
-            // BOTH endpoints are cleared, not just the one that threw: if the
-            // trace endpoint resolved and the metrics endpoint did not, keeping
-            // the first would export half a signal set from a configuration this
-            // process has already declared unusable.
+            // Everything is reset, not just the part that threw: if the trace
+            // endpoint resolved and the metrics endpoint did not, keeping the
+            // first would export half a signal set from a configuration this
+            // process has already declared unusable — and a partially bound
+            // `otlp` would still feed Headers to an exporter.
+            otlp = new OtlpOptions();
+            protocol = OtlpOptions.DefaultProtocol;
             traceEndpoint = null;
             metricsEndpoint = null;
             Console.Error.WriteLine(

@@ -25,12 +25,19 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
         IConfiguration configuration,
         ProcessRole role = ProcessRole.Serving)
     {
-        var rateLimiting = configuration
-            .GetSection(RateLimitingOptions.SectionName)
-            .Get<RateLimitingOptions>() ?? new RateLimitingOptions();
+        var rateLimiting = new RateLimitingOptions();
         IPNetwork[] trustedProxies;
         try
         {
+            // The BINDING is inside the boundary too, not just the validation: a
+            // non-numeric `RateLimiting:Login:PermitLimit` throws from Get<T>()
+            // before any validator runs, and that aborted every verb just as
+            // surely (#347 review). Same lesson as the OTLP section — scope
+            // everything that can reject this configuration, or the next
+            // unscoped part of it is the next #331.
+            rateLimiting = configuration
+                .GetSection(RateLimitingOptions.SectionName)
+                .Get<RateLimitingOptions>() ?? new RateLimitingOptions();
             rateLimiting.Validate();
             trustedProxies = rateLimiting.ParseTrustedProxies();
         }

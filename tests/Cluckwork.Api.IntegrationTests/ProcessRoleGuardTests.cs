@@ -87,7 +87,16 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         // credentials in transit. Satisfied by acknowledging the plaintext peer,
         // which keeps the endpoint set so the same code path still runs.
         new("#316 endpoint", "Otlp:Endpoint",
-            Violate: psi => psi.Environment["Otlp__Endpoint"] = "http://collector.invalid:4317",
+            Violate: psi =>
+            {
+                psi.Environment["Otlp__Endpoint"] = "http://collector.invalid:4317";
+                // Must REMOVE, not merely not-set: the "#316 binding" row below
+                // keys on the same setting and its Satisfy runs first, so leaving
+                // it would acknowledge the plaintext endpoint and un-violate this
+                // row. Second instance of that hazard in this table; the first is
+                // the TrustedProxies pair.
+                psi.Environment.Remove("Otlp__AllowInsecureEndpoint");
+            },
             Satisfy: psi =>
             {
                 psi.Environment["Otlp__Endpoint"] = "http://collector.invalid:4317";
@@ -104,6 +113,20 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         new("#316 protocol", "Otlp:Protocol must be",
             Violate: psi => psi.Environment["Otlp__Protocol"] = "not-a-protocol",
             Satisfy: psi => psi.Environment["Otlp__Protocol"] = "grpc"),
+
+        // A THIRD violation of the same subsystem: the config BINDING, which
+        // throws from Get<OtlpOptions>() before any validator runs. Rows are per
+        // violation and not per subsystem precisely because each of these three
+        // was, at some point in this PR's review, outside the role boundary while
+        // the others were inside it.
+        // Token includes the binder's quoting (`at 'Otlp:…'`) on purpose: the
+        // plain key name is NOT discriminating, because the #316 endpoint guard's
+        // own message tells the operator to "set Otlp:AllowInsecureEndpoint=true".
+        // The first attempt used the bare key and the endpoint arm went red on the
+        // negative assertion — which is the assertion earning its place.
+        new("#316 binding", "at 'Otlp:AllowInsecureEndpoint'",
+            Violate: psi => psi.Environment["Otlp__AllowInsecureEndpoint"] = "not-a-boolean",
+            Satisfy: psi => psi.Environment["Otlp__AllowInsecureEndpoint"] = "true"),
 
         // #260 — an empty trusted-proxy list silently makes HSTS inert and
         // collapses the per-IP login limiter to one global bucket.
@@ -123,8 +146,28 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
             Violate: psi => psi.Environment["RateLimiting__TrustedProxies__0"] = "not-a-cidr",
             Satisfy: psi => psi.Environment["RateLimiting__TrustedProxies__0"] = "10.0.0.0/8"),
 
-        // The rest of RateLimitingOptions.Validate, same story — inbound-HTTP
-        // machinery that a run-then-exit verb never serves.
+        // The config BINDING for this section, which throws from Get<T>() before
+        // any validator runs — the same third-violation shape as "#316 binding".
+        new("rate-limit binding", "RateLimiting:Login:PermitLimit' to type",
+            Violate: psi => psi.Environment["RateLimiting__Login__PermitLimit"] = "not-a-number",
+            Satisfy: psi => psi.Environment["RateLimiting__Login__PermitLimit"] = "5"),
+
+        // The rest of RateLimitingOptions.Validate, one row per CHECK rather than
+        // one per helper: ValidateWindow and ValidateConcurrency each enforce two
+        // different things, and a row per helper would leave one of each pair
+        // authoritative for nothing.
+        new("window permits", "RateLimiting:Login:PermitLimit must be greater than 0",
+            Violate: psi => psi.Environment["RateLimiting__Login__PermitLimit"] = "0",
+            Satisfy: psi => psi.Environment["RateLimiting__Login__PermitLimit"] = "5"),
+
+        new("window seconds", "RateLimiting:Login:WindowSeconds must be greater than 0",
+            Violate: psi => psi.Environment["RateLimiting__Login__WindowSeconds"] = "0",
+            Satisfy: psi => psi.Environment["RateLimiting__Login__WindowSeconds"] = "60"),
+
+        new("#311 permits", "RateLimiting:ReportsConcurrency:PermitLimit must be greater than 0",
+            Violate: psi => psi.Environment["RateLimiting__ReportsConcurrency__PermitLimit"] = "0",
+            Satisfy: psi => psi.Environment["RateLimiting__ReportsConcurrency__PermitLimit"] = "2"),
+
         new("#311 queue", "ReportsConcurrency:QueueLimit must be 0",
             Violate: psi => psi.Environment["RateLimiting__ReportsConcurrency__QueueLimit"] = "5",
             Satisfy: psi => psi.Environment["RateLimiting__ReportsConcurrency__QueueLimit"] = "0"),

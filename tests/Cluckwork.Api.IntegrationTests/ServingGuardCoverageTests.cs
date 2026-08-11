@@ -79,14 +79,23 @@ public sealed class ServingGuardCoverageTests
             .Concat([nameof(RateLimitingOptions.ParseTrustedProxies)])
             .ToArray();
 
-        var covered = new Dictionary<string, string>(StringComparer.Ordinal)
+        // One entry per CHECK, not per helper: ValidateWindow and
+        // ValidateConcurrency each enforce two different things, and mapping a
+        // helper to a single token left one of each pair authoritative for
+        // nothing (#347 review round 3, codex).
+        var covered = new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            // ValidateWindow guards Login/Refresh/ClientErrors permit+window; one
-            // row stands for the family because they share a single code path and
-            // a single message shape.
-            ["ValidateWindow"] = "PermitLimit must be greater than 0",
-            ["ValidateConcurrency"] = "ReportsConcurrency:QueueLimit must be 0",
-            ["ParseTrustedProxies"] = "is not a valid CIDR network",
+            ["ValidateWindow"] =
+            [
+                "RateLimiting:Login:PermitLimit must be greater than 0",
+                "RateLimiting:Login:WindowSeconds must be greater than 0",
+            ],
+            ["ValidateConcurrency"] =
+            [
+                "RateLimiting:ReportsConcurrency:PermitLimit must be greater than 0",
+                "ReportsConcurrency:QueueLimit must be 0",
+            ],
+            ["ParseTrustedProxies"] = ["is not a valid CIDR network"],
         };
 
         Assert.NotEmpty(validationMethods);
@@ -104,6 +113,13 @@ public sealed class ServingGuardCoverageTests
             stale.Length == 0,
             $"this mapping names RateLimitingOptions method(s) that no longer exist: "
             + $"{string.Join(", ", stale)}. Was one renamed or removed?");
+
+        // The half this test was missing: without it, deleting the malformed-CIDR
+        // or queue-limit ROW removed both of its subprocess arms while this stayed
+        // green, because the reflected methods still satisfied everything above
+        // (#347 review round 3, codex).
+        foreach (var token in covered.Values.SelectMany(t => t))
+            Assert.Contains(token, ProcessRoleGuardTests.CoveredGuardTokens);
     }
 
     // 3. Guards that are serving-only by MECHANISM rather than by a role check:
@@ -141,6 +157,39 @@ public sealed class ServingGuardCoverageTests
             "these options types are validated at host start — so they fail a serving boot and "
             + "are skipped for one-shot verbs — but have no row in "
             + $"ProcessRoleGuardTests.ServingOnlyGuards: {string.Join(", ", uncovered)}. "
-            + "Add a row so arm 1 proves the verbs survive them.");
+            + "Add a row so the one-shot arms prove the verbs survive them.");
+    }
+
+    // 4. …and the same question asked of the WHOLE source tree, because the
+    //    enumeration above only executes AddCluckworkFeatures. A `.ValidateOnStart()`
+    //    added tomorrow to persistence, identity, jobs or anywhere else would be a
+    //    new serving-only guard that test cannot see, and `Assert.NotEmpty` would
+    //    stay satisfied by the two existing validators (#347 review round 3, codex).
+    //
+    //    Deliberately a file-level sweep rather than a cleverer parse: it needs to
+    //    answer "did a new registration site appear", and the boring version of
+    //    that cannot quietly under-report.
+    [Fact]
+    public void NoValidateOnStartRegistrationOutsideTheEnumeratedExtension()
+    {
+        var sourceRoot = Path.Combine(RepositoryRoot(), "src");
+        var sites = Directory
+            .EnumerateFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(f => File.ReadAllText(f).Contains(".ValidateOnStart()", StringComparison.Ordinal))
+            .Select(f => Path.GetFileName(f))
+            .OrderBy(f => f, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["CluckworkFeatureServiceCollectionExtensions.cs"], sites);
+    }
+
+    private static string RepositoryRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cluckwork.sln")))
+            dir = dir.Parent;
+
+        Assert.NotNull(dir);
+        return dir!.FullName;
     }
 }
