@@ -68,7 +68,18 @@ async function openDailyEntryAwaitingPrefill(page: Page, flockId: string, today:
   await page.goto("/daily-entry");
   await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
   const select = page.getByLabel(tEn("dailyEntry:flockLabel"));
-  await expect(select.locator(`option[value="${flockId}"]`)).toHaveCount(1);
+  // A missing option here is almost always FIXTURE EXHAUSTION, not a bug in the
+  // app or this spec, and the bare count assertion said none of that. The
+  // flocks endpoint defaults to 100 rows ordered BY NAME, and every run of this
+  // file leaves another "E2E ..." flock behind — they cluster alphabetically and
+  // the newest sorts last, so past ~100 accumulated runs the flock this test
+  // just created is the first one truncated away.
+  await expect(
+    select.locator(`option[value="${flockId}"]`),
+    `the flock this test just created is not in the Daily Entry dropdown. That list is the `
+      + `first 100 flocks BY NAME, and each run of this spec adds one — run reset.sh. If the `
+      + `fixture is fresh, this is a real regression in the flock list instead.`,
+  ).toHaveCount(1);
   await select.selectOption(flockId);
   await prefill;
   await expect(page.getByRole("button", { name: tEn("dailyEntry:submitButton") })).toBeEnabled();
