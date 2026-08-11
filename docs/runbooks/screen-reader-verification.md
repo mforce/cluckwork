@@ -76,10 +76,34 @@ the header of `tools/simulation/ui/specs/pwa.spec.ts`). Do it by hand:
 3. DevTools → Application → Service Workers → **Update**. The new worker
    installs and stops at `waiting`, and the banner appears.
 
-To get a message to arrive **while a dialog is open** — scenarios 2, 3 and 6,
-which are the whole point — open the dialog *first*, then perform the last step
-of whichever trigger you are using (add the network block and let a retry fire,
-or press Update).
+### Getting a message to arrive WHILE a dialog is open
+
+This is the condition #485 is about, and only the update banner can reach it.
+
+**Update banner — works.** DevTools is outside the page, so the dialog stays
+open while you use it: open a dialog in the app first, then press
+**Application → Service Workers → Update**. The banner arrives with the page
+already inert.
+
+**Farm warning — NOT REACHABLE, and this was wrong in the first version of this
+runbook.** Adding a request block starts no `/account` read; the read only
+happens at bootstrap, on the banner's own Retry button, and after a Settings
+save. Retry is behind the modal and deliberately unclickable — that is #483
+working — and a Settings save cannot be performed with a dialog open. So there
+is no sequence of steps that makes the farm warning *arrive* mid-dialog.
+
+What that costs is less than it looks: the farm warning and the update banner
+share one hook (`useMissedAnnouncement`), so scenario 2 exercises the same code
+path. What scenario 4 would add is only the `assertive` politeness in place of
+`polite` — worth knowing, not worth inventing a debug affordance for. It is
+marked NOT RUNNABLE below rather than left as steps that quietly do nothing.
+
+**Same-commit (scenario 6) — NOT REACHABLE either.** Opening a dialog and
+triggering a message are two sequential human actions, so a manual tester
+cannot land both in one React commit. Only an automated harness could, and the
+`web/` unit tests already cover the ordering in jsdom — without being able to
+say whether a screen reader speaks, which is the whole reason this runbook
+exists.
 
 ---
 
@@ -92,16 +116,19 @@ For each: **PASS** = the expected utterance, once. Record the actual speech.
 | 1 | Update banner appears, **no dialog open** | "A new version is ready" spoken once | Silence, or the sentence twice (the offscreen region duplicating the banner) |
 | 2 | Update banner appears **while a dialog is open** | Silence while the dialog is up; spoken **once** just after it closes | Silence after closing too — this is #485 unfixed |
 | 3 | As 2, but with **two dialogs** stacked | Spoken only after the **last** one closes | Spoken as the inner dialog closes, while still inside the outer one |
-| 4 | Farm warning fails **while a dialog is open** | Same as 2, with the warning wording | As 2 |
+| 4 | ~~Farm warning fails **while a dialog is open**~~ | **NOT RUNNABLE** — no product path makes this read happen mid-dialog (see above). Covered in mechanism by 2; differs only in politeness | — |
 | 5 | A **standing** banner, dialogs opened and closed repeatedly | Nothing re-spoken on any close | The warning read out on every close — the nagging #499's retain rule prevents |
-| 6 | Message raised in the **same commit** that opens a dialog; and again in the one that closes the last dialog | Either once or twice — **record which** | (Not a failure either way; see below) |
+| 6 | ~~Message raised in the **same commit** that opens a dialog~~ | **NOT RUNNABLE** by hand — two human actions cannot share one React commit | — |
 
-**Scenario 6 has no expected answer, and that is deliberate.** #499 cannot tell
-whether the browser processed the live-region mutation before or after the
-`inert` flip in that same commit, so it errs toward announcing — a duplicate
-beats silence. This scenario measures what actually happens. If it is a
-duplicate on every pairing, the predicate can be tightened; if silence, it
-cannot.
+**Scenarios 4 and 6 are marked NOT RUNNABLE rather than dropped**, because the
+questions behind them are real and someone will otherwise re-derive them. 4
+needs a farm re-read to happen while a dialog is open, which no product path
+offers; 6 needs two things in one React commit, which no human can time. #499's
+same-commit predicate therefore stays unverified by observation and errs toward
+announcing, on the grounds that a duplicate beats silence.
+
+If either becomes worth settling, the cheapest route is one of #501's deferred
+designs — both delete the inference instead of measuring it.
 
 ---
 

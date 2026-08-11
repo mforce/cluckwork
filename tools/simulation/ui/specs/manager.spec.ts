@@ -188,18 +188,28 @@ test.describe("Manager", () => {
     await signIn(castMember("Manager"));
     const today = farmToday(farm.timeZoneId);
     const flockName = `E2E WriteOff Flock ${Date.now()}`;
-    // 41–98, disjoint from the 38–40 the flow spec above uses so its same-day
-    // lot can never match the filter. NOT unique per run, despite what this
-    // comment claimed until #506: 58 values and one new lot per run collide
-    // quickly on a reused fixture. The lot is pinned by its BALANCE below, not
-    // by this number.
-    const eggs = 41 + (Date.now() % 58);
+    // The produced count is this run's HANDLE on its own lot, so it has to be
+    // unlikely to repeat: 200–9999, disjoint from the 38–40 the flow spec uses
+    // and from the 41–98 older fixtures are full of. `TotalEggs` has no upper
+    // bound in RecordDailyEntryValidator, so a four-digit day is accepted.
+    //
+    // It was 41 + (Date.now() % 58) until #506 — 58 values, one new same-day
+    // lot per run, so a collision arrived within a few runs and the spec then
+    // acted on an earlier run's lot. Widening is not a proof of uniqueness, so
+    // the lookup below ASSERTS there is exactly one match rather than taking
+    // the first.
+    const eggs = 200 + (Date.now() % 9800);
 
     const flockId = await createFlock(page, flockName, today);
 
     await openDailyEntryAwaitingPrefill(page, flockId, today);
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill(String(eggs));
     await page.getByLabel("Large", { exact: true }).fill(String(eggs));
+    // The fills survived to the submit. #464's prefill can wipe them, and a
+    // wiped form submits an all-zeros day whose banner looks identical.
+    await expect(page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }))
+      .toHaveValue(String(eggs));
+    await expect(page.getByLabel("Large", { exact: true })).toHaveValue(String(eggs));
     await page.getByRole("button", { name: tEn("dailyEntry:submitButton") }).click();
     await page
       .getByRole("dialog", { name: tEn("dailyEntry:confirmSubmitTitle") })
@@ -265,24 +275,64 @@ test.describe("Manager", () => {
 
     // Untouched — available still equals produced — is what distinguishes this
     // run's brand-new lot from every earlier run's finished one.
-    // `evaluateAll` does NOT auto-wait, unlike an assertion on a locator, so
-    // this polls: read immediately after opening the lot list and it returns
-    // [] because the table has not rendered, which reads as "this run created
-    // no lot" rather than "ask again in a moment".
-    let index = -1;
-    await expect
-      .poll(async () => {
-        const rows = await balances();
-        index = rows.findIndex(([produced, available]) =>
-          produced === String(eggs) && available === String(eggs));
-        return index;
-      }, {
-        message:
-          `no untouched lot for ${today} with ${eggs} produced — the entry above created no lot, `
-          + `or an earlier run left one half-written-off`,
-      })
-      .toBeGreaterThanOrEqual(0);
+    // IDENTITY IS THE PRODUCED COUNT, asserted unique — not a row position and
+    // not a balance. Position cannot be carried: every refetch (the write-off,
+    // and the date-filter round trip below) resets the list to page one, so an
+    // index captured earlier points somewhere else or nowhere. Balances cannot
+    // identify either: an abandoned earlier run leaves an untouched twin and a
+    // completed one leaves a written-off twin, both indistinguishable from ours
+    // by balance alone (codex rounds 6 and 7).
+    //
+    // So the row is re-resolved whenever it is needed, and the resolution is
+    // only allowed to succeed if exactly one same-day lot carries this run's
+    // produced count.
+    const ourLotIndex = async (): Promise<number> => {
+      // The list is SERVER-PAGED at 50 and same-day rows tie-break by lot id,
+      // so a brand-new lot can sort onto a later page. Wait for the table
+      // FIRST: asking whether "load more" is visible before the panel renders
+      // returns false, breaks the loop, leaves one page loaded, and reads as
+      // "this run created no lot". That is the third read-before-settle bug in
+      // this PR, so it is called out rather than quietly fixed.
+      await expect(page.getByRole("heading", { name: tEn("stock:lotsHeading") })).toBeVisible();
+      await expect(
+        page.getByRole("columnheader", { name: tEn("stock:producedOnHeader") }),
+      ).toBeVisible();
+      for (let i = 0; i < 20; i++) {
+        const more = page.getByRole("button", { name: tEn("stock:loadMoreButton") });
+        if (!(await more.isVisible())) break;
+        const rowsBefore = await page.getByRole("row").count();
+        await more.click();
+        // Either more rows arrive or the button goes away — the final page adds
+        // nothing, and demanding growth turns the end of the list into a
+        // failure.
+        await expect
+          .poll(async () =>
+            (await page.getByRole("row").count()) > rowsBefore || !(await more.isVisible()))
+          .toBe(true);
+      }
 
+      // `evaluateAll` does not auto-wait, unlike an assertion on a locator, so
+      // this polls rather than reading once.
+      let at = -1;
+      await expect
+        .poll(async () => {
+          const rows = await balances();
+          const hits = rows
+            .map(([produced], index) => (produced === String(eggs) ? index : -1))
+            .filter((index) => index >= 0);
+          at = hits.length === 1 ? hits[0]! : -1;
+          return hits.length;
+        }, {
+          message:
+            `expected exactly one same-day lot with ${eggs} produced. Zero means the entry above `
+            + `created no lot; more than one means this run's produced count collided with `
+            + `another run's and the spec cannot tell which lot is its own`,
+        })
+        .toBe(1);
+      return at;
+    };
+
+    const index = await ourLotIndex();
     const lotRow = todayRows.nth(index);
     await lotRow.getByRole("button", { name: tEn("stock:writeOffButton") }).click();
 
@@ -296,14 +346,12 @@ test.describe("Manager", () => {
     await expect(writeOff).toBeHidden();
     const announcement = page.locator('p[role="status"]');
     await expect(announcement).toContainText(prefixOf("en", "stock:writeOffRecordedMessage"));
-    // THE SAME ROW, by index — not "a row that now looks written off". Produced
-    // is untouched, so the write-off never restated the day's laying, and the
-    // balance moved on the lot this test actually clicked.
-    await expect
-      .poll(async () => (await balances())[index], {
-        message: "the lot this run wrote off does not show the corrected balance",
-      })
-      .toEqual([String(eggs), String(eggs - 2)]);
+    // THE SAME LOT, re-resolved — the write-off refetched the list and reset it
+    // to page one, so the earlier index no longer points at anything reliable.
+    // Produced is unchanged, which is the point: the write-off moved the
+    // balance without restating the day's laying.
+    const afterWriteOff = await ourLotIndex();
+    expect((await balances())[afterWriteOff]).toEqual([String(eggs), String(eggs - 2)]);
 
     // ---- #465: the date filter reaches lots server-side -------------------
     // A window that cannot contain this lot empties the table…
@@ -313,11 +361,12 @@ test.describe("Manager", () => {
     // …and narrowing to exactly today brings it back, corrected balance intact.
     await page.getByLabel(tEn("stock:fromLabel"), { exact: true }).fill(today);
     await page.getByLabel(tEn("stock:toLabel"), { exact: true }).fill(today);
-    await expect
-      .poll(async () => (await balances())[index], {
-        message: "narrowing the window to today did not bring back the corrected lot",
-      })
-      .toEqual([String(eggs), String(eggs - 2)]);
+    // Re-resolved again: changing the window refetches from offset zero.
+    const afterFilter = await ourLotIndex();
+    expect(
+      (await balances())[afterFilter],
+      "narrowing the window to today did not bring back the corrected lot",
+    ).toEqual([String(eggs), String(eggs - 2)]);
   });
 
   test("can reach the admin destinations a Worker cannot", async ({ signIn, nav }) => {
