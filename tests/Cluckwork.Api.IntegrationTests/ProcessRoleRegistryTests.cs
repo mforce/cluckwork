@@ -18,8 +18,12 @@ public sealed class ProcessRoleRegistryTests
     [Fact]
     public void EveryDispatchedVerb_IsAOneShotProcess()
     {
-        // Walk the dispatcher's own registry rather than a list written here: a
-        // sixth verb must be classified without anyone remembering this test.
+        // Honest about its reach: OneShotVerbs is DERIVED from CliDispatcher.Commands,
+        // so this cannot go red when a verb is added to or removed from the
+        // dispatcher — that property is delivered by the production derivation, not
+        // by this assertion. What it does catch is `From` itself regressing: reading
+        // the wrong argument index, comparing against the wrong list, or matching on
+        // something other than an exact name.
         foreach (var command in CliDispatcher.Commands)
             Assert.Equal(ProcessRole.OneShot, ProcessRoles.From([command.Name]));
     }
@@ -31,7 +35,6 @@ public sealed class ProcessRoleRegistryTests
     public void Healthcheck_IsAOneShotProcess()
     {
         Assert.Equal(ProcessRole.OneShot, ProcessRoles.From([HealthCheckCliCommand.Verb]));
-        Assert.Contains(HealthCheckCliCommand.Verb, ProcessRoles.OneShotVerbs);
     }
 
     [Fact]

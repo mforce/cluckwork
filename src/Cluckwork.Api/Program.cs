@@ -114,6 +114,21 @@ ServingBootGuards.EnsureServingConfiguration(
 if (await CliDispatcher.TryRunAsync(app, args) is int cliExitCode)
     return cliExitCode;
 
+// #347 — reaching here with a OneShot role is impossible by construction, so
+// this line exists to make that a checked fact rather than a comment. The only
+// verb in OneShotVerbs that CliDispatcher cannot handle is `healthcheck`, and
+// it returned at the top of this file long before now; if it ever stops doing
+// so, execution would otherwise fall through into app.Run() and a health probe
+// would try to become a server. Classifying healthcheck as OneShot is what makes
+// that direction fail OPEN (guards skipped) where the retired IsCliInvocation
+// failed closed, so the invariant that kept it safe now needs enforcing.
+if (processRole is ProcessRole.OneShot)
+    throw new InvalidOperationException(
+        $"'{args[0]}' is a one-shot verb (ProcessRoles.OneShotVerbs) but nothing dispatched it, so "
+        + "the serving host was about to start instead. A verb was added to the role registry "
+        + "without a matching CliDispatcher command, or healthcheck's early return above was "
+        + "moved or made conditional.");
+
 // One boot line makes export misconfiguration observable — a typo'd env var
 // name otherwise silently disables the whole pipeline (#226 review).
 if (telemetry.TraceEndpoint is not null)

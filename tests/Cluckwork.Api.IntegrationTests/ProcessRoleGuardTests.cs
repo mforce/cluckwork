@@ -45,15 +45,30 @@ public sealed class ProcessRoleGuardTests
     //   #316 Otlp:Endpoint plaintext http in    -> telemetry and Otlp:Headers
     //        Production, no AllowInsecureEndpoint  credentials exposed in transit.
     // None of the three has any bearing on what a one-shot verb does.
-    private static void ApplyHostileServingConfiguration(ProcessStartInfo psi)
+    //
+    // satisfyOtlp acknowledges the plaintext endpoint, so #316 passes and a
+    // serving boot has to fail on #260/#319 instead. See arm 3 for why that
+    // matters: #316 is validated during service registration, ahead of the other
+    // two, so with all three violated the serving process ALWAYS dies at #316 and
+    // the other two are never reached.
+    private static void ApplyHostileServingConfiguration(ProcessStartInfo psi, bool satisfyOtlp)
     {
-        // Left EMPTY on purpose (no RateLimiting__TrustedProxies__0 entry) — that
-        // absence IS the #260 condition.
+        // #260's condition is the ABSENCE of these keys, so an inherited value
+        // from the test host or a CI runner would silently disarm it — and the
+        // suite would stay green while proving less than it claims. Strip the
+        // whole section rather than the two names known today.
+        foreach (var inherited in psi.Environment.Keys
+                     .Where(k => k.StartsWith("RateLimiting__", StringComparison.Ordinal))
+                     .ToList())
+            psi.Environment.Remove(inherited);
+
         psi.Environment["AllowedHosts"] = "*";
         psi.Environment["Otlp__Endpoint"] = "http://collector.invalid:4317";
+        if (satisfyOtlp)
+            psi.Environment["Otlp__AllowInsecureEndpoint"] = "true";
     }
 
-    private static Process Start(string verb, string connectionString)
+    private static Process Start(string verb, string connectionString, bool satisfyOtlp = false)
     {
         var arguments = verb.Length == 0 ? $"\"{ApiDllPath}\"" : $"\"{ApiDllPath}\" {verb}";
         var psi = new ProcessStartInfo("dotnet", arguments)
@@ -77,7 +92,7 @@ public sealed class ProcessRoleGuardTests
         // Port 0 = an ephemeral port, so the serving arm cannot collide with
         // anything else on the machine in the (failing) case where it boots.
         psi.Environment["ASPNETCORE_URLS"] = "http://127.0.0.1:0";
-        ApplyHostileServingConfiguration(psi);
+        ApplyHostileServingConfiguration(psi, satisfyOtlp);
         return Process.Start(psi)!;
     }
 
@@ -106,7 +121,10 @@ public sealed class ProcessRoleGuardTests
         // registration and the other two after Build(), and pinning that order here
         // would turn a legitimate future reordering into a red test for no reason.
         var (servingExit, servingOut, servingErr) = await SeedCommandRunner.RunToCompletionAsync(
-            Start(string.Empty, connectionString), ServingBootTimeout);
+            Start(string.Empty, connectionString),
+            ServingBootTimeout,
+            "a serving boot that SUCCEEDS here means this configuration is not hostile after all, "
+            + "so arm 1 above proved nothing");
 
         Assert.True(
             servingExit != 0,
@@ -123,5 +141,33 @@ public sealed class ProcessRoleGuardTests
             "the serving boot failed, but not on any of the three guards this test configures — "
             + "so arm 1 is not exercising what it claims. "
             + $"exit={servingExit} stdout={servingOut} stderr={servingErr}");
+
+        // ARM 3 — the half arm 2 structurally cannot cover. #316 is validated
+        // during SERVICE REGISTRATION, ahead of ServingBootGuards, so with all
+        // three settings violated a serving boot always dies at #316: arm 2 alone
+        // proves only that ONE of the three is hostile, and #260/#319 could
+        // quietly stop being violated (an appsettings default gaining a concrete
+        // AllowedHosts, AllowNoTrustedProxies flipping true, a CI runner exporting
+        // RateLimiting__*) with both arms still green and arm 1's coverage of them
+        // silently vacuous. Acknowledge the plaintext endpoint so #316 passes, and
+        // require the boot to die on one of the other two.
+        var (pinnedExit, pinnedOut, pinnedErr) = await SeedCommandRunner.RunToCompletionAsync(
+            Start(string.Empty, connectionString, satisfyOtlp: true),
+            ServingBootTimeout,
+            "a serving boot that SUCCEEDS here means #260 and #319 are no longer violated by this "
+            + "configuration, so arm 1 no longer covers them");
+
+        Assert.True(
+            pinnedExit != 0,
+            "with #316 satisfied, the serving boot survived — #260 and #319 are not actually "
+            + $"violated by this configuration. stdout={pinnedOut} stderr={pinnedErr}");
+
+        // Either may win; both are ServingBootGuards, and pinning which would make
+        // a legitimate reordering red for no reason.
+        Assert.True(
+            pinnedErr.Contains("RateLimiting:TrustedProxies", StringComparison.Ordinal)
+            || pinnedErr.Contains("AllowedHosts", StringComparison.Ordinal),
+            "with #316 satisfied the serving boot failed, but on neither #260 nor #319 — so "
+            + $"arm 1's coverage of those two is not established. exit={pinnedExit} stderr={pinnedErr}");
     }
 }

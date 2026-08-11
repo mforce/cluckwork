@@ -2,7 +2,7 @@
 
 > **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md); this file is the relocated rationale (what shipped, why the short version was insufficient, what not to break).
 
-## What was wrong
+### What was wrong
 
 The API binary serves HTTP **and** carries five run-then-exit operator verbs — `migrate`, `seed`, `recover-admin`, `bootstrap-admin`, `healthcheck`. Several Production boot guards apply to only one of those roles. Nothing said so. What made a guard serving-only was the **position of its statement** in `Program.cs`: below `CliDispatcher.TryRunAsync`'s return, so a one-shot verb had already exited before reaching it.
 
@@ -11,7 +11,7 @@ That is not a property anyone can read off the guard, and getting it wrong is no
 - **#331 — the one with teeth.** The #316 OTLP endpoint validation ran at *service registration*, ahead of the dispatcher. A plaintext `Otlp:Endpoint` therefore killed `recover-admin` with SIGABRT 134 — the break-glass verb, the one that exists for when everything else is broken, taken out by a guard that protects a serving process's telemetry. The fix at the time was a `!CliDispatcher.IsCliInvocation(args)` bool threaded into registration: correct, but it made the *second* mechanism for the same idea.
 - **A latent third.** `IsCliInvocation` was derived from `CliDispatcher.Commands`, which holds only the four verbs that dispatch after `Build()`. `healthcheck` is not among them — it is not an `ICliCommand` (it needs no host, so it takes no `WebApplication`) and `Program.cs` dispatches it before the builder exists. So the predicate classified the container's own health probe as a **serving** process. Harmless only because of that early return, i.e. harmless because of statement position again.
 
-## What shipped
+### What shipped
 
 `ProcessRoles.From(args)` (`src/Cluckwork.Api/Hosting/ProcessRole.cs`) computes `ProcessRole.Serving | OneShot` **once**, before `WebApplication.CreateBuilder`, and every role-scoped guard takes it as an argument:
 
@@ -31,7 +31,7 @@ Three details are load-bearing.
 
 **The both-roles guards take no `ProcessRole` parameter.** An argument nobody branches on implies a branch that does not exist, and the next reader has to check whether it is ignored deliberately or by accident. Unconditional code states "applies to both" more strongly than a parameter can; this table is where that classification is recorded.
 
-## What was rejected
+### What was rejected
 
 **A separate `Cluckwork.Cli` assembly**, which #347 originally asked for alongside this. Its stated payoff was "verbs gain unit-level coverage that does not need a web host" — but `ICliCommand.RunAsync` takes a `WebApplication`, so a class library holding the same files still needs a fully built web app to run anything. The move delivers the churn and none of the benefit. Getting the benefit means changing the verb signature, which is a different and larger change, and one [#423](https://github.com/mforce/cluckwork/pull/423)'s Phase 10 ("convert CLI verbs to contracts") rewrites anyway.
 
@@ -39,11 +39,19 @@ Three details are load-bearing.
 
 **Converting #316's degrade to a pre-check.** `if (role is Serving) validate…` reads more uniformly, but the current `catch … when (role is OneShot)` writes `warning: OTLP export disabled for this command — <reason>` to stderr. That line is the only thing that tells an operator why a one-shot run is exporting nothing. Skipping validation entirely would silently disable export with no reason attached.
 
-## How it is pinned
+### How it is pinned
 
-`ProcessRoleGuardTests` (integration, subprocess) is the guarantee, and it is deliberately **two-sided** — asserting that `migrate` exits 0 under a hostile serving configuration proves nothing unless that configuration genuinely would fail a serving boot. Arm 1 runs the real binary with `ASPNETCORE_ENVIRONMENT=Production`, `TrustedProxies` empty, `AllowedHosts=*` and a plaintext `Otlp:Endpoint`, and requires exit 0. Arm 2 starts the same binary with the same environment and **no verb**, and requires it to die with a message naming one of the three guards. Which guard wins is not asserted: #316 throws during registration and the other two after `Build()`, and pinning that order would turn a legitimate reordering into a red test.
+`ProcessRoleGuardTests` (integration, subprocess) is the guarantee, and it is deliberately **three-armed** — asserting that `migrate` exits 0 under a hostile serving configuration proves nothing unless that configuration genuinely would fail a serving boot.
 
-`ProcessRoleRegistryTests` (fast, no host) covers the classification itself, including the one case the subprocess suite structurally cannot reach — `healthcheck` returns before a host exists, so no boot guard can observe its role today.
+- **Arm 1** runs the real binary with `ASPNETCORE_ENVIRONMENT=Production`, `TrustedProxies` empty, `AllowedHosts=*` and a plaintext `Otlp:Endpoint`, and requires exit 0.
+- **Arm 2** starts the same binary with the same environment and **no verb**, and requires it to die naming one of the three guards. Which guard wins is not asserted: #316 throws during registration and the other two after `Build()`, and pinning that order would turn a legitimate reordering into a red test.
+- **Arm 3** exists because arm 2 alone is weaker than it reads, and this was found in review rather than by writing it. #316 is validated during **service registration**, ahead of `ServingBootGuards`, so with all three settings violated the serving process **always** dies at #316 — arm 2 never reaches #260 or #319 and therefore proves only that *one* of the three is hostile. #260 or #319 could quietly stop being violated (an appsettings default gaining a concrete `AllowedHosts`, `AllowNoTrustedProxies` flipping true, a CI runner exporting `RateLimiting__*`) with both arms green and arm 1's coverage of them silently vacuous. Arm 3 sets `Otlp:AllowInsecureEndpoint=true` so #316 passes, and requires the boot to die on one of the other two.
+
+Two smaller things the same review surfaced, both of the same family — a fixture that passes for a reason other than the one claimed. The subprocess environment is inherited from the test host, and **#260's condition is the ABSENCE of `RateLimiting__*`**, so the harness now strips that whole section rather than trusting it to be unset. And `SeedCommandRunner`'s timeout message asserted the seed suites' regression ("falling through into `app.Run()`"), which for arms 2 and 3 means the exact opposite — a timeout there means the serving boot *succeeded* — so the message is now per-caller.
+
+`ProcessRoleRegistryTests` (fast, no host) covers the classification itself, including the one case the subprocess suite structurally cannot reach — `healthcheck` returns before a host exists, so no boot guard can observe its role today. Note what it does **not** do: `OneShotVerbs` is derived from `CliDispatcher.Commands`, so walking that list cannot go red when a verb is added or removed. That property comes from the production derivation; the test catches `From` itself regressing.
+
+**The `healthcheck` classification is enforced, not merely asserted.** Its early return means no production path can observe its role — and the safety direction *inverted* in this change: the retired `IsCliInvocation` called it `Serving` (fail closed — a misconfigured Production deploy aborted at a guard), where `OneShot` fails open (guards skipped, `TryRunAsync` finds no match, execution falls through into `app.Run()` and a health probe tries to become a server). An invariant that only a comment defends is not defended, so `Program.cs` throws if it ever reaches the serving path with a `OneShot` role — unreachable today, red the moment the coupling breaks.
 
 Mutation evidence, run before the claim (baseline green, restore green):
 
@@ -52,5 +60,11 @@ Mutation evidence, run before the claim (baseline green, restore green):
 | `EnsureServingConfiguration` drops its `role` check | **red** (`migrate` aborts on #260) |
 | #316's degrade filter flipped to `Serving` | **red** — this is #331 verbatim |
 | `healthcheck` removed from `OneShotVerbs` | **red** (registry suite) |
+| the serving guards enforce nothing at all | **red — via arm 3 only**; arms 1 and 2 stay green |
+| `healthcheck`'s early return removed from `Program.cs` | **red** (the assertion fires, exit 134) |
 
-One process note, because it nearly produced false evidence: the first mutation script restored with `git checkout --`, which **silently refuses to restore untracked files**. Two of the three targets were new files, so mutants stacked instead of reverting and two "red" results were measured against an already-mutated tree. Snapshot by file copy, and assert the restored tree is green again.
+Two process notes, because each nearly produced false evidence.
+
+The first mutation script restored with `git checkout --`, which **silently refuses to restore untracked files**. Two of the three targets were new files, so mutants stacked instead of reverting and two "red" results were measured against an already-mutated tree. Snapshot by file copy, and assert the restored tree is green again.
+
+And a mutant being red is not the same as being red *for the stated reason*. The fourth was re-run on its own to confirm it fails on arm 3's timeout — the serving process boots clean, logging `OTLP export enabled` — rather than on arm 1 or 2, which is the entire claim behind adding arm 3.

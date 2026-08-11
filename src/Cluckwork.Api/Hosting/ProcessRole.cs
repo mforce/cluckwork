@@ -16,7 +16,7 @@ using Cluckwork.Api.Cli;
 // broken — with SIGABRT 134.
 //
 // Now each guard checks the role itself, so its scope survives being moved.
-public enum ProcessRole
+internal enum ProcessRole
 {
     // Started to serve HTTP traffic: Kestrel binds, hosted services run.
     Serving,
@@ -28,7 +28,7 @@ public enum ProcessRole
     OneShot,
 }
 
-public static class ProcessRoles
+internal static class ProcessRoles
 {
     // Every verb whose presence at args[0] makes this a one-shot process.
     //
