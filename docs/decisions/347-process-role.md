@@ -41,27 +41,37 @@ Three details are load-bearing.
 
 ### How it is pinned
 
-`ProcessRoleGuardTests` (integration, subprocess) is the guarantee, and it is deliberately **three-armed** — asserting that `migrate` exits 0 under a hostile serving configuration proves nothing unless that configuration genuinely would fail a serving boot.
+`ProcessRoleGuardTests` (integration, subprocess) is the guarantee. Asserting that `migrate` exits 0 under a hostile serving configuration proves nothing unless that configuration genuinely would fail a serving boot — so the suite also has to establish the hostility, and **how it establishes it is the part that took three attempts.**
 
-- **Arm 1** runs the real binary with `ASPNETCORE_ENVIRONMENT=Production`, `TrustedProxies` empty, `AllowedHosts=*` and a plaintext `Otlp:Endpoint`, and requires exit 0.
-- **Arm 2** starts the same binary with the same environment and **no verb**, and requires it to die naming one of the three guards. Which guard wins is not asserted: #316 throws during registration and the other two after `Build()`, and pinning that order would turn a legitimate reordering into a red test.
-- **Arm 3** exists because arm 2 alone is weaker than it reads, and this was found in review rather than by writing it. #316 is validated during **service registration**, ahead of `ServingBootGuards`, so with all three settings violated the serving process **always** dies at #316 — arm 2 never reaches #260 or #319 and therefore proves only that *one* of the three is hostile. #260 or #319 could quietly stop being violated (an appsettings default gaining a concrete `AllowedHosts`, `AllowNoTrustedProxies` flipping true, a CI runner exporting `RateLimiting__*`) with both arms green and arm 1's coverage of them silently vacuous. Arm 3 sets `Otlp:AllowInsecureEndpoint=true` so #316 passes, and requires the boot to die on one of the other two.
+The first two versions both asserted *"the boot died naming ONE OF these guards"*, and in both the guards run in a fixed order, so the later disjuncts were dead:
 
-Two smaller things the same review surfaced, both of the same family — a fixture that passes for a reason other than the one claimed. The subprocess environment is inherited from the test host, and **#260's condition is the ABSENCE of `RateLimiting__*`**, so the harness now strips that whole section rather than trusting it to be unset. And `SeedCommandRunner`'s timeout message asserted the seed suites' regression ("falling through into `app.Run()`"), which for arms 2 and 3 means the exact opposite — a timeout there means the serving boot *succeeded* — so the message is now per-caller.
+- **v1** — three guards, one disjunction. #316 is validated during **service registration**, ahead of `ServingBootGuards`, so the boot always died there. #260 and #319 were never proven hostile at all.
+- **v2** — added an arm that satisfied #316, and repeated the mistake one level down. `EnsureServingConfiguration` calls #260 then #319 unconditionally, so the boot always died at #260 and the `AllowedHosts` disjunct was dead. **A mutant deleting the #319 call outright survived every arm.**
+
+Two misses of the same shape mean the method is wrong, not that the list needs another entry ([guard-writing rules](407-writing-a-guard.md)). So v3 has no list of arms. Every serving-only guard is a **row in a table**, and the suite derives one arm per row: violate exactly that guard, **satisfy every other**, and require the boot to die naming that guard **and not naming any other**. No arm ever has two violations to choose between, so guard ordering cannot hide anything, and the negative half turns "a different guard caught it" from silently green into red. Adding a fourth guard is adding a row.
+
+The same "list what I thought of" method had also sprung three leaks in how the child process's environment was built. The subprocess inherits the test host's environment and **#260's condition is the ABSENCE of `RateLimiting__*`**, so v2 stripped that prefix — but the strip was `Ordinal` while Linux environment keys are case-sensitive and .NET configuration keys are not (`ratelimiting__…` survived it), `ASPNETCORE_`- and `DOTNET_`-prefixed variables bind to the same configuration keys with the prefix removed, and `Otlp__` was never stripped at all — so an inherited `Otlp__AllowInsecureEndpoint` (a documented sim-harness setting) would have silently voided the #316 arm. The child environment is now **built from scratch**: cleared, then a small allow-list of OS variables, then every application setting stated explicitly.
+
+One smaller thing from the same review, same family: `SeedCommandRunner`'s timeout message asserted the seed suites' regression ("falling through into `app.Run()`"), which for the serving arms means the exact opposite — a timeout there means the boot *succeeded* — so the message is now per-caller.
 
 `ProcessRoleRegistryTests` (fast, no host) covers the classification itself, including the one case the subprocess suite structurally cannot reach — `healthcheck` returns before a host exists, so no boot guard can observe its role today. Note what it does **not** do: `OneShotVerbs` is derived from `CliDispatcher.Commands`, so walking that list cannot go red when a verb is added or removed. That property comes from the production derivation; the test catches `From` itself regressing.
 
 **The `healthcheck` classification is enforced, not merely asserted.** Its early return means no production path can observe its role — and the safety direction *inverted* in this change: the retired `IsCliInvocation` called it `Serving` (fail closed — a misconfigured Production deploy aborted at a guard), where `OneShot` fails open (guards skipped, `TryRunAsync` finds no match, execution falls through into `app.Run()` and a health probe tries to become a server). An invariant that only a comment defends is not defended, so `Program.cs` throws if it ever reaches the serving path with a `OneShot` role — unreachable today, red the moment the coupling breaks.
 
-Mutation evidence, run before the claim (baseline green, restore green):
+Mutation evidence, run before the claim:
 
 | Mutation | Result |
 |---|---|
+| baseline, unmutated | **green** |
 | `EnsureServingConfiguration` drops its `role` check | **red** (`migrate` aborts on #260) |
 | #316's degrade filter flipped to `Serving` | **red** — this is #331 verbatim |
 | `healthcheck` removed from `OneShotVerbs` | **red** (registry suite) |
-| the serving guards enforce nothing at all | **red — via arm 3 only**; arms 1 and 2 stay green |
+| the #319 `AllowedHosts` guard deleted outright | **red** — *survived v2 entirely* |
+| the #260 `TrustedProxies` guard neutered | **red** — *survived v2 entirely* |
 | `healthcheck`'s early return removed from `Program.cs` | **red** (the assertion fires, exit 134) |
+| restored | **green** |
+
+The two marked rows are the ones that matter: under v2 both mutants left every arm green, which is how the dead disjuncts were found. They are the reason the per-guard table exists, and they are the regression check on it.
 
 Two process notes, because each nearly produced false evidence.
 

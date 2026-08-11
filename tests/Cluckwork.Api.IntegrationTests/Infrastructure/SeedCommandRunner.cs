@@ -21,12 +21,15 @@ using System.Diagnostics;
 // process) so the test fails fast with a clear message instead of hanging.
 public static class SeedCommandRunner
 {
-    // timeoutMeaning: what a timeout tells the CALLER. The default states the
-    // regression the seed/migrate suites are looking for — a verb falling through
-    // into app.Run() instead of exiting. ProcessRoleGuardTests' serving arms
-    // deliberately start a process with NO verb and expect it to die on a boot
-    // guard, so for them a timeout means the exact opposite (the boot succeeded),
-    // and the default message would send the reader hunting the wrong bug.
+    // timeoutMeaning: what a timeout tells the CALLER, as one or more COMPLETE
+    // SENTENCES — it is spliced between two others, so it must start capitalized
+    // and end with a period or the diagnostic reads as a run-on. The default
+    // states the regression the seed/migrate suites are looking for — a verb
+    // falling through into app.Run() instead of exiting. ProcessRoleGuardTests'
+    // serving arms deliberately start a process with NO verb and expect it to die
+    // on a boot guard, so for them a timeout means the exact opposite (the boot
+    // succeeded), and the default message would send the reader hunting the wrong
+    // bug.
     public static async Task<(int ExitCode, string Stdout, string Stderr)> RunToCompletionAsync(
         Process proc, TimeSpan timeout, string? timeoutMeaning = null)
     {
