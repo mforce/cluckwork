@@ -186,17 +186,16 @@ test.describe("live regions under a modal", () => {
     for (const selector of [FARM_ANNOUNCER, UPDATE_ANNOUNCER]) {
       const before = await ax.node(selector);
       expect(before.inDom, `${selector} is not mounted`).toBe(true);
-      expect(before.inTree, `${selector} is already out of the accessibility tree`).toBe(true);
-      // Present is not the same as exposed. Chromium drops both `inert` and
-      // `aria-hidden` subtrees from the tree outright (measured on 151), so
-      // `inTree` already covers those — but a future markup or browser change
-      // could keep the node and mark it ignored instead, which would be silent
-      // in every other assertion here.
+      // EXPOSED, not merely present. Chromium has two ways to exclude an
+      // element and only one is absence: `inert` drops the node, `aria-hidden`
+      // may keep it with `ignored: true`. Asserting `inTree` alone would pass
+      // for a node no screen reader can see — see the header of src/ax.ts,
+      // where that mistake is recorded.
       expect(
-        before.ignored,
-        `${selector} is in the accessibility tree but IGNORED (${before.ignoredReasons.join(", ")}) `
-          + `— present, and still invisible to a screen reader`,
-      ).toBe(false);
+        before.exposed,
+        `${selector} is not exposed to assistive technology`
+          + `${before.ignoredReasons.length > 0 ? ` (ignored: ${before.ignoredReasons.join(", ")})` : ""}`,
+      ).toBe(true);
       expect(before.text, `${selector} should start empty`).toBe("");
     }
 
@@ -246,15 +245,15 @@ test.describe("live regions under a modal", () => {
     ] as const) {
       expect.soft(during.inDom, `${selector} unmounted instead of going inert`).toBe(true);
       expect.soft(
-        during.inTree,
-        `${selector} is still in the accessibility tree with a dialog open — the #483 inert `
-          + `sweep is not reaching it, and #485's premise no longer holds`,
+        during.exposed,
+        `${selector} is still exposed to assistive technology with a dialog open — the #483 `
+          + `inert sweep is not reaching it, and #485's premise no longer holds`,
       ).toBe(false);
     }
     expect(
-      inDialog!.inTree,
-      "the dialog's own controls are missing from the accessibility tree too — the tree read is "
-        + "broken, so the absences above prove nothing",
+      inDialog!.exposed,
+      "the dialog's own controls are not exposed either — the tree read is broken, so the "
+        + "absences above prove nothing",
     ).toBe(true);
 
     await page.keyboard.press("Escape");
@@ -270,7 +269,10 @@ test.describe("live regions under a modal", () => {
       [FARM_ANNOUNCER, afterNodes[0]!],
       [UPDATE_ANNOUNCER, afterNodes[1]!],
     ] as const) {
-      expect.soft(after.inTree, `${selector} never returned to the accessibility tree`).toBe(true);
+      expect.soft(
+        after.exposed,
+        `${selector} never returned to the accessibility tree`,
+      ).toBe(true);
     }
   });
 
@@ -294,7 +296,7 @@ test.describe("live regions under a modal", () => {
     const banner = page.locator("p.farm-warning");
     await expect(banner).toContainText(tEn("nav:farmLoadFailedNeverLoaded"));
     const bannerAx = await ax.node("p.farm-warning");
-    expect(bannerAx.inTree).toBe(true);
+    expect(bannerAx.exposed, "the visible banner is not exposed to assistive technology").toBe(true);
     expect(bannerAx.role, "the visible banner dropped out of the alert vocabulary").toBe("alert");
 
     // ...and the offscreen announcer stays EMPTY, because nothing was missed.
@@ -429,12 +431,17 @@ test.describe("live regions under a modal", () => {
     // with no controls is a different case, which is why it is still open.
     await page.getByRole("button", { name: tEn("customers:newCustomerButton") }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
+    // Same passive-effect race the first test settles: dialog visibility is
+    // committed during render, the sweep runs after paint. Without this the
+    // precondition below can read the tree before the sweep and fail against
+    // perfectly correct code (codex round 3 on #504).
+    await waitForModalEffect(page, true);
 
     // Precondition, not the fact being recorded: the probe is a body child, so
     // the sweep marks it like any other. If this fails the app's sweep changed
     // scope, and the fact below would be measuring nothing.
     expect(
-      (await ax.node("#probe-exempt")).inTree,
+      (await ax.node("#probe-exempt")).exposed,
       "the injected probe is a body child but the modal sweep did not inert it — the sweep's "
         + "scope changed, so the exemption fact below is not being measured",
     ).toBe(false);
@@ -442,7 +449,7 @@ test.describe("live regions under a modal", () => {
     await page.evaluate(() => document.getElementById("ax-probe")?.removeAttribute("inert"));
 
     expect(
-      (await ax.node("#probe-exempt")).inTree,
+      (await ax.node("#probe-exempt")).exposed,
       "un-inerting one subtree while a dialog is open did NOT return it to the accessibility "
         + "tree — the inert-exemption design in #501 would not work",
     ).toBe(true);

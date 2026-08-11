@@ -30,17 +30,32 @@
 // call, so a target and a control read through it separately are several CDP
 // round trips apart and cannot rule out a tree that changed in between.
 //
-// Two Chromium behaviours this file depends on, both measured on 151 rather
-// than assumed, and neither guaranteed by any spec (the CDP Accessibility
-// domain is experimental):
+// **`inTree` is not "exposed", and the difference bites.** Use `exposed`.
 //
-//   * An `inert` subtree's nodes are ABSENT from the tree, not present with
-//     `ignored: true`. So is an `aria-hidden` element — checked, because a
-//     reviewer's proposed "aria-hidden slips through `inTree`" regression
-//     turned out not to reproduce.
-//   * `aria-live="off"` yields NO live property at all, not `live: "off"` —
-//     which is also what a non-live element yields, so any assertion about it
-//     needs a contrasting control.
+// Chromium excludes an element from assistive technology in two different
+// ways, and only one of them is visible as absence:
+//
+//   * An `inert` subtree's nodes are ABSENT from the tree entirely.
+//   * An `aria-hidden` element may instead be PRESENT with `ignored: true` and
+//     `ignoredReasons: ["ariaHiddenElement"]`.
+//
+// Which one you get depends on the element. Measured on Chromium 151: an
+// `aria-hidden` `<p>` came back absent, an `aria-hidden` `<button>` came back
+// present-and-ignored. An earlier version of this comment generalised from the
+// first measurement and stated that `aria-hidden` is always absent — a reviewer
+// had flagged exactly this hazard, and that wrong generalisation was used to
+// dismiss it. It surfaced when a mutant that `aria-hidden`s the dialog's
+// buttons SURVIVED: `inTree` stayed true, so the spec's control could not tell
+// "exposed" from "ignored" (codex round 3 on #504, and its own finding turned
+// out to be deeper than stated).
+//
+// So assert on `exposed`, never on `inTree` alone. `inTree` remains available
+// for telling the two exclusion mechanisms apart when that matters.
+//
+// One more measured, unguaranteed behaviour (the CDP Accessibility domain is
+// experimental): `aria-live="off"` yields NO live property at all, not
+// `live: "off"` — which is also what a non-live element yields, so any
+// assertion about it needs a contrasting control.
 //
 // Test 3 of `a11y-live-regions.spec.ts` records the browser build it saw, so a
 // future failure reads as "recorded on X, failing on Y".
@@ -50,8 +65,14 @@ import type { Page } from "@playwright/test";
 export interface AxNode {
   /** The element exists in the DOM. False means the selector matched nothing. */
   inDom: boolean;
-  /** The element has a node in Chromium's accessibility tree. */
+  /** The element has a node in Chromium's accessibility tree. NOT the same as exposed. */
   inTree: boolean;
+  /**
+   * The element is in the tree AND not ignored — i.e. assistive technology can
+   * actually see it. This is what nearly every assertion wants; see the header
+   * for the two different ways Chromium excludes an element.
+   */
+  exposed: boolean;
   /**
    * Chromium's own "present but ignored" flag, for a node that is in the tree
    * and excluded from it (e.g. `aria-hidden`). An `inert` subtree does not get
@@ -133,6 +154,7 @@ export async function attachAx(page: Page): Promise<AxReader> {
       const absent: AxNode = {
         inDom: false,
         inTree: false,
+        exposed: false,
         ignored: null,
         ignoredReasons: [],
         role: null,
@@ -157,6 +179,7 @@ export async function attachAx(page: Page): Promise<AxReader> {
       out.push({
         inDom: true,
         inTree: true,
+        exposed: !(hit.ignored ?? false),
         ignored: hit.ignored ?? false,
         ignoredReasons: (hit.ignoredReasons ?? []).map((r) => r.name),
         role: (hit.role?.value as string) ?? null,

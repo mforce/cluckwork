@@ -74,6 +74,7 @@ declare -A SPEC_FOR=(
   [a11y-announcer-writes-transiently]="specs/a11y-live-regions.spec.ts"
   [a11y-announcer-writes-late]="specs/a11y-live-regions.spec.ts"
   [a11y-inert-never-lifted]="specs/a11y-live-regions.spec.ts"
+  [a11y-dialog-hidden-from-tree]="specs/a11y-live-regions.spec.ts"
 )
 
 # The third test in a11y-live-regions.spec.ts (recorded browser facts) has no
@@ -118,6 +119,7 @@ declare -A GREP_FOR=(
   [a11y-announcer-writes-transiently]="standing farm warning"
   [a11y-announcer-writes-late]="standing farm warning"
   [a11y-inert-never-lifted]="leave the accessibility tree"
+  [a11y-dialog-hidden-from-tree]="leave the accessibility tree"
 )
 
 # Mutants whose RED is known not to prove the guarantee they name. See the header.
@@ -158,8 +160,8 @@ declare -A EXPECT_MSG_FOR=(
   [payment-never-settles]="so the payment did not settle the balance"
   [export-returns-nothing]="the export downloaded 0 bytes"
   [language-persist-dropped]="the es preference did not survive a reload"
-  [a11y-inert-sweep-removed]="main.content > p.sr-only[aria-live=\"assertive\"] is still in the accessibility tree with a dialog open
-#root > p.sr-only[aria-live=\"polite\"] is still in the accessibility tree with a dialog open
+  [a11y-inert-sweep-removed]="main.content > p.sr-only[aria-live=\"assertive\"] is still exposed to assistive technology with a dialog open
+#root > p.sr-only[aria-live=\"polite\"] is still exposed to assistive technology with a dialog open
 the injected probe is a body child but the modal sweep did not inert it"
   [a11y-inert-never-lifted]="main.content > p.sr-only[aria-live=\"assertive\"] never returned to the accessibility tree
 #root > p.sr-only[aria-live=\"polite\"] never returned to the accessibility tree"
@@ -167,6 +169,7 @@ the injected probe is a body child but the modal sweep did not inert it"
   [a11y-announcer-renags-on-close]="re-announced a standing warning after dialog cycle"
   [a11y-announcer-writes-transiently]="was written to during the dialog cycles"
   [a11y-announcer-writes-late]="was written to during the dialog cycles"
+  [a11y-dialog-hidden-from-tree]="the dialog's own controls are not exposed either"
 )
 
 MUTANTS=("$@")
@@ -178,7 +181,8 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            language-persist-dropped
            a11y-inert-sweep-removed a11y-announcer-duplicates-banner
            a11y-announcer-renags-on-close a11y-announcer-writes-transiently
-           a11y-announcer-writes-late a11y-inert-never-lifted)
+           a11y-announcer-writes-late a11y-inert-never-lifted
+           a11y-dialog-hidden-from-tree)
 fi
 
 rule() { printf '\n%s\n' "────────────────────────────────────────────────────────────────────────"; }

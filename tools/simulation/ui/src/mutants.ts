@@ -31,7 +31,7 @@
 //
 // ================== THE SECOND BOUNDARY: DOM-LEVEL MUTANTS (#501) ==================
 //
-// The six `a11y-*` mutants below do NOT go through the network. They inject a
+// The seven `a11y-*` mutants below do NOT go through the network. They inject a
 // script into the page and break the DOM the way the corresponding regression
 // would leave it. That was added for #501, whose guarantees are entirely
 // client-side — a live region's presence in the accessibility tree is never
@@ -49,7 +49,7 @@
 // the mutants write the same text from outside. Both leave the screen reader in
 // the same state, which is the state the spec judges.
 //
-// **Six mutants for one spec, because each earlier version covered a fraction
+// **Seven mutants for one spec, because each earlier version covered a fraction
 // of the test it named.** The four announcer mutants differ only in WHEN they
 // write, and each is the only one that reaches its assertion:
 //   * `a11y-announcer-duplicates-banner` writes from first paint, so it kills
@@ -64,13 +64,17 @@
 //     it is the only one that validates that assertion's final drain.
 // The two inert mutants split the same way: `a11y-inert-sweep-removed` breaks
 // the marking, `a11y-inert-never-lifted` breaks the UN-marking, and neither
-// reaches the other's assertion.
+// reaches the other's assertion. `a11y-dialog-hidden-from-tree` is the seventh
+// and the odd one out — it breaks the spec's CONTROL rather than a product
+// guarantee, because a control nothing can falsify is not a control.
 //
-// Each hole was found by a review, and each by asking the same question of the
-// previous fix — four rounds of it. Every time, the harness reported a clean
-// kill and said nothing, because a mutant killing SOMETHING is not evidence
-// that it killed the thing its name claims. `EXPECT_MSG_FOR` in
-// mutation-check.sh now asks that question mechanically.
+// Each hole was found by a review asking the same question of the previous
+// fix — six rounds of it, and the question was still producing findings at the
+// end, so do not read this list as exhausted. Every time, the harness reported
+// a clean kill and said nothing, because a mutant killing SOMETHING is not
+// evidence that it killed the thing its name claims. `EXPECT_MSG_FOR` in
+// mutation-check.sh now asks that question mechanically, which is the only
+// reason to expect the seventh round to go differently from the first six.
 //
 // Do not reach for this shape when a network mutant would do. It is here
 // because the alternative for #501 was no mutation coverage at all.
@@ -441,6 +445,39 @@ export const MUTANTS: Record<string, Mutant> = {
           subtree: true,
           attributeFilter: ["inert"],
         });
+      });
+    },
+  },
+
+  "a11y-dialog-hidden-from-tree": {
+    breaks:
+      "the dialog's own controls' place in the accessibility tree, which is the CONTROL the "
+      + "absence assertions are validated against — with it broken, 'the announcer is not in the "
+      + "tree' could mean 'nothing is in the tree' and read the same",
+    caughtBy:
+      "a11y-live-regions.spec.ts — the offscreen announcers leave the accessibility tree "
+      + "(specifically its control assertion)",
+    apply: async (page) => {
+      // The control had no mutant of its own for six review rounds, which is
+      // the exact hazard it exists to prevent, applied to itself: if it stopped
+      // discriminating, every other assertion in that test could false-pass and
+      // the run would stay clean (codex round 3 on #504).
+      //
+      // `aria-hidden` on the dialog's BUTTONS, not on the dialog: hiding the
+      // dialog itself would stop `getByRole("dialog")` matching and kill the
+      // test at `toBeVisible()` — the wrong assertion, again.
+      //
+      // Honest about what it proves: that the control CAN fail, not that it
+      // detects a broken CDP session specifically. Nothing here can simulate
+      // that, and pretending otherwise would be the overclaim this file keeps
+      // having to walk back.
+      await page.addInitScript(() => {
+        const hide = () => {
+          for (const control of document.querySelectorAll('[role="dialog"] button')) {
+            control.setAttribute("aria-hidden", "true");
+          }
+        };
+        new MutationObserver(hide).observe(document, { childList: true, subtree: true });
       });
     },
   },
