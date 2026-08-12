@@ -254,9 +254,11 @@ Two stages, deliberately separate: **CI publishes an image per merge; the releas
 
 **Phase 1.0 (MVP) is shipped** — epic #13 closed. The egg loop runs end-to-end from the SPA: daily entry (by grade) → submit → egg lots → stock → customer → sales order → FIFO allocation → stock decremented. Single-farm login (multi-tenant infra present but dormant), customers without payments, draft orders cancellable/editable.
 
+**Phase 1.1 (Operational fill) is shipped** — epic #14 closed 2026-08-11. Every item in `specs/product/specs.md` §6's Phase 1.1 scope landed: RBAC UI, product catalog / egg-grade management, inventory movement ledger, feed/water/mortality, expenses, payments, dashboard, reports, audit UI, exports, i18n infrastructure (#45; English-only, translations land in 1.5). Follow-on work discovered while shipping 1.1 (not part of its original scope) moved to epic #15 on close, not a new phase number.
+
 Domain terms (flock lifecycle, daily entry states, egg lots, grades, culls, FIFO allocation) are defined in `specs/product/GLOSSARY.md` — read it before renaming or modeling anything.
 
-Current phase: **Phase 1.1** (epic #14, `specs/product/specs.md` §6) — RBAC UI, product catalog / egg-grade management, inventory movement ledger, feed/water/mortality, expenses, payments, dashboard, reports, audit UI, exports, i18n infrastructure (#45; English-only, translations land in 1.5). Known deferred item with an issue: farm-local timezone boundaries (#35). Work is tracked as GitHub issues (epics + slices).
+Current phase: **Phase 1.5** (epic #15, `specs/product/specs.md` §6) — egg product hardening: legacy import, inventory reconciliation, alert center, packaging inventory, additives/supplements, vaccination records, native-speaker es/tl review, deployment readiness, and the Phase 1.1 carryover items listed on the epic. Work is tracked as GitHub issues (epics + slices).
 
 ## graphify
 
