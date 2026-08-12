@@ -456,6 +456,114 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
             Assert.Null(e.Exception);
         });
     }
+
+    // #493 — the entity-scoped audit history feature's success metric: does
+    // GET /api/v1/audit?entityId=... actually set EntityScopedAuditRequest on
+    // the completion log (Program.cs's EnrichDiagnosticContext)? Pinned from
+    // both sides — fires on a 2xx scoped read, does NOT fire on a malformed
+    // entityId or an unscoped read — plus the documented, accepted
+    // limitation: it also fires on a well-formed entityId that matches
+    // nothing, because distinguishing that would need response-body
+    // inspection this one-line enrichment deliberately doesn't do. Program.cs's
+    // condition never inspects the response body, so no test here needs a
+    // REAL matching entity — a fresh random Guid is enough for every case,
+    // and deliberately avoids creating one through an endpoint (/flocks,
+    // /egg-grades, /customers) another test in this class already asserts
+    // Assert.Single(CompletionEventsFor(...)) on without a TraceId filter;
+    // this class's Sink is never reset between tests.
+    private async Task<HttpClient> SeedAuthedClientAsync()
+    {
+        var email = $"reqlog-audit-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        return factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+    }
+
+    [Fact]
+    public async Task Entity_scoped_audit_read_sets_diagnostic_property()
+    {
+        var client = await SeedAuthedClientAsync();
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/audit?entityId={Guid.NewGuid()}");
+        var traceId = StampTrace(request);
+
+        var response = await client.SendAsync(request);
+
+        response.EnsureSuccessStatusCode();
+        var completion = CompletionFor("/api/v1/audit", traceId);
+        Assert.Equal("True", ScalarOf(completion, "EntityScopedAuditRequest"));
+    }
+
+    [Fact]
+    public async Task Zero_match_entity_id_still_sets_diagnostic_property_KNOWN_LIMITATION()
+    {
+        var client = await SeedAuthedClientAsync();
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/audit?entityId={Guid.NewGuid()}");
+        var traceId = StampTrace(request);
+
+        var response = await client.SendAsync(request);
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("[]", await response.Content.ReadAsStringAsync());
+        var completion = CompletionFor("/api/v1/audit", traceId);
+        // The known, accepted limitation named in Program.cs's own comment —
+        // pinned here so it reads as a documented wart to a future
+        // maintainer, not a spec they can silently tighten or accidentally
+        // widen.
+        Assert.Equal("True", ScalarOf(completion, "EntityScopedAuditRequest"));
+    }
+
+    [Fact]
+    public async Task Malformed_entity_id_does_not_set_diagnostic_property()
+    {
+        var client = await SeedAuthedClientAsync();
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit?entityId=not-a-guid");
+        var traceId = StampTrace(request);
+
+        var response = await client.SendAsync(request);
+
+        // A completion event exists even for this 400: BindingFailureResponse
+        // catches the Guid? binding failure and answers the request itself
+        // without rethrowing, so UseSerilogRequestLogging still logs a normal
+        // completion (see Binding_failure_logs_one_completion_... above) —
+        // the property's absence here is a real assertion against a real
+        // event, not a vacuous pass against a missing one.
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        var completion = CompletionFor("/api/v1/audit", traceId);
+        Assert.False(completion.Properties.ContainsKey("EntityScopedAuditRequest"));
+    }
+
+    // Review round 1 — the query key IS present here (`entityId=`), just with
+    // an empty value, distinct from Malformed_... above (a present, non-empty,
+    // unparseable value) and from Unscoped_... below (the key absent
+    // entirely). An empty value fails Guid? binding the same as any other
+    // unparseable string, so this is expected to behave identically to the
+    // malformed case — pinned explicitly rather than left to inference.
+    [Fact]
+    public async Task Empty_entity_id_value_does_not_set_diagnostic_property()
+    {
+        var client = await SeedAuthedClientAsync();
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit?entityId=");
+        var traceId = StampTrace(request);
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        var completion = CompletionFor("/api/v1/audit", traceId);
+        Assert.False(completion.Properties.ContainsKey("EntityScopedAuditRequest"));
+    }
+
+    [Fact]
+    public async Task Unscoped_audit_read_does_not_set_diagnostic_property()
+    {
+        var client = await SeedAuthedClientAsync();
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit");
+        var traceId = StampTrace(request);
+
+        var response = await client.SendAsync(request);
+
+        response.EnsureSuccessStatusCode();
+        var completion = CompletionFor("/api/v1/audit", traceId);
+        Assert.False(completion.Properties.ContainsKey("EntityScopedAuditRequest"));
+    }
 }
 
 // Own collection (not "integration"): this class uses its own factory/container

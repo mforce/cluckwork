@@ -235,6 +235,28 @@ app.UseSerilogRequestLogging(options =>
             : exception is not null || httpContext.Response.StatusCode >= 500
                 ? Serilog.Events.LogEventLevel.Error
                 : Serilog.Events.LogEventLevel.Information;
+    // #493 — the entity-scoped audit history feature's success metric: is the
+    // per-record "Audit history" link actually being used? Range check, not
+    // an exact 200 — the endpoint only returns Results.Ok today, but a metric
+    // in Program.cs shouldn't be coupled to one endpoint's exact status
+    // literal. Known, accepted limitation (not fixed here — would need
+    // response-body inspection, disproportionate for a one-line log
+    // enrichment): this also counts a syntactically valid but non-matching
+    // entityId (all-zeros, or a cross-tenant read — AuditTests.cs's own
+    // Viewer_NeverCrossesTenants proves that returns 200 with an empty
+    // array too) as a "successful scoped read." It measures requests, not
+    // distinct users or sessions — the request logs carry no actor identity
+    // today, and adding one is out of scope for this ticket.
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        var isEntityScopedAuditRead =
+            httpContext.Request.Path == "/api/v1/audit"
+            && httpContext.Request.Query.ContainsKey("entityId")
+            && httpContext.Response.StatusCode is >= 200 and < 300;
+
+        if (isEntityScopedAuditRead)
+            diagnosticContext.Set("EntityScopedAuditRequest", true);
+    };
 });
 
 // #398 review (Codex) — must be registered IMMEDIATELY after

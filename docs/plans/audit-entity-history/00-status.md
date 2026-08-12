@@ -47,7 +47,7 @@ Checked and pushed back on (not acted on, with evidence):
 - [x] Slice 2 — harden the scoped view: reloading gate on the heading, entity column hiding, scoped empty message — DONE 2026-08-12. 2 pi review rounds, stopped (2 consecutive no-product-defect). 1752/1752 web tests pass.
 - [x] Slice 3 — remaining links: Grades/Sales/Expenses/HistoryPage (mechanical) + StockPage (distinct label + behavior test) — DONE 2026-08-12. 2 clean pi review rounds. 261/261 new tests pass.
 - [x] Slice 4 — Flow A′ test: switching to a different record's history while already on /audit — DONE 2026-08-12. 2 pi review rounds (1 real fix: Routes-based harness + vacuity-gap assertion). 35/35 AuditPage tests pass.
-- [ ] Slice 5 — backend metric: Program.cs enrichment + RequestLoggingTests.cs
+- [x] Slice 5 — backend metric: Program.cs enrichment + RequestLoggingTests.cs — DONE 2026-08-12. 2 pi review rounds (1 real minor test-coverage fix, 3 false claims rejected with evidence). 1641/1641 backend tests pass.
 - [ ] Slice 6 — docs sync: GLOSSARY.md + HelpPage.tsx (es/tl translations land inline with each slice above, not here)
 
 ## Notes for a fresh session
@@ -139,3 +139,13 @@ Round 1 (`pi-review-slice4-round1.txt`): 5 points on the new Flow A′ test itse
 Round 2 (`pi-review-slice4-round2.txt`): brief, no padding — confirmed all fixes hold, nothing new.
 
 Verification: 35/35 AuditPage tests pass (confirms the `<Routes>` rewrite didn't regress anything), full suite 1759/1759 (the earlier flake didn't recur), typecheck clean.
+
+## Slice 5 code review (2 rounds, stopped — 2 consecutive clean/resolved rounds)
+
+Backend metric: one `EnrichDiagnosticContext` line in `Program.cs`'s `UseSerilogRequestLogging`, plus `RequestLoggingTests.cs` cases in the existing `RequestLoggingFactory`/`CollectingSink` harness.
+
+Round 1 (`pi-review-slice5-round1.txt`): 5 points, 3 verified false and rejected with evidence — "status-code timing race" (Serilog.AspNetCore's `RequestLoggingMiddleware` awaits `next()` synchronously before running completion logic including `EnrichDiagnosticContext`; not a fire-and-forget continuation, and this file's own many pre-existing `StatusCode`-reading tests would already be flaky if it were racy), "thread-safety across parallel tests" (`[Collection(RequestLoggingCollection.Name)]` is the xUnit mechanism that guarantees serial execution within the collection, not an assumption), and "brittle string assertion" (rejected as inconsistent with this file's own established `ScalarOf(...)` convention used by every other property check). One real, minor gap acted on: the `entityId=` empty-value case (distinct from both the malformed and the absent-key cases) was never explicitly tested — added, and it confirmed the existing status-code guard already handles it correctly (predicted 400, verified 400). One point noted as an already-accepted design simplification, not actionable.
+
+Round 2 (`pi-review-slice5-round2.txt`): brief, no padding — confirmed the fix holds, nothing new.
+
+Verification: 16/16 `RequestLoggingTests` pass, full backend suite 1641/1641 (Domain 325, Application 145, Api.IntegrationTests 1171 — no test-isolation regressions), build clean.
