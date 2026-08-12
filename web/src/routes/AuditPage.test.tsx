@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, act, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { Link, MemoryRouter, Route, Routes } from "react-router";
 import { AuditPage } from "./AuditPage";
 import { listAuditEvents } from "../api/cluckwork";
 import type { AuditEvent } from "../api/cluckwork";
@@ -540,5 +540,83 @@ describe("AuditPage entity-scoped mode (#493)", () => {
     renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
     expect(await screen.findByText("No audit events for this record yet.")).toBeInTheDocument();
     expect(screen.queryByText("No audit events yet.")).not.toBeInTheDocument();
+  });
+});
+
+// #493, Slice 4 — Flow A': clicking a DIFFERENT record's link while already
+// on /audit, with no remount. Gate 3's original test plan covered a fresh
+// navigation and an action-filter change while scoped, but never this one —
+// the primary record-to-record browsing flow — found missing during Slice 4
+// review of the design docs, not by a code review of shipped code.
+const OTHER_ENTITY_ID = "b9876543-21fe-4dc0-8b12-fedcba098765";
+
+// A real <Routes> tree, matching App.tsx's own single-route mapping to
+// AuditPage (review round 1: a sibling Link with no Routes couldn't prove
+// AuditPage stays mounted across the navigation, only that it happens to).
+// Navigating /audit?entityId=A -> /audit?entityId=B never re-matches the
+// route (the pathname doesn't change), so AuditPage genuinely never
+// remounts here, same as production.
+function renderAuditWithSwitchLink(route: string) {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <Link to={`/audit?entityId=${OTHER_ENTITY_ID}`}>switch record</Link>
+      <Routes>
+        <Route path="/audit" element={<AuditPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("AuditPage Flow A' — switching records without leaving /audit (#493)", () => {
+  it("re-scopes to the new record: re-fires the fetch and updates the heading, not stale on the old one", async () => {
+    mockListAuditEvents.mockResolvedValueOnce([
+      { ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID },
+    ]);
+    renderAuditWithSwitchLink(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+    expect(await screen.findByRole("heading", { name: "Flock history" })).toBeInTheDocument();
+
+    mockListAuditEvents.mockResolvedValueOnce([
+      { ...EVENT_B, entityType: "SalesOrder", entityId: OTHER_ENTITY_ID },
+    ]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "switch record" }));
+    });
+
+    expect(await screen.findByRole("heading", { name: "Sales order history" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Flock history" })).not.toBeInTheDocument();
+    expect(mockListAuditEvents).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityId: OTHER_ENTITY_ID }),
+    );
+    // Not stale-blended: the row shown belongs to the NEW entity only.
+    expect(await screen.findByRole("row", { name: /manager@farm\.test/ })).toBeInTheDocument();
+  });
+
+  it("shows the generic fallback while the switch is in flight, not the previous record's type", async () => {
+    mockListAuditEvents.mockResolvedValueOnce([
+      { ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID },
+    ]);
+    renderAuditWithSwitchLink(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+    expect(await screen.findByRole("heading", { name: "Flock history" })).toBeInTheDocument();
+
+    let resolveSwitch!: (events: AuditEvent[]) => void;
+    mockListAuditEvents.mockReturnValueOnce(new Promise<AuditEvent[]>((r) => (resolveSwitch = r)));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "switch record" }));
+    });
+
+    expect(screen.getByRole("heading", { name: "Record history" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Flock history" })).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveSwitch([{ ...EVENT_B, entityType: "SalesOrder", entityId: OTHER_ENTITY_ID }]);
+    });
+    expect(await screen.findByRole("heading", { name: "Sales order history" })).toBeInTheDocument();
+    // Not vacuous (review round 1): a component that flipped to the generic
+    // fallback WITHOUT actually re-fetching would also pass the assertions
+    // above. Pin that the switch really did fire a new request for the new
+    // entity, not just an incidental heading change.
+    expect(mockListAuditEvents).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityId: OTHER_ENTITY_ID }),
+    );
   });
 });
