@@ -18,6 +18,17 @@ export const en = {
     // "History" toggle for the inventory movement ledger on the same row, a
     // different trail, and the two must not read as the same affordance.
     "recordHistory.viewHistoryLink": "Audit history",
+    // #493 review (codex) — Egg lots specifically: the ONLY audit action
+    // ever written against an EggLot's own entityId is a manual write-off
+    // or recount (RecordEggLotMovementHandler). Creation is recorded
+    // against the Daily Entry that produced the lot, allocation/restoration
+    // against the Sales Order — never against the lot itself. "Audit
+    // history" on this one screen would promise a full lifecycle the data
+    // can't deliver: a normal, never-adjusted lot shows nothing at all.
+    // Distinct, honest label for StockPage only; the other five screens
+    // (which DO have a Create event against themselves, #494) keep the
+    // shared "Audit history" label above.
+    "recordHistory.viewAdjustmentHistoryLink": "Adjustment history",
     recordHistoryHeader: "History",
     cancel: "Cancel",
     save: "Save",
@@ -2567,9 +2578,11 @@ export const en = {
       + "log, so it needs no extra permission: if you can see the record, you can see its history.",
     auditRecordHistoryLink:
       "That column is a summary, not the whole story. Flocks, Egg grades, Daily entry history, Sales orders, "
-      + "Expenses and Egg lots each carry an \"Audit history\" link on their own screen that opens the full "
-      + "trail for that one record — every corrective or configuration change, not just the creation and the "
-      + "most recent one — without hunting through the global Audit log above and filtering it yourself.",
+      + "and Expenses each carry an \"Audit history\" link on their own screen that opens the full trail for "
+      + "that one record — every corrective or configuration change, not just the creation and the most "
+      + "recent one — without hunting through the global Audit log above and filtering it yourself. Egg lots "
+      + "carry a similar \"Adjustment history\" link instead — narrower on purpose: only manual write-offs "
+      + "and recounts are recorded against a lot itself, so this shows those, not the lot's full story.",
     auditRecordHistorySubmit:
       "Saving a daily entry and submitting it is one act, not a change: do both yourself and the History "
       + "column names you as the creator with no change against you. If somebody else submits your draft, "

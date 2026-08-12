@@ -78,7 +78,15 @@ export function AuditPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const actionFilter = searchParams.get("action") ?? "";
   const rawEntityId = searchParams.get("entityId");
-  const entityId = rawEntityId && isLikelyGuid(rawEntityId) ? rawEntityId : undefined;
+  // Lowercased (review round: codex found the previous fix regressed on an
+  // uppercase entityId): the API returns EntityId as a .NET Guid, which
+  // System.Text.Json serializes lowercase regardless of the request's
+  // casing, but the regex accepting it is case-insensitive. Without
+  // normalizing here, isScopedDataStale's row comparison would never match
+  // an uppercase URL against the lowercase rows the server returns — stuck
+  // on "Loading…" forever, not just briefly stale. Normalized once here so
+  // every downstream use (the API call, the comparison) agrees.
+  const entityId = rawEntityId && isLikelyGuid(rawEntityId) ? rawEntityId.toLowerCase() : undefined;
 
   const updateActionFilter = useCallback((action: string) => {
     const next = new URLSearchParams(searchParams);

@@ -458,6 +458,27 @@ describe("AuditPage entity-scoped mode (#493)", () => {
     expect(screen.getByRole("heading", { name: "Audit log" })).toBeInTheDocument();
   });
 
+  // codex review of #516 — a pasted/hand-typed uppercase GUID is
+  // syntactically valid (the guard regex is case-insensitive) and the API
+  // accepts it, but its response's entityId is always lowercase (a .NET
+  // Guid serialized by System.Text.Json). Without normalizing the URL value,
+  // isScopedDataStale's row comparison would never match — this must NOT
+  // get stuck on "loading" forever.
+  it("normalizes an uppercase entityId so it matches the lowercase entityId the API returns, and doesn't stick on loading", async () => {
+    const upper = SCOPED_ENTITY_ID.toUpperCase();
+    mockListAuditEvents.mockResolvedValue([
+      { ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID }, // lowercase, as the API returns it
+    ]);
+    renderAudit(`/audit?entityId=${upper}`);
+
+    expect(await screen.findByRole("heading", { name: "Flock history" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Record history" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("row", { name: /admin@farm\.test/ })).toBeInTheDocument();
+    expect(mockListAuditEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ entityId: SCOPED_ENTITY_ID }), // normalized, not the raw uppercase URL value
+    );
+  });
+
   it("preserves entityId in the URL when the action filter changes while scoped (updateActionFilter merge)", async () => {
     mockListAuditEvents.mockResolvedValue([]);
     renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);

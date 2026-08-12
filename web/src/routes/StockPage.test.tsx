@@ -216,6 +216,21 @@ describe("StockPage i18n wiring (#182, Task 18)", () => {
     });
   }
 
+  // #493 — first introduced on this page (the other five screens share
+  // common:recordHistory.viewHistoryLink, marker-tested on FlocksPage).
+  it("reads the adjustment-history link label from the common catalog, not a hardcoded literal", async () => {
+    await withOverride("common", "recordHistory.viewAdjustmentHistoryLink", "ADJUSTMENT-MARKER", async () => {
+      mockGetStock.mockResolvedValue(ROWS);
+      mockListEggLots.mockResolvedValue(LOTS);
+      render(<StockPage />);
+      await screen.findByText("Grade A");
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+      const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+      expect(within(lotRow).getByRole("link", { name: "ADJUSTMENT-MARKER" })).toBeInTheDocument();
+      expect(within(lotRow).queryByRole("link", { name: "Adjustment history" })).not.toBeInTheDocument();
+    });
+  });
+
   it("reads the heading from the catalog, not a hardcoded literal", async () => {
     await withOverride("stock", "title", "TITLE-MARKER", async () => {
       mockGetStock.mockResolvedValue(ROWS);
@@ -1377,7 +1392,7 @@ describe("StockPage audit history link (#493)", () => {
 
     // The link navigates to the entity-scoped audit trail — never opens
     // anything in place.
-    expect(within(lotRow).getByRole("link", { name: "Audit history" }))
+    expect(within(lotRow).getByRole("link", { name: "Adjustment history" }))
       .toHaveAttribute("href", "/audit?entityId=lot1");
     expect(screen.queryByText("Movement ledger")).not.toBeInTheDocument();
 
@@ -1389,7 +1404,7 @@ describe("StockPage audit history link (#493)", () => {
     expect(await screen.findByText("Movement ledger")).toBeInTheDocument();
     expect(within(lotRow).getByRole("button", { name: "hide history" })).toBeInTheDocument();
     // Still on StockPage — the toggle is not a navigation.
-    expect(within(lotRow).getByRole("link", { name: "Audit history" }))
+    expect(within(lotRow).getByRole("link", { name: "Adjustment history" }))
       .toHaveAttribute("href", "/audit?entityId=lot1");
   });
 
@@ -1402,6 +1417,6 @@ describe("StockPage audit history link (#493)", () => {
     await screen.findByText("Grade A");
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
     const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
-    expect(within(lotRow).queryByRole("link", { name: "Audit history" })).not.toBeInTheDocument();
+    expect(within(lotRow).queryByRole("link", { name: "Adjustment history" })).not.toBeInTheDocument();
   });
 });

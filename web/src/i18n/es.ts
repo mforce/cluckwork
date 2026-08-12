@@ -10,6 +10,7 @@ export const es = {
     "recordHistory.submittedAt": "Enviado el {{at}}",
     "recordHistory.confirmedAt": "Confirmado el {{at}}",
     "recordHistory.viewHistoryLink": "Historial de auditoría",
+    "recordHistory.viewAdjustmentHistoryLink": "Historial de ajustes",
     recordHistoryHeader: "Historial",
     cancel: "Cancelar",
     save: "Guardar",
@@ -2146,11 +2147,13 @@ export const es = {
       + "hizo. Se lee del mismo registro de auditoría, así que no requiere permisos adicionales: si puede "
       + "ver el registro, puede ver su historial.",
     auditRecordHistoryLink:
-      "Esa columna es un resumen, no la historia completa. Grados de huevo, Lotes de huevos, Lotes, "
-      + "Historial de registro diario, Pedidos de venta y Gastos tienen cada uno un enlace \"Historial de "
-      + "auditoría\" en su propia pantalla que abre el registro completo de ese registro: cada cambio "
-      + "correctivo o de configuración, no solo la creación y el más reciente, sin tener que buscar en el "
-      + "registro de auditoría global y filtrarlo usted mismo.",
+      "Esa columna es un resumen, no la historia completa. Grados de huevo, Lotes, Historial de registro "
+      + "diario, Pedidos de venta y Gastos tienen cada uno un enlace \"Historial de auditoría\" en su propia "
+      + "pantalla que abre el registro completo de ese registro: cada cambio correctivo o de configuración, "
+      + "no solo la creación y el más reciente, sin tener que buscar en el registro de auditoría global y "
+      + "filtrarlo usted mismo. Los Lotes de huevos tienen en cambio un enlace \"Historial de ajustes\" "
+      + "similar — más limitado a propósito: solo se registran contra el lote mismo las bajas y los "
+      + "reconteos manuales, así que esto muestra eso, no la historia completa del lote.",
     auditRecordHistorySubmit:
       "Guardar un registro diario y enviarlo es un solo acto, no un cambio: si haces ambas cosas tú, la "
       + "columna Historial te muestra como creador y no señala ningún cambio. Si otra persona envía tu "
