@@ -52,7 +52,7 @@ RUN dotnet publish src/Cluckwork.Api/Cluckwork.Api.csproj -c Release -o /out --n
 # Separately, do NOT set InvariantGlobalization=true: it does not break tz lookup
 # on Linux (tzdata is read independently of ICU), but it breaks culture-dependent
 # currency/locale formatting the app relies on. Keep ICU (the default here).
-FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:f1126d438ccc359f51cc6d4701a8deae513856cf10f5fe645d29ea6403dcac6b AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:207cc51496778557731c81ff670333d8ade4a4fec22768fd1be8e78474a84ecf AS runtime
 WORKDIR /app
 EXPOSE 8080
 
