@@ -79,7 +79,7 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
         Guid accountId, Guid targetUserId, Guid actingUserId, string? stepUpToken, string? reason = null)
     {
         using var scope = factory.Services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+        scope.ResolveTenantAndActor(accountId, actingUserId);
         var handler = scope.ServiceProvider.GetRequiredService<DisableUserHandler>();
         return await handler.HandleAsync(
             new DisableUserCommand(targetUserId, reason, stepUpToken), accountId, actingUserId, CancellationToken.None);
@@ -89,7 +89,7 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
         Guid accountId, Guid targetUserId, Guid actingUserId, string? stepUpToken)
     {
         using var scope = factory.Services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+        scope.ResolveTenantAndActor(accountId, actingUserId);
         var handler = scope.ServiceProvider.GetRequiredService<EnableUserHandler>();
         return await handler.HandleAsync(
             new EnableUserCommand(targetUserId, stepUpToken), accountId, actingUserId, CancellationToken.None);
@@ -574,7 +574,7 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
         var reset = Task.Run(async () =>
         {
             using var scope = factory.Services.CreateScope();
-            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+            scope.ResolveTenantAndActor(accountId);
             var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
             return await identity.SetUserPasswordAsync(
                 accountId, targetId, $"Aa1!{Guid.NewGuid():N}", CancellationToken.None);

@@ -14,6 +14,7 @@ using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -36,6 +37,8 @@ using Microsoft.Extensions.Logging;
 public sealed class DemoDataSeeder(
     AppDbContext db,
     TenantContext tenant,
+    CurrentUserContext currentUser,
+    UserManager<ApplicationUser> users,
     IEggGradeRepository eggGrades,
     CreateFlockHandler createFlock,
     RecordDailyEntryHandler recordEntry,
@@ -72,6 +75,28 @@ public sealed class DemoDataSeeder(
             return SeedResult.PrerequisitesMissing(message);
         }
 
+        // #500 — the demo fixture is signed by the account's Owner, so one must
+        // exist. This mirrors the prerequisite SimulationDataSeeder has always
+        // had, and it is a REAL one: unlike the account/role/grades above, an
+        // Owner comes only from `bootstrap-admin` (#283), which `seed` never
+        // runs. Checked BEFORE tenant.Resolve, like its neighbours.
+        //
+        // This deliberately costs the "seed --profile demo needs nothing but a
+        // connection string" property that SeedCommandTests used to pin. The
+        // trade was made knowingly: a demo fixture exists to be looked at,
+        // looking requires a login, and a login requires an Owner — so the
+        // prerequisite turns a later surprise into an immediate, clear failure.
+        var owner = await FindOwnerAsync(accountId);
+        if (owner is null)
+        {
+            const string message =
+                "Demo seed prerequisites missing: the default account has no user in the Owner role, so the " +
+                "seeded records would have no author. Run `dotnet Cluckwork.Api.dll bootstrap-admin --email " +
+                "<e>` against this database, then re-run `seed --profile demo`.";
+            logger.LogError(message);
+            return SeedResult.PrerequisitesMissing(message);
+        }
+
         var anyFlocks = await db.Flocks
             .IgnoreQueryFilters()
             .AnyAsync(f => f.AccountId == accountId, ct);
@@ -85,6 +110,17 @@ public sealed class DemoDataSeeder(
         // Handlers and query filters need the tenant, which is unresolved at
         // startup — resolve it to the seeded account for this scope.
         tenant.Resolve(accountId);
+
+        // #500 — and the actor, which IAuditWriter now requires. The whole demo
+        // fixture is authored by the Owner: a one-person farm is exactly what
+        // the demo represents, so every record's History line names them.
+        //
+        // The roles come from UserManager, never from a `[Roles.Owner]` literal.
+        // What is resolved here is an AUTHORIZATION input (FlockScopeGuard reads
+        // it), so a literal would fabricate a privilege rather than report one —
+        // and it would keep claiming Owner even for a user demoted between the
+        // lookup above and this line.
+        currentUser.Resolve(owner.Id, owner.Email!, [.. await users.GetRolesAsync(owner)]);
 
         try
         {
@@ -100,6 +136,24 @@ public sealed class DemoDataSeeder(
             return SeedResult.Failed($"Demo seed failed: {ex.Message}");
         }
     }
+
+    // #500 — the Owner that signs every demo record.
+    //
+    // UserManager.GetUsersInRoleAsync is NOT account-scoped: it takes a role
+    // name and returns Owners across EVERY account, so the AccountId filter
+    // here is load-bearing, not decoration. Without it the demo fixture would
+    // be attributed to another tenant's Owner and nothing would look wrong —
+    // the History line renders the email off the audit row, never a join.
+    // (SimulationDataSeeder.MissingBaseDataAsync filters the same way.)
+    //
+    // Ordered by Id so the choice is deterministic when an account has several
+    // Owners: a fixture whose attribution varies between runs would break the
+    // determinism the seeders rest on (#279).
+    private async Task<ApplicationUser?> FindOwnerAsync(Guid accountId) =>
+        (await users.GetUsersInRoleAsync(Roles.Owner))
+            .Where(u => u.AccountId == accountId)
+            .OrderBy(u => u.Id)
+            .FirstOrDefault();
 
     // Cheap existence checks only — this must run BEFORE tenant.Resolve, so
     // every tenant-scoped query needs IgnoreQueryFilters (same reasoning as the

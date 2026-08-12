@@ -92,6 +92,7 @@ using Microsoft.Extensions.Logging;
 public sealed class FirstRunAdminService(
     AppDbContext db,
     TenantContext tenant,
+    CurrentUserContext currentUser,
     UserManager<ApplicationUser> userManager,
     IIdentityProvider identity,
     ILogger<FirstRunAdminService> logger)
@@ -263,6 +264,13 @@ public sealed class FirstRunAdminService(
         // request — resolve it to the default account for this scope (mirrors
         // AdminRecoveryService and the demo/simulation seeders).
         tenant.Resolve(accountId);
+
+        // #500 — and the ACTOR: IAuditWriter fails closed on an unresolved one.
+        // This verb creates the FIRST Owner, so there is no human to attribute
+        // it to — not even the user being created, who does not exist yet. It
+        // declares the non-person it is instead of falling into the old
+        // "(unresolved)" placeholder.
+        currentUser.ResolveSystemActor(SystemActors.BootstrapAdmin);
 
         var password = TemporaryPassword.Generate();
 

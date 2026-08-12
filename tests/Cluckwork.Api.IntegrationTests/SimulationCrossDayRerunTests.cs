@@ -5,8 +5,12 @@ using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Inventory;
+using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -272,5 +276,178 @@ public sealed class SimulationSeedDefinitionChangeTests(SimulationMutableClockFa
 
         // And it settles back to AlreadySeeded once nothing more changes.
         Assert.Equal(SeedStatus.AlreadySeeded, (await factory.SeedOnceAsync()).Status);
+    }
+}
+
+// #500 — the only test that can reach the failing state of
+// RestrictOneWorkerAsync's IDEMPOTENT branch.
+//
+// Its own factory instance (xUnit gives every test class its own IClassFixture
+// instance, hence its own Postgres container), which is required rather than
+// tidy: this test DELETES a seeded row and re-seeds, and a mutating test
+// sharing a fixture with assertions about that fixture's contents is
+// order-dependent by construction.
+//
+// Why no existing test reaches it: SimulationSeedFactory seeds once, and the
+// cross-day tests above deliberately reuse the durable anchor so the day range
+// is identical — every entry short-circuits on its natural key before WorkerFor
+// is ever evaluated. So a branch that reported (Guid.Empty, Guid.Empty) instead
+// of the existing pair would stay green forever, and fail only in a real
+// partial re-run, where it takes the WHOLE seed down via FlockScopeGuard.
+public sealed class SimulationPartialRerunTests(SimulationMutableClockFactory factory)
+    : IClassFixture<SimulationMutableClockFactory>
+{
+    [Fact]
+    public async Task SimulationSeed_PartialRerunReconstructsWithAnEligibleWorker()
+    {
+        var first = await factory.SeedOnceAsync();
+        Assert.True(first.IsSuccess, $"first seed failed: {first.Message}");
+
+        var (restrictedWorkerId, otherFlockId, deletedDate) = await factory.WithTenantScopeAsync(
+            SeedDefaults.AccountId, async db =>
+            {
+                var assignment = await db.UserRoleAssignments.IgnoreQueryFilters()
+                    .Where(a => a.AccountId == SeedDefaults.AccountId && a.FlockId != null)
+                    .SingleAsync();
+
+                // A DRAFT entry on the flock the restricted worker is NOT
+                // assigned to. Draft is load-bearing: a submitted entry has
+                // already minted egg lots, and deleting it would orphan them and
+                // fail the re-run's own exact-count validation for reasons that
+                // have nothing to do with what this test is about.
+                var victim = await db.DailyEntries.IgnoreQueryFilters()
+                    .Where(e => e.AccountId == SeedDefaults.AccountId
+                                && e.FlockId != assignment.FlockId!.Value
+                                && e.Status == DailyEntryStatus.Draft)
+                    .OrderBy(e => e.Date)
+                    .FirstAsync();
+
+                var pair = (assignment.UserId, victim.FlockId, victim.Date);
+
+                // Feed and water usage carry a nullable DailyEntryId under a
+                // RESTRICT foreign key, and the seeder's usage window (4 days)
+                // covers the whole draft window (2 days) — so EVERY draft entry
+                // is referenced and the delete below fails without this.
+                //
+                // The feed usage's own InventoryMovement goes too. Removing the
+                // usage row alone leaves the movement behind, the re-run writes
+                // a second one, and the seed then fails its exact-count check
+                // ("inventoryMovements.usage: expected 8, got 9") for a reason
+                // that has nothing to do with what this test is about. All three
+                // rows are recreated by the re-run — each has its own
+                // (flock, item, date) / (flock, date) existence check — so the
+                // fixture converges on the same counts.
+                await db.InventoryMovements.IgnoreQueryFilters()
+                    .Where(m => m.Type == InventoryMovementType.Usage
+                                && m.FlockId == victim.FlockId && m.Date == victim.Date)
+                    .ExecuteDeleteAsync();
+                await db.FeedUsages.IgnoreQueryFilters()
+                    .Where(u => u.DailyEntryId == victim.Id).ExecuteDeleteAsync();
+                await db.WaterUsages.IgnoreQueryFilters()
+                    .Where(u => u.DailyEntryId == victim.Id).ExecuteDeleteAsync();
+
+                db.DailyEntries.Remove(victim); // grades cascade (DailyEntryConfiguration)
+                await db.SaveChangesAsync();
+                return pair;
+            });
+
+        // The partial re-run. The day range is unchanged, so every OTHER entry
+        // short-circuits on its natural key and only the deleted one is
+        // rebuilt — the single path that evaluates WorkerFor on a re-run, and
+        // therefore the only one that can observe a RestrictedFlockId the
+        // idempotent branch failed to report.
+        var second = await factory.SeedOnceAsync();
+        Assert.True(second.IsSuccess, $"partial re-run failed: {second.Message}");
+
+        await factory.WithTenantScopeAsync(SeedDefaults.AccountId, async db =>
+        {
+            var replacement = await db.DailyEntries.IgnoreQueryFilters()
+                .SingleAsync(e => e.AccountId == SeedDefaults.AccountId
+                                  && e.FlockId == otherFlockId && e.Date == deletedDate);
+
+            var create = await db.AuditEvents.IgnoreQueryFilters()
+                .Where(e => e.EntityId == replacement.Id && e.Action == AuditActions.DailyEntryCreate)
+                .SingleAsync();
+
+            // The authorization clause: the rebuilt entry is on the foreign
+            // flock, so its author must not be the restricted worker.
+            Assert.NotEqual(restrictedWorkerId, create.ActorUserId);
+
+            // Ordered by email to reproduce the seeder's creation order — which
+            // it does only while the pool is single-digit (`sim-worker-10` sorts
+            // before `sim-worker-2`). Safe at the configured 3.
+            var workers = await db.Users
+                .Where(u => u.AccountId == SeedDefaults.AccountId && u.Email!.StartsWith("sim-worker-"))
+                .OrderBy(u => u.Email)
+                .Select(u => new { u.Id, u.Email })
+                .ToListAsync();
+
+            // It must be an actual WORKER, not Pick's manager/Owner fallback —
+            // which is what a WorkerFor whose pool filtered down to nothing
+            // would produce, satisfying the clause above while degrading.
+            Assert.Contains(create.ActorUserId, workers.Select(w => w.Id));
+
+            // ...and it must be the SPECIFIC eligible worker the rotation
+            // selects. This clause is why the test exists in this form, and it
+            // was added only after watching the mutation survive without it:
+            // at the draft window's day offsets, a RestrictOneWorkerAsync that
+            // reported (Empty, Empty) still picks a NON-restricted worker —
+            // just a different one — because the unfiltered pool has 3 members
+            // and the filtered pool has 2. "Not the restricted worker" and "is
+            // a worker" are both true either way, so neither can see the bug.
+            //
+            // Re-deriving the rule here is deliberate. It is the determinism
+            // contract (#279) — a fixture whose attribution varies run to run
+            // is exactly what this seeder may not do — and re-deriving it is
+            // the only thing that makes the idempotent branch observable.
+            var anchor = (await db.SimulationSeedStates.IgnoreQueryFilters()
+                .SingleAsync(s => s.AccountId == SeedDefaults.AccountId)).Anchor;
+            var dayOffset = anchor.DayNumber - deletedDate.DayNumber;
+            var eligible = workers.Where(w => w.Id != restrictedWorkerId).ToList();
+            var expected = eligible[dayOffset % eligible.Count];
+
+            Assert.Equal(expected.Id, create.ActorUserId);
+        });
+    }
+}
+
+// #500 final review — a cast persona whose role was changed outside the seeder
+// must fail LOUDLY and name the cause, not be silently accepted into the wrong
+// pool.
+//
+// Why this matters more than "the fixture is a bit wrong": a manager demoted to
+// ReadOnly still holds no UserRoleAssignment rows, so FlockScopeGuard would let
+// it through on the "zero rows = account-wide" branch rather than refusing it.
+// The seed would keep going, write durable rows, and only fail much later on an
+// exact-count mismatch whose message points at counts rather than at the cause.
+//
+// Own factory instance (own container): this test mutates a seeded user.
+public sealed class SimulationReconfiguredCastTests(SimulationMutableClockFactory factory)
+    : IClassFixture<SimulationMutableClockFactory>
+{
+    [Fact]
+    public async Task SimulationSeed_WhenACastPersonaLostItsRole_FailsNamingTheRole()
+    {
+        var first = await factory.SeedOnceAsync();
+        Assert.True(first.IsSuccess, $"first seed failed: {first.Message}");
+
+        // Demote the manager through UserManager, exactly as an operator poking
+        // at the fixture would.
+        using (var scope = factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var manager = await users.FindByEmailAsync("sim-manager-1@sim.local");
+            Assert.NotNull(manager);
+            Assert.True((await users.RemoveFromRoleAsync(manager!, Roles.Manager)).Succeeded);
+            Assert.True((await users.AddToRoleAsync(manager!, Roles.ReadOnly)).Succeeded);
+        }
+
+        var second = await factory.SeedOnceAsync();
+
+        Assert.Equal(SeedStatus.Failed, second.Status);
+        // The message must name the persona AND the role it no longer holds —
+        // "the seed failed" alone would be satisfied by any unrelated fault.
+        Assert.Contains("sim-manager-1@sim.local", second.Message);
+        Assert.Contains(Roles.Manager, second.Message);
     }
 }

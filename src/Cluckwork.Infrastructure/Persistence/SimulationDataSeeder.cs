@@ -86,6 +86,7 @@ using Microsoft.Extensions.Options;
 public sealed class SimulationDataSeeder(
     AppDbContext db,
     TenantContext tenant,
+    CurrentUserContext currentUser,
     UserManager<ApplicationUser> users,
     CreateUserHandler createUser,
     CreateFlockHandler createFlock,
@@ -133,6 +134,16 @@ public sealed class SimulationDataSeeder(
     // The most recent couple of seeded days per flock stay Draft so both
     // lifecycle states exist in the seed; everything older is submitted.
     private const int DraftWindowDays = 2;
+
+    // #500 — how often a MANAGER, rather than the worker who recorded the day,
+    // submits the entry. Real farms have both shapes and #494's History line
+    // renders them differently ("created and last changed by X" against
+    // "created by X, last changed by Y"), so a fixture producing only one of
+    // them leaves the other unexercised by every screen and every E2E spec.
+    //
+    // The ratio is a guess at a farm's approval rate, not a contract: no test
+    // asserts 1-in-3 specifically, only that BOTH shapes occur.
+    private const int SubmittedByManagerEvery = 3;
 
     // Deterministic id for the second, pristine tenant — mirrors
     // SeedDefaults.AccountId's fixed-GUID convention (…001) so both read as
@@ -185,7 +196,13 @@ public sealed class SimulationDataSeeder(
             // command never runs. Checked BEFORE tenant.Resolve, so every
             // tenant-scoped query needs IgnoreQueryFilters (same reasoning as
             // DemoDataSeeder's preflight).
-            var missingBaseData = await MissingBaseDataAsync(accountId, ct);
+            //
+            // #500 — the Owner is looked up ONCE, here, and handed to the
+            // preflight rather than queried again after it. Two lookups could
+            // disagree (an Owner disabled or reassigned between them) and the
+            // seeder would then act as a user its own preflight never approved.
+            var owner = await FindOwnerAsync(accountId);
+            var missingBaseData = await MissingBaseDataAsync(accountId, owner, ct);
             if (missingBaseData)
             {
                 var prereqMessage =
@@ -202,6 +219,29 @@ public sealed class SimulationDataSeeder(
             // startup — resolve it to the seeded account for this scope (matches
             // DemoDataSeeder).
             tenant.Resolve(accountId);
+
+            // #500 — the actor, which IAuditWriter now requires. The Owner opens
+            // the fixture and authors the cast itself; every later phase declares
+            // its own persona via ActAs, and the daily-entry workers arrive
+            // through WorkerFor, which is subject to FlockScopeGuard — the same
+            // context read as an authorization input, not merely an audit label.
+            if (owner is null)
+            {
+                // Unreachable: MissingBaseDataAsync above already refuses
+                // without an Owner. Loud rather than a NullReferenceException
+                // three frames deeper if that ever stops being true.
+                const string ownerMissing =
+                    "Simulation seed failed: no Owner-role user in the default account after the preflight " +
+                    "passed. This should be impossible — the preflight checks exactly that.";
+                logger.LogError(ownerMissing);
+                return SeedResult.Failed(ownerMissing);
+            }
+            // Roles come from UserManager, never from a literal: SimActor.Roles is
+            // an authorization input (FlockScopeGuard), so the fixture must act
+            // with the roles this user ACTUALLY holds, not the ones the preflight
+            // searched by.
+            var ownerActor = new SimActor(owner.Id, owner.Email!, await RolesOfAsync(owner));
+            ActAs(ownerActor);
 
             // #279 review (codex re-check): the anchor AND the completion signal
             // are a DURABLE row (SimulationSeedState), not inferred from fixture
@@ -247,17 +287,30 @@ public sealed class SimulationDataSeeder(
             // interrupted prior run, or a definition change all report Seeded.
             var (countsBeforeSeed, _) = await ComputeCountsAsync(accountId, ct);
 
-            var workerIds = await SeedCastAsync(accountId, sim, ct);
-            var flockIds = await SeedFlockTopologyAsync(accountId, today, sim, ct);
-            await RestrictOneWorkerAsync(accountId, workerIds, flockIds, ct);
+            var cast = await SeedCastAsync(accountId, ownerActor, sim, ct);
+            var flockIds = await SeedFlockTopologyAsync(accountId, today, cast, sim, ct);
             // Timezone BEFORE any dated data exists (see SeedPrimaryTimeZoneAsync)
             // — production history below must see the account's real timezone.
-            await SeedPrimaryTimeZoneAsync(sim, ct);
-            await SeedProductionHistoryAsync(accountId, today, flockIds, sim, ct);
+            //
+            // #500 — this phase moved AHEAD of RestrictOneWorkerAsync. The two are
+            // order-independent of each other and the timezone still precedes
+            // every dated fixture row; what changes is that it now follows a
+            // MANAGER-authored phase. While it followed RestrictOneWorkerAsync
+            // (Owner-authored) its own ActAs(Owner) was a no-op — deleting it
+            // changed nothing observable, so no test could pin it.
+            await SeedPrimaryTimeZoneAsync(cast, sim, ct);
+            var (restrictedWorkerId, restrictedFlockId) =
+                await RestrictOneWorkerAsync(accountId, cast, flockIds, ct);
+            cast = cast with
+            {
+                RestrictedWorkerId = restrictedWorkerId,
+                RestrictedFlockId = restrictedFlockId,
+            };
+            await SeedProductionHistoryAsync(accountId, today, flockIds, cast, sim, ct);
             // Inventory before feed usage: feed usage draws down a feed lot, so
             // the item + opening purchase must exist first (#243 Task 3c).
-            await SeedInventoryOperationsAsync(accountId, today, flockIds, sim, ct);
-            await SeedSalesAsync(accountId, today, sim, ct);
+            await SeedInventoryOperationsAsync(accountId, today, flockIds, cast, sim, ct);
+            await SeedSalesAsync(accountId, today, cast, sim, ct);
             await SeedSecondAccountAsync(ct);
 
             // Deterministic lock-sweep proof: run the sweep synchronously as part
@@ -329,7 +382,7 @@ public sealed class SimulationDataSeeder(
     // exist in the default account — via GetUsersInRoleAsync rather than a
     // configured address. Reused below as the single Owner; this seeder never
     // creates a second one.
-    private async Task<bool> MissingBaseDataAsync(Guid accountId, CancellationToken ct)
+    private async Task<bool> MissingBaseDataAsync(Guid accountId, ApplicationUser? owner, CancellationToken ct)
     {
         var accountExists = await db.Accounts
             .IgnoreQueryFilters()
@@ -349,25 +402,105 @@ public sealed class SimulationDataSeeder(
             .ToListAsync(ct);
         if (!RequiredSaleableGrades.All(saleableGradeNames.Contains)) return true;
 
-        var owners = await users.GetUsersInRoleAsync(Roles.Owner);
-        return !owners.Any(u => u.AccountId == accountId);
+        // The caller's single lookup (#500) — never a second query, so the
+        // preflight and the actor can never disagree about who the Owner is.
+        return owner is null;
     }
+
+    // #500 — the Owner that signs the fixture (slice 1: all of it).
+    //
+    // UserManager.GetUsersInRoleAsync is NOT account-scoped — it takes a role
+    // name and returns Owners across EVERY account — so the AccountId filter is
+    // load-bearing. Ordered by Id so the choice is deterministic when several
+    // Owners exist; a fixture whose attribution varied between runs would break
+    // the convergence contract (#279). Shared with the preflight above so the
+    // two can never disagree about whether an Owner exists.
+    private async Task<ApplicationUser?> FindOwnerAsync(Guid accountId) =>
+        (await users.GetUsersInRoleAsync(Roles.Owner))
+            .Where(u => u.AccountId == accountId)
+            .OrderBy(u => u.Id)
+            .FirstOrDefault();
 
     // --- Cast: Managers, Sales, ReadOnly, Workers (role-less) ---------
 
-    private async Task<IReadOnlyList<Guid>> SeedCastAsync(
-        Guid accountId, SimulationOptions sim, CancellationToken ct)
+    // #500 — one seeded persona, carrying everything the acting context needs.
+    //
+    // Roles is NOT a label. FlockScopeGuard reads it (via CurrentUserContext,
+    // which stores what ActAs passes it verbatim) and lets Owner/Manager through
+    // by role alone, so a SimActor built with the wrong roles changes what the
+    // fixture is ALLOWED to write, not merely whose name lands on the audit row.
+    private sealed record SimActor(Guid UserId, string Email, IReadOnlyList<string> Roles);
+
+    // The personas the fixture acts as. ReadOnly is deliberately absent: those
+    // users are created (the load test signs in as them) but no phase ever picks
+    // one, which is what makes "a ReadOnly persona authors nothing" a property of
+    // this type rather than of a rule someone has to remember.
+    //
+    // The restricted pair is Guid.Empty until RestrictOneWorkerAsync reports it,
+    // which is why every phase that needs it runs after that call.
+    private sealed record SimCast(
+        SimActor Owner,
+        IReadOnlyList<SimActor> Managers,
+        IReadOnlyList<SimActor> Sales,
+        IReadOnlyList<SimActor> Workers,
+        Guid RestrictedWorkerId,
+        Guid RestrictedFlockId);
+
+    // Rotates deterministically through a pool. TOTAL for every pool, including
+    // an empty one: SimulationOptions validates no count, so Managers/Sales/
+    // Workers may each be 0 and `pool[index % pool.Count]` would divide by zero.
+    //
+    // The fallback is a fidelity DEGRADATION, so it is never silent (AGENTS.md
+    // "no silent caps") — hiding it would be the same class of defect #500
+    // reports. Failing instead would be worse: Workers == 0 is already a
+    // deliberately tolerated configuration (RestrictOneWorkerAsync warns and
+    // carries on).
+    private SimActor Pick(IReadOnlyList<SimActor> pool, int index, SimActor fallback, string poolName) =>
+        Pick(pool, index, () => fallback, poolName);
+
+    // Deferred-fallback overload, and the reason it exists: WorkerFor nests one
+    // Pick inside another, and C# evaluates the inner call eagerly as an
+    // ARGUMENT. Through the overload above, that ran the manager-pool Pick on
+    // every production day and — at Managers == 0 — logged "provenance is
+    // degraded" for each of them, even though a worker was available and
+    // nothing had been substituted. A warning that fires when the thing it
+    // warns about did not happen is worse than no warning. (#500 mid-point
+    // review.)
+    private SimActor Pick(IReadOnlyList<SimActor> pool, int index, Func<SimActor> fallback, string poolName)
     {
+        if (pool.Count > 0) return pool[index % pool.Count];
+
+        var substitute = fallback();
+        logger.LogWarning(
+            "Simulation cast pool {Pool} is empty — rows a {Pool} persona would have authored are " +
+            "attributed to {Fallback} instead. The seeded fixture's provenance is degraded.",
+            poolName, poolName, substitute.Email);
+        return substitute;
+    }
+
+    // Declares who the following handler calls act as. A pure assignment:
+    // CurrentUserContext.Resolve stores all three values verbatim — no database
+    // read, no role re-fetch — so the roles passed here are exactly the ones
+    // FlockScopeGuard reads.
+    private void ActAs(SimActor actor) => currentUser.Resolve(actor.UserId, actor.Email, actor.Roles);
+
+    private async Task<SimCast> SeedCastAsync(
+        Guid accountId, SimActor owner, SimulationOptions sim, CancellationToken ct)
+    {
+        var managers = new List<SimActor>();
         for (var i = 1; i <= sim.Managers; i++)
-            await EnsureUserAsync(
+            managers.Add(await EnsureUserAsync(
                 accountId, $"sim-manager-{i}@{sim.EmailDomain}", Roles.Manager,
-                $"Sim Manager {i}", sim.CastPassword, ct);
+                $"Sim Manager {i}", sim.CastPassword, ct));
 
+        var sales = new List<SimActor>();
         for (var i = 1; i <= sim.Sales; i++)
-            await EnsureUserAsync(
+            sales.Add(await EnsureUserAsync(
                 accountId, $"sim-sales-{i}@{sim.EmailDomain}", Roles.Sales,
-                $"Sim Sales {i}", sim.CastPassword, ct);
+                $"Sim Sales {i}", sim.CastPassword, ct));
 
+        // Created, never picked — see SimCast. The load test signs in as these
+        // to exercise read-only routes; the fixture itself never acts as one.
         for (var i = 1; i <= sim.ReadOnly; i++)
             await EnsureUserAsync(
                 accountId, $"sim-readonly-{i}@{sim.EmailDomain}", Roles.ReadOnly,
@@ -375,29 +508,101 @@ public sealed class SimulationDataSeeder(
 
         // Workers deliberately carry no role row (Roles.cs) — CreateUserHandler
         // maps CreateUserValidator.WorkerRole to a null role.
-        var workerIds = new List<Guid>();
+        var workers = new List<SimActor>();
         for (var i = 1; i <= sim.Workers; i++)
-            workerIds.Add(await EnsureUserAsync(
+            workers.Add(await EnsureUserAsync(
                 accountId, $"sim-worker-{i}@{sim.EmailDomain}", CreateUserValidator.WorkerRole,
                 $"Sim Worker {i}", sim.CastPassword, ct));
 
-        return workerIds;
+        return new SimCast(owner, managers, sales, workers, Guid.Empty, Guid.Empty);
     }
 
-    private async Task<Guid> EnsureUserAsync(
+    // Which worker records a given flock's eggs on a given day.
+    //
+    // This is an AUTHORIZATION rule, not a fidelity nicety. RecordDailyEntry and
+    // SubmitDailyEntry both run FlockScopeGuard, which reads the very context
+    // ActAs writes; the one worker RestrictOneWorkerAsync narrowed carries a
+    // UserRoleAssignment row, so picking it for any other flock returns
+    // FlockScope.NotAssigned and fails the entire seed. Workers with no
+    // assignment row stay account-wide (the guard grandfathers them).
+    //
+    // Eligibility is therefore per-flock, and the counts differ: at the default
+    // cast the restricted flock has all 3 workers eligible and every other flock
+    // has 2.
+    private SimActor WorkerFor(SimCast cast, Guid flockId, int dayIndex)
+    {
+        var eligible = flockId == cast.RestrictedFlockId
+            ? cast.Workers
+            // Materialized because Pick takes an IReadOnlyList.
+            : [.. cast.Workers.Where(w => w.UserId != cast.RestrictedWorkerId)];
+
+        // Total by construction: an empty worker pool falls back to a manager,
+        // and an empty manager pool falls back to the Owner, who always exists
+        // (MissingBaseDataAsync refuses to seed without one). Both fallbacks
+        // warn — and the manager one is DEFERRED, so it warns only when the
+        // worker pool was actually empty. See the Pick overloads.
+        return Pick(
+            eligible, dayIndex,
+            () => Pick(cast.Managers, dayIndex, cast.Owner, "Managers"),
+            "Workers");
+    }
+
+    // #500 — returns the persona, not just its id.
+    //
+    // Both branches reconstruct Roles the SAME way, through UserManager, rather
+    // than the create branch trusting the role name it just passed in. That is
+    // deliberate: a persona rebuilt differently on a re-run than on a first run
+    // is exactly the silent divergence this fixture's determinism contract
+    // (#279) exists to prevent, and Roles is an authorization input.
+    private async Task<SimActor> EnsureUserAsync(
         Guid accountId, string email, string role, string name, string password, CancellationToken ct)
     {
         var existing = await users.FindByEmailAsync(email);
-        if (existing is not null) return existing.Id;
+        if (existing is null)
+        {
+            // #308 — actingUserId only matters for the Role==Owner step-up gate,
+            // and this seeder never creates one (see the "Cast" comment above:
+            // Managers, Sales, ReadOnly, Workers only) — Guid.Empty is inert here.
+            var result = await createUser.HandleAsync(
+                new CreateUserCommand(email, password, role, name), accountId, Guid.Empty, ct);
+            Require(result, $"create cast user {email}");
 
-        // #308 — actingUserId only matters for the Role==Owner step-up gate,
-        // and this seeder never creates one (see the "Cast" comment above:
-        // Managers, Sales, ReadOnly, Workers only) — Guid.Empty is inert here.
-        var result = await createUser.HandleAsync(
-            new CreateUserCommand(email, password, role, name), accountId, Guid.Empty, ct);
-        Require(result, $"create cast user {email}");
-        return result.Value;
+            existing = await users.FindByEmailAsync(email)
+                ?? throw new InvalidOperationException(
+                    $"Simulation seed: cast user {email} was created but cannot be read back.");
+        }
+
+        var roles = await RolesOfAsync(existing);
+
+        // The persona must still HOLD the role this call site is staffing, or
+        // the fixture is not what it says it is (#500 final review, raised
+        // independently by two reviewers).
+        //
+        // Fetching the roles rather than fabricating them is right, but it means
+        // an existing user whose role was changed out from under the seeder is
+        // silently accepted into the wrong pool. A `sim-manager-1` demoted to
+        // ReadOnly would go on authoring the manager phases — and, holding no
+        // UserRoleAssignment rows, would sail through FlockScopeGuard on its
+        // "zero rows = account-wide" branch rather than being refused. The seed
+        // would then fail its exact-count validation much later, AFTER durable
+        // writes, with a message pointing at counts instead of at the cause.
+        //
+        // Fail here instead, naming both roles. Workers are exempt because
+        // "Worker" is a pseudo-role CreateUserHandler maps to null: a worker
+        // correctly holds none.
+        if (role != CreateUserValidator.WorkerRole && !roles.Contains(role))
+            throw new InvalidOperationException(
+                $"Simulation seed: cast user {email} exists but does not hold the {role} role " +
+                $"(it holds: {(roles.Count == 0 ? "no roles" : string.Join(", ", roles))}). The cast was " +
+                "reconfigured outside the seeder; fix that user's role, or reset the fixture.");
+
+        return new SimActor(existing.Id, existing.Email!, roles);
     }
+
+    // UserManager hands back IList<string>, which is not an IReadOnlyList<string>
+    // — copied once here so every SimActor is built the same way.
+    private async Task<IReadOnlyList<string>> RolesOfAsync(ApplicationUser user) =>
+        [.. await users.GetRolesAsync(user)];
 
     // --- Minimal flock topology ----------------------------------------
 
@@ -412,7 +617,7 @@ public sealed class SimulationDataSeeder(
     private const int FlockPlacementMarginDays = 7;
 
     private async Task<IReadOnlyList<Guid>> SeedFlockTopologyAsync(
-        Guid accountId, DateOnly today, SimulationOptions sim, CancellationToken ct)
+        Guid accountId, DateOnly today, SimCast cast, SimulationOptions sim, CancellationToken ct)
     {
         // Both flocks share the identical "safely older than all history"
         // placement date — SeedFlockHistoryAsync's entry-date range
@@ -426,9 +631,16 @@ public sealed class SimulationDataSeeder(
             ("Sim House B", "Lohmann Brown", placementDate, 350),
         ];
 
+        // A manager places the flocks (#500) — Flock.Create is audited, so this
+        // is what the SPA's History line names. Rotates per flock so a wider
+        // Managers pool spreads across the topology.
         var ids = new List<Guid>();
-        foreach (var f in wanted)
+        for (var i = 0; i < wanted.Length; i++)
+        {
+            ActAs(Pick(cast.Managers, i, cast.Owner, "Managers"));
+            var f = wanted[i];
             ids.Add(await EnsureFlockAsync(accountId, f.Name, f.Breed, f.PlacementDate, f.InitialCount, ct));
+        }
         return ids;
     }
 
@@ -449,14 +661,28 @@ public sealed class SimulationDataSeeder(
 
     // --- Restrict exactly one worker to one (not all) flocks -----------
 
-    private async Task RestrictOneWorkerAsync(
-        Guid accountId, IReadOnlyList<Guid> workerIds, IReadOnlyList<Guid> flockIds, CancellationToken ct)
+    // Returns the pair it restricted, so the caller can rebuild the cast record.
+    //
+    // BOTH the early returns matter, and the idempotent one is the trap (#500):
+    // it must report the EXISTING pair, never (Empty, Empty). Reporting Empty
+    // leaves RestrictedFlockId empty on every run after the first, so
+    // WorkerFor's `flockId == cast.RestrictedFlockId` never matches, the
+    // restricted worker becomes eligible for every flock, and the seed FAILS via
+    // FlockScopeGuard. A fully converged re-run hides it — the natural-key check
+    // short-circuits before WorkerFor is reached — so it surfaces only on a
+    // partial re-run that adds days.
+    private async Task<(Guid WorkerId, Guid FlockId)> RestrictOneWorkerAsync(
+        Guid accountId, SimCast cast, IReadOnlyList<Guid> flockIds, CancellationToken ct)
     {
-        if (workerIds.Count == 0)
+        // Granting a flock assignment is account administration — the Owner does
+        // it (#500). User.FlockAssign is audited.
+        ActAs(cast.Owner);
+
+        if (cast.Workers.Count == 0)
         {
             logger.LogWarning(
                 "Simulation:Workers is 0 — no worker exists to flock-restrict for the load test.");
-            return;
+            return (Guid.Empty, Guid.Empty);
         }
 
         if (flockIds.Count < 2)
@@ -464,20 +690,28 @@ public sealed class SimulationDataSeeder(
                 "Simulation seed needs at least 2 flocks so the restricted worker is genuinely " +
                 "narrowed (one assigned, one left out).");
 
-        var workerId = workerIds[0];
+        var workerId = cast.Workers[0].UserId;
         var flockId = flockIds[0];
 
         var existingAssignments = await assignments.ListByUserAsync(workerId, ct);
-        if (existingAssignments.Any(a => a.FlockId == flockId)) return; // idempotent re-run
+        // Idempotent re-run — the pair, not Empty. See the header.
+        if (existingAssignments.Any(a => a.FlockId == flockId)) return (workerId, flockId);
 
         var result = await assignFlock.HandleAsync(workerId, flockId, accountId, ct);
         Require(result, $"restrict worker {workerId} to flock {flockId}");
+        return (workerId, flockId);
     }
 
     // --- Primary account timezone (BEFORE any dated data exists) -------
 
-    private async Task SeedPrimaryTimeZoneAsync(SimulationOptions sim, CancellationToken ct)
+    private async Task SeedPrimaryTimeZoneAsync(SimCast cast, SimulationOptions sim, CancellationToken ct)
     {
+        // Farm settings are the Owner's to change (#500) — Account.UpdateSettings
+        // is audited. This ActAs is load-bearing, not decorative: the phase now
+        // runs directly after a MANAGER-authored one, so dropping it misattributes
+        // the row instead of doing nothing.
+        ActAs(cast.Owner);
+
         var account = await accounts.GetCurrentTrackedAsync(ct)
             ?? throw new InvalidOperationException("Simulation seed: the primary account was not found.");
 
@@ -514,14 +748,18 @@ public sealed class SimulationDataSeeder(
     // rule. Starting at day 1 keeps every seeded date safely <= the farm's
     // today no matter when seeding happens to run.
     private async Task SeedProductionHistoryAsync(
-        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimulationOptions sim,
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimCast cast, SimulationOptions sim,
         CancellationToken ct)
     {
+        // No ActAs here: SeedFlockHistoryAsync picks a worker per (flock, day)
+        // via WorkerFor. LoadSaleableGradesAsync below is a read and audits
+        // nothing.
         var grades = await LoadSaleableGradesAsync(ct);
         var historyDays = EffectiveHistoryDays(sim);
 
         for (var i = 0; i < flockIds.Count; i++)
-            await SeedFlockHistoryAsync(accountId, flockIds[i], baseline: 320 + i * 60, today, historyDays, grades, ct);
+            await SeedFlockHistoryAsync(
+                accountId, flockIds[i], baseline: 320 + i * 60, today, historyDays, grades, cast, ct);
     }
 
     // Shared by production history (above) and the sales catalog (#243 Task
@@ -538,7 +776,7 @@ public sealed class SimulationDataSeeder(
 
     private async Task SeedFlockHistoryAsync(
         Guid accountId, Guid flockId, int baseline, DateOnly today, int historyDays,
-        IReadOnlyDictionary<string, Guid> grades, CancellationToken ct)
+        IReadOnlyDictionary<string, Guid> grades, SimCast cast, CancellationToken ct)
     {
         for (var d = 1; d <= historyDays; d++)
         {
@@ -563,6 +801,11 @@ public sealed class SimulationDataSeeder(
             var medium = sellable * 30 / 100;
             var small = sellable - large - medium;
 
+            // #500 — a worker records the day's eggs. Placed AFTER the
+            // natural-key skip above so a converged re-run neither picks nor
+            // resolves anyone.
+            ActAs(WorkerFor(cast, flockId, d));
+
             var recorded = await recordEntry.HandleAsync(new RecordDailyEntryCommand(
                 SeedDefaults.FarmId, SeedDefaults.HouseId, flockId, date,
                 total, cracked, dirty, discarded, mortality,
@@ -578,6 +821,14 @@ public sealed class SimulationDataSeeder(
             // older (including the day-9 sentinel) is submitted.
             if (d > DraftWindowDays)
             {
+                // #500 — both provenance shapes. Every SubmittedByManagerEvery-th
+                // day a manager signs the entry off, so its History line reads
+                // "created by X, last changed by Y"; otherwise the recording
+                // worker stays resolved and submits their own, which reads
+                // "created and last changed by the same person".
+                if (d % SubmittedByManagerEvery == 0)
+                    ActAs(Pick(cast.Managers, d, cast.Owner, "Managers"));
+
                 var submitted = await submitEntry.HandleAsync(entryId, accountId, ct);
                 Require(submitted, $"submit daily entry {entryId} for flock {flockId} on {date:yyyy-MM-dd}");
             }
@@ -643,11 +894,15 @@ public sealed class SimulationDataSeeder(
     private const int RecurringCadenceDays = 7;
     private const int RecurringOrderQuantityEggs = 12;
 
-    private async Task SeedSalesAsync(Guid accountId, DateOnly today, SimulationOptions sim, CancellationToken ct)
+    private async Task SeedSalesAsync(
+        Guid accountId, DateOnly today, SimCast cast, SimulationOptions sim, CancellationToken ct)
     {
         var grades = await LoadSaleableGradesAsync(ct);
-        var products = await SeedProductCatalogAsync(accountId, grades, ct);
-        var customerIds = await SeedCustomersAsync(accountId, ct);
+        // The catalog is a manager's to define; the orders against it are the
+        // sales desk's (#500). Product.Create and SalesOrder.* are all audited.
+        var products = await SeedProductCatalogAsync(
+            accountId, grades, Pick(cast.Managers, 0, cast.Owner, "Managers"), ct);
+        var customerIds = await SeedCustomersAsync(accountId, cast, ct);
 
         var largeProductId = products["Large"];
         var mediumProductId = products["Medium"];
@@ -655,26 +910,31 @@ public sealed class SimulationDataSeeder(
         var customer2 = customerIds[1];
         var customer3 = customerIds[2];
 
+        // Each order carries its own index into the Sales pool: these five call
+        // sites have no loop of their own, so the CALLER owns the rotation
+        // rather than a helper inventing one.
+        SimActor Clerk(int index) => Pick(cast.Sales, index, cast.Owner, "Sales");
+
         // Draft: created, items added, never confirmed — no stock touched.
         await EnsureDraftOrderAsync(
-            accountId, customer1, today.AddDays(-4), mediumProductId, DraftOrderQuantityEggs, ct);
+            accountId, customer1, today.AddDays(-4), mediumProductId, DraftOrderQuantityEggs, Clerk(0), ct);
         await EnsureDraftOrderAsync(
-            accountId, customer2, today.AddDays(-3), mediumProductId, DraftOrderQuantityEggs, ct);
+            accountId, customer2, today.AddDays(-3), mediumProductId, DraftOrderQuantityEggs, Clerk(1), ct);
 
         // Confirmed (unpaid): same product/grade as every other confirmed
         // order below — see ConfirmedOrderQuantityEggs for why that matters.
         await EnsureConfirmedOrderAsync(
-            accountId, customer1, today.AddDays(-6), largeProductId, ConfirmedOrderQuantityEggs, ct);
+            accountId, customer1, today.AddDays(-6), largeProductId, ConfirmedOrderQuantityEggs, Clerk(2), ct);
         await EnsureConfirmedOrderAsync(
-            accountId, customer2, today.AddDays(-5), largeProductId, ConfirmedOrderQuantityEggs, ct);
+            accountId, customer2, today.AddDays(-5), largeProductId, ConfirmedOrderQuantityEggs, Clerk(3), ct);
 
         // Confirmed + partially paid — also left un-voided, so it doubles as
         // the "voidable confirmed order" a later hazard pass can void.
         var partialOrderId = await EnsureConfirmedOrderAsync(
-            accountId, customer3, today.AddDays(-2), largeProductId, ConfirmedOrderQuantityEggs, ct);
-        await EnsurePartialPaymentAsync(accountId, partialOrderId, today.AddDays(-1), ct);
+            accountId, customer3, today.AddDays(-2), largeProductId, ConfirmedOrderQuantityEggs, Clerk(4), ct);
+        await EnsurePartialPaymentAsync(accountId, partialOrderId, today.AddDays(-1), Clerk(4), ct);
 
-        await SeedRecurringOrdersAsync(accountId, today, customerIds, largeProductId, sim, ct);
+        await SeedRecurringOrdersAsync(accountId, today, customerIds, largeProductId, cast, sim, ct);
     }
 
     // Spreads a modest, deterministic drip of additional confirmed orders
@@ -686,7 +946,7 @@ public sealed class SimulationDataSeeder(
     // allocate from.
     private async Task SeedRecurringOrdersAsync(
         Guid accountId, DateOnly today, IReadOnlyList<Guid> customerIds, Guid largeProductId,
-        SimulationOptions sim, CancellationToken ct)
+        SimCast cast, SimulationOptions sim, CancellationToken ct)
     {
         var historyDays = EffectiveHistoryDays(sim);
         var i = 0;
@@ -694,12 +954,13 @@ public sealed class SimulationDataSeeder(
         {
             var customerId = customerIds[i % customerIds.Count];
             await EnsureConfirmedOrderAsync(
-                accountId, customerId, today.AddDays(-d), largeProductId, RecurringOrderQuantityEggs, ct);
+                accountId, customerId, today.AddDays(-d), largeProductId, RecurringOrderQuantityEggs,
+                Pick(cast.Sales, i, cast.Owner, "Sales"), ct);
         }
     }
 
     private async Task<IReadOnlyDictionary<string, Guid>> SeedProductCatalogAsync(
-        Guid accountId, IReadOnlyDictionary<string, Guid> grades, CancellationToken ct)
+        Guid accountId, IReadOnlyDictionary<string, Guid> grades, SimActor actor, CancellationToken ct)
     {
         var products = new Dictionary<string, Guid>();
         foreach (var (gradeName, productName, price) in CatalogWanted)
@@ -707,37 +968,47 @@ public sealed class SimulationDataSeeder(
             if (!grades.TryGetValue(gradeName, out var gradeId))
                 throw new InvalidOperationException(
                     $"Simulation seed needs the '{gradeName}' egg grade for the sales catalog.");
-            products[gradeName] = await EnsureProductAsync(accountId, productName, gradeId, price, ct);
+            products[gradeName] = await EnsureProductAsync(accountId, productName, gradeId, price, actor, ct);
         }
         return products;
     }
 
     private async Task<Guid> EnsureProductAsync(
-        Guid accountId, string name, Guid eggGradeId, long priceMinorUnits, CancellationToken ct)
+        Guid accountId, string name, Guid eggGradeId, long priceMinorUnits, SimActor actor, CancellationToken ct)
     {
         var existing = await db.Products.FirstOrDefaultAsync(p => p.Name == name, ct);
         if (existing is not null) return existing.Id;
 
+        ActAs(actor);
         var result = await createProduct.HandleAsync(new CreateProductCommand(
             name, "Egg", "Egg", priceMinorUnits, eggGradeId, "Simulation fixture product"), accountId, ct);
         Require(result, $"create product {name}");
         return result.Value;
     }
 
-    private async Task<IReadOnlyList<Guid>> SeedCustomersAsync(Guid accountId, CancellationToken ct)
+    // Customer.* is audited by NOTHING (verified against every audit.WriteAsync
+    // call site) — the sales clerk is declared here for consistency with the
+    // orders these customers receive, and no test can pin it.
+    private async Task<IReadOnlyList<Guid>> SeedCustomersAsync(
+        Guid accountId, SimCast cast, CancellationToken ct)
     {
         var ids = new List<Guid>();
-        foreach (var (name, phone, note) in CustomersWanted)
-            ids.Add(await EnsureCustomerAsync(accountId, name, phone, note, ct));
+        for (var i = 0; i < CustomersWanted.Length; i++)
+        {
+            var (name, phone, note) = CustomersWanted[i];
+            ids.Add(await EnsureCustomerAsync(
+                accountId, name, phone, note, Pick(cast.Sales, i, cast.Owner, "Sales"), ct));
+        }
         return ids;
     }
 
     private async Task<Guid> EnsureCustomerAsync(
-        Guid accountId, string name, string phone, string note, CancellationToken ct)
+        Guid accountId, string name, string phone, string note, SimActor actor, CancellationToken ct)
     {
         var existing = await db.Customers.FirstOrDefaultAsync(c => c.Name == name, ct);
         if (existing is not null) return existing.Id;
 
+        ActAs(actor);
         var result = await createCustomer.HandleAsync(
             new CreateCustomerCommand(name, phone, Note: note), accountId, ct);
         Require(result, $"create customer {name}");
@@ -754,11 +1025,12 @@ public sealed class SimulationDataSeeder(
 
     private async Task<Guid> EnsureDraftOrderAsync(
         Guid accountId, Guid customerId, DateOnly orderDate, Guid productId, int quantityEggs,
-        CancellationToken ct)
+        SimActor actor, CancellationToken ct)
     {
         var existing = await FindOrderAsync(customerId, orderDate, ct);
         if (existing is not null) return existing.Value;
 
+        ActAs(actor);
         var created = await createSalesOrder.HandleAsync(
             new CreateSalesOrderCommand(customerId, orderDate), accountId, ct);
         Require(created, $"create sales order for customer {customerId} on {orderDate:yyyy-MM-dd}");
@@ -775,9 +1047,10 @@ public sealed class SimulationDataSeeder(
 
     private async Task<Guid> EnsureConfirmedOrderAsync(
         Guid accountId, Guid customerId, DateOnly orderDate, Guid productId, int quantityEggs,
-        CancellationToken ct)
+        SimActor actor, CancellationToken ct)
     {
-        var orderId = await EnsureDraftOrderAsync(accountId, customerId, orderDate, productId, quantityEggs, ct);
+        var orderId = await EnsureDraftOrderAsync(
+            accountId, customerId, orderDate, productId, quantityEggs, actor, ct);
 
         // Status, not "the order already existed", decides whether to
         // confirm — an order that exists but is still Draft still needs
@@ -785,6 +1058,20 @@ public sealed class SimulationDataSeeder(
         var order = await db.SalesOrders.FirstAsync(o => o.Id == orderId, ct);
         if (order.Status == SalesOrderStatus.Confirmed) return orderId;
 
+        // Re-declared rather than inherited from EnsureDraftOrderAsync: on the
+        // re-run path above, that call returns early without acting at all, so
+        // the resolved actor would be whoever the previous phase left behind —
+        // a manager, from the inventory phase — and the confirmation would be
+        // authorized and audited as them.
+        //
+        // NOT COVERED BY ANY TEST, stated rather than left to be assumed (#500
+        // mid-point review; confirmed by mutation — deleting this line leaves
+        // the whole suite green). Reaching it needs a fixture where a DRAFT
+        // order survives into a re-run, and the only way to build one is to
+        // force a confirmed order back to Draft, which replays FIFO allocation
+        // against the same lots. The line is correct and cheap; the fixture
+        // that would prove it is neither.
+        ActAs(actor);
         // FIFO allocation (tech spec §10.9.1): draws from the oldest
         // available lots for this grade under a FOR UPDATE lock — this is
         // what depletes the production history's egg lots.
@@ -793,8 +1080,9 @@ public sealed class SimulationDataSeeder(
         return orderId;
     }
 
+    // Payment.* is audited by nothing — same standing as customers above.
     private async Task EnsurePartialPaymentAsync(
-        Guid accountId, Guid orderId, DateOnly paymentDate, CancellationToken ct)
+        Guid accountId, Guid orderId, DateOnly paymentDate, SimActor actor, CancellationToken ct)
     {
         var hasPayment = await db.Payments.AnyAsync(p => p.SalesOrderId == orderId, ct);
         if (hasPayment) return;
@@ -807,6 +1095,7 @@ public sealed class SimulationDataSeeder(
             throw new InvalidOperationException(
                 $"Simulation seed: sales order {orderId}'s total is too small to seed a partial payment.");
 
+        ActAs(actor);
         var result = await recordPayment.HandleAsync(new RecordPaymentCommand(
             orderId, paymentDate, amount, "Cash", null, "Simulation fixture partial payment"), accountId, ct);
         Require(result, $"record partial payment for sales order {orderId}");
@@ -850,50 +1139,61 @@ public sealed class SimulationDataSeeder(
     private const int WaterUsageDays = 4;
 
     private async Task SeedInventoryOperationsAsync(
-        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimulationOptions sim, CancellationToken ct)
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimCast cast, SimulationOptions sim,
+        CancellationToken ct)
     {
         // Received well before any usage date so FIFO always finds it on-hand
         // as-of any usage day — same "older than everything it must cover"
         // shape as the flock placement dates in SeedFlockTopologyAsync.
         var openingDate = today.AddDays(-(EffectiveHistoryDays(sim) + 5));
 
-        var itemIds = await SeedInventoryItemsAsync(accountId, ct);
+        // #500 — stores and feeding are a manager's job. Of everything below only
+        // InventoryItem.Adjust and Expense.Create write an audit row, but each
+        // helper takes its actor explicitly anyway: the caller owning the choice
+        // is what keeps a later reorder from silently changing attribution.
+        // Manager also matters functionally here — feed/water usage go through
+        // FlockScopeGuard, which passes a Manager by role.
+        var storeKeeper = Pick(cast.Managers, 0, cast.Owner, "Managers");
+
+        var itemIds = await SeedInventoryItemsAsync(accountId, storeKeeper, ct);
         var feedItemId = itemIds["Sim Layer Feed"];
         var beddingItemId = itemIds["Sim Pine Shavings"];
 
         var feedLotId = await EnsureOpeningPurchaseAsync(
-            accountId, feedItemId, openingDate, FeedOpeningPurchaseQuantity, ct);
+            accountId, feedItemId, openingDate, FeedOpeningPurchaseQuantity, storeKeeper, ct);
         var beddingLotId = await EnsureOpeningPurchaseAsync(
-            accountId, beddingItemId, openingDate, BeddingOpeningPurchaseQuantity, ct);
+            accountId, beddingItemId, openingDate, BeddingOpeningPurchaseQuantity, storeKeeper, ct);
 
         var adjustmentDate = openingDate.AddDays(2);
         await EnsureAdjustmentAsync(
             accountId, feedItemId, feedLotId, adjustmentDate, "Discard",
-            FeedDiscardQuantity, "Simulation fixture: torn bag spoiled in storage", ct);
+            FeedDiscardQuantity, "Simulation fixture: torn bag spoiled in storage", storeKeeper, ct);
         await EnsureAdjustmentAsync(
             accountId, beddingItemId, beddingLotId, adjustmentDate, "Adjustment",
-            BeddingAdjustmentQuantity, "Simulation fixture: recount shrinkage", ct);
+            BeddingAdjustmentQuantity, "Simulation fixture: recount shrinkage", storeKeeper, ct);
 
-        await SeedFeedUsageAsync(accountId, today, flockIds, feedItemId, ct);
-        await SeedWaterUsageAsync(accountId, today, flockIds, ct);
-        await SeedExpensesAsync(accountId, today, flockIds, sim, ct);
+        await SeedFeedUsageAsync(accountId, today, flockIds, feedItemId, storeKeeper, ct);
+        await SeedWaterUsageAsync(accountId, today, flockIds, storeKeeper, ct);
+        await SeedExpensesAsync(accountId, today, flockIds, cast, sim, ct);
     }
 
-    private async Task<IReadOnlyDictionary<string, Guid>> SeedInventoryItemsAsync(Guid accountId, CancellationToken ct)
+    private async Task<IReadOnlyDictionary<string, Guid>> SeedInventoryItemsAsync(
+        Guid accountId, SimActor actor, CancellationToken ct)
     {
         var itemIds = new Dictionary<string, Guid>();
         foreach (var (name, category, unit, cost) in InventoryItemsWanted)
-            itemIds[name] = await EnsureInventoryItemAsync(accountId, name, category, unit, cost, ct);
+            itemIds[name] = await EnsureInventoryItemAsync(accountId, name, category, unit, cost, actor, ct);
         return itemIds;
     }
 
     private async Task<Guid> EnsureInventoryItemAsync(
         Guid accountId, string name, string category, string unit, long defaultUnitCostMinorUnits,
-        CancellationToken ct)
+        SimActor actor, CancellationToken ct)
     {
         var existing = await db.InventoryItems.FirstOrDefaultAsync(i => i.Name == name, ct);
         if (existing is not null) return existing.Id;
 
+        ActAs(actor);
         var result = await createInventoryItem.HandleAsync(
             new CreateInventoryItemCommand(name, category, unit, defaultUnitCostMinorUnits), accountId, ct);
         Require(result, $"create inventory item {name}");
@@ -901,7 +1201,8 @@ public sealed class SimulationDataSeeder(
     }
 
     private async Task<Guid> EnsureOpeningPurchaseAsync(
-        Guid accountId, Guid itemId, DateOnly receivedDate, decimal quantity, CancellationToken ct)
+        Guid accountId, Guid itemId, DateOnly receivedDate, decimal quantity, SimActor actor,
+        CancellationToken ct)
     {
         // HasLotsAsync doubles as the idempotency probe: this seeder only
         // ever creates ONE opening lot per item, so "any lot exists" is
@@ -909,6 +1210,7 @@ public sealed class SimulationDataSeeder(
         if (await inventoryItems.HasLotsAsync(itemId, ct))
             return (await db.InventoryLots.FirstAsync(l => l.InventoryItemId == itemId, ct)).Id;
 
+        ActAs(actor);
         // UnitCostMinorUnits omitted: falls back to the item's default cost
         // set above.
         var result = await recordPurchase.HandleAsync(new RecordPurchaseCommand(
@@ -920,21 +1222,27 @@ public sealed class SimulationDataSeeder(
 
     private async Task EnsureAdjustmentAsync(
         Guid accountId, Guid itemId, Guid lotId, DateOnly date, string type, decimal quantityDelta, string reason,
-        CancellationToken ct)
+        SimActor actor, CancellationToken ct)
     {
         var hasAdjustment = await db.InventoryMovements.AnyAsync(
             m => m.InventoryLotId == lotId
                  && (m.Type == InventoryMovementType.Adjustment || m.Type == InventoryMovementType.Discard), ct);
         if (hasAdjustment) return;
 
+        ActAs(actor);
         var result = await recordAdjustment.HandleAsync(new RecordAdjustmentCommand(
             itemId, lotId, date, type, quantityDelta, reason), accountId, ct);
         Require(result, $"record inventory adjustment for lot {lotId}");
     }
 
     private async Task SeedFeedUsageAsync(
-        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, Guid feedItemId, CancellationToken ct)
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, Guid feedItemId, SimActor actor,
+        CancellationToken ct)
     {
+        // RecordFeedUsageHandler goes through FlockScopeGuard — the actor must be
+        // one the guard lets past for BOTH flocks, which a Manager is by role.
+        ActAs(actor);
+
         foreach (var flockId in flockIds)
             for (var d = 1; d <= FeedUsageDays; d++)
             {
@@ -954,8 +1262,11 @@ public sealed class SimulationDataSeeder(
     }
 
     private async Task SeedWaterUsageAsync(
-        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, CancellationToken ct)
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimActor actor, CancellationToken ct)
     {
+        // Flock-scoped, same as feed usage above.
+        ActAs(actor);
+
         foreach (var flockId in flockIds)
             for (var d = 1; d <= WaterUsageDays; d++)
             {
@@ -978,9 +1289,10 @@ public sealed class SimulationDataSeeder(
     private const long RecurringExpenseAmountMinorUnits = 4_000;
 
     private async Task SeedExpensesAsync(
-        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimulationOptions sim, CancellationToken ct)
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimCast cast, SimulationOptions sim,
+        CancellationToken ct)
     {
-        var categoryIds = await SeedExpenseCategoriesAsync(accountId, ct);
+        var categoryIds = await SeedExpenseCategoriesAsync(accountId, cast, ct);
 
         // flockIds[1] is safe here: RestrictOneWorkerAsync already throws if
         // fewer than 2 flocks exist, and it runs before this step.
@@ -992,11 +1304,17 @@ public sealed class SimulationDataSeeder(
             ("Sim Repairs & Maintenance", 2, "Sim Feeder Replacement Part", 6_500, flockIds[1]),
         ];
 
-        foreach (var (category, daysAgo, description, amount, flockId) in wanted)
+        // Expense.Create is audited — a manager books the farm's spending (#500).
+        // Rotates per expense so a wider Managers pool spreads across them.
+        for (var i = 0; i < wanted.Length; i++)
+        {
+            var (category, daysAgo, description, amount, flockId) = wanted[i];
             await EnsureExpenseAsync(
-                accountId, categoryIds[category], today.AddDays(-daysAgo), description, amount, flockId, ct);
+                accountId, categoryIds[category], today.AddDays(-daysAgo), description, amount, flockId,
+                Pick(cast.Managers, i, cast.Owner, "Managers"), ct);
+        }
 
-        await SeedRecurringExpensesAsync(accountId, today, flockIds, categoryIds, sim, ct);
+        await SeedRecurringExpensesAsync(accountId, today, flockIds, categoryIds, cast, sim, ct);
     }
 
     // Spreads a modest, deterministic drip of additional expenses across the
@@ -1006,7 +1324,7 @@ public sealed class SimulationDataSeeder(
     // count.
     private async Task SeedRecurringExpensesAsync(
         Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds,
-        IReadOnlyDictionary<string, Guid> categoryIds, SimulationOptions sim, CancellationToken ct)
+        IReadOnlyDictionary<string, Guid> categoryIds, SimCast cast, SimulationOptions sim, CancellationToken ct)
     {
         var historyDays = EffectiveHistoryDays(sim);
         var i = 0;
@@ -1017,24 +1335,28 @@ public sealed class SimulationDataSeeder(
             var description = $"Sim Recurring Expense Day {d}";
             await EnsureExpenseAsync(
                 accountId, categoryIds[category], today.AddDays(-d), description,
-                RecurringExpenseAmountMinorUnits, flockId, ct);
+                RecurringExpenseAmountMinorUnits, flockId,
+                Pick(cast.Managers, i, cast.Owner, "Managers"), ct);
         }
     }
 
     private async Task<IReadOnlyDictionary<string, Guid>> SeedExpenseCategoriesAsync(
-        Guid accountId, CancellationToken ct)
+        Guid accountId, SimCast cast, CancellationToken ct)
     {
         var categoryIds = new Dictionary<string, Guid>();
-        foreach (var name in ExpenseCategoriesWanted)
-            categoryIds[name] = await EnsureExpenseCategoryAsync(accountId, name, ct);
+        for (var i = 0; i < ExpenseCategoriesWanted.Length; i++)
+            categoryIds[ExpenseCategoriesWanted[i]] = await EnsureExpenseCategoryAsync(
+                accountId, ExpenseCategoriesWanted[i], Pick(cast.Managers, i, cast.Owner, "Managers"), ct);
         return categoryIds;
     }
 
-    private async Task<Guid> EnsureExpenseCategoryAsync(Guid accountId, string name, CancellationToken ct)
+    private async Task<Guid> EnsureExpenseCategoryAsync(
+        Guid accountId, string name, SimActor actor, CancellationToken ct)
     {
         var existing = await db.ExpenseCategories.FirstOrDefaultAsync(c => c.Name == name, ct);
         if (existing is not null) return existing.Id;
 
+        ActAs(actor);
         var result = await createExpenseCategory.HandleAsync(new CreateExpenseCategoryCommand(name), accountId, ct);
         Require(result, $"create expense category {name}");
         return result.Value;
@@ -1042,7 +1364,7 @@ public sealed class SimulationDataSeeder(
 
     private async Task EnsureExpenseAsync(
         Guid accountId, Guid categoryId, DateOnly date, string description, long amountMinorUnits, Guid? flockId,
-        CancellationToken ct)
+        SimActor actor, CancellationToken ct)
     {
         // Description is the natural key THIS seeder controls (every entry
         // above is a distinct fixture string) — same convention as
@@ -1050,6 +1372,7 @@ public sealed class SimulationDataSeeder(
         var exists = await db.Expenses.AnyAsync(e => e.Description == description, ct);
         if (exists) return;
 
+        ActAs(actor);
         var result = await createExpense.HandleAsync(new CreateExpenseCommand(
             categoryId, date, description, amountMinorUnits, flockId,
             Note: "Simulation fixture expense"), accountId, ct);

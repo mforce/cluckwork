@@ -78,7 +78,7 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         Guid accountId, Guid targetUserId, string role, Guid actingUserId, string? stepUpToken = null)
     {
         using var scope = factory.Services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+        scope.ResolveTenantAndActor(accountId, actingUserId);
         var handler = scope.ServiceProvider.GetRequiredService<ChangeUserRoleHandler>();
         return await handler.HandleAsync(
             new ChangeUserRoleCommand(targetUserId, role, stepUpToken), accountId, actingUserId, CancellationToken.None);

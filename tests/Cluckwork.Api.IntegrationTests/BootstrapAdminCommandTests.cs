@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
@@ -92,6 +93,15 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
         Assert.Equal(SeedDefaults.AccountId, user.AccountId);
         Assert.True(user.MustChangePassword);
         Assert.True(await users.IsInRoleAsync(user, Roles.Owner));
+
+        // #500 — the User.Create row for the very first Owner. There is no
+        // human to attribute it to (not even the user being created, who did
+        // not exist when the verb started), so it declares the non-person it
+        // is instead of the old "(unresolved)" fallback.
+        var created = await db.AuditEvents.IgnoreQueryFilters()
+            .SingleAsync(a => a.Action == AuditActions.UserCreate && a.EntityId == user.Id);
+        Assert.Equal(SystemActors.BootstrapAdmin, created.ActorEmail);
+        Assert.Equal(Guid.Empty, created.ActorUserId);
     }
 
     [Fact]

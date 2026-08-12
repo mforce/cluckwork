@@ -25,6 +25,15 @@ Without this command the only recourse would be direct SQL surgery on the
 5. **Revokes every refresh token** for that user — all existing sessions/devices are signed out.
 6. Writes a conspicuous **`User.BreakGlassReset` audit row** carrying your `--reason` **and the host/OS-user that ran the command**.
 
+> **Who that row names (#500).** `actor_email` is the literal
+> **`(break-glass)`** and `actor_user_id` is all-zeroes. That is deliberate: this
+> command exists precisely because no human is signed in, so it declares the
+> non-person it is rather than falling back to the old `(unresolved)` placeholder
+> — an audit event with no resolved actor is now refused outright. The real
+> accountability for a break-glass reset is the `--reason` you pass plus the
+> host and OS user captured in the row's details, which is why step 6 records
+> both and why the verification below checks them.
+
 > Since #364, an access token already issued is rejected on its very next
 > request — it does not linger for the rest of its ~15-min lifetime. Refresh is
 > dead immediately too, so the session cannot be extended.

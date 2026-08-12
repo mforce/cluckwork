@@ -30,6 +30,16 @@ command in Production),
 the same command an operator would type by hand — mirroring `seed --profile
 demo` (#280) for the dev/demo profile.
 
+#500: the fixture is now **attributed to its own cast**. Managers place the
+flocks and create the products, categories and expenses; sales staff book the
+orders; a rotating pool of workers records the daily entries, and about one
+submission in three is a manager signing off a worker's draft. The Owner does
+account administration only. So the SPA's #494 History column shows real
+addresses belonging to this harness's own personas, and both provenance shapes
+occur — "created and last changed by the same person", and "created by X, last
+changed by Y". No harness change was needed: `reset.sh` already runs
+`bootstrap-admin` before seeding, which is the Owner the seeder requires.
+
 ## Quickstart
 
 ```bash

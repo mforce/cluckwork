@@ -19,6 +19,7 @@ using Microsoft.EntityFrameworkCore;
 public sealed class AdminRecoveryService(
     AppDbContext db,
     TenantContext tenant,
+    CurrentUserContext currentUser,
     UserManager<ApplicationUser> userManager,
     IIdentityProvider identity,
     IAccountRepository accounts)
@@ -100,6 +101,15 @@ public sealed class AdminRecoveryService(
         // IAuditWriter (which fails closed on an unresolved tenant) can stamp the
         // break-glass audit row with the correct AccountId.
         tenant.Resolve(target.AccountId);
+
+        // #500 — and the ACTOR, for the same reason: IAuditWriter now fails
+        // closed on an unresolved actor too. This command has no signed-in
+        // human by design (an operator at a shell during a lockout), so it
+        // declares the non-person it is rather than falling into the old
+        // "(unresolved)" placeholder. The real accountability for a break-glass
+        // reset remains the host + OS user captured in the row's details, plus
+        // the operator's --reason.
+        currentUser.ResolveSystemActor(SystemActors.BreakGlass);
 
         // Serialized with the SAME account-wide lock DisableUserAsync takes
         // (IdentityProvider.cs) — not because recovery cares about the
