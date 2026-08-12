@@ -2145,6 +2145,12 @@ export const es = {
       + "que muestra quién creó el registro y cuándo, más quién lo modificó por última vez si alguien lo "
       + "hizo. Se lee del mismo registro de auditoría, así que no requiere permisos adicionales: si puede "
       + "ver el registro, puede ver su historial.",
+    auditRecordHistoryLink:
+      "Esa columna es un resumen, no la historia completa. Grados de huevo, Lotes de huevos, Lotes, "
+      + "Historial de registro diario, Pedidos de venta y Gastos tienen cada uno un enlace \"Historial de "
+      + "auditoría\" en su propia pantalla que abre el registro completo de ese registro: cada cambio "
+      + "correctivo o de configuración, no solo la creación y el más reciente, sin tener que buscar en el "
+      + "registro de auditoría global y filtrarlo usted mismo.",
     auditRecordHistorySubmit:
       "Guardar un registro diario y enviarlo es un solo acto, no un cambio: si haces ambas cosas tú, la "
       + "columna Historial te muestra como creador y no señala ningún cambio. Si otra persona envía tu "

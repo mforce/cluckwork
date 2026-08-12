@@ -2227,6 +2227,13 @@ export const tl = {
       + "kolum na Kasaysayan na nagpapakita kung sino ang gumawa ng record at kailan, at kung sino ang "
       + "huling nagbago kung mayroon man. Galing ito sa parehong audit log, kaya walang kailangang dagdag "
       + "na pahintulot: kung nakikita mo ang record, nakikita mo ang kasaysayan nito.",
+    auditRecordHistoryLink:
+      "Buod lang ang column na iyon, hindi ang buong kwento. Ang Mga kawan, Grado ng itlog, Kasaysayan ng "
+      + "pang-araw-araw na entry, Order ng benta, Gastos at Lote ng itlog ay may sariling link na "
+      + "\"Kasaysayan ng audit\" "
+      + "sa kani-kanilang screen na nagbubukas ng buong kasaysayan para sa record na iyon — bawat corrective "
+      + "o configuration na pagbabago, hindi lang ang paglikha at ang pinakabagong pagbabago — nang hindi na "
+      + "kailangang hanapin sa global na Audit log sa itaas at i-filter mo mismo.",
     auditRecordHistorySubmit:
       "Ang pag-save at pagsumite ng pang-araw-araw na entry ay iisang gawa, hindi pagbabago: kung ikaw "
       + "mismo ang gumawa ng dalawa, ipinapakita ka ng column na History bilang tagalikha at walang "

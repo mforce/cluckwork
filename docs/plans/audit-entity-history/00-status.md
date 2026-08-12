@@ -48,7 +48,7 @@ Checked and pushed back on (not acted on, with evidence):
 - [x] Slice 3 — remaining links: Grades/Sales/Expenses/HistoryPage (mechanical) + StockPage (distinct label + behavior test) — DONE 2026-08-12. 2 clean pi review rounds. 261/261 new tests pass.
 - [x] Slice 4 — Flow A′ test: switching to a different record's history while already on /audit — DONE 2026-08-12. 2 pi review rounds (1 real fix: Routes-based harness + vacuity-gap assertion). 35/35 AuditPage tests pass.
 - [x] Slice 5 — backend metric: Program.cs enrichment + RequestLoggingTests.cs — DONE 2026-08-12. 2 pi review rounds (1 real minor test-coverage fix, 3 false claims rejected with evidence). 1641/1641 backend tests pass.
-- [ ] Slice 6 — docs sync: GLOSSARY.md + HelpPage.tsx (es/tl translations land inline with each slice above, not here)
+- [x] Slice 6 — docs sync: GLOSSARY.md + HelpPage.tsx (es/tl translations land inline with each slice above, not here) — DONE 2026-08-12. 2 pi review rounds (2 real copy fixes, 2 false claims rejected with evidence). 1759/1759 web tests pass.
 
 ## Notes for a fresh session
 
@@ -149,3 +149,17 @@ Round 1 (`pi-review-slice5-round1.txt`): 5 points, 3 verified false and rejected
 Round 2 (`pi-review-slice5-round2.txt`): brief, no padding — confirmed the fix holds, nothing new.
 
 Verification: 16/16 `RequestLoggingTests` pass, full backend suite 1641/1641 (Domain 325, Application 145, Api.IntegrationTests 1171 — no test-isolation regressions), build clean.
+
+## Slice 6 code review (2 rounds, stopped — 2 consecutive clean/resolved rounds)
+
+Docs sync: `HelpPage.tsx` gets a new bullet (`auditRecordHistoryLink`, en/es/tl per translate-now policy) alongside the existing `auditRecordHistory*` bullets; `GLOSSARY.md` gets a new "Entity-scoped audit history (#493)" entry after the existing "Record history (#494)" entry.
+
+Round 1 (`pi-review-slice6-round1.txt`): 4 points, 2 verified false and rejected with evidence — "the '#494 covers 5, #493 covers 6' count is unverifiable" (false: `GLOSSARY.md`'s own preceding `Record history (#494)` entry, same file, explicitly lists the five tables) and "es 'Esa columna' has no singular antecedent" (false: the prior es bullet says "una columna Historial," singular, matching exactly — pi checked against text that wasn't there). 2 real, acted on: the Spanish "Lotes" (this app's established term for Flock) sitting in the same sentence as "Lotes de huevos" (Egg lots) was genuinely ambiguous on a skim read — reordered the list to separate them without inventing new terminology outside the app's established `entityTypeLabel` convention; and "Daily entries" drifted from the established "Daily entry history" naming used one bullet above — renamed across en/es/tl to match.
+
+Round 2 (`pi-review-slice6-round2.txt`): brief, no padding — nothing new.
+
+Verification: full web suite 1759/1759, typecheck clean.
+
+## Feature complete — all 6 slices shipped
+
+Gate 1-4 docs: 5 pi review rounds across the four gates, all with real product-level yield (metric definition, screen corrections, program-design bugs caught before code existed, a missing test flow). Implementation: 6 slices, 11 pi review rounds total (every slice stopped at 2 consecutive clean/resolved rounds per the loop's stop rule), roughly a dozen real findings acted on and an equal number of false claims verified and rejected with evidence. Final state: 1759/1759 web tests, 1641/1641 backend tests, both typecheck/build clean.

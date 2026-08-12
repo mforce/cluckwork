@@ -2565,6 +2565,11 @@ export const en = {
       "Flocks, Egg grades, Daily entry history, Sales and Expenses each carry a History column showing who "
       + "created the record and when, plus who last changed it if anyone has. It is read from the same audit "
       + "log, so it needs no extra permission: if you can see the record, you can see its history.",
+    auditRecordHistoryLink:
+      "That column is a summary, not the whole story. Flocks, Egg grades, Daily entry history, Sales orders, "
+      + "Expenses and Egg lots each carry an \"Audit history\" link on their own screen that opens the full "
+      + "trail for that one record — every corrective or configuration change, not just the creation and the "
+      + "most recent one — without hunting through the global Audit log above and filtering it yourself.",
     auditRecordHistorySubmit:
       "Saving a daily entry and submitting it is one act, not a change: do both yourself and the History "
       + "column names you as the creator with no change against you. If somebody else submits your draft, "
