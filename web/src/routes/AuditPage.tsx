@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { listAuditEvents } from "../api/cluckwork";
@@ -22,44 +22,24 @@ function isLikelyGuid(value: string): boolean {
   return GUID_PATTERN.test(value);
 }
 
-// #493 — pure, extracted deliberately (review round 1): usePagedList's
-// identity-change reload is asynchronous — `fetchPage`'s identity (and so
-// `entityId`) already reflects the NEW scope on the render where a
-// navigation lands, but `reloading` only flips true inside a useEffect that
-// runs AFTER that render commits. Trusting `reloading` alone missed that one
-// render: `rows` can still hold the PREVIOUS entity's data while `entityId`
-// already names the new one. Fixed for the case that matters — rows is
-// non-empty and belongs to the wrong entity, so the heading/table would
-// otherwise show genuinely wrong data for as long as the new fetch takes.
-//
-// Known, accepted gap (review round 2): if the STALE rows are `[]` (the old
-// scope's own empty result), there's no row left to compare against, so
-// this returns "not stale" for that one render — a scoped empty-message can
-// flash under a blank heading before the new fetch lands. Narrower and far
-// less severe than the bug above: it self-corrects on the very next render
-// once `reloading` flips true, rather than persisting for the fetch's full
-// duration. A fully general fix needs a ref tracking whether a fetch cycle
-// has been OBSERVED for the current entityId (independent of row content),
-// which would cost this function its purity — not taken for a single-frame
-// residual.
-//
-// A component-level RTL test with a synchronously-resolving mock can't
-// observe the fixed race at all — fireEvent's own act() flushes the passive
-// effect that sets `reloading` before any assertion runs, so `reloading`
-// and the new rows land in the same flush the test sees. (A test built with
-// fake timers or a genuinely delayed mock could observe it through the
-// component; this is why the test suite proves the fix via direct unit
-// tests of this function instead, not a claim that the race is impossible
-// to reproduce through the DOM by any means.)
-export function isScopedDataStale(
-  entityId: string | undefined,
-  reloading: boolean,
-  rows: { entityId: string }[] | null,
-): boolean {
-  if (reloading) return true;
-  if (entityId === undefined) return false;
-  if (rows === null || rows.length === 0) return false;
-  return rows[0].entityId !== entityId;
+// #493 — usePagedList's identity-change reload is asynchronous:
+// `fetchPage`'s identity already reflects a NEW query on the render where a
+// navigation lands (a different entityId, a different action, or leaving a
+// scope entirely), but `reloading` only flips true inside a useEffect that
+// runs AFTER that render commits. Two earlier versions of this fix compared
+// the loaded ROWS' own content against the current entityId — that caught
+// the common case (rows belong to the wrong entity) but review kept finding
+// variants it missed: an empty stale page (no row left to compare), and
+// leaving a scope entirely (entityId -> undefined, which a content check
+// exits early on by design, so old scoped rows could render as if they were
+// the global log). Two misses of the same shape means the METHOD was
+// wrong, not just missing a case — comparing `fetchPage`'s own reference
+// instead of inferring staleness from content closes every variant
+// uniformly: the moment ANYTHING the query depends on changes, rows are
+// stale until a completed reload confirms otherwise, full stop, regardless
+// of what's in them.
+export function isFetchStale(committedFetchPage: unknown, currentFetchPage: unknown): boolean {
+  return committedFetchPage !== currentFetchPage;
 }
 
 // #93 — read-only audit trail (admin). Deliberately no mutation surface: the
@@ -78,14 +58,14 @@ export function AuditPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const actionFilter = searchParams.get("action") ?? "";
   const rawEntityId = searchParams.get("entityId");
-  // Lowercased (review round: codex found the previous fix regressed on an
-  // uppercase entityId): the API returns EntityId as a .NET Guid, which
-  // System.Text.Json serializes lowercase regardless of the request's
-  // casing, but the regex accepting it is case-insensitive. Without
-  // normalizing here, isScopedDataStale's row comparison would never match
-  // an uppercase URL against the lowercase rows the server returns — stuck
-  // on "Loading…" forever, not just briefly stale. Normalized once here so
-  // every downstream use (the API call, the comparison) agrees.
+  // Lowercased (codex review of #516): the API returns EntityId as a .NET
+  // Guid, which System.Text.Json serializes lowercase regardless of the
+  // request's casing, but the regex accepting it is case-insensitive.
+  // Without normalizing here, an uppercase URL value would build a
+  // DIFFERENT fetchPage identity than the same record's lowercase form
+  // does elsewhere, which is exactly what isFetchStale below treats as "a
+  // different query" — normalized once here so it doesn't fight its own
+  // staleness check.
   const entityId = rawEntityId && isLikelyGuid(rawEntityId) ? rawEntityId.toLowerCase() : undefined;
 
   const updateActionFilter = useCallback((action: string) => {
@@ -100,21 +80,42 @@ export function AuditPage() {
   // other paged screen. The filter is expressed as the fetcher's identity, so
   // "the filter changed" and "reload from the top" cannot drift apart —
   // `entityId` changing (a fresh entity-scoped link, or leaving the scope)
-  // triggers the same reload as an action-filter change.
-  const events = usePagedList({
-    fetchPage: useCallback(
-      (offset: number, limit: number) =>
-        listAuditEvents({ action: actionFilter || undefined, entityId, limit, offset }),
-      [actionFilter, entityId],
-    ),
-    pageSize: PAGE,
-  });
+  // triggers the same reload as an action-filter change. Hoisted out of the
+  // usePagedList call (#493) so its own identity is available below for the
+  // stale-scope check, not just handed straight in.
+  const fetchPage = useCallback(
+    (offset: number, limit: number) =>
+      listAuditEvents({ action: actionFilter || undefined, entityId, limit, offset }),
+    [actionFilter, entityId],
+  );
+  const events = usePagedList({ fetchPage, pageSize: PAGE });
 
-  // #493 — see isScopedDataStale's own comment (codex review of #516): this
-  // catches the render where entityId already names a new scope but
-  // usePagedList's rows/reloading haven't caught up yet, which the
-  // heading/table below both depend on.
-  const isScopedReloading = isScopedDataStale(entityId, events.reloading, events.rows);
+  // #493 — see isFetchStale's own comment (codex review of #516): rows are
+  // stale (heading/table below both depend on this) whenever `fetchPage`'s
+  // identity has moved on since the last completed reload, regardless of
+  // what's currently in `events.rows`.
+  //
+  // Updating the ref here, in the render body, gated on `!events.reloading`
+  // — rather than in an effect after a reload completes — is safe SPECIFICALLY
+  // because of usePagedList's own ticket system (a later review round asked
+  // about a rapid double-switch, e.g. click record B then click record C
+  // before B's fetch resolves; verified against usePagedList.ts directly,
+  // not just reasoned about): `reload()`/`loadMore()` claim `req.current`
+  // synchronously, before any await, and `setLoadingOwned` — the only path
+  // that ever flips `reloading` — no-ops entirely for a call whose `seq` no
+  // longer matches `req.current`. So a superseded fetch (B, once C's
+  // navigation has claimed a new ticket) can NEVER reset `reloading` on C's
+  // behalf, successful or not — `events.reloading` transitioning false only
+  // ever reflects the CURRENTLY active ticket's own completion. That's what
+  // makes "not reloading" a trustworthy signal to commit the ref to
+  // whatever `fetchPage` identity is current at that moment, even though
+  // the update itself runs before this specific render's own fetch (if any)
+  // has been issued.
+  const committedFetchPageRef = useRef(fetchPage);
+  const isScopedReloading = events.reloading || isFetchStale(committedFetchPageRef.current, fetchPage);
+  if (!events.reloading) {
+    committedFetchPageRef.current = fetchPage;
+  }
 
   const scopedEntityType = entityId && !isScopedReloading
     ? events.rows?.[0]?.entityType

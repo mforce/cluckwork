@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, act, fireEvent } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes } from "react-router";
-import { AuditPage, isScopedDataStale } from "./AuditPage";
+import { AuditPage, isFetchStale } from "./AuditPage";
 import { listAuditEvents } from "../api/cluckwork";
 import type { AuditEvent } from "../api/cluckwork";
 import i18n from "../i18n";
@@ -461,9 +461,10 @@ describe("AuditPage entity-scoped mode (#493)", () => {
   // codex review of #516 — a pasted/hand-typed uppercase GUID is
   // syntactically valid (the guard regex is case-insensitive) and the API
   // accepts it, but its response's entityId is always lowercase (a .NET
-  // Guid serialized by System.Text.Json). Without normalizing the URL value,
-  // isScopedDataStale's row comparison would never match — this must NOT
-  // get stuck on "loading" forever.
+  // Guid serialized by System.Text.Json). Without normalizing the URL
+  // value, it would build a different fetchPage identity than the
+  // lowercase form does, which isFetchStale treats as a genuinely
+  // different query — this must NOT get stuck on "loading" forever.
   it("normalizes an uppercase entityId so it matches the lowercase entityId the API returns, and doesn't stick on loading", async () => {
     const upper = SCOPED_ENTITY_ID.toUpperCase();
     mockListAuditEvents.mockResolvedValue([
@@ -643,52 +644,96 @@ describe("AuditPage Flow A' — switching records without leaving /audit (#493)"
 
 });
 
-// codex review of #516 — the bug the Flow A' tests above can't see.
-// usePagedList's `reloading` only flips true inside a useEffect that runs
-// AFTER a render commits, but `entityId` already names the new scope on
-// THAT SAME render — so trusting `reloading` alone missed a one-render
-// window where rows still hold the previous entity's data. A component
-// test can't reliably observe that exact window: RTL's fireEvent wraps the
-// click in a synchronous act() that flushes passive effects before any
-// assertion runs (confirmed by mutation: a version of this test that
+// codex review of #516 — the bug the Flow A' tests above can't see, and the
+// reason this file went through three shapes of the same mechanism. A
+// content-based check (comparing rows' own entityId against the current
+// scope) caught the common case but review kept finding variants it
+// missed: an empty stale page (no row to compare), and leaving a scope
+// entirely (entityId -> undefined, which a content check exits early on by
+// design). Two misses of the same shape means the method was wrong —
+// isFetchStale compares fetchPage's own reference instead, which closes
+// every variant uniformly. A component test can't reliably observe the
+// one-render window this guards: RTL's fireEvent wraps the click in a
+// synchronous act() that flushes passive effects before any assertion runs
+// (confirmed by mutation on an earlier version of this fix: a test that
 // awaited the click and checked the DOM afterward passed even with the fix
-// reverted — it wasn't observing the race at all). Testing the extracted
-// pure function directly sidesteps the timing question entirely.
-describe("isScopedDataStale (#493)", () => {
-  it("is stale whenever reloading, regardless of entityId or rows", () => {
-    expect(isScopedDataStale(SCOPED_ENTITY_ID, true, null)).toBe(true);
-    expect(isScopedDataStale(SCOPED_ENTITY_ID, true, [{ entityId: SCOPED_ENTITY_ID }])).toBe(true);
-    expect(isScopedDataStale(undefined, true, null)).toBe(true);
+// reverted). Testing the extracted pure function directly sidesteps the
+// timing question entirely.
+describe("isFetchStale (#493)", () => {
+  it("is not stale when comparing a fetchPage reference to itself", () => {
+    const fn = () => Promise.resolve([]);
+    expect(isFetchStale(fn, fn)).toBe(false);
   });
 
-  it("is never stale when unscoped (entityId undefined), even with mismatched rows", () => {
-    expect(isScopedDataStale(undefined, false, [{ entityId: SCOPED_ENTITY_ID }])).toBe(false);
-    expect(isScopedDataStale(undefined, false, null)).toBe(false);
+  it("is stale when the references differ, regardless of what they'd return", () => {
+    const a = () => Promise.resolve([]);
+    const b = () => Promise.resolve([]);
+    expect(isFetchStale(a, b)).toBe(true);
+  });
+});
+
+// Integration coverage for the specific scenarios the OLD content-based
+// checks missed — proven via settled state (not a single-render freeze,
+// which isFetchStale's direct unit tests above already cover): the
+// mechanism must never leave the page stuck, and must never show one
+// scope's data under another scope's heading, across every transition.
+describe("AuditPage stale-scope coverage beyond Flow A' (#493)", () => {
+  it("leaving a scope (an explicit unscoped Link, not just typing the URL) settles on the global heading and rows, not stuck on the old scope's data", async () => {
+    mockListAuditEvents.mockResolvedValueOnce([
+      { ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID },
+    ]);
+    render(
+      <MemoryRouter initialEntries={[`/audit?entityId=${SCOPED_ENTITY_ID}`]}>
+        <Link to="/audit">leave scope</Link>
+        <Routes>
+          <Route path="/audit" element={<AuditPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Flock history" })).toBeInTheDocument();
+
+    mockListAuditEvents.mockResolvedValueOnce([EVENT_A, EVENT_B]); // the global, multi-entity log
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "leave scope" }));
+    });
+
+    expect(await screen.findByRole("heading", { name: "Audit log" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Flock history" })).not.toBeInTheDocument();
+    // The entity column is back (unscoped) and BOTH rows show — not left
+    // showing only the previous single-entity scope's row under the global
+    // heading, which is what the old content-based check could do (it never
+    // treated entityId -> undefined as stale).
+    expect(await screen.findByRole("row", { name: /admin@farm\.test/ })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /manager@farm\.test/ })).toBeInTheDocument();
+    expect(mockListAuditEvents).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityId: undefined }),
+    );
   });
 
-  it("is not stale when rows haven't loaded yet (null)", () => {
-    expect(isScopedDataStale(SCOPED_ENTITY_ID, false, null)).toBe(false);
-  });
+  // Honest framing (review round): this is a settled-state regression
+  // guard, not a test that discriminates the fixed mechanism from the OLD
+  // content-based one — with a synchronously-resolving mock inside
+  // act(async () => {...}), everything flushes before any assertion runs
+  // either way, so the old mechanism would pass this exact test too. The
+  // empty-page window it used to miss is closed by isFetchStale's own unit
+  // tests plus the reasoning documented on the ref-update site in
+  // AuditPage.tsx (isFetchStale doesn't depend on row content at all, so
+  // there's no timing-sensitive window left specific to an empty page to
+  // observe here). This test's job is narrower and still real: prove the
+  // empty-page → switch sequence never wedges the page.
+  it("a scoped view that resolves to a genuinely empty page still settles correctly on a later switch", async () => {
+    mockListAuditEvents.mockResolvedValueOnce([]); // record A: genuinely no events
+    renderAuditWithSwitchLink(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+    expect(await screen.findByText("No audit events for this record yet.")).toBeInTheDocument();
 
-  // Known, accepted gap (review round 2, documented on isScopedDataStale
-  // itself): an empty array has no row to compare against, so a STALE empty
-  // page from the previous scope also reads as "not stale" here — not
-  // distinguishable, from this function's inputs alone, from the current
-  // scope's own genuinely-empty result. Narrower and self-correcting within
-  // one render, unlike the non-empty case above; pinning this as the
-  // function's actual, deliberate contract rather than leaving it
-  // unexamined.
-  it("is not stale for an empty array, even though that can be a stale empty page from the PREVIOUS scope (known gap)", () => {
-    expect(isScopedDataStale(SCOPED_ENTITY_ID, false, [])).toBe(false);
-  });
+    mockListAuditEvents.mockResolvedValueOnce([
+      { ...EVENT_B, entityType: "SalesOrder", entityId: OTHER_ENTITY_ID },
+    ]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "switch record" }));
+    });
 
-  it("is not stale when the loaded row's entityId matches the current scope", () => {
-    expect(isScopedDataStale(SCOPED_ENTITY_ID, false, [{ entityId: SCOPED_ENTITY_ID }])).toBe(false);
-  });
-
-  // The exact bug: entityId already changed, reloading hasn't caught up,
-  // rows still belong to the OLD scope.
-  it("IS stale when reloading is false but the loaded row belongs to a different entity", () => {
-    expect(isScopedDataStale(OTHER_ENTITY_ID, false, [{ entityId: SCOPED_ENTITY_ID }])).toBe(true);
+    expect(await screen.findByRole("heading", { name: "Sales order history" })).toBeInTheDocument();
+    expect(await screen.findByRole("row", { name: /manager@farm\.test/ })).toBeInTheDocument();
   });
 });

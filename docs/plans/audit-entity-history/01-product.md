@@ -12,7 +12,9 @@ Successful (200) `GET /api/v1/audit` requests carrying an `entityId`, counted we
 
 ## Announcement
 
-Every record now remembers its own story. Open a Flock, a Sales Order, an Expense, an Egg Grade, a Daily Entry, or an Egg Lot, and you'll find a "View history" link that takes you straight to everything that ever happened to it — who created it, who changed it, and when, in order, filterable by what kind of change you're looking for. No more digging through the global Audit feed hoping you land on the right row.
+Every record now remembers its own story. Open a Flock, a Sales Order, an Expense, an Egg Grade, or a Daily Entry, and you'll find a "View history" link that takes you straight to everything that ever happened to it — who created it, who changed it, and when, in order, filterable by what kind of change you're looking for. No more digging through the global Audit feed hoping you land on the right row.
+
+**Corrected post-ship (codex review of #516, PR pass)**: Egg Lots were in this announcement's original draft too, but the shipped feature gives them a narrower "Adjustment history" link instead — the audit trail only ever records manual write-offs/recounts against a lot's own id (creation lives on its Daily Entry, allocation on its Sales Order), so promising "everything that ever happened to it" was inaccurate for that one entity. Removed here rather than left to mislead a reader of this doc; see `00-status.md`'s post-ship section for the full correction.
 
 ## Screens
 
