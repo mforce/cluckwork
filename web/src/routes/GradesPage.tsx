@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 import { Plus } from "lucide-react";
 import {
   activateEggGrade, createEggGrade, deactivateEggGrade, listEggGrades, updateEggGrade,
@@ -268,6 +269,11 @@ export function GradesPage() {
               <td><StatusBadge status={g.active ? "Active" : "Inactive"} label={statusLabel(g.active ? "Active" : "Inactive")} /></td>
               <ProvenanceCell history={g} />
               <td>
+                {/* #493 — full audit trail for this record, distinct from
+                    the created/last-changed summary in ProvenanceCell. */}
+                <Link className="link" to={`/audit?entityId=${g.id}`}>
+                  {tc("recordHistory.viewHistoryLink")}
+                </Link>
                 {isAdmin && (
                   <>
                     {/* Opens the edit dialog — non-mutating, so the spinner

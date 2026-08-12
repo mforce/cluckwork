@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 import {
   getStock, listEggLotMovements, listEggLots, recordEggLotMovement,
 } from "../api/cluckwork";
@@ -545,6 +546,17 @@ export function StockPage() {
                         <td>{l.quantityProduced}</td>
                         <td>{l.quantityAvailable}</td>
                         <td>
+                          {/* #493 — the FULL audit trail for this lot (who
+                              created/adjusted/wrote it off, when), distinct
+                              from the button below: that one toggles the
+                              inventory MOVEMENT ledger in place (quantities
+                              in/out), a different and older trail. Two
+                              affordances on the same row on purpose — kept
+                              visibly separate by label so they don't read as
+                              the same thing. */}
+                          <Link className="link" to={`/audit?entityId=${l.id}`}>
+                            {tc("recordHistory.viewHistoryLink")}
+                          </Link>
                           <button className="link" onClick={() => void toggleLot(l.id)}>
                             {openLot === l.id ? t("hideHistoryButton") : t("historyButton")}
                           </button>

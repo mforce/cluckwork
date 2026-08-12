@@ -95,6 +95,16 @@ describe("GradesPage record history column (#494)", () => {
   });
 });
 
+// #493 — full audit trail, distinct from the two-point summary above.
+describe("GradesPage audit history link (#493)", () => {
+  it("links each row to its own entity-scoped audit history", async () => {
+    await renderReady(ADMIN);
+    const row = screen.getByRole("row", { name: /Grade A/ });
+    expect(within(row).getByRole("link", { name: "Audit history" }))
+      .toHaveAttribute("href", "/audit?entityId=g1");
+  });
+});
+
 describe("GradesPage admin actions", () => {
   it("creates a grade with the form values, then closes and clears the form", async () => {
     mockCreate.mockResolvedValue({ id: "g3" });

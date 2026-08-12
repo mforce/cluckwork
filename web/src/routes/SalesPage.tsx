@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
+import { Link } from "react-router";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
   listCustomers, listEggGrades, listEggUnitConversions, listOrderPayments, listOrders,
@@ -930,7 +931,14 @@ export function SalesPage() {
                   <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
                   <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   <ProvenanceCell history={o} official="confirmed" />
-                  <td><button className="link" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</button></td>
+                  <td>
+                    <button className="link" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</button>
+                    {/* #493 — full audit trail for this record, distinct from
+                        the created/last-changed summary in ProvenanceCell. */}
+                    <Link className="link" to={`/audit?entityId=${o.id}`}>
+                      {tc("recordHistory.viewHistoryLink")}
+                    </Link>
+                  </td>
                 </tr>
               ))}
             </tbody>

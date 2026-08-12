@@ -1360,3 +1360,36 @@ describe("StockPage lot paging + date filter (#465)", () => {
     }
   });
 });
+
+// #493 — the full audit trail for a lot is a distinct affordance from the
+// "history"/"hide history" toggle StockPage already had for the inventory
+// MOVEMENT ledger. Both live on the same row; the two must do genuinely
+// different things, not just carry different labels.
+describe("StockPage audit history link (#493)", () => {
+  it("links a lot row to its own entity-scoped audit history, distinct from the movement-history toggle", async () => {
+    mockGetStock.mockResolvedValue(ROWS);
+    mockListEggLots.mockResolvedValue(LOTS);
+    mockListEggLotMovements.mockResolvedValue(MOVEMENTS);
+    render(<StockPage />);
+    await screen.findByText("Grade A");
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+
+    // The link navigates to the entity-scoped audit trail — never opens
+    // anything in place.
+    expect(within(lotRow).getByRole("link", { name: "Audit history" }))
+      .toHaveAttribute("href", "/audit?entityId=lot1");
+    expect(screen.queryByText("Movement ledger")).not.toBeInTheDocument();
+
+    // The toggle button expands the movement ledger IN PLACE — never
+    // navigates. Clicking it must not be mistaken for the link above.
+    await act(async () => {
+      fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
+    });
+    expect(await screen.findByText("Movement ledger")).toBeInTheDocument();
+    expect(within(lotRow).getByRole("button", { name: "hide history" })).toBeInTheDocument();
+    // Still on StockPage — the toggle is not a navigation.
+    expect(within(lotRow).getByRole("link", { name: "Audit history" }))
+      .toHaveAttribute("href", "/audit?entityId=lot1");
+  });
+});

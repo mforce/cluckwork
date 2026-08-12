@@ -45,7 +45,7 @@ Checked and pushed back on (not acted on, with evidence):
 ## Slices
 - [x] Slice 1 — tracer bullet: URL-as-source-of-truth mechanics + FlocksPage link (naive heading, no reloading gate yet) — DONE 2026-08-11. `AuditPage.tsx`, `FlocksPage.tsx`, i18n (en/es/tl), tests. 1745/1745 web tests pass, typecheck clean.
 - [x] Slice 2 — harden the scoped view: reloading gate on the heading, entity column hiding, scoped empty message — DONE 2026-08-12. 2 pi review rounds, stopped (2 consecutive no-product-defect). 1752/1752 web tests pass.
-- [ ] Slice 3 — remaining links: Grades/Sales/Expenses/HistoryPage (mechanical) + StockPage (distinct label + behavior test)
+- [x] Slice 3 — remaining links: Grades/Sales/Expenses/HistoryPage (mechanical) + StockPage (distinct label + behavior test) — DONE 2026-08-12. 2 clean pi review rounds. 261/261 new tests pass.
 - [ ] Slice 4 — Flow A′ test: switching to a different record's history while already on /audit
 - [ ] Slice 5 — backend metric: Program.cs enrichment + RequestLoggingTests.cs
 - [ ] Slice 6 — docs sync: GLOSSARY.md + HelpPage.tsx (es/tl translations land inline with each slice above, not here)
@@ -123,3 +123,11 @@ Round 2 (`pi-review-slice2-round2.txt`): one claimed "real bug" — that the emp
 Two consecutive rounds, neither confirmed a defect in the shipped code (round 1's yield was a test-coverage nicety; round 2's yield was zero, its one claim false). Per the stop rule, loop ended here — moving to Slice 3.
 
 Verification after round 1's fix: 1752/1752 web tests pass, typecheck clean.
+
+## Slice 3 code review (2 rounds, stopped — 2 consecutive clean rounds)
+
+Round 1 (`pi-review-slice3-round1.txt`): checked ids/row-scoping/i18n-keys/href-construction/StockPage's two-affordance separation. Zero findings — "ship it."
+
+Round 2 (`pi-review-slice3-round2.txt`), directed at a different angle (accessibility/plural-interpolation/id-field-naming per the loop's own escalation): zero findings, brief, no padding — accessible names fine (row context disambiguates identical link text per WCAG 2.4.4/2.4.9), no interpolation/plural to break, all five pages use a flat `id` property, no internal-vs-display-id mismatch.
+
+Two consecutive zero-defect rounds — stopped per the rule. Verification: 261/261 new-page tests pass; full suite 1756/1757 (1 unrelated pre-existing flake in `DailyEntryPage.test.tsx`, confirmed by running it standalone — 58/58 green, file untouched by this slice), typecheck clean.
