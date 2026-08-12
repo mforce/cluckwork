@@ -571,6 +571,8 @@ describe("AuditPage entity-scoped mode (#493)", () => {
 // the primary record-to-record browsing flow — found missing during Slice 4
 // review of the design docs, not by a code review of shipped code.
 const OTHER_ENTITY_ID = "b9876543-21fe-4dc0-8b12-fedcba098765";
+const THIRD_ENTITY_ID = "c1112223-3344-4556-8778-899900112233";
+const FOURTH_ENTITY_ID = "d2223334-4455-4667-8889-900011223344";
 
 // A real <Routes> tree, matching App.tsx's own single-route mapping to
 // AuditPage (review round 1: a sibling Link with no Routes couldn't prove
@@ -582,6 +584,41 @@ function renderAuditWithSwitchLink(route: string) {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <Link to={`/audit?entityId=${OTHER_ENTITY_ID}`}>switch record</Link>
+      <Routes>
+        <Route path="/audit" element={<AuditPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+// codex review of #516 — a THIRD link, for the delayed double-switch
+// scenario that broke the ref-based version of this fix: switching to B,
+// then to C before B's fetch resolves.
+function renderAuditWithTwoSwitchLinks(route: string) {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <Link to={`/audit?entityId=${OTHER_ENTITY_ID}`}>switch to B</Link>
+      <Link to={`/audit?entityId=${THIRD_ENTITY_ID}`}>switch to C</Link>
+      <Routes>
+        <Route path="/audit" element={<AuditPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+// Self-review addition (not a codex finding) — a third switch, belt-and-
+// suspenders on top of the B/C test above. Not closing a gap the ticket-system reasoning
+// doesn't already cover structurally (any switch's fetch, once superseded,
+// is a no-op regardless of resolution order — verified against
+// usePagedList.ts's seq guard), but cheap to pin explicitly rather than
+// leave to inference given how many rounds this exact mechanism has been
+// through.
+function renderAuditWithThreeSwitchLinks(route: string) {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <Link to={`/audit?entityId=${OTHER_ENTITY_ID}`}>switch to B</Link>
+      <Link to={`/audit?entityId=${THIRD_ENTITY_ID}`}>switch to C</Link>
+      <Link to={`/audit?entityId=${FOURTH_ENTITY_ID}`}>switch to D</Link>
       <Routes>
         <Route path="/audit" element={<AuditPage />} />
       </Routes>
@@ -716,7 +753,7 @@ describe("AuditPage stale-scope coverage beyond Flow A' (#493)", () => {
   // act(async () => {...}), everything flushes before any assertion runs
   // either way, so the old mechanism would pass this exact test too. The
   // empty-page window it used to miss is closed by isFetchStale's own unit
-  // tests plus the reasoning documented on the ref-update site in
+  // tests plus the reasoning documented on the commit-state site in
   // AuditPage.tsx (isFetchStale doesn't depend on row content at all, so
   // there's no timing-sensitive window left specific to an empty page to
   // observe here). This test's job is narrower and still real: prove the
@@ -735,5 +772,76 @@ describe("AuditPage stale-scope coverage beyond Flow A' (#493)", () => {
 
     expect(await screen.findByRole("heading", { name: "Sales order history" })).toBeInTheDocument();
     expect(await screen.findByRole("row", { name: /manager@farm\.test/ })).toBeInTheDocument();
+  });
+
+  // codex review of #516, round 5 — the exact bug a ref-based version of
+  // this fix shipped and broke on: switch to B, then switch to C before B's
+  // fetch resolves. B is deliberately never resolved here — it doesn't need
+  // to be; a superseded fetch's completion is inert regardless (see the
+  // ticket-system reasoning documented at the commit-state site in
+  // AuditPage.tsx). The ref-based version got stuck on "Record history"
+  // (the generic fallback) forever once C's OWN fetch resolved, because
+  // mutating a ref doesn't schedule the extra render the correction needed.
+  it("recovers after switching to a second record before the first one's fetch resolves, not stuck on the generic fallback forever", async () => {
+    mockListAuditEvents.mockResolvedValueOnce([
+      { ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID },
+    ]);
+    renderAuditWithTwoSwitchLinks(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+    expect(await screen.findByRole("heading", { name: "Flock history" })).toBeInTheDocument();
+
+    mockListAuditEvents.mockReturnValueOnce(new Promise<AuditEvent[]>(() => {})); // B: never settles
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "switch to B" }));
+    });
+    expect(screen.getByRole("heading", { name: "Record history" })).toBeInTheDocument();
+
+    let resolveC!: (events: AuditEvent[]) => void;
+    mockListAuditEvents.mockReturnValueOnce(new Promise<AuditEvent[]>((r) => (resolveC = r)));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "switch to C" }));
+    });
+    expect(screen.getByRole("heading", { name: "Record history" })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveC([{ ...EVENT_B, entityType: "SalesOrder", entityId: THIRD_ENTITY_ID }]);
+    });
+
+    expect(await screen.findByRole("heading", { name: "Sales order history" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Record history" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("row", { name: /manager@farm\.test/ })).toBeInTheDocument();
+  });
+
+  it("recovers correctly through a THREE-way switch (B, then C, then D — B and C both superseded before either settles)", async () => {
+    mockListAuditEvents.mockResolvedValueOnce([
+      { ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID },
+    ]);
+    renderAuditWithThreeSwitchLinks(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+    expect(await screen.findByRole("heading", { name: "Flock history" })).toBeInTheDocument();
+
+    mockListAuditEvents.mockReturnValueOnce(new Promise<AuditEvent[]>(() => {})); // B: never settles
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "switch to B" }));
+    });
+
+    mockListAuditEvents.mockReturnValueOnce(new Promise<AuditEvent[]>(() => {})); // C: never settles either
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "switch to C" }));
+    });
+    expect(screen.getByRole("heading", { name: "Record history" })).toBeInTheDocument();
+
+    let resolveD!: (events: AuditEvent[]) => void;
+    mockListAuditEvents.mockReturnValueOnce(new Promise<AuditEvent[]>((r) => (resolveD = r)));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "switch to D" }));
+    });
+    expect(screen.getByRole("heading", { name: "Record history" })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveD([{ ...EVENT_A, entityType: "Expense", entityId: FOURTH_ENTITY_ID, actorEmail: "d-actor@farm.test" }]);
+    });
+
+    expect(await screen.findByRole("heading", { name: "Expense history" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Record history" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("row", { name: /d-actor@farm\.test/ })).toBeInTheDocument();
   });
 });

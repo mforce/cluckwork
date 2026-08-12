@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { listAuditEvents } from "../api/cluckwork";
@@ -95,27 +95,63 @@ export function AuditPage() {
   // identity has moved on since the last completed reload, regardless of
   // what's currently in `events.rows`.
   //
-  // Updating the ref here, in the render body, gated on `!events.reloading`
-  // — rather than in an effect after a reload completes — is safe SPECIFICALLY
-  // because of usePagedList's own ticket system (a later review round asked
-  // about a rapid double-switch, e.g. click record B then click record C
-  // before B's fetch resolves; verified against usePagedList.ts directly,
-  // not just reasoned about): `reload()`/`loadMore()` claim `req.current`
-  // synchronously, before any await, and `setLoadingOwned` — the only path
-  // that ever flips `reloading` — no-ops entirely for a call whose `seq` no
-  // longer matches `req.current`. So a superseded fetch (B, once C's
-  // navigation has claimed a new ticket) can NEVER reset `reloading` on C's
-  // behalf, successful or not — `events.reloading` transitioning false only
-  // ever reflects the CURRENTLY active ticket's own completion. That's what
-  // makes "not reloading" a trustworthy signal to commit the ref to
-  // whatever `fetchPage` identity is current at that moment, even though
-  // the update itself runs before this specific render's own fetch (if any)
-  // has been issued.
-  const committedFetchPageRef = useRef(fetchPage);
-  const isScopedReloading = events.reloading || isFetchStale(committedFetchPageRef.current, fetchPage);
-  if (!events.reloading) {
-    committedFetchPageRef.current = fetchPage;
-  }
+  // STATE, not a ref (codex review — a ref-based version of this shipped
+  // and broke on a delayed double-switch: click record B, then click record
+  // C before B's fetch resolves). Trace: on the render where C's OWN reload
+  // completes (`events.reloading` flips true -> false), that render still
+  // needs to read the PRE-update committed value to correctly show
+  // "reloading" one more time — but mutating a ref doesn't schedule a
+  // re-render, so nothing ever re-evaluates with the corrected value
+  // afterward. The page got stuck on "Loading…" forever, not just briefly
+  // stale — worse than every version before it.
+  //
+  // Committing via `setCommittedFetchPage` inside an effect keyed ONLY on
+  // `events.reloading` (not on `fetchPage`) fixes both halves at once: the
+  // effect fires exactly once per genuine reloading TRANSITION (mount, and
+  // every true<->false flip), reading that render's own fresh `fetchPage`
+  // from its closure — never on a render where entityId/action changed but
+  // reloading hasn't caught up yet, since the dependency didn't change on
+  // that render. And because it's a state update, not a ref mutation, the
+  // render that needed the corrected value gets scheduled — closing the
+  // stuck-forever gap a ref architecturally cannot.
+  //
+  // Safe against the specific double-switch trace above (verified against
+  // usePagedList.ts's ticket system, not just reasoned about): B's fetch,
+  // once superseded by C's own reload claiming a new ticket, can never flip
+  // `reloading` on C's behalf — `setLoadingOwned` no-ops for any call whose
+  // ticket no longer matches `req.current`, and tickets are claimed
+  // synchronously before any await. So the ONE reloading-transition my
+  // effect observes for scope C is genuinely C's own completion, never B's.
+  // useState(() => fetchPage) / setCommittedFetchPage(() => fetchPage), not
+  // the bare function: React treats a function ARGUMENT to useState/a state
+  // setter as a lazy initializer/updater, not a value to store — passing
+  // fetchPage directly would have React CALL it rather than store its
+  // reference (TypeScript caught this at the call sites before it shipped).
+  const [committedFetchPage, setCommittedFetchPage] = useState(() => fetchPage);
+  useEffect(() => {
+    if (!events.reloading) {
+      setCommittedFetchPage(() => fetchPage);
+    }
+    // Deliberately NOT depending on `fetchPage`: this must fire only on a
+    // genuine reloading transition, not on every identity change (that's
+    // exactly the premature-commit bug the ref-based version had).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events.reloading]);
+  const isScopedReloading = events.reloading || isFetchStale(committedFetchPage, fetchPage);
+  // A later review round questioned whether this effect, once dormant while
+  // reloading stays true across an intermediate scope change (click B, then
+  // click C before B's fetch resolves — reloading is already true, so the
+  // dependency doesn't change and the effect doesn't fire for C's click),
+  // could commit a STALE closure once it finally does fire. It can't: React
+  // never queues up an earlier render's discarded effect callback — the
+  // callback that actually RUNS is always defined by the render where the
+  // dependency change was observed, closing over THAT render's fetchPage,
+  // which useCallback guarantees is the current identity (unchanged since
+  // whatever scope is currently selected). Proven both by this reasoning
+  // and empirically: the tests below use separate, individually-awaited
+  // act() calls per click (not one batched flush) through a two-way and a
+  // three-way switch, and pass — confirmed via mutation that they fail
+  // (page stuck permanently) against the earlier ref-based version.
 
   const scopedEntityType = entityId && !isScopedReloading
     ? events.rows?.[0]?.entityType
