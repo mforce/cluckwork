@@ -86,13 +86,24 @@ public sealed class DemoDataSeeder(
         // trade was made knowingly: a demo fixture exists to be looked at,
         // looking requires a login, and a login requires an Owner — so the
         // prerequisite turns a later surprise into an immediate, clear failure.
-        var owner = await FindOwnerAsync(accountId);
+        var (owner, disabledOwners) = await FindOwnerAsync(accountId);
         if (owner is null)
         {
-            const string message =
-                "Demo seed prerequisites missing: the default account has no user in the Owner role, so the " +
-                "seeded records would have no author. Run `dotnet Cluckwork.Api.dll bootstrap-admin --email " +
-                "<e>` against this database, then re-run `seed --profile demo`.";
+            // The remedy DIFFERS by cause, and naming the wrong one strands the
+            // operator in a loop: `bootstrap-admin` treats any Owner ROLE ROW as
+            // "already provisioned" and exits 0 having done nothing, so telling
+            // someone with a disabled Owner to run it sends them back here with
+            // the same message. AdminRecoveryService documents that trap; this
+            // is the second place it bites.
+            var message = disabledOwners > 0
+                ? "Demo seed prerequisites missing: the default account's Owner role is held only by DISABLED " +
+                  "user(s), so the seeded records would be signed by an account that cannot log in — nobody " +
+                  "could view the fixture they supposedly created. `bootstrap-admin` will NOT fix this: it " +
+                  "counts Owner role rows without checking DisabledAt, so it reports 'already provisioned' and " +
+                  "does nothing. Re-enable the Owner from the Users screen, then re-run `seed --profile demo`."
+                : "Demo seed prerequisites missing: the default account has no user in the Owner role, so the " +
+                  "seeded records would have no author. Run `dotnet Cluckwork.Api.dll bootstrap-admin --email " +
+                  "<e>` against this database, then re-run `seed --profile demo`.";
             logger.LogError(message);
             return SeedResult.PrerequisitesMissing(message);
         }
@@ -146,14 +157,33 @@ public sealed class DemoDataSeeder(
     // the History line renders the email off the audit row, never a join.
     // (SimulationDataSeeder.MissingBaseDataAsync filters the same way.)
     //
+    // DISABLED Owners are excluded, and that filter is as load-bearing as the
+    // account one. Disabling a user keeps their Owner role row and only stamps
+    // DisabledAt — IdentityProvider says so itself: "a disabled actor retains
+    // its Owner ROLE ROW, only authentication is blocked" — so
+    // GetUsersInRoleAsync still returns them. Ordering by Id could then pick a
+    // disabled principal over a perfectly good active one, and attribute the
+    // whole fixture to an account that cannot log in: every History line would
+    // name somebody nobody can sign in as, to look at the very fixture they
+    // supposedly created. With ONLY a disabled Owner the preflight would pass
+    // and the seed report success, which is exactly the looks-fine-but-isn't
+    // shape #500 exists to remove.
+    //
     // Ordered by Id so the choice is deterministic when an account has several
     // Owners: a fixture whose attribution varies between runs would break the
     // determinism the seeders rest on (#279).
-    private async Task<ApplicationUser?> FindOwnerAsync(Guid accountId) =>
-        (await users.GetUsersInRoleAsync(Roles.Owner))
+    //
+    // Returns the disabled count too, because the CALLER's advice depends on it:
+    // "no Owner at all" and "only disabled Owners" need different remedies.
+    private async Task<(ApplicationUser? Owner, int DisabledOwners)> FindOwnerAsync(Guid accountId)
+    {
+        var owners = (await users.GetUsersInRoleAsync(Roles.Owner))
             .Where(u => u.AccountId == accountId)
-            .OrderBy(u => u.Id)
-            .FirstOrDefault();
+            .ToList();
+
+        return (owners.Where(u => u.DisabledAt is null).OrderBy(u => u.Id).FirstOrDefault(),
+                owners.Count(u => u.DisabledAt is not null));
+    }
 
     // Cheap existence checks only — this must run BEFORE tenant.Resolve, so
     // every tenant-scoped query needs IgnoreQueryFilters (same reasoning as the

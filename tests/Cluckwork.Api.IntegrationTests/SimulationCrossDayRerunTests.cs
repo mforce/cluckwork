@@ -451,3 +451,45 @@ public sealed class SimulationReconfiguredCastTests(SimulationMutableClockFactor
         Assert.Contains(Roles.Manager, second.Message);
     }
 }
+
+// #500 (codex review of PR #517, then a local review of that fix) — the
+// simulation seeder's disabled-Owner filter, guarded on its own.
+//
+// The fix landed in BOTH seeders but only DemoDataSeeder got tests. That is
+// exactly the shape that ships silently: a later refactor toward shared code
+// that misses one branch leaves this seeder signing its fixture with an account
+// that cannot log in, and the demo tests stay green throughout.
+public sealed class SimulationDisabledOwnerTests(SimulationMutableClockFactory factory)
+    : IClassFixture<SimulationMutableClockFactory>
+{
+    [Fact]
+    public async Task SimulationSeed_WithTheOnlyOwnerDisabled_FailsClosedAndDoesNotSayBootstrapAdmin()
+    {
+        // The factory provisions its Owner in InitializeAsync; disable it, so
+        // the account holds an Owner ROLE ROW and no usable Owner.
+        using (var scope = factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var owner = await users.FindByEmailAsync(factory.AdminEmail);
+            Assert.NotNull(owner);
+            owner!.DisabledAt = DateTime.UtcNow;
+            Assert.True((await users.UpdateAsync(owner)).Succeeded);
+        }
+
+        var result = await factory.SeedOnceAsync();
+
+        Assert.Equal(SeedStatus.PrerequisitesMissing, result.Status);
+        Assert.Contains("DISABLED", result.Message);
+
+        // And it must NOT send the operator to `bootstrap-admin`, which counts
+        // Owner role rows without checking DisabledAt: it would report "already
+        // provisioned", exit 0, and land them back on this same error.
+        Assert.Contains("will NOT fix this", result.Message);
+
+        // Fails closed: nothing seeded before refusing.
+        using var check = factory.Services.CreateScope();
+        var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(0, await db.Flocks.IgnoreQueryFilters()
+            .CountAsync(f => f.AccountId == SeedDefaults.AccountId));
+    }
+}

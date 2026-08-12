@@ -201,16 +201,24 @@ public sealed class SimulationDataSeeder(
             // preflight rather than queried again after it. Two lookups could
             // disagree (an Owner disabled or reassigned between them) and the
             // seeder would then act as a user its own preflight never approved.
-            var owner = await FindOwnerAsync(accountId);
+            var (owner, disabledOwners) = await FindOwnerAsync(accountId);
             var missingBaseData = await MissingBaseDataAsync(accountId, owner, ct);
             if (missingBaseData)
             {
-                var prereqMessage =
-                    "Simulation seed prerequisites missing: the base data (default account, Admin role, " +
-                    "the saleable Large/Medium/Small egg grades, and an admin in the Owner role) is not " +
-                    "fully present. The account/role/grades ship with the EF migrations (#283); the Owner " +
-                    "admin does not — run `dotnet Cluckwork.Api.dll bootstrap-admin --email <e>` against " +
-                    "this database, then re-run `seed --profile simulation`.";
+                // Same split as DemoDataSeeder, for the same reason: pointing an
+                // operator whose only Owner is DISABLED at `bootstrap-admin`
+                // sends them in a circle, because it counts Owner role rows
+                // without checking DisabledAt and exits 0 having done nothing.
+                var prereqMessage = disabledOwners > 0
+                    ? "Simulation seed prerequisites missing: the default account's Owner role is held only by " +
+                      "DISABLED user(s), so the fixture would be signed by an account that cannot log in. " +
+                      "`bootstrap-admin` will NOT fix this — it reports 'already provisioned' and does nothing. " +
+                      "Re-enable the Owner from the Users screen, then re-run `seed --profile simulation`."
+                    : "Simulation seed prerequisites missing: the base data (default account, Admin role, " +
+                      "the saleable Large/Medium/Small egg grades, and an enabled admin in the Owner role) is not " +
+                      "fully present. The account/role/grades ship with the EF migrations (#283); the Owner " +
+                      "admin does not — run `dotnet Cluckwork.Api.dll bootstrap-admin --email <e>` against " +
+                      "this database, then re-run `seed --profile simulation`.";
                 logger.LogError(prereqMessage);
                 return SeedResult.PrerequisitesMissing(prereqMessage);
             }
@@ -415,11 +423,24 @@ public sealed class SimulationDataSeeder(
     // Owners exist; a fixture whose attribution varied between runs would break
     // the convergence contract (#279). Shared with the preflight above so the
     // two can never disagree about whether an Owner exists.
-    private async Task<ApplicationUser?> FindOwnerAsync(Guid accountId) =>
-        (await users.GetUsersInRoleAsync(Roles.Owner))
+    //
+    // DISABLED Owners are excluded for the same reason DemoDataSeeder excludes
+    // them — the fuller note lives there. Disabling keeps the Owner role row and
+    // only stamps DisabledAt, so GetUsersInRoleAsync still returns them, and
+    // signing the fixture with an account that cannot log in makes every History
+    // line name somebody nobody can sign in as.
+    //
+    // Returns the disabled count too — the caller's advice depends on which
+    // cause it is. See DemoDataSeeder for the full reasoning.
+    private async Task<(ApplicationUser? Owner, int DisabledOwners)> FindOwnerAsync(Guid accountId)
+    {
+        var owners = (await users.GetUsersInRoleAsync(Roles.Owner))
             .Where(u => u.AccountId == accountId)
-            .OrderBy(u => u.Id)
-            .FirstOrDefault();
+            .ToList();
+
+        return (owners.Where(u => u.DisabledAt is null).OrderBy(u => u.Id).FirstOrDefault(),
+                owners.Count(u => u.DisabledAt is not null));
+    }
 
     // --- Cast: Managers, Sales, ReadOnly, Workers (role-less) ---------
 
