@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 import { Plus } from "lucide-react";
 import {
   archiveFlock, createFlock, depleteFlock, listBirdMovements, listFlocks, reactivateFlock,
@@ -364,6 +365,11 @@ export function FlocksPage() {
                 <td><StatusBadge status={f.status} label={statusLabel(f.status)} /></td>
                 <ProvenanceCell history={f} />
                 <td>
+                  {/* #493 — full audit trail for this record, distinct from
+                      the created/last-changed summary in ProvenanceCell. */}
+                  <Link className="link" to={`/audit?entityId=${f.id}`}>
+                    {tc("recordHistory.viewHistoryLink")}
+                  </Link>
                   <button className="link" disabled={busy}
                     onClick={() => void openLedger(f.id)}>
                     {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}

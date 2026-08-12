@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, act, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { AuditPage } from "./AuditPage";
 import { listAuditEvents } from "../api/cluckwork";
 import type { AuditEvent } from "../api/cluckwork";
@@ -9,16 +10,27 @@ import i18n from "../i18n";
 // renders against controlled data — no network, no backend. ApiError stays real
 // (from ../api/client, unmocked) so errText's instanceof checks still hold.
 //
-// Role gating is intentionally NOT tested: AuditPage reads neither useAuth nor
-// the router — it renders identically for any session. The #93 comment is
+// Role gating is intentionally NOT tested: AuditPage reads useAuth from
+// neither — it renders identically for any session. The #93 comment is
 // explicit that the admin-only guarantee is enforced by the route/API, not the
-// component, so there is no in-component gating behavior to assert. That is why
-// a plain `render` (no AuthProvider / MemoryRouter) is sufficient here.
+// component, so there is no in-component gating behavior to assert. A plain
+// AuthProvider-less render is still sufficient for that reason — but #493
+// added useSearchParams, so every render now needs a Router ancestor
+// (MemoryRouter, not the full renderWithProviders — no Auth/Farm dependency
+// here, only routing).
 vi.mock("../api/cluckwork", () => ({
   listAuditEvents: vi.fn(),
 }));
 
 const mockListAuditEvents = vi.mocked(listAuditEvents);
+
+function renderAudit(route = "/audit") {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <AuditPage />
+    </MemoryRouter>,
+  );
+}
 
 const EVENT_A: AuditEvent = {
   id: "a1",
@@ -51,7 +63,7 @@ describe("AuditPage load + render", () => {
   it("shows a loading state until the first audit page resolves", async () => {
     let resolve!: (events: AuditEvent[]) => void;
     mockListAuditEvents.mockReturnValue(new Promise<AuditEvent[]>((r) => (resolve = r)));
-    render(<AuditPage />);
+    renderAudit();
 
     expect(screen.getByText(/Loading/)).toBeInTheDocument();
     resolve([]); // settle so the pending fetch doesn't dangle past the test
@@ -65,13 +77,13 @@ describe("AuditPage load + render", () => {
 
   it("shows the empty-state hint when there are no audit events", async () => {
     mockListAuditEvents.mockResolvedValue([]);
-    render(<AuditPage />);
+    renderAudit();
     expect(await screen.findByText("No audit events yet.")).toBeInTheDocument();
   });
 
   it("loads the first page on mount with no action filter, limit 100, offset 0", async () => {
     mockListAuditEvents.mockResolvedValue([]);
-    render(<AuditPage />);
+    renderAudit();
     await screen.findByText("No audit events yet.");
     expect(mockListAuditEvents).toHaveBeenCalledWith(
       expect.objectContaining({ action: undefined, limit: 100, offset: 0 }),
@@ -85,7 +97,7 @@ describe("AuditPage load + render", () => {
   // the option's visible text (silently breaking the friendly-label feature
   // while still passing a value-only check) fails loudly here.
   it("offers User.Update as a filterable action, labelled and value-preserved (#163 — the list must be exhaustive)", async () => {
-    render(<AuditPage />);
+    renderAudit();
     await screen.findByText("No audit events yet.");
     const option = screen.getByRole("option", { name: "User updated" }) as HTMLOptionElement;
     expect(option.value).toBe("User.Update");
@@ -93,7 +105,7 @@ describe("AuditPage load + render", () => {
   });
 
   it("offers both password actions as filterable, labelled and value-preserved (#165)", async () => {
-    render(<AuditPage />);
+    renderAudit();
     await screen.findByText("No audit events yet.");
     const setOption = screen.getByRole("option", { name: "Password set" }) as HTMLOptionElement;
     const changedOption = screen.getByRole("option", { name: "Password changed" }) as HTMLOptionElement;
@@ -106,7 +118,7 @@ describe("AuditPage load + render", () => {
   // them (rows only showed under "All actions"). They must now be offered,
   // labelled + value-preserved like every other action.
   it("offers the farm logo + settings actions as filterable, labelled and value-preserved (#247)", async () => {
-    render(<AuditPage />);
+    renderAudit();
     await screen.findByText("No audit events yet.");
     const setLogo = screen.getByRole("option", { name: "Farm logo set" }) as HTMLOptionElement;
     const removeLogo = screen.getByRole("option", { name: "Farm logo removed" }) as HTMLOptionElement;
@@ -133,7 +145,7 @@ describe("AuditPage load + render", () => {
       detailsJson: null,
     };
     mockListAuditEvents.mockResolvedValue([LOGO_EVENT]);
-    render(<AuditPage />);
+    renderAudit();
 
     const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
     // Action cell: friendly label, not the raw "Account.SetLogo".
@@ -145,7 +157,7 @@ describe("AuditPage load + render", () => {
 
   it("maps each audit event's actor, action, entity and reason into its row", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A, EVENT_B]);
-    render(<AuditPage />);
+    renderAudit();
 
     const rowA = await screen.findByRole("row", { name: /admin@farm\.test/ });
     // occurredAtUtc: "T" → space, truncated to the first 19 chars (drops ms/Z).
@@ -166,7 +178,7 @@ describe("AuditPage load + render", () => {
 
   it("renders a read-only view with no mutation controls (and no paging on a short page)", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A, EVENT_B]); // 2 < PAGE ⇒ no 'load more'
-    render(<AuditPage />);
+    renderAudit();
     await screen.findByRole("row", { name: /admin@farm\.test/ });
     // #93: the audit trail is deliberately read-only — no adjust/void/delete
     // controls — and 'load more' only appears when a full page came back.
@@ -177,7 +189,7 @@ describe("AuditPage load + render", () => {
 describe("AuditPage filter", () => {
   it("re-queries listAuditEvents with the chosen action when the filter changes", async () => {
     mockListAuditEvents.mockResolvedValue([]);
-    render(<AuditPage />);
+    renderAudit();
     await screen.findByText("No audit events yet."); // let the mount load settle first
 
     await act(async () => {
@@ -199,7 +211,7 @@ describe("AuditPage paging", () => {
     }));
     const secondPage: AuditEvent[] = [{ ...EVENT_B, id: "p2-0", actorEmail: "next@farm.test" }];
     mockListAuditEvents.mockResolvedValueOnce(firstPage).mockResolvedValueOnce(secondPage);
-    render(<AuditPage />);
+    renderAudit();
 
     const loadMore = await screen.findByRole("button", { name: "load more" });
     await act(async () => {
@@ -239,16 +251,40 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
 
   it("reads the heading from the audit catalog, not a hardcoded literal", async () => {
     await withOverride("audit", "heading", "HEADING-MARKER", async () => {
-      render(<AuditPage />);
+      renderAudit();
       await screen.findByText("No audit events yet."); // let the mount load settle
       expect(screen.getByRole("heading", { name: "HEADING-MARKER" })).toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Audit log" })).not.toBeInTheDocument();
     });
   });
 
+  // #493 — entity-scoped heading. entityType is interpolated via
+  // entityTypeLabel(), not literal English, so the marker must carry the
+  // {{entityType}} placeholder through to prove interpolation still works
+  // under the overridden template, not just that SOME text renders.
+  it("reads the scoped heading from the audit catalog, not a hardcoded literal", async () => {
+    await withOverride("audit", "scopedHeading", "SCOPED-MARKER {{entityType}}", async () => {
+      mockListAuditEvents.mockResolvedValue([
+        { ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID },
+      ]);
+      renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+      expect(await screen.findByRole("heading", { name: "SCOPED-MARKER Flock" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Flock history" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("reads the scoped-heading fallback from the audit catalog, not a hardcoded literal", async () => {
+    await withOverride("audit", "scopedHeadingFallback", "FALLBACK-MARKER", async () => {
+      mockListAuditEvents.mockResolvedValue([]);
+      renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+      expect(await screen.findByRole("heading", { name: "FALLBACK-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Record history" })).not.toBeInTheDocument();
+    });
+  });
+
   it("reads the intro prose from the audit catalog, not a hardcoded literal", async () => {
     await withOverride("audit", "intro", "INTRO-MARKER", async () => {
-      render(<AuditPage />);
+      renderAudit();
       await screen.findByText("No audit events yet.");
       expect(screen.getByText("INTRO-MARKER")).toBeInTheDocument();
       expect(screen.queryByText(/Every corrective, destructive/)).not.toBeInTheDocument();
@@ -257,7 +293,7 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
 
   it("reads the action filter label from the audit catalog, not a hardcoded literal", async () => {
     await withOverride("audit", "actionFilterLabel", "FILTER-LABEL-MARKER", async () => {
-      render(<AuditPage />);
+      renderAudit();
       await screen.findByText("No audit events yet.");
       // `<label>{t(...)}<select>…</select></label>` — getByLabelText matches
       // the label's own text only (excluding the wrapped select's rendered
@@ -268,7 +304,7 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
 
   it("reads the 'All actions' option from the audit catalog, not a hardcoded literal", async () => {
     await withOverride("audit", "allActionsOption", "ALL-ACTIONS-MARKER", async () => {
-      render(<AuditPage />);
+      renderAudit();
       await screen.findByText("No audit events yet.");
       expect(screen.getByRole("option", { name: "ALL-ACTIONS-MARKER" })).toBeInTheDocument();
       expect(screen.queryByRole("option", { name: "All actions" })).not.toBeInTheDocument();
@@ -294,7 +330,7 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
         // runs between `it()` blocks, not between loop iterations) — without
         // it, a prior iteration's un-overridden headers would stay in the
         // DOM and falsely satisfy/defeat the next iteration's queries.
-        const { unmount } = render(<AuditPage />);
+        const { unmount } = renderAudit();
         await screen.findByRole("row", { name: /admin@farm\.test/ });
         expect(screen.getByRole("columnheader", { name: marker })).toBeInTheDocument();
         expect(screen.queryByRole("columnheader", { name: original })).not.toBeInTheDocument();
@@ -305,7 +341,7 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
 
   it("reads the empty-state message from the audit catalog, not a hardcoded literal", async () => {
     await withOverride("audit", "emptyMessage", "EMPTY-MARKER", async () => {
-      render(<AuditPage />);
+      renderAudit();
       expect(await screen.findByText("EMPTY-MARKER")).toBeInTheDocument();
       expect(screen.queryByText("No audit events yet.")).not.toBeInTheDocument();
     });
@@ -317,7 +353,7 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
     }));
     mockListAuditEvents.mockResolvedValue(firstPage);
     await withOverride("audit", "loadMoreButton", "LOAD-MORE-MARKER", async () => {
-      render(<AuditPage />);
+      renderAudit();
       expect(await screen.findByRole("button", { name: "LOAD-MORE-MARKER" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
     });
@@ -328,7 +364,7 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
   it("reads the action cell from the enums catalog via auditActionLabel, not the raw wire code", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_A]); // action: "Flock.Deplete"
     await withOverride("enums", "auditAction.Flock.Deplete", "ACTION-LABEL-MARKER", async () => {
-      render(<AuditPage />);
+      renderAudit();
       const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
       expect(within(row).getByText("ACTION-LABEL-MARKER")).toBeInTheDocument();
       expect(within(row).queryByText("Flock depleted")).not.toBeInTheDocument();
@@ -343,7 +379,7 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
   // "simplified" the option to `{a}` for both.
   it("reads the filter option text from the enums catalog while its value stays the raw code", async () => {
     await withOverride("enums", "auditAction.User.Update", "OPTION-LABEL-MARKER", async () => {
-      render(<AuditPage />);
+      renderAudit();
       await screen.findByText("No audit events yet.");
       const option = screen.getByRole("option", { name: "OPTION-LABEL-MARKER" }) as HTMLOptionElement;
       expect(option.value).toBe("User.Update");
@@ -359,10 +395,85 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
   it("reads the entity cell from the enums catalog via entityTypeLabel, not the raw wire value", async () => {
     mockListAuditEvents.mockResolvedValue([EVENT_B]); // entityType: "User", entityId: "u9abcdef-0000"
     await withOverride("enums", "entityType.User", "ENTITY-LABEL-MARKER", async () => {
-      render(<AuditPage />);
+      renderAudit();
       const row = await screen.findByRole("row", { name: /manager@farm\.test/ });
       expect(within(row).getByText("ENTITY-LABEL-MARKER u9abcdef")).toBeInTheDocument();
       expect(within(row).queryByText("User u9abcdef")).not.toBeInTheDocument();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Entity-scoped mode (#493, Slice 1)
+// ---------------------------------------------------------------------------
+
+// A real canonical GUID, distinct from the fixture events' short ids above
+// (which are fine for display but would fail isLikelyGuid as a route param).
+const SCOPED_ENTITY_ID = "f1234567-89ab-4cde-8f01-234567890abc";
+
+describe("AuditPage entity-scoped mode (#493)", () => {
+  it("passes entityId to listAuditEvents when present in the URL", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+    await screen.findByText("No audit events yet.");
+    expect(mockListAuditEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ entityId: SCOPED_ENTITY_ID }),
+    );
+  });
+
+  it("renders a scoped heading naming the entity type once the first page has loaded", async () => {
+    mockListAuditEvents.mockResolvedValue([
+      { ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID },
+    ]);
+    renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+    expect(await screen.findByRole("heading", { name: "Flock history" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Audit log" })).not.toBeInTheDocument();
+  });
+
+  it("falls back to the generic 'Record history' heading when entityId is present but zero rows return", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+    expect(await screen.findByRole("heading", { name: "Record history" })).toBeInTheDocument();
+  });
+
+  it("treats a malformed entityId as absent: does not call listAuditEvents with it, renders the unscoped view", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit("/audit?entityId=not-a-guid");
+    await screen.findByText("No audit events yet.");
+    // Not objectContaining({ entityId: undefined }) — that matches whether the
+    // key is explicitly undefined OR simply absent, so it can't actually prove
+    // the malformed value was dropped rather than just never checked. Read the
+    // real call args directly instead (review round 1 finding).
+    const lastCall = mockListAuditEvents.mock.calls.at(-1)?.[0];
+    expect(lastCall?.entityId).toBeUndefined();
+    expect(screen.getByRole("heading", { name: "Audit log" })).toBeInTheDocument();
+  });
+
+  it("preserves entityId in the URL when the action filter changes while scoped (updateActionFilter merge)", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+    await screen.findByText("No audit events yet.");
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "Flock.Deplete" } });
+    });
+
+    expect(mockListAuditEvents).toHaveBeenLastCalledWith(
+      expect.objectContaining({ action: "Flock.Deplete", entityId: SCOPED_ENTITY_ID }),
+    );
+  });
+
+  it("carries only the action filter (no stray entityId) when changed from the unscoped view", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit("/audit");
+    await screen.findByText("No audit events yet.");
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "Flock.Deplete" } });
+    });
+
+    expect(mockListAuditEvents).toHaveBeenLastCalledWith(
+      expect.objectContaining({ action: "Flock.Deplete", entityId: undefined }),
+    );
   });
 });

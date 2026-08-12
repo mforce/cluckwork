@@ -14,6 +14,7 @@ export const tl = {
     "recordHistory.lastChangedBy": "Huling binago ni {{email}} noong {{at}}",
     "recordHistory.submittedAt": "Naisumite noong {{at}}",
     "recordHistory.confirmedAt": "Nakumpirma noong {{at}}",
+    "recordHistory.viewHistoryLink": "Kasaysayan ng audit",
     recordHistoryHeader: "Kasaysayan",
     cancel: "Kanselahin",
     save: "I-save",
@@ -1491,6 +1492,8 @@ export const tl = {
       "Bawat corrective, destructive, o configuration na pagbabago — sino "
       + "ang gumawa, kailan, at bakit. Isinusulat ang mga row kasabay ng "
       + "pagbabago mismo at hindi na ito ine-edit pa.",
+    scopedHeading: "Kasaysayan ng {{entityType}}",
+    scopedHeadingFallback: "Kasaysayan ng record",
     actionFilterLabel: "Aksyon",
     allActionsOption: "Lahat ng aksyon",
     whenHeader: "Kailan (UTC)",

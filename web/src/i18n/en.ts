@@ -13,6 +13,11 @@ export const en = {
     // case is excluded from "last changed by" and the instant would be lost.
     "recordHistory.submittedAt": "Submitted {{at}}",
     "recordHistory.confirmedAt": "Confirmed {{at}}",
+    // #493 — the per-row link to this record's full audit trail (AuditPage,
+    // entity-scoped). Deliberately not "History": StockPage already has a
+    // "History" toggle for the inventory movement ledger on the same row, a
+    // different trail, and the two must not read as the same affordance.
+    "recordHistory.viewHistoryLink": "Audit history",
     recordHistoryHeader: "History",
     cancel: "Cancel",
     save: "Save",
@@ -1820,6 +1825,16 @@ export const en = {
       "Every corrective, destructive, or configuration change — who did it, "
       + "when, and why. Rows are written with the change itself and never "
       + "edited.",
+    // #493 — entity-scoped mode (AuditPage read with ?entityId=), reached
+    // from a record's own screen via recordHistory.viewHistoryLink. Shown
+    // instead of `heading` once the first scoped page has loaded; the
+    // entityType comes from the first response row's own entityType field,
+    // never from the URL (Gate 2 — no unvalidated display-only param).
+    scopedHeading: "{{entityType}} history",
+    // Shown instead of scopedHeading before the first scoped page has
+    // loaded, or if the entity has zero audit events — deliberately not
+    // distinguishing those two cases (Gate 3).
+    scopedHeadingFallback: "Record history",
     actionFilterLabel: "Action",
     allActionsOption: "All actions",
     whenHeader: "When (UTC)",

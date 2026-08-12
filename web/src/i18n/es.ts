@@ -9,6 +9,7 @@ export const es = {
     "recordHistory.lastChangedBy": "Última modificación por {{email}} el {{at}}",
     "recordHistory.submittedAt": "Enviado el {{at}}",
     "recordHistory.confirmedAt": "Confirmado el {{at}}",
+    "recordHistory.viewHistoryLink": "Historial de auditoría",
     recordHistoryHeader: "Historial",
     cancel: "Cancelar",
     save: "Guardar",
@@ -1438,6 +1439,8 @@ export const es = {
       "Todo cambio correctivo, destructivo o de configuración — quién lo "
       + "hizo, cuándo y por qué. Las filas se escriben junto con el cambio "
       + "mismo y nunca se editan.",
+    scopedHeading: "Historial de {{entityType}}",
+    scopedHeadingFallback: "Historial del registro",
     actionFilterLabel: "Acción",
     allActionsOption: "Todas las acciones",
     whenHeader: "Cuándo (UTC)",
