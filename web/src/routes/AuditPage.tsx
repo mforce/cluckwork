@@ -22,6 +22,46 @@ function isLikelyGuid(value: string): boolean {
   return GUID_PATTERN.test(value);
 }
 
+// #493 — pure, extracted deliberately (review round 1): usePagedList's
+// identity-change reload is asynchronous — `fetchPage`'s identity (and so
+// `entityId`) already reflects the NEW scope on the render where a
+// navigation lands, but `reloading` only flips true inside a useEffect that
+// runs AFTER that render commits. Trusting `reloading` alone missed that one
+// render: `rows` can still hold the PREVIOUS entity's data while `entityId`
+// already names the new one. Fixed for the case that matters — rows is
+// non-empty and belongs to the wrong entity, so the heading/table would
+// otherwise show genuinely wrong data for as long as the new fetch takes.
+//
+// Known, accepted gap (review round 2): if the STALE rows are `[]` (the old
+// scope's own empty result), there's no row left to compare against, so
+// this returns "not stale" for that one render — a scoped empty-message can
+// flash under a blank heading before the new fetch lands. Narrower and far
+// less severe than the bug above: it self-corrects on the very next render
+// once `reloading` flips true, rather than persisting for the fetch's full
+// duration. A fully general fix needs a ref tracking whether a fetch cycle
+// has been OBSERVED for the current entityId (independent of row content),
+// which would cost this function its purity — not taken for a single-frame
+// residual.
+//
+// A component-level RTL test with a synchronously-resolving mock can't
+// observe the fixed race at all — fireEvent's own act() flushes the passive
+// effect that sets `reloading` before any assertion runs, so `reloading`
+// and the new rows land in the same flush the test sees. (A test built with
+// fake timers or a genuinely delayed mock could observe it through the
+// component; this is why the test suite proves the fix via direct unit
+// tests of this function instead, not a claim that the race is impossible
+// to reproduce through the DOM by any means.)
+export function isScopedDataStale(
+  entityId: string | undefined,
+  reloading: boolean,
+  rows: { entityId: string }[] | null,
+): boolean {
+  if (reloading) return true;
+  if (entityId === undefined) return false;
+  if (rows === null || rows.length === 0) return false;
+  return rows[0].entityId !== entityId;
+}
+
 // #93 — read-only audit trail (admin). Deliberately no mutation surface: the
 // rows are written by the server inside the transactions they record.
 //
@@ -62,13 +102,13 @@ export function AuditPage() {
     pageSize: PAGE,
   });
 
-  // #493, Slice 2 — gated on !events.reloading: usePagedList leaves the
-  // previous window's rows in place until the new page lands ("the rows
-  // stay put for the duration" — usePagedList.ts's own comment), so reading
-  // rows[0] during a reload (an action-filter change, or switching to a
-  // different record's link) would show the PREVIOUS entity's type. The
-  // table below already gates on the same condition for the same reason.
-  const scopedEntityType = entityId && !events.reloading
+  // #493 — see isScopedDataStale's own comment (codex review of #516): this
+  // catches the render where entityId already names a new scope but
+  // usePagedList's rows/reloading haven't caught up yet, which the
+  // heading/table below both depend on.
+  const isScopedReloading = isScopedDataStale(entityId, events.reloading, events.rows);
+
+  const scopedEntityType = entityId && !isScopedReloading
     ? events.rows?.[0]?.entityType
     : undefined;
 
@@ -99,8 +139,11 @@ export function AuditPage() {
       {/* Blanked while a filter reload is in flight, not just on first load:
           the previous filter's rows under the new filter's control are
           mislabeled even for the second the request takes (#94). Only this
-          table is gated, so the filter itself stays usable throughout. */}
-      {events.rows === null || events.reloading ? (
+          table is gated, so the filter itself stays usable throughout.
+          isScopedReloading, not events.reloading, so the stale-scope window
+          above is caught here too — otherwise this branch would render the
+          PREVIOUS entity's rows for one render (codex review of #516). */}
+      {events.rows === null || isScopedReloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : events.rows.length === 0 ? (
         // #493, Slice 2 — a scoped view with no events reads as "the whole

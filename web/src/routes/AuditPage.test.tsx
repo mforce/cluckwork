@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, act, fireEvent } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes } from "react-router";
-import { AuditPage } from "./AuditPage";
+import { AuditPage, isScopedDataStale } from "./AuditPage";
 import { listAuditEvents } from "../api/cluckwork";
 import type { AuditEvent } from "../api/cluckwork";
 import i18n from "../i18n";
@@ -618,5 +618,56 @@ describe("AuditPage Flow A' — switching records without leaving /audit (#493)"
     expect(mockListAuditEvents).toHaveBeenLastCalledWith(
       expect.objectContaining({ entityId: OTHER_ENTITY_ID }),
     );
+  });
+
+});
+
+// codex review of #516 — the bug the Flow A' tests above can't see.
+// usePagedList's `reloading` only flips true inside a useEffect that runs
+// AFTER a render commits, but `entityId` already names the new scope on
+// THAT SAME render — so trusting `reloading` alone missed a one-render
+// window where rows still hold the previous entity's data. A component
+// test can't reliably observe that exact window: RTL's fireEvent wraps the
+// click in a synchronous act() that flushes passive effects before any
+// assertion runs (confirmed by mutation: a version of this test that
+// awaited the click and checked the DOM afterward passed even with the fix
+// reverted — it wasn't observing the race at all). Testing the extracted
+// pure function directly sidesteps the timing question entirely.
+describe("isScopedDataStale (#493)", () => {
+  it("is stale whenever reloading, regardless of entityId or rows", () => {
+    expect(isScopedDataStale(SCOPED_ENTITY_ID, true, null)).toBe(true);
+    expect(isScopedDataStale(SCOPED_ENTITY_ID, true, [{ entityId: SCOPED_ENTITY_ID }])).toBe(true);
+    expect(isScopedDataStale(undefined, true, null)).toBe(true);
+  });
+
+  it("is never stale when unscoped (entityId undefined), even with mismatched rows", () => {
+    expect(isScopedDataStale(undefined, false, [{ entityId: SCOPED_ENTITY_ID }])).toBe(false);
+    expect(isScopedDataStale(undefined, false, null)).toBe(false);
+  });
+
+  it("is not stale when rows haven't loaded yet (null)", () => {
+    expect(isScopedDataStale(SCOPED_ENTITY_ID, false, null)).toBe(false);
+  });
+
+  // Known, accepted gap (review round 2, documented on isScopedDataStale
+  // itself): an empty array has no row to compare against, so a STALE empty
+  // page from the previous scope also reads as "not stale" here — not
+  // distinguishable, from this function's inputs alone, from the current
+  // scope's own genuinely-empty result. Narrower and self-correcting within
+  // one render, unlike the non-empty case above; pinning this as the
+  // function's actual, deliberate contract rather than leaving it
+  // unexamined.
+  it("is not stale for an empty array, even though that can be a stale empty page from the PREVIOUS scope (known gap)", () => {
+    expect(isScopedDataStale(SCOPED_ENTITY_ID, false, [])).toBe(false);
+  });
+
+  it("is not stale when the loaded row's entityId matches the current scope", () => {
+    expect(isScopedDataStale(SCOPED_ENTITY_ID, false, [{ entityId: SCOPED_ENTITY_ID }])).toBe(false);
+  });
+
+  // The exact bug: entityId already changed, reloading hasn't caught up,
+  // rows still belong to the OLD scope.
+  it("IS stale when reloading is false but the loaded row belongs to a different entity", () => {
+    expect(isScopedDataStale(OTHER_ENTITY_ID, false, [{ entityId: SCOPED_ENTITY_ID }])).toBe(true);
   });
 });
