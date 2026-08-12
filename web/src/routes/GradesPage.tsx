@@ -270,10 +270,14 @@ export function GradesPage() {
               <ProvenanceCell history={g} />
               <td>
                 {/* #493 — full audit trail for this record, distinct from
-                    the created/last-changed summary in ProvenanceCell. */}
-                <Link className="link" to={`/audit?entityId=${g.id}`}>
-                  {tc("recordHistory.viewHistoryLink")}
-                </Link>
+                    the created/last-changed summary in ProvenanceCell.
+                    Admin-gated: /api/v1/audit is AdminOnly (codex review of
+                    #516). */}
+                {isAdmin && (
+                  <Link className="link" to={`/audit?entityId=${g.id}`}>
+                    {tc("recordHistory.viewHistoryLink")}
+                  </Link>
+                )}
                 {isAdmin && (
                   <>
                     {/* Opens the edit dialog — non-mutating, so the spinner

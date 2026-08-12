@@ -688,10 +688,15 @@ export function HistoryPage() {
                   <ProvenanceCell history={e} official="submitted" />
                   <td>
                     {/* #493 — full audit trail for this record, distinct from
-                        the created/last-changed summary in ProvenanceCell. */}
-                    <Link className="link" to={`/audit?entityId=${e.id}`}>
-                      {tc("recordHistory.viewHistoryLink")}
-                    </Link>
+                        the created/last-changed summary in ProvenanceCell.
+                        Admin-gated: /api/v1/audit is AdminOnly, and this
+                        screen is open to workers too (codex review of
+                        #516). */}
+                    {isAdmin && (
+                      <Link className="link" to={`/audit?entityId=${e.id}`}>
+                        {tc("recordHistory.viewHistoryLink")}
+                      </Link>
+                    )}
                     {/* Drafts are edited on the Daily entry screen (#85) —
                         open to workers too; adjust/void stay admin-only. */}
                     {e.status === "Draft" && flockEditable(e.flockId) && (

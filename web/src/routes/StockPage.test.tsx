@@ -1392,4 +1392,16 @@ describe("StockPage audit history link (#493)", () => {
     expect(within(lotRow).getByRole("link", { name: "Audit history" }))
       .toHaveAttribute("href", "/audit?entityId=lot1");
   });
+
+  // codex review of #516 — /api/v1/audit is AdminOnly; this screen is
+  // readable by non-admins too, who would otherwise hit a 403.
+  it("hides the link from a non-admin", async () => {
+    mockGetStock.mockResolvedValue(ROWS);
+    mockListEggLots.mockResolvedValue(LOTS);
+    render(<StockPage />, WORKER);
+    await screen.findByText("Grade A");
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+    expect(within(lotRow).queryByRole("link", { name: "Audit history" })).not.toBeInTheDocument();
+  });
 });

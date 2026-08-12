@@ -366,10 +366,15 @@ export function FlocksPage() {
                 <ProvenanceCell history={f} />
                 <td>
                   {/* #493 — full audit trail for this record, distinct from
-                      the created/last-changed summary in ProvenanceCell. */}
-                  <Link className="link" to={`/audit?entityId=${f.id}`}>
-                    {tc("recordHistory.viewHistoryLink")}
-                  </Link>
+                      the created/last-changed summary in ProvenanceCell.
+                      Admin-gated: /api/v1/audit is AdminOnly, so a non-admin
+                      following this link would only reach a 403 (codex
+                      review of #516). */}
+                  {isAdmin && (
+                    <Link className="link" to={`/audit?entityId=${f.id}`}>
+                      {tc("recordHistory.viewHistoryLink")}
+                    </Link>
+                  )}
                   <button className="link" disabled={busy}
                     onClick={() => void openLedger(f.id)}>
                     {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}

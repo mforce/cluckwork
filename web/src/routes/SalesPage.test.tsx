@@ -965,6 +965,15 @@ describe("SalesPage audit history link (#493)", () => {
     expect(within(row).getByRole("link", { name: "Audit history" }))
       .toHaveAttribute("href", "/audit?entityId=o2");
   });
+
+  // codex review of #516 — /api/v1/audit is AdminOnly; the Sales role (which
+  // can view and settle orders here) would otherwise hit a 403.
+  it("hides the link from a non-admin", async () => {
+    mockListOrders.mockResolvedValue([DRAFT_TWO]);
+    renderWithProviders(<SalesPage />, { token: { sub: "u1", role: "Sales" } });
+    await screen.findByRole("row", { name: /SO-2/ });
+    expect(screen.queryByRole("link", { name: "Audit history" })).not.toBeInTheDocument();
+  });
 });
 
 describe("SalesPage list failures (#469)", () => {

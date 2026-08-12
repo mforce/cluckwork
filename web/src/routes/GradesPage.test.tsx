@@ -103,6 +103,18 @@ describe("GradesPage audit history link (#493)", () => {
     expect(within(row).getByRole("link", { name: "Audit history" }))
       .toHaveAttribute("href", "/audit?entityId=g1");
   });
+
+  // codex review of #516 — /api/v1/audit is AdminOnly; this screen is
+  // nav-hidden for non-admins, but the link must still not appear for a
+  // worker who reaches it directly, or it only leads to a 403.
+  it("hides the link from a non-admin", async () => {
+    await renderReady(WORKER);
+    // Proves the row rendered — otherwise "the link is absent" is true for
+    // the wrong reason (review round 1 finding: a vacuous pass looks
+    // identical to a real gate).
+    const row = screen.getByRole("row", { name: /Grade A/ });
+    expect(within(row).queryByRole("link", { name: "Audit history" })).not.toBeInTheDocument();
+  });
 });
 
 describe("GradesPage admin actions", () => {

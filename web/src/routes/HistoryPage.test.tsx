@@ -118,6 +118,15 @@ describe("HistoryPage audit history link (#493)", () => {
     expect(within(row).getByRole("link", { name: "Audit history" }))
       .toHaveAttribute("href", "/audit?entityId=de1");
   });
+
+  // codex review of #516 — /api/v1/audit is AdminOnly; this screen is open
+  // to workers too, who would otherwise hit a 403.
+  it("hides the link from a non-admin", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    renderWithProviders(<HistoryPage />, { token: { sub: "u1" } });
+    await screen.findByRole("row", { name: /2026-07-19/ });
+    expect(screen.queryByRole("link", { name: "Audit history" })).not.toBeInTheDocument();
+  });
 });
 
 describe("HistoryPage condition column", () => {

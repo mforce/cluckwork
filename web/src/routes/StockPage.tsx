@@ -554,9 +554,14 @@ export function StockPage() {
                               affordances on the same row on purpose — kept
                               visibly separate by label so they don't read as
                               the same thing. */}
-                          <Link className="link" to={`/audit?entityId=${l.id}`}>
-                            {tc("recordHistory.viewHistoryLink")}
-                          </Link>
+                          {/* Admin-gated: /api/v1/audit is AdminOnly, and
+                              this screen is readable by non-admins too
+                              (codex review of #516). */}
+                          {isAdmin && (
+                            <Link className="link" to={`/audit?entityId=${l.id}`}>
+                              {tc("recordHistory.viewHistoryLink")}
+                            </Link>
+                          )}
                           <button className="link" onClick={() => void toggleLot(l.id)}>
                             {openLot === l.id ? t("hideHistoryButton") : t("historyButton")}
                           </button>

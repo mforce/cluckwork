@@ -591,6 +591,17 @@ describe("FlocksPage audit history link (#493)", () => {
     expect(within(depletedRow).getByRole("link", { name: "Audit history" }))
       .toHaveAttribute("href", "/audit?entityId=f2");
   });
+
+  // codex review of #516 — a worker can view Flocks but /api/v1/audit is
+  // AdminOnly; an ungated link would only lead to a 403.
+  it("hides the link from a non-admin", async () => {
+    await renderReady(WORKER, [ACTIVE]);
+    // Proves the row rendered — otherwise "the link is absent" is true for
+    // the wrong reason (review round 1 finding: a vacuous pass looks
+    // identical to a real gate).
+    const row = screen.getByRole("row", { name: /Hen House 1/ });
+    expect(within(row).queryByRole("link", { name: "Audit history" })).not.toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------

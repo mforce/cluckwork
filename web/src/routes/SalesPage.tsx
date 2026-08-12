@@ -934,10 +934,15 @@ export function SalesPage() {
                   <td>
                     <button className="link" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</button>
                     {/* #493 — full audit trail for this record, distinct from
-                        the created/last-changed summary in ProvenanceCell. */}
-                    <Link className="link" to={`/audit?entityId=${o.id}`}>
-                      {tc("recordHistory.viewHistoryLink")}
-                    </Link>
+                        the created/last-changed summary in ProvenanceCell.
+                        Admin-gated: /api/v1/audit is AdminOnly, so the Sales
+                        role (which can settle orders here) would otherwise
+                        hit a 403 (codex review of #516). */}
+                    {isAdmin && (
+                      <Link className="link" to={`/audit?entityId=${o.id}`}>
+                        {tc("recordHistory.viewHistoryLink")}
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}
