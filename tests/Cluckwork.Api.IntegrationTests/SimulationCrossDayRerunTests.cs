@@ -463,7 +463,7 @@ public sealed class SimulationDisabledOwnerTests(SimulationMutableClockFactory f
     : IClassFixture<SimulationMutableClockFactory>
 {
     [Fact]
-    public async Task SimulationSeed_WithTheOnlyOwnerDisabled_FailsClosedAndDoesNotSayBootstrapAdmin()
+    public async Task SimulationSeed_WithTheOnlyOwnerDisabled_FailsClosedNamingAFollowableRepair()
     {
         // The factory provisions its Owner in InitializeAsync; disable it, so
         // the account holds an Owner ROLE ROW and no usable Owner.
@@ -481,10 +481,12 @@ public sealed class SimulationDisabledOwnerTests(SimulationMutableClockFactory f
         Assert.Equal(SeedStatus.PrerequisitesMissing, result.Status);
         Assert.Contains("DISABLED", result.Message);
 
-        // And it must NOT send the operator to `bootstrap-admin`, which counts
-        // Owner role rows without checking DisabledAt: it would report "already
-        // provisioned", exit 0, and land them back on this same error.
-        Assert.Contains("will NOT fix this", result.Message);
+        // And the remedy must be one that can actually be followed from here.
+        // Neither `bootstrap-admin` (no-ops on the retained Owner role row) nor
+        // the Users screen (OwnerOnly, and the only Owner is the disabled one)
+        // can be reached, so the message has to name direct database repair.
+        Assert.Contains("no in-product repair", result.Message);
+        Assert.Contains("directly in the database", result.Message);
 
         // Fails closed: nothing seeded before refusing.
         using var check = factory.Services.CreateScope();

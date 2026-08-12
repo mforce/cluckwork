@@ -97,10 +97,12 @@ public sealed class DemoDataSeeder(
             // is the second place it bites.
             var message = disabledOwners > 0
                 ? "Demo seed prerequisites missing: the default account's Owner role is held only by DISABLED " +
-                  "user(s), so the seeded records would be signed by an account that cannot log in — nobody " +
-                  "could view the fixture they supposedly created. `bootstrap-admin` will NOT fix this: it " +
-                  "counts Owner role rows without checking DisabledAt, so it reports 'already provisioned' and " +
-                  "does nothing. Re-enable the Owner from the Users screen, then re-run `seed --profile demo`."
+                  "user(s), so the seeded records would be signed by an account that cannot log in. There is " +
+                  "no in-product repair for this state today, so do not go looking for one: `bootstrap-admin` " +
+                  "counts Owner role rows without checking DisabledAt and reports 'already provisioned'; " +
+                  "`recover-admin` refuses a disabled target; and the Users screen that could re-enable them " +
+                  "is Owner-only, which nobody can now reach. Clear DisabledAt for that user directly in the " +
+                  "database, then re-run `seed --profile demo`."
                 : "Demo seed prerequisites missing: the default account has no user in the Owner role, so the " +
                   "seeded records would have no author. Run `dotnet Cluckwork.Api.dll bootstrap-admin --email " +
                   "<e>` against this database, then re-run `seed --profile demo`.";

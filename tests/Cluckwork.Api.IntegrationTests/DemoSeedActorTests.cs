@@ -208,14 +208,20 @@ public sealed class DemoSeedOnlyDisabledOwnerTests(DemoSeedOnlyDisabledOwnerFact
 
         Assert.Equal(SeedStatus.PrerequisitesMissing, result.Status);
 
-        // The message must name the remedy that actually WORKS for this cause.
-        // `bootstrap-admin` counts Owner role rows without checking DisabledAt,
-        // so it reports "already provisioned" and exits 0 having done nothing —
-        // sending an operator who follows it straight back to this same error.
-        // Asserting only "it failed" would have shipped that loop.
+        // The message must name a remedy that can ACTUALLY BE FOLLOWED from
+        // this state, which took two rounds to get right:
+        //
+        //   * "run bootstrap-admin" is a loop — it counts Owner role rows
+        //     without checking DisabledAt, so it says "already provisioned",
+        //     exits 0, and lands the operator back on this same error;
+        //   * "re-enable them from the Users screen" is unreachable — that group
+        //     is OwnerOnly, and the only Owner is the disabled one.
+        //
+        // So the only true answer today is direct database repair, and the
+        // message has to say so rather than inventing a friendlier one.
         Assert.Contains("DISABLED", result.Message);
-        Assert.Contains("will NOT fix this", result.Message);
-        Assert.Contains("Re-enable the Owner", result.Message);
+        Assert.Contains("no in-product repair", result.Message);
+        Assert.Contains("directly in the database", result.Message);
 
         // The message alone would pass for a seeder that had already written
         // half a farm before refusing.

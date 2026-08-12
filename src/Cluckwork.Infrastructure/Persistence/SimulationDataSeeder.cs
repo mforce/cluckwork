@@ -211,9 +211,11 @@ public sealed class SimulationDataSeeder(
                 // without checking DisabledAt and exits 0 having done nothing.
                 var prereqMessage = disabledOwners > 0
                     ? "Simulation seed prerequisites missing: the default account's Owner role is held only by " +
-                      "DISABLED user(s), so the fixture would be signed by an account that cannot log in. " +
-                      "`bootstrap-admin` will NOT fix this — it reports 'already provisioned' and does nothing. " +
-                      "Re-enable the Owner from the Users screen, then re-run `seed --profile simulation`."
+                      "DISABLED user(s), so the fixture would be signed by an account that cannot log in. There " +
+                      "is no in-product repair for this state today: `bootstrap-admin` reports 'already " +
+                      "provisioned', `recover-admin` refuses a disabled target, and the Users screen that could " +
+                      "re-enable them is Owner-only, which nobody can now reach. Clear DisabledAt for that user " +
+                      "directly in the database, then re-run `seed --profile simulation`."
                     : "Simulation seed prerequisites missing: the base data (default account, Admin role, " +
                       "the saleable Large/Medium/Small egg grades, and an enabled admin in the Owner role) is not " +
                       "fully present. The account/role/grades ship with the EF migrations (#283); the Owner " +
