@@ -1843,6 +1843,7 @@ export const en = {
     entityHeader: "Entity",
     reasonHeader: "Reason",
     emptyMessage: "No audit events yet.",
+    scopedEmptyMessage: "No audit events for this record yet.",
     loadMoreButton: "load more",
   },
   // Task 30 (B5, #182) — ExportPage: the manual-backup screen (#95,

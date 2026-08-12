@@ -44,7 +44,7 @@ Checked and pushed back on (not acted on, with evidence):
 
 ## Slices
 - [x] Slice 1 — tracer bullet: URL-as-source-of-truth mechanics + FlocksPage link (naive heading, no reloading gate yet) — DONE 2026-08-11. `AuditPage.tsx`, `FlocksPage.tsx`, i18n (en/es/tl), tests. 1745/1745 web tests pass, typecheck clean.
-- [ ] Slice 2 — harden the scoped view: reloading gate on the heading, entity column hiding, scoped empty message
+- [x] Slice 2 — harden the scoped view: reloading gate on the heading, entity column hiding, scoped empty message — DONE 2026-08-12. 2 pi review rounds, stopped (2 consecutive no-product-defect). 1752/1752 web tests pass.
 - [ ] Slice 3 — remaining links: Grades/Sales/Expenses/HistoryPage (mechanical) + StockPage (distinct label + behavior test)
 - [ ] Slice 4 — Flow A′ test: switching to a different record's history while already on /audit
 - [ ] Slice 5 — backend metric: Program.cs enrichment + RequestLoggingTests.cs
@@ -113,3 +113,13 @@ Round 1 (`pi-review-slice1-round1.txt`, scratchpad): 7 claims. 5 verified false 
 Round 2: attempted twice, both times the remote pi endpoint (vllm) was unresponsive — even a trivial "PONG" ping timed out at 60s. Infra failure, not a completed zero-finding review, so it does **not** count toward the 2-consecutive-zero-yield stop rule. Round 2 will be retried at a later slice boundary if the service recovers; not blocking Slice 2.
 
 Verification after round 1 fixes: 1748/1748 web tests pass, typecheck clean.
+
+## Slice 2 code review (2 rounds, stopped — 2 consecutive rounds with no confirmed product defect)
+
+Round 1 (`pi-review-slice2-round1.txt`): long, mostly self-contradicting (pi narrated "let me check the JSX" despite having no tool access, then argued itself in circles before agreeing its own "vacuous fix" claim was false). Net: one false headline claim (the reloading gate is "vacuous" — self-retracted), one already-settled relitigation rejected (heading/empty-message showing generic together is the documented, deliberate Gate 2/3 trade-off, not new), one false claim (no unscoped-side empty-message test — an original unmodified test already covers it), one correctly-deferred item (entity-switch window untested — already Slice 4's job, not a Slice 2 gap). One real, minor finding acted on: the "hides entity column" test asserted only the column *header*, not the row's own cell — strengthened to check both.
+
+Round 2 (`pi-review-slice2-round2.txt`): one claimed "real bug" — that the empty-message branch could render during a reload, showing a contradictory "no events" message. Verified false against the actual JSX: `{cond1 ? loading : cond2 ? empty : table}` is a chained ternary — `cond2` (`rows.length === 0`) is only ever evaluated once `cond1` (`rows === null || reloading`) is already false, so the empty branch and a pending reload are structurally mutually exclusive. Basic ternary precedence, not a subtle bug.
+
+Two consecutive rounds, neither confirmed a defect in the shipped code (round 1's yield was a test-coverage nicety; round 2's yield was zero, its one claim false). Per the stop rule, loop ended here — moving to Slice 3.
+
+Verification after round 1's fix: 1752/1752 web tests pass, typecheck clean.

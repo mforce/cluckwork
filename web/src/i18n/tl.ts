@@ -1502,6 +1502,7 @@ export const tl = {
     entityHeader: "Entidad",
     reasonHeader: "Dahilan",
     emptyMessage: "Wala pang audit event.",
+    scopedEmptyMessage: "Wala pang audit event para sa record na ito.",
     loadMoreButton: "mag-load pa",
   },
 

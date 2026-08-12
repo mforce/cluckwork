@@ -62,10 +62,15 @@ export function AuditPage() {
     pageSize: PAGE,
   });
 
-  // Slice 1 (naive): does not yet gate on events.reloading, so a filter
-  // change or entity switch can transiently show the PREVIOUS entity's type
-  // while the new page loads. Hardened in Slice 2 (#493).
-  const scopedEntityType = entityId ? events.rows?.[0]?.entityType : undefined;
+  // #493, Slice 2 — gated on !events.reloading: usePagedList leaves the
+  // previous window's rows in place until the new page lands ("the rows
+  // stay put for the duration" — usePagedList.ts's own comment), so reading
+  // rows[0] during a reload (an action-filter change, or switching to a
+  // different record's link) would show the PREVIOUS entity's type. The
+  // table below already gates on the same condition for the same reason.
+  const scopedEntityType = entityId && !events.reloading
+    ? events.rows?.[0]?.entityType
+    : undefined;
 
   return (
     <section>
@@ -98,14 +103,21 @@ export function AuditPage() {
       {events.rows === null || events.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : events.rows.length === 0 ? (
-        <p className="muted">{t("emptyMessage")}</p>
+        // #493, Slice 2 — a scoped view with no events reads as "the whole
+        // log is empty" under the generic message, which is wrong: it's this
+        // record's history that's clean, not the audit trail overall.
+        <p className="muted">{entityId ? t("scopedEmptyMessage") : t("emptyMessage")}</p>
       ) : (
         <>
           <table className="data">
             <thead>
               <tr>
                 <th>{t("whenHeader")}</th><th>{t("whoHeader")}</th><th>{t("actionHeader")}</th>
-                <th>{t("entityHeader")}</th><th>{t("reasonHeader")}</th>
+                {/* #493, Slice 2 — every row in a scoped view shares the same
+                    entity; repeating it up to 100 times is noise, not a
+                    neutral no-op, so it's hidden rather than left in. */}
+                {!entityId && <th>{t("entityHeader")}</th>}
+                <th>{t("reasonHeader")}</th>
               </tr>
             </thead>
             <tbody>
@@ -114,7 +126,7 @@ export function AuditPage() {
                   <td>{e.occurredAtUtc.replace("T", " ").slice(0, 19)}</td>
                   <td>{e.actorEmail}</td>
                   <td>{auditActionLabel(e.action)}</td>
-                  <td>{entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}</td>
+                  {!entityId && <td>{entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}</td>}
                   <td>{e.reason ?? "—"}</td>
                 </tr>
               ))}

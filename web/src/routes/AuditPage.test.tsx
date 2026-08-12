@@ -282,6 +282,15 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
     });
   });
 
+  it("reads the scoped empty message from the audit catalog, not a hardcoded literal", async () => {
+    await withOverride("audit", "scopedEmptyMessage", "SCOPED-EMPTY-MARKER", async () => {
+      mockListAuditEvents.mockResolvedValue([]);
+      renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+      expect(await screen.findByText("SCOPED-EMPTY-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText("No audit events for this record yet.")).not.toBeInTheDocument();
+    });
+  });
+
   it("reads the intro prose from the audit catalog, not a hardcoded literal", async () => {
     await withOverride("audit", "intro", "INTRO-MARKER", async () => {
       renderAudit();
@@ -415,7 +424,7 @@ describe("AuditPage entity-scoped mode (#493)", () => {
   it("passes entityId to listAuditEvents when present in the URL", async () => {
     mockListAuditEvents.mockResolvedValue([]);
     renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
-    await screen.findByText("No audit events yet.");
+    await screen.findByText("No audit events for this record yet.");
     expect(mockListAuditEvents).toHaveBeenCalledWith(
       expect.objectContaining({ entityId: SCOPED_ENTITY_ID }),
     );
@@ -452,7 +461,7 @@ describe("AuditPage entity-scoped mode (#493)", () => {
   it("preserves entityId in the URL when the action filter changes while scoped (updateActionFilter merge)", async () => {
     mockListAuditEvents.mockResolvedValue([]);
     renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
-    await screen.findByText("No audit events yet.");
+    await screen.findByText("No audit events for this record yet.");
 
     await act(async () => {
       fireEvent.change(screen.getByRole("combobox"), { target: { value: "Flock.Deplete" } });
@@ -475,5 +484,61 @@ describe("AuditPage entity-scoped mode (#493)", () => {
     expect(mockListAuditEvents).toHaveBeenLastCalledWith(
       expect.objectContaining({ action: "Flock.Deplete", entityId: undefined }),
     );
+  });
+
+  // #493, Slice 2 — the bug this test exists to catch: usePagedList leaves
+  // the previous page's rows in place until the new one lands, so reading
+  // rows[0] mid-reload would show the PREVIOUS entity's type. Manually
+  // controlled (deferred) promise, not one that resolves same-tick, so the
+  // reloading=true window is actually observable to the test.
+  it("falls back to the generic heading while a reload is in flight, not the previous entity's type", async () => {
+    mockListAuditEvents.mockResolvedValueOnce([
+      { ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID },
+    ]);
+    renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+    expect(await screen.findByRole("heading", { name: "Flock history" })).toBeInTheDocument();
+
+    let resolveReload!: (events: AuditEvent[]) => void;
+    mockListAuditEvents.mockReturnValueOnce(new Promise<AuditEvent[]>((r) => (resolveReload = r)));
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "Flock.Deplete" } });
+    });
+
+    // The reload is in flight: the heading must NOT still say "Flock
+    // history" — that would be the previous page's stale entityType.
+    expect(screen.getByRole("heading", { name: "Record history" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Flock history" })).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveReload([{ ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID }]);
+    });
+    expect(await screen.findByRole("heading", { name: "Flock history" })).toBeInTheDocument();
+  });
+
+  it("hides the entity column when scoped; shows it when unscoped", async () => {
+    mockListAuditEvents.mockResolvedValue([
+      { ...EVENT_A, entityType: "Flock", entityId: SCOPED_ENTITY_ID },
+    ]);
+    const { unmount } = renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+    const scopedRow = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expect(screen.queryByRole("columnheader", { name: "Entity" })).not.toBeInTheDocument();
+    // The header and the row's own <td> are two separate gates in the JSX
+    // (review round 1 finding) — asserting only the header would miss a
+    // regression that drops the header but leaves the cell rendered.
+    expect(within(scopedRow).queryByText(/Flock f1234567/)).not.toBeInTheDocument();
+    unmount();
+
+    renderAudit("/audit");
+    const unscopedRow = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expect(screen.getByRole("columnheader", { name: "Entity" })).toBeInTheDocument();
+    expect(within(unscopedRow).getByText(/Flock f1234567/)).toBeInTheDocument();
+  });
+
+  it("shows a scoped empty message, distinct from the global one, when the record has no events", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit(`/audit?entityId=${SCOPED_ENTITY_ID}`);
+    expect(await screen.findByText("No audit events for this record yet.")).toBeInTheDocument();
+    expect(screen.queryByText("No audit events yet.")).not.toBeInTheDocument();
   });
 });

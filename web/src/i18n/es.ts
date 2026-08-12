@@ -1449,6 +1449,7 @@ export const es = {
     entityHeader: "Entidad",
     reasonHeader: "Motivo",
     emptyMessage: "Aún no hay eventos de auditoría.",
+    scopedEmptyMessage: "Aún no hay eventos de auditoría para este registro.",
     loadMoreButton: "cargar más",
   },
 
