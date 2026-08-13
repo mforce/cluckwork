@@ -2602,6 +2602,15 @@ export const en = {
       + "change is shown, so the person whose numbers went into stock is never invisible. And once they "
       + "have, your own later edits are shown too: if you put the numbers back the way you wanted them, "
       + "the column names you and the time you did it, not the edit you overwrote.",
+    // #500 — these two labels appear on a REAL farm's audit log, not just in
+    // demo data: the first Owner's creation and any break-glass password reset
+    // are performed by an offline command with no signed-in person.
+    auditSystemActors:
+      "A few entries are made by the system rather than by a person, and show a name in brackets instead of "
+      + "an email. \"(bootstrap-admin)\" is the command that created your very first owner account, before "
+      + "anyone existed to do it. \"(break-glass)\" is the emergency command that resets a password when "
+      + "everyone is locked out — that entry also records which machine it was run from and the reason given, "
+      + "so an emergency reset is never anonymous. Everything else names the person who did it.",
     auditRecordHistoryOlder:
       "Records created before this was added show no \"created by\" line — there is simply no creation "
       + "entry in the log for them, and none is invented after the fact. If such a record has been changed "

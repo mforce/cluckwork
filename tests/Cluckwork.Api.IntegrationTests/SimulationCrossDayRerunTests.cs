@@ -495,3 +495,58 @@ public sealed class SimulationDisabledOwnerTests(SimulationMutableClockFactory f
             .CountAsync(f => f.AccountId == SeedDefaults.AccountId));
     }
 }
+
+// #500 (codex round 3) — the disabled-Owner advice must be gated on there being
+// no ENABLED Owner, not merely on a disabled one existing.
+//
+// The simulation preflight fails for ANY missing base datum, and the egg grades
+// are user-renamable (#283) — so the realistic cause is a renamed grade. If the
+// account also happens to hold one disabled co-Owner beside a perfectly good
+// active one, branching on `disabledOwners > 0` alone sends the operator off to
+// edit DisabledAt columns while the actual fault is a grade name.
+public sealed class SimulationDisabledCoOwnerTests(SimulationMutableClockFactory factory)
+    : IClassFixture<SimulationMutableClockFactory>
+{
+    [Fact]
+    public async Task SimulationSeed_WithAnEnabledOwnerAndADisabledCoOwner_ReportsTheRealPrerequisite()
+    {
+        using (var scope = factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
+            if (!await roles.RoleExistsAsync(Roles.Owner))
+                await roles.CreateAsync(new ApplicationRole { Name = Roles.Owner });
+
+            // A DISABLED co-Owner beside the factory's enabled one.
+            var disabled = new ApplicationUser
+            {
+                Id = Guid.NewGuid(),
+                UserName = "disabled-co-owner@test.local",
+                Email = "disabled-co-owner@test.local",
+                AccountId = SeedDefaults.AccountId,
+                DisabledAt = DateTime.UtcNow,
+            };
+            Assert.True((await users.CreateAsync(disabled, TestHarness.Password)).Succeeded);
+            Assert.True((await users.AddToRoleAsync(disabled, Roles.Owner)).Succeeded);
+
+            // And the ACTUAL fault: a renamed grade, which the seeder consumes
+            // by name. Renaming is a supported user action, not corruption.
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var renamed = $"Renamed-{Guid.NewGuid():N}"; // unique: the name has a lower(Name) unique index
+            var affected = await db.EggGrades.IgnoreQueryFilters()
+                .Where(g => g.AccountId == SeedDefaults.AccountId && g.Name == "Large")
+                .ExecuteUpdateAsync(s => s.SetProperty(g => g.Name, renamed));
+            Assert.Equal(1, affected); // the fault this test depends on actually exists
+        }
+
+        var result = await factory.SeedOnceAsync();
+
+        Assert.Equal(SeedStatus.PrerequisitesMissing, result.Status);
+
+        // It must name the base data, NOT send the operator editing DisabledAt:
+        // an enabled Owner exists, so the disabled-only advice is simply false.
+        Assert.Contains("base data", result.Message);
+        Assert.DoesNotContain("DisabledAt", result.Message);
+        Assert.DoesNotContain("no in-product repair", result.Message);
+    }
+}

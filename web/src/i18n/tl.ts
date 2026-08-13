@@ -2259,6 +2259,13 @@ export const tl = {
       + "naglagay ng mga bilang na pumasok sa stock. At mula noon, ipinapakita na rin ang sarili mong mga "
       + "susunod na pag-edit: kung ibinalik mo ang mga bilang sa gusto mo, ikaw ang pinapangalanan ng "
       + "column at ang oras na ginawa mo iyon, hindi ang pag-edit na pinalitan mo.",
+    auditSystemActors:
+      "May ilang tala na ang gumawa ay ang sistema, hindi isang tao, at nagpapakita ng pangalan sa "
+      + "loob ng panaklong sa halip na email. Ang \"(bootstrap-admin)\" ay ang utos na gumawa ng "
+      + "iyong kauna-unahang owner account, bago pa may sinumang makagawa nito. Ang \"(break-glass)\" "
+      + "ay ang pang-emergency na utos na nagre-reset ng password kapag na-lock out ang lahat — "
+      + "itinatala rin ng entry na iyon kung saang makina ito pinatakbo at ang ibinigay na dahilan, "
+      + "kaya hindi kailanman anonimo ang isang emergency reset. Ang iba ay pinapangalanan ang taong gumawa.",
     auditRecordHistoryOlder:
       "Ang mga record na ginawa bago ito idagdag ay walang linyang \"ginawa ni\" — wala lang talagang "
       + "entry ng paggawa sa log para sa kanila, at walang iniimbentong bago pagkatapos. Kung nabago ang "

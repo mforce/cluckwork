@@ -187,3 +187,37 @@ Review ledgers: `03a`, `03b`, `03c`, `03d`.
     `sim-worker-N@` cast via the real `CreateUserHandler`.
   - No background job writes audit events today (`src/Cluckwork.Infrastructure/Jobs/`
     has no `IAuditWriter` reference), so the seeders are the only non-HTTP callers.
+
+## Post-PR review rounds (codex on #517)
+
+- **Round 1** — disabled Owners were not excluded from `FindOwnerAsync`, so a
+  fixture could be signed by an account that cannot log in. Real; fixed.
+- **Round 2**, against round 1's own fix — the message told the operator to run
+  `bootstrap-admin`, which no-ops on a retained Owner role row. An instruction
+  loop. Real; fixed.
+- **Round 3**, three findings, all real:
+  1. the message then named "re-enable from the Users screen", which is
+     `OwnerOnly` and therefore unreachable from the state that prints it;
+  2. the simulation branch keyed on `disabledOwners > 0` **without** `owner is
+     null`, so a renamed grade (a supported user action, #283) plus one disabled
+     co-Owner produced advice to go editing `DisabledAt` while the real fault was
+     the grade;
+  3. the repair named only `DisabledAt`, but `EnableUserAsync` clears
+     `DisabledBy` too — *"both columns describe ONE live fact"* — so following it
+     literally leaves stale disable metadata on an active user.
+
+**The Help-page decision was reversed, and the reasoning is worth keeping.**
+Slice 6 recorded a deliberate choice NOT to touch the SPA Help page, on the
+ground that a real farm never had `(unresolved)` rows. That reasoning considered
+only the five #494 History screens and missed the **audit log viewer**:
+`(bootstrap-admin)` and `(break-glass)` are written on a real production farm —
+the first Owner's `User.Create` and any break-glass reset — and an Owner
+browsing `/audit` sees them. So it *was* a user-visible change, and Help now
+explains both labels in en/es/tl.
+
+**Three rounds, three-for-three on real defects, and every one against the
+previous round's fix.** Each level was less obvious than the last: wrong actor →
+remedy that loops → remedy that is unreachable → advice printed for the wrong
+cause. The lesson recorded for next time: when a message is corrected twice,
+stop pinning its *wording* and pin the *property* — here, that the remedy named
+must be performable from the state that printed it.

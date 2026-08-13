@@ -101,8 +101,9 @@ public sealed class DemoDataSeeder(
                   "no in-product repair for this state today, so do not go looking for one: `bootstrap-admin` " +
                   "counts Owner role rows without checking DisabledAt and reports 'already provisioned'; " +
                   "`recover-admin` refuses a disabled target; and the Users screen that could re-enable them " +
-                  "is Owner-only, which nobody can now reach. Clear DisabledAt for that user directly in the " +
-                  "database, then re-run `seed --profile demo`."
+                  "is Owner-only, which nobody can now reach. Clear BOTH DisabledAt and DisabledBy for that " +
+                  "user directly in the database — they describe one fact, and EnableUserAsync always " +
+                  "clears them together — then re-run `seed --profile demo`."
                 : "Demo seed prerequisites missing: the default account has no user in the Owner role, so the " +
                   "seeded records would have no author. Run `dotnet Cluckwork.Api.dll bootstrap-admin --email " +
                   "<e>` against this database, then re-run `seed --profile demo`.";

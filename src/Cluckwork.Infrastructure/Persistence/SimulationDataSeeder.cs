@@ -209,13 +209,22 @@ public sealed class SimulationDataSeeder(
                 // operator whose only Owner is DISABLED at `bootstrap-admin`
                 // sends them in a circle, because it counts Owner role rows
                 // without checking DisabledAt and exits 0 having done nothing.
-                var prereqMessage = disabledOwners > 0
+                //
+                // `owner is null` is REQUIRED here, not decoration. This block is
+                // entered when ANY base prerequisite is missing — and the grades
+                // are user-renamable (#283), so the common real cause is a
+                // renamed grade, not the Owner. Branching on disabledOwners
+                // alone would tell an operator with a perfectly good enabled
+                // Owner plus one disabled co-Owner to go editing DisabledAt,
+                // while the actual fault was a grade name.
+                var prereqMessage = owner is null && disabledOwners > 0
                     ? "Simulation seed prerequisites missing: the default account's Owner role is held only by " +
                       "DISABLED user(s), so the fixture would be signed by an account that cannot log in. There " +
                       "is no in-product repair for this state today: `bootstrap-admin` reports 'already " +
                       "provisioned', `recover-admin` refuses a disabled target, and the Users screen that could " +
-                      "re-enable them is Owner-only, which nobody can now reach. Clear DisabledAt for that user " +
-                      "directly in the database, then re-run `seed --profile simulation`."
+                      "re-enable them is Owner-only, which nobody can now reach. Clear BOTH DisabledAt and " +
+                      "DisabledBy for that user directly in the database — they describe one fact and the app " +
+                      "always clears them together — then re-run `seed --profile simulation`."
                     : "Simulation seed prerequisites missing: the base data (default account, Admin role, " +
                       "the saleable Large/Medium/Small egg grades, and an enabled admin in the Owner role) is not " +
                       "fully present. The account/role/grades ship with the EF migrations (#283); the Owner " +
