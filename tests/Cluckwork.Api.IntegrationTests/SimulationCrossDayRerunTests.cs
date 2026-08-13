@@ -614,6 +614,55 @@ public sealed class SimulationBaseDataAndOwnerBothMissingTests(SimulationMutable
     }
 }
 
+// #500 (codex round 5) — a missing Owner ROLE is a third state hiding behind
+// `Owner is null`, and it must not collect `bootstrap-admin` advice.
+//
+// The review that prompted this claimed `GetUsersInRoleAsync` THROWS for an
+// absent role, so the Owner lookup running before the base-data check would
+// surface a generic `Failed` instead of the prerequisite advice. That is not
+// what happens, and this test was written first precisely to find out: the
+// status, "base data" and "migrate" assertions below all passed against the
+// unfixed code. `UserStore.GetUsersInRoleAsync` returns an EMPTY LIST when the
+// role is missing (throwing is `AddToRoleAsync`/`IsInRoleAsync`), so the
+// base-data check caught it exactly as intended.
+//
+// The real defect was smaller, and mine — the round-4 dual-failure appendix.
+// An empty list makes `owner is null` true, so a dropped-roles schema was
+// indistinguishable from "nobody is an Owner yet" and the message appended
+// "run bootstrap-admin", which cannot create a role. Restoring the base data,
+// which the message already says, is the whole remedy in that case.
+public sealed class SimulationMissingOwnerRoleTests(SimulationMutableClockFactory factory)
+    : IClassFixture<SimulationMutableClockFactory>
+{
+    [Fact]
+    public async Task SimulationSeed_WithNoOwnerRoleAtAll_ReportsTheBaseDataPrerequisite()
+    {
+        using (var scope = factory.Services.CreateScope())
+        {
+            // Identity cascades AspNetUserRoles, so the factory's admin loses the
+            // role row with it — which is the point: this is what a restore that
+            // dropped the migration-baked roles looks like.
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var affected = await db.Roles.Where(r => r.Name == Roles.Owner).ExecuteDeleteAsync();
+            Assert.Equal(1, affected); // the fault this test depends on actually exists
+        }
+
+        var result = await factory.SeedOnceAsync();
+
+        // These three held before the fix too — kept because they are what makes
+        // the assertion below meaningful rather than a bare negative, and because
+        // they pin the behaviour the review predicted would break.
+        Assert.Equal(SeedStatus.PrerequisitesMissing, result.Status);
+        Assert.Contains("base data", result.Message);
+        Assert.Contains("migrate", result.Message);
+
+        // THIS is the finding. The dual-failure appendix must not fire: with no
+        // Owner role at all, `bootstrap-admin` is not the next step — restoring
+        // the roles is, and only the base-data message can say so.
+        Assert.DoesNotContain("bootstrap-admin --email", result.Message);
+    }
+}
+
 // #500 (codex round 4) — the cast is held to the same standard as the Owner.
 //
 // FindOwnerAsync has excluded disabled Owners since round 1. The CAST went on

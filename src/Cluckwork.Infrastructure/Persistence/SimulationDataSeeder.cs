@@ -202,7 +202,7 @@ public sealed class SimulationDataSeeder(
             // after the preflight could disagree with it (an Owner disabled or
             // reassigned between the two) and the seeder would then act as a
             // user its own preflight never approved.
-            var (owner, disabledOwners) = await FindOwnerAsync(accountId);
+            var (ownerRoleExists, owner, disabledOwners) = await FindOwnerAsync(accountId, ct);
 
             // #500 (codex round 4) — the base-data check and the Owner check are
             // now SEPARATE blocks, exactly as DemoDataSeeder has always had them.
@@ -225,7 +225,15 @@ public sealed class SimulationDataSeeder(
                 // FindOwnerAsync lookup, so say both at once. This appendix is
                 // what keeps "each message names a remedy that can be followed"
                 // true for the dual-failure case rather than only the common one.
-                var alsoMissingOwner = owner is null
+                //
+                // Gated on the ROLE existing (#500, codex round 5). Without that
+                // it fires for a schema whose migration-baked roles were dropped
+                // — `GetUsersInRoleAsync` returns empty rather than throwing, so
+                // that state is indistinguishable here from "nobody is an Owner
+                // yet" — and appends `bootstrap-admin`, which cannot create a
+                // role. Restoring the base data, which this message already
+                // says, IS the whole remedy in that case.
+                var alsoMissingOwner = owner is null && ownerRoleExists
                     ? disabledOwners > 0
                         ? " AND, separately: the Owner role here is held only by DISABLED user(s), so once the " +
                           "base data is repaired this will still refuse. Clear BOTH DisabledAt and DisabledBy " +
@@ -472,13 +480,26 @@ public sealed class SimulationDataSeeder(
     //
     // Returns the disabled count too — the caller's advice depends on which
     // cause it is. See DemoDataSeeder for the full reasoning.
-    private async Task<(ApplicationUser? Owner, int DisabledOwners)> FindOwnerAsync(Guid accountId)
+    //
+    // #500 (codex round 5) — and whether the ROLE ITSELF exists, which is a third
+    // distinct state hiding behind `Owner is null`. `GetUsersInRoleAsync` returns
+    // an EMPTY LIST for an absent role rather than throwing (that is
+    // `AddToRoleAsync`/`IsInRoleAsync`; `UserStore.GetUsersInRoleAsync` returns
+    // empty when FindRoleAsync misses), so a schema whose migration-baked roles
+    // were dropped is indistinguishable from "nobody has been made an Owner yet"
+    // — and the two have completely different remedies. `bootstrap-admin` cannot
+    // repair a missing role; only restoring the base data can.
+    private async Task<(bool RoleExists, ApplicationUser? Owner, int DisabledOwners)> FindOwnerAsync(
+        Guid accountId, CancellationToken ct)
     {
+        if (!await db.Roles.AnyAsync(r => r.Name == Roles.Owner, ct)) return (false, null, 0);
+
         var owners = (await users.GetUsersInRoleAsync(Roles.Owner))
             .Where(u => u.AccountId == accountId)
             .ToList();
 
-        return (owners.Where(u => u.DisabledAt is null).OrderBy(u => u.Id).FirstOrDefault(),
+        return (true,
+                owners.Where(u => u.DisabledAt is null).OrderBy(u => u.Id).FirstOrDefault(),
                 owners.Count(u => u.DisabledAt is not null));
     }
 

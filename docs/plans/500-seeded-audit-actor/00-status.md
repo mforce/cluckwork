@@ -252,6 +252,26 @@ same message, opposite condition, string required to appear.
 `DoesNotContain("expected")`, the only thing separating *refused at the cast*
 from *refused at the manifest* once both produce `Failed`.
 
+- **Round 5**, one finding, **refuted as stated** — and it still found something.
+  The claim was that `GetUsersInRoleAsync` throws for an absent role, so the
+  Owner lookup running before the base-data check would surface a generic
+  `Failed` instead of the prerequisite advice. It does not throw:
+  `UserStore.GetUsersInRoleAsync` returns an empty list when `FindRoleAsync`
+  misses (throwing is `AddToRoleAsync`/`IsInRoleAsync`), and the test written to
+  check this passed on the status and message assertions against unfixed code.
+  What the empty list *does* cause is a defect one level down, introduced by
+  round 4: `owner is null` cannot tell "roles were dropped" from "nobody is an
+  Owner yet", so the dual-failure appendix advised `bootstrap-admin`, which
+  cannot create a role. `FindOwnerAsync` now returns whether the role exists and
+  the appendix is gated on it.
+
+**Five rounds, and the yield is now visibly thinning.** Rounds 1–4 found live
+defects in shipped behaviour; round 5's stated finding was wrong and what it
+actually turned up was operator *wording* in a hand-corrupted-schema state —
+a corner of the corner round 4 opened. Recorded here because the count that
+governs when to stop the review loop measures confirmed product defects, and
+this one is real but small.
+
 **Four rounds, four-for-four on real defects, and every one against the
 previous round's fix.** Each level was less obvious than the last: wrong actor →
 remedy that loops → remedy that is unreachable → advice printed for the wrong
