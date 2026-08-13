@@ -364,13 +364,20 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   version it believes from the tags that exist.
 - **`extra-files` (#458) extends that ownership to `web/.env.production`'s
   `VITE_APP_VERSION`** — release-please's `generic` updater bumps it in the same
-  release PR as `version.txt`/the manifest, anchored by an `x-release-please-version`
-  marker comment on the line above (not a same-line trailing comment — dotenv-style
-  parsers don't strip inline `#` comments the way YAML/generic key:value formats do,
-  so a trailing marker would have become part of the value). Vite loads
-  `.env.production` automatically for a production build; no Dockerfile/CI plumbing
-  needed beyond the file itself. Same "never hand-edit" rule applies to the value —
-  only the marker's presence and the file's existence are this repo's to maintain.
+  release PR as `version.txt`/the manifest. **The `x-release-please-version` marker
+  must be a trailing comment on the same line as the value**
+  (`VITE_APP_VERSION=0.0.3 # x-release-please-version`), never on the line above —
+  the updater only matches a semver pattern on the marker's own line, so a marker
+  on its own line finds nothing and silently no-ops (shipped once: v0.0.4/#461
+  bumped `version.txt` but left this file at `0.0.3`, caught by review, #458/#523).
+  The original placement was avoiding a trailing comment on a mistaken assumption
+  that dotenv-style parsers keep inline `#` comments as part of the value — dotenv
+  (which Vite's env loading uses) strips an inline `#` comment on an **unquoted**
+  value by default (v15+), so the trailing marker is safe and loads clean. Vite
+  loads `.env.production` automatically for a production build; no Dockerfile/CI
+  plumbing needed beyond the file itself. Same "never hand-edit" rule applies to
+  the value — only the marker's presence and the file's existence are this repo's
+  to maintain.
 - **The release PR is opened with a GitHub App token, not `GITHUB_TOKEN`** — and
   both reasons are load-bearing, so do not "simplify" it back.
   1. `GITHUB_TOKEN` **cannot open a pull request at all** unless the repo-wide
