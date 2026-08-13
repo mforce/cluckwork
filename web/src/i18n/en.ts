@@ -2574,6 +2574,11 @@ export const en = {
       + "it, when (UTC), what it touched, and the reason where one was given. Written together with the "
       + "change itself — a failed action leaves no trace, a successful one always does — and never editable, "
       + "by anyone.",
+    auditRecordTypeFilter:
+      "The Audit log's \"Record type\" dropdown does not filter the rows itself — it narrows the "
+      + "\"Action\" dropdown next to it down to only the actions that happen on the type you pick "
+      + "(Flock, Sales order, and so on), so you are not scanning one long list of every action the "
+      + "farm can log. Pick the action from that narrowed list to actually filter the rows.",
     auditRecordHistory:
       "Flocks, Egg grades, Daily entry history, Sales and Expenses each carry a History column showing who "
       + "created the record and when, plus who last changed it if anyone has. It is read from the same audit "

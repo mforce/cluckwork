@@ -273,6 +273,38 @@ describe("AuditPage filter", () => {
       ).map((o) => o.value),
     ).toContain("User.Create"); // unfiltered — the bogus value is ignored, not applied
   });
+
+  it("ignores an action from the URL that is incompatible with the entityType also in the URL (codex review of #521)", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    // Flock + User.Create is a real but incompatible pair — User.Create is
+    // never in Flock's action list, so a hand-edited or shared URL carrying
+    // both must not silently keep querying the hidden action.
+    renderAudit("/audit?entityType=Flock&action=User.Create");
+    await screen.findByText("No audit events yet.");
+
+    expect(mockListAuditEvents).toHaveBeenLastCalledWith(
+      expect.objectContaining({ action: undefined }),
+    );
+    expect((screen.getByRole("combobox", { name: "Action" }) as HTMLSelectElement).value).toBe("");
+  });
+
+  it("clears the entityType query param when the record type is reset to 'All types'", async () => {
+    renderAudit("/audit?entityType=Flock");
+    await screen.findByText("No audit events yet.");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Record type" }), {
+      target: { value: "" },
+    });
+
+    expect((screen.getByRole("combobox", { name: "Record type" }) as HTMLSelectElement).value).toBe(
+      "",
+    );
+    expect(
+      Array.from(
+        (screen.getByRole("combobox", { name: "Action" }) as HTMLSelectElement).options,
+      ).map((o) => o.value),
+    ).toContain("SalesOrder.Void"); // back to the full, unfiltered list
+  });
 });
 
 describe("AuditPage paging", () => {

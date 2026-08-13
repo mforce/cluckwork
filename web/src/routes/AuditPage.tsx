@@ -63,7 +63,7 @@ export function AuditPage() {
   const { t: tc } = useTranslation("common");
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const actionFilter = searchParams.get("action") ?? "";
+  const rawActionFilter = searchParams.get("action") ?? "";
   const rawEntityId = searchParams.get("entityId");
   // Lowercased (codex review of #516): the API returns EntityId as a .NET
   // Guid, which System.Text.Json serializes lowercase regardless of the
@@ -106,6 +106,18 @@ export function AuditPage() {
   const availableActions = entityTypeFilter
     ? AUDIT_ACTION_VALUES.filter((a) => AUDIT_ACTION_ENTITY_TYPE[a] === entityTypeFilter)
     : AUDIT_ACTION_VALUES;
+
+  // codex review of #521 — a hand-edited or shared URL can carry a valid but
+  // INCOMPATIBLE pair, e.g. ?entityType=Flock&action=User.Create: the raw
+  // action isn't in `availableActions` for that type, so the <select> falls
+  // back to showing no match while `fetchPage` would silently keep querying
+  // the hidden action. Ignoring an out-of-scope action here, not just when
+  // the user changes the type dropdown, keeps the visible filter and the
+  // query in sync for BOTH entry paths (a click, and a direct URL load).
+  const actionFilter =
+    rawActionFilter && (availableActions as readonly string[]).includes(rawActionFilter)
+      ? rawActionFilter
+      : "";
 
   // #469 — the ticket/dedupe/busy-ownership discipline this screen grew for
   // itself (codex review of #94) now lives in usePagedList, shared with every
