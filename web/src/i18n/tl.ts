@@ -1495,6 +1495,8 @@ export const tl = {
       + "pagbabago mismo at hindi na ito ine-edit pa.",
     scopedHeading: "Kasaysayan ng {{entityType}}",
     scopedHeadingFallback: "Kasaysayan ng record",
+    entityTypeFilterLabel: "Uri ng record",
+    allEntityTypesOption: "Lahat ng uri",
     actionFilterLabel: "Aksyon",
     allActionsOption: "Lahat ng aksyon",
     whenHeader: "Kailan (UTC)",
@@ -2223,6 +2225,12 @@ export const tl = {
       + "awtomatiko: sino ang gumawa nito, kailan (UTC), ano ang naapektuhan, at ang dahilan kung mayroon. "
       + "Isinusulat ito kasabay ng pagbabago mismo — walang naiiwang bakas ang isang nabigong aksyon, "
       + "palaging may naiiwan ang isang matagumpay — at hindi kailanman ine-edit, ng kahit sino.",
+    auditRecordTypeFilter:
+      "Ang dropdown na \"Uri ng record\" sa audit log ay hindi ito ang nagsa-salà sa mga row — pinapaliit "
+      + "lamang nito ang dropdown na \"Aksyon\" sa tabi nito para lang sa mga aksyong nangyayari sa uring "
+      + "pinili mo (Kawan, Order ng benta, atbp.), para hindi mo na kailangang mag-scan sa isang mahabang "
+      + "listahan ng bawat aksyong maaaring itala ng bukid. Piliin ang aksyon sa napaliit na listahang iyon "
+      + "para talagang masalà ang mga row.",
     auditRecordHistory:
       "Ang Mga kawan, Grado ng itlog, Kasaysayan ng pang-araw-araw na entry, Benta at Gastos ay may "
       + "kolum na Kasaysayan na nagpapakita kung sino ang gumawa ng record at kailan, at kung sino ang "

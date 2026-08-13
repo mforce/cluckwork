@@ -1442,6 +1442,8 @@ export const es = {
       + "mismo y nunca se editan.",
     scopedHeading: "Historial de {{entityType}}",
     scopedHeadingFallback: "Historial del registro",
+    entityTypeFilterLabel: "Tipo de registro",
+    allEntityTypesOption: "Todos los tipos",
     actionFilterLabel: "Acción",
     allActionsOption: "Todas las acciones",
     whenHeader: "Cuándo (UTC)",
@@ -2141,6 +2143,11 @@ export const es = {
       + "automáticamente: quién lo hizo, cuándo (UTC), qué afectó, y el motivo cuando se dio uno. Se "
       + "escribe junto con el cambio mismo — una acción fallida no deja rastro, una exitosa siempre lo hace "
       + "— y nunca es editable, por nadie.",
+    auditRecordTypeFilter:
+      "El menú \"Tipo de registro\" del registro de auditoría no filtra las filas por sí solo — reduce el "
+      + "menú \"Acción\" de al lado a solo las acciones que ocurren en el tipo elegido (Lote, Pedido de "
+      + "venta, etc.), para que no tengas que revisar una lista larga con cada acción que la granja puede "
+      + "registrar. Elige la acción de esa lista reducida para filtrar las filas realmente.",
     auditRecordHistory:
       "Lotes, Grados de huevo, Historial de registro diario, Ventas y Gastos tienen una columna Historial "
       + "que muestra quién creó el registro y cuándo, más quién lo modificó por última vez si alguien lo "
