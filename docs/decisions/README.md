@@ -33,6 +33,7 @@ follow the `→` link from the `AGENTS.md` bullet to get here.
 | [A write-contract change must update its non-CI callers (#394)](394-write-contract-callers.md) | AGENTS · Conventions |
 | [Production logs: compact JSON on stdout (#404)](404-production-logs.md) | AGENTS · Conventions |
 | [Generated PostgreSQL schema documentation (#417)](417-schema-docs.md) | AGENTS · Conventions |
+| [`AuditEvents` is not time-partitioned (#505)](505-audit-events-no-time-partition.md) | AGENTS · Conventions |
 | [Writing a guard (a test that asserts an invariant)](407-writing-a-guard.md) | AGENTS · Writing a guard |
 | [CI security gates, lock-file healing, Dependabot, action pinning (#146)](146-ci-security-gates.md) | AGENTS · CI security gates |
 | [Releases and image publishing — internals (#351)](351-releases.md) | AGENTS · Releases · and `README.md` |
