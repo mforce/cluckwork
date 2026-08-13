@@ -40,7 +40,15 @@ rows/year, roughly 20 MB/year. Not a problem at any plausible farm size.
 ## If it ever does bite, in order
 
 1. **Archive or roll up** rows older than the retention the farm actually
-   needs.
+   needs — but not naively. `GetProvenanceAsync` derives `CreatedBy*` from
+   the record's original `*.Create` event and `MadeOfficialAtUtc` from its
+   promotion event (submit/confirm), for as long as the record itself stays
+   visible — which for a flock or a sales order can be indefinitely. Moving
+   or aggregating those specific rows out of `AuditEvents` while the record
+   they describe is still shown would silently blank its History column.
+   Any archival design must keep provenance-source events queryable (or
+   copy their fields forward) for every record still visible, not just
+   drop/roll up by age.
 2. **Partition by `AccountId`** — the column the provenance query *does*
    filter on, so pruning would apply. Only meaningful once the deployment is
    genuinely multi-tenant.
