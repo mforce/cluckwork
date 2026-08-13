@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.0.4](https://github.com/mforce/cluckwork/compare/v0.0.3...v0.0.4) (2026-08-13)
+
+
+### Features
+
+* **api,web:** add an independent farm banner shown on a post-login splash ([#496](https://github.com/mforce/cluckwork/issues/496)) ([1732a38](https://github.com/mforce/cluckwork/commit/1732a380733059748e64a360b60e96c5affb33c4))
+* **api,web:** show who created and last changed a record, inline on its own page ([#494](https://github.com/mforce/cluckwork/issues/494)) ([#503](https://github.com/mforce/cluckwork/issues/503)) ([4ffa7f1](https://github.com/mforce/cluckwork/commit/4ffa7f17f3fad71ab562380186f210b997d49791))
+* **api:** promote/demote a user's role ([#475](https://github.com/mforce/cluckwork/issues/475)) ([f273879](https://github.com/mforce/cluckwork/commit/f273879c470647fc142f0d4afa06acd14497ed89))
+* **stock:** let an admin write off lost egg stock without restating production ([#464](https://github.com/mforce/cluckwork/issues/464)) ([79a4e94](https://github.com/mforce/cluckwork/commit/79a4e94370bed8b99e34e0a142db172fa03b73de))
+* **stock:** page and date-filter the lot drill-down so older lots stay reachable ([#465](https://github.com/mforce/cluckwork/issues/465)) ([#467](https://github.com/mforce/cluckwork/issues/467)) ([1b6c86c](https://github.com/mforce/cluckwork/commit/1b6c86c7389595131e3e52e11bd4d547b5e1143e))
+* **users:** disable and re-enable a user without deleting them ([#356](https://github.com/mforce/cluckwork/issues/356)) ([#492](https://github.com/mforce/cluckwork/issues/492)) ([3f5c370](https://github.com/mforce/cluckwork/commit/3f5c370fb5de4fcc3868c0ecc268ddd553319277))
+* **web,api:** entity-scoped audit history reachable from any record ([#493](https://github.com/mforce/cluckwork/issues/493)) ([#516](https://github.com/mforce/cluckwork/issues/516)) ([c14d5b6](https://github.com/mforce/cluckwork/commit/c14d5b6cb274859ccd6ecca6ef09428fdaf2ad45))
+* **web:** a per-place error store, with Sales as its first consumer ([#479](https://github.com/mforce/cluckwork/issues/479)) ([#489](https://github.com/mforce/cluckwork/issues/489)) ([4f493ec](https://github.com/mforce/cluckwork/commit/4f493ecfccfbd4d58a37e509b13f20c87f39af82))
+* **web:** cascading record-type filter on the Audit page ([#521](https://github.com/mforce/cluckwork/issues/521)) ([64bab23](https://github.com/mforce/cluckwork/commit/64bab234ee5d0cbd4b3c1592d3ff5fee51bdb393))
+* **web:** display app version in the sidebar, sourced from version.txt ([#459](https://github.com/mforce/cluckwork/issues/459)) ([abdcb98](https://github.com/mforce/cluckwork/commit/abdcb98007d8fcde4823f4b0f376103ec11e04cf))
+* **web:** offer common date/time format presets, with a custom fallback ([#463](https://github.com/mforce/cluckwork/issues/463)) ([7cb01b4](https://github.com/mforce/cluckwork/commit/7cb01b4da1f7e41877e0f9acbae5af619e19f0f4))
+
+
+### Bug fixes
+
+* **api:** give every boot guard an explicit process role, and fail closed on unusable JWT keys ([#507](https://github.com/mforce/cluckwork/issues/507)) ([925c31c](https://github.com/mforce/cluckwork/commit/925c31c38cd7e221fd8ad4ac0d772839ada241a7))
+* **api:** seeded demo and simulation records name a real person ([#517](https://github.com/mforce/cluckwork/issues/517)) ([a552d08](https://github.com/mforce/cluckwork/commit/a552d0814cddd83b2f5b5c1f53baaca734fb8191))
+* **auth:** measure the refresh grace window from the read, not the request start ([#471](https://github.com/mforce/cluckwork/issues/471)) ([2612e06](https://github.com/mforce/cluckwork/commit/2612e06f4bc34c4a666cf9334285e6ece13feb06))
+* **web:** announce the update and farm warnings a dialog made inert ([#499](https://github.com/mforce/cluckwork/issues/499)) ([2ea2226](https://github.com/mforce/cluckwork/commit/2ea22266c911432ec7e4fb3308c1d045f17eb884))
+* **web:** give every dialog screen its own error slot ([#479](https://github.com/mforce/cluckwork/issues/479)) ([#491](https://github.com/mforce/cluckwork/issues/491)) ([64a3780](https://github.com/mforce/cluckwork/commit/64a378076cb794ff1ee95f534916d2c07224e5d8))
+* **web:** give the sales dialogs their own error slot ([#477](https://github.com/mforce/cluckwork/issues/477)) ([#478](https://github.com/mforce/cluckwork/issues/478)) ([d157a97](https://github.com/mforce/cluckwork/commit/d157a97b9a2f9a26c01bda1fd43af3c89144ecd9))
+* **web:** one page, one scroll lock and one live dialog ([#482](https://github.com/mforce/cluckwork/issues/482)) ([#483](https://github.com/mforce/cluckwork/issues/483)) ([4340f54](https://github.com/mforce/cluckwork/commit/4340f542b4d52fd68bd4f53715c73ec9d60582e8))
+* **web:** put the release-please version marker on the value line ([#524](https://github.com/mforce/cluckwork/issues/524)) ([6e67668](https://github.com/mforce/cluckwork/commit/6e676682d8d3ab93d1b000053f6a4ee6081b4d55)), closes [#458](https://github.com/mforce/cluckwork/issues/458)
+* **web:** render a sales mutation error inside the dialog that raised it ([#474](https://github.com/mforce/cluckwork/issues/474)) ([#476](https://github.com/mforce/cluckwork/issues/476)) ([22cf6dc](https://github.com/mforce/cluckwork/commit/22cf6dcfc66d1a057eef80cf3ec06e5d04191abc))
+* **web:** render a wide farm logo at its natural aspect in the sidebar ([#498](https://github.com/mforce/cluckwork/issues/498)) ([0dd5ea1](https://github.com/mforce/cluckwork/commit/0dd5ea1ccfc5fa358465a2822f8a56ab091777bd))
+* **web:** tag the sales dialog error by scope instead of assuming one dialog ([#480](https://github.com/mforce/cluckwork/issues/480)) ([#481](https://github.com/mforce/cluckwork/issues/481)) ([eb6d80f](https://github.com/mforce/cluckwork/commit/eb6d80f85b508b2c8a37f6fe13ec28b7127cf5e4))
+
+
+### Refactoring
+
+* **web:** one paged-list discipline for every filtered screen ([#469](https://github.com/mforce/cluckwork/issues/469)) ([#473](https://github.com/mforce/cluckwork/issues/473)) ([9f74b4b](https://github.com/mforce/cluckwork/commit/9f74b4b38d9f8276be623f3ea2f23f56fa908851))
+
+
+### Documentation
+
+* **agents:** note graphify update cadence is periodic, not per-edit ([#497](https://github.com/mforce/cluckwork/issues/497)) ([fb53d1f](https://github.com/mforce/cluckwork/commit/fb53d1ff05f074997d75dffb3d3bd39291042c73))
+* **agents:** update phase context now that epic [#14](https://github.com/mforce/cluckwork/issues/14) is closed ([#515](https://github.com/mforce/cluckwork/issues/515)) ([851033b](https://github.com/mforce/cluckwork/commit/851033b2e986b95aed8bfeb580c9446130b639e6))
+* pin the one-serving-instance deploy invariant ([#271](https://github.com/mforce/cluckwork/issues/271)) ([#484](https://github.com/mforce/cluckwork/issues/484)) ([61f26a7](https://github.com/mforce/cluckwork/commit/61f26a74be7bdddaabb91549e2f11ca62bed9603))
+* **web:** widen the Help line [#478](https://github.com/mforce/cluckwork/issues/478) narrowed, now that it is true ([#479](https://github.com/mforce/cluckwork/issues/479)) ([#495](https://github.com/mforce/cluckwork/issues/495)) ([9dcd233](https://github.com/mforce/cluckwork/commit/9dcd2338edf59ca561e17cd62ee3ba33e077dd95))
+
 ## [0.0.3](https://github.com/mforce/cluckwork/compare/v0.0.2...v0.0.3) (2026-08-08)
 
 
