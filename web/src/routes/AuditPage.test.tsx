@@ -193,13 +193,85 @@ describe("AuditPage filter", () => {
     await screen.findByText("No audit events yet."); // let the mount load settle first
 
     await act(async () => {
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "Flock.Deplete" } });
+      fireEvent.change(screen.getByRole("combobox", { name: "Action" }), { target: { value: "Flock.Deplete" } });
     });
 
     // The ARGUMENT is the behavior: the chosen action must reach the seam.
     expect(mockListAuditEvents).toHaveBeenLastCalledWith(
       expect.objectContaining({ action: "Flock.Deplete", offset: 0 }),
     );
+  });
+
+  it("narrows the action dropdown to only actions recorded against the chosen record type", async () => {
+    renderAudit();
+    await screen.findByText("No audit events yet.");
+
+    const actionSelect = screen.getByRole("combobox", { name: "Action" }) as HTMLSelectElement;
+    const optionValues = () => Array.from(actionSelect.options).map((o) => o.value);
+    expect(optionValues()).toContain("User.Create"); // unfiltered: every action listed
+    expect(optionValues()).toContain("Flock.Deplete");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Record type" }), {
+      target: { value: "Flock" },
+    });
+
+    // Only Flock-recorded actions remain, plus the "All actions" blank option.
+    expect(optionValues()).toEqual(
+      expect.arrayContaining(["", "Flock.BirdMovement", "Flock.Update", "Flock.Deplete", "Flock.Archive", "Flock.Reactivate", "Flock.Create"]),
+    );
+    expect(optionValues()).not.toContain("User.Create");
+    expect(optionValues()).not.toContain("SalesOrder.Void");
+  });
+
+  it("resets a selected action that no longer matches once the record type changes", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit();
+    await screen.findByText("No audit events yet.");
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole("combobox", { name: "Action" }), {
+        target: { value: "User.Create" },
+      });
+    });
+    expect(mockListAuditEvents).toHaveBeenLastCalledWith(
+      expect.objectContaining({ action: "User.Create" }),
+    );
+
+    // "User.Create" isn't a Flock action — picking Flock as the record type
+    // must not leave a hidden, mismatched action filter still in effect.
+    await act(async () => {
+      fireEvent.change(screen.getByRole("combobox", { name: "Record type" }), {
+        target: { value: "Flock" },
+      });
+    });
+
+    expect(mockListAuditEvents).toHaveBeenLastCalledWith(
+      expect.objectContaining({ action: undefined }),
+    );
+    expect((screen.getByRole("combobox", { name: "Action" }) as HTMLSelectElement).value).toBe("");
+  });
+
+  it("carries the record-type filter in the URL, independent of entityId scoping", async () => {
+    renderAudit("/audit?entityType=Flock");
+    await screen.findByText("No audit events yet.");
+
+    expect((screen.getByRole("combobox", { name: "Record type" }) as HTMLSelectElement).value).toBe(
+      "Flock",
+    );
+  });
+
+  it("falls back to the unfiltered action list for a garbage entityType query value", async () => {
+    renderAudit("/audit?entityType=NotARealType");
+    await screen.findByText("No audit events yet.");
+
+    expect((screen.getByRole("combobox", { name: "Record type" }) as HTMLSelectElement).value).toBe(
+      "",
+    );
+    expect(
+      Array.from(
+        (screen.getByRole("combobox", { name: "Action" }) as HTMLSelectElement).options,
+      ).map((o) => o.value),
+    ).toContain("User.Create"); // unfiltered — the bogus value is ignored, not applied
   });
 });
 
@@ -486,7 +558,7 @@ describe("AuditPage entity-scoped mode (#493)", () => {
     await screen.findByText("No audit events for this record yet.");
 
     await act(async () => {
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "Flock.Deplete" } });
+      fireEvent.change(screen.getByRole("combobox", { name: "Action" }), { target: { value: "Flock.Deplete" } });
     });
 
     expect(mockListAuditEvents).toHaveBeenLastCalledWith(
@@ -500,7 +572,7 @@ describe("AuditPage entity-scoped mode (#493)", () => {
     await screen.findByText("No audit events yet.");
 
     await act(async () => {
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "Flock.Deplete" } });
+      fireEvent.change(screen.getByRole("combobox", { name: "Action" }), { target: { value: "Flock.Deplete" } });
     });
 
     expect(mockListAuditEvents).toHaveBeenLastCalledWith(
@@ -524,7 +596,7 @@ describe("AuditPage entity-scoped mode (#493)", () => {
     mockListAuditEvents.mockReturnValueOnce(new Promise<AuditEvent[]>((r) => (resolveReload = r)));
 
     await act(async () => {
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "Flock.Deplete" } });
+      fireEvent.change(screen.getByRole("combobox", { name: "Action" }), { target: { value: "Flock.Deplete" } });
     });
 
     // The reload is in flight: the heading must NOT still say "Flock

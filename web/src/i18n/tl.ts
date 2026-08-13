@@ -1495,6 +1495,8 @@ export const tl = {
       + "pagbabago mismo at hindi na ito ine-edit pa.",
     scopedHeading: "Kasaysayan ng {{entityType}}",
     scopedHeadingFallback: "Kasaysayan ng record",
+    entityTypeFilterLabel: "Uri ng record",
+    allEntityTypesOption: "Lahat ng uri",
     actionFilterLabel: "Aksyon",
     allActionsOption: "Lahat ng aksyon",
     whenHeader: "Kailan (UTC)",

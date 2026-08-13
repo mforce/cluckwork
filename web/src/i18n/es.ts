@@ -1442,6 +1442,8 @@ export const es = {
       + "mismo y nunca se editan.",
     scopedHeading: "Historial de {{entityType}}",
     scopedHeadingFallback: "Historial del registro",
+    entityTypeFilterLabel: "Tipo de registro",
+    allEntityTypesOption: "Todos los tipos",
     actionFilterLabel: "Acción",
     allActionsOption: "Todas las acciones",
     whenHeader: "Cuándo (UTC)",

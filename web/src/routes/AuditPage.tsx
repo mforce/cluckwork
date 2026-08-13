@@ -3,7 +3,14 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { listAuditEvents } from "../api/cluckwork";
 import { usePagedList } from "../components/usePagedList";
-import { AUDIT_ACTION_VALUES, auditActionLabel, entityTypeLabel } from "../i18n/enums";
+import {
+  AUDIT_ACTION_ENTITY_TYPE,
+  AUDIT_ACTION_VALUES,
+  auditActionLabel,
+  ENTITY_TYPE_VALUES,
+  entityTypeLabel,
+  type EntityTypeValue,
+} from "../i18n/enums";
 
 const PAGE = 100;
 
@@ -74,6 +81,31 @@ export function AuditPage() {
     else next.delete("action");
     setSearchParams(next);
   }, [searchParams, setSearchParams]);
+
+  // Entity-type filter narrows the action dropdown's OPTION LIST only — it is
+  // never sent to the server (the /api/v1/audit query still filters on
+  // `action` alone, matching what the backend supports). Changing it drops
+  // any selected `action`: AUDIT_ACTION_ENTITY_TYPE is a many-to-one map, so
+  // a previously chosen action can fall outside the new type's option list,
+  // and leaving it selected-but-hidden would silently keep querying against
+  // a type the visible dropdown no longer shows.
+  const rawEntityTypeFilter = searchParams.get("entityType");
+  const entityTypeFilter: EntityTypeValue | "" =
+    rawEntityTypeFilter && (ENTITY_TYPE_VALUES as readonly string[]).includes(rawEntityTypeFilter)
+      ? (rawEntityTypeFilter as EntityTypeValue)
+      : "";
+
+  const updateEntityTypeFilter = useCallback((type: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (type) next.set("entityType", type);
+    else next.delete("entityType");
+    next.delete("action");
+    setSearchParams(next);
+  }, [searchParams, setSearchParams]);
+
+  const availableActions = entityTypeFilter
+    ? AUDIT_ACTION_VALUES.filter((a) => AUDIT_ACTION_ENTITY_TYPE[a] === entityTypeFilter)
+    : AUDIT_ACTION_VALUES;
 
   // #469 — the ticket/dedupe/busy-ownership discipline this screen grew for
   // itself (codex review of #94) now lives in usePagedList, shared with every
@@ -169,10 +201,18 @@ export function AuditPage() {
       <p className="muted">{t("intro")}</p>
 
       <div className="filters">
+        <label>{t("entityTypeFilterLabel")}
+          <select value={entityTypeFilter} onChange={(e) => updateEntityTypeFilter(e.target.value)}>
+            <option value="">{t("allEntityTypesOption")}</option>
+            {ENTITY_TYPE_VALUES.map((et) => (
+              <option key={et} value={et}>{entityTypeLabel(et)}</option>
+            ))}
+          </select>
+        </label>
         <label>{t("actionFilterLabel")}
           <select value={actionFilter} onChange={(e) => updateActionFilter(e.target.value)}>
             <option value="">{t("allActionsOption")}</option>
-            {AUDIT_ACTION_VALUES.map((a) => (
+            {availableActions.map((a) => (
               <option key={a} value={a}>{auditActionLabel(a)}</option>
             ))}
           </select>

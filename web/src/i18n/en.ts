@@ -1846,6 +1846,8 @@ export const en = {
     // loaded, or if the entity has zero audit events — deliberately not
     // distinguishing those two cases (Gate 3).
     scopedHeadingFallback: "Record history",
+    entityTypeFilterLabel: "Record type",
+    allEntityTypesOption: "All types",
     actionFilterLabel: "Action",
     allActionsOption: "All actions",
     whenHeader: "When (UTC)",
