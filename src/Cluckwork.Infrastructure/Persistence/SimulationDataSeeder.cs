@@ -189,35 +189,71 @@ public sealed class SimulationDataSeeder(
             // consumes by name (all #283 migration-baked static reference data,
             // so these three should never actually be missing against a
             // current schema — kept as defense-in-depth), AND an existing
-            // Owner-role user in the default account (reused below as Owner —
-            // this seeder never creates a second Owner). Unlike the first
-            // three, the Owner user is a REAL prerequisite: it comes only from
-            // the `bootstrap-admin` first-run command (#283), which the `seed`
-            // command never runs. Checked BEFORE tenant.Resolve, so every
-            // tenant-scoped query needs IgnoreQueryFilters (same reasoning as
-            // DemoDataSeeder's preflight).
+            // enabled Owner-role user in the default account (used below as the
+            // fixture's author — this seeder never creates a second Owner).
+            // Unlike the first three, the Owner user is a REAL prerequisite: it
+            // comes only from the `bootstrap-admin` first-run command (#283),
+            // which the `seed` command never runs. Checked BEFORE
+            // tenant.Resolve, so every tenant-scoped query needs
+            // IgnoreQueryFilters (same reasoning as DemoDataSeeder's preflight).
             //
-            // #500 — the Owner is looked up ONCE, here, and handed to the
-            // preflight rather than queried again after it. Two lookups could
-            // disagree (an Owner disabled or reassigned between them) and the
-            // seeder would then act as a user its own preflight never approved.
+            // #500 — the Owner is looked up ONCE, here, and that single result
+            // both gates the preflight and signs the fixture. Querying again
+            // after the preflight could disagree with it (an Owner disabled or
+            // reassigned between the two) and the seeder would then act as a
+            // user its own preflight never approved.
             var (owner, disabledOwners) = await FindOwnerAsync(accountId);
-            var missingBaseData = await MissingBaseDataAsync(accountId, owner, ct);
-            if (missingBaseData)
+
+            // #500 (codex round 4) — the base-data check and the Owner check are
+            // now SEPARATE blocks, exactly as DemoDataSeeder has always had them.
+            // Collapsing them into one `if` was the defect: a single message had
+            // to serve two unrelated causes, so it named ONE remedy and got the
+            // other case wrong. Concretely — grades are user-renamable (#283), so
+            // a renamed `Large` with a perfectly good enabled Owner landed in the
+            // combined block and was told to run `bootstrap-admin`, which returns
+            // AlreadyProvisioned whenever any Owner exists and therefore loops
+            // forever. Two causes, two messages; the split is what keeps each
+            // remedy performable from the state that printed it.
+            if (await MissingBaseDataAsync(accountId, ct))
+            {
+                // Splitting the block bought accurate advice per cause, but it
+                // also short-circuits — so when BOTH the base data and the Owner
+                // are missing, this returns before the Owner check ever runs and
+                // the operator would repair the grades, re-run, and only THEN
+                // discover the second problem. Two trips for one broken
+                // database. The Owner is already in hand from the single
+                // FindOwnerAsync lookup, so say both at once. This appendix is
+                // what keeps "each message names a remedy that can be followed"
+                // true for the dual-failure case rather than only the common one.
+                var alsoMissingOwner = owner is null
+                    ? disabledOwners > 0
+                        ? " AND, separately: the Owner role here is held only by DISABLED user(s), so once the " +
+                          "base data is repaired this will still refuse. Clear BOTH DisabledAt and DisabledBy " +
+                          "for that user directly in the database — there is no in-product repair for that state."
+                        : " AND, separately: this account has no user in the Owner role, so once the base data " +
+                          "is repaired this will still refuse. Run `dotnet Cluckwork.Api.dll bootstrap-admin " +
+                          "--email <e>` as well."
+                    : string.Empty;
+
+                var baseDataMessage =
+                    "Simulation seed prerequisites missing: the base data (default account, Admin role, and " +
+                    "the saleable Large/Medium/Small egg grades this fixture consumes BY NAME) is not fully " +
+                    "present. It ships as part of the EF migrations (#283) — but the grades are user-renamable, " +
+                    "so a renamed or deleted saleable grade lands here too, and that is the likelier cause on a " +
+                    "database that has been used. Restore the Large/Medium/Small saleable grade names (or run " +
+                    "`migrate` against a current schema), then re-run `seed --profile simulation`. " +
+                    "`bootstrap-admin` does NOT repair this: it only provisions an Owner." + alsoMissingOwner;
+                logger.LogError(baseDataMessage);
+                return SeedResult.PrerequisitesMissing(baseDataMessage);
+            }
+
+            if (owner is null)
             {
                 // Same split as DemoDataSeeder, for the same reason: pointing an
                 // operator whose only Owner is DISABLED at `bootstrap-admin`
                 // sends them in a circle, because it counts Owner role rows
                 // without checking DisabledAt and exits 0 having done nothing.
-                //
-                // `owner is null` is REQUIRED here, not decoration. This block is
-                // entered when ANY base prerequisite is missing — and the grades
-                // are user-renamable (#283), so the common real cause is a
-                // renamed grade, not the Owner. Branching on disabledOwners
-                // alone would tell an operator with a perfectly good enabled
-                // Owner plus one disabled co-Owner to go editing DisabledAt,
-                // while the actual fault was a grade name.
-                var prereqMessage = owner is null && disabledOwners > 0
+                var prereqMessage = disabledOwners > 0
                     ? "Simulation seed prerequisites missing: the default account's Owner role is held only by " +
                       "DISABLED user(s), so the fixture would be signed by an account that cannot log in. There " +
                       "is no in-product repair for this state today: `bootstrap-admin` reports 'already " +
@@ -225,11 +261,11 @@ public sealed class SimulationDataSeeder(
                       "re-enable them is Owner-only, which nobody can now reach. Clear BOTH DisabledAt and " +
                       "DisabledBy for that user directly in the database — they describe one fact and the app " +
                       "always clears them together — then re-run `seed --profile simulation`."
-                    : "Simulation seed prerequisites missing: the base data (default account, Admin role, " +
-                      "the saleable Large/Medium/Small egg grades, and an enabled admin in the Owner role) is not " +
-                      "fully present. The account/role/grades ship with the EF migrations (#283); the Owner " +
-                      "admin does not — run `dotnet Cluckwork.Api.dll bootstrap-admin --email <e>` against " +
-                      "this database, then re-run `seed --profile simulation`.";
+                    : "Simulation seed prerequisites missing: the default account has no user in the Owner " +
+                      "role, so the fixture would have no author. The account/role/grades ship with the EF " +
+                      "migrations (#283); the Owner admin does not — run `dotnet Cluckwork.Api.dll " +
+                      "bootstrap-admin --email <e>` against this database, then re-run " +
+                      "`seed --profile simulation`.";
                 logger.LogError(prereqMessage);
                 return SeedResult.PrerequisitesMissing(prereqMessage);
             }
@@ -244,17 +280,14 @@ public sealed class SimulationDataSeeder(
             // its own persona via ActAs, and the daily-entry workers arrive
             // through WorkerFor, which is subject to FlockScopeGuard — the same
             // context read as an authorization input, not merely an audit label.
-            if (owner is null)
-            {
-                // Unreachable: MissingBaseDataAsync above already refuses
-                // without an Owner. Loud rather than a NullReferenceException
-                // three frames deeper if that ever stops being true.
-                const string ownerMissing =
-                    "Simulation seed failed: no Owner-role user in the default account after the preflight " +
-                    "passed. This should be impossible — the preflight checks exactly that.";
-                logger.LogError(ownerMissing);
-                return SeedResult.Failed(ownerMissing);
-            }
+            //
+            // No re-check of `owner is null` here: the preflight above returns
+            // on that case, so the compiler's own flow analysis proves it
+            // non-null from this point. The former guard was written when one
+            // combined `if` made that non-obvious; a restated invariant the
+            // language already enforces is worse than none, because it implies
+            // the branch is reachable.
+            //
             // Roles come from UserManager, never from a literal: SimActor.Roles is
             // an authorization input (FlockScopeGuard), so the fixture must act
             // with the roles this user ACTUALLY holds, not the ones the preflight
@@ -395,13 +428,13 @@ public sealed class SimulationDataSeeder(
     // MissingBaseDataAsync). #279 review Fix 3 (codex): each check now PROVES the
     // specific base datum this seeder depends on rather than a weaker proxy —
     // the exact saleable Large/Medium/Small grades (not merely "any grade").
-    // #283 — the Owner check no longer takes an email: Seed:AdminEmail is
-    // retired along with the runtime seeder that read it, so this asks the
-    // question the seeder actually cares about — does ANY Owner-role user
-    // exist in the default account — via GetUsersInRoleAsync rather than a
-    // configured address. Reused below as the single Owner; this seeder never
-    // creates a second one.
-    private async Task<bool> MissingBaseDataAsync(Guid accountId, ApplicationUser? owner, CancellationToken ct)
+    // #500 (codex round 4) — this checks the MIGRATION-BAKED base data ONLY.
+    // The Owner is deliberately no longer folded in: it is a different cause
+    // with a different remedy (`bootstrap-admin` provisions an Owner and does
+    // nothing whatever for a renamed grade), and one boolean covering both
+    // forced the caller to guess which had failed. The caller checks the Owner
+    // separately, from the single FindOwnerAsync lookup.
+    private async Task<bool> MissingBaseDataAsync(Guid accountId, CancellationToken ct)
     {
         var accountExists = await db.Accounts
             .IgnoreQueryFilters()
@@ -419,11 +452,7 @@ public sealed class SimulationDataSeeder(
             .Where(g => g.AccountId == accountId && g.IsSaleable)
             .Select(g => g.Name)
             .ToListAsync(ct);
-        if (!RequiredSaleableGrades.All(saleableGradeNames.Contains)) return true;
-
-        // The caller's single lookup (#500) — never a second query, so the
-        // preflight and the actor can never disagree about who the Owner is.
-        return owner is null;
+        return !RequiredSaleableGrades.All(saleableGradeNames.Contains);
     }
 
     // #500 — the Owner that signs the fixture (slice 1: all of it).
@@ -606,6 +635,23 @@ public sealed class SimulationDataSeeder(
 
         var roles = await RolesOfAsync(existing);
 
+        // #500 (codex round 4) — a DISABLED cast member is refused, for exactly
+        // the reason FindOwnerAsync refuses a disabled Owner one screen up.
+        //
+        // This only bites on a PARTIAL RE-RUN: the persona was created by an
+        // earlier run, somebody disabled it through the Users screen, and this
+        // run finds it by email. Disabling stamps DisabledAt and keeps every
+        // role row, so FindByEmailAsync returns it and the role check below
+        // passes — the seeder would then attribute newly written fixture history
+        // to a persona LoginAsync rejects (IdentityProvider line 41). The seed
+        // reports success and the fixture is unusable in the one way nobody
+        // checks, because the rows look perfectly well-formed.
+        if (existing.DisabledAt is not null)
+            throw new InvalidOperationException(
+                $"Simulation seed: cast user {email} exists but is DISABLED, so the fixture would name an " +
+                "actor who cannot log in. Re-enable that user from the Users screen (which clears both " +
+                "DisabledAt and DisabledBy), or reset the fixture.");
+
         // The persona must still HOLD the role this call site is staffing, or
         // the fixture is not what it says it is (#500 final review, raised
         // independently by two reviewers).
@@ -619,10 +665,27 @@ public sealed class SimulationDataSeeder(
         // would then fail its exact-count validation much later, AFTER durable
         // writes, with a message pointing at counts instead of at the cause.
         //
-        // Fail here instead, naming both roles. Workers are exempt because
-        // "Worker" is a pseudo-role CreateUserHandler maps to null: a worker
-        // correctly holds none.
-        if (role != CreateUserValidator.WorkerRole && !roles.Contains(role))
+        // Fail here instead, naming both roles.
+        //
+        // #500 (codex round 4) — the Worker case is checked, not EXEMPT. "Worker"
+        // is a pseudo-role CreateUserHandler maps to null, so a worker holds no
+        // assignable role — which means the correct assertion for a worker is
+        // `roles is empty`, not "skip the check". Exempting it let a sim-worker
+        // promoted to Manager through the Users UI pass as a worker, and that is
+        // the worst version of this bug rather than a cosmetic one: the whole
+        // restricted-worker shape this fixture exists to exercise is a
+        // FlockScopeGuard narrowing, and Manager BYPASSES that guard by role. The
+        // rerun would go green having tested the opposite of what it claims.
+        if (role == CreateUserValidator.WorkerRole)
+        {
+            if (roles.Count > 0)
+                throw new InvalidOperationException(
+                    $"Simulation seed: cast user {email} is the fixture's WORKER persona, which must hold no " +
+                    $"assignable role, but it holds: {string.Join(", ", roles)}. A worker promoted outside the " +
+                    "seeder no longer exercises the FlockScopeGuard narrowing this fixture depends on " +
+                    "(Manager and Owner bypass it by role). Restore that user to Worker, or reset the fixture.");
+        }
+        else if (!roles.Contains(role))
             throw new InvalidOperationException(
                 $"Simulation seed: cast user {email} exists but does not hold the {role} role " +
                 $"(it holds: {(roles.Count == 0 ? "no roles" : string.Join(", ", roles))}). The cast was " +

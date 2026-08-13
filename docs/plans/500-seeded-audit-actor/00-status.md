@@ -215,9 +215,48 @@ the first Owner's `User.Create` and any break-glass reset — and an Owner
 browsing `/audit` sees them. So it *was* a user-visible change, and Help now
 explains both labels in en/es/tl.
 
-**Three rounds, three-for-three on real defects, and every one against the
+- **Round 4**, three findings, all real — but one was overstated, and the
+  mutation run is what showed it:
+  1. the *round-3 fix's own* remaining defect. Round 3 stopped the message being
+     wrong about the cause; it still named `bootstrap-admin`, which returns
+     `AlreadyProvisioned` whenever any Owner exists — and one does, by
+     construction, in exactly the state round 3 introduced. Fixed
+     **structurally**, not with a third prose patch: the combined preflight is
+     now two blocks (base data, then Owner), matching what `DemoDataSeeder` has
+     always had. One `if` serving two unrelated causes had to guess which had
+     failed, and that guess is what kept being wrong.
+  2. a **DISABLED cast member** was accepted on a partial re-run. Confirmed
+     silently green — deleting the guard flips the test's status assertion to
+     `Seeded`, because disabling moves nobody between role buckets and so
+     `ValidateCounts` cannot see it.
+  3. a **promoted worker** was accepted into the worker pool, because the role
+     check *exempted* workers rather than asserting they hold no assignable
+     role. Real, but **not** the claimed silent success: `ValidateCounts` does
+     catch it (`users.managers: expected 1, got 2; users.workers: expected 3,
+     got 2`) — last, in `EmitManifestAsync`, after every durable write. So the
+     defect is a misleading failure late, not a green run.
+
+**A local reviewer then caught a defect the round-4 fix INTRODUCED.** Two
+separate `if` blocks short-circuit, so a database missing both the base data and
+the Owner reported only the first — the operator repaired the grades, re-ran,
+and only then met the second problem. Two trips for one broken database, and a
+direct regression against the goal that motivated the split. The base-data
+message now carries an appendix naming the Owner remedy too, mutation-verified,
+and its test doubles as proof that the neighbouring
+`DoesNotContain("dotnet Cluckwork.Api.dll bootstrap-admin")` is not vacuous:
+same message, opposite condition, string required to appear.
+
+**Finding 3 changed one of its own tests.** The first version asserted
+`Status == Failed`, which the late count check satisfies on its own — the
+"mutant died, but not on its named assertion" trap. The test now pins
+`DoesNotContain("expected")`, the only thing separating *refused at the cast*
+from *refused at the manifest* once both produce `Failed`.
+
+**Four rounds, four-for-four on real defects, and every one against the
 previous round's fix.** Each level was less obvious than the last: wrong actor →
 remedy that loops → remedy that is unreachable → advice printed for the wrong
-cause. The lesson recorded for next time: when a message is corrected twice,
-stop pinning its *wording* and pin the *property* — here, that the remedy named
-must be performable from the state that printed it.
+cause → the cast held to a weaker standard than the Owner. The lesson recorded
+for next time: when a message is corrected twice, stop pinning its *wording* and
+pin the *property* — here, that the remedy named must be performable from the
+state that printed it. And when the same defect returns a third time, stop
+patching the message and change the structure that forces the guess.

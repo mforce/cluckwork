@@ -548,5 +548,195 @@ public sealed class SimulationDisabledCoOwnerTests(SimulationMutableClockFactory
         Assert.Contains("base data", result.Message);
         Assert.DoesNotContain("DisabledAt", result.Message);
         Assert.DoesNotContain("no in-product repair", result.Message);
+
+        // #500 (codex round 4) — and it must not send them to `bootstrap-admin`
+        // either, which was the round-3 fix's own remaining defect. Round 3
+        // stopped the message being WRONG about the cause; it still named a
+        // remedy that cannot work, because FirstRunAdminService returns
+        // AlreadyProvisioned whenever any Owner exists — and one does here, by
+        // construction. The operator would run it, see "already provisioned",
+        // re-run the seed, and land on this identical message forever.
+        //
+        // Asserted on the INVOCATION form, not the bare word: the message is
+        // allowed to mention `bootstrap-admin` in order to rule it out, and
+        // does. What must never appear is the command line to run.
+        Assert.DoesNotContain("dotnet Cluckwork.Api.dll bootstrap-admin", result.Message);
+
+        // The positive half, which is what makes the two assertions above more
+        // than "says nothing useful": it has to name the thing actually broken.
+        Assert.Contains("grade", result.Message);
+    }
+}
+
+// #500 (codex round 4, local review) — when the base data AND the Owner are both
+// missing, ONE run must report both.
+//
+// This is a defect the round-4 split introduced rather than one it inherited:
+// two separate `if` blocks short-circuit, so the base-data block returned before
+// the Owner check ran and the operator repaired the grades, re-ran, and only
+// then met the second problem. Two trips for one broken database.
+//
+// It also stops the neighbouring test's `DoesNotContain("dotnet Cluckwork.Api.dll
+// bootstrap-admin")` from being vacuous: this is the same message under the
+// opposite condition, and here that exact string MUST appear.
+public sealed class SimulationBaseDataAndOwnerBothMissingTests(SimulationMutableClockFactory factory)
+    : IClassFixture<SimulationMutableClockFactory>
+{
+    [Fact]
+    public async Task SimulationSeed_WithNeitherBaseDataNorAnOwner_ReportsBothInOneRun()
+    {
+        using (var scope = factory.Services.CreateScope())
+        {
+            // Strip the Owner ROLE rather than deleting the user: that is the
+            // `disabledOwners == 0` shape, which is the branch that names
+            // bootstrap-admin. (The disabled shape is covered next door.)
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var admin = await users.FindByEmailAsync(factory.AdminEmail);
+            Assert.NotNull(admin);
+            Assert.True((await users.RemoveFromRoleAsync(admin!, Roles.Owner)).Succeeded);
+
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var renamed = $"Renamed-{Guid.NewGuid():N}"; // unique: lower(Name) is uniquely indexed
+            var affected = await db.EggGrades.IgnoreQueryFilters()
+                .Where(g => g.AccountId == SeedDefaults.AccountId && g.Name == "Large")
+                .ExecuteUpdateAsync(s => s.SetProperty(g => g.Name, renamed));
+            Assert.Equal(1, affected); // both faults this test needs really exist
+        }
+
+        var result = await factory.SeedOnceAsync();
+
+        Assert.Equal(SeedStatus.PrerequisitesMissing, result.Status);
+
+        // Both causes, both remedies, one run.
+        Assert.Contains("grade", result.Message);
+        Assert.Contains("no user in the Owner role", result.Message);
+        Assert.Contains("dotnet Cluckwork.Api.dll bootstrap-admin", result.Message);
+    }
+}
+
+// #500 (codex round 4) — the cast is held to the same standard as the Owner.
+//
+// FindOwnerAsync has excluded disabled Owners since round 1. The CAST went on
+// accepting them, and the two classes below are the same defect in the two
+// remaining shapes. Both are re-run-only: a first run creates the personas
+// itself, so nothing can be wrong with them yet. Both mutate the fixture
+// destructively, so each takes its own factory instance — hence its own
+// Postgres container — rather than sharing one with a neighbour.
+public sealed class SimulationDisabledCastMemberTests(SimulationMutableClockFactory factory)
+    : IClassFixture<SimulationMutableClockFactory>
+{
+    // Disabling keeps every role row and only stamps DisabledAt, so
+    // FindByEmailAsync still returns the persona and the role check still
+    // passes. Without the DisabledAt guard the re-run happily attributes newly
+    // written fixture history to somebody LoginAsync rejects — and REPORTS
+    // SUCCESS. That is not a guess: removing the guard turns the status
+    // assertion below red on `Seeded`, because disabling moves nobody between
+    // role buckets and so the manifest's exact-count validation cannot see it.
+    // The rows are well-formed, the counts validate, and nothing surfaces until
+    // a human tries to sign in as the persona a History line names.
+    [Fact]
+    public async Task SimulationSeed_WhenASeededCastMemberIsDisabled_RefusesTheRerun()
+    {
+        var first = await factory.SeedOnceAsync();
+        Assert.True(first.IsSuccess, $"first seed failed: {first.Message}");
+
+        var email = await factory.WithTenantScopeAsync(SeedDefaults.AccountId, async db =>
+            await db.Users.IgnoreQueryFilters()
+                .Where(u => u.AccountId == SeedDefaults.AccountId && u.Email!.StartsWith("sim-manager-"))
+                .Select(u => u.Email!)
+                .OrderBy(e => e)
+                .FirstAsync());
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var persona = await users.FindByEmailAsync(email);
+            Assert.NotNull(persona);
+            persona!.DisabledAt = DateTime.UtcNow;
+            Assert.True((await users.UpdateAsync(persona)).Succeeded);
+        }
+
+        var rerun = await factory.SeedOnceAsync();
+
+        // Refused, not "succeeded with a disabled author".
+        Assert.Equal(SeedStatus.Failed, rerun.Status);
+        Assert.Contains(email, rerun.Message); // names WHICH persona, not just that one is wrong
+        Assert.Contains("DISABLED", rerun.Message);
+    }
+}
+
+public sealed class SimulationPromotedWorkerTests(SimulationMutableClockFactory factory)
+    : IClassFixture<SimulationMutableClockFactory>
+{
+    // The worker persona holds NO assignable role by construction ("Worker" is a
+    // pseudo-role CreateUserHandler maps to null). The role check used to skip
+    // workers entirely rather than assert that emptiness, so a worker promoted
+    // through the Users UI passed straight through.
+    //
+    // The RESTRICTED worker is promoted here on purpose — it is the one persona
+    // whose narrowing the fixture exists to exercise. Manager bypasses
+    // FlockScopeGuard BY ROLE, so the re-run would otherwise exercise the exact
+    // opposite of the authorization shape it claims to cover.
+    //
+    // WHAT THE MUTATION ACTUALLY SHOWED, because it is not what the review that
+    // prompted this claimed. Removing the guard does NOT make the re-run report
+    // success: ValidateCounts counts users by role, so a promotion moves one
+    // user between two buckets and the seed dies with
+    //
+    //     users.managers: expected 1, got 2; users.workers: expected 3, got 2
+    //
+    // That happens in EmitManifestAsync — LAST, after every durable write. So
+    // the defect this guard fixes is a misleading failure late, not a silent
+    // success, and the assertions below are written to pin that distinction
+    // rather than the weaker "it failed somehow" (which the count check already
+    // satisfies on its own). Contrast the disabled-persona case next door, which
+    // IS silently green: disabling moves nobody between role buckets, so the
+    // count check cannot see it at all.
+    [Fact]
+    public async Task SimulationSeed_WhenTheRestrictedWorkerIsPromoted_RefusesTheRerun()
+    {
+        var first = await factory.SeedOnceAsync();
+        Assert.True(first.IsSuccess, $"first seed failed: {first.Message}");
+
+        var email = await factory.WithTenantScopeAsync(SeedDefaults.AccountId, async db =>
+        {
+            // The flock-scoped assignment IS the restriction (#500): a row with a
+            // non-null FlockId is what narrows this worker to one flock.
+            var restricted = await db.UserRoleAssignments.IgnoreQueryFilters()
+                .Where(a => a.AccountId == SeedDefaults.AccountId && a.FlockId != null)
+                .Select(a => a.UserId)
+                .SingleAsync();
+
+            return await db.Users.IgnoreQueryFilters()
+                .Where(u => u.Id == restricted)
+                .Select(u => u.Email!)
+                .SingleAsync();
+        });
+        Assert.StartsWith("sim-worker-", email); // the restricted persona really is a worker
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var persona = await users.FindByEmailAsync(email);
+            Assert.NotNull(persona);
+            Assert.Empty(await users.GetRolesAsync(persona!)); // held none before the promotion
+            Assert.True((await users.AddToRoleAsync(persona!, Roles.Manager)).Succeeded);
+        }
+
+        var rerun = await factory.SeedOnceAsync();
+
+        Assert.Equal(SeedStatus.Failed, rerun.Status);
+
+        // These three are the load-bearing ones. Status alone is satisfied by
+        // the late count check (see the note above), so it proves nothing here.
+        Assert.Contains(email, rerun.Message); // names WHICH persona
+        Assert.Contains(Roles.Manager, rerun.Message); // and the role it actually found
+        Assert.Contains("FlockScopeGuard", rerun.Message); // and why that matters
+
+        // The guard must be what refused, not ValidateCounts several hundred
+        // durable writes later. "expected" is the count check's own wording, and
+        // its absence is the only thing separating "refused at the cast" from
+        // "refused at the manifest" once both produce Failed.
+        Assert.DoesNotContain("expected", rerun.Message);
     }
 }
