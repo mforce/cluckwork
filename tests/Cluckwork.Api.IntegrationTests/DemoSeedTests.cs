@@ -17,6 +17,18 @@ using Microsoft.Extensions.DependencyInjection;
 // own preflight depends on are now #283 migration-baked static reference
 // data (no Seed:* config, no runtime seeder); only the login user itself is
 // seeded here, standing in for a real `bootstrap-admin` run.
+//
+// #500 — DO NOT ADD AN ATTRIBUTION ASSERTION TO THIS FILE. It would be flaky by
+// construction, and the reason is not obvious from here: this class shares the
+// IntegrationCollection container, and SeedAndFlockTests seeds its OWN Owner
+// into the same SeedDefaults.AccountId. DemoDataSeeder.FindOwnerAsync picks the
+// lowest Id among every Owner in the account, so WHICH Owner signs the demo
+// fixture here depends on which sibling class ran first and on random GUID
+// ordering — xUnit guarantees neither. Nothing in this file reads the author, so
+// nothing is wrong today.
+//
+// The tests that DO assert attribution live in DemoSeedActorTests, each with its
+// own factory and its own Postgres container, precisely to escape this.
 [Collection(IntegrationCollection.Name)]
 public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
 {
@@ -107,6 +119,14 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
             Assert.Equal(0, flockCountBeforeAnySeed);
         }
 
+        // #500 — the demo seed now signs every record with the account's Owner
+        // and refuses to run without one, so provisioning it is part of the
+        // "explicit seed" step this test is about. It stands in for a real
+        // `bootstrap-admin` run, exactly as the sibling test's own Owner does.
+        // The zero-flock assertion above still runs strictly first, so what the
+        // test proves — boot alone seeds nothing — is unchanged.
+        await factory.SeedUserAsync(SeedDefaults.AccountId, $"boot-{Guid.NewGuid():N}@test.local", Roles.Owner);
+
         using (var seedScope = factory.Services.CreateScope())
         {
             var result = await seedScope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync();
@@ -123,4 +143,5 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
             Assert.Equal(3, flockCountAfterSeed);
         }
     }
+
 }

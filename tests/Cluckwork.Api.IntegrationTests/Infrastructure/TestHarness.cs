@@ -161,6 +161,39 @@ internal static class TestHarness
         return await action(db);
     }
 
+    // #500 — resolves BOTH the tenant and the acting user on a hand-built scope.
+    //
+    // The two helpers above hand back a raw AppDbContext for direct EF writes,
+    // which never reach IAuditWriter — they need no actor and are unaffected.
+    // This one is for the race tests that build their own scope and then invoke
+    // an auditing HANDLER: since #500 IAuditWriter fails closed on an
+    // unresolved actor, so tenant-only is no longer enough.
+    //
+    // Pass the acting user where the test has one, so the audit row names the
+    // same person the handler was told is acting. Where it has none, a fresh id
+    // stands in: any resolved actor satisfies the guard, and an actor with no
+    // UserRoleAssignment rows is account-wide as far as FlockScopeGuard is
+    // concerned, so this cannot quietly narrow what the test could do before.
+    //
+    // `roles` defaults to Owner because every current caller drives a handler
+    // that never consults ICurrentUser.Roles. It is a PARAMETER rather than a
+    // constant because the default is not inert everywhere: a future race test
+    // over a flock-scoped handler (RecordDailyEntry, SubmitDailyEntry,
+    // RecordFeedUsage, RecordWaterUsage) would get FlockScopeGuard's Owner
+    // bypass whatever role its acting user actually holds in the database — and
+    // would then pass while proving nothing about the authorization it meant to
+    // exercise. Such a test must pass the real roles (#500 mid-point review).
+    public static IServiceScope ResolveTenantAndActor(
+        this IServiceScope scope, Guid accountId, Guid? actorId = null, string? actorEmail = null,
+        IReadOnlyList<string>? roles = null)
+    {
+        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+        var id = actorId ?? Guid.NewGuid();
+        scope.ServiceProvider.GetRequiredService<CurrentUserContext>()
+            .Resolve(id, actorEmail ?? $"actor-{id:N}@test.local", roles ?? [Roles.Owner]);
+        return scope;
+    }
+
     // Seeds saleable egg grades for the account + farm; returns name -> id.
     // Grades are farm-scoped (spec §9.1) — pass the same farmId the test posts.
     public static async Task<Dictionary<string, Guid>> SeedEggGradesAsync(

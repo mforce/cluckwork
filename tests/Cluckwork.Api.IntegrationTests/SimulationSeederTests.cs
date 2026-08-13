@@ -5,7 +5,9 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Auditing;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
@@ -55,6 +57,18 @@ public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory, IAsy
     // The SeedResult of the one seed run InitializeAsync performs below.
     public SeedResult SeedResult { get; private set; } = null!;
 
+    // #500 — the ids of every audit row that seed run wrote, snapshotted before
+    // any [Fact] gets a chance to add one of its own.
+    //
+    // "Every audit row in this account" is NOT the seeder's output: facts in
+    // this class drive real endpoints, and the account export writes an
+    // Account.Export row. Whether such a row exists when a given fact runs
+    // depends on xUnit's fact ordering, which nothing here pins — so an
+    // assertion over the unfiltered table is order-dependent by construction.
+    // This snapshot is what makes "walk every action the SEEDER produced"
+    // answerable at all.
+    public IReadOnlyCollection<Guid> SeededAuditEventIds { get; private set; } = [];
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -92,6 +106,12 @@ public sealed class SimulationSeedFactory : CluckworkWebApplicationFactory, IAsy
         if (!SeedResult.IsSuccess)
             throw new InvalidOperationException(
                 $"Simulation seed setup failed ({SeedResult.Status}): {SeedResult.Message}");
+
+        SeededAuditEventIds = await scope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .AuditEvents.IgnoreQueryFilters()
+            .Where(e => e.AccountId == SeedDefaults.AccountId)
+            .Select(e => e.Id)
+            .ToHashSetAsync();
     }
 
     public new async Task DisposeAsync()
@@ -1018,5 +1038,459 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         var ex = Assert.Throws<InvalidOperationException>(
             () => SimulationDataSeeder.ValidateCounts(counts, states, expected));
         Assert.Contains("users.workers", ex.Message);
+    }
+
+    // #500 — nothing the simulation seeder writes is unattributed.
+    //
+    // No BEFORE snapshot, deliberately, and worth stating so it is not "fixed"
+    // into one later: this fixture owns its own Postgres container and seeds
+    // once in InitializeAsync, so a [Fact] cannot observe a before state at
+    // all. Nor is one needed — the only user this fixture creates outside the
+    // seeder is its Owner, via TestHarness.SeedUserAsync, which calls
+    // UserManager.CreateAsync directly and writes no audit row.
+    //
+    // An AFTER filter IS needed, which is a different thing: sibling facts in
+    // this class drive real endpoints that audit (the account export), so the
+    // unfiltered table mixes their rows in depending on fact order. Hence
+    // SeededAuditEventsAsync.
+    //
+    // Two clauses because the label and the id can drift apart: a bug stamping
+    // a real email beside Guid.Empty would satisfy either one alone.
+    [Fact]
+    public async Task SimulationSeed_LeavesNoUnattributedAuditEvent()
+    {
+        var rows = await SeededAuditEventsAsync();
+
+        // A fixture that wrote no audit rows would satisfy Assert.All vacuously.
+        Assert.NotEmpty(rows);
+        Assert.All(rows, e =>
+        {
+            Assert.NotEqual("(unresolved)", e.ActorEmail);
+            Assert.NotEqual(Guid.Empty, e.ActorUserId);
+        });
+    }
+
+    // --- #500 slice 2: the cast are real people --------------------------
+
+    private const string ManagerPrefix = "sim-manager-";
+    private const string SalesPrefix = "sim-sales-";
+    private const string WorkerPrefix = "sim-worker-";
+    private const string ReadOnlyPrefix = "sim-readonly-";
+
+    private sealed record ActorExpectation(string Describe, Func<string, bool> Matches);
+
+    private static ActorExpectation Exactly(string email) =>
+        new($"exactly {email}", actor => string.Equals(actor, email, StringComparison.Ordinal));
+
+    private static ActorExpectation FromPool(string prefix) =>
+        new($"a {prefix}* persona", actor => actor.StartsWith(prefix, StringComparison.Ordinal));
+
+    private static ActorExpectation FromEitherPool(string a, string b) =>
+        new($"a {a}* or {b}* persona",
+            actor => actor.StartsWith(a, StringComparison.Ordinal)
+                     || actor.StartsWith(b, StringComparison.Ordinal));
+
+    // Exactly the rows the seed run wrote — see SimulationSeedFactory
+    // .SeededAuditEventIds for why the unfiltered table is the wrong population.
+    private async Task<List<AuditEvent>> SeededAuditEventsAsync()
+    {
+        var ids = factory.SeededAuditEventIds;
+        var rows = await factory.WithTenantScopeAsync(SeedDefaults.AccountId, async db =>
+            await db.AuditEvents.IgnoreQueryFilters()
+                .Where(e => e.AccountId == SeedDefaults.AccountId)
+                .ToListAsync());
+        return rows.Where(e => ids.Contains(e.Id)).ToList();
+    }
+
+    // Every persona assertion below is true of the CONFIGURED cast, not of all
+    // configurations — at Simulation:Workers=0 a correct seeder attributes the
+    // eggs to a Manager instead. So pin the counts first: a config change then
+    // fails here, loudly, instead of silently changing what every other
+    // assertion in this section means.
+    [Fact]
+    public async Task SimulationSeed_CastCountsAreTheOnesThePersonaAssertionsAssume()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var emails = await db.Users
+            .Where(u => u.AccountId == SeedDefaults.AccountId)
+            .Select(u => u.Email!)
+            .ToListAsync();
+
+        int Count(string prefix) =>
+            emails.Count(e => e.StartsWith(prefix, StringComparison.Ordinal)
+                              && e.EndsWith($"@{EmailDomain}", StringComparison.Ordinal));
+
+        Assert.Equal(ExpectedManagers, Count(ManagerPrefix));
+        Assert.Equal(ExpectedSales, Count(SalesPrefix));
+        Assert.Equal(ExpectedWorkers, Count(WorkerPrefix));
+        Assert.Equal(ExpectedReadOnly, Count(ReadOnlyPrefix));
+    }
+
+    // Per EXACT action, never per family. A family check ("every SalesOrder.*
+    // names a clerk") stays green while AddItem and Confirm carry whatever
+    // actor the previous phase happened to leave resolved.
+    [Fact]
+    public async Task SimulationSeed_AttributesEachAuditedActionToItsPersona()
+    {
+        var rows = await SeededAuditEventsAsync();
+        Assert.NotEmpty(rows);
+
+        var expected = new Dictionary<string, ActorExpectation>(StringComparer.Ordinal)
+        {
+            // Account administration is the Owner's.
+            [AuditActions.UserCreate] = Exactly(factory.AdminEmail),
+            [AuditActions.UserFlockAssign] = Exactly(factory.AdminEmail),
+            // Listed explicitly, and this clause is why SeedPrimaryTimeZoneAsync
+            // moved ahead of RestrictOneWorkerAsync: while it followed an
+            // Owner-authored phase, deleting its own ActAs(Owner) still produced
+            // the Owner, so this passed by accident and pinned nothing.
+            [AuditActions.AccountUpdateSettings] = Exactly(factory.AdminEmail),
+
+            // A manager runs the farm's definitions and its spending.
+            [AuditActions.FlockCreate] = FromPool(ManagerPrefix),
+            [AuditActions.ProductCreate] = FromPool(ManagerPrefix),
+            [AuditActions.ExpenseCreate] = FromPool(ManagerPrefix),
+            [AuditActions.InventoryItemAdjust] = FromPool(ManagerPrefix),
+
+            // The sales desk books the orders.
+            [AuditActions.SalesOrderCreate] = FromPool(SalesPrefix),
+            [AuditActions.SalesOrderAddItem] = FromPool(SalesPrefix),
+            [AuditActions.SalesOrderConfirm] = FromPool(SalesPrefix),
+
+            // A worker records the eggs. WHICH worker is the subject of
+            // SimulationSeed_RestrictedWorkerAuthorsOnlyItsAssignedFlock — this
+            // clause only pins the pool.
+            [AuditActions.DailyEntryCreate] = FromPool(WorkerPrefix),
+            // Either the recording worker (self-submitted) or a manager signing
+            // it off — never the Owner. WHICH of the two, per entry, is
+            // SimulationSeed_SubmitIsEitherTheRecordingWorkerOrAManager's job;
+            // this clause only excludes everyone else.
+            [AuditActions.DailyEntrySubmit] = FromEitherPool(WorkerPrefix, ManagerPrefix),
+        };
+
+        // Nothing is deferred any more: every audited action the fixture
+        // produces has an expectation above. The walk below fails on any action
+        // that does not, so a newly audited one cannot slip through uncovered.
+        var uncovered = rows.Select(e => e.Action).Distinct(StringComparer.Ordinal)
+            .Where(a => !expected.ContainsKey(a))
+            .OrderBy(a => a, StringComparer.Ordinal)
+            .ToList();
+        Assert.True(uncovered.Count == 0,
+            "seeded audit actions with no persona expectation: " + string.Join(", ", uncovered));
+
+        foreach (var (action, expectation) in expected)
+        {
+            var authored = rows.Where(e => string.Equals(e.Action, action, StringComparison.Ordinal)).ToList();
+            // Without this the Assert.All below passes for an action the
+            // fixture stopped producing altogether.
+            Assert.True(authored.Count > 0, $"the fixture produced no {action} row to check");
+            Assert.All(authored, e => Assert.True(
+                expectation.Matches(e.ActorEmail),
+                $"{action} was authored by {e.ActorEmail}; expected {expectation.Describe}"));
+        }
+    }
+
+    [Fact]
+    public async Task SimulationSeed_WritingPersonasAuthorSomething_AndReadOnlyAuthorsNothing()
+    {
+        var actors = (await SeededAuditEventsAsync())
+            .Select(e => e.ActorEmail)
+            .ToHashSet(StringComparer.Ordinal);
+
+        // Near-vacuous at the fixture's configured pool size of 1 for both —
+        // stated rather than hidden. It still fails a seeder that picks the
+        // Owner everywhere.
+        for (var i = 1; i <= ExpectedManagers; i++)
+            Assert.Contains($"{ManagerPrefix}{i}@{EmailDomain}", actors);
+        for (var i = 1; i <= ExpectedSales; i++)
+            Assert.Contains($"{SalesPrefix}{i}@{EmailDomain}", actors);
+
+        // Not near-vacuous: the pool is 3, so this fails a rotation that only
+        // ever reaches one of them — including one that always picks the
+        // eligible worker with the lowest index.
+        for (var i = 1; i <= ExpectedWorkers; i++)
+            Assert.Contains($"{WorkerPrefix}{i}@{EmailDomain}", actors);
+
+        // ReadOnly personas exist (4 by default) and no phase makes them act.
+        // Asserting the exclusion is what makes it deliberate rather than
+        // forgotten (#407).
+        for (var i = 1; i <= ExpectedReadOnly; i++)
+            Assert.DoesNotContain($"{ReadOnlyPrefix}{i}@{EmailDomain}", actors);
+    }
+
+    // The flock-restricted worker is the one persona whose attribution is an
+    // AUTHORIZATION outcome: FlockScopeGuard would refuse its write on any other
+    // flock, so a rotation that ignored the restriction fails the entire seed
+    // rather than misattributing quietly.
+    [Fact]
+    public async Task SimulationSeed_RestrictedWorkerAuthorsOnlyItsAssignedFlock()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Identify the pair by JOINING the assignment row, never by indexing a
+        // flock list — Postgres returns rows unordered, so a list index is not a
+        // stable identity for the restricted flock.
+        var assignment = await db.UserRoleAssignments.IgnoreQueryFilters()
+            .Where(a => a.AccountId == SeedDefaults.AccountId && a.FlockId != null)
+            .SingleAsync();
+        var restrictedFlockId = assignment.FlockId!.Value;
+
+        var flockOfEntry = await db.DailyEntries.IgnoreQueryFilters()
+            .Where(e => e.AccountId == SeedDefaults.AccountId)
+            .ToDictionaryAsync(e => e.Id, e => e.FlockId);
+
+        var creates = (await SeededAuditEventsAsync())
+            .Where(e => string.Equals(e.Action, AuditActions.DailyEntryCreate, StringComparison.Ordinal))
+            .ToList();
+        Assert.NotEmpty(creates);
+
+        var byRestrictedWorker = creates.Where(e => e.ActorUserId == assignment.UserId).ToList();
+
+        // The positive clause. Without it this passes vacuously for an
+        // implementation where the restricted worker never records anything.
+        Assert.NotEmpty(byRestrictedWorker);
+        Assert.All(byRestrictedWorker, e => Assert.Equal(restrictedFlockId, flockOfEntry[e.EntityId]));
+    }
+
+    // --- #500 slice 4: both provenance shapes ----------------------------
+
+    // Per ENTRY, which the persona map above cannot express: it checks the
+    // submitter is a worker or a manager, which stays true when every entry is
+    // submitted by a worker who did not record it — a shape no farm has.
+    [Fact]
+    public async Task SimulationSeed_SubmitIsEitherTheRecordingWorkerOrAManager()
+    {
+        var rows = await SeededAuditEventsAsync();
+        var creatorOf = rows
+            .Where(e => string.Equals(e.Action, AuditActions.DailyEntryCreate, StringComparison.Ordinal))
+            .ToDictionary(e => e.EntityId, e => e.ActorEmail);
+        var submits = rows
+            .Where(e => string.Equals(e.Action, AuditActions.DailyEntrySubmit, StringComparison.Ordinal))
+            .ToList();
+        Assert.NotEmpty(submits);
+
+        var selfSubmitted = 0;
+        var managerSubmitted = 0;
+        foreach (var submit in submits)
+        {
+            var creator = creatorOf[submit.EntityId];
+            if (string.Equals(submit.ActorEmail, creator, StringComparison.Ordinal))
+            {
+                selfSubmitted++;
+                continue;
+            }
+
+            // Not the recorder, so it must be a manager — and in particular
+            // never the Owner. Replacing the manager branch with plain
+            // ActAs(Owner) is caught by exactly this: "the two actors differ"
+            // would still be satisfied.
+            Assert.StartsWith(ManagerPrefix, submit.ActorEmail, StringComparison.Ordinal);
+            Assert.NotEqual(factory.AdminEmail, submit.ActorEmail);
+            managerSubmitted++;
+        }
+
+        // Both kinds must exist. Either clause alone passes for a fixture that
+        // mixed nothing.
+        Assert.True(selfSubmitted > 0, "no entry was submitted by the worker who recorded it");
+        Assert.True(managerSubmitted > 0, "no entry was submitted by a manager");
+    }
+
+    // The #494 shape no fixture exercised before: a record whose creator and
+    // last-changer are different people. Stated separately from the test above
+    // because it is a claim about what the SCREENS can show, not about who is
+    // allowed to submit.
+    [Fact]
+    public async Task SimulationSeed_CarriesBothProvenanceShapes()
+    {
+        var rows = await SeededAuditEventsAsync();
+        var creatorOf = rows
+            .Where(e => string.Equals(e.Action, AuditActions.DailyEntryCreate, StringComparison.Ordinal))
+            .ToDictionary(e => e.EntityId, e => e.ActorUserId);
+
+        var pairs = rows
+            .Where(e => string.Equals(e.Action, AuditActions.DailyEntrySubmit, StringComparison.Ordinal))
+            .Select(e => (Creator: creatorOf[e.EntityId], Submitter: e.ActorUserId))
+            .ToList();
+        Assert.NotEmpty(pairs);
+
+        Assert.Contains(pairs, p => p.Creator == p.Submitter);
+        Assert.Contains(pairs, p => p.Creator != p.Submitter);
+    }
+
+    // --- #500 slice 5: the remaining guards ------------------------------
+
+    // ActorUserId and ActorEmail must resolve to the SAME user. Asserting the
+    // two independently — as every other test here does — passes for a row that
+    // pairs one person's id with another's email.
+    //
+    // What such a mismatch actually costs: the id never reaches the UI
+    // (EntityProvenance carries only the emails), but
+    // AuditEventRepository.GetProvenanceChunkAsync's creator and
+    // self-promotion-exclusion SQL compares ActorUserId — so a mismatch makes it
+    // select the WRONG ROW, whose email is then displayed as authoritative.
+    [Fact]
+    public async Task SimulationSeed_ActorIdentityIsInternallyConsistent()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var emailOfUser = await db.Users
+            .Where(u => u.AccountId == SeedDefaults.AccountId)
+            .ToDictionaryAsync(u => u.Id, u => u.Email!);
+
+        var rows = await SeededAuditEventsAsync();
+        Assert.NotEmpty(rows);
+
+        Assert.All(rows, e =>
+        {
+            Assert.True(emailOfUser.ContainsKey(e.ActorUserId),
+                $"{e.Action} names actor id {e.ActorUserId}, which is no user in this account");
+            Assert.Equal(emailOfUser[e.ActorUserId], e.ActorEmail);
+        });
+    }
+
+    // The stored ROLES per action, which the email prefixes above cannot see: a
+    // persona named into the right prefix but created with the wrong role would
+    // satisfy every other test here and still change what FlockScopeGuard
+    // permits.
+    //
+    // Stated per action rather than as one "holds the role the action implies"
+    // rule, because that rule is unsatisfiable: workers deliberately carry NO
+    // role row ("Worker" is a pseudo-role CreateUserHandler maps to null), and
+    // DailyEntry.Submit is either a role-less worker or a Manager.
+    [Fact]
+    public async Task SimulationSeed_EachActionsActorHoldsTheExpectedRoles()
+    {
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var accountUsers = await db.Users.Where(u => u.AccountId == SeedDefaults.AccountId).ToListAsync();
+        var rolesOf = new Dictionary<Guid, IReadOnlyList<string>>();
+        foreach (var u in accountUsers) rolesOf[u.Id] = [.. await users.GetRolesAsync(u)];
+
+        var rows = await SeededAuditEventsAsync();
+
+        var expectedRole = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [AuditActions.UserCreate] = Roles.Owner,
+            [AuditActions.UserFlockAssign] = Roles.Owner,
+            [AuditActions.AccountUpdateSettings] = Roles.Owner,
+            [AuditActions.FlockCreate] = Roles.Manager,
+            [AuditActions.ProductCreate] = Roles.Manager,
+            [AuditActions.ExpenseCreate] = Roles.Manager,
+            [AuditActions.InventoryItemAdjust] = Roles.Manager,
+            [AuditActions.SalesOrderCreate] = Roles.Sales,
+            [AuditActions.SalesOrderAddItem] = Roles.Sales,
+            [AuditActions.SalesOrderConfirm] = Roles.Sales,
+            // null = the actor must hold NO stored role at all.
+            [AuditActions.DailyEntryCreate] = null,
+        };
+
+        foreach (var (action, role) in expectedRole)
+        {
+            var authored = rows.Where(e => string.Equals(e.Action, action, StringComparison.Ordinal)).ToList();
+            Assert.True(authored.Count > 0, $"the fixture produced no {action} row to check");
+            Assert.All(authored, e =>
+            {
+                var held = rolesOf[e.ActorUserId];
+                if (role is null) Assert.Empty(held);
+                else Assert.Contains(role, held);
+            });
+        }
+
+        // Submit is the split case: the recording worker (no roles) or a
+        // manager. Never the Owner — the clause that fails when the manager
+        // branch is replaced by ActAs(Owner).
+        var creatorOf = rows
+            .Where(e => string.Equals(e.Action, AuditActions.DailyEntryCreate, StringComparison.Ordinal))
+            .ToDictionary(e => e.EntityId, e => e.ActorUserId);
+        var submits = rows
+            .Where(e => string.Equals(e.Action, AuditActions.DailyEntrySubmit, StringComparison.Ordinal))
+            .ToList();
+        Assert.NotEmpty(submits);
+        Assert.All(submits, e =>
+        {
+            var held = rolesOf[e.ActorUserId];
+            Assert.DoesNotContain(Roles.Owner, held);
+            if (e.ActorUserId == creatorOf[e.EntityId]) Assert.Empty(held);
+            else Assert.Contains(Roles.Manager, held);
+        });
+    }
+
+    // The only assertion here that fails for a Pick returning ANY constant
+    // element, or a random one. Three things it has to get right:
+    //
+    //  - WHICH flock. The restricted one is identified by joining
+    //    UserRoleAssignments.FlockId, never by list index: Postgres returns rows
+    //    unordered, so an index is not a stable identity.
+    //  - WHICH count. Eligible is 3 on the restricted flock and 2 on every
+    //    other, so a single pool size is wrong for one of them.
+    //  - HOW MANY samples. Across the FULL seeded history, not one cycle: a
+    //    random Pick then survives with probability (1/3)^n over n entries
+    //    rather than the ~1.2% a four-day check would allow. A probabilistic
+    //    kill, not a certain one — stated, not claimed away.
+    [Fact]
+    public async Task SimulationSeed_WorkerRotationIsExactAndDeterministic()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var assignment = await db.UserRoleAssignments.IgnoreQueryFilters()
+            .Where(a => a.AccountId == SeedDefaults.AccountId && a.FlockId != null)
+            .SingleAsync();
+        var restrictedFlockId = assignment.FlockId!.Value;
+
+        var anchor = (await db.SimulationSeedStates.IgnoreQueryFilters()
+            .SingleAsync(s => s.AccountId == SeedDefaults.AccountId)).Anchor;
+
+        // Creation order, which is what SeedCastAsync's loop produces and
+        // therefore what Pick indexes into. Ordering by email reproduces it only
+        // while the pool is single-digit — `sim-worker-10` sorts before
+        // `sim-worker-2`. Safe at the configured 3, and
+        // SimulationSeed_CastCountsAreTheOnesThePersonaAssertionsAssume fails
+        // first on any config change that would break it.
+        var workers = await db.Users
+            .Where(u => u.AccountId == SeedDefaults.AccountId && u.Email!.StartsWith(WorkerPrefix))
+            .OrderBy(u => u.Email)
+            .Select(u => u.Id)
+            .ToListAsync();
+        Assert.Equal(ExpectedWorkers, workers.Count);
+
+        var entries = await db.DailyEntries.IgnoreQueryFilters()
+            .Where(e => e.AccountId == SeedDefaults.AccountId)
+            .Select(e => new { e.Id, e.FlockId, e.Date })
+            .ToListAsync();
+
+        var actorOf = (await SeededAuditEventsAsync())
+            .Where(e => string.Equals(e.Action, AuditActions.DailyEntryCreate, StringComparison.Ordinal))
+            .ToDictionary(e => e.EntityId, e => e.ActorUserId);
+
+        Assert.Equal(entries.Count, actorOf.Count);
+
+        var checkedRestricted = 0;
+        var checkedOther = 0;
+        foreach (var entry in entries)
+        {
+            var onRestrictedFlock = entry.FlockId == restrictedFlockId;
+            var eligible = onRestrictedFlock
+                ? workers
+                : workers.Where(w => w != assignment.UserId).ToList();
+            Assert.Equal(onRestrictedFlock ? ExpectedWorkers : ExpectedWorkers - 1, eligible.Count);
+
+            // The seeder's own index: it walks d = 1..historyDays writing
+            // today.AddDays(-d), so d is the day's distance from the anchor.
+            var dayIndex = anchor.DayNumber - entry.Date.DayNumber;
+            Assert.Equal(eligible[dayIndex % eligible.Count], actorOf[entry.Id]);
+
+            if (onRestrictedFlock) checkedRestricted++; else checkedOther++;
+        }
+
+        // Both flocks were actually exercised — otherwise the differing-count
+        // clause above is vacuous for whichever one is missing.
+        Assert.True(checkedRestricted > 0 && checkedOther > 0,
+            $"expected entries on both flocks; got {checkedRestricted} restricted, {checkedOther} other");
     }
 }

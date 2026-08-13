@@ -30,8 +30,25 @@ public sealed class AuditWriter(
             throw new InvalidOperationException(
                 "Audit events require a resolved tenant — do not call IAuditWriter outside a tenant-scoped request.");
 
-        var actorId = user.IsResolved ? user.UserId : Guid.Empty;
-        var actorEmail = user.IsResolved ? user.Email : "(unresolved)";
+        // #500 — symmetric with the tenant guard above, and for the same
+        // reason. The old fallback stamped "(unresolved)" whenever nobody had
+        // resolved an actor: silent, reachable only from non-HTTP callers, and
+        // it shipped ~256 such rows into every demo farm — visible on five
+        // screens once #494 rendered provenance. A caller with no human actor
+        // must now say WHICH non-person it is (CurrentUserContext
+        // .ResolveSystemActor) instead of defaulting into a placeholder.
+        //
+        // This throw fires before the AddAsync below, so a violation leaves
+        // nothing behind: every audit-writing path runs inside a transaction
+        // that commits only on success.
+        if (!user.IsResolved)
+            throw new InvalidOperationException(
+                "Audit events require a resolved actor — the current user must be resolved before " +
+                "calling IAuditWriter. A non-HTTP caller (CLI verb, seeder) must declare one: a real " +
+                "user, or a system actor via the concrete CurrentUserContext.");
+
+        var actorId = user.UserId;
+        var actorEmail = user.Email;
 
         await db.AuditEvents.AddAsync(AuditEvent.Create(
             Guid.NewGuid(), tenant.AccountId, clock.UtcNow,

@@ -916,9 +916,14 @@ public sealed class IdentityProvider(
             return Result.Failure(Error.NotFound("Users", userId));
 
         // Record WHERE the offline command ran (#265 review): the CLI has no
-        // authenticated actor, so the audit row would otherwise attribute the
-        // reset to "(unresolved)". Capturing host + OS user gives the break-glass
+        // authenticated human, so host + OS user is what gives the break-glass
         // row real accountability beyond the free-text reason.
+        //
+        // #500 corrected the second half of this comment. The row is no longer
+        // attributed to "(unresolved)" — AdminRecoveryService declares
+        // SystemActors.BreakGlass before calling in, and IAuditWriter now
+        // refuses an event with no actor at all. These details still matter for
+        // exactly the reason above: the actor names the COMMAND, not a person.
         var details = new { host = Environment.MachineName, osUser = Environment.UserName };
 
         // A DISTINCT audit action + the operator's reason so a break-glass reset

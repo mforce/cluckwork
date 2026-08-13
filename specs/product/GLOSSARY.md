@@ -416,6 +416,17 @@ update or delete surface anywhere. Admin-only viewer at /audit. The
 entity-local snapshots (`AdjustedFromJson` etc.) remain — they are the
 record's own history; the audit log is the cross-cutting trail.
 
+**Every event names an actor, and nothing can write one that does not (#500).**
+For a request that is the signed-in person. For the offline operator verbs,
+which have no human by design, it is one of two explicit **system actors** —
+`(bootstrap-admin)` for the first Owner's creation and `(break-glass)` for a
+`recover-admin` password reset — chosen deliberately rather than defaulted. An
+event whose actor was never resolved is refused outright, so a record can never
+be filed with no author at all. Sample data is held to the same rule: a **demo**
+farm's records are signed by its Owner, and a **simulation** farm's by the member
+of staff who would really have made them — workers record the eggs, sales staff
+book the orders.
+
 **Record history (#494)** — the "Created by … / Last changed by …" column on
 the Flocks, Egg grades, Daily entry history, Sales and Expenses tables. Not a
 stored field: it is **derived from the audit log**. Creation is the record's

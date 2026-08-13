@@ -5,7 +5,13 @@ using Cluckwork.Infrastructure.Persistence;
 
 // Reads account_id claim from the authenticated principal and populates TenantContext
 // before any endpoint handler runs (tech spec §4.2 point 1). Also resolves the
-// acting user (sub + email) for the audit trail (#93).
+// acting user — sub, email AND ROLES (#93).
+//
+// The roles are not decoration for the audit row: FlockScopeGuard reads them as
+// an authorization input, so this is where an HTTP request's flock scoping is
+// established (#500). This is the resolver for the HTTP path only — the
+// seeders and the one-shot CLI verbs resolve their own actor, because
+// IAuditWriter fails closed on an unresolved one.
 public sealed class TenantResolutionMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context, TenantContext tenant, CurrentUserContext user,

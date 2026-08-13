@@ -2174,6 +2174,13 @@ export const es = {
       + "los números que entraron en existencias. Y a partir de ese momento también se muestran tus "
       + "propias ediciones posteriores: si dejas los números como querías, la columna te nombra a ti y "
       + "marca la hora en que lo hiciste, no la edición que reemplazaste.",
+    auditSystemActors:
+      "Algunas entradas las hace el sistema y no una persona, y muestran un nombre entre paréntesis en "
+      + "lugar de un correo. \"(bootstrap-admin)\" es el comando que creó su primera cuenta de "
+      + "propietario, antes de que existiera alguien para hacerlo. \"(break-glass)\" es el comando de "
+      + "emergencia que restablece una contraseña cuando todos han perdido el acceso; esa entrada "
+      + "también registra desde qué equipo se ejecutó y el motivo indicado, de modo que un "
+      + "restablecimiento de emergencia nunca es anónimo. Todo lo demás nombra a la persona que lo hizo.",
     auditRecordHistoryOlder:
       "Los registros creados antes de que esto se agregara no muestran la línea de \"creado por\": "
       + "simplemente no hay una entrada de creación en el registro para ellos, y no se inventa ninguna "

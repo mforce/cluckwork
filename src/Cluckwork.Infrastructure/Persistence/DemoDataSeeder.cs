@@ -14,6 +14,7 @@ using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -36,6 +37,8 @@ using Microsoft.Extensions.Logging;
 public sealed class DemoDataSeeder(
     AppDbContext db,
     TenantContext tenant,
+    CurrentUserContext currentUser,
+    UserManager<ApplicationUser> users,
     IEggGradeRepository eggGrades,
     CreateFlockHandler createFlock,
     RecordDailyEntryHandler recordEntry,
@@ -72,6 +75,42 @@ public sealed class DemoDataSeeder(
             return SeedResult.PrerequisitesMissing(message);
         }
 
+        // #500 — the demo fixture is signed by the account's Owner, so one must
+        // exist. This mirrors the prerequisite SimulationDataSeeder has always
+        // had, and it is a REAL one: unlike the account/role/grades above, an
+        // Owner comes only from `bootstrap-admin` (#283), which `seed` never
+        // runs. Checked BEFORE tenant.Resolve, like its neighbours.
+        //
+        // This deliberately costs the "seed --profile demo needs nothing but a
+        // connection string" property that SeedCommandTests used to pin. The
+        // trade was made knowingly: a demo fixture exists to be looked at,
+        // looking requires a login, and a login requires an Owner — so the
+        // prerequisite turns a later surprise into an immediate, clear failure.
+        var (owner, disabledOwners) = await FindOwnerAsync(accountId);
+        if (owner is null)
+        {
+            // The remedy DIFFERS by cause, and naming the wrong one strands the
+            // operator in a loop: `bootstrap-admin` treats any Owner ROLE ROW as
+            // "already provisioned" and exits 0 having done nothing, so telling
+            // someone with a disabled Owner to run it sends them back here with
+            // the same message. AdminRecoveryService documents that trap; this
+            // is the second place it bites.
+            var message = disabledOwners > 0
+                ? "Demo seed prerequisites missing: the default account's Owner role is held only by DISABLED " +
+                  "user(s), so the seeded records would be signed by an account that cannot log in. There is " +
+                  "no in-product repair for this state today, so do not go looking for one: `bootstrap-admin` " +
+                  "counts Owner role rows without checking DisabledAt and reports 'already provisioned'; " +
+                  "`recover-admin` refuses a disabled target; and the Users screen that could re-enable them " +
+                  "is Owner-only, which nobody can now reach. Clear BOTH DisabledAt and DisabledBy for that " +
+                  "user directly in the database — they describe one fact, and EnableUserAsync always " +
+                  "clears them together — then re-run `seed --profile demo`."
+                : "Demo seed prerequisites missing: the default account has no user in the Owner role, so the " +
+                  "seeded records would have no author. Run `dotnet Cluckwork.Api.dll bootstrap-admin --email " +
+                  "<e>` against this database, then re-run `seed --profile demo`.";
+            logger.LogError(message);
+            return SeedResult.PrerequisitesMissing(message);
+        }
+
         var anyFlocks = await db.Flocks
             .IgnoreQueryFilters()
             .AnyAsync(f => f.AccountId == accountId, ct);
@@ -86,6 +125,17 @@ public sealed class DemoDataSeeder(
         // startup — resolve it to the seeded account for this scope.
         tenant.Resolve(accountId);
 
+        // #500 — and the actor, which IAuditWriter now requires. The whole demo
+        // fixture is authored by the Owner: a one-person farm is exactly what
+        // the demo represents, so every record's History line names them.
+        //
+        // The roles come from UserManager, never from a `[Roles.Owner]` literal.
+        // What is resolved here is an AUTHORIZATION input (FlockScopeGuard reads
+        // it), so a literal would fabricate a privilege rather than report one —
+        // and it would keep claiming Owner even for a user demoted between the
+        // lookup above and this line.
+        currentUser.Resolve(owner.Id, owner.Email!, [.. await users.GetRolesAsync(owner)]);
+
         try
         {
             await SeedDemoAsync(accountId, ct);
@@ -99,6 +149,43 @@ public sealed class DemoDataSeeder(
             await CleanupPartialSeedAsync(accountId);
             return SeedResult.Failed($"Demo seed failed: {ex.Message}");
         }
+    }
+
+    // #500 — the Owner that signs every demo record.
+    //
+    // UserManager.GetUsersInRoleAsync is NOT account-scoped: it takes a role
+    // name and returns Owners across EVERY account, so the AccountId filter
+    // here is load-bearing, not decoration. Without it the demo fixture would
+    // be attributed to another tenant's Owner and nothing would look wrong —
+    // the History line renders the email off the audit row, never a join.
+    // (SimulationDataSeeder.MissingBaseDataAsync filters the same way.)
+    //
+    // DISABLED Owners are excluded, and that filter is as load-bearing as the
+    // account one. Disabling a user keeps their Owner role row and only stamps
+    // DisabledAt — IdentityProvider says so itself: "a disabled actor retains
+    // its Owner ROLE ROW, only authentication is blocked" — so
+    // GetUsersInRoleAsync still returns them. Ordering by Id could then pick a
+    // disabled principal over a perfectly good active one, and attribute the
+    // whole fixture to an account that cannot log in: every History line would
+    // name somebody nobody can sign in as, to look at the very fixture they
+    // supposedly created. With ONLY a disabled Owner the preflight would pass
+    // and the seed report success, which is exactly the looks-fine-but-isn't
+    // shape #500 exists to remove.
+    //
+    // Ordered by Id so the choice is deterministic when an account has several
+    // Owners: a fixture whose attribution varies between runs would break the
+    // determinism the seeders rest on (#279).
+    //
+    // Returns the disabled count too, because the CALLER's advice depends on it:
+    // "no Owner at all" and "only disabled Owners" need different remedies.
+    private async Task<(ApplicationUser? Owner, int DisabledOwners)> FindOwnerAsync(Guid accountId)
+    {
+        var owners = (await users.GetUsersInRoleAsync(Roles.Owner))
+            .Where(u => u.AccountId == accountId)
+            .ToList();
+
+        return (owners.Where(u => u.DisabledAt is null).OrderBy(u => u.Id).FirstOrDefault(),
+                owners.Count(u => u.DisabledAt is not null));
     }
 
     // Cheap existence checks only — this must run BEFORE tenant.Resolve, so

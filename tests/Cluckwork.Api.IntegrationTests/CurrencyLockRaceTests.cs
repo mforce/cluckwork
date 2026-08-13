@@ -99,7 +99,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         var change = Task.Run(async () =>
         {
             using var scopeB = factory.Services.CreateScope();
-            scopeB.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+            scopeB.ResolveTenantAndActor(accountId);
             var handler = scopeB.ServiceProvider.GetRequiredService<UpdateFarmSettingsHandler>();
             return await handler.HandleAsync(ChangeCurrencyCommand(snapshot), CancellationToken.None);
         });
@@ -164,7 +164,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         var write = Task.Run(async () =>
         {
             using var scope = factory.Services.CreateScope();
-            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+            scope.ResolveTenantAndActor(accountId);
             return await RunHandlerAsync("expense", scope.ServiceProvider,
                 accountId, new Seeded(CategoryId: categoryId));
         });
@@ -174,7 +174,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         var change = Task.Run(async () =>
         {
             using var scope = factory.Services.CreateScope();
-            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+            scope.ResolveTenantAndActor(accountId);
             var handler = scope.ServiceProvider.GetRequiredService<UpdateFarmSettingsHandler>();
             return await handler.HandleAsync(ChangeCurrencyCommand(snapshot), CancellationToken.None);
         });
@@ -243,7 +243,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         var write = Task.Run(async () =>
         {
             using var scopeB = factory.Services.CreateScope();
-            scopeB.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+            scopeB.ResolveTenantAndActor(accountId);
             return await RunHandlerAsync(handlerKey, scopeB.ServiceProvider, accountId, seeded);
         });
 

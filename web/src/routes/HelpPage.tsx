@@ -390,6 +390,7 @@ export function HelpPage() {
         <li>{t("auditRecordHistoryLink")}</li>
         <li>{t("auditRecordHistorySubmit")}</li>
         <li>{t("auditRecordHistoryOlder")}</li>
+        <li>{t("auditSystemActors")}</li>
       </ul>
 
       <h3 id="export">{t("exportHeading")}</h3>

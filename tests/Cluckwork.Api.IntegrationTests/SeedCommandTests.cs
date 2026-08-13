@@ -34,9 +34,14 @@ public sealed class SeedCommandTests : IClassFixture<CluckworkWebApplicationFact
         _ = _factory.Services;
     }
 
-    private Process StartSeedCommand(string? profile, string environment = "Testing", string? connectionString = null)
+    private Process StartSeedCommand(string? profile, string environment = "Testing", string? connectionString = null) =>
+        StartVerb(profile is null ? "seed" : $"seed --profile {profile}", environment, connectionString);
+
+    // #500 — the demo profile now requires an Owner, which only `bootstrap-admin`
+    // provisions, so these tests must drive a second verb against the same
+    // database. Same binary, same environment; only the arguments differ.
+    private Process StartVerb(string arguments, string environment = "Testing", string? connectionString = null)
     {
-        var arguments = profile is null ? "seed" : $"seed --profile {profile}";
         var psi = new ProcessStartInfo("dotnet", $"\"{ApiDllPath}\" {arguments}")
         {
             RedirectStandardOutput = true,
@@ -68,9 +73,25 @@ public sealed class SeedCommandTests : IClassFixture<CluckworkWebApplicationFact
         SeedCommandRunner.RunToCompletionAsync(
             StartSeedCommand(profile, environment, connectionString), SubprocessTimeout);
 
+    // #500 — provisions the Owner the demo profile now requires. A re-run is a
+    // documented no-op, so tests may call this freely.
+    private async Task BootstrapAdminAsync(string? connectionString = null)
+    {
+        var (exitCode, stdout, stderr) = await SeedCommandRunner.RunToCompletionAsync(
+            StartVerb($"bootstrap-admin --email admin-{Guid.NewGuid():N}@test.local",
+                connectionString: connectionString),
+            SubprocessTimeout);
+        Assert.True(0 == exitCode, $"bootstrap-admin failed ({exitCode}). stdout={stdout} stderr={stderr}");
+    }
+
     [Fact]
     public async Task SeedCommand_Demo_SeedsDataAndExitsWithoutStartingKestrel()
     {
+        // #500 — the demo fixture is signed by the account's Owner, so one must
+        // exist first. This is the documented operator flow (README): migrate,
+        // bootstrap-admin, then seed.
+        await BootstrapAdminAsync();
+
         var (exitCode, stdout, stderr) = await RunSeedCommandAsync("demo");
         Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
 
@@ -127,16 +148,36 @@ public sealed class SeedCommandTests : IClassFixture<CluckworkWebApplicationFact
     // roles/egg grades/the default account are now static reference data
     // baked into the migrations themselves (this command's own MigrateAsync
     // step provisions them), DemoDataSeeder's preflight can no longer
-    // actually FIND them missing against ANY freshly migrated database — this
-    // is the stronger guarantee that replaces it. Own throwaway, entirely
-    // untouched Postgres — never migrated by anything before this subprocess
-    // runs, so a green result here proves `seed --profile demo` needs nothing
-    // but a connection string.
+    // actually FIND them missing against ANY freshly migrated database.
+    //
+    // #500 CHANGED WHAT THIS PINS. It used to assert that a green result
+    // "proves `seed --profile demo` needs nothing but a connection string".
+    // That property is deliberately gone: the demo fixture is now signed by the
+    // account's Owner, and an Owner comes only from `bootstrap-admin`. The
+    // reasoning, recorded here because this comment is where the old promise
+    // lived: a demo fixture exists to be looked at, looking requires a login,
+    // and a login requires an Owner — so requiring one up front converts a
+    // later surprise into an immediate, clearly-worded failure.
+    //
+    // The one-step migrate-and-run guarantee is still real and still tested,
+    // in two halves against an entirely untouched Postgres: without an Owner
+    // the command fails on its own PREREQUISITE (proving migration ran — a
+    // broken migration would fail differently, and the #283 base data would be
+    // missing instead), and with one it seeds in a single further step.
     [Fact]
     public async Task SeedCommand_Demo_AgainstAnUntouchedDatabase_MigratesAndSeedsInOneStep()
     {
         await using var freshDb = new PostgreSqlBuilder("postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
         await freshDb.StartAsync();
+
+        var withoutOwner = await RunSeedCommandAsync(
+            "demo", connectionString: freshDb.GetConnectionString());
+        Assert.True(1 == withoutOwner.ExitCode,
+            $"expected exit 1 without an Owner, got {withoutOwner.ExitCode}. " +
+            $"stdout={withoutOwner.Stdout} stderr={withoutOwner.Stderr}");
+        Assert.Contains("bootstrap-admin", withoutOwner.Stderr);
+
+        await BootstrapAdminAsync(freshDb.GetConnectionString());
 
         var (exitCode, stdout, stderr) = await RunSeedCommandAsync(
             "demo", connectionString: freshDb.GetConnectionString());

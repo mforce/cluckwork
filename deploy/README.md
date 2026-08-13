@@ -31,6 +31,14 @@ Demo sample data (#280/#284) is **command-only** — there is no `Seed__Demo` bo
 toggle. Against an already base-seeded, non-Production database, run
 `dotnet Cluckwork.Api.dll seed --profile demo` (see `AGENTS.md`).
 
+**Run `bootstrap-admin` first (#500).** The demo profile signs every record it
+seeds with the default account's Owner, so it refuses to run when there is none —
+exit `1`, with a message naming the command to run. On a database whose Owner was
+provisioned by an earlier `bootstrap-admin`, that generated password was printed
+once and is never reprinted; recover it with the `recover-admin` break-glass
+procedure rather than re-running `bootstrap-admin`, which silently no-ops once an
+Owner exists.
+
 ## Container health check (#266)
 
 The runtime image **and** the compose `app` service both declare a `HEALTHCHECK`

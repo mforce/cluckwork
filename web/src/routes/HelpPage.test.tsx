@@ -257,6 +257,22 @@ describe("HelpPage", () => {
     expect(screen.getByText(/can't disable the account's last Admin \(owner\)/i)).toBeInTheDocument();
   });
 
+  // #500 — the two SYSTEM actors an owner can meet in the audit log on a real
+  // farm. Not a demo-only concern, which is why this belongs in Help at all:
+  // the first owner's creation is performed by `bootstrap-admin` and a
+  // break-glass reset by `recover-admin`, both offline commands with no
+  // signed-in person, so both rows show a bracketed name rather than an email.
+  it("explains the bracketed system actors in the audit log", () => {
+    render(<HelpPage />);
+    expect(screen.getByText(/\(bootstrap-admin\)/)).toBeInTheDocument();
+    expect(screen.getByText(/\(break-glass\)/)).toBeInTheDocument();
+    // The accountability half matters as much as the label: a break-glass
+    // reset records the machine and the reason, so it is never anonymous.
+    expect(screen.getByText(/which machine it was run from and the reason given/i)).toBeInTheDocument();
+    // And it must not leave the reader thinking everything is nameless.
+    expect(screen.getByText(/Everything else names the person who did it/i)).toBeInTheDocument();
+  });
+
   it("counts disable/enable among the step-up-gated actions, alongside the three Owner-scoped ones (#356)", () => {
     // #356 added two more step-up-gated actions to the Users screen. The old
     // "Three actions ... every other action ... does not ask again" copy

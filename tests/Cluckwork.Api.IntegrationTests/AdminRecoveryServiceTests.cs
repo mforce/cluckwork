@@ -131,11 +131,24 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
 
             // AuditEvent carries the tenant query filter, so IgnoreQueryFilters is
             // required here — this scope never resolved a tenant.
-            var audited = await db.AuditEvents.IgnoreQueryFilters().AnyAsync(a =>
+            var row = await db.AuditEvents.IgnoreQueryFilters().SingleOrDefaultAsync(a =>
                 a.Action == "User.BreakGlassReset" && a.EntityId == adminUserId
                 && a.AccountId == adminAccountId && a.Reason == "quarterly drill");
-            Assert.True(audited,
+            Assert.True(row is not null,
                 "expected a User.BreakGlassReset audit row stamped to the admin's account, carrying the reason");
+
+            // #500 — this row used to read "(unresolved)": a fallback nobody
+            // chose. The verb has no signed-in human by design, so it now
+            // declares WHICH non-person it is.
+            Assert.Equal(SystemActors.BreakGlass, row!.ActorEmail);
+            Assert.Equal(Guid.Empty, row.ActorUserId);
+
+            // The label replaces the placeholder; it does NOT replace the real
+            // accountability, which is the host + OS user in the details blob.
+            // Asserted together so "fixed the actor, dropped the context" cannot
+            // pass.
+            Assert.Contains(Environment.MachineName, row.DetailsJson);
+            Assert.Contains(Environment.UserName, row.DetailsJson);
         }
     }
 
