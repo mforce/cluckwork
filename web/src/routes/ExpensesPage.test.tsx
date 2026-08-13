@@ -151,6 +151,19 @@ describe("ExpensesPage record history column (#494)", () => {
   });
 });
 
+// #493 — full audit trail, distinct from the two-point summary above.
+describe("ExpensesPage audit history link (#493)", () => {
+  it("links each row to its own entity-scoped audit history", async () => {
+    mockListExpenses.mockResolvedValue({
+      items: [EXP_BHD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3,
+    });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    const row = await screen.findByRole("row", { name: /Layer feed/ });
+    expect(within(row).getByRole("link", { name: "Audit history" }))
+      .toHaveAttribute("href", "/audit?entityId=e1");
+  });
+});
+
 describe("ExpensesPage record expense", () => {
   // Different scales prove the parse honours the loaded currency's minor unit:
   // "5" is 5 in JPY (0dp) but would be 500 at 2dp; "1.5" is 1500 in BHD (3dp).

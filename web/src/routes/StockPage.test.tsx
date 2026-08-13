@@ -216,6 +216,21 @@ describe("StockPage i18n wiring (#182, Task 18)", () => {
     });
   }
 
+  // #493 — first introduced on this page (the other five screens share
+  // common:recordHistory.viewHistoryLink, marker-tested on FlocksPage).
+  it("reads the adjustment-history link label from the common catalog, not a hardcoded literal", async () => {
+    await withOverride("common", "recordHistory.viewAdjustmentHistoryLink", "ADJUSTMENT-MARKER", async () => {
+      mockGetStock.mockResolvedValue(ROWS);
+      mockListEggLots.mockResolvedValue(LOTS);
+      render(<StockPage />);
+      await screen.findByText("Grade A");
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+      const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+      expect(within(lotRow).getByRole("link", { name: "ADJUSTMENT-MARKER" })).toBeInTheDocument();
+      expect(within(lotRow).queryByRole("link", { name: "Adjustment history" })).not.toBeInTheDocument();
+    });
+  });
+
   it("reads the heading from the catalog, not a hardcoded literal", async () => {
     await withOverride("stock", "title", "TITLE-MARKER", async () => {
       mockGetStock.mockResolvedValue(ROWS);
@@ -1358,5 +1373,50 @@ describe("StockPage lot paging + date filter (#465)", () => {
     } finally {
       i18n.addResource("en", "stock", "loadMoreButton", original);
     }
+  });
+});
+
+// #493 — the full audit trail for a lot is a distinct affordance from the
+// "history"/"hide history" toggle StockPage already had for the inventory
+// MOVEMENT ledger. Both live on the same row; the two must do genuinely
+// different things, not just carry different labels.
+describe("StockPage audit history link (#493)", () => {
+  it("links a lot row to its own entity-scoped audit history, distinct from the movement-history toggle", async () => {
+    mockGetStock.mockResolvedValue(ROWS);
+    mockListEggLots.mockResolvedValue(LOTS);
+    mockListEggLotMovements.mockResolvedValue(MOVEMENTS);
+    render(<StockPage />);
+    await screen.findByText("Grade A");
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+
+    // The link navigates to the entity-scoped audit trail — never opens
+    // anything in place.
+    expect(within(lotRow).getByRole("link", { name: "Adjustment history" }))
+      .toHaveAttribute("href", "/audit?entityId=lot1");
+    expect(screen.queryByText("Movement ledger")).not.toBeInTheDocument();
+
+    // The toggle button expands the movement ledger IN PLACE — never
+    // navigates. Clicking it must not be mistaken for the link above.
+    await act(async () => {
+      fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
+    });
+    expect(await screen.findByText("Movement ledger")).toBeInTheDocument();
+    expect(within(lotRow).getByRole("button", { name: "hide history" })).toBeInTheDocument();
+    // Still on StockPage — the toggle is not a navigation.
+    expect(within(lotRow).getByRole("link", { name: "Adjustment history" }))
+      .toHaveAttribute("href", "/audit?entityId=lot1");
+  });
+
+  // codex review of #516 — /api/v1/audit is AdminOnly; this screen is
+  // readable by non-admins too, who would otherwise hit a 403.
+  it("hides the link from a non-admin", async () => {
+    mockGetStock.mockResolvedValue(ROWS);
+    mockListEggLots.mockResolvedValue(LOTS);
+    render(<StockPage />, WORKER);
+    await screen.findByText("Grade A");
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+    expect(within(lotRow).queryByRole("link", { name: "Adjustment history" })).not.toBeInTheDocument();
   });
 });

@@ -1,0 +1,182 @@
+# Status: Entity-scoped audit history (#493)
+
+- Gate 1 — Product: APPROVED 2026-08-11
+- Gate 2 — Architecture: APPROVED 2026-08-11
+- Gate 3 — Program Design: APPROVED 2026-08-11 (2 pi review rounds, both with real product-level yield)
+- Gate 4 — Slice plan: APPROVED 2026-08-11 (1 pi review round, real yield — see below)
+
+## Pi review of Gate 3, and what changed
+
+Full critique: /tmp/claude-1000/-home-mforce-dev-cluckwork/5b576f36-2c12-40b8-b16b-bede9a48833b/scratchpad/pi-review-gate3.txt (scratchpad). This was the sharpest round yet — 4 real bugs in the design itself, not just missing edge cases.
+
+Acted on (folded into 03-program-design.md):
+- `updateActionFilter`'s signature couldn't work as written — react-router's `setSearchParams` replaces the query string, doesn't merge, and this repo has no working merge precedent (`FeedPage.tsx` only ever reads params). Fixed: takes `searchParams` too, builds a full replacement object.
+- **Stale-heading bug**: heading read `rows[0]?.entityType` without checking `usePagedList`'s `reloading` flag — during a reload (action-filter change OR switching to a different record's history), the OLD entity's type would show while new data loads. Fixed: `scopedEntityType` now gates on `!reloading`, same as the table already does.
+- Metric's `StatusCode == 200` swapped for a `>= 200 && < 300` range check — the exact literal was one unrelated endpoint change away from silently breaking the metric.
+- All-zeros/non-matching-but-well-formed `entityId` returns 200 with zero rows and still counts as a "successful scoped read" — documented as an accepted limitation (fixing it needs response-body inspection, disproportionate for a one-line log enrichment) and pinned by a new test rather than left implicit.
+- Test plan gaps: added a real router-driven test for the `setSearchParams` URL round-trip (the mocked-`listAuditEvents` tests would pass even with the broken merge above), and a test for the stale-heading fix.
+
+Checked and pushed back on (not acted on, with evidence):
+- "No completion log event for a binding failure, so the malformed-entityId test can't assert absence" — verified false against `Program.cs`'s own #398 comment: `BindingFailureResponse` does not rethrow, so `UseSerilogRequestLogging` still logs a completion event (400, exception null). Kept the test, added "assert the event exists first" as cheap hygiene rather than because the fear was real.
+- "First production caller of `entityId`, Gate 3's test plan needs a new SPA→backend integration test" — checked `AuditTests.cs`: the filter, including tenant isolation, is already integration-tested end-to-end at the real HTTP layer. Corrected the test plan's framing rather than adding a redundant test — the real gap was the frontend round-trip test above, not backend coverage.
+
+## Pi round 2 on Gate 3 (user asked for one more), and what changed
+
+Full critique: /tmp/claude-1000/-home-mforce-dev-cluckwork/5b576f36-2c12-40b8-b16b-bede9a48833b/scratchpad/pi-review-gate3-round2.txt (scratchpad). This round was thinner than round 1 — pi retracted one of its own points mid-argument (§2), and several others resolved to checkable facts rather than judgment calls.
+
+Acted on:
+- `updateActionFilter` had no test for the unscoped-merge path (only the scoped case was tested) — added a second URL round-trip test starting from `/audit` with no `entityId`.
+- Stale-heading test needed to specify a manually-controlled/deferred promise, not a same-tick-resolving one, or the `reloading=true` window is unobservable — specified.
+- "Known limitation" only named the all-zeros case; `AuditTests.cs`'s own `Viewer_NeverCrossesTenants` proves a cross-tenant read is a second, distinct 200-with-zero-rows phantom — added.
+- "No new backend test needed" overclaimed: `AuditTests.cs` covers Flock and Daily Entry, not Grades/Sales/Expenses/Egg Lots — softened to "low risk given the generic query shape," not "proven."
+- `HelpPage.tsx`'s own `help` i18n namespace was never named in Files — added.
+- Real, previously-undesigned UX gap: a scoped view with zero events showed the generic "No audit events yet." message, which reads as "the whole log is empty." Added a distinct `scopedEmptyMessage` and a test for it.
+- Softened Flow C's "exactly as unscoped" to name the specific behaviors that match, not an implied byte-identical DOM claim.
+- Added a one-line note on `isLikelyGuid`'s known UX trade-off (rejects some valid-but-noncanonical hand-typed GUIDs) as a least-confident decision.
+- Renamed the phantom-read test to `..._KNOWN_LIMITATION` so it reads as a pinned wart, not a spec, to a future maintainer.
+
+Checked and pushed back on (not acted on, with evidence):
+- "`common.recordHistory` per-page import still open, deferred to Gate 4 is a dodge" — checked all six pages directly: every one already calls `useTranslation("common")`. Not open; confirmed safe now rather than deferred.
+- "StockPage test may need new router test infrastructure" — checked `renderWithProviders.tsx`: already wraps `MemoryRouter`. No new infrastructure.
+- "The 'first production caller' correction is a rhetorical dodge — still need a genuine SPA→backend integration test" — checked this codebase's own convention: every page test (including `AuditPage.test.tsx`) mocks the API-client function at the module boundary; real browser-driven E2E lives separately in Playwright per AGENTS.md #277/#385, deliberately not in Vitest. A hybrid test would be a new pattern this repo doesn't use anywhere else — rejected as disproportionate, not silently dropped.
+- "Range check should be tested against a hypothetical 201/202/204" — checked `AuditEndpoints.cs`: exactly one return path, `Results.Ok(...)`. Rejected testing a status this endpoint cannot structurally produce today.
+- Gate 4 — Slice plan: in progress
+
+## Slices
+- [x] Slice 1 — tracer bullet: URL-as-source-of-truth mechanics + FlocksPage link (naive heading, no reloading gate yet) — DONE 2026-08-11. `AuditPage.tsx`, `FlocksPage.tsx`, i18n (en/es/tl), tests. 1745/1745 web tests pass, typecheck clean.
+- [x] Slice 2 — harden the scoped view: reloading gate on the heading, entity column hiding, scoped empty message — DONE 2026-08-12. 2 pi review rounds, stopped (2 consecutive no-product-defect). 1752/1752 web tests pass.
+- [x] Slice 3 — remaining links: Grades/Sales/Expenses/HistoryPage (mechanical) + StockPage (distinct label + behavior test) — DONE 2026-08-12. 2 clean pi review rounds. 261/261 new tests pass.
+- [x] Slice 4 — Flow A′ test: switching to a different record's history while already on /audit — DONE 2026-08-12. 2 pi review rounds (1 real fix: Routes-based harness + vacuity-gap assertion). 35/35 AuditPage tests pass.
+- [x] Slice 5 — backend metric: Program.cs enrichment + RequestLoggingTests.cs — DONE 2026-08-12. 2 pi review rounds (1 real minor test-coverage fix, 3 false claims rejected with evidence). 1641/1641 backend tests pass.
+- [x] Slice 6 — docs sync: GLOSSARY.md + HelpPage.tsx (es/tl translations land inline with each slice above, not here) — DONE 2026-08-12. 2 pi review rounds (2 real copy fixes, 2 false claims rejected with evidence). 1759/1759 web tests pass.
+
+## Notes for a fresh session
+
+Source issue: https://github.com/mforce/cluckwork/issues/493 — SPA-only, no domain/API/migration work (the `entityId` filter on `GET /api/v1/audit` and `listAuditEvents({ entityId })` already exist and are unused).
+
+Related, already shipped: #494/PR #503 — added inline "created by/when, last changed by/when" `ProvenanceCell` columns to Flocks, Egg grades, Daily entries, Sales, Expenses list pages. Different feature (two-point summary, not full history), but touched the same 5 screens — reuse that row/entity-id wiring for this issue's "View history" links.
+
+Grilled decisions locked at Gate 1 (see 01-product.md):
+- Success metric: count of `GET /api/v1/audit` requests carrying `entityId` (known-zero baseline today), not self-report.
+- Entity-scoped AuditPage view: action-type filter KEPT visible (reversed from an initial "disable" call after pi review — component already exists, stays useful within one record's history).
+- Screen scope: 6 rows — Flocks, Daily Entries, Sales Orders, Expenses, Egg Grades, plus Egg Lots via `InventoryPage`'s `lotRows` (added after pi review flagged FIFO lot corrections as plausibly the highest-value audit target; not in #494's original 5).
+- List-row links are documented as a stopgap for missing detail pages, not a final home.
+- No Gate 1 mockups — reusing/extending the already-shipped AuditPage, not a new screen.
+
+Pi (local vllm, deepseek-v4-flash) ran a contrarian review of the first Gate 1 draft — full critique at /tmp/claude-1000/-home-mforce-dev-cluckwork/5b576f36-2c12-40b8-b16b-bede9a48833b/scratchpad/pi-review-gate1.txt (scratchpad, not durable — the decisions it drove are captured above and in 01-product.md, which is what survives). It flagged the metric, the action-filter drop, the EggLot omission, and the unowned detail-page workaround; all four were acted on above. Its #71/Help-page caveat was checked and found stale — HelpPage.tsx already exists in this repo.
+
+## Gate 2 corrections to Gate 1 (factual, from reading the actual code)
+
+- "Daily Entries" screen is `HistoryPage.tsx` (route `/history`), not `DailyEntryPage.tsx`.
+- "Egg Lots" screen is `StockPage.tsx` (route `/stock`, `lots` list with `l.id`), not `InventoryPage.tsx` — that page only has lot ids inside an adjustment dropdown, no rows to attach a link to.
+- `StockPage.tsx` already has a per-lot "History" toggle for the **inventory movement ledger** (different from the audit trail) — the new link's label must not collide with it.
+- The chosen success metric (entityId-request count) assumed zero-new-instrumentation; confirmed false — `UseSerilogRequestLogging` doesn't capture query strings today. **Flagged for Gate 2 approval**: add one line to `Program.cs` (tension with "SPA-only" scope), or switch the metric to a client-side click counter.
+
+01-product.md and 02-architecture.md both updated to reflect these; 01-product.md's Screens/Metric sections carry inline "corrected during Gate 2" notes rather than pretending the first draft was already right.
+
+## Pi review of Gate 2, and what changed
+
+Full critique: /tmp/claude-1000/-home-mforce-dev-cluckwork/5b576f36-2c12-40b8-b16b-bede9a48833b/scratchpad/pi-review-gate2.txt (scratchpad).
+
+Acted on (folded into 02-architecture.md and 01-product.md):
+- Metric miscounted malformed/empty `entityId` (presence-only check would count 400s) — enrichment now also requires a 200 response.
+- `entityType` needed for display was left half-wired via an unvalidated URL param — now read from the first response row instead; no `entityType` in the URL at all.
+- Entity column redundant when scoped, StockPage "History" label collision, malformed-URL client guard, and "no back-link to the record" were all Gate-3-deferred or unstated — all decided now (see Flow steps 1, 4, 5, 8 in 02-architecture.md).
+- Metric reworded from "adoption" to "successful entityId-scoped requests" — it measures requests, not distinct users, and the doc was overclaiming.
+- Flagged for Gate 3: a test exercising the `entityId` path end-to-end (SPA → endpoint), since this is the filter's first production caller.
+
+Checked and pushed back on (not acted on):
+- GUID-reuse-after-delete risk to `entityId` scoping — verified against `Entity.cs`/`Flock.Create`: random `Guid.NewGuid()` PKs throughout, no ID recycling anywhere in this codebase. Not a real risk here.
+- Stale-closure/state-URL-drift bug in `usePagedList` — verified against `usePagedList.ts`: the fetcher's `useCallback` deps are read fresh every render regardless of source; the specific mechanism pi described doesn't exist. (Moved `action` into the URL anyway, for bookmarkability, not because the bug was real.)
+
+## Pi review of Gate 4 slice plan, and what changed
+
+Full critique: /tmp/claude-1000/-home-mforce-dev-cluckwork/5b576f36-2c12-40b8-b16b-bede9a48833b/scratchpad/pi-review-gate4.txt (scratchpad).
+
+Acted on (04-slices.md rewritten):
+- **Biggest finding**: Flow A′ — clicking a different record's link while already on `/audit` — had no test anywhere in Gate 3's plan. The primary record-to-record browsing flow was untested. Added as its own slice (4).
+- Original Slice 1 bundled every mechanic (URL-as-source-of-truth, the `reloading` gate, the empty-message distinction, column-hiding, the link) into one "tracer bullet" that wasn't minimal — a failure in any one piece would be indistinguishable from a failure in another. Split: Slice 1 is now the minimal wiring (accepting a known-temporary stale heading), Slice 2 hardens it (`reloading` gate, column-hiding, empty message) as its own reviewable step.
+- `StockPage` was described as "mechanical repetition" alongside four genuinely-identical pages, undermining its own already-documented complexity (label collision with the existing movement-ledger toggle). Called out separately in Slice 3.
+- The original plan made i18n its own trailing slice with the stated reason "depends on English being settled" — checked against this project's own standing i18n policy (translate-now, every batch ships es/tl inline) and found the reasoning was wrong: translations belong inline with each slice's English keys, not deferred. Corrected; only `GLOSSARY.md`/`HelpPage.tsx` doc-sync remains a genuine last step.
+- Slice 1's "provable end to end in the real app" overstated what's actually being proven (a manual browser click-through, since the plan deliberately excludes an automated SPA→backend test) — reworded to say so plainly.
+- Added an open question this doc surfaced but can't resolve: who actually consumes the `EntityScopedAuditRequest` metric — flagged for the product owner rather than silently assumed.
+
+Checked and pushed back on (not acted on, with evidence):
+- "Slice 3 (the metric) should move after slices 1-2" — checked the original numbering: it already was, at position 3 of 4, strictly after both frontend slices. Genuine misread on pi's part; clarified the "independent" wording so a future reader doesn't hit the same misread.
+- "`rows[0]` might mix entities across a scoped response" — checked against Gate 2: the repository's `entityId` filter is an exact-match `WHERE EntityId = @id`; a scoped response is homogeneous by construction, not an assumption.
+- "StockPage's visual-distinctness requirement needs Playwright coverage" — real limitation (Vitest can't assert visual design), but adding new browser-driven E2E infrastructure for one label is disproportionate to this ticket's SPA-only, Vitest-level scope. Accepted as a documented limitation, not built.
+
+## Slice 1 code review (extended pi-review-every-gate to slices, per user instruction)
+
+Round 1 (`pi-review-slice1-round1.txt`, scratchpad): 7 claims. 5 verified false or already-settled and rejected with evidence — including the "headline" one (FlocksPage test fixture `f1` "proves the link is dead in production": false, `isLikelyGuid` runs in `AuditPage` parsing the URL, not in `FlocksPage` generating it; production `Flock.Id` is always a real canonical `Guid.NewGuid()`, confirmed back in Gate 2) and `entityTypeLabel` supposedly throwing on an unknown type (false, checked `enums.ts` — falls back to `String(value)`). 2 real, both test-quality not shipped-code defects: acted on — the malformed-`entityId` test's `objectContaining({ entityId: undefined })` couldn't distinguish "explicitly undefined" from "key absent" (now reads `mock.calls` directly), and the three new i18n keys had no marker test matching this file's own established `withOverride` convention (added 3: `audit:scopedHeading`, `audit:scopedHeadingFallback`, `common:recordHistory.viewHistoryLink`).
+
+Round 2: attempted twice, both times the remote pi endpoint (vllm) was unresponsive — even a trivial "PONG" ping timed out at 60s. Infra failure, not a completed zero-finding review, so it does **not** count toward the 2-consecutive-zero-yield stop rule. Round 2 will be retried at a later slice boundary if the service recovers; not blocking Slice 2.
+
+Verification after round 1 fixes: 1748/1748 web tests pass, typecheck clean.
+
+## Slice 2 code review (2 rounds, stopped — 2 consecutive rounds with no confirmed product defect)
+
+Round 1 (`pi-review-slice2-round1.txt`): long, mostly self-contradicting (pi narrated "let me check the JSX" despite having no tool access, then argued itself in circles before agreeing its own "vacuous fix" claim was false). Net: one false headline claim (the reloading gate is "vacuous" — self-retracted), one already-settled relitigation rejected (heading/empty-message showing generic together is the documented, deliberate Gate 2/3 trade-off, not new), one false claim (no unscoped-side empty-message test — an original unmodified test already covers it), one correctly-deferred item (entity-switch window untested — already Slice 4's job, not a Slice 2 gap). One real, minor finding acted on: the "hides entity column" test asserted only the column *header*, not the row's own cell — strengthened to check both.
+
+Round 2 (`pi-review-slice2-round2.txt`): one claimed "real bug" — that the empty-message branch could render during a reload, showing a contradictory "no events" message. Verified false against the actual JSX: `{cond1 ? loading : cond2 ? empty : table}` is a chained ternary — `cond2` (`rows.length === 0`) is only ever evaluated once `cond1` (`rows === null || reloading`) is already false, so the empty branch and a pending reload are structurally mutually exclusive. Basic ternary precedence, not a subtle bug.
+
+Two consecutive rounds, neither confirmed a defect in the shipped code (round 1's yield was a test-coverage nicety; round 2's yield was zero, its one claim false). Per the stop rule, loop ended here — moving to Slice 3.
+
+Verification after round 1's fix: 1752/1752 web tests pass, typecheck clean.
+
+## Slice 3 code review (2 rounds, stopped — 2 consecutive clean rounds)
+
+Round 1 (`pi-review-slice3-round1.txt`): checked ids/row-scoping/i18n-keys/href-construction/StockPage's two-affordance separation. Zero findings — "ship it."
+
+Round 2 (`pi-review-slice3-round2.txt`), directed at a different angle (accessibility/plural-interpolation/id-field-naming per the loop's own escalation): zero findings, brief, no padding — accessible names fine (row context disambiguates identical link text per WCAG 2.4.4/2.4.9), no interpolation/plural to break, all five pages use a flat `id` property, no internal-vs-display-id mismatch.
+
+Two consecutive zero-defect rounds — stopped per the rule. Verification: 261/261 new-page tests pass; full suite 1756/1757 (1 unrelated pre-existing flake in `DailyEntryPage.test.tsx`, confirmed by running it standalone — 58/58 green, file untouched by this slice), typecheck clean.
+
+## Slice 4 code review (2 rounds, stopped — 2 consecutive clean/resolved rounds)
+
+Round 1 (`pi-review-slice4-round1.txt`): 5 points on the new Flow A′ test itself. Acted on 2 real ones — the sibling-`Link`-with-no-`Routes` harness couldn't prove `AuditPage` genuinely stays mounted across the navigation (only that it happened to); rebuilt it with a real `<Routes><Route path="/audit" element={<AuditPage/>}/></Routes>` matching `App.tsx`'s own routing, with a comment on why query-string-only navigation never remounts. The in-flight fallback test had a vacuity gap — it could pass even if the switch never actually re-fetched, just flipped to the generic heading; added an explicit assertion that `listAuditEvents` was called with the new `entityId`. Rejected 2 as speculative hypotheticals (a race condition contingent on a "future refactor," a hypothetical double-effect-invocation) — out of scope per this review's own brief. Verified false and rejected: "EVENT_A and EVENT_B might share the same actorEmail, so the not-stale-blended assertion doesn't discriminate" — checked the fixtures directly, `admin@farm.test` vs `manager@farm.test`, genuinely distinct.
+
+Round 2 (`pi-review-slice4-round2.txt`): brief, no padding — confirmed all fixes hold, nothing new.
+
+Verification: 35/35 AuditPage tests pass (confirms the `<Routes>` rewrite didn't regress anything), full suite 1759/1759 (the earlier flake didn't recur), typecheck clean.
+
+## Slice 5 code review (2 rounds, stopped — 2 consecutive clean/resolved rounds)
+
+Backend metric: one `EnrichDiagnosticContext` line in `Program.cs`'s `UseSerilogRequestLogging`, plus `RequestLoggingTests.cs` cases in the existing `RequestLoggingFactory`/`CollectingSink` harness.
+
+Round 1 (`pi-review-slice5-round1.txt`): 5 points, 3 verified false and rejected with evidence — "status-code timing race" (Serilog.AspNetCore's `RequestLoggingMiddleware` awaits `next()` synchronously before running completion logic including `EnrichDiagnosticContext`; not a fire-and-forget continuation, and this file's own many pre-existing `StatusCode`-reading tests would already be flaky if it were racy), "thread-safety across parallel tests" (`[Collection(RequestLoggingCollection.Name)]` is the xUnit mechanism that guarantees serial execution within the collection, not an assumption), and "brittle string assertion" (rejected as inconsistent with this file's own established `ScalarOf(...)` convention used by every other property check). One real, minor gap acted on: the `entityId=` empty-value case (distinct from both the malformed and the absent-key cases) was never explicitly tested — added, and it confirmed the existing status-code guard already handles it correctly (predicted 400, verified 400). One point noted as an already-accepted design simplification, not actionable.
+
+Round 2 (`pi-review-slice5-round2.txt`): brief, no padding — confirmed the fix holds, nothing new.
+
+Verification: 16/16 `RequestLoggingTests` pass, full backend suite 1641/1641 (Domain 325, Application 145, Api.IntegrationTests 1171 — no test-isolation regressions), build clean.
+
+## Slice 6 code review (2 rounds, stopped — 2 consecutive clean/resolved rounds)
+
+Docs sync: `HelpPage.tsx` gets a new bullet (`auditRecordHistoryLink`, en/es/tl per translate-now policy) alongside the existing `auditRecordHistory*` bullets; `GLOSSARY.md` gets a new "Entity-scoped audit history (#493)" entry after the existing "Record history (#494)" entry.
+
+Round 1 (`pi-review-slice6-round1.txt`): 4 points, 2 verified false and rejected with evidence — "the '#494 covers 5, #493 covers 6' count is unverifiable" (false: `GLOSSARY.md`'s own preceding `Record history (#494)` entry, same file, explicitly lists the five tables) and "es 'Esa columna' has no singular antecedent" (false: the prior es bullet says "una columna Historial," singular, matching exactly — pi checked against text that wasn't there). 2 real, acted on: the Spanish "Lotes" (this app's established term for Flock) sitting in the same sentence as "Lotes de huevos" (Egg lots) was genuinely ambiguous on a skim read — reordered the list to separate them without inventing new terminology outside the app's established `entityTypeLabel` convention; and "Daily entries" drifted from the established "Daily entry history" naming used one bullet above — renamed across en/es/tl to match.
+
+Round 2 (`pi-review-slice6-round2.txt`): brief, no padding — nothing new.
+
+Verification: full web suite 1759/1759, typecheck clean.
+
+## Feature complete — all 6 slices shipped
+
+Gate 1-4 docs: 5 pi review rounds across the four gates, all with real product-level yield (metric definition, screen corrections, program-design bugs caught before code existed, a missing test flow). Implementation: 6 slices, 11 pi review rounds total (every slice stopped at 2 consecutive clean/resolved rounds per the loop's stop rule), roughly a dozen real findings acted on and an equal number of false claims verified and rejected with evidence. Final state: 1759/1759 web tests, 1641/1641 backend tests, both typecheck/build clean.
+
+## Post-ship: codex review of PR #516
+
+After the PR opened, codex found and this session fixed, over several rounds:
+
+- **Missing admin gate.** The "Audit history" link was rendered for any role that could view the record, but `/api/v1/audit` is `AdminOnly` — Worker/ReadOnly/Sales roles would click through to a 403. Gated all six links on `isAdmin`.
+- **A stale-scope render race, found in three shapes across three rounds.** `usePagedList`'s `reloading` flag flips true inside a `useEffect` that runs after a render commits, but `fetchPage`'s identity (and so the query) already reflects a new scope on that same render — so trusting `reloading` alone let a heading/table briefly show the previous record's actual data. A content-based fix (comparing loaded rows' own `entityId` against the current scope) closed the common case, but review kept finding variants it missed: a stale *empty* page (no row to compare), and leaving a scope entirely (`entityId` → `undefined`, which a content check exits on by design). Per this project's own "two misses of the same shape means the method is wrong," redesigned around comparing `fetchPage`'s own reference identity instead of inferring staleness from row content — one mechanism that closes every variant uniformly.
+- **A casing regression the stale-scope fix itself introduced.** The API always returns `EntityId` lowercase (a .NET Guid via `System.Text.Json`), but a pasted uppercase URL value was never normalized, so the row/identity comparison never matched and the page got stuck on "Loading…" permanently. Fixed by normalizing `entityId` to lowercase once, at the URL read point.
+- **Egg Lots' "Audit history" link overpromised.** The only audit action ever written against an `EggLot`'s own entity id is a manual write-off/recount; creation and allocation are recorded against other entities. Relabeled to "Adjustment history" (new i18n key, StockPage only) and corrected every doc that described it as full-lifecycle coverage, including this plan's own Announcement (`01-product.md`) — annotated forward rather than rewritten, matching how the rest of this log handles corrections.
+
+Every fix went through the same pi-review-then-verify loop as the gates and slices; several rounds also rejected confident-sounding false claims after checking them directly against the code (a "timing race" that turned out to be the library's own canonical usage pattern, an "unaddressed E2E spec" that grepped to zero matches, an "unverified isAdmin scoping" that a clean typecheck had already disproven).
+
+**The stale-scope race went through a fourth shape after this section was first written.** Round 4's fetchPage-reference redesign (committed via a ref, updated inline in the render body) fixed the content-based mechanism's gaps but introduced a new one: on a delayed double-switch (click record B, then record C before B's fetch resolves), the render where C's reload completed needed to read the pre-update ref value one more time, then commit the correction — but mutating a ref schedules no re-render, so nothing ever re-evaluated with the corrected value. The page could get stuck on the generic fallback forever, worse than every version before it. Fixed by replacing the ref with React state, committed via a `useEffect` keyed only on `events.reloading` (not on `fetchPage`): the effect fires exactly once per genuine reloading transition and, being a state update rather than a ref mutation, schedules the render the correction needs. The round that found this also raised the most technically dense challenge of the whole loop — a claim that the redesign was *still* fundamentally broken — checked rigorously against React's actual documented effect-closure and `setState` semantics (not just re-reasoned about) and refuted with three independent lines of evidence: React's dependency-array contract, TypeScript's own prior compiler rejection of an unwrapped `setState` call, and a new test using three separately-awaited `act()` calls that empirically passes against the fix and fails (stuck permanently) via mutation against the broken ref version.
+
+## Review loop closed
+
+Codex's round 6 pass (commit cb23040) explicitly reported no findings — the first clean round after 5 consecutive rounds that each surfaced a real, distinct product bug. Stopped tagging per the loop's stop rule (an explicit "no issues" report is one of its two stop conditions). Final verification: 1772/1772 web tests, typecheck clean.

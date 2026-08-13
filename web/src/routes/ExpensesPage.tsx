@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 import {
   adjustExpense, createExpense, createExpenseCategory, formatMoney, getExpense,
   listExpenseCategories, listExpenses, listFlocks, updateExpenseCategory,
@@ -569,6 +570,11 @@ export function ExpensesPage() {
                 <td>{x.note ?? "—"}</td>
                 <ProvenanceCell history={x} />
                 <td>
+                  {/* #493 — full audit trail for this record, distinct from
+                      the created/last-changed summary in ProvenanceCell. */}
+                  <Link className="link" to={`/audit?entityId=${x.id}`}>
+                    {tc("recordHistory.viewHistoryLink")}
+                  </Link>
                   {/* Opens the correction dialog — non-mutating, so the
                       spinner belongs to the dialog's Save, not here (#242). */}
                   <button className="link" disabled={busy}

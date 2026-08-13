@@ -109,6 +109,26 @@ describe("HistoryPage record history column (#494)", () => {
   });
 });
 
+// #493 — full audit trail, distinct from the two-point summary above.
+describe("HistoryPage audit history link (#493)", () => {
+  it("links each row to its own entity-scoped audit history", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+    const row = await screen.findByRole("row", { name: /2026-07-19/ });
+    expect(within(row).getByRole("link", { name: "Audit history" }))
+      .toHaveAttribute("href", "/audit?entityId=de1");
+  });
+
+  // codex review of #516 — /api/v1/audit is AdminOnly; this screen is open
+  // to workers too, who would otherwise hit a 403.
+  it("hides the link from a non-admin", async () => {
+    mockListDailyEntries.mockResolvedValue([SUBMITTED]);
+    renderWithProviders(<HistoryPage />, { token: { sub: "u1" } });
+    await screen.findByRole("row", { name: /2026-07-19/ });
+    expect(screen.queryByRole("link", { name: "Audit history" })).not.toBeInTheDocument();
+  });
+});
+
 describe("HistoryPage condition column", () => {
   it("counts only the conditions this entry resolved to a grade", async () => {
     // cracked 2 resolved (a grade id), dirty 3 did NOT (null) — so 2, not 5.

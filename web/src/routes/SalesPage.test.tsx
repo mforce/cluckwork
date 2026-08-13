@@ -956,6 +956,26 @@ describe("SalesPage record history column (#494)", () => {
   });
 });
 
+// #493 — full audit trail, distinct from the two-point summary above.
+describe("SalesPage audit history link (#493)", () => {
+  it("links each row to its own entity-scoped audit history", async () => {
+    mockListOrders.mockResolvedValue([DRAFT_TWO]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-2/ });
+    expect(within(row).getByRole("link", { name: "Audit history" }))
+      .toHaveAttribute("href", "/audit?entityId=o2");
+  });
+
+  // codex review of #516 — /api/v1/audit is AdminOnly; the Sales role (which
+  // can view and settle orders here) would otherwise hit a 403.
+  it("hides the link from a non-admin", async () => {
+    mockListOrders.mockResolvedValue([DRAFT_TWO]);
+    renderWithProviders(<SalesPage />, { token: { sub: "u1", role: "Sales" } });
+    await screen.findByRole("row", { name: /SO-2/ });
+    expect(screen.queryByRole("link", { name: "Audit history" })).not.toBeInTheDocument();
+  });
+});
+
 describe("SalesPage list failures (#469)", () => {
   // The old behaviour: ANY rejection from the order-list fetch set a
   // `loadError` that nothing ever cleared, and the render replaced the whole

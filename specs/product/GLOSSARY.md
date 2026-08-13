@@ -479,6 +479,26 @@ disable must not rewrite what old history displays. Distinct from the audit
 log's own admin-only viewer at /audit, which is the full cross-cutting trail —
 this is the one-line summary on the record's own page.
 
+**Entity-scoped audit history (#493)** — the bridge between the two. An
+"Audit history" link on a record's own screen (the same Flocks, Egg grades,
+Daily entry history, Sales and Expenses tables #494's summary covers) opens
+the admin-only /audit viewer pre-filtered to that one record (`?entityId=<id>`),
+reusing the `entityId` filter the endpoint already supported server-side but
+that nothing called until this feature. Not a new surface: same viewer, same
+admin gate, same action-type filter — just scoped. Distinct from the
+record-history summary above in the same way the summary itself is distinct
+from the full log: the summary is two points (created, last changed), the
+scoped view is every event on the record, in order.
+
+Egg lots get the **narrower** "Adjustment history" link instead, deliberately
+labeled differently. The only audit action ever written against an egg lot's
+own entity id is a manual write-off or recount (`EggLot.Movement`) — creation
+is recorded against the daily entry that produced the lot, allocation and
+restoration against the sales order, never against the lot itself. Labeling
+this link "Audit history" like the other five would promise a full lifecycle
+the data can't deliver: a normal, never-adjusted lot shows nothing at all
+under that scope. "Adjustment history" says exactly what it shows.
+
 **Hen-day % (#91)** — eggs collected ÷ hen-days × 100 (spec §19.3). A
 hen-day is one bird alive for one day; the day's bird count comes from the
 bird ledger (placements + movements). The production report shows it per

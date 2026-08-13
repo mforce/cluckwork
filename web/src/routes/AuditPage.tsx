@@ -1,40 +1,176 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router";
 import { listAuditEvents } from "../api/cluckwork";
 import { usePagedList } from "../components/usePagedList";
 import { AUDIT_ACTION_VALUES, auditActionLabel, entityTypeLabel } from "../i18n/enums";
 
 const PAGE = 100;
 
+// Canonical 8-4-4-4-12 hex form only, not full Guid.TryParse permissiveness
+// (which also accepts braced/no-hyphen forms). This is a correctness guard,
+// not just hygiene: the endpoint's model binder is stricter than TryParse,
+// so a looser check would let some malformed values through to a guaranteed
+// 400. Every server-issued link (row.id) is always canonical; this only
+// guards a hand-edited or pasted URL — and, as a known trade-off, also
+// rejects a hand-typed but valid noncanonical GUID, silently falling back to
+// the unscoped view rather than engineering fuller parsing for that
+// low-probability case (#493).
+const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isLikelyGuid(value: string): boolean {
+  return GUID_PATTERN.test(value);
+}
+
+// #493 — usePagedList's identity-change reload is asynchronous:
+// `fetchPage`'s identity already reflects a NEW query on the render where a
+// navigation lands (a different entityId, a different action, or leaving a
+// scope entirely), but `reloading` only flips true inside a useEffect that
+// runs AFTER that render commits. Two earlier versions of this fix compared
+// the loaded ROWS' own content against the current entityId — that caught
+// the common case (rows belong to the wrong entity) but review kept finding
+// variants it missed: an empty stale page (no row left to compare), and
+// leaving a scope entirely (entityId -> undefined, which a content check
+// exits early on by design, so old scoped rows could render as if they were
+// the global log). Two misses of the same shape means the METHOD was
+// wrong, not just missing a case — comparing `fetchPage`'s own reference
+// instead of inferring staleness from content closes every variant
+// uniformly: the moment ANYTHING the query depends on changes, rows are
+// stale until a completed reload confirms otherwise, full stop, regardless
+// of what's in them.
+export function isFetchStale(committedFetchPage: unknown, currentFetchPage: unknown): boolean {
+  return committedFetchPage !== currentFetchPage;
+}
+
 // #93 — read-only audit trail (admin). Deliberately no mutation surface: the
 // rows are written by the server inside the transactions they record.
+//
+// #493 — also reachable entity-scoped, via ?entityId=<guid> (a "View
+// history" link on a record's own screen). The URL is the single source of
+// truth for BOTH `action` and `entityId`: react-router's setSearchParams
+// REPLACES the whole query string rather than merging, so every write here
+// goes through updateActionFilter, which builds a full copy from the
+// CURRENT params rather than a partial object.
 export function AuditPage() {
   const { t } = useTranslation("audit");
   const { t: tc } = useTranslation("common");
 
-  const [actionFilter, setActionFilter] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const actionFilter = searchParams.get("action") ?? "";
+  const rawEntityId = searchParams.get("entityId");
+  // Lowercased (codex review of #516): the API returns EntityId as a .NET
+  // Guid, which System.Text.Json serializes lowercase regardless of the
+  // request's casing, but the regex accepting it is case-insensitive.
+  // Without normalizing here, an uppercase URL value would build a
+  // DIFFERENT fetchPage identity than the same record's lowercase form
+  // does elsewhere, which is exactly what isFetchStale below treats as "a
+  // different query" — normalized once here so it doesn't fight its own
+  // staleness check.
+  const entityId = rawEntityId && isLikelyGuid(rawEntityId) ? rawEntityId.toLowerCase() : undefined;
+
+  const updateActionFilter = useCallback((action: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (action) next.set("action", action);
+    else next.delete("action");
+    setSearchParams(next);
+  }, [searchParams, setSearchParams]);
 
   // #469 — the ticket/dedupe/busy-ownership discipline this screen grew for
   // itself (codex review of #94) now lives in usePagedList, shared with every
   // other paged screen. The filter is expressed as the fetcher's identity, so
-  // "the filter changed" and "reload from the top" cannot drift apart.
-  const events = usePagedList({
-    fetchPage: useCallback(
-      (offset: number, limit: number) =>
-        listAuditEvents({ action: actionFilter || undefined, limit, offset }),
-      [actionFilter],
-    ),
-    pageSize: PAGE,
-  });
+  // "the filter changed" and "reload from the top" cannot drift apart —
+  // `entityId` changing (a fresh entity-scoped link, or leaving the scope)
+  // triggers the same reload as an action-filter change. Hoisted out of the
+  // usePagedList call (#493) so its own identity is available below for the
+  // stale-scope check, not just handed straight in.
+  const fetchPage = useCallback(
+    (offset: number, limit: number) =>
+      listAuditEvents({ action: actionFilter || undefined, entityId, limit, offset }),
+    [actionFilter, entityId],
+  );
+  const events = usePagedList({ fetchPage, pageSize: PAGE });
+
+  // #493 — see isFetchStale's own comment (codex review of #516): rows are
+  // stale (heading/table below both depend on this) whenever `fetchPage`'s
+  // identity has moved on since the last completed reload, regardless of
+  // what's currently in `events.rows`.
+  //
+  // STATE, not a ref (codex review — a ref-based version of this shipped
+  // and broke on a delayed double-switch: click record B, then click record
+  // C before B's fetch resolves). Trace: on the render where C's OWN reload
+  // completes (`events.reloading` flips true -> false), that render still
+  // needs to read the PRE-update committed value to correctly show
+  // "reloading" one more time — but mutating a ref doesn't schedule a
+  // re-render, so nothing ever re-evaluates with the corrected value
+  // afterward. The page got stuck on "Loading…" forever, not just briefly
+  // stale — worse than every version before it.
+  //
+  // Committing via `setCommittedFetchPage` inside an effect keyed ONLY on
+  // `events.reloading` (not on `fetchPage`) fixes both halves at once: the
+  // effect fires exactly once per genuine reloading TRANSITION (mount, and
+  // every true<->false flip), reading that render's own fresh `fetchPage`
+  // from its closure — never on a render where entityId/action changed but
+  // reloading hasn't caught up yet, since the dependency didn't change on
+  // that render. And because it's a state update, not a ref mutation, the
+  // render that needed the corrected value gets scheduled — closing the
+  // stuck-forever gap a ref architecturally cannot.
+  //
+  // Safe against the specific double-switch trace above (verified against
+  // usePagedList.ts's ticket system, not just reasoned about): B's fetch,
+  // once superseded by C's own reload claiming a new ticket, can never flip
+  // `reloading` on C's behalf — `setLoadingOwned` no-ops for any call whose
+  // ticket no longer matches `req.current`, and tickets are claimed
+  // synchronously before any await. So the ONE reloading-transition my
+  // effect observes for scope C is genuinely C's own completion, never B's.
+  // useState(() => fetchPage) / setCommittedFetchPage(() => fetchPage), not
+  // the bare function: React treats a function ARGUMENT to useState/a state
+  // setter as a lazy initializer/updater, not a value to store — passing
+  // fetchPage directly would have React CALL it rather than store its
+  // reference (TypeScript caught this at the call sites before it shipped).
+  const [committedFetchPage, setCommittedFetchPage] = useState(() => fetchPage);
+  useEffect(() => {
+    if (!events.reloading) {
+      setCommittedFetchPage(() => fetchPage);
+    }
+    // Deliberately NOT depending on `fetchPage`: this must fire only on a
+    // genuine reloading transition, not on every identity change (that's
+    // exactly the premature-commit bug the ref-based version had).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events.reloading]);
+  const isScopedReloading = events.reloading || isFetchStale(committedFetchPage, fetchPage);
+  // A later review round questioned whether this effect, once dormant while
+  // reloading stays true across an intermediate scope change (click B, then
+  // click C before B's fetch resolves — reloading is already true, so the
+  // dependency doesn't change and the effect doesn't fire for C's click),
+  // could commit a STALE closure once it finally does fire. It can't: React
+  // never queues up an earlier render's discarded effect callback — the
+  // callback that actually RUNS is always defined by the render where the
+  // dependency change was observed, closing over THAT render's fetchPage,
+  // which useCallback guarantees is the current identity (unchanged since
+  // whatever scope is currently selected). Proven both by this reasoning
+  // and empirically: the tests below use separate, individually-awaited
+  // act() calls per click (not one batched flush) through a two-way and a
+  // three-way switch, and pass — confirmed via mutation that they fail
+  // (page stuck permanently) against the earlier ref-based version.
+
+  const scopedEntityType = entityId && !isScopedReloading
+    ? events.rows?.[0]?.entityType
+    : undefined;
 
   return (
     <section>
-      <h2>{t("heading")}</h2>
+      <h2>
+        {entityId
+          ? (scopedEntityType
+              ? t("scopedHeading", { entityType: entityTypeLabel(scopedEntityType) })
+              : t("scopedHeadingFallback"))
+          : t("heading")}
+      </h2>
       <p className="muted">{t("intro")}</p>
 
       <div className="filters">
         <label>{t("actionFilterLabel")}
-          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+          <select value={actionFilter} onChange={(e) => updateActionFilter(e.target.value)}>
             <option value="">{t("allActionsOption")}</option>
             {AUDIT_ACTION_VALUES.map((a) => (
               <option key={a} value={a}>{auditActionLabel(a)}</option>
@@ -48,18 +184,28 @@ export function AuditPage() {
       {/* Blanked while a filter reload is in flight, not just on first load:
           the previous filter's rows under the new filter's control are
           mislabeled even for the second the request takes (#94). Only this
-          table is gated, so the filter itself stays usable throughout. */}
-      {events.rows === null || events.reloading ? (
+          table is gated, so the filter itself stays usable throughout.
+          isScopedReloading, not events.reloading, so the stale-scope window
+          above is caught here too — otherwise this branch would render the
+          PREVIOUS entity's rows for one render (codex review of #516). */}
+      {events.rows === null || isScopedReloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : events.rows.length === 0 ? (
-        <p className="muted">{t("emptyMessage")}</p>
+        // #493, Slice 2 — a scoped view with no events reads as "the whole
+        // log is empty" under the generic message, which is wrong: it's this
+        // record's history that's clean, not the audit trail overall.
+        <p className="muted">{entityId ? t("scopedEmptyMessage") : t("emptyMessage")}</p>
       ) : (
         <>
           <table className="data">
             <thead>
               <tr>
                 <th>{t("whenHeader")}</th><th>{t("whoHeader")}</th><th>{t("actionHeader")}</th>
-                <th>{t("entityHeader")}</th><th>{t("reasonHeader")}</th>
+                {/* #493, Slice 2 — every row in a scoped view shares the same
+                    entity; repeating it up to 100 times is noise, not a
+                    neutral no-op, so it's hidden rather than left in. */}
+                {!entityId && <th>{t("entityHeader")}</th>}
+                <th>{t("reasonHeader")}</th>
               </tr>
             </thead>
             <tbody>
@@ -68,7 +214,7 @@ export function AuditPage() {
                   <td>{e.occurredAtUtc.replace("T", " ").slice(0, 19)}</td>
                   <td>{e.actorEmail}</td>
                   <td>{auditActionLabel(e.action)}</td>
-                  <td>{entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}</td>
+                  {!entityId && <td>{entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}</td>}
                   <td>{e.reason ?? "—"}</td>
                 </tr>
               ))}

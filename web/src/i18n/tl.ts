@@ -14,6 +14,8 @@ export const tl = {
     "recordHistory.lastChangedBy": "Huling binago ni {{email}} noong {{at}}",
     "recordHistory.submittedAt": "Naisumite noong {{at}}",
     "recordHistory.confirmedAt": "Nakumpirma noong {{at}}",
+    "recordHistory.viewHistoryLink": "Kasaysayan ng audit",
+    "recordHistory.viewAdjustmentHistoryLink": "Kasaysayan ng pagsasaayos",
     recordHistoryHeader: "Kasaysayan",
     cancel: "Kanselahin",
     save: "I-save",
@@ -1491,6 +1493,8 @@ export const tl = {
       "Bawat corrective, destructive, o configuration na pagbabago — sino "
       + "ang gumawa, kailan, at bakit. Isinusulat ang mga row kasabay ng "
       + "pagbabago mismo at hindi na ito ine-edit pa.",
+    scopedHeading: "Kasaysayan ng {{entityType}}",
+    scopedHeadingFallback: "Kasaysayan ng record",
     actionFilterLabel: "Aksyon",
     allActionsOption: "Lahat ng aksyon",
     whenHeader: "Kailan (UTC)",
@@ -1499,6 +1503,7 @@ export const tl = {
     entityHeader: "Entidad",
     reasonHeader: "Dahilan",
     emptyMessage: "Wala pang audit event.",
+    scopedEmptyMessage: "Wala pang audit event para sa record na ito.",
     loadMoreButton: "mag-load pa",
   },
 
@@ -2223,6 +2228,15 @@ export const tl = {
       + "kolum na Kasaysayan na nagpapakita kung sino ang gumawa ng record at kailan, at kung sino ang "
       + "huling nagbago kung mayroon man. Galing ito sa parehong audit log, kaya walang kailangang dagdag "
       + "na pahintulot: kung nakikita mo ang record, nakikita mo ang kasaysayan nito.",
+    auditRecordHistoryLink:
+      "Buod lang ang column na iyon, hindi ang buong kwento. Ang Mga kawan, Grado ng itlog, Kasaysayan ng "
+      + "pang-araw-araw na entry, Order ng benta, at Gastos ay may sariling link na \"Kasaysayan ng audit\" "
+      + "sa kani-kanilang screen na nagbubukas ng buong kasaysayan para sa record na iyon — bawat corrective "
+      + "o configuration na pagbabago, hindi lang ang paglikha at ang pinakabagong pagbabago — nang hindi na "
+      + "kailangang hanapin sa global na Audit log sa itaas at i-filter mo mismo. Ang Lote ng itlog naman ay "
+      + "may katulad na link na \"Kasaysayan ng pagsasaayos\" — mas makitid ito sa layunin: mga manual na "
+      + "write-off at recount lang ang naitala laban sa lote mismo, kaya iyon ang ipinapakita, hindi ang "
+      + "buong kwento ng lote.",
     auditRecordHistorySubmit:
       "Ang pag-save at pagsumite ng pang-araw-araw na entry ay iisang gawa, hindi pagbabago: kung ikaw "
       + "mismo ang gumawa ng dalawa, ipinapakita ka ng column na History bilang tagalikha at walang "

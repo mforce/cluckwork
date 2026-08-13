@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 import {
   getStock, listEggLotMovements, listEggLots, recordEggLotMovement,
 } from "../api/cluckwork";
@@ -545,6 +546,33 @@ export function StockPage() {
                         <td>{l.quantityProduced}</td>
                         <td>{l.quantityAvailable}</td>
                         <td>
+                          {/* #493 — the audit trail for MANUAL ADJUSTMENTS to
+                              this lot (write-offs, recounts), distinct from
+                              the button below: that one toggles the
+                              inventory MOVEMENT ledger in place (quantities
+                              in/out), a different and older trail. Two
+                              affordances on the same row on purpose — kept
+                              visibly separate by label so they don't read as
+                              the same thing.
+                              Deliberately NOT "Audit history"/viewHistoryLink
+                              (codex review of #516): the only audit action
+                              ever written against an EggLot's own entityId is
+                              a manual write-off/recount
+                              (RecordEggLotMovementHandler) — creation is
+                              recorded against the Daily Entry that produced
+                              the lot, allocation/restoration against the
+                              Sales Order, so
+                              a normal never-adjusted lot would show nothing
+                              under the generic "full audit trail" label the
+                              other five screens use accurately. */}
+                          {/* Admin-gated: /api/v1/audit is AdminOnly, and
+                              this screen is readable by non-admins too
+                              (codex review of #516). */}
+                          {isAdmin && (
+                            <Link className="link" to={`/audit?entityId=${l.id}`}>
+                              {tc("recordHistory.viewAdjustmentHistoryLink")}
+                            </Link>
+                          )}
                           <button className="link" onClick={() => void toggleLot(l.id)}>
                             {openLot === l.id ? t("hideHistoryButton") : t("historyButton")}
                           </button>

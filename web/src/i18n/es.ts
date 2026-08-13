@@ -9,6 +9,8 @@ export const es = {
     "recordHistory.lastChangedBy": "Última modificación por {{email}} el {{at}}",
     "recordHistory.submittedAt": "Enviado el {{at}}",
     "recordHistory.confirmedAt": "Confirmado el {{at}}",
+    "recordHistory.viewHistoryLink": "Historial de auditoría",
+    "recordHistory.viewAdjustmentHistoryLink": "Historial de ajustes",
     recordHistoryHeader: "Historial",
     cancel: "Cancelar",
     save: "Guardar",
@@ -1438,6 +1440,8 @@ export const es = {
       "Todo cambio correctivo, destructivo o de configuración — quién lo "
       + "hizo, cuándo y por qué. Las filas se escriben junto con el cambio "
       + "mismo y nunca se editan.",
+    scopedHeading: "Historial de {{entityType}}",
+    scopedHeadingFallback: "Historial del registro",
     actionFilterLabel: "Acción",
     allActionsOption: "Todas las acciones",
     whenHeader: "Cuándo (UTC)",
@@ -1446,6 +1450,7 @@ export const es = {
     entityHeader: "Entidad",
     reasonHeader: "Motivo",
     emptyMessage: "Aún no hay eventos de auditoría.",
+    scopedEmptyMessage: "Aún no hay eventos de auditoría para este registro.",
     loadMoreButton: "cargar más",
   },
 
@@ -2141,6 +2146,14 @@ export const es = {
       + "que muestra quién creó el registro y cuándo, más quién lo modificó por última vez si alguien lo "
       + "hizo. Se lee del mismo registro de auditoría, así que no requiere permisos adicionales: si puede "
       + "ver el registro, puede ver su historial.",
+    auditRecordHistoryLink:
+      "Esa columna es un resumen, no la historia completa. Grados de huevo, Lotes, Historial de registro "
+      + "diario, Pedidos de venta y Gastos tienen cada uno un enlace \"Historial de auditoría\" en su propia "
+      + "pantalla que abre el registro completo de ese registro: cada cambio correctivo o de configuración, "
+      + "no solo la creación y el más reciente, sin tener que buscar en el registro de auditoría global y "
+      + "filtrarlo usted mismo. Los Lotes de huevos tienen en cambio un enlace \"Historial de ajustes\" "
+      + "similar — más limitado a propósito: solo se registran contra el lote mismo las bajas y los "
+      + "reconteos manuales, así que esto muestra eso, no la historia completa del lote.",
     auditRecordHistorySubmit:
       "Guardar un registro diario y enviarlo es un solo acto, no un cambio: si haces ambas cosas tú, la "
       + "columna Historial te muestra como creador y no señala ningún cambio. Si otra persona envía tu "

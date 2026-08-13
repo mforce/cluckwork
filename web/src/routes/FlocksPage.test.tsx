@@ -578,6 +578,32 @@ describe("FlocksPage record history column (#494)", () => {
   });
 });
 
+// #493 — full audit trail, distinct from the two-point summary above.
+describe("FlocksPage audit history link (#493)", () => {
+  it("links each row to its own entity-scoped audit history", async () => {
+    await renderReady(ADMIN, [ACTIVE, DEPLETED]);
+
+    const activeRow = screen.getByRole("row", { name: /Hen House 1/ });
+    expect(within(activeRow).getByRole("link", { name: "Audit history" }))
+      .toHaveAttribute("href", "/audit?entityId=f1");
+
+    const depletedRow = screen.getByRole("row", { name: /Depleted Flock/ });
+    expect(within(depletedRow).getByRole("link", { name: "Audit history" }))
+      .toHaveAttribute("href", "/audit?entityId=f2");
+  });
+
+  // codex review of #516 — a worker can view Flocks but /api/v1/audit is
+  // AdminOnly; an ungated link would only lead to a 403.
+  it("hides the link from a non-admin", async () => {
+    await renderReady(WORKER, [ACTIVE]);
+    // Proves the row rendered — otherwise "the link is absent" is true for
+    // the wrong reason (review round 1 finding: a vacuous pass looks
+    // identical to a real gate).
+    const row = screen.getByRole("row", { name: /Hen House 1/ });
+    expect(within(row).queryByRole("link", { name: "Audit history" })).not.toBeInTheDocument();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // i18n wiring (#182, Task 19, batch B3 — the last B3 screen)
 // ---------------------------------------------------------------------------
@@ -604,6 +630,18 @@ describe("FlocksPage i18n wiring (#182, Task 19)", () => {
       await renderReady(ADMIN, [ACTIVE]);
       expect(screen.getByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Flocks" })).not.toBeInTheDocument();
+    });
+  });
+
+  // #493 — the audit-history link's label lives in `common` (shared across all
+  // six pages that carry it, per ProvenanceCell's own namespace convention),
+  // tested here where it was first introduced rather than repeated on every
+  // page in Slice 3.
+  it("reads the audit-history link label from the common catalog, not a hardcoded literal", async () => {
+    await withOverride("common", "recordHistory.viewHistoryLink", "AUDIT-HISTORY-MARKER", async () => {
+      await renderReady(ADMIN, [ACTIVE]);
+      expect(screen.getByRole("link", { name: "AUDIT-HISTORY-MARKER" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Audit history" })).not.toBeInTheDocument();
     });
   });
 

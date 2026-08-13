@@ -13,6 +13,22 @@ export const en = {
     // case is excluded from "last changed by" and the instant would be lost.
     "recordHistory.submittedAt": "Submitted {{at}}",
     "recordHistory.confirmedAt": "Confirmed {{at}}",
+    // #493 — the per-row link to this record's full audit trail (AuditPage,
+    // entity-scoped). Deliberately not "History": StockPage already has a
+    // "History" toggle for the inventory movement ledger on the same row, a
+    // different trail, and the two must not read as the same affordance.
+    "recordHistory.viewHistoryLink": "Audit history",
+    // #493 review (codex) — Egg lots specifically: the ONLY audit action
+    // ever written against an EggLot's own entityId is a manual write-off
+    // or recount (RecordEggLotMovementHandler). Creation is recorded
+    // against the Daily Entry that produced the lot, allocation/restoration
+    // against the Sales Order — never against the lot itself. "Audit
+    // history" on this one screen would promise a full lifecycle the data
+    // can't deliver: a normal, never-adjusted lot shows nothing at all.
+    // Distinct, honest label for StockPage only; the other five screens
+    // (which DO have a Create event against themselves, #494) keep the
+    // shared "Audit history" label above.
+    "recordHistory.viewAdjustmentHistoryLink": "Adjustment history",
     recordHistoryHeader: "History",
     cancel: "Cancel",
     save: "Save",
@@ -1820,6 +1836,16 @@ export const en = {
       "Every corrective, destructive, or configuration change — who did it, "
       + "when, and why. Rows are written with the change itself and never "
       + "edited.",
+    // #493 — entity-scoped mode (AuditPage read with ?entityId=), reached
+    // from a record's own screen via recordHistory.viewHistoryLink. Shown
+    // instead of `heading` once the first scoped page has loaded; the
+    // entityType comes from the first response row's own entityType field,
+    // never from the URL (Gate 2 — no unvalidated display-only param).
+    scopedHeading: "{{entityType}} history",
+    // Shown instead of scopedHeading before the first scoped page has
+    // loaded, or if the entity has zero audit events — deliberately not
+    // distinguishing those two cases (Gate 3).
+    scopedHeadingFallback: "Record history",
     actionFilterLabel: "Action",
     allActionsOption: "All actions",
     whenHeader: "When (UTC)",
@@ -1828,6 +1854,7 @@ export const en = {
     entityHeader: "Entity",
     reasonHeader: "Reason",
     emptyMessage: "No audit events yet.",
+    scopedEmptyMessage: "No audit events for this record yet.",
     loadMoreButton: "load more",
   },
   // Task 30 (B5, #182) — ExportPage: the manual-backup screen (#95,
@@ -2549,6 +2576,13 @@ export const en = {
       "Flocks, Egg grades, Daily entry history, Sales and Expenses each carry a History column showing who "
       + "created the record and when, plus who last changed it if anyone has. It is read from the same audit "
       + "log, so it needs no extra permission: if you can see the record, you can see its history.",
+    auditRecordHistoryLink:
+      "That column is a summary, not the whole story. Flocks, Egg grades, Daily entry history, Sales orders, "
+      + "and Expenses each carry an \"Audit history\" link on their own screen that opens the full trail for "
+      + "that one record — every corrective or configuration change, not just the creation and the most "
+      + "recent one — without hunting through the global Audit log above and filtering it yourself. Egg lots "
+      + "carry a similar \"Adjustment history\" link instead — narrower on purpose: only manual write-offs "
+      + "and recounts are recorded against a lot itself, so this shows those, not the lot's full story.",
     auditRecordHistorySubmit:
       "Saving a daily entry and submitting it is one act, not a change: do both yourself and the History "
       + "column names you as the creator with no change against you. If somebody else submits your draft, "
