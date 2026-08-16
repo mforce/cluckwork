@@ -306,6 +306,28 @@ else:
         ok.append(f"Otlp endpoint OK ({parts.scheme}"
                   f"{', plaintext explicitly acknowledged' if parts.scheme != 'https' else ''})")
 
+# --- #543 shared-state Redis connection string ----------------------------
+# Mirrors SharedStateRegistration.IsWellFormedConnectionString at a BOUNDED
+# level (the #510 precedent below): the app's serving boot guard fails on a
+# SET-BUT-MALFORMED value, so assert the RESOLVED value names an endpoint.
+# BLANK IS LEGAL — the app degrades to in-process (single instance); this
+# harness wires a real value on purpose, but failing blank here would assert
+# MORE than the guard does, so blank is skipped. Bounded, NOT a
+# StackExchange.Redis parser reimplementation (that is how a checker drifts):
+# a connection string is comma-separated tokens where an option is always
+# key=value and an endpoint never contains '=', so ">=1 token without '='" is
+# the well-formedness invariant without a full parser. Like #510 it only ever
+# appends to `fail` — it can turn a green red, never a red green.
+shared = env.get("SharedState__Redis__ConnectionString")
+if shared is not None and str(shared).strip():
+    tokens = [t.strip() for t in str(shared).split(",")]
+    endpoints = [t for t in tokens if t and "=" not in t]
+    if not endpoints:
+        fail.append(f"SharedState__Redis__ConnectionString={shared!r} names no endpoint "
+                    "(only options) — #543 fails the Production serving boot")
+    else:
+        ok.append(f"SharedState Redis connection OK ({'; '.join(endpoints)})")
+
 # --- #510 JWT signing keys ------------------------------------------------
 # The serving boot now refuses to start unless BOTH PEMs are present and
 # actually import. The generic "variable is not set" check above cannot see

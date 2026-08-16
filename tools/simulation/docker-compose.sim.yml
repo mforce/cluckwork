@@ -53,6 +53,23 @@ services:
     # connection. Keeps this stack from ever colliding with a real dev
     # Postgres on the host.
 
+  # #543 — shared-state (Redis) backend. This stack runs Production config on
+  # purpose, so it boots the REAL Redis-backed shared-state path (the resilient
+  # decorators over a live ConnectionMultiplexer), not the in-process fallback —
+  # that is the fidelity this harness exists to give the scale-out work. Same
+  # digest-pinned image the Testcontainers RedisFixture uses
+  # (tests/Cluckwork.Api.IntegrationTests/SharedState/RedisFixture.cs), kept in
+  # lockstep. Plaintext, no auth: a co-located sidecar on this stack's private
+  # network, same posture as the Postgres/OTLP sidecars. Deliberately NOT
+  # published — only the app talks to it; nothing on the host needs a port.
+  redis:
+    image: redis:7.4-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   app:
     build:
       # Repo root — same build context the real deploy stack uses, so the
@@ -118,11 +135,18 @@ services:
       # this stack's private network, so plaintext is acknowledged explicitly
       # (same posture as Database__AllowInsecureConnection above).
       Otlp__AllowInsecureEndpoint: ${Otlp__AllowInsecureEndpoint}
+      # #543 — the app wires these into the Redis-backed shared-state path (the
+      # app forces AbortOnConnectFail=false itself, so an unreachable redis
+      # degrades via the resilient decorators rather than failing the boot).
+      SharedState__Redis__ConnectionString: ${SharedState__Redis__ConnectionString}
+      SharedState__Redis__KeyNamespace: ${SharedState__Redis__KeyNamespace}
     labels:
       # Provenance only — no traefik router/labels in this stack.
       - com.cluckwork.sim-host=${CLUCKWORK_HOST}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       otel-collector:
         condition: service_started
