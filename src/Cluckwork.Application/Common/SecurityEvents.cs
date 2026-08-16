@@ -55,4 +55,11 @@ public static class SecurityEvents
     // policy (#217) — that budget guards log-pipeline volume, not a
     // credential, so its rejections carry no security-event line.
     public const string RateLimitRejected = "Auth.RateLimitRejected";
+
+    // Fires when a shared-state (Redis) operation throws and the caller
+    // degrades: grant-replay fails closed (denies), the auth limiter and the
+    // report-concurrency lease fall back to their in-process implementations.
+    // A deployment backend should alert on this — a limiter silently stuck in
+    // fallback is the failure this event exists to make visible (#543).
+    public const string SharedStateRedisUnavailable = "SharedState.RedisUnavailable";
 }
