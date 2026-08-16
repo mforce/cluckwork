@@ -9,6 +9,8 @@ production, track egg lots from the hen through to the sale with full
 traceability, block medication-restricted lots, manage sales and customers, and
 see the numbers that matter (hen-day rate, saleable %, stock on hand).
 
+![The daily entry screen: egg counts and grading for one flock on one day, with the sellable total derived from them](docs/images/daily-entry.png)
+
 - **Backend:** C# / .NET 10 (ASP.NET Core minimal APIs) · **Database:** PostgreSQL (EF Core)
 - **Frontend:** React 19 + Vite (TypeScript), served by the API in production
 
@@ -61,6 +63,23 @@ fails: [first admin provisioning](docs/runbooks/first-admin-provisioning.md).
 | [`docs/releasing.md`](docs/releasing.md) | Cutting a release; deploying by digest |
 | [`docs/runbooks/`](docs/runbooks/) | Operating it: provisioning, break-glass recovery, backup & restore |
 | [`specs/product/GLOSSARY.md`](specs/product/GLOSSARY.md) | The domain: flocks, daily entries, egg lots, culls, FIFO allocation |
+
+## More of it
+
+Sales orders through their lifecycle — draft, confirmed, with who did what and
+when against each one:
+
+![The sales screen: a filterable order list showing reference, date, customer, status, total, and a history column naming the user who created and confirmed each order](docs/images/sales.png)
+
+The numbers a farm actually runs on — daily production with losses split by
+cause, hen-day %, the by-grade breakdown, and the money beside it:
+
+![The reports screen: a seven-day production table with eggs, losses, sellable, condition, deaths, hen-days and hen-day percent, then a money section summarising sales and expenses](docs/images/reports.png)
+
+Screenshots are captured from the real built SPA over the simulation fixture —
+[`tools/simulation/ui/specs-screenshots/`](tools/simulation/ui/specs-screenshots/),
+refreshed with `npm run screenshots`. Nothing enforces that they match the
+current UI; they are refreshed deliberately.
 
 ## Architecture
 

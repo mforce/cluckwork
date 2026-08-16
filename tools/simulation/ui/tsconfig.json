@@ -31,8 +31,10 @@
     "src/**/*.ts",
     "specs/**/*.ts",
     "specs-canary/**/*.ts",
+    "specs-screenshots/**/*.ts",
     "playwright.config.ts",
     "playwright.canary.config.ts",
+    "playwright.screenshots.config.ts",
     "../../../web/src/i18n/en.ts",
     "../../../web/src/i18n/es.ts",
     "../../../web/src/i18n/tl.ts"

@@ -11,6 +11,7 @@
     "report": "playwright show-report",
     "typecheck": "tsc --noEmit",
     "canary": "playwright test --config playwright.canary.config.ts",
+    "screenshots": "playwright test --config playwright.screenshots.config.ts",
     "canary:report": "playwright show-report playwright-report-canary",
     "mutation": "bash mutation-check.sh"
   },
