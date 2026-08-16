@@ -176,6 +176,17 @@ test.describe("README screenshots", () => {
     await expect(orders.getByRole("row").filter({ hasText: tEn("enums:status.Draft") }))
       .not.toHaveCount(0);
 
+    // The orders list and the page's SETUP data (customers, products, grades)
+    // are two independent loads, and the rows render either way: `customerName`
+    // falls back to `id.slice(0, 8)`, so a capture taken between them shows a
+    // column of GUID fragments where customer names belong. Worse, a setup
+    // failure replaces the whole screen with `setupError` — after these row
+    // assertions have already passed.
+    //
+    // The New order button is the setup-derived signal: it renders only past
+    // that gate, so it is absent in both the mid-load and the error state.
+    await expect(page.getByRole("button", { name: tEn("sales:newOrder") })).toBeVisible();
+
     await capture(page, "sales.png");
   });
 });
