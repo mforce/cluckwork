@@ -50,9 +50,20 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env exec -T db \
   sh -c 'pg_restore -U "$POSTGRES_USER" --clean --if-exists -d "$POSTGRES_DB"' < cluckwork-YYYYMMDD.dump
 ```
 
-Start the API and confirm `/health/ready` returns 2xx — it 503s while any
-migration is pending (#263), which is also how a restore of an older schema
-announces itself.
+**If the dump predates the current schema, migrate before starting the API.**
+Restarting `app` will not bring the database forward: Production sets
+`Database:MigrateOnStartup=false`, and the Compose `migrate` job already
+completed, so it is not re-run (#263). Run it explicitly:
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env \
+  run --rm migrate
+```
+
+Then start the API and confirm `/health/ready` returns 2xx.
+`DatabaseReadyHealthCheck` 503s while **any** migration is pending, and that 503
+does not clear on its own — it stays until the migration is applied, which is how
+a restore of an older schema surfaces.
 
 ## Handling dumps
 
@@ -67,5 +78,7 @@ Safe on a scratch stack only.
 1. Take a backup as above; verify it with `pg_restore --list`.
 2. Note a value you can recognise (a flock name, a customer).
 3. Restore into a scratch database and confirm that value is present.
-4. Boot the API against it; expect `/health/ready` 2xx.
+4. Run the `migrate` job, then boot the API against it; expect `/health/ready`
+   2xx. Drill the older-dump case too: restore a dump taken before the most
+   recent migration, confirm readiness stays 503 until `migrate` has run.
 5. Update **Last drilled** above.
