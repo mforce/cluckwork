@@ -1,0 +1,32 @@
+# Required reviewers per path. Gitignore syntax; the LAST matching rule wins, so
+# put the narrowest rules last.
+#
+# Covers the one gap no gate in this repo can: a merge to `main` that rewrites
+# the workflows themselves. A backdoored `ci.yml` on `main` produces a build
+# attestation that is genuinely valid — right signer workflow, right source ref
+# — because `--source-ref` records which ref built the image, not whether that
+# ref's content is trustworthy. Review of changes to `main` is the only control
+# that closes it. → the "Deploy by digest" bullet in AGENTS.md.
+#
+# SHIPPED INERT, deliberately. Today `main` requires a pull request with
+# `required_approving_review_count: 0` and a single owner with write access, so
+# "Require review from Code Owners" would be either a deadlock (nobody else can
+# approve) or theatre (the owner approves their own PR). An entry naming an
+# unresolvable user is silently ignored by GitHub, so a plausible-looking broken
+# file is worse than an empty one.
+#
+# To activate, all three are required:
+#   1. Uncomment and replace @OWNER with a user or team that has write access —
+#      someone other than the person who normally opens these PRs.
+#   2. Branch protection → tick "Require review from Code Owners", and raise
+#      "Required approving reviews" above 0.
+#   3. Open a PR touching .github/ and confirm the owner is auto-requested.
+
+# *                        @OWNER
+
+# Paths where a self-merge rewrites what every other check asserts.
+# /.github/                @OWNER
+# /.githooks/              @OWNER
+# /.github/CODEOWNERS      @OWNER
+# /docs/decisions/         @OWNER
+# /AGENTS.md               @OWNER

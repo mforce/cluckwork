@@ -22,8 +22,9 @@ fleet window. Treat rollback as one forced re-login, not as a plain image
 downgrade.
 
 - `docker-compose.yml` — the production stack (app + Postgres), fronted by
-  Traefik for TLS. See the root [README](../README.md) for the full run/backup
-  walkthrough.
+  Traefik for TLS. See the root [README](../README.md) to run it, and
+  [backup & restore](../docs/runbooks/backup-and-restore.md) for the dump/restore
+  procedure.
 - `docker-compose.dev.yml` — just Postgres, for running the API from the IDE.
 - `traefik/` — reverse-proxy dynamic config (TLS, middleware).
 

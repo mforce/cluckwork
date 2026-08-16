@@ -1,0 +1,42 @@
+# Editor defaults, honoured natively by most editors and IDEs with no toolchain,
+# no dependency and no CI job. Its job is to stop whitespace-only diffs from
+# burying real changes in review.
+#
+# It is a convenience, NOT a gate — nothing enforces it. Do not cite it as the
+# reason a formatter is unnecessary.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Markdown: two trailing spaces are a hard line break, so trimming them changes
+# the rendered output.
+[*.md]
+trim_trailing_whitespace = false
+
+# .NET
+[*.{cs,csx}]
+indent_size = 4
+
+[*.{csproj,props,targets,sln}]
+indent_size = 2
+
+# Generated — do not reformat. Schema docs are byte-compared by CI (#417) and a
+# lock file is written by the tool that owns it.
+[docs/schema/**]
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+
+[**/packages.lock.json]
+insert_final_newline = unset
+
+[**/package-lock.json]
+insert_final_newline = unset
+
+[Makefile]
+indent_style = tab

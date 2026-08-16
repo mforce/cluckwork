@@ -88,8 +88,9 @@ public sealed class SeedCommandTests : IClassFixture<CluckworkWebApplicationFact
     public async Task SeedCommand_Demo_SeedsDataAndExitsWithoutStartingKestrel()
     {
         // #500 — the demo fixture is signed by the account's Owner, so one must
-        // exist first. This is the documented operator flow (README): migrate,
-        // bootstrap-admin, then seed.
+        // exist first. This is the documented operator flow
+        // (docs/runbooks/first-admin-provisioning.md): migrate, bootstrap-admin,
+        // then seed.
         await BootstrapAdminAsync();
 
         var (exitCode, stdout, stderr) = await RunSeedCommandAsync("demo");

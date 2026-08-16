@@ -2,7 +2,11 @@
 
 Poultry egg-farm management system. Backend: **.NET 10** (C#), layered DDD. Frontend: **React 19 + Vite** SPA in `web/`. Postgres via EF Core.
 
-This file is the shared brief for any coding agent (Claude Code, Codex, etc.).
+This file is the shared brief for any coding agent (Claude Code, Codex, etc.) and
+the **canonical rule set** for the repo. Humans usually want the short path first:
+[`CONTRIBUTING.md`](CONTRIBUTING.md) (develop, test, commit),
+[`docs/`](docs/README.md) (runbooks, decision records, releasing),
+[`SECURITY.md`](SECURITY.md).
 
 ## Communicating
 
@@ -208,7 +212,7 @@ Full rationale — the transitive-graph submission, the shared GitHub App and it
 
 ## Releases and image publishing (#351)
 
-Two stages, deliberately separate: **CI publishes an image per merge; the release PR turns one into a version.** `README.md`'s "Releases & container images" is the **how-to**; this section is the **invariants — what not to break**; the full mechanism (release-please twice per push, the `groom` boundary probe, the commit-body parser, the App-token reasoning, the repair path) is in [`docs/decisions/351-releases.md`](docs/decisions/351-releases.md).
+Two stages, deliberately separate: **CI publishes an image per merge; the release PR turns one into a version.** [`docs/releasing.md`](docs/releasing.md) is the **how-to**; this section is the **invariants — what not to break**; the full mechanism (release-please twice per push, the `groom` boundary probe, the commit-body parser, the App-token reasoning, the repair path) is in [`docs/decisions/351-releases.md`](docs/decisions/351-releases.md).
 
 - **Every merge to `main`** publishes `ghcr.io/<owner>/<repo>:sha-<commit>` from the `publish` job (Trivy-scanned, boot-tested). **Merging the "Release vX.Y.Z" PR** drafts the release, **promotes** that commit's image to `:vX.Y.Z`, then publishes.
 - **Promotion is a server-side retag of the existing digest** (`docker buildx imagetools create --prefer-index=false`), **never a rebuild** — a rebuild yields different bytes no scan ever examined. `--prefer-index=false` is load-bearing: the default `true` wraps a new top-level digest.
@@ -237,7 +241,7 @@ Two stages, deliberately separate: **CI publishes an image per merge; the releas
   is open today and no flag on the verify command closes it; review of changes to
   `main` is the only control that does.
 
-  **The paragraph directly above is the canonical statement of the boundary.** `README.md` and the `ci.yml` comment carry a summary and point here rather than restating it, because successive corrections to this claim repeatedly updated one copy and left the others contradicting it. If you correct it, correct it in all three and check they agree. Full derivation of the two gates is in [`docs/decisions/351-releases.md`](docs/decisions/351-releases.md).
+  **The paragraph directly above is the canonical statement of the boundary.** [`docs/releasing.md`](docs/releasing.md) and the `ci.yml` comment carry a summary and point here rather than restating it, because successive corrections to this claim repeatedly updated one copy and left the others contradicting it. If you correct it, correct it in all three and check they agree. Full derivation of the two gates is in [`docs/decisions/351-releases.md`](docs/decisions/351-releases.md).
 - Package visibility and the host's pull credential are **deploy-side** concerns (cluckwork-deploy#6), not this repo's.
 
 ## Git / PR workflow
