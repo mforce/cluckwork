@@ -334,7 +334,7 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
     a registry setting rather than code.
 
   For the **canonical one-paragraph statement** of exactly what these gates do
-  and do not prove — the summary that `README.md` and the `ci.yml` comment point
+  and do not prove — the summary that `docs/releasing.md` and the `ci.yml` comment point
   at — see the **"Deploy by digest" bullet in [`AGENTS.md`](../../AGENTS.md)**. It
   is kept there as the single source so the three summaries cannot drift; do not
   restate it here.

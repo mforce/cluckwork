@@ -1,0 +1,33 @@
+# Line endings are normalised to LF in the repo and checked out as LF
+# everywhere, Windows included.
+#
+# Why this file exists at all: `.githooks/*` are POSIX `sh` scripts that git
+# executes via their shebang. A CRLF checkout appends `\r` to the shebang line,
+# and the kernel then looks for an interpreter literally named `/bin/sh\r` —
+# which fails with a message that names neither the hook nor the cause. The same
+# `\r` silently ends up inside every string a workflow's `run:` block compares,
+# and inside every value `tools/simulation/*.sh` reads back out of an env file.
+#
+# `core.autocrlf` is a per-machine setting, so it cannot be relied on. This file
+# ships with the repo and applies to every clone.
+* text=auto eol=lf
+
+# Executable text files where a stray CR is fatal rather than cosmetic. Listed
+# explicitly so the intent survives someone relaxing the line above.
+*.sh          text eol=lf
+.githooks/*   text eol=lf
+
+# Generated. `linguist-generated` keeps them out of language stats and collapses
+# them in pull-request diffs; they are still tracked, still reviewed by
+# regenerating, never by hand-editing (#417 for the schema docs).
+docs/schema/**        linguist-generated=true
+**/packages.lock.json linguist-generated=true
+**/package-lock.json  linguist-generated=true
+
+# Binary — never diffed, never line-ending-normalised.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.dump binary

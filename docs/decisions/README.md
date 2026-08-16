@@ -1,8 +1,8 @@
 # Decision records
 
 Each file here holds the **relocated rationale** for a rule that also appears — in
-one compressed paragraph — in [`AGENTS.md`](../../AGENTS.md) or
-[`README.md`](../../README.md). The short version (the rule + the one-line
+one compressed paragraph — in [`AGENTS.md`](../../AGENTS.md), or in a how-to such
+as [`docs/releasing.md`](../releasing.md). The short version (the rule + the one-line
 consequence of breaking it) stays resident in `AGENTS.md` so it loads into every
 agent session; the narrative that earned it (what shipped, which review round
 found it, what the wrong fix was, what not to break) lives here so it is reachable
@@ -12,6 +12,8 @@ This split is the whole point of [#413](https://github.com/mforce/cluckwork/issu
 nearly every long bullet encodes a defect that actually shipped plus the reasoning
 that stops it recurring, so the rule is compressed but **nothing is deleted** —
 follow the `→` link from the `AGENTS.md` bullet to get here.
+
+Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 
 ## Index
 
@@ -36,7 +38,7 @@ follow the `→` link from the `AGENTS.md` bullet to get here.
 | [`AuditEvents` is not time-partitioned (#505)](505-audit-events-no-time-partition.md) | AGENTS · Conventions |
 | [Writing a guard (a test that asserts an invariant)](407-writing-a-guard.md) | AGENTS · Writing a guard |
 | [CI security gates, lock-file healing, Dependabot, action pinning (#146)](146-ci-security-gates.md) | AGENTS · CI security gates |
-| [Releases and image publishing — internals (#351)](351-releases.md) | AGENTS · Releases · and `README.md` |
+| [Releases and image publishing — internals (#351)](351-releases.md) | AGENTS · Releases · and [`docs/releasing.md`](../releasing.md) |
 
 The five short-enough Conventions bullets that kept their full rationale inline in
 `AGENTS.md` — break-glass recovery (#265), farm timezone (#264), the proxy-trust

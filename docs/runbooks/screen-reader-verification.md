@@ -2,6 +2,8 @@
 
 **Issue:** #501 · **Applies to:** any change to a live region or the modal `inert` sweep · **Requires:** a Windows box with NVDA or JAWS, and/or a Mac with VoiceOver
 
+**Last drilled:** not recorded.
+
 **When to run this:** after any change to a live region, an `aria-live`
 attribute, a `role="alert"`/`role="status"`, or to the modal `inert` sweep in
 `web/src/components/Dialog.tsx`. First run: #501, verifying #485/#499.
