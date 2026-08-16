@@ -39,7 +39,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "../src/fixtures";
 import { castMember } from "../src/cast";
 import { daysBefore, farmToday } from "../src/farm";
-import { prefixOf, tEn } from "../src/i18n";
+import { tEn } from "../src/i18n";
 
 // tools/simulation/ui/specs-screenshots/ -> repo root -> docs/images/
 const IMAGE_DIR = fileURLToPath(new URL("../../../../docs/images/", import.meta.url));
@@ -155,8 +155,28 @@ test.describe("README screenshots", () => {
     await page.goto("/sales");
 
     await expect(page.getByRole("heading", { name: tEn("sales:ordersHeading") })).toBeVisible();
-    await expect(page.getByText(tEn("sales:loading"))).toHaveCount(0);
+
+    // The heading and the absence of "Loading…" are NOT enough, and the failure
+    // they miss is the one that matters: when the initial /sales request fails,
+    // `usePagedList` empties the rows and clears its loading flag, so the page
+    // settles into an error plus the empty-state message with the heading still
+    // there. Both weak signals pass, and the run overwrites the committed image
+    // with a picture of an error while reporting success.
+    //
+    // So: the empty state must be absent, and the table must actually hold
+    // orders in the two lifecycle states this capture exists to show.
+    // `sales:noOrdersMatch`, not `dashboard:noOrdersMessage` — two different
+    // empty states in two namespaces, and this page renders the former. The
+    // wrong one is not a silent miss: src/i18n.ts throws on an absent key
+    // rather than falling back, which is how this was caught.
+    await expect(page.getByText(tEn("sales:noOrdersMatch"))).toHaveCount(0);
+    const orders = page.getByRole("table").first();
+    await expect(orders.getByRole("row").filter({ hasText: tEn("enums:status.Confirmed") }))
+      .not.toHaveCount(0);
+    await expect(orders.getByRole("row").filter({ hasText: tEn("enums:status.Draft") }))
+      .not.toHaveCount(0);
 
     await capture(page, "sales.png");
   });
 });
+
