@@ -32,7 +32,12 @@ END = "<!-- toc:end -->"
 
 # A fenced code block can contain lines that look like headings.
 FENCE = re.compile(r"^(```|~~~)")
-HEADING = re.compile(r"^(#{1,3}) +(.*?)\s*#*\s*$")
+
+# The trailing group strips an ATX *closing* sequence (`## Heading ##`), which
+# CommonMark requires to be preceded by whitespace. `#*` without that `\s+`
+# would also eat a hash that is part of the text — `## C#` would render a
+# heading reading "C#" while the ToC linked a label reading "C".
+HEADING = re.compile(r"^(#{1,3}) +(.*?)(?:\s+#+)?\s*$")
 
 # Inline markdown that must not reach either the label or the anchor.
 LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
@@ -128,11 +133,45 @@ def toc_for(path: pathlib.Path) -> tuple[str, str]:
     return original, "\n".join(rebuilt) + "\n"
 
 
+# Heading parsing is the part of this tool that can be wrong *quietly* — a
+# mangled label still produces a plausible-looking contents line. The `## C#`
+# case is the one that shipped: `#*` at the end of the pattern ate a hash that
+# belonged to the text (codex review, PR #551).
+HEADING_CASES = [
+    ("## C#", "C#"),
+    ("## F# and C#", "F# and C#"),
+    ("## Heading ##", "Heading"),
+    ("### Deep ###", "Deep"),
+    ("## Plain", "Plain"),
+    ("## Trailing spaces   ", "Trailing spaces"),
+    ("## 8.1 States", "8.1 States"),
+    ("## A # B", "A # B"),
+]
+
+
+def self_test() -> int:
+    failures = 0
+    for line, expected in HEADING_CASES:
+        match = HEADING.match(line)
+        got = match.group(2) if match else None
+        if got != expected:
+            failures += 1
+            print(f"FAIL  {line!r} -> {got!r}, expected {expected!r}")
+    print(f"{len(HEADING_CASES)} heading cases, {failures} failed")
+    return 1 if failures else 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("path", type=pathlib.Path)
+    parser.add_argument("path", type=pathlib.Path, nargs="?")
     parser.add_argument("--check", action="store_true", help="exit 1 if the ToC is stale")
+    parser.add_argument("--self-test", action="store_true", help="check the heading parser only")
     args = parser.parse_args()
+
+    if args.self_test:
+        return self_test()
+    if args.path is None:
+        parser.error("a path is required unless --self-test is given")
 
     original, rebuilt = toc_for(args.path)
     if args.check:

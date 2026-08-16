@@ -46,8 +46,20 @@ purpose — the round trip *is* the fail-closed guarantee. Do not cache it.
 
 ## The egg loop
 
-Two aggregates and one background job. `DailyEntry` produces stock; `SalesOrder`
-consumes it; nothing else moves egg inventory.
+Three aggregates and one background job. `DailyEntry` produces stock,
+`SalesOrder` consumes it, and **`EggLot` is an aggregate root in its own right
+that is written directly** — do not read the two state machines below as the
+complete set of inventory writers:
+
+| Writer | Path | Effect on a lot |
+|---|---|---|
+| `DailyEntry.Submit` | `SubmitDailyEntryHandler` | creates lots |
+| `DailyEntry` adjust / void | `AdjustDailyEntryHandler`, `VoidDailyEntryHandler` | `EggLot.AdjustProduction` reconciles the lot down to what the corrected day says, with the already-sold amount as the floor |
+| `SalesOrder.Confirm` / `Void` | `ConfirmSaleHandler`, `VoidSaleHandler` | `Allocate` / `Restore` |
+| **Manual stock movement** | `RecordEggLotMovementHandler` (`/stock`) | `EggLot.AdjustAvailable` for a `Discard`, `InternalUse` or `Reconciliation` movement — no daily entry and no sale involved |
+
+Anything touching lot concurrency or the movement ledger has to account for all
+four, not just the two drawn below.
 
 ### Daily entry
 

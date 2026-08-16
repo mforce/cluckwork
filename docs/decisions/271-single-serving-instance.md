@@ -88,9 +88,20 @@ primitive (`ConcurrentDictionary`, `IMemoryCache`, `PartitionedRateLimiter`,
 `Channel`, `SemaphoreSlim`, mutable statics), then classify each one as safe or
 not.
 
-That walk currently finds 12 `AddSingleton` registrations and 1
-`AddHostedService` (13 total; the hosted service is not one of the 12), and the
-four above are what survives it.
+That walk currently finds **13** `AddSingleton` registrations under `src/` plus
+1 `AddHostedService`, and the four above are what survives it.
+
+**That number was wrong in `AGENTS.md` until 2026-08-16**, where it read 12 —
+carried forward unchecked through the compression that produced this record, and
+caught by review. Which is the rule proving itself: a walk that finds 13 against
+a documented 12 reads as drift and invites someone to go looking for the
+"extra", or to stop at 12 and miss one. **Re-run the count; do not trust this
+paragraph either.**
+
+```bash
+grep -rn 'AddSingleton' src/ --include='*.cs' | wc -l      # 13 on 2026-08-16
+grep -rn 'AddHostedService' src/ --include='*.cs' | wc -l  # 1
+```
 
 Excluded deliberately, so the next walk need not re-litigate them:
 `TimeProvider.System`, the Serilog diagnostic contexts,
