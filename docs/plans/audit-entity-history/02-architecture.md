@@ -1,5 +1,7 @@
 # Architecture: Entity-scoped audit history
 
+> **Planning record — entity-scoped "View history" ([#493](https://github.com/mforce/cluckwork/issues/493)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 ## Fit
 
 SPA-only, as the issue specifies — one backend-adjacent question flagged below for the metric only, not the feature itself.

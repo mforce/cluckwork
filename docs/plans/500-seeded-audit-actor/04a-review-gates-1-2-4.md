@@ -1,5 +1,7 @@
 # Review of Gates 1, 2 and 4 — findings and dispositions
 
+> **Planning record — seeded audit events carry a real actor ([#500](https://github.com/mforce/cluckwork/issues/500)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 Gates 1 and 2 were approved **without a dedicated review pass**, and Gate 4 was
 taken to approval the same way. The owner caught it: *"all gates should be
 verified by local agents."* This is that review — a `pi` contrarian and a codex

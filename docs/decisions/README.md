@@ -39,11 +39,17 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Writing a guard (a test that asserts an invariant)](407-writing-a-guard.md) | AGENTS · Writing a guard |
 | [CI security gates, lock-file healing, Dependabot, action pinning (#146)](146-ci-security-gates.md) | AGENTS · CI security gates |
 | [Releases and image publishing — internals (#351)](351-releases.md) | AGENTS · Releases · and [`docs/releasing.md`](../releasing.md) |
+| [Both JWT keys checked at boot, serving-only (#510)](510-jwt-key-boot-check.md) | AGENTS · Conventions |
+| [Nothing writes an audit event without an actor (#500)](500-audit-actor.md) | AGENTS · Conventions |
+| [Break-glass recovery: `recover-admin` (#265)](265-break-glass-recovery.md) | AGENTS · Conventions · and the [runbook](../runbooks/break-glass-account-recovery.md) |
+| [Farm timezone, and the tzdata/ICU constraint (#264)](264-farm-timezone.md) | AGENTS · Conventions |
+| [Proxy-trust boot guard (#260)](260-proxy-trust.md) | AGENTS · Conventions |
+| [Design-time migration connection, fail-closed (#318)](318-design-time-migration-connection.md) | AGENTS · Conventions |
+| [Container image hardening (#267)](267-container-hardening.md) | AGENTS · Conventions |
+| [Exactly one serving API instance (#271, #338)](271-single-serving-instance.md) | AGENTS · Host-agnostic repo |
 
-The five short-enough Conventions bullets that kept their full rationale inline in
-`AGENTS.md` — break-glass recovery (#265), farm timezone (#264), the proxy-trust
-boot guard (#260), the design-time migration connection (#318), and container
-image hardening (#267) — have no record here because none of their text was
-relocated. #260 is the partial exception: its *rule* is still inline, but why it
-applies to the serving process and not to the CLI verbs now lives in the
-[#347 record](347-process-role.md) along with #319 and #316.
+Every Conventions bullet now has a record here. The last seven rows were added
+when `AGENTS.md` was compressed to one paragraph per rule: #265, #264, #260,
+#318 and #267 had kept their rationale inline until then, and #510, #500 and
+#271/#338 had never had a record at all. #260's serving-only *scope* is still
+argued in the [#347 record](347-process-role.md), along with #319 and #316.

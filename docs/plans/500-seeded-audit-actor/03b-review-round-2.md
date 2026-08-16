@@ -1,5 +1,7 @@
 # Gate 3 review round 2 — findings and dispositions
 
+> **Planning record — seeded audit events carry a real actor ([#500](https://github.com/mforce/cluckwork/issues/500)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 Round 2 reviewed **revision 2**, with every reviewer handed
 [`03a-review-round-1.md`](03a-review-round-1.md) and told those 15 defects were
 closed, so they hunted only new ground and fix-induced breakage. Two of the four
