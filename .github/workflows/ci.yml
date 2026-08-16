@@ -288,11 +288,11 @@ jobs:
           work="$(mktemp -d)"
           git archive HEAD | tar -x -C "$work"
           cd "$work"
-          sed -i 's#<PackageReference Include="Microsoft.OpenApi" Version="2.11.0" #<PackageReference Include="Microsoft.OpenApi" Version="2.10.0" #' \
+          sed -i 's#<PackageReference Include="Microsoft.OpenApi" Version="2.12.0" #<PackageReference Include="Microsoft.OpenApi" Version="2.11.0" #' \
             src/Cluckwork.Api/Cluckwork.Api.csproj
           # Fail loudly (don't silently pass) if the pin used as the perturbation
           # target has since moved — the guard must be kept pointing at a real pin.
-          grep -q '<PackageReference Include="Microsoft.OpenApi" Version="2.10.0" ' \
+          grep -q '<PackageReference Include="Microsoft.OpenApi" Version="2.11.0" ' \
             src/Cluckwork.Api/Cluckwork.Api.csproj \
             || { echo "::error::drift-guard perturbation target not found; update the Microsoft.OpenApi version it edits"; exit 1; }
           if docker build --target build -f src/Cluckwork.Api/Dockerfile -t cluckwork-lockdrift:ci . ; then
