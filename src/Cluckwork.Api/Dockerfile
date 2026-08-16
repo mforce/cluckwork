@@ -4,7 +4,7 @@
 # re-tagged "latest 10.0". Dependabot's `docker` ecosystem opens the bump PR when
 # a newer digest ships a security fix; refresh with
 #   docker buildx imagetools inspect <image>:<tag> --format '{{.Manifest.Digest}}'
-FROM node:26-alpine@sha256:e88a35be04478413b7c71c455cd9865de9b9360e1f43456be5951032d7ac1a66 AS web-build
+FROM node:26-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019 AS web-build
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
@@ -19,7 +19,7 @@ RUN mkdir /web/sourcemaps && \
     find /web/dist -name '*.map' -exec mv {} /web/sourcemaps/ \;
 
 # --- API build: restore + publish the .NET app ---
-FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:72dd743782f2ae7e5476fd64f6a460045e3998dc862218b80e6944cba79a01b0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:e1fc6e423f543119c406d24e2e687d67c569f18f04a37a8b0005d80ad0dcee80 AS build
 WORKDIR /src
 # #315 — copy EVERY restore input (Directory.Build.props + each project file AND
 # its packages.lock.json, for the API project and the projects it references)
