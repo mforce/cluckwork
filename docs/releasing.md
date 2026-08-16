@@ -95,14 +95,19 @@ gh attestation verify "oci://$REF" \
   --bundle-from-oci
 ```
 
-All three flags matter and none is the default — each narrows *whose* claim is
-accepted (the registry copy, one workflow, one branch). Copy the command as-is.
+All three flags matter, none is the default, and they do **different** jobs:
+`--bundle-from-oci` reads the attestation from the registry copy rather than the
+GitHub API; `--signer-workflow` binds the claim to this workflow, not merely to
+this repo; `--source-ref` binds it to `main`. Only the last two narrow *whose*
+claim is accepted. Copy the command as-is.
 
 Step 2 is the one that matters, and step 1 cannot substitute for it. Knowing a
 digest tells you *what* you are deploying but nothing about *where it came from*
 — if someone pushed those bytes by hand, the digest is still a perfectly valid,
 perfectly immutable digest. The attestation is a signed claim by this repo's CI
-workflow, so anything pushed by hand has no such claim and fails the check.
+workflow, so bytes **CI never built** carry no such claim and fail the check.
+Bytes CI *did* build still verify whoever pushed them, so this does not stop an
+*older* attested image being substituted — which is what step 3 is for.
 
 That covers a credential that can push to the registry, and stops a branch
 writer getting *their own* bytes deployed. It proves **origin, not currency**,

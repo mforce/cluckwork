@@ -20,9 +20,9 @@
 # Generated. `linguist-generated` keeps them out of language stats and collapses
 # them in pull-request diffs; they are still tracked, still reviewed by
 # regenerating, never by hand-editing (#417 for the schema docs).
-docs/schema/**       linguist-generated=true
+docs/schema/**        linguist-generated=true
 **/packages.lock.json linguist-generated=true
-web/package-lock.json linguist-generated=true
+**/package-lock.json  linguist-generated=true
 
 # Binary — never diffed, never line-ending-normalised.
 *.png binary
