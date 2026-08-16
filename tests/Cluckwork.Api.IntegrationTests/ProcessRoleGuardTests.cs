@@ -239,6 +239,14 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         new("FarmBanner ceiling", "FarmBanner:MaxUploadBytes (15728641) cannot exceed",
             Violate: psi => psi.Environment["FarmBanner__MaxUploadBytes"] = "15728641",
             Satisfy: psi => psi.Environment["FarmBanner__MaxUploadBytes"] = "5242880"),
+
+        // #543 — a set-but-malformed SharedState Redis connection string must
+        // fail a serving boot (not silently run single-instance in-process).
+        // Blank satisfies it (Option B), so Satisfy REMOVES the key. Violate
+        // uses options-without-an-endpoint, which parses but names no host.
+        new("#543 shared-state", "SharedState:Redis:ConnectionString is set but not a valid",
+            Violate: psi => psi.Environment["SharedState__Redis__ConnectionString"] = "abortConnect=false",
+            Satisfy: psi => psi.Environment.Remove("SharedState__Redis__ConnectionString")),
     ];
 
     // Exposed so ServingGuardCoverageTests can hold this table against the source

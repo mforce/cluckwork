@@ -26,23 +26,14 @@ public static class SharedStateRegistration
             return;
         }
 
-        ConfigurationOptions parsed;
-        try
-        {
-            parsed = ConfigurationOptions.Parse(connectionString);
-        }
-        catch (ArgumentException ex)
-        {
-            HandleMalformed(services, failOnMalformed, ex.Message, ex);
-            return;
-        }
-
-        if (parsed.EndPoints.Count == 0)
+        if (!IsWellFormedConnectionString(connectionString))
         {
             HandleMalformed(services, failOnMalformed,
                 "no endpoint (host:port) was found in the value", inner: null);
             return;
         }
+
+        var parsed = ConfigurationOptions.Parse(connectionString);
 
         // Unreachable Redis must DEGRADE at runtime (the resilient decorators
         // fall back), never fail the boot — so do not abort the connect.
@@ -68,6 +59,22 @@ public static class SharedStateRegistration
                 new RedisLease(sp.GetRequiredService<IConnectionMultiplexer>(), keyNamespace),
                 new InProcessLease(sp.GetRequiredService<TimeProvider>()),
                 sp.GetRequiredService<ILogger<ResilientLease>>()));
+    }
+
+    // #543 — the single definition of "well formed": parses, and names at least
+    // one endpoint. Used by both the registration helper and the serving boot
+    // guard (CluckworkSharedStateServiceCollectionExtensions) so they cannot
+    // drift on what "malformed" means.
+    public static bool IsWellFormedConnectionString(string connectionString)
+    {
+        try
+        {
+            return ConfigurationOptions.Parse(connectionString).EndPoints.Count > 0;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 
     private static void HandleMalformed(
