@@ -1,5 +1,7 @@
 # Status: Entity-scoped audit history (#493)
 
+> **Planning record — entity-scoped "View history" ([#493](https://github.com/mforce/cluckwork/issues/493)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 - Gate 1 — Product: APPROVED 2026-08-11
 - Gate 2 — Architecture: APPROVED 2026-08-11
 - Gate 3 — Program Design: APPROVED 2026-08-11 (2 pi review rounds, both with real product-level yield)

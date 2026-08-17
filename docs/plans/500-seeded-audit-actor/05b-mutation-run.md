@@ -1,5 +1,7 @@
 # The recorded mutation run (2026-08-12)
 
+> **Planning record — seeded audit events carry a real actor ([#500](https://github.com/mforce/cluckwork/issues/500)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 Every row of `03-program-design.md`'s mutation table, run by the method that
 document mandates — because the previous method ("write the test, then claim it
 is the one that dies") produced a wrong claim four times on this plan, and a

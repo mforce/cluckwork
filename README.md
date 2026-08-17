@@ -61,6 +61,7 @@ fails: [first admin provisioning](docs/runbooks/first-admin-provisioning.md).
 | [`AGENTS.md`](AGENTS.md) | The canonical rule set — every invariant, for humans and coding agents |
 | [`SECURITY.md`](SECURITY.md) | Reporting a vulnerability; what CI enforces |
 | [`docs/releasing.md`](docs/releasing.md) | Cutting a release; deploying by digest |
+| [`docs/architecture.md`](docs/architecture.md) | The request pipeline and the egg-loop state machine, drawn |
 | [`docs/runbooks/`](docs/runbooks/) | Operating it: provisioning, break-glass recovery, backup & restore |
 | [`specs/product/GLOSSARY.md`](specs/product/GLOSSARY.md) | The domain: flocks, daily entries, egg lots, culls, FIFO allocation |
 

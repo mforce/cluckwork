@@ -1,5 +1,7 @@
 # Gate 3 review round 3 — findings and dispositions
 
+> **Planning record — seeded audit events carry a real actor ([#500](https://github.com/mforce/cluckwork/issues/500)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 Four reviewers on revision 4: a `pi` contrarian pre-mortem, a codex pass, and two
 Claude Sonnet agents (an exhaustive `ICurrentUser` consumer walk, and a test-plan
 re-review). All four reported.

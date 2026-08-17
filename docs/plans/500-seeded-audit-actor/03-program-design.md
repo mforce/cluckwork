@@ -1,5 +1,7 @@
 # Program Design: seeded records name a real person (#500)
 
+> **Planning record — seeded audit events carry a real actor ([#500](https://github.com/mforce/cluckwork/issues/500)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 > **Revision 5** (2026-08-11). Four review passes, 44 confirmed defects — round 3
 > added 9 ([`03d`](03d-review-round-3.md)) and, importantly, **closed the class**
 > that round 2b opened: two independent exhaustive walks of every `ICurrentUser`

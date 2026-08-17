@@ -1,5 +1,7 @@
 # Vertical slices: seeded records name a real person (#500)
 
+> **Planning record — seeded audit events carry a real actor ([#500](https://github.com/mforce/cluckwork/issues/500)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 > **Revision 2** (2026-08-11), after the Gate 4 review found 8 defects —
 > including two that made the suite red at a commit boundary. Ledger:
 > [`04a-review-gates-1-2-4.md`](04a-review-gates-1-2-4.md).

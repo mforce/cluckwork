@@ -1,5 +1,7 @@
 # Program Design: Entity-scoped audit history
 
+> **Planning record — entity-scoped "View history" ([#493](https://github.com/mforce/cluckwork/issues/493)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 ## Files
 
 - `web/src/routes/AuditPage.tsx` — modify. URL becomes the single source of truth for both `action` and `entityId`; scoped heading derived from the first response row; entity column hidden when scoped; malformed-`entityId` guard.

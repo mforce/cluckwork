@@ -1,5 +1,7 @@
 # Architecture: seeded records name a real person (#500)
 
+> **Planning record — seeded audit events carry a real actor ([#500](https://github.com/mforce/cluckwork/issues/500)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 ## Fit
 
 Four **non-HTTP** callers write audit rows today. All four resolve the tenant;

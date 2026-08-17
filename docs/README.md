@@ -4,10 +4,12 @@ Four kinds of document, four different questions.
 
 | Directory | Answers | Audience |
 |---|---|---|
+| [`architecture.md`](architecture.md) | *What order do things happen in?* | Anyone touching middleware or an aggregate's states |
 | [`runbooks/`](runbooks/) | *How do I operate it under pressure?* | Whoever is on the host at 03:00 |
 | [`decisions/`](decisions/) | *Why is it shaped this way?* | Anyone about to "simplify" a rule |
 | [`schema/`](schema/) | *What is actually in the database?* | Generated — never hand-edited (#417) |
 | [`releasing.md`](releasing.md) | *How do I cut and deploy a release?* | Maintainer |
+| [`plans/`](plans/) | *What was intended, at the time?* | Provenance only — **not** current documentation |
 
 Elsewhere in the repo:
 
@@ -22,9 +24,9 @@ Elsewhere in the repo:
 | [`../web/README.md`](../web/README.md) | SPA development |
 | [`../tools/simulation/README.md`](../tools/simulation/README.md) | Load, E2E and simulation harnesses |
 
-Also here: [`security/`](security/) (the log-redaction policy) and [`plans/`](plans/)
-(per-feature planning records, kept for provenance — they are **not** current
-documentation; a plan describes what was intended at the time, not what shipped).
+Also here: [`security/`](security/) — the log-redaction policy. Every planning
+record under [`plans/`](plans/) carries a banner saying so on its own first
+screen, because that is where a search result drops you.
 
 ## Which file does a rule go in?
 
