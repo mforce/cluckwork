@@ -31,4 +31,13 @@ public sealed class RedisFixedWindowCounterContractTests(RedisFixture fixture) :
         await Task.Delay(window + TimeSpan.FromMilliseconds(300));
         Assert.Equal(1, counter.Increment("k", window));
     }
+
+    [Fact]
+    public void NonWholeMillisecondWindow_Throws()
+    {
+        var counter = new RedisFixedWindowCounter(fixture.Redis, Guid.NewGuid().ToString("N"));
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => counter.Increment("k", TimeSpan.FromTicks(15000)));
+    }
 }

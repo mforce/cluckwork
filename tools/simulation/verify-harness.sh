@@ -310,14 +310,19 @@ else:
 # Mirrors SharedStateRegistration.IsWellFormedConnectionString at a BOUNDED
 # level (the #510 precedent below): the app's serving boot guard fails on a
 # SET-BUT-MALFORMED value, so assert the RESOLVED value names an endpoint.
-# BLANK IS LEGAL — the app degrades to in-process (single instance); this
-# harness wires a real value on purpose, but failing blank here would assert
-# MORE than the guard does, so blank is skipped. Bounded, NOT a
-# StackExchange.Redis parser reimplementation (that is how a checker drifts):
-# a connection string is comma-separated tokens where an option is always
-# key=value and an endpoint never contains '=', so ">=1 token without '='" is
-# the well-formedness invariant without a full parser. Like #510 it only ever
-# appends to `fail` — it can turn a green red, never a red green.
+# Bounded, NOT a StackExchange.Redis parser reimplementation (that is how a
+# checker drifts): a connection string is comma-separated tokens where an option
+# is always key=value and an endpoint never contains '=', so ">=1 token without
+# '='" is the well-formedness invariant without a full parser.
+#
+# BLANK IS REJECTED HERE, even though blank is LEGAL for an ordinary serving
+# deploy (the app degrades to in-process, single instance). This is a
+# harness-specific policy, stronger than the app guard on purpose: the sim wires
+# a Redis sidecar and exercises the Redis-backed path deliberately, so a blank
+# value (e.g. an ambient override `SharedState__Redis__ConnectionString=`, which
+# Compose resolves with no unset-variable warning) would silently drop that path
+# with no other signal — exactly the kind of drift this destructive-gate check
+# exists to catch. The app allows blank; the harness requires Redis.
 #
 # SCOPE: this checks endpoint PRESENCE only, not option VALIDITY. A string like
 # "redis:6379,bogusoption=x" has an endpoint and passes here, but the app's
@@ -326,7 +331,11 @@ else:
 # on option names, and the cost of learning a bad option at boot instead of here
 # is one wasted reset of a throwaway DB — not a false green that ships anything.
 shared = env.get("SharedState__Redis__ConnectionString")
-if shared is not None and str(shared).strip():
+if shared is None or not str(shared).strip():
+    fail.append("SharedState__Redis__ConnectionString is unset or blank — the sim harness "
+                "wires Redis on purpose; a blank silently drops the Redis-backed path this "
+                "change added (the app allows blank, this harness does not)")
+else:
     tokens = [t.strip() for t in str(shared).split(",")]
     endpoints = [t for t in tokens if t and "=" not in t]
     if not endpoints:

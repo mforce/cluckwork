@@ -33,11 +33,14 @@ internal sealed class InProcessFixedWindowCounter(TimeProvider timeProvider) : I
     public long Increment(string key, TimeSpan window)
     {
         ArgumentNullException.ThrowIfNull(key);
-        // Minimum window is 1ms — matches RedisFixedWindowCounter. Bucketing on
-        // a sub-millisecond window rounds the window length to 0, which the
-        // Redis Lua would divide by and this code would modulo by.
-        if (window < TimeSpan.FromMilliseconds(1))
-            throw new ArgumentOutOfRangeException(nameof(window), "window must be at least 1 millisecond.");
+        // Whole milliseconds only (>= 1ms): windowMs = (long)window.TotalMilliseconds
+        // truncates any sub-ms remainder, so a non-whole-ms window would bucket on
+        // a width narrower than its nominal length and reset early. Reject it
+        // rather than silently truncate — both backends enforce this identically.
+        if (window.Ticks < TimeSpan.TicksPerMillisecond
+            || window.Ticks % TimeSpan.TicksPerMillisecond != 0)
+            throw new ArgumentOutOfRangeException(nameof(window),
+                "window must be a whole number of milliseconds, at least 1.");
 
         lock (_lock)
         {
@@ -53,8 +56,18 @@ internal sealed class InProcessFixedWindowCounter(TimeProvider timeProvider) : I
             else
             {
                 // First increment in this window (or a stale, rolled-over
-                // entry) — the count starts fresh.
-                _counters[key] = (windowStart, windowStart + window, 1);
+                // entry) — the count starts fresh. Saturate the window end: a
+                // huge window (or a clock near DateTimeOffset.MaxValue) would
+                // overflow windowStart + window. Clamping to MaxValue is correct
+                // — the sweep simply never drops such an entry while it is live.
+                // Saturate in TICKS to avoid `MaxValue - window` underflowing for
+                // a multi-millennia window: DateTimeOffset.MaxValue.Ticks - window.Ticks
+                // stays representable in a long (a TimeSpan can't exceed ~292k years),
+                // so this never throws.
+                var windowEnd = windowStart.Ticks > DateTimeOffset.MaxValue.Ticks - window.Ticks
+                    ? DateTimeOffset.MaxValue
+                    : windowStart + window;
+                _counters[key] = (windowStart, windowEnd, 1);
             }
 
             MaybeSweep(now);

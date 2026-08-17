@@ -118,4 +118,26 @@ public sealed class FixedWindowCounterContractTests
         // 1 -> 2 rather than restarting at 1.
         Assert.Equal(2, counter.Increment("long", longWindow));
     }
+
+    [Fact]
+    public void NonWholeMillisecondWindow_Throws()
+    {
+        // 1.5ms is not a whole number of milliseconds — rejected rather than
+        // silently truncated to a 1ms bucket.
+        var counter = CreateCounter(new FakeTimeProvider());
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => counter.Increment("k", TimeSpan.FromTicks(15000)));
+    }
+
+    [Fact]
+    public void HugeWindow_DoesNotOverflow()
+    {
+        // A whole-ms window so large that windowStart + window exceeds
+        // DateTimeOffset.MaxValue must saturate the window end, not throw.
+        var counter = CreateCounter(new FakeTimeProvider());
+
+        Assert.Equal(1, counter.Increment("k", TimeSpan.FromDays(4_000_000)));
+        Assert.Equal(2, counter.Increment("k", TimeSpan.FromDays(4_000_000)));
+    }
 }

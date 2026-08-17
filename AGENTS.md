@@ -162,14 +162,29 @@ file the first sweep had already opened. So do not extend this list from memory.
 Re-derive it: enumerate **every** `AddSingleton`/`AddHostedService` under `src/`
 plus every in-memory state primitive (`ConcurrentDictionary`, `IMemoryCache`,
 `PartitionedRateLimiter`, `Channel`, `SemaphoreSlim`, mutable statics), then
-classify each one as safe or not. That walk currently finds 12 `AddSingleton`
-registrations and 1 `AddHostedService` (13 total, the hosted service is not one
-of the 12); the four above are what survives it. Excluded deliberately, so
-the next walk need not re-litigate them: `TimeProvider.System`, the Serilog
-diagnostic contexts, `IValidateOptions`/`IAuthorizationMiddlewareResultHandler`
-(all stateless), and `FirstRunProvisioningLatch` — a monotonic one-way cache of
-"the default account has an Owner", where a per-replica copy costs at most a few
-extra reads and cannot go stale in the unsafe direction.
+classify each one as safe or not. That walk finds 16 `AddSingleton`
+registrations and 1 `AddHostedService`; the four blockers above are what
+survives it. Excluded deliberately, so the next walk need not re-litigate them:
+`TimeProvider.System`, the Serilog diagnostic contexts,
+`IValidateOptions`/`IAuthorizationMiddlewareResultHandler` (all stateless), and
+`FirstRunProvisioningLatch` — a monotonic one-way cache of "the default account
+has an Owner", where a per-replica copy costs at most a few extra reads and
+cannot go stale in the unsafe direction.
+
+Also excluded, and specifically **not** new blockers: the four #543 shared-state
+registrations in `SharedStateRegistration` — `IConnectionMultiplexer` plus the
+three ports `IClaimOnceStore`/`IFixedWindowCounter`/`ILease`. These are the
+**shared store** that will *close* the in-process limiter blockers, not extend
+them: the auth limiters (#544) move onto `IFixedWindowCounter`, the report cap
+(#545) onto `ILease`, and step-up grant replay (#338) onto `IClaimOnceStore`.
+Redis-backed, they hold their state in the one shared Redis, so they are
+multi-replica-safe by construction; `IConnectionMultiplexer` is a shared client.
+Their in-process fallbacks (`InProcess*`) are per-process state, but a
+**deliberate, alarmed** degradation (`SecurityEvents.SharedStateRedisUnavailable`;
+claim-once fails *closed*), reached only when Redis is blank/unreachable — not a
+silent single-instance trap. Caveat: #543 only lands the ports; #544/#545 and the
+#338 grant-replay move stay open until a caller is actually wired to them, at
+which point that wiring PR removes the corresponding blocker above.
 
 **#307 (multi-replica HTTP write idempotency) is CLOSED**, so the request-path
 half is genuinely done — do not read that closure, or #271's, as permission to
