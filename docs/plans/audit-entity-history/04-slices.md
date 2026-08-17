@@ -1,5 +1,7 @@
 # Slices: Entity-scoped audit history
 
+> **Planning record — entity-scoped "View history" ([#493](https://github.com/mforce/cluckwork/issues/493)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 Build order. Each slice ends in a working, testable state.
 
 1. **Tracer bullet — minimal wiring.** URL becomes the source of truth for both `action` and `entityId` (`useSearchParams`; both move together — `usePagedList`'s fetcher depends on both, they can't be half-migrated without breaking the reload trigger), the `isLikelyGuid` guard (needed from the start — without it, the first hand-edited bad URL 400s), a naive heading (`rows[0]?.entityType`, no `reloading` gate yet — accepted as temporarily wrong during a reload, fixed in Slice 2), entity column still shown (not yet hidden), generic empty message still shown (not yet distinguished), one `<Link>` on `FlocksPage`. No backend change — the endpoint/filter already exist. **Proof is a manual browser check** (click "Audit history" on a Flock, confirm the scoped view), not an automated end-to-end test — stated plainly per the Gate 4 template's own sanctioned proof methods, rather than implied as stronger coverage than it is.

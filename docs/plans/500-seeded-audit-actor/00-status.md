@@ -1,5 +1,7 @@
 # Status: seeded audit events carry a real actor (#500)
 
+> **Planning record — seeded audit events carry a real actor ([#500](https://github.com/mforce/cluckwork/issues/500)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 - Gate 1 — Product: APPROVED 2026-08-11; decision A re-opened by the round-1
   review and **re-confirmed 2026-08-11** with the pinned-contract cost on the
   table (see `03-program-design.md`)

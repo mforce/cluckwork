@@ -1,5 +1,7 @@
 # Mid-point review — slices 1-3 (2026-08-12)
 
+> **Planning record — seeded audit events carry a real actor ([#500](https://github.com/mforce/cluckwork/issues/500)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 Panel: codex, pi, and two local agents (one on the product code, one on the
 tests), per the standing policy. Reviewed `git diff --cached` at the end of
 slice 3. Slice 4 was built in parallel and is therefore **outside** what the

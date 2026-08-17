@@ -1,5 +1,7 @@
 # Final pre-PR review (2026-08-12)
 
+> **Planning record — seeded audit events carry a real actor ([#500](https://github.com/mforce/cluckwork/issues/500)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 Same four-reviewer panel on the complete diff: codex, pi, and two local agents
 (one on product code and docs, one on tests). The mid-point ledger is
 [`05a`](05a-review-slices-1-4.md).

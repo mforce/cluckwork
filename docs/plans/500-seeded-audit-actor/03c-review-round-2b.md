@@ -1,5 +1,7 @@
 # Gate 3 review round 2b — the two re-run reviewers
 
+> **Planning record — seeded audit events carry a real actor ([#500](https://github.com/mforce/cluckwork/issues/500)), August 2026.** What was *intended* at the time, not what shipped. The issue is closed; where this disagrees with the code, the code is right. See [`docs/plans/README.md`](../README.md).
+
 Round 2's codex pass and implementability agent were killed by a process exit
 mid-run and were re-run. Both landed. They found the single most important fact
 in the whole review — **independently, and it invalidates a claim that appears in

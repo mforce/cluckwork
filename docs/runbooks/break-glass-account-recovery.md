@@ -2,6 +2,8 @@
 
 **Issue:** #265 · **Applies to:** any Cluckwork deployment · **Privilege required:** shell access to the running deployment (or its database)
 
+**Last drilled:** not recorded — see [Post-recovery verification](#post-recovery-verification-drill-this-on-staging-before-you-need-it) and date it when you run it.
+
 ## When to use this
 
 A user — most critically a **sole Owner** — has lost their password and cannot get

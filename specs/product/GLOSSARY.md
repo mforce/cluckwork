@@ -176,8 +176,13 @@ only way. It disappears when nothing is left to place.
 already has a saved **Draft**, so re-opening work in progress is distinguishable
 from starting a fresh day. Only locked days carried a signal before.
 
-**Daily entry lifecycle** (#69) —
-`Draft → Submitted → Locked → ManagerAdjusted / Voided`:
+**Daily entry lifecycle** (#69) — the arrow sketch this line used to carry
+(`Draft → Submitted → Locked → ManagerAdjusted / Voided`) read as one straight
+chain, which under-states the real graph in three ways: `ManagerAdjusted` is
+re-enterable, `Void` is reachable from `Submitted`, `Locked` **or**
+`ManagerAdjusted`, and a Draft cannot be voided at all. The drawn version is in
+[`docs/architecture.md`](../../docs/architecture.md#daily-entry); the states
+themselves:
 
 - **Draft** — editable; re-saving the same flock+date updates it in place.
   Nothing downstream exists yet. History links Draft rows straight back to
