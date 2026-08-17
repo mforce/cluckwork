@@ -115,6 +115,21 @@ This is the general lesson recorded in
 mean the **method** is wrong, so prefer "walk everything, exclude deliberately"
 over "list what I thought of".
 
+Also excluded, and specifically **not** new blockers: the four #543 shared-state
+registrations in `SharedStateRegistration` — `IConnectionMultiplexer` plus the
+three ports `IClaimOnceStore` / `IFixedWindowCounter` / `ILease`. These are the
+**shared store** that will *close* the in-process limiter blockers above, not
+extend them: the auth limiters (#544) move onto `IFixedWindowCounter`, the report
+cap (#545) onto `ILease`, and step-up grant replay (#338) onto `IClaimOnceStore`.
+Redis-backed, they hold their state in the one shared Redis, so they are
+multi-replica-safe by construction; `IConnectionMultiplexer` is a shared client.
+Their in-process fallbacks (`InProcess*`) are per-process state, but a
+**deliberate, alarmed** degradation (`SecurityEvents.SharedStateRedisUnavailable`;
+claim-once fails *closed*), reached only when Redis is blank or unreachable — not
+a silent single-instance trap. Caveat: #543 only lands the ports; #544/#545 and
+the #338 grant-replay move stay open until a caller is actually wired to them, at
+which point that wiring PR removes the corresponding blocker above.
+
 ## What does NOT license scaling
 
 **#307 (multi-replica HTTP write idempotency) is CLOSED**, so the request-path

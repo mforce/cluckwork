@@ -61,6 +61,7 @@ public sealed class ServingGuardCoverageTests
                 "Jwt:PrivateKeyPem is not configured",
                 "Jwt:PrivateKeyPem is not a usable PEM key",
             ],
+            ["EnsureSharedStateConnectionValid"] = ["SharedState:Redis:ConnectionString is set but not a valid"],
         };
 
         Assert.NotEmpty(guardMethods);

@@ -1,9 +1,13 @@
-# Dev dependencies only — Postgres, loopback-published on :5432 — so the API can
-# be run/debugged from the IDE (VS Code F5) against a real database.
+# Dev dependencies only — Postgres and Redis, loopback-published (:5432, :6379)
+# — so the API can be run/debugged from the IDE (VS Code F5) against real
+# backing services.
 # Usage: docker compose -f deploy/docker-compose.dev.yml up -d
 #
 # Credentials here are LOCAL DEV defaults, not secrets. The API reads its own
 # connection string from user-secrets (see .vscode/README or project setup).
+# Redis is OPTIONAL for local debug: leave SharedState:Redis:ConnectionString
+# unset in user-secrets to run on the in-process fallback, or set it to
+# "localhost:6379" to exercise the real Redis-backed shared-state path (#543).
 name: cluckwork-dev
 
 services:
@@ -19,6 +23,18 @@ services:
       - cluckwork-dev-pg18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U cluckwork -d cluckwork"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # #543 shared-state backend, loopback-published so an IDE-run API can reach it
+  # at localhost:6379. Same digest-pinned image as the deploy/sim/test stacks.
+  redis:
+    image: redis:7.4-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -61,6 +61,8 @@ var rateLimiting = builder.Services.AddCluckworkRateLimiting(
     builder.Configuration, processRole);
 builder.Services.AddCluckworkEdgeSecurity(rateLimiting.TrustedProxies);
 
+builder.Services.AddCluckworkSharedState(builder.Configuration, processRole);
+
 builder.Services.AddCluckworkFeatures(builder.Configuration);
 
 // #307 — lease duration / max-wait bounds for the idempotency claim protocol.

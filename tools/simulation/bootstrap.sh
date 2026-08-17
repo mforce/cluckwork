@@ -269,6 +269,16 @@ Otlp__Protocol=grpc
 # explicitly, exactly as the co-located Postgres does with
 # Database__AllowInsecureConnection. A real deploy sets neither.
 Otlp__AllowInsecureEndpoint=true
+# --- #543 shared-state (Redis) backend ---------------------------------
+# The app runs the real Redis-backed shared-state path against the redis
+# sidecar in docker-compose.sim.yml (prod-config fidelity for the scale-out
+# work). Plaintext, no auth: co-located sidecar on this stack's private
+# network, same posture as the Postgres/OTLP sidecars. Blank would be legal
+# (the app degrades to in-process, single instance), but this harness wires a
+# real value on purpose. KeyNamespace isolates this stack's keys from any
+# other environment sharing a Redis.
+SharedState__Redis__ConnectionString=redis:6379
+SharedState__Redis__KeyNamespace=cluckwork-sim
 EOF
 chmod 0600 "$ENV_FILE"
 echo "Wrote $(basename "$ENV_FILE")."
