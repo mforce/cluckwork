@@ -48,8 +48,15 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Container image hardening (#267)](267-container-hardening.md) | AGENTS · Conventions |
 | [Exactly one serving API instance (#271, #338)](271-single-serving-instance.md) | AGENTS · Host-agnostic repo |
 
-Every Conventions bullet now has a record here. The last seven rows were added
-when `AGENTS.md` was compressed to one paragraph per rule: #265, #264, #260,
-#318 and #267 had kept their rationale inline until then, and #510, #500 and
-#271/#338 had never had a record at all. #260's serving-only *scope* is still
-argued in the [#347 record](347-process-role.md), along with #319 and #316.
+**Every bullet that cites an issue has a record here; the plain conventions do
+not, and should not.** The Result pattern, handler-per-feature, FluentValidation,
+the endpoint shape, `Version++`, multi-tenancy and nullable-enabled are house
+style — consistency rules with no incident behind them, so there is nothing to
+relocate and no `→` link to follow. `AGENTS.md` says which kind a bullet is by
+whether it carries one.
+
+The last eight rows were added when `AGENTS.md` was compressed to one paragraph
+per rule: #265, #264, #260, #318 and #267 had kept their rationale inline until
+then, and #510, #500 and #271/#338 had never had a record at all. #260's
+serving-only *scope* is still argued in the [#347 record](347-process-role.md),
+along with #319 and #316.

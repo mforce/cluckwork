@@ -8,9 +8,12 @@ the **canonical rule set** for the repo. Humans usually want the short path firs
 [`docs/`](docs/README.md) (runbooks, decision records, releasing),
 [`SECURITY.md`](SECURITY.md).
 
-**Every rule here is one paragraph. The narrative that earned it — what shipped,
-which review round found it, what the wrong fix was — is behind the `→` link, in
-[`docs/decisions/`](docs/decisions/). Follow the link before changing the rule.**
+**Every rule here is one paragraph.** A rule that carries a `→` link was earned
+by a defect that shipped, and the narrative — what broke, which review round
+found it, what the wrong fix was — is behind that link in
+[`docs/decisions/`](docs/decisions/): **follow it before changing the rule.** A
+rule with no link is a plain convention that has not yet cost anything; it needs
+consistency, not archaeology.
 
 - [Communicating](#communicating) · [Layout](#layout) · [Build / test / run](#build--test--run)
 - [Conventions](#conventions-follow-these) — the rules that break things when ignored

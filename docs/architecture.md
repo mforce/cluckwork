@@ -92,7 +92,7 @@ state change (`Application/Features/DailyEntries/SubmitDailyEntry/`):
 ```mermaid
 flowchart LR
     SUBMIT["Submit"] --> LOTS["one EggLot per grade line<br/>+ the cracked / dirty condition lots"]
-    LOTS --> MOVES["one EggInventoryMovement<br/><i>type: Production</i>"]
+    LOTS --> MOVES["one EggInventoryMovement PER LOT<br/><i>type: Production</i>"]
     SUBMIT --> BIRDS["BirdMovement <i>type: Mortality</i><br/>only when mortality > 0"]
     SUBMIT --> AUDIT["audit event"]
 ```
