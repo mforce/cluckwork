@@ -62,9 +62,34 @@ HEADING = re.compile(r"^ {0,3}(#{1,3})[ \t]+(.*?)(?:\s+#+)?\s*$")
 # Matched only to REFUSE the file — see `setext_underlines`.
 SETEXT = re.compile(r"^ {0,3}(=+|-+)[ \t]*$")
 
+# Raw HTML. GitHub parses these as HTML and emits NO anchor for a `##` inside
+# them, so a heading matched in there is a link to nowhere — and, being a
+# heading of some level, it also re-parents the real headings that follow it.
+# A comment runs to its `-->`; a block tag runs to the next blank line.
+HTML_BLOCK_TAGS = (
+    "address|article|aside|blockquote|details|dialog|div|dl|fieldset|figure|"
+    "footer|form|h1|h2|h3|h4|h5|h6|header|hr|iframe|main|nav|ol|p|pre|script|"
+    "section|style|summary|table|tbody|td|tfoot|th|thead|tr|ul"
+)
+HTML_BLOCK = re.compile(rf"^ {{0,3}}</?(?:{HTML_BLOCK_TAGS})(?:[ \t/>]|$)", re.IGNORECASE)
+
+# A `---` is a setext underline only under a PARAGRAPH. These lines are other
+# kinds of block, so a `---` beneath one is a thematic break and the document is
+# perfectly processable — refusing it would be a false alarm.
+NOT_A_PARAGRAPH = re.compile(r"^(?: {4,}| {0,3}(?:>|(?:[-*+]|\d+[.)])[ \t]))")
+
 # Inline markdown that must not reach either the label or the anchor.
 LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+# A reference-style link renders as its TEXT, so GitHub's anchor comes from the
+# text alone; leaving the raw `[text][label]` in place corrupts both the label
+# and the slug (`## [Setup][guide]` became `#setupguide`, never `#setup`).
+REFLINK = re.compile(r"\[([^\]]*)\]\[[^\]]*\]")
 CODE = re.compile(r"`([^`]*)`")
+
+
+def render(raw: str) -> str:
+    """Approximate GitHub's rendered heading text: what the label and slug use."""
+    return CODE.sub(r"\1", REFLINK.sub(r"\1", LINK.sub(r"\1", raw)))
 
 
 def slugify(text: str, seen: dict[str, int]) -> str:
@@ -89,10 +114,33 @@ def content_lines(lines: list[str], toc_span: tuple[int, int] | None):
                 break
 
     opener: str | None = None  # the run that opened the current block, e.g. "```"
+    in_comment = False
+    in_html = False
     for index in range(start, len(lines)):
         line = lines[index]
         if toc_span and toc_span[0] <= index <= toc_span[1]:
             continue
+
+        # Order matters both ways: a `<!--` inside a fence is code, and a fence
+        # inside a comment is a comment.
+        if in_comment:
+            if "-->" in line:
+                in_comment = False
+            continue
+        if in_html:
+            if not line.strip():
+                in_html = False
+            continue
+        if opener is None:
+            stripped = line.lstrip()
+            if stripped.startswith("<!--"):
+                if "-->" not in stripped[4:]:
+                    in_comment = True
+                continue
+            if HTML_BLOCK.match(line):
+                in_html = True
+                continue
+
         fence = FENCE.match(line)
         if fence:
             run, info = fence.group(1), fence.group(2)
@@ -143,7 +191,7 @@ def setext_underlines(lines: list[str], toc_span: tuple[int, int] | None) -> lis
         above = prose.get(index - 1)
         if above is None or not above.strip():
             continue  # a thematic break, not an underline
-        if HEADING.match(above) or SETEXT.match(above):
+        if HEADING.match(above) or SETEXT.match(above) or NOT_A_PARAGRAPH.match(above):
             continue
         found.append(index + 1)
     return found
@@ -195,7 +243,7 @@ def rebuild(original: str, label: str = "<text>") -> str:
     seen: dict[str, int] = {}
     body: list[str] = []
     for index, level, raw in found:
-        text = CODE.sub(r"\1", LINK.sub(r"\1", raw))
+        text = render(raw)
         # Slugified even when skipped: GitHub still numbers it, so dropping it
         # from `seen` would shift every duplicate suffix after it.
         anchor = slugify(text, seen)
@@ -238,6 +286,17 @@ HEADING_CASES = [
     # Four spaces is an indented code block, not a heading — GitHub emits no
     # anchor for it, so matching it would invent a link to nowhere.
     ("    ## Four spaces is a code block", None),
+]
+
+
+# `(heading line, rendered label, anchor)` — GitHub slugifies the RENDERED text,
+# so an unresolved link syntax corrupts the label and the anchor together.
+LABEL_CASES = [
+    ("## [Setup][guide]", "Setup", "setup"),
+    ("## [Setup][]", "Setup", "setup"),
+    ("## [Setup](https://example.com)", "Setup", "setup"),
+    ("## `code` and [ref][r]", "code and ref", "code-and-ref"),
+    ("## Plain heading", "Plain heading", "plain-heading"),
 ]
 
 
@@ -300,6 +359,50 @@ DOCUMENT_CASES = [
         [],
     ),
     (
+        # Not merely a dead link: the phantom heading takes a LEVEL, so the real
+        # headings after it get re-parented underneath it in the tree.
+        "a heading inside an HTML comment is not a heading",
+        "# T\n\n## Contents\n\n" + BEGIN + "\n" + END + "\n\n<!--\n## Hidden\n-->\n\n## Real\n",
+        ["- [Real](#real)"],
+        ["Hidden"],
+    ),
+    (
+        "a heading inside an HTML block is not a heading",
+        "# T\n\n## Contents\n\n" + BEGIN + "\n" + END
+        + "\n\n<div>\n## Hidden\n</div>\n\n## Real\n",
+        ["- [Real](#real)"],
+        ["Hidden"],
+    ),
+    (
+        # The block ends at the blank line, so real headings resume after it.
+        "headings resume after an HTML block closes",
+        "# T\n\n## Contents\n\n" + BEGIN + "\n" + END
+        + "\n\n<details>\n<summary>x</summary>\n\n## After\n",
+        ["- [After](#after)"],
+        [],
+    ),
+    (
+        "a fence inside an HTML comment does not open a code block",
+        "# T\n\n## Contents\n\n" + BEGIN + "\n" + END
+        + "\n\n<!--\n```\n-->\n\n## Real\n",
+        ["- [Real](#real)"],
+        [],
+    ),
+    (
+        "an HTML comment inside a fence stays code",
+        "# T\n\n## Contents\n\n" + BEGIN + "\n" + END
+        + "\n\n```\n<!--\n```\n\n## Real\n",
+        ["- [Real](#real)"],
+        [],
+    ),
+    (
+        "a reference-style link in a heading uses its rendered text",
+        "# T\n\n## Contents\n\n" + BEGIN + "\n" + END
+        + "\n\n## [Setup][guide]\n\n[guide]: https://example.com\n",
+        ["- [Setup](#setup)"],
+        ["setupguide"],
+    ),
+    (
         "a later heading matching the ToC's own is kept, with GitHub's suffix",
         "# T\n\n## Contents\n\n" + BEGIN + "\n" + END + "\n\n## Real\n\n## Contents\n",
         ["- [Real](#real)", "- [Contents](#contents-1)"],
@@ -335,11 +438,27 @@ SETEXT_CASES = [
     ("an underline inside a fence is not an underline", "# T\n\n```\nPara\n---\n```\n", []),
     ("a break under an ATX heading is not an underline", "# T\n\n## H\n---\n", []),
     ("a table rule is not an underline", "# T\n\n| a |\n|---|\n| b |\n", []),
+    # A setext underline needs a PARAGRAPH above it. These are other blocks, so
+    # the `---` is a thematic break and refusing the file would be a false alarm
+    # — the failure here is a valid document the tool declines to process.
+    ("a break under indented code is not an underline", "# T\n\n    example\n---\n", []),
+    ("a break under a blockquote is not an underline", "# T\n\n> note\n---\n", []),
+    ("a break under a list item is not an underline", "# T\n\n- item\n---\n", []),
+    ("a break under a numbered item is not an underline", "# T\n\n1. item\n---\n", []),
+    ("a break under an HTML block is not an underline", "# T\n\n<div>\nx\n---\n", []),
 ]
 
 
 def self_test() -> int:
     failures = 0
+    for line, label, anchor in LABEL_CASES:
+        match = HEADING.match(line)
+        text = render(match.group(2)) if match else None
+        got = slugify(text, {}) if text is not None else None
+        if text != label or got != anchor:
+            failures += 1
+            print(f"FAIL  label {line!r} -> ({text!r}, {got!r}), expected ({label!r}, {anchor!r})")
+
     for name, source, expected in SETEXT_CASES:
         got = setext_underlines(source.splitlines(), None)
         if got != expected:
@@ -382,8 +501,9 @@ def self_test() -> int:
                 print(f"FAIL  {name}: unexpected {needle!r}\n{produced}")
 
     print(
-        f"{len(HEADING_CASES)} heading cases + {len(DOCUMENT_CASES)} document cases "
-        f"+ {len(SETEXT_CASES)} setext cases, {failures} failed"
+        f"{len(HEADING_CASES)} heading + {len(LABEL_CASES)} label + "
+        f"{len(DOCUMENT_CASES)} document + {len(SETEXT_CASES)} setext cases, "
+        f"{failures} failed"
     )
     return 1 if failures else 0
 
