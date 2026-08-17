@@ -40,14 +40,23 @@ END = "<!-- toc:end -->"
 #   * a fence closes only on the SAME character — a `~~~` line inside a ```
 #     block is content, not a close;
 #   * the closing run must be at least as long as the opening one, and must
-#     carry no info string.
+#     carry no info string;
+#   * a BACKTICK opener's info string may not contain a backtick. That shape is
+#     a paragraph holding an inline code span, and reading it as a fence opens a
+#     block that never closes — swallowing every heading in the rest of the file
+#     and emitting an empty contents page.
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*(.*?)\s*$")
 
+# Like a fence, an ATX heading may be indented up to three spaces (four makes it
+# an indented code block instead) and may be separated from its text by a tab.
+# GitHub emits an anchor for both, so a matcher demanding column zero and a
+# literal space drops the section from the contents without failing.
+#
 # The trailing group strips an ATX *closing* sequence (`## Heading ##`), which
 # CommonMark requires to be preceded by whitespace. `#*` without that `\s+`
 # would also eat a hash that is part of the text — `## C#` would render a
 # heading reading "C#" while the ToC linked a label reading "C".
-HEADING = re.compile(r"^(#{1,3}) +(.*?)(?:\s+#+)?\s*$")
+HEADING = re.compile(r"^ {0,3}(#{1,3})[ \t]+(.*?)(?:\s+#+)?\s*$")
 
 # Inline markdown that must not reach either the label or the anchor.
 LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
@@ -73,12 +82,17 @@ def headings(lines: list[str], toc_span: tuple[int, int] | None):
         fence = FENCE.match(line)
         if fence:
             run, info = fence.group(1), fence.group(2)
-            if opener is None:
+            if opener is not None:
+                if run[0] == opener[0] and len(run) >= len(opener) and not info:
+                    opener = None
+                # Anything else is a fence-shaped line INSIDE a block — content.
+                continue
+            if not (run[0] == "`" and "`" in info):
                 opener = run
-            elif run[0] == opener[0] and len(run) >= len(opener) and not info:
-                opener = None
-            # Anything else is a fence-shaped line INSIDE a block — content.
-            continue
+                continue
+            # An invalid backtick opener is ordinary prose. Fall through; a line
+            # starting with backticks cannot match HEADING anyway, but it must
+            # not be allowed to open a block.
         if opener is not None:
             continue
         match = HEADING.match(line)
@@ -158,6 +172,11 @@ HEADING_CASES = [
     ("## Trailing spaces   ", "Trailing spaces"),
     ("## 8.1 States", "8.1 States"),
     ("## A # B", "A # B"),
+    ("   ## Indented", "Indented"),
+    ("##\tTabbed", "Tabbed"),
+    # Four spaces is an indented code block, not a heading — GitHub emits no
+    # anchor for it, so matching it would invent a link to nowhere.
+    ("    ## Four spaces is a code block", None),
 ]
 
 
@@ -166,12 +185,12 @@ HEADING_CASES = [
 # plausible-looking contents page pointing at anchors GitHub never emitted.
 DOCUMENT_CASES = [
     (
-        # The fence is indented, the line inside it is NOT: that is the shape
-        # that breaks. With a fence indented past the matcher, the column-0
-        # `## Fake` inside the block looks exactly like a heading — GitHub
-        # renders it as code and emits no anchor, so the entry links nowhere.
-        # (An indented `## Fake` would be skipped anyway: the heading matcher
-        # requires column 0, which costs a missing entry, never a dead link.)
+        # With a fence indented past the matcher, the `## Fake` inside the block
+        # looks exactly like a heading — GitHub renders it as code and emits no
+        # anchor, so the entry links nowhere. The heading here sits at column 0
+        # only to keep the case pointed at the FENCE rule; since headings may
+        # now be indented too, an indented one inside the block would leak the
+        # same way.
         "an indented fence still hides a column-0 heading inside it",
         "# T\n\n## Contents\n\n" + BEGIN + "\n" + END + "\n\n## Real\n\n   ```text\n## Fake\n   ```\n",
         ["- [Real](#real)"],
@@ -203,6 +222,21 @@ DOCUMENT_CASES = [
         + "\n\n## Real\n\n```text\n```js\n## Fake\n```\n\n## After\n",
         ["- [Real](#real)", "- [After](#after)"],
         ["Fake"],
+    ),
+    (
+        # The worst failure this tool has: the phantom opener never closes, so
+        # EVERY heading after it disappears and the contents page comes out
+        # empty rather than merely wrong.
+        "a backtick run with a backtick in its info string is not a fence",
+        "# T\n\n## Contents\n\n" + BEGIN + "\n" + END + "\n\n```sh`x`\n\n## Real\n",
+        ["- [Real](#real)"],
+        [],
+    ),
+    (
+        "an indented heading and a tab-separated heading are both listed",
+        "# T\n\n## Contents\n\n" + BEGIN + "\n" + END + "\n\n   ## Indented\n\n##\tTabbed\n",
+        ["- [Indented](#indented)", "- [Tabbed](#tabbed)"],
+        [],
     ),
     (
         "a later heading matching the ToC's own is kept, with GitHub's suffix",
