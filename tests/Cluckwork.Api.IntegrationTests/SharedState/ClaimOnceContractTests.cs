@@ -67,4 +67,18 @@ public sealed class ClaimOnceContractTests
         // "b" was claimed in between.
         Assert.False(fixture.Store.TryClaim("a", TimeSpan.FromMinutes(5)));
     }
+
+    [Fact]
+    public void Claim_AtExactExpiryInstant_SucceedsAgain()
+    {
+        // now == expires means the TTL has ELAPSED (the window is half-open):
+        // the key is claimable again. A `<`->`<=` mutation on the liveness check
+        // would wrongly keep the claim held at this instant.
+        var fixture = new Fixture();
+
+        Assert.True(fixture.Store.TryClaim("k", TimeSpan.FromMinutes(5)));
+        fixture.Clock.Advance(TimeSpan.FromMinutes(5)); // exactly to expiry
+
+        Assert.True(fixture.Store.TryClaim("k", TimeSpan.FromMinutes(5)));
+    }
 }

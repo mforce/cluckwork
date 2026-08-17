@@ -20,7 +20,13 @@ internal sealed class ResilientClaimOnceStore(
         {
             return redis.TryClaim(key, ttl);
         }
-        catch (RedisException)
+        // RedisTimeoutException derives from TimeoutException, NOT RedisException,
+        // so `catch (RedisException)` alone misses the commonest transient Redis
+        // failure (a saturated pool / slow server) — the claim would then THROW
+        // instead of failing closed. RedisCommandException is deliberately NOT
+        // caught: a malformed command is our bug and must surface loudly, not be
+        // masked as "Redis unavailable".
+        catch (Exception ex) when (ex is RedisException or RedisTimeoutException)
         {
             logger.LogWarning("{SecurityEvent} capability={Capability}",
                 SecurityEvents.SharedStateRedisUnavailable, "grant-replay");

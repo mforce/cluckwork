@@ -22,7 +22,12 @@ internal sealed class ResilientFixedWindowCounter(
         {
             return redis.Increment(key, window);
         }
-        catch (RedisException)
+        // RedisTimeoutException derives from TimeoutException, not RedisException
+        // — without it a slow/saturated Redis would THROW instead of falling
+        // back, the exact silent-degradation the alarm exists to surface.
+        // RedisCommandException is not caught on purpose (a bad command is our
+        // bug, not a Redis outage).
+        catch (Exception ex) when (ex is RedisException or RedisTimeoutException)
         {
             logger.LogWarning("{SecurityEvent} capability={Capability}",
                 SecurityEvents.SharedStateRedisUnavailable, "auth-rate-limit");

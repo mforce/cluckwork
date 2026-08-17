@@ -118,4 +118,17 @@ public sealed class LeaseContractTests
         Assert.False(fixture.Lease.TryAcquire("k", "owner-3", TimeSpan.FromMinutes(5)));
         Assert.True(fixture.Lease.Release("k", "owner-2"));
     }
+
+    [Fact]
+    public void Acquire_AtExactExpiryInstant_ByNewOwner_Succeeds()
+    {
+        // now == entry.Expires means the lease has ELAPSED: it is free. A
+        // `<`->`<=` mutation on the liveness check would wrongly hold it.
+        var fixture = new Fixture();
+
+        Assert.True(fixture.Lease.TryAcquire("k", "owner-1", TimeSpan.FromMinutes(5)));
+        fixture.Clock.Advance(TimeSpan.FromMinutes(5)); // exactly to expiry
+
+        Assert.True(fixture.Lease.TryAcquire("k", "owner-2", TimeSpan.FromMinutes(5)));
+    }
 }

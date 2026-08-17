@@ -1,7 +1,14 @@
 namespace Cluckwork.Infrastructure.SharedState;
 
 // #543 — owned, renewable lease with compare-and-delete release (port for the
-// single-runner guarantee, #545/#271).
+// report-concurrency capacity cap, #545).
+//
+// This bounds how many heavy report queries an account runs at once; it is a
+// capacity protection, NOT a mutual-exclusion primitive for correctness. The
+// #271 job single-runner uses a Postgres advisory lock, deliberately not this
+// port — the resilient decorator falls back per-replica under a Redis outage,
+// which is fine for a capacity cap but would double-run a job. See
+// <see cref="ResilientLease"/>.
 //
 // A lease is held by exactly one <c>owner</c> token at a time, for a TTL. When
 // the TTL elapses without renewal the lease is free again and may be acquired

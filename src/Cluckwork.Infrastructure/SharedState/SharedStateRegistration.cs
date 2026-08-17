@@ -14,6 +14,14 @@ using StackExchange.Redis;
 // (same shape as AddCluckworkRateLimiting).
 public static class SharedStateRegistration
 {
+    // #543 — the single source of the "malformed connection string" message
+    // prefix. Both this class's throw and the serving boot guard
+    // (CluckworkSharedStateServiceCollectionExtensions) build their message from
+    // it, and ProcessRoleGuardTests pins a substring of it — so a reworded copy
+    // in one place cannot silently desync from the guard test.
+    public const string MalformedConnectionStringMessagePrefix =
+        "SharedState:Redis:ConnectionString is set but not a valid StackExchange.Redis connection string";
+
     public static void AddCluckworkSharedState(
         this IServiceCollection services,
         string? connectionString,
@@ -71,7 +79,11 @@ public static class SharedStateRegistration
         {
             return ConfigurationOptions.Parse(connectionString).EndPoints.Count > 0;
         }
-        catch (ArgumentException)
+        // Parse throws ArgumentException for most bad input, but also
+        // UriFormatException (a FormatException) for e.g. a malformed tunnel URI
+        // — catching only ArgumentException let that escape and crash a one-shot
+        // verb (migrate/recover-admin) that should degrade to in-process (#347).
+        catch (Exception ex) when (ex is ArgumentException or FormatException)
         {
             return false;
         }
@@ -82,9 +94,8 @@ public static class SharedStateRegistration
     {
         if (failOnMalformed)
             throw new InvalidOperationException(
-                "SharedState:Redis:ConnectionString is set but not a valid StackExchange.Redis "
-                + $"connection string: {reason}. Fix the value, or leave it blank to run "
-                + "single-instance on the in-process implementations.", inner);
+                $"{MalformedConnectionStringMessagePrefix}: {reason}. Fix the value, or leave "
+                + "it blank to run single-instance on the in-process implementations.", inner);
 
         Console.Error.WriteLine(
             $"warning: SharedState Redis not configured for this command — {reason}");

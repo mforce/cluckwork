@@ -64,6 +64,30 @@ public sealed class ResilientFallbackTests
         public bool Release(string key, string owner) => throw new RedisException("down");
     }
 
+    // ── Timing-out stubs (RedisTimeoutException — NOT a RedisException) ────
+
+    private sealed class TimingOutClaimOnceStore : IClaimOnceStore
+    {
+        public bool TryClaim(string key, TimeSpan ttl) =>
+            throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
+    }
+
+    private sealed class TimingOutFixedWindowCounter : IFixedWindowCounter
+    {
+        public long Increment(string key, TimeSpan window) =>
+            throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
+    }
+
+    private sealed class TimingOutLease : ILease
+    {
+        public bool TryAcquire(string key, string owner, TimeSpan ttl) =>
+            throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
+        public bool Renew(string key, string owner, TimeSpan ttl) =>
+            throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
+        public bool Release(string key, string owner) =>
+            throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
+    }
+
     // ── Working stubs (Redis up) ──────────────────────────────────────────
 
     private sealed class WorkingClaimOnceStore : IClaimOnceStore
@@ -166,5 +190,47 @@ public sealed class ResilientFallbackTests
         Assert.True(lease.Release("k", "owner-1"));
 
         Assert.Empty(logger.Warnings);
+    }
+
+    // ── Timeouts take the SAME path as other Redis failures ───────────────
+    // RedisTimeoutException derives from TimeoutException, not RedisException —
+    // these die if the catch clause is narrowed back to `catch (RedisException)`.
+
+    [Fact]
+    public void ClaimOnce_WhenRedisTimesOut_DeniesAndAlarms()
+    {
+        var logger = new RecordingLogger<ResilientClaimOnceStore>();
+        var store = new ResilientClaimOnceStore(new TimingOutClaimOnceStore(), logger);
+
+        Assert.False(store.TryClaim("k", TimeSpan.FromMinutes(5)));
+
+        Assert.Single(logger.Warnings);
+        Assert.Contains(SecurityEvents.SharedStateRedisUnavailable, logger.Warnings[0]);
+    }
+
+    [Fact]
+    public void Counter_WhenRedisTimesOut_ReturnsFallbackValueAndAlarms()
+    {
+        var logger = new RecordingLogger<ResilientFixedWindowCounter>();
+        var fallback = new InProcessFixedWindowCounter(new FakeTimeProvider());
+        var counter = new ResilientFixedWindowCounter(new TimingOutFixedWindowCounter(), fallback, logger);
+
+        Assert.Equal(1, counter.Increment("k", TimeSpan.FromMinutes(5)));
+
+        Assert.Single(logger.Warnings);
+        Assert.Contains(SecurityEvents.SharedStateRedisUnavailable, logger.Warnings[0]);
+    }
+
+    [Fact]
+    public void Lease_WhenRedisTimesOut_DelegatesToFallbackAndAlarms()
+    {
+        var logger = new RecordingLogger<ResilientLease>();
+        var fallback = new InProcessLease(new FakeTimeProvider());
+        var lease = new ResilientLease(new TimingOutLease(), fallback, logger);
+
+        Assert.True(lease.TryAcquire("k", "owner-1", TimeSpan.FromMinutes(5)));
+
+        Assert.Single(logger.Warnings);
+        Assert.Contains(SecurityEvents.SharedStateRedisUnavailable, logger.Warnings[0]);
     }
 }

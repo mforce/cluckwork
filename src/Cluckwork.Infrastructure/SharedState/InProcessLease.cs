@@ -33,9 +33,10 @@ internal sealed class InProcessLease(TimeProvider timeProvider) : ILease
         if (ttl <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(ttl));
 
-        var now = timeProvider.GetUtcNow();
         lock (_lock)
         {
+            // Clock read under the lock (see InProcessClaimOnceStore).
+            var now = timeProvider.GetUtcNow();
             if (_leases.TryGetValue(key, out var entry) && now < entry.Expires)
                 return false; // Live lease held by someone else.
 
@@ -52,9 +53,9 @@ internal sealed class InProcessLease(TimeProvider timeProvider) : ILease
         if (ttl <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(ttl));
 
-        var now = timeProvider.GetUtcNow();
         lock (_lock)
         {
+            var now = timeProvider.GetUtcNow();
             if (!_leases.TryGetValue(key, out var entry)
                 || now >= entry.Expires
                 || !entry.Owner.Equals(owner, StringComparison.Ordinal))
@@ -70,9 +71,9 @@ internal sealed class InProcessLease(TimeProvider timeProvider) : ILease
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(owner);
 
-        var now = timeProvider.GetUtcNow();
         lock (_lock)
         {
+            var now = timeProvider.GetUtcNow();
             // Compare-and-delete: only the current live holder may release.
             if (!_leases.TryGetValue(key, out var entry)
                 || now >= entry.Expires

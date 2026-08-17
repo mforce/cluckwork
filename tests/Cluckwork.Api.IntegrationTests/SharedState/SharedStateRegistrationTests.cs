@@ -51,4 +51,27 @@ public sealed class SharedStateRegistrationTests
         using var sp = Build("abortConnect=false", failOnMalformed: false);
         Assert.IsType<InProcessClaimOnceStore>(sp.GetRequiredService<IClaimOnceStore>());
     }
+
+    // ConfigurationOptions.Parse throws UriFormatException (a FormatException,
+    // NOT an ArgumentException) for a malformed tunnel URI. IsWellFormed-
+    // ConnectionString must treat it as malformed, so a one-shot verb degrades
+    // to in-process instead of the exception escaping and crashing the verb
+    // (#347). Reverting the catch to `catch (ArgumentException)` makes this
+    // throw UriFormatException instead of returning in-process.
+    [Fact]
+    public void UriFormatMalformedConnectionString_OneShot_DegradesToInProcess()
+    {
+        using var sp = Build("redis:6379,tunnel=::::", failOnMalformed: false);
+        Assert.IsType<InProcessClaimOnceStore>(sp.GetRequiredService<IClaimOnceStore>());
+    }
+
+    [Fact]
+    public void UriFormatMalformedConnectionString_Serving_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(TimeProvider.System);
+        services.AddLogging();
+        Assert.Throws<InvalidOperationException>(() =>
+            services.AddCluckworkSharedState("redis:6379,tunnel=::::", "test-ns", failOnMalformed: true));
+    }
 }

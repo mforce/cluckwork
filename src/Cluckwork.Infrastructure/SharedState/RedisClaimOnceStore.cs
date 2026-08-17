@@ -19,6 +19,9 @@ internal sealed class RedisClaimOnceStore(IConnectionMultiplexer redis, string k
             throw new ArgumentOutOfRangeException(nameof(ttl));
 
         var db = redis.GetDatabase();
-        return db.StringSet($"{keyNamespace}:{key}", "1", ttl, when: When.NotExists);
+        // Capability infix ("claim:") so claim-once and lease never share a key
+        // even when a caller passes the same logical key to both — a collision
+        // would let a live lease deny a grant claim, or vice versa.
+        return db.StringSet($"{keyNamespace}:claim:{key}", "1", ttl, when: When.NotExists);
     }
 }

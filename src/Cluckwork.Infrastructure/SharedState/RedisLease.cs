@@ -8,8 +8,10 @@ using StackExchange.Redis;
 // owner token); renew and release are compare-and-* Lua scripts, so a dead
 // holder's lease is reclaimed by TTL and a previous holder can never release
 // a lease that was re-granted to someone else. Synchronous by design: the
-// port methods return <see cref="bool"/> and the callers (#545/#271
-// single-runner guard) tolerate one short bounded Redis round trip.
+// port methods return <see cref="bool"/> and the caller (#545 report cap)
+// tolerates one short bounded Redis round trip. Every key carries a "lease:"
+// capability infix so it can never collide with a claim-once key of the same
+// logical name.
 internal sealed class RedisLease(IConnectionMultiplexer redis, string keyNamespace) : ILease
 {
     private const string RenewScript = """
@@ -36,7 +38,7 @@ internal sealed class RedisLease(IConnectionMultiplexer redis, string keyNamespa
             throw new ArgumentOutOfRangeException(nameof(ttl));
 
         var db = redis.GetDatabase();
-        return db.StringSet($"{keyNamespace}:{key}", owner, ttl, when: When.NotExists);
+        return db.StringSet($"{keyNamespace}:lease:{key}", owner, ttl, when: When.NotExists);
     }
 
     public bool Renew(string key, string owner, TimeSpan ttl)
@@ -49,7 +51,7 @@ internal sealed class RedisLease(IConnectionMultiplexer redis, string keyNamespa
         var db = redis.GetDatabase();
         var result = db.ScriptEvaluate(
             RenewScript,
-            new RedisKey[] { $"{keyNamespace}:{key}" },
+            new RedisKey[] { $"{keyNamespace}:lease:{key}" },
             new RedisValue[] { owner, (long)ttl.TotalMilliseconds });
         return (long)result == 1;
     }
@@ -62,7 +64,7 @@ internal sealed class RedisLease(IConnectionMultiplexer redis, string keyNamespa
         var db = redis.GetDatabase();
         var result = db.ScriptEvaluate(
             ReleaseScript,
-            new RedisKey[] { $"{keyNamespace}:{key}" },
+            new RedisKey[] { $"{keyNamespace}:lease:{key}" },
             new RedisValue[] { owner });
         return (long)result == 1;
     }

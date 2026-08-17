@@ -28,9 +28,12 @@ internal sealed class InProcessClaimOnceStore(TimeProvider timeProvider) : IClai
         if (ttl <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(ttl));
 
-        var now = timeProvider.GetUtcNow();
         lock (_lock)
         {
+            // Clock read under the lock (consistent with the counter): a stale
+            // clock here is only ever fail-closed (a spurious deny), never a
+            // double-claim, but reading under the lock removes the question.
+            var now = timeProvider.GetUtcNow();
             if (_claims.TryGetValue(key, out var expires))
             {
                 if (now < expires)

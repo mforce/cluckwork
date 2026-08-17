@@ -318,6 +318,13 @@ else:
 # key=value and an endpoint never contains '=', so ">=1 token without '='" is
 # the well-formedness invariant without a full parser. Like #510 it only ever
 # appends to `fail` — it can turn a green red, never a red green.
+#
+# SCOPE: this checks endpoint PRESENCE only, not option VALIDITY. A string like
+# "redis:6379,bogusoption=x" has an endpoint and passes here, but the app's
+# ConfigurationOptions.Parse rejects the unknown option and fails the boot. That
+# is the deliberate bounded trade the header describes: the app is the authority
+# on option names, and the cost of learning a bad option at boot instead of here
+# is one wasted reset of a throwaway DB — not a false green that ships anything.
 shared = env.get("SharedState__Redis__ConnectionString")
 if shared is not None and str(shared).strip():
     tokens = [t.strip() for t in str(shared).split(",")]

@@ -40,8 +40,8 @@ internal static class CluckworkSharedStateServiceCollectionExtensions
             return;
 
         throw new InvalidOperationException(
-            "SharedState:Redis:ConnectionString is set but not a valid StackExchange.Redis "
-            + "connection string (no endpoint host:port was found). Fix the value, or leave it "
-            + "blank to run single-instance on the in-process implementations.");
+            $"{SharedStateRegistration.MalformedConnectionStringMessagePrefix} (no endpoint "
+            + "host:port was found). Fix the value, or leave it blank to run single-instance "
+            + "on the in-process implementations.");
     }
 }
