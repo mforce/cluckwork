@@ -58,6 +58,10 @@ FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*(.*?)\s*$")
 # heading reading "C#" while the ToC linked a label reading "C".
 HEADING = re.compile(r"^ {0,3}(#{1,3})[ \t]+(.*?)(?:\s+#+)?\s*$")
 
+# A setext underline: `===` (level 1) or `---` (level 2) under its heading text.
+# Matched only to REFUSE the file — see `setext_underlines`.
+SETEXT = re.compile(r"^ {0,3}(=+|-+)[ \t]*$")
+
 # Inline markdown that must not reach either the label or the anchor.
 LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 CODE = re.compile(r"`([^`]*)`")
@@ -73,10 +77,20 @@ def slugify(text: str, seen: dict[str, int]) -> str:
     return slug if count == 0 else f"{slug}-{count}"
 
 
-def headings(lines: list[str], toc_span: tuple[int, int] | None):
-    """Yield `(line index, level, raw text)` for every heading outside the ToC."""
+def content_lines(lines: list[str], toc_span: tuple[int, int] | None):
+    """Yield `(index, line)` for prose: outside fences, frontmatter and the ToC."""
+    start = 0
+    if lines and lines[0].strip() == "---":
+        # YAML frontmatter. Its closing `---` sits under a non-blank line and is
+        # otherwise indistinguishable from a setext underline.
+        for i in range(1, len(lines)):
+            if lines[i].strip() in {"---", "..."}:
+                start = i + 1
+                break
+
     opener: str | None = None  # the run that opened the current block, e.g. "```"
-    for index, line in enumerate(lines):
+    for index in range(start, len(lines)):
+        line = lines[index]
         if toc_span and toc_span[0] <= index <= toc_span[1]:
             continue
         fence = FENCE.match(line)
@@ -95,9 +109,44 @@ def headings(lines: list[str], toc_span: tuple[int, int] | None):
             # not be allowed to open a block.
         if opener is not None:
             continue
+        yield index, line
+
+
+def headings(lines: list[str], toc_span: tuple[int, int] | None):
+    """Yield `(line index, level, raw text)` for every heading outside the ToC."""
+    for index, line in content_lines(lines, toc_span):
         match = HEADING.match(line)
         if match:
             yield index, len(match.group(1)), match.group(2)
+
+
+def setext_underlines(lines: list[str], toc_span: tuple[int, int] | None) -> list[int]:
+    """Line numbers (1-based) of setext underlines this tool refuses to model.
+
+    A setext heading — text with `===` or `---` under it — gets an anchor from
+    GitHub exactly like an ATX one, so ignoring it silently drops a real section
+    from the contents page. Supporting it is the wrong trade: the underline is
+    ambiguous with a thematic break, a table rule and a frontmatter terminator,
+    and every misread INVENTS an entry pointing at an anchor that does not
+    exist. A missing entry is recoverable; a confident wrong link is not.
+
+    So the tool refuses the input instead of guessing at it. A survey of all 150
+    tracked markdown files found no setext heading and two look-alikes, both of
+    the ambiguous kind above — which is the argument for this being a guard
+    rather than a feature.
+    """
+    prose = dict(content_lines(lines, toc_span))
+    found = []
+    for index, line in prose.items():
+        if not SETEXT.match(line):
+            continue
+        above = prose.get(index - 1)
+        if above is None or not above.strip():
+            continue  # a thematic break, not an underline
+        if HEADING.match(above) or SETEXT.match(above):
+            continue
+        found.append(index + 1)
+    return found
 
 
 def rebuild(original: str, label: str = "<text>") -> str:
@@ -128,6 +177,18 @@ def rebuild(original: str, label: str = "<text>") -> str:
     #
     # Taken from `headings()` rather than by scanning raw lines backwards, so a
     # fenced code block sitting above the markers cannot supply a fake one.
+    # Refuse rather than silently omit. Checked here, not in `main`, so both
+    # `--check` and the rewrite path go through it.
+    setext = setext_underlines(lines, (begin, end))
+    if setext:
+        sys.exit(
+            f"{label}: setext headings on line(s) "
+            + ", ".join(str(n) for n in setext)
+            + " — this tool only models ATX headings (`## Title`). GitHub gives a\n"
+            "setext heading an anchor, so listing nothing for it would be a silent\n"
+            "omission. Convert them to ATX, or teach the tool and pin a case."
+        )
+
     found = list(headings(lines, (begin, end)))
     own_heading_line = max((i for i, _, _ in found if i < begin), default=None)
 
@@ -263,8 +324,41 @@ DOCUMENT_CASES = [
 ]
 
 
+# Refusing an input is only safe if the refusal is precise: a guard that fires
+# on a thematic break or a frontmatter terminator would reject files it handles
+# correctly. Both directions are pinned. `(name, markdown, refused line numbers)`.
+SETEXT_CASES = [
+    ("text underlined with equals is refused", "# T\n\nTitle\n=====\n", [4]),
+    ("text underlined with dashes is refused", "# T\n\nTitle\n-----\n", [4]),
+    ("a thematic break after a blank line is not an underline", "# T\n\nPara\n\n---\n", []),
+    ("a frontmatter terminator is not an underline", "---\ntitle: x\n---\n\n# T\n", []),
+    ("an underline inside a fence is not an underline", "# T\n\n```\nPara\n---\n```\n", []),
+    ("a break under an ATX heading is not an underline", "# T\n\n## H\n---\n", []),
+    ("a table rule is not an underline", "# T\n\n| a |\n|---|\n| b |\n", []),
+]
+
+
 def self_test() -> int:
     failures = 0
+    for name, source, expected in SETEXT_CASES:
+        got = setext_underlines(source.splitlines(), None)
+        if got != expected:
+            failures += 1
+            print(f"FAIL  {name}: refused lines {got}, expected {expected}")
+
+    # The detector being right is worthless if `rebuild` does not consult it, and
+    # every case above would stay green with the call deleted. Pin the wiring.
+    wiring = "# T\n\n## Contents\n\n" + BEGIN + "\n" + END + "\n\nOops\n----\n"
+    try:
+        rebuild(wiring, "wiring")
+    except SystemExit as exit_:
+        if "setext" not in str(exit_):
+            failures += 1
+            print(f"FAIL  rebuild refuses a setext document: wrong message {str(exit_)!r}")
+    else:
+        failures += 1
+        print("FAIL  rebuild refuses a setext document: it returned a ToC instead")
+
     for line, expected in HEADING_CASES:
         match = HEADING.match(line)
         got = match.group(2) if match else None
@@ -288,8 +382,8 @@ def self_test() -> int:
                 print(f"FAIL  {name}: unexpected {needle!r}\n{produced}")
 
     print(
-        f"{len(HEADING_CASES)} heading cases + {len(DOCUMENT_CASES)} document cases, "
-        f"{failures} failed"
+        f"{len(HEADING_CASES)} heading cases + {len(DOCUMENT_CASES)} document cases "
+        f"+ {len(SETEXT_CASES)} setext cases, {failures} failed"
     )
     return 1 if failures else 0
 
