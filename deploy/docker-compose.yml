@@ -48,6 +48,16 @@ services:
       # container healthcheck (Host: localhost) keeps working. HSTS + CSP + the
       # other security headers are emitted automatically outside Development.
       AllowedHosts: ${CLUCKWORK_HOST}
+      # #543: shared-state backend (grant-replay claim-once, auth limiters, report
+      # cap). Points at the co-located `redis` service so this reference stack
+      # boots the REAL Redis-backed path, matching a scaled deploy's config shape
+      # — even though this stack runs a single instance (where Redis vs in-process
+      # is functionally equivalent). Blank would be legal (the app degrades to the
+      # in-process fallback, Option B); this stack wires it on purpose. A real
+      # multi-instance deploy points this at its own shared Redis. The app forces
+      # AbortOnConnectFail=false, so an unreachable Redis degrades at runtime via
+      # the resilient decorators rather than failing the boot.
+      SharedState__Redis__ConnectionString: redis:6379
     # #266 — readiness probe. The image already carries this HEALTHCHECK; declared
     # here too so the stack's health is explicit and tunable. Runs the same
     # `healthcheck` verb inside the container (no curl/wget on the hardened image,
@@ -61,6 +71,11 @@ services:
       start_period: 30s
     depends_on:
       db:
+        condition: service_healthy
+      # #543 — the app boots the Redis-backed shared-state path; gate on the
+      # sidecar being healthy so the first request exercises Redis, not the
+      # in-process fallback.
+      redis:
         condition: service_healthy
       # #263 — the schema is migrated by the one-shot `migrate` job below (run
       # under the owner credential), not at request time. app serves with
@@ -115,6 +130,21 @@ services:
       - cluckwork-postgres-pg18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # #543 — shared-state (Redis) backend for the scale-out ports (grant-replay
+  # claim-once, auth limiters, report-concurrency cap). Same digest-pinned image
+  # the Testcontainers RedisFixture and the #243 sim harness use, kept in
+  # lockstep. Co-located sidecar on the private compose bridge, no auth, not
+  # published — only `app` talks to it. A real multi-instance deploy replaces
+  # this with a managed/shared Redis (and TLS/auth on it); this reference stack,
+  # like its co-located plaintext Postgres, is single-host and never exposed.
+  redis:
+    image: redis:7.4-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
