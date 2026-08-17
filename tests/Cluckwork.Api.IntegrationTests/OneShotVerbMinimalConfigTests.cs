@@ -195,6 +195,12 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
         ("FarmLogo", "FarmLogo__MaxUploadBytes", "not-a-number"),
         ("FarmBanner", "FarmBanner__MaxUploadBytes", "not-a-number"),
         ("Jwt", "Jwt__AccessTokenMinutes", "not-a-number"),
+        // #543 — SharedState:Redis:ConnectionString is a string, so it cannot
+        // fail BINDING; its serving-only failure mode is the malformed-value boot
+        // guard (EnsureSharedStateConnectionValid). "abortConnect=false" parses
+        // but names no endpoint, so a SERVING process rejects it — a one-shot
+        // verb must instead degrade to the in-process fallback and survive.
+        ("SharedState", "SharedState__Redis__ConnectionString", "abortConnect=false"),
     ];
 
     // Deliberate exclusions, with the reason each is NOT serving-only. A section
