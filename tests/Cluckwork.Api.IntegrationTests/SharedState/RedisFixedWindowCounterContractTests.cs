@@ -47,6 +47,39 @@ public sealed class RedisFixedWindowCounterContractTests(RedisFixture fixture) :
         Assert.Equal(2, second.Count);
     }
 
+    // #544 review (codex P2): the key must expire at the wall-clock BUCKET boundary, so the
+    // returned Remaining (PTTL → async Retry-After) is the time left in the CURRENT window, not
+    // a full window measured from the first request. Phase the first increment DEEP into a
+    // bucket, then assert Remaining is well under a full window — a full-window TTL bug returns
+    // ~the whole window here and fails. (The existing positive-remaining test uses a 30s window
+    // and only asserts `<= window`, so a full-window TTL slips past it; this one catches it.)
+    [Fact]
+    public async Task IncrementAsync_remaining_is_time_to_bucket_boundary_not_a_full_window()
+    {
+        var counter = new RedisFixedWindowCounter(fixture.Redis, Guid.NewGuid().ToString("N"));
+        var window = TimeSpan.FromMilliseconds(4000);
+
+        // Wait until we are 50–62% into a 4s wall-clock bucket (a localhost Testcontainers Redis
+        // shares this host's clock). A correct impl must then return well under a full window;
+        // the buggy full-window TTL returns ~4s and stands out. The [2000,2500]ms band leaves
+        // >1s of headroom before the boundary, so a slow increment cannot roll into a new bucket.
+        while (true)
+        {
+            var phase = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() % 4000;
+            if (phase is >= 2000 and <= 2500)
+                break;
+            await Task.Delay(40);
+        }
+
+        var result = await counter.IncrementAsync("boundary", window);
+
+        Assert.Equal(1, result.Count);
+        Assert.True(result.Remaining > TimeSpan.Zero,
+            $"remaining {result.Remaining} must be positive");
+        Assert.True(result.Remaining < TimeSpan.FromMilliseconds(3000),
+            $"remaining {result.Remaining} must be time-to-boundary (< 3s), not a full 4s window");
+    }
+
     [Fact]
     public void NonWholeMillisecondWindow_Throws()
     {

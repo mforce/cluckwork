@@ -11,9 +11,13 @@ using StackExchange.Redis;
 // regardless of host clock skew. The INCR + conditional PEXPIRE run in ONE
 // Lua script — never a separate INCR then EXPIRE, which would leave a key
 // with no expiry in the gap. The PEXPIRE only fires when the counter is
-// created (c == 1), so a hot window never rewrites the TTL. The script also
-// returns the key's remaining PTTL so IncrementAsync can hand back a
-// Retry-After computed on Redis's clock, not the API host's (#544 review).
+// created (c == 1), and it expires the key at the BUCKET boundary
+// (windowMs - ms % windowMs), not a full window from the first request — so the
+// PTTL the script returns is the time left in the CURRENT window. A full-window
+// TTL would make IncrementAsync's Retry-After too long for a first request that
+// lands partway into a bucket (#544 review, codex P2). The script returns that
+// PTTL so IncrementAsync hands back a Retry-After computed on Redis's clock, not
+// the API host's.
 //
 // Cluster-safe: the script derives the real key (KEYS[1] .. bucket) from the
 // server clock, so the accessed key cannot be declared in KEYS. To keep it in
@@ -31,7 +35,7 @@ internal sealed class RedisFixedWindowCounter(IConnectionMultiplexer redis, stri
         local k = KEYS[1] .. ':' .. bucket
         local c = redis.call('INCR', k)
         if c == 1 then
-          redis.call('PEXPIRE', k, windowMs)
+          redis.call('PEXPIRE', k, windowMs - (ms % windowMs))
         end
         local pttl = redis.call('PTTL', k)
         return {c, pttl}
