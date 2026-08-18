@@ -5,8 +5,22 @@
 > this file is the relocated rationale, including how the blocker list was
 > derived and why that method matters.
 
-**Status:** accepted — the invariant stands until all four blockers close
+**Status:** accepted — the invariant stands until the remaining blockers close
 · **Date:** 2026-07
+
+> **Update (#271 resolved).** The worker double-run this record's subject describes
+> is closed: `DurableJobWorker`'s poll and the three sweeps now run only under a
+> session-scoped Postgres advisory-lock **leader gate** (`PostgresLeaderLease`,
+> `pg_try_advisory_lock` on a dedicated non-pooled connection), so at most one
+> instance leads. Contract is at-most-one-leader with at-least-once, idempotent
+> handlers — not "exactly once". Single-leader holds on a **session-pinned**
+> endpoint; under a **transaction-pooling** proxy it is not guaranteed (a
+> backend-PID affinity check narrows but does not close the window) and relies on
+> the at-least-once + idempotent contract — a dedicated session-pinned lease
+> endpoint is the fix (**#556**). The remaining single-instance blockers are #143
+> and #311 (both in-process); #307 and #338 are closed. The four-blockers analysis
+> below is the original (pre-#338) rationale — the holistic AGENTS.md/decision sync
+> is #537.
 
 ## The rule
 
@@ -22,10 +36,13 @@ The run-then-exit verbs (`migrate`, `seed`, `recover-admin`, `bootstrap-admin`,
 
 `AddHostedService<DurableJobWorker>()`
 (`Hosting/CluckworkJobServiceCollectionExtensions.cs`) means **every** instance
-runs the worker loop, and the poll claims nothing — no `FOR UPDATE SKIP LOCKED`,
-no lease, no advisory lock. What that exposes today is **the three recurring
-sweeps**, which ride the same poll and run unconditionally per instance:
-`DailyEntryLockSweep`, `RefreshTokenPurgeSweep`, `IdempotencyRecordPurgeSweep`.
+runs the worker loop. Before the fix, the poll claimed nothing — no
+`FOR UPDATE SKIP LOCKED`, no lease, no advisory lock — which exposed **the three
+recurring sweeps** (`DailyEntryLockSweep`, `RefreshTokenPurgeSweep`,
+`IdempotencyRecordPurgeSweep`), which ride the same poll and would run
+unconditionally per instance. The leader gate (see the Update note above) closed
+this: the poll and the sweeps now run only while this instance holds the advisory
+lock.
 
 The durable-job half is still a scaffold that selects pending rows and logs
 them — no handlers are registered — so job double-execution is **latent, not
