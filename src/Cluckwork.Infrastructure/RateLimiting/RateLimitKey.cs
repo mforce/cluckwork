@@ -1,4 +1,4 @@
-namespace Cluckwork.Api.RateLimiting;
+namespace Cluckwork.Infrastructure.RateLimiting;
 
 using System.Net;
 using System.Net.Sockets;
@@ -6,6 +6,13 @@ using System.Net.Sockets;
 // Derives the rate-limit partition key from the resolved client IP. The IP
 // itself is resolved by the framework ForwardedHeaders middleware; this only
 // decides the bucket granularity.
+//
+// #544 — moved from Cluckwork.Api.RateLimiting to Cluckwork.Infrastructure so the
+// distributed limiter policy (DistributedIpFixedWindowPolicy, same assembly as the
+// internal IFixedWindowCounter port) can share this one canonical derivation. The Api
+// OnRejected handler still uses it for the security-event ClientIp field; it now
+// references it from here. One copy, never two — the IPv6-/64 collapse is a security
+// control and a second drifting copy would be a hole.
 public static class RateLimitKey
 {
     // A single residential IPv6 customer controls a whole /64, so keying by the

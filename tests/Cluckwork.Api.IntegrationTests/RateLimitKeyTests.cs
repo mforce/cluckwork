@@ -1,7 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
-using Cluckwork.Api.RateLimiting;
+using Cluckwork.Infrastructure.RateLimiting;
 
 // Unit tests for the rate-limit partition-key derivation (#143). The IP is
 // resolved upstream by the framework ForwardedHeaders middleware; this only
