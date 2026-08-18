@@ -1,20 +1,19 @@
 namespace Cluckwork.Api.Endpoints.Reports;
 
-using Cluckwork.Api.RateLimiting;
 using Cluckwork.Infrastructure.Persistence;
+using Cluckwork.Infrastructure.RateLimiting;
 
-// #311 — caps concurrently in-flight report queries per account so one
-// authorized user firing many overlapping report requests cannot drive
-// unbounded DB/CPU cost; excess work returns a retryable 429 rather than
-// queueing or running unbounded. Registered as a filter on the reports route
-// group (ReportEndpoints.MapReportEndpoints) rather than via the global
-// RequireRateLimiting policy pipeline — see ReportConcurrencyLimiter's remarks
-// for why. TenantContext is resolved from RequestServices (the scoped,
-// per-request provider) rather than constructor-injected: AddEndpointFilter<T>
-// constructs the filter once, from the app's ROOT service provider, at
-// endpoint-build time, so a constructor-injected scoped service would either
-// fail to resolve or capture a stale instance.
-public sealed class ReportConcurrencyLimitFilter(ReportConcurrencyLimiter limiter) : IEndpointFilter
+// #311/#545 — caps concurrently in-flight report queries per account so one
+// account firing many overlapping report requests cannot drive unbounded DB/CPU
+// cost; excess work returns a retryable 429 rather than queueing or running
+// unbounded. #545 moved the cap onto the shared lease backends so N replicas
+// enforce ONE combined per-account count. Registered as a filter on the reports
+// route group (ReportEndpoints.MapReportEndpoints). TenantContext is resolved
+// from RequestServices (the scoped, per-request provider) rather than
+// constructor-injected: AddEndpointFilter<T> constructs the filter once, from the
+// app's ROOT service provider, so a constructor-injected scoped service would
+// capture a stale instance. The limiter is a singleton — safe to inject.
+public sealed class ReportConcurrencyLimitFilter(DistributedReportConcurrencyLimiter limiter) : IEndpointFilter
 {
     private const string RetryAfterSeconds = "1";
 
@@ -23,14 +22,14 @@ public sealed class ReportConcurrencyLimitFilter(ReportConcurrencyLimiter limite
     {
         var tenant = context.HttpContext.RequestServices.GetRequiredService<TenantContext>();
         // No account to partition by, so there is nothing to meter — fall through
-        // and let the handler reject it. Unauthenticated is the common case, but
-        // TenantResolutionMiddleware also leaves this unresolved for an
-        // AUTHENTICATED request whose JWT carries no usable account_id claim.
+        // and let the handler reject it (unauthenticated, or an authenticated JWT
+        // with no usable account_id claim).
         if (!tenant.IsResolved)
             return await next(context);
 
-        using var lease = limiter.Acquire(tenant.AccountId);
-        if (!lease.IsAcquired)
+        await using var permit = await limiter.AcquireAsync(
+            tenant.AccountId, context.HttpContext.RequestAborted);
+        if (permit is null)
         {
             context.HttpContext.Response.Headers.RetryAfter = RetryAfterSeconds;
             return Results.Problem(

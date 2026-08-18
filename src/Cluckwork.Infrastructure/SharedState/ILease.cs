@@ -6,9 +6,10 @@ namespace Cluckwork.Infrastructure.SharedState;
 // This bounds how many heavy report queries an account runs at once; it is a
 // capacity protection, NOT a mutual-exclusion primitive for correctness. The
 // #271 job single-runner uses a Postgres advisory lock, deliberately not this
-// port — the resilient decorator falls back per-replica under a Redis outage,
-// which is fine for a capacity cap but would double-run a job. See
-// <see cref="ResilientLease"/>.
+// port. The report cap (#545) consumes the concrete Redis and in-process leases
+// directly and PINS each permit to the backend that granted it, falling back
+// per-replica under a Redis outage — fine for a capacity cap but it would
+// double-run a job.
 //
 // A lease is held by exactly one <c>owner</c> token at a time, for a TTL. When
 // the TTL elapses without renewal the lease is free again and may be acquired

@@ -130,11 +130,9 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                     TimeSpan.FromSeconds(rateLimiting.ClientErrors.WindowSeconds)));
         });
 
-        // #311 — account-scoped, not IP-scoped, so it lives outside the
-        // AddRateLimiter() policy set above (see ReportConcurrencyLimiter for why).
-        // A factory registration (not an instance) so the container disposes it
-        // on shutdown.
-        services.AddSingleton(_ => new ReportConcurrencyLimiter(rateLimiting));
+        // #311/#545 — account-scoped report concurrency cap. Registered separately
+        // in Program.cs via AddCluckworkReportConcurrencyCap (it needs the shared
+        // Redis namespace and the internal lease types), not here.
 
         return new CluckworkRateLimitingRegistration(
             rateLimiting,
