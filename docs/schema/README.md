@@ -33,7 +33,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.__EFMigrationsHistory](public.__EFMigrationsHistory.md) | 2 |  | BASE TABLE |
 | [public.Accounts](public.Accounts.md) | 16 |  | BASE TABLE |
 | [public.AspNetRoles](public.AspNetRoles.md) | 4 |  | BASE TABLE |
-| [public.AspNetUsers](public.AspNetUsers.md) | 23 |  | BASE TABLE |
+| [public.AspNetUsers](public.AspNetUsers.md) | 24 |  | BASE TABLE |
 | [public.AuditEvents](public.AuditEvents.md) | 10 |  | BASE TABLE |
 | [public.Customers](public.Customers.md) | 7 |  | BASE TABLE |
 | [public.DailyEntries](public.DailyEntries.md) | 19 |  | BASE TABLE |
@@ -161,6 +161,7 @@ erDiagram
   timestamp_with_time_zone DisabledAt
   uuid DisabledBy
   varchar_16_ PreferredStepperUnit
+  integer StepUpLogoutEpoch
 }
 "public.AuditEvents" {
   uuid Id

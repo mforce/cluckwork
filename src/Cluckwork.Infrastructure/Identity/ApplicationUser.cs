@@ -36,4 +36,14 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     // audited administration workflow that sets these fields.
     public DateTimeOffset? DisabledAt { get; set; }
     public Guid? DisabledBy { get; set; }
+
+    // #338 — per-user step-up logout epoch. Each step-up grant embeds the value
+    // this held when it was issued; logout increments it; a grant is admitted
+    // only while its embedded epoch still equals this one. An INTEGER, compared
+    // for equality — never a timestamp — so logout revocation is immune to the
+    // wall-clock skew between the replica that issues a grant and the one that
+    // records the logout (the #338 review defect). Same shape as CredentialEpoch
+    // (#364). Durable in Postgres, not Redis (a never-re-touched key is exactly
+    // what maxmemory-LRU evicts first). 0 for every existing row — no backfill.
+    public int StepUpLogoutEpoch { get; set; }
 }
