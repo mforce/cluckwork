@@ -74,14 +74,18 @@ public sealed class DistributedReportConcurrencyLimiter
         Guid accountId, CancellationToken cancellationToken = default)
     {
         var owner = Guid.NewGuid().ToString("N");
+        // Once Redis faults during THIS scan, skip it for the remaining slots — one
+        // fault means Redis is unreachable for this call, so re-probing every slot
+        // only multiplies latency and alarm log volume under a sustained outage.
+        var redisFaulted = false;
         for (var slot = 0; slot < _permitLimit; slot++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var key = $"report-cc:{accountId:N}:{slot}";
-            if (TryAcquirePinned(key, owner, out var backend))
+            if (TryAcquirePinned(key, owner, ref redisFaulted, out var backend))
             {
                 var permit = new ReportConcurrencyPermit(
-                    backend, key, owner, _clock, _logger, _ttl, _renewInterval, cancellationToken);
+                    backend, key, owner, _clock, _logger, _ttl, _renewInterval);
                 return new ValueTask<ReportConcurrencyPermit?>(permit);
             }
         }
@@ -93,9 +97,15 @@ public sealed class DistributedReportConcurrencyLimiter
     // and falls back to the in-process ceiling for THIS slot. A reachable Redis
     // that reports the slot held returns false WITHOUT falling back — the scan
     // moves to the next slot. `backend` is only meaningful when this returns true.
-    private bool TryAcquirePinned(string key, string owner, out ILease backend)
+    // The catch is deliberately NARROW here (unlike renew/release): at acquire time
+    // an UNEXPECTED, non-Redis fault must fail CLOSED — propagate and 500 — because
+    // nothing has been granted yet and denying the request is the safe direction.
+    // A Redis fault (reachable-but-erroring or unreachable) falls back to the bounded
+    // in-process ceiling and alarms; a reachable Redis reporting the slot held returns
+    // false WITHOUT falling back, so the scan moves to the next slot.
+    private bool TryAcquirePinned(string key, string owner, ref bool redisFaulted, out ILease backend)
     {
-        if (_redis is not null)
+        if (_redis is not null && !redisFaulted)
         {
             try
             {
@@ -112,6 +122,7 @@ public sealed class DistributedReportConcurrencyLimiter
             {
                 _logger.LogWarning("{SecurityEvent} capability={Capability}",
                     SecurityEvents.SharedStateRedisUnavailable, Capability);
+                redisFaulted = true;
             }
         }
 

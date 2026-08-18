@@ -26,8 +26,7 @@ public sealed class ReportConcurrencyPermit : IAsyncDisposable
     internal ReportConcurrencyPermit(
         ILease lease, string key, string owner,
         TimeProvider clock, ILogger logger,
-        TimeSpan ttl, TimeSpan renewInterval,
-        CancellationToken acquireToken)
+        TimeSpan ttl, TimeSpan renewInterval)
     {
         _lease = lease;
         _key = key;
@@ -36,8 +35,12 @@ public sealed class ReportConcurrencyPermit : IAsyncDisposable
         _logger = logger;
         _ttl = ttl;
         _renewInterval = renewInterval;
-        // Renewal stops when the acquiring request ends (acquireToken) OR on Dispose.
-        _renewalCts = CancellationTokenSource.CreateLinkedTokenSource(acquireToken);
+        // Renewal lifetime == permit lifetime: it stops ONLY on DisposeAsync, never
+        // on the acquiring request's token. If the client disconnects while the
+        // server-side report keeps running, the slot must stay held until the work
+        // actually finishes (== DisposeAsync) — tying renewal to RequestAborted would
+        // stop renewing while the query runs and let the slot be stolen mid-report.
+        _renewalCts = new CancellationTokenSource();
         _renewalLoop = RenewLoopAsync(_renewalCts.Token);
     }
 
@@ -49,7 +52,13 @@ public sealed class ReportConcurrencyPermit : IAsyncDisposable
         {
             return _lease.Renew(_key, _owner, _ttl);
         }
-        catch (Exception ex) when (ex is RedisException or RedisTimeoutException)
+        // Broad on purpose (unlike the acquire path): a fault here — a RedisException,
+        // a timeout, or an ObjectDisposedException from a multiplexer torn down during
+        // shutdown — must be a best-effort miss, never a throw. A throw would fault the
+        // renewal loop and so bypass Release (leaking the slot until TTL). At acquire
+        // time an unexpected fault fails CLOSED (a 500 denies capacity — safe); at
+        // renew/release time it must fail SOFT, because a throw denies FUTURE capacity.
+        catch (Exception)
         {
             _logger.LogWarning("{SecurityEvent} capability={Capability}",
                 SecurityEvents.SharedStateRedisUnavailable,
@@ -72,7 +81,7 @@ public sealed class ReportConcurrencyPermit : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            // Normal stop on cancellation (acquire token ended or DisposeAsync).
+            // Normal stop on cancellation (DisposeAsync cancelled the renewal CTS).
         }
     }
 
@@ -83,7 +92,13 @@ public sealed class ReportConcurrencyPermit : IAsyncDisposable
         {
             await _renewalLoop.ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        // The renewal loop faulting for ANY reason must not stop us releasing the
+        // slot — a leaked slot is held until TTL, the exact permit leak the
+        // compare-and-delete release exists to prevent. DisposeAsync itself must
+        // never throw: it runs in the endpoint filter's `await using` AFTER the
+        // report result is produced, so a throw here would turn a successful
+        // response into a 500 and waste the very work this cap protects.
+        catch (Exception)
         {
         }
 
@@ -92,7 +107,7 @@ public sealed class ReportConcurrencyPermit : IAsyncDisposable
         {
             _lease.Release(_key, _owner);
         }
-        catch (Exception ex) when (ex is RedisException or RedisTimeoutException)
+        catch (Exception)
         {
             _logger.LogWarning("{SecurityEvent} capability={Capability}",
                 SecurityEvents.SharedStateRedisUnavailable,

@@ -55,14 +55,12 @@ public sealed class ReportConcurrencyCapContractTests
         var limiter = NewLimiter(store, clock, permitLimit: 1, ttl: TimeSpan.FromSeconds(60));
         var account = Guid.NewGuid();
 
-        using var deathCts = new CancellationTokenSource();
-        var permit = await limiter.AcquireAsync(account, deathCts.Token);
+        var permit = await limiter.AcquireAsync(account);
         Assert.NotNull(permit);
 
-        // Crash: stop renewal (cancel the acquire token) and do NOT dispose — a
-        // crash never releases; the slot leaks until TTL reclaims it.
-        deathCts.Cancel();
-
+        // Crash: never renew and never dispose — a crash never releases; the slot
+        // leaks until TTL reclaims it. (The background renewal loop is parked on the
+        // fake clock, so it never auto-renews; renewal in tests is driven via RenewOnce.)
         clock.Advance(TimeSpan.FromSeconds(59));
         Assert.Null(await limiter.AcquireAsync(account)); // still wedged before TTL
 
@@ -125,10 +123,9 @@ public sealed class ReportConcurrencyCapContractTests
         var limiter = NewLimiter(store, clock, permitLimit: 1, ttl: TimeSpan.FromSeconds(60));
         var account = Guid.NewGuid();
 
-        using var aCts = new CancellationTokenSource();
-        var a = await limiter.AcquireAsync(account, aCts.Token);
+        var a = await limiter.AcquireAsync(account);
         Assert.NotNull(a);
-        aCts.Cancel(); // A stalls (stops renewing)
+        // A stalls: it never renews (RenewOnce is never called). Its lease expires.
 
         clock.Advance(TimeSpan.FromSeconds(61)); // A's lease expires
         await using var b = await limiter.AcquireAsync(account);
@@ -189,6 +186,36 @@ public sealed class ReportConcurrencyCapContractTests
         Assert.NotNull(first);
         Assert.NotNull(second);
         Assert.Null(third);
+    }
+
+    // Test 8 — a NON-Redis fault on the pinned backend (e.g. an ObjectDisposedException
+    // from a multiplexer torn down during shutdown) is a best-effort miss: RenewOnce
+    // returns false and alarms, and DisposeAsync still releases without throwing. RED
+    // if either catch is narrowed back to RedisException-only.
+    [Fact]
+    public async Task A_non_redis_fault_on_the_pinned_backend_alarms_and_still_releases()
+    {
+        var clock = new FakeTimeProvider();
+        var logger = new RecordingLogger<DistributedReportConcurrencyLimiter>();
+        var limiter = new DistributedReportConcurrencyLimiter(
+            new DisposedLease(), new InProcessLease(clock), clock, logger,
+            permitLimit: 1, ttl: TimeSpan.FromSeconds(60), renewInterval: TimeSpan.FromHours(1));
+        var account = Guid.NewGuid();
+
+        var permit = await limiter.AcquireAsync(account);
+        Assert.NotNull(permit);
+
+        Assert.False(permit!.RenewOnce());        // non-Redis fault -> false, not a throw
+        await permit.DisposeAsync();               // must not throw though Release faults
+
+        Assert.Contains(logger.Warnings, w => w.Contains(SecurityEvents.SharedStateRedisUnavailable));
+    }
+
+    private sealed class DisposedLease : ILease
+    {
+        public bool TryAcquire(string key, string owner, TimeSpan ttl) => true;
+        public bool Renew(string key, string owner, TimeSpan ttl) => throw new ObjectDisposedException("mux");
+        public bool Release(string key, string owner) => throw new ObjectDisposedException("mux");
     }
 
     private sealed class ThrowingLease : ILease
