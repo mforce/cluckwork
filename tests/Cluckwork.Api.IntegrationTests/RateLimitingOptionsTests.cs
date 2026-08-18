@@ -105,24 +105,4 @@ public sealed class RateLimitingOptionsTests
         Assert.Contains("must be 0", ex.Message, StringComparison.Ordinal);
         Assert.Contains("never queued", ex.Message, StringComparison.Ordinal);
     }
-
-    // #311 — the guard is only meaningful if the running limiter really refuses
-    // instead of waiting. Asserted here (not only in ReportConcurrencyLimiterTests)
-    // so the reason the config value must be 0 is pinned next to the rejection.
-    [Fact]
-    public void An_over_cap_acquire_is_refused_rather_than_queued()
-    {
-        var options = new RateLimitingOptions
-        {
-            ReportsConcurrency = new RateLimitingOptions.ConcurrencyPolicy { PermitLimit = 1, QueueLimit = 0 }
-        };
-        using var limiter = new ReportConcurrencyLimiter(options);
-        var accountId = Guid.NewGuid();
-
-        using var held = limiter.Acquire(accountId);
-        using var overCap = limiter.Acquire(accountId);
-
-        Assert.True(held.IsAcquired);
-        Assert.False(overCap.IsAcquired);
-    }
 }

@@ -62,4 +62,12 @@ public static class SecurityEvents
     // A deployment backend should alert on this — a limiter silently stuck in
     // fallback is the failure this event exists to make visible (#543).
     public const string SharedStateRedisUnavailable = "SharedState.RedisUnavailable";
+
+    // Fires when a running report's lease lapsed (a reachable backend rejected the
+    // renewal) and NO free slot was available to re-count it — the account is over
+    // its per-instance report-concurrency ceiling with this report on top. Bounded
+    // and self-healing as reports finish, but a deployment backend should alert if it
+    // persists: it means the shared store dropped slots under load or during an
+    // outage recovery (#545).
+    public const string ReportConcurrencyOverCapacity = "ReportConcurrency.OverCapacity";
 }

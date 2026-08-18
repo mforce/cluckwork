@@ -20,7 +20,6 @@ public sealed class SharedStateRegistrationTests
         using var sp = Build("", failOnMalformed: true);
         Assert.IsType<InProcessClaimOnceStore>(sp.GetRequiredService<IClaimOnceStore>());
         Assert.IsType<InProcessFixedWindowCounter>(sp.GetRequiredService<IFixedWindowCounter>());
-        Assert.IsType<InProcessLease>(sp.GetRequiredService<ILease>());
     }
 
     [Fact]
@@ -31,7 +30,6 @@ public sealed class SharedStateRegistrationTests
         using var sp = Build("localhost:6399", failOnMalformed: true);
         Assert.IsType<ResilientClaimOnceStore>(sp.GetRequiredService<IClaimOnceStore>());
         Assert.IsType<ResilientFixedWindowCounter>(sp.GetRequiredService<IFixedWindowCounter>());
-        Assert.IsType<ResilientLease>(sp.GetRequiredService<ILease>());
     }
 
     [Fact]

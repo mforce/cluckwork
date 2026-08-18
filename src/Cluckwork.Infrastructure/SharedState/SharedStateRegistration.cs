@@ -62,11 +62,6 @@ public static class SharedStateRegistration
                 new InProcessFixedWindowCounter(sp.GetRequiredService<TimeProvider>()),
                 sp.GetRequiredService<ILogger<ResilientFixedWindowCounter>>()));
 
-        services.AddSingleton<ILease>(sp =>
-            new ResilientLease(
-                new RedisLease(sp.GetRequiredService<IConnectionMultiplexer>(), keyNamespace),
-                new InProcessLease(sp.GetRequiredService<TimeProvider>()),
-                sp.GetRequiredService<ILogger<ResilientLease>>()));
     }
 
     // #543 — the single definition of "well formed": parses, and names at least
@@ -108,7 +103,5 @@ public static class SharedStateRegistration
             new InProcessClaimOnceStore(sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton<IFixedWindowCounter>(sp =>
             new InProcessFixedWindowCounter(sp.GetRequiredService<TimeProvider>()));
-        services.AddSingleton<ILease>(sp =>
-            new InProcessLease(sp.GetRequiredService<TimeProvider>()));
     }
 }

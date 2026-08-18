@@ -13,8 +13,6 @@ using StackExchange.Redis;
 //     no in-process fallback — a per-process fallback would make the grant
 //     usable once per replica.
 //   - fixed-window counter       FALLS BACK to the in-process impl + alarm.
-//   - lease                      FALLS BACK to the in-process impl + alarm,
-//     on every method.
 //
 // "Alarm" = one LogWarning carrying the stable
 // SecurityEvents.SharedStateRedisUnavailable name.
@@ -62,13 +60,6 @@ public sealed class ResilientFallbackTests
             throw new RedisException("down");
     }
 
-    private sealed class ThrowingLease : ILease
-    {
-        public bool TryAcquire(string key, string owner, TimeSpan ttl) => throw new RedisException("down");
-        public bool Renew(string key, string owner, TimeSpan ttl) => throw new RedisException("down");
-        public bool Release(string key, string owner) => throw new RedisException("down");
-    }
-
     // ── Timing-out stubs (RedisTimeoutException — NOT a RedisException) ────
 
     private sealed class TimingOutClaimOnceStore : IClaimOnceStore
@@ -87,16 +78,6 @@ public sealed class ResilientFallbackTests
             throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
     }
 
-    private sealed class TimingOutLease : ILease
-    {
-        public bool TryAcquire(string key, string owner, TimeSpan ttl) =>
-            throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
-        public bool Renew(string key, string owner, TimeSpan ttl) =>
-            throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
-        public bool Release(string key, string owner) =>
-            throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
-    }
-
     // ── Working stubs (Redis up) ──────────────────────────────────────────
 
     private sealed class WorkingClaimOnceStore : IClaimOnceStore
@@ -111,13 +92,6 @@ public sealed class ResilientFallbackTests
         public ValueTask<FixedWindowResult> IncrementAsync(
             string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
             new(new FixedWindowResult(42, TimeSpan.FromMinutes(5)));
-    }
-
-    private sealed class WorkingLease : ILease
-    {
-        public bool TryAcquire(string key, string owner, TimeSpan ttl) => true;
-        public bool Renew(string key, string owner, TimeSpan ttl) => true;
-        public bool Release(string key, string owner) => true;
     }
 
     // ── 1. claim-once FAILS CLOSED ────────────────────────────────────────
@@ -200,39 +174,6 @@ public sealed class ResilientFallbackTests
         Assert.Empty(logger.Warnings);
     }
 
-    // ── 4. lease FALLS BACK on every method ───────────────────────────────
-
-    [Fact]
-    public void Lease_WhenRedisThrows_DelegatesToFallbackAndAlarmsPerCall()
-    {
-        var logger = new RecordingLogger<ResilientLease>();
-        var fallback = new InProcessLease(new FakeTimeProvider());
-        var lease = new ResilientLease(new ThrowingLease(), fallback, logger);
-
-        Assert.True(lease.TryAcquire("k", "owner-1", TimeSpan.FromMinutes(5)));
-        Assert.True(lease.Renew("k", "owner-1", TimeSpan.FromMinutes(5)));
-        Assert.True(lease.Release("k", "owner-1"));
-
-        // One warning per fallen-back call.
-        Assert.Equal(3, logger.Warnings.Count);
-        foreach (var warning in logger.Warnings)
-            Assert.Contains(SecurityEvents.SharedStateRedisUnavailable, warning);
-    }
-
-    [Fact]
-    public void Lease_WhenRedisWorks_ReturnsRedisResultsAndDoesNotAlarm()
-    {
-        var logger = new RecordingLogger<ResilientLease>();
-        var fallback = new InProcessLease(new FakeTimeProvider());
-        var lease = new ResilientLease(new WorkingLease(), fallback, logger);
-
-        Assert.True(lease.TryAcquire("k", "owner-1", TimeSpan.FromMinutes(5)));
-        Assert.True(lease.Renew("k", "owner-1", TimeSpan.FromMinutes(5)));
-        Assert.True(lease.Release("k", "owner-1"));
-
-        Assert.Empty(logger.Warnings);
-    }
-
     // ── Timeouts take the SAME path as other Redis failures ───────────────
     // RedisTimeoutException derives from TimeoutException, not RedisException —
     // these die if the catch clause is narrowed back to `catch (RedisException)`.
@@ -262,16 +203,4 @@ public sealed class ResilientFallbackTests
         Assert.Contains(SecurityEvents.SharedStateRedisUnavailable, logger.Warnings[0]);
     }
 
-    [Fact]
-    public void Lease_WhenRedisTimesOut_DelegatesToFallbackAndAlarms()
-    {
-        var logger = new RecordingLogger<ResilientLease>();
-        var fallback = new InProcessLease(new FakeTimeProvider());
-        var lease = new ResilientLease(new TimingOutLease(), fallback, logger);
-
-        Assert.True(lease.TryAcquire("k", "owner-1", TimeSpan.FromMinutes(5)));
-
-        Assert.Single(logger.Warnings);
-        Assert.Contains(SecurityEvents.SharedStateRedisUnavailable, logger.Warnings[0]);
-    }
 }
