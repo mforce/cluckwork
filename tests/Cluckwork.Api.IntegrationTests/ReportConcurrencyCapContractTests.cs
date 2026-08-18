@@ -85,7 +85,7 @@ public sealed class ReportConcurrencyCapContractTests
         Assert.NotNull(permit);
 
         clock.Advance(TimeSpan.FromSeconds(50));
-        Assert.True(permit!.RenewOnce()); // extends to now+60 = t110
+        Assert.Equal(RenewOutcome.Renewed, permit!.RenewOnce()); // extends to now+60 = t110
 
         clock.Advance(TimeSpan.FromSeconds(20)); // t70 — past the ORIGINAL 60s
         Assert.Null(await limiter.AcquireAsync(account)); // still held via renewal
@@ -160,7 +160,7 @@ public sealed class ReportConcurrencyCapContractTests
         clock.Advance(TimeSpan.FromSeconds(50));
         // Pinned to the fallback: renewal must still succeed against the backend
         // that granted the permit, not silently fail against the recovered Redis.
-        Assert.True(permit!.RenewOnce());
+        Assert.Equal(RenewOutcome.Renewed, permit!.RenewOnce());
 
         // The fallback slot is still held past the ORIGINAL 60s TTL. The slot key
         // matches the limiter's format exactly (a golden — keep in sync).
@@ -205,7 +205,7 @@ public sealed class ReportConcurrencyCapContractTests
         var permit = await limiter.AcquireAsync(account);
         Assert.NotNull(permit);
 
-        Assert.False(permit!.RenewOnce());        // non-Redis fault -> false, not a throw
+        Assert.Equal(RenewOutcome.Faulted, permit!.RenewOnce()); // non-Redis fault -> Faulted, not a throw
         await permit.DisposeAsync();               // must not throw though Release faults
 
         Assert.Contains(logger.Warnings, w => w.Contains(SecurityEvents.SharedStateRedisUnavailable));
@@ -216,6 +216,52 @@ public sealed class ReportConcurrencyCapContractTests
         public bool TryAcquire(string key, string owner, TimeSpan ttl) => true;
         public bool Renew(string key, string owner, TimeSpan ttl) => throw new ObjectDisposedException("mux");
         public bool Release(string key, string owner) => throw new ObjectDisposedException("mux");
+    }
+
+    // Test 9 — a report whose slot lapsed re-grabs a free slot on the next tick and
+    // stays counted (owner decision: keep the running report accounted, never cancel).
+    // RED if RenewTick does not re-acquire: the lapsed slot would be free and the
+    // competitor below would acquire it.
+    [Fact]
+    public async Task A_lapsed_report_reacquires_a_free_slot_and_stays_counted()
+    {
+        var clock = new FakeTimeProvider();
+        var store = new InProcessLease(clock);
+        var limiter = NewLimiter(store, clock, permitLimit: 1, ttl: TimeSpan.FromSeconds(60));
+        var account = Guid.NewGuid();
+
+        await using var permit = await limiter.AcquireAsync(account);
+        Assert.NotNull(permit);
+
+        clock.Advance(TimeSpan.FromSeconds(61));            // the slot lapses (no renewal)
+        Assert.Equal(RenewOutcome.Lost, permit!.RenewTick()); // Lost -> re-grabs the now-free slot
+
+        Assert.Null(await limiter.AcquireAsync(account));  // re-counted: competitor refused
+    }
+
+    // Test 10 — a lapsed report with NO free slot to re-grab (another holder took the
+    // only slot) alarms over-capacity and keeps running; it never frees the new holder.
+    [Fact]
+    public async Task A_lapsed_report_with_no_free_slot_alarms_over_capacity()
+    {
+        var clock = new FakeTimeProvider();
+        var store = new InProcessLease(clock);
+        var logger = new RecordingLogger<DistributedReportConcurrencyLimiter>();
+        var limiter = NewLimiter(store, clock, permitLimit: 1, logger: logger, ttl: TimeSpan.FromSeconds(60));
+        var account = Guid.NewGuid();
+
+        var first = await limiter.AcquireAsync(account);
+        Assert.NotNull(first);
+
+        clock.Advance(TimeSpan.FromSeconds(61));            // first's slot lapses
+        await using var second = await limiter.AcquireAsync(account); // second takes the only slot
+        Assert.NotNull(second);
+
+        Assert.Equal(RenewOutcome.Lost, first!.RenewTick()); // Lost, no free slot -> alarm
+        Assert.Contains(logger.Warnings, w => w.Contains(SecurityEvents.ReportConcurrencyOverCapacity));
+
+        Assert.Null(await limiter.AcquireAsync(account));  // did NOT steal second's slot
+        await first.DisposeAsync();
     }
 
     private sealed class ThrowingLease : ILease

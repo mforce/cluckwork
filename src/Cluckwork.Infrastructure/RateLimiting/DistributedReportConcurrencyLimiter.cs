@@ -28,6 +28,10 @@ using StackExchange.Redis;
 // Redis fault at acquire falls back to the in-process backend (a local
 // per-instance ceiling) and alarms; it never admits on error. Only Redis faults
 // are caught — any other exception propagates (fail-closed 500 for that request).
+// A free slot granted to an owner, pinned to the backend that granted it. Returned
+// by the scan and adopted by a permit when it re-acquires after a lease loss (#545).
+internal readonly record struct SlotGrant(ILease Backend, string Key);
+
 public sealed class DistributedReportConcurrencyLimiter
 {
     internal const string Capability = "report-concurrency";
@@ -74,6 +78,24 @@ public sealed class DistributedReportConcurrencyLimiter
         Guid accountId, CancellationToken cancellationToken = default)
     {
         var owner = Guid.NewGuid().ToString("N");
+        var grant = TryScan(accountId, owner, cancellationToken);
+        if (grant is { } g)
+        {
+            var permit = new ReportConcurrencyPermit(
+                g.Backend, g.Key, owner, _clock, _logger, _ttl, _renewInterval,
+                // Re-acquire path for a lease loss: re-scan the same account's slots.
+                // No request token here — a re-count must not be tied to the caller.
+                reacquire: () => TryScan(accountId, owner, CancellationToken.None));
+            return new ValueTask<ReportConcurrencyPermit?>(permit);
+        }
+
+        return new ValueTask<ReportConcurrencyPermit?>((ReportConcurrencyPermit?)null);
+    }
+
+    // Scans the account's slots for a free one, pinning to the granting backend.
+    // Shared by the initial acquire and a permit's re-acquire-after-lease-loss path.
+    private SlotGrant? TryScan(Guid accountId, string owner, CancellationToken cancellationToken)
+    {
         // Once Redis faults during THIS scan, skip it for the remaining slots — one
         // fault means Redis is unreachable for this call, so re-probing every slot
         // only multiplies latency and alarm log volume under a sustained outage.
@@ -83,14 +105,10 @@ public sealed class DistributedReportConcurrencyLimiter
             cancellationToken.ThrowIfCancellationRequested();
             var key = $"report-cc:{accountId:N}:{slot}";
             if (TryAcquirePinned(key, owner, ref redisFaulted, out var backend))
-            {
-                var permit = new ReportConcurrencyPermit(
-                    backend, key, owner, _clock, _logger, _ttl, _renewInterval);
-                return new ValueTask<ReportConcurrencyPermit?>(permit);
-            }
+                return new SlotGrant(backend, key);
         }
 
-        return new ValueTask<ReportConcurrencyPermit?>((ReportConcurrencyPermit?)null);
+        return null;
     }
 
     // Tries Redis first when configured; a Redis FAULT (not a held slot) alarms
