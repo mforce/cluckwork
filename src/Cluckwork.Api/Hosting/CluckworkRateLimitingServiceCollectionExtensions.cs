@@ -5,6 +5,7 @@ using System.Net;
 using System.Threading.RateLimiting;
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Application.Common;
+using Cluckwork.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
@@ -109,18 +110,24 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                     .ExecuteAsync(context.HttpContext);
             };
 
-            AddFixedWindowByClientIp(
-                limiter,
+            limiter.AddPolicy<string>(
                 RateLimitingOptions.LoginPolicyName,
-                rateLimiting.Login);
-            AddFixedWindowByClientIp(
-                limiter,
+                new DistributedIpFixedWindowPolicy(
+                    RateLimitingOptions.LoginPolicyName,
+                    rateLimiting.Login.PermitLimit,
+                    TimeSpan.FromSeconds(rateLimiting.Login.WindowSeconds)));
+            limiter.AddPolicy<string>(
                 RateLimitingOptions.RefreshPolicyName,
-                rateLimiting.Refresh);
-            AddFixedWindowByClientIp(
-                limiter,
+                new DistributedIpFixedWindowPolicy(
+                    RateLimitingOptions.RefreshPolicyName,
+                    rateLimiting.Refresh.PermitLimit,
+                    TimeSpan.FromSeconds(rateLimiting.Refresh.WindowSeconds)));
+            limiter.AddPolicy<string>(
                 RateLimitingOptions.ClientErrorsPolicyName,
-                rateLimiting.ClientErrors);
+                new DistributedIpFixedWindowPolicy(
+                    RateLimitingOptions.ClientErrorsPolicyName,
+                    rateLimiting.ClientErrors.PermitLimit,
+                    TimeSpan.FromSeconds(rateLimiting.ClientErrors.WindowSeconds)));
         });
 
         // #311 — account-scoped, not IP-scoped, so it lives outside the
@@ -133,20 +140,6 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
             rateLimiting,
             trustedProxies);
     }
-
-    private static void AddFixedWindowByClientIp(
-        Microsoft.AspNetCore.RateLimiting.RateLimiterOptions limiter,
-        string policyName,
-        RateLimitingOptions.FixedWindow window) =>
-        limiter.AddPolicy(policyName, context =>
-            RateLimitPartition.GetFixedWindowLimiter(
-                RateLimitKey.ForClient(context.Connection.RemoteIpAddress),
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = window.PermitLimit,
-                    Window = TimeSpan.FromSeconds(window.WindowSeconds),
-                    QueueLimit = 0
-                }));
 }
 
 internal sealed record CluckworkRateLimitingRegistration(

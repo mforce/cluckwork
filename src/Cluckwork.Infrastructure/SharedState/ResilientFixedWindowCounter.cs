@@ -1,5 +1,7 @@
 namespace Cluckwork.Infrastructure.SharedState;
 
+using System.Threading;
+using System.Threading.Tasks;
 using Cluckwork.Application.Common;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
@@ -22,16 +24,33 @@ internal sealed class ResilientFixedWindowCounter(
         {
             return redis.Increment(key, window);
         }
-        // RedisTimeoutException derives from TimeoutException, not RedisException
-        // — without it a slow/saturated Redis would THROW instead of falling
-        // back, the exact silent-degradation the alarm exists to surface.
-        // RedisCommandException is not caught on purpose (a bad command is our
-        // bug, not a Redis outage).
         catch (Exception ex) when (ex is RedisException or RedisTimeoutException)
         {
-            logger.LogWarning("{SecurityEvent} capability={Capability}",
-                SecurityEvents.SharedStateRedisUnavailable, "auth-rate-limit");
+            Alarm();
             return fallback.Increment(key, window);
         }
     }
+
+    public async ValueTask<FixedWindowResult> IncrementAsync(
+        string key, TimeSpan window, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await redis.IncrementAsync(key, window, cancellationToken);
+        }
+        catch (Exception ex) when (ex is RedisException or RedisTimeoutException)
+        {
+            Alarm();
+            return await fallback.IncrementAsync(key, window, cancellationToken);
+        }
+    }
+
+    // RedisTimeoutException derives from TimeoutException, not RedisException
+    // — without it a slow/saturated Redis would THROW instead of falling
+    // back, the exact silent-degradation the alarm exists to surface.
+    // RedisCommandException is not caught on purpose (a bad command is our
+    // bug, not a Redis outage).
+    private void Alarm() =>
+        logger.LogWarning("{SecurityEvent} capability={Capability}",
+            SecurityEvents.SharedStateRedisUnavailable, "auth-rate-limit");
 }

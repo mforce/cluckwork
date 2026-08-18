@@ -1,5 +1,7 @@
 namespace Cluckwork.Infrastructure.SharedState;
 
+using System.Threading;
+using System.Threading.Tasks;
 using StackExchange.Redis;
 
 // #543 — Redis <see cref="IFixedWindowCounter"/> (shared, multi-replica).
@@ -9,7 +11,13 @@ using StackExchange.Redis;
 // regardless of host clock skew. The INCR + conditional PEXPIRE run in ONE
 // Lua script — never a separate INCR then EXPIRE, which would leave a key
 // with no expiry in the gap. The PEXPIRE only fires when the counter is
-// created (c == 1), so a hot window never rewrites the TTL.
+// created (c == 1), and it expires the key at the BUCKET boundary
+// (windowMs - ms % windowMs), not a full window from the first request — so the
+// PTTL the script returns is the time left in the CURRENT window. A full-window
+// TTL would make IncrementAsync's Retry-After too long for a first request that
+// lands partway into a bucket (#544 review, codex P2). The script returns that
+// PTTL so IncrementAsync hands back a Retry-After computed on Redis's clock, not
+// the API host's.
 //
 // Cluster-safe: the script derives the real key (KEYS[1] .. bucket) from the
 // server clock, so the accessed key cannot be declared in KEYS. To keep it in
@@ -27,12 +35,46 @@ internal sealed class RedisFixedWindowCounter(IConnectionMultiplexer redis, stri
         local k = KEYS[1] .. ':' .. bucket
         local c = redis.call('INCR', k)
         if c == 1 then
-          redis.call('PEXPIRE', k, windowMs)
+          redis.call('PEXPIRE', k, windowMs - (ms % windowMs))
         end
-        return c
+        local pttl = redis.call('PTTL', k)
+        return {c, pttl}
         """;
 
     public long Increment(string key, TimeSpan window)
+    {
+        ValidateWindow(key, window);
+        var db = redis.GetDatabase();
+        var result = (RedisResult[])db.ScriptEvaluate(
+            IncrementScript,
+            new RedisKey[] { RealKey(key) },
+            new RedisValue[] { (long)window.TotalMilliseconds })!;
+        return (long)result[0];
+    }
+
+    public async ValueTask<FixedWindowResult> IncrementAsync(
+        string key, TimeSpan window, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ValidateWindow(key, window);
+        var db = redis.GetDatabase();
+        // StackExchange.Redis commands take no CancellationToken (it multiplexes and
+        // cannot cancel an in-flight command); the token is honoured before dispatch only.
+        var result = (RedisResult[])(await db.ScriptEvaluateAsync(
+            IncrementScript,
+            new RedisKey[] { RealKey(key) },
+            new RedisValue[] { (long)window.TotalMilliseconds }))!;
+        var count = (long)result[0];
+        var pttlMs = (long)result[1];
+        // PTTL is -1 (no expiry) / -2 (no key) only in states this script never leaves a key
+        // in (it PEXPIREs on create); fall back to the full window if Redis ever reports one.
+        var remainingMs = pttlMs < 0 ? (long)window.TotalMilliseconds : pttlMs;
+        return new FixedWindowResult(count, TimeSpan.FromMilliseconds(remainingMs));
+    }
+
+    private RedisKey RealKey(string key) => $"{{{keyNamespace}:win:{key}}}";
+
+    private static void ValidateWindow(string key, TimeSpan window)
     {
         ArgumentNullException.ThrowIfNull(key);
         // Whole milliseconds only (>= 1ms), matching InProcessFixedWindowCounter:
@@ -43,12 +85,5 @@ internal sealed class RedisFixedWindowCounter(IConnectionMultiplexer redis, stri
             || window.Ticks % TimeSpan.TicksPerMillisecond != 0)
             throw new ArgumentOutOfRangeException(nameof(window),
                 "window must be a whole number of milliseconds, at least 1.");
-
-        var db = redis.GetDatabase();
-        var result = db.ScriptEvaluate(
-            IncrementScript,
-            new RedisKey[] { $"{{{keyNamespace}:win:{key}}}" },
-            new RedisValue[] { (long)window.TotalMilliseconds });
-        return (long)result;
     }
 }
