@@ -69,6 +69,7 @@ erDiagram
   timestamp_with_time_zone DisabledAt
   uuid DisabledBy
   varchar_16_ PreferredStepperUnit
+  integer StepUpLogoutEpoch
 }
 ```
 

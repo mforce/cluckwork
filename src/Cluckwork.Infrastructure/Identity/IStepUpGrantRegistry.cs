@@ -1,83 +1,65 @@
 namespace Cluckwork.Infrastructure.Identity;
 
-// #308 — in-process bookkeeping for the two step-up-grant guarantees a bare
-// stateless JWT cannot provide on its own: single-use (replay) and logout
-// revocation. No new external infrastructure and no schema change — an
-// in-memory, per-process store is consistent with the app's other in-memory
-// security state (the per-IP rate limiter, #143). Bounded by the grant's own
-// short lifetime via opportunistic pruning (InMemoryStepUpGrantRegistry). A
-// process restart drops both tables, which only ever WIDENS what a
-// not-yet-expired grant can do (fails OPEN across a restart, exactly like the
-// rate limiter's buckets) — an accepted trade-off for a single-instance,
-// single-farm-scoped deployment; a future multi-instance deployment would
-// need to move this to a shared store.
+// #308/#338 — bookkeeping for the two step-up-grant guarantees a bare stateless
+// JWT cannot provide: single-use (replay) and logout revocation. #338 moved both
+// out of the process into shared storage of OPPOSITE shapes:
+//   - single-use  -> IClaimOnceStore (#543): a cache-shaped, self-expiring claim,
+//     Redis-backed across replicas or in-process on a single instance.
+//   - logout epoch -> ApplicationUser.StepUpLogoutEpoch: a durable per-user
+//     integer, read fresh per validation like CredentialEpoch (#364). The grant
+//     carries the epoch it was issued under; logout increments the epoch; a grant
+//     is admitted only while its epoch still equals the user's current one. An
+//     INTEGER compared for equality, never a timestamp — so logout revocation is
+//     immune to wall-clock skew between the issuing replica and the logging-out
+//     replica (the #338 review defect that a timestamp comparison shipped).
 //
-// ATOMICITY (PR #336 review, 3rd round). The two guarantees are checked
-// TOGETHER, in ONE call, deliberately. The interface used to expose the
-// logout-epoch check and the jti consumption as two separate operations and
-// StepUpGrantService called them back to back:
+// ATOMICITY (originally PR #336; re-established for the two-store split in #338).
+// The two guarantees are decided TOGETHER, in ONE call, deliberately. The
+// in-memory registry closed the check-then-consume race with a single lock over
+// both tables. No lock can span Redis and Postgres, so the guarantee is now
+// re-established by ORDERING inside TryConsumeIfNotLoggedOutAsync: consume the
+// claim FIRST, then read the epoch. See PersistentStepUpGrantRegistry.
 //
-//     if (registry.IsRevokedByLogout(userId, issuedAt)) return denied;
-//     if (!registry.TryConsume(jti, expiresAt, now))    return denied;
+//     T1 (validate): epoch read -> N (grant's epoch, not revoked yet)
+//     T2 (logout):   RecordLogout(userId)  -> epoch becomes N+1
+//     T1 (validate): consume(jti) -> true
+//     T1 (validate): Success -> the privileged call proceeds   // the bug, if read-first
 //
-// Each operation was individually atomic (a ConcurrentDictionary apiece), but
-// the PAIR was not, and the registry is a process-wide SINGLETON serving every
-// concurrent request. A logout landing in the window between the two lines was
-// therefore invisible to the validation already in flight:
-//
-//     T1 (validate): IsRevokedByLogout -> false   (no logout recorded yet)
-//     T2 (logout):   RecordLogout(userId, now)    (completes here)
-//     T1 (validate): TryConsume(jti, ...) -> true
-//     T1 (validate): Success -> the privileged call proceeds
-//
-// The grant was minted BEFORE the logout, so the documented guarantee ("a
-// grant captured before a legitimate logout cannot be used after it") says it
-// must be refused — and the privileged operations behind it are precisely the
-// ones that multiply durable account control (create another Owner, reset an
-// Owner's password). The window is small but it is a real in-process race, not
-// a theoretical one, and an attacker holding a stolen access token + grant can
-// widen their odds by simply retrying.
-//
-// So the check-then-consume decision is a SINGLE registry operation
-// (TryConsumeIfNotLoggedOut) whose implementation must take the same lock
-// RecordLogout takes. Splitting it again — even into two individually
-// thread-safe calls — reintroduces the race verbatim; that is what
-// StepUpAuthTests' spy-registry test exists to catch.
+// Splitting the decision back into two calls, or reading the epoch before
+// consuming, reintroduces the race; a deterministic test in
+// StepUpGrantRegistrySharedStoreTests pins the order.
 public interface IStepUpGrantRegistry
 {
-    // The atomic step-up-grant admission decision: refuse the grant if userId
-    // has logged out at or after issuedAt, otherwise mark jti used (expiring at
-    // expiresAt) and admit it. Returns true ONLY when the grant was admitted.
+    // The atomic step-up-grant admission decision: mark jti used (expiring at
+    // expiresAt) and admit the grant UNLESS the user's step-up logout epoch has
+    // advanced past the one the grant was issued under. Returns true ONLY when
+    // the grant was admitted.
     //
-    // Ordering inside the operation is load-bearing: the logout-epoch check
-    // runs FIRST and a logout-revoked grant leaves the jti UNCONSUMED. Consuming
-    // it would be harmless today (it is refused either way) but it would burn a
-    // replay slot on a token that never got to act, and it would make the two
-    // failure modes distinguishable to anything that inspects the table.
+    // Ordering is load-bearing (#338): the claim is consumed FIRST, then the
+    // epoch is read. A logout incrementing the epoch between the two is caught by
+    // the read; one after is genuinely after admission. A revoked grant still
+    // burns its one-time claim slot — harmless (refused either way) and it MUST
+    // stay indistinguishable to the caller.
     //
-    // Returns a single bool, never a reason. That is the NON-ENUMERATING
-    // contract from StepUpGrantService's threat model expressed in the type:
-    // "revoked by logout" and "replayed" are indistinguishable to the caller,
-    // so it cannot map them to different responses even by accident.
-    //
-    // issuedAt is compared against the recorded logout instant at FULL
-    // precision, so the caller must pass a sub-second-accurate issuance time —
-    // StepUpGrantService reads its own tick-precision claim for this, never the
-    // grant's whole-second JWT nbf (see that class's "Revoked by logout" note).
-    bool TryConsumeIfNotLoggedOut(
-        Guid userId, Guid jti, DateTimeOffset issuedAt, DateTimeOffset expiresAt, DateTimeOffset now);
+    // Returns a single bool, never a reason: the NON-ENUMERATING contract —
+    // "revoked by logout" and "replayed" are indistinguishable to the caller.
+    Task<bool> TryConsumeIfNotLoggedOutAsync(
+        Guid userId, Guid jti, int grantEpoch, DateTimeOffset expiresAt,
+        DateTimeOffset now, CancellationToken ct = default);
 
-    // Records that userId logged out at `at`. Any grant issued AT OR BEFORE
-    // this instant is subsequently refused by TryConsumeIfNotLoggedOut.
-    // Implementations MUST serialise this against TryConsumeIfNotLoggedOut on
-    // one synchronisation primitive — see the atomicity note above.
-    void RecordLogout(Guid userId, DateTimeOffset at);
+    // Records that userId logged out by advancing the user's step-up logout epoch
+    // by one. Monotonic by construction. Idempotency note: a single logout can
+    // reach this twice (the cookie owner and the authenticated bearer are recorded
+    // independently — IdentityProvider), incrementing the epoch more than once for
+    // one logout; that is harmless because only equality with the grant's embedded
+    // epoch matters, never the absolute value.
+    Task RecordLogoutAsync(Guid userId, CancellationToken ct = default);
 
-    // True when userId has a recorded logout at or after issuedAt. A read-only
-    // observation of the logout epoch ALONE — it consumes nothing, so it is not
-    // an admission decision and must never be used as one (that is the split
-    // the atomicity note above forbids). It exists so callers that genuinely
-    // only need to know "was this user's logout recorded?" — IdentityProvider's
-    // logout-path regression tests — can ask without side effects.
-    bool IsRevokedByLogout(Guid userId, DateTimeOffset issuedAt);
+    // True when the user's current step-up logout epoch has advanced past
+    // grantEpoch (i.e. a logout was recorded since the grant was issued). A
+    // read-only observation of the epoch ALONE — it consumes nothing, so it is
+    // not an admission decision and must never be used as one. It exists so
+    // IdentityProvider's logout-path regression tests can ask without side effects.
+    Task<bool> IsRevokedByLogoutAsync(
+        Guid userId, int grantEpoch, CancellationToken ct = default);
 }

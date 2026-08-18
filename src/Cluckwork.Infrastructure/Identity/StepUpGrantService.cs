@@ -57,11 +57,15 @@ using Microsoft.IdentityModel.Tokens;
 //     every password change/reset (ChangePasswordAsync/ResetPasswordAsync),
 //     so a grant issued before such a change no longer matches the user's
 //     CURRENT stamp → REVOKED denial.
-//   - Revoked by logout: IStepUpGrantRegistry also tracks the instant each
-//     user last logged out. A grant ISSUED AT OR BEFORE that instant is
-//     refused even if unexpired and unused, so a grant captured before a
-//     legitimate logout cannot be used after it → REVOKED denial.
-//     AuthEndpoints.Logout records that instant along TWO independent axes,
+//   - Revoked by logout: each grant embeds the user's step-up logout epoch
+//     (LogoutEpochClaim) as it was when the grant was issued; logout advances
+//     that epoch; a grant whose embedded epoch no longer equals the user's
+//     current one is refused even if unexpired and unused, so a grant captured
+//     before a legitimate logout cannot be used after it → REVOKED denial. An
+//     integer compared for equality — never a wall-clock timestamp — so the
+//     check is immune to the clock skew between the replica that issued the
+//     grant and the one that recorded the logout (#338 review).
+//     AuthEndpoints.Logout records the logout along TWO independent axes,
 //     because the credentials a logout presents need not name one user: the
 //     refresh COOKIE is per-origin (one per browser, last login wins) while
 //     the SPA holds each ACCESS TOKEN in its own tab's memory. So the cookie
@@ -72,32 +76,17 @@ using Microsoft.IdentityModel.Tokens;
 //     cookie was missing/expired — kept their grant alive, which is precisely
 //     the person this guarantee is for (#336 review). Neither axis revokes the
 //     other's refresh tokens: ending one tab's session must not sign the user
-//     out of every device. That comparison runs against a DEDICATED
-//     tick-precision issuance claim (PreciseIssuedAtClaim), NOT the JWT's own
-//     nbf/ValidFrom: nbf is a NumericDate, i.e. floored to whole seconds,
-//     while the recorded logout instant keeps sub-second ticks — so a user who
-//     logs out at :00.500, signs back in and takes a FRESH grant at :00.800
-//     would have that grant read as issued at :00.000, i.e. at-or-before their
-//     own logout, and be locked out of the feature until the second rolled
-//     over (#336 review). Flooring the stored logout instead would NOT fix it
-//     (both collapse to :00.000, and the comparison is at-or-before), and
-//     relaxing the comparison to strictly-before would accept a grant
-//     genuinely minted earlier in the logout's own second — precisely what
-//     this guard exists to refuse. So the issuance instant is carried at full
-//     precision inside the SIGNED grant (we mint it, so we control its
-//     claims); the standard whole-second nbf/exp are untouched. A missing or
-//     unparseable precise claim FAILS CLOSED into the same denial — it never
-//     falls back to the floored nbf.
+//     out of every device. A missing or unparseable epoch claim FAILS CLOSED
+//     into the same denial — it is never guessed.
 //     ATOMICITY (#336 review, 3rd round): this check and the single-use
 //     consumption above are ONE registry call, not two. As two calls — even
 //     with each individually thread-safe — a logout could complete in the gap
 //     between them, so a validation already past the epoch check went on to
 //     consume its jti and succeed with a grant the logout had just revoked.
-//     The registry is a process-wide singleton, so that gap is a real
-//     in-process race between an ordinary logout and a concurrent privileged
-//     request, and it fails OPEN — the worst direction for this guard. The
-//     combined operation and RecordLogout serialise on one lock; the full
-//     trace, and the rule against re-splitting them, are on
+//     No lock can span the two stores the registry now uses, so the guarantee
+//     is re-established by ORDERING inside that call — consume the claim
+//     first, then read the epoch. The full trace, and the rule against
+//     re-splitting or re-ordering them, are on
 //     IStepUpGrantRegistry.
 //   - Non-enumerating failure handling: every one of the above rejection
 //     reasons — missing, malformed, expired, replayed, wrong-account/user,
@@ -127,10 +116,12 @@ using Microsoft.IdentityModel.Tokens;
 //     only and is cleared the instant the /auth/step-up call settles
 //     (success OR failure); it is sent to that one request and nowhere else,
 //     and never persisted.
-//   - No schema change: every guarantee above is carried in the JWT's own
-//     claims plus in-process memory (IStepUpGrantRegistry) — no new table,
-//     no new column on ApplicationUser. Schema work for this launch batch is
-//     owned by a separate concurrent PR; this feature deliberately adds none.
+//   - Storage (#338): replay protection lives in the shared IClaimOnceStore
+//     (#543) and logout revocation in the durable ApplicationUser.StepUpLogoutEpoch
+//     column (an integer epoch the grant embeds at issue and validation compares
+//     for equality). The grant's own signed claims still carry sub/jti/account/
+//     security_stamp/epoch; the registry (IStepUpGrantRegistry) is now a thin,
+//     stateless facade over those two stores.
 //
 // Explicitly deferred: TOTP/WebAuthn step-up (tracked as #320) — this PR is
 // password-re-confirmation only.
@@ -145,11 +136,12 @@ public sealed class StepUpGrantService(
     // Never sourced from config — see the threat-model note above.
     internal const string Audience = "cluckwork-step-up";
 
-    // Tick-precision issuance instant (UTC ticks, invariant decimal). Carried
-    // ALONGSIDE — never instead of — the standard nbf/exp, which stay
-    // whole-second NumericDates. Only the logout-revocation comparison reads
-    // it; see the "Revoked by logout" bullet above for why nbf cannot serve.
-    internal const string PreciseIssuedAtClaim = "stepup_iat_ticks";
+    // The user's step-up logout epoch at the instant this grant was issued
+    // (invariant decimal int). Logout revocation compares this against the user's
+    // CURRENT epoch — an equality check on an integer, never a wall clock, so it
+    // is immune to cross-replica clock skew (#338 review). Inside the signed
+    // payload, so it is integrity-protected like every other claim.
+    internal const string LogoutEpochClaim = "stepup_logout_epoch";
 
     // #309-style defensive cap ahead of parsing: a real grant is a compact JWT
     // a few hundred bytes long: 2048-bit RSA signature + a handful of short
@@ -266,10 +258,11 @@ public sealed class StepUpGrantService(
             // Embeds the CURRENT stamp so any later rotation (password
             // change/reset) invalidates this grant — see the class comment.
             new("security_stamp", user.SecurityStamp ?? string.Empty),
-            // Sub-second issuance instant for the logout comparison. Inside the
-            // signed payload, so it is integrity-protected exactly like every
-            // other claim here.
-            new(PreciseIssuedAtClaim, now.UtcTicks.ToString(CultureInfo.InvariantCulture)),
+            // The user's step-up logout epoch NOW; logout advances it and this
+            // grant is refused once it no longer matches. Read from the row this
+            // method already validated. If a logout increments it between here and
+            // first use, the grant is refused on use — the fail-safe direction.
+            new(LogoutEpochClaim, user.StepUpLogoutEpoch.ToString(CultureInfo.InvariantCulture)),
         };
 
         var token = new JwtSecurityToken(
@@ -353,33 +346,27 @@ public sealed class StepUpGrantService(
         var acct = jwt.Claims.FirstOrDefault(c => c.Type == "account_id")?.Value;
         var jtiClaim = jwt.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
         var stamp = jwt.Claims.FirstOrDefault(c => c.Type == "security_stamp")?.Value;
-        var issuedAtTicks = jwt.Claims.FirstOrDefault(c => c.Type == PreciseIssuedAtClaim)?.Value;
-        // NumberStyles.None: digits only — no sign, whitespace or separators.
-        // A missing, non-numeric or out-of-range value collapses into the same
-        // malformed-claims denial rather than falling back to the floored nbf.
+        var epochClaim = jwt.Claims.FirstOrDefault(c => c.Type == LogoutEpochClaim)?.Value;
+        // NumberStyles.None: digits only — no sign, whitespace or separators. A
+        // missing or non-numeric epoch collapses into the same malformed-claims
+        // denial rather than being guessed.
         if (sub != userId.ToString() || acct != accountId.ToString()
             || !Guid.TryParse(jtiClaim, out var jti) || stamp is null
-            || !long.TryParse(issuedAtTicks, NumberStyles.None, CultureInfo.InvariantCulture, out var ticks)
-            || ticks < DateTimeOffset.MinValue.UtcTicks || ticks > DateTimeOffset.MaxValue.UtcTicks)
+            || !int.TryParse(epochClaim, NumberStyles.None, CultureInfo.InvariantCulture, out var grantEpoch))
             return Result.Failure(DeniedError); // wrong-account / wrong-user / malformed claims
 
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null || user.AccountId != accountId || user.SecurityStamp != stamp)
             return Result.Failure(DeniedError); // revoked by a security-stamp change
 
-        // Tick-precision, NOT jwt.ValidFrom — see the class comment.
-        var issuedAt = new DateTimeOffset(ticks, TimeSpan.Zero);
-
         // ONE registry call, not two — the logout-revocation check and the
-        // single-use consumption are ONE indivisible decision. Splitting them
-        // (as this shipped) lets a concurrent logout land between them and be
-        // missed by a validation already in flight; the full race trace is on
-        // IStepUpGrantRegistry, and the reason it matters is that the calls
-        // this gate protects are exactly the ones that hand out durable account
-        // control. A single bool comes back on purpose: "revoked by logout" and
-        // "replayed" are the same non-enumerating denial, and there is no
-        // reason here to tell them apart.
-        if (!registry.TryConsumeIfNotLoggedOut(userId, jti, issuedAt, expiresAt, now))
+        // single-use consumption are ONE indivisible decision. Splitting them lets
+        // a concurrent logout land between them and be missed by a validation
+        // already in flight; the full race trace is on IStepUpGrantRegistry, and
+        // the calls this gate protects are exactly the ones that hand out durable
+        // account control. A single bool comes back on purpose: "revoked by logout"
+        // and "replayed" are the same non-enumerating denial.
+        if (!await registry.TryConsumeIfNotLoggedOutAsync(userId, jti, grantEpoch, expiresAt, now, ct))
             return Result.Failure(DeniedError); // revoked by logout, or replayed
 
         return Result.Success();

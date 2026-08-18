@@ -9,6 +9,7 @@ using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
+using Cluckwork.Infrastructure.SharedState;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -636,11 +637,12 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             .Options;
         await using var db = new AppDbContext(options, tenant);
 
-        // A registry we hold a direct reference to — not the host's DI singleton
+        // A registry we hold a direct reference to — not the host's DI registration
         // — so the assertion below reads the exact call this provider made,
         // rather than going back through HTTP.
-        var registry = new InMemoryStepUpGrantRegistry();
         var timeProvider = services.GetRequiredService<TimeProvider>();
+        var registry = new PersistentStepUpGrantRegistry(
+            new InProcessClaimOnceStore(timeProvider), db);
         var provider = new IdentityProvider(
             userManager,
             services.GetRequiredService<RoleManager<ApplicationRole>>(),
@@ -673,7 +675,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
 
         // THE FINDING'S ASSERTION: the owner lookup (before the faulted UPDATE)
         // still ran, and its result was recorded despite the throw.
-        Assert.True(registry.IsRevokedByLogout(user!.Id, beforeRevoke));
+        Assert.True(await registry.IsRevokedByLogoutAsync(user!.Id, 0));
     }
 
     // ---------- The admission decision is ONE atomic registry call (#336 review, 3rd round) ----------
@@ -710,34 +712,37 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     // HTTP — so nobody can satisfy the spy by dropping the logout half — is
     // already pinned by CreateOwner_StepUpRevokedByLogout_* above.)
     //
-    // Wrapping a real InMemoryStepUpGrantRegistry rather than faking the
-    // answers, so the accept/replay outcomes asserted below are the production
-    // ones and the test cannot go green against a registry that does nothing.
-    private sealed class RecordingStepUpGrantRegistry : IStepUpGrantRegistry
+    // Wrapping the real persistent registry rather than faking the answers,
+    // so the accept/replay outcomes asserted below are the production ones and
+    // the test cannot go green against a registry that does nothing.
+    private sealed class RecordingStepUpGrantRegistry(
+        IClaimOnceStore claimOnce, AppDbContext db) : IStepUpGrantRegistry
     {
-        private readonly InMemoryStepUpGrantRegistry inner = new();
+        private readonly PersistentStepUpGrantRegistry inner = new(claimOnce, db);
 
         // Ordered log of every interface member invoked. Not a counter: the
         // ORDER and the exact membership are both part of what is asserted.
         public List<string> Calls { get; } = [];
 
-        public bool TryConsumeIfNotLoggedOut(
-            Guid userId, Guid jti, DateTimeOffset issuedAt, DateTimeOffset expiresAt, DateTimeOffset now)
+        public Task<bool> TryConsumeIfNotLoggedOutAsync(
+            Guid userId, Guid jti, int grantEpoch, DateTimeOffset expiresAt,
+            DateTimeOffset now, CancellationToken ct = default)
         {
-            Calls.Add(nameof(TryConsumeIfNotLoggedOut));
-            return inner.TryConsumeIfNotLoggedOut(userId, jti, issuedAt, expiresAt, now);
+            Calls.Add(nameof(TryConsumeIfNotLoggedOutAsync));
+            return inner.TryConsumeIfNotLoggedOutAsync(userId, jti, grantEpoch, expiresAt, now, ct);
         }
 
-        public void RecordLogout(Guid userId, DateTimeOffset at)
+        public Task RecordLogoutAsync(Guid userId, CancellationToken ct = default)
         {
-            Calls.Add(nameof(RecordLogout));
-            inner.RecordLogout(userId, at);
+            Calls.Add(nameof(RecordLogoutAsync));
+            return inner.RecordLogoutAsync(userId, ct);
         }
 
-        public bool IsRevokedByLogout(Guid userId, DateTimeOffset issuedAt)
+        public Task<bool> IsRevokedByLogoutAsync(
+            Guid userId, int grantEpoch, CancellationToken ct = default)
         {
-            Calls.Add(nameof(IsRevokedByLogout));
-            return inner.IsRevokedByLogout(userId, issuedAt);
+            Calls.Add(nameof(IsRevokedByLogoutAsync));
+            return inner.IsRevokedByLogoutAsync(userId, grantEpoch, ct);
         }
     }
 
@@ -745,8 +750,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     // as RevokeRefreshTokenAsync_WhenTheBulkUpdateThrows_... above, so every
     // dependency except the registry is production code (real UserManager, real
     // JwtOptions/keys, real clock) and only the collaborator under observation
-    // is substituted. Over HTTP the host's own singleton registry would be in
-    // play instead and its calls could not be attributed to one request.
+    // is substituted. Over HTTP the host's own registry registration would be
+    // in play instead and its calls could not be attributed to one request.
     //
     // The caller owns the returned AppDbContext (await using) and the scope.
     private async Task<(StepUpGrantService StepUp, AppDbContext Db, Guid AccountId, Guid UserId)>
@@ -781,10 +786,20 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     public async Task IssueAsync_DirectlyRefusesADisabledUser()
     {
         using var scope = factory.Services.CreateScope();
-        var (stepUp, db, accountId, userId) = await DirectStepUpServiceAsync(
-            scope, new InMemoryStepUpGrantRegistry());
+        var (stepUp, db, accountId, userId) = await DirectStepUpServiceAsync(scope, null!);
         await using var _ = db;
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        // Rebuild over the helper's real db now that it exists — the helper's
+        // placeholder registry was never invoked by IssueAsync.
+        stepUp = new StepUpGrantService(
+            userManager, db,
+            services.GetRequiredService<IOptions<JwtOptions>>(),
+            services.GetRequiredService<TimeProvider>(),
+            new PersistentStepUpGrantRegistry(
+                new InProcessClaimOnceStore(services.GetRequiredService<TimeProvider>()),
+                db),
+            services.GetRequiredService<AuthSecurityEventLogger>());
         var user = await userManager.FindByIdAsync(userId.ToString());
         Assert.NotNull(user);
         user.DisabledAt = DateTimeOffset.UtcNow;
@@ -800,10 +815,20 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task ValidateAsync_MakesTheAdmissionDecisionInOneAtomicRegistryCall()
     {
-        var spy = new RecordingStepUpGrantRegistry();
         using var scope = factory.Services.CreateScope();
-        var (stepUp, db, accountId, userId) = await DirectStepUpServiceAsync(scope, spy);
+        var (stepUp, db, accountId, userId) = await DirectStepUpServiceAsync(scope, null!);
         await using var _ = db;
+        var timeProvider = scope.ServiceProvider.GetRequiredService<TimeProvider>();
+        var spy = new RecordingStepUpGrantRegistry(
+            new InProcessClaimOnceStore(timeProvider), db);
+        // Rebuild the service over the same db with the spy in place: the
+        // registry is a constructor dependency, and every other collaborator is
+        // the same production instance the helper already resolved.
+        stepUp = new StepUpGrantService(
+            scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(), db,
+            scope.ServiceProvider.GetRequiredService<IOptions<JwtOptions>>(),
+            timeProvider, spy,
+            scope.ServiceProvider.GetRequiredService<AuthSecurityEventLogger>());
 
         var issued = await stepUp.IssueAsync(accountId, userId, TestHarness.Password);
         Assert.True(issued.IsSuccess);
@@ -822,9 +847,9 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         // decision, so a concurrent RecordLogout cannot land between them.
         // Asserted first, and by name, so re-splitting the decision fails here
         // with the culprit spelled out rather than as a sequence mismatch.
-        Assert.DoesNotContain(nameof(IStepUpGrantRegistry.IsRevokedByLogout), spy.Calls);
+        Assert.DoesNotContain(nameof(IStepUpGrantRegistry.IsRevokedByLogoutAsync), spy.Calls);
         Assert.Equal(
-            new[] { nameof(IStepUpGrantRegistry.TryConsumeIfNotLoggedOut) },
+            new[] { nameof(IStepUpGrantRegistry.TryConsumeIfNotLoggedOutAsync) },
             spy.Calls);
 
         // The DENIAL path takes the same single call — a replay must not start
@@ -836,12 +861,12 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         var replayed = await stepUp.ValidateAsync(accountId, userId, issued.Value.Token);
 
         Assert.True(replayed.IsFailure);
-        Assert.DoesNotContain(nameof(IStepUpGrantRegistry.IsRevokedByLogout), spy.Calls);
+        Assert.DoesNotContain(nameof(IStepUpGrantRegistry.IsRevokedByLogoutAsync), spy.Calls);
         Assert.Equal(
             new[]
             {
-                nameof(IStepUpGrantRegistry.TryConsumeIfNotLoggedOut),
-                nameof(IStepUpGrantRegistry.TryConsumeIfNotLoggedOut),
+                nameof(IStepUpGrantRegistry.TryConsumeIfNotLoggedOutAsync),
+                nameof(IStepUpGrantRegistry.TryConsumeIfNotLoggedOutAsync),
             },
             spy.Calls);
     }
@@ -875,9 +900,16 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     public async Task RepeatedValidations_OfDistinctGrants_AllSucceed_DespiteTheSharedSigningKey()
     {
         using var scope = factory.Services.CreateScope();
-        var (stepUp, db, accountId, userId) =
-            await DirectStepUpServiceAsync(scope, new InMemoryStepUpGrantRegistry());
+        var (stepUp, db, accountId, userId) = await DirectStepUpServiceAsync(scope, null!);
         await using var _ = db;
+        var repeatedServices = scope.ServiceProvider;
+        var repeatedTp = repeatedServices.GetRequiredService<TimeProvider>();
+        stepUp = new StepUpGrantService(
+            repeatedServices.GetRequiredService<UserManager<ApplicationUser>>(), db,
+            repeatedServices.GetRequiredService<IOptions<JwtOptions>>(),
+            repeatedTp,
+            new PersistentStepUpGrantRegistry(new InProcessClaimOnceStore(repeatedTp), db),
+            repeatedServices.GetRequiredService<AuthSecurityEventLogger>());
 
         for (var attempt = 1; attempt <= 3; attempt++)
         {

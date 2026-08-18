@@ -1036,9 +1036,19 @@ public sealed class IdentityProvider(
                 // too weak" — the user needs to know which to fix. Neither leaks
                 // anything: the caller is already authenticated as this user.
                 var wrongCurrent = changed.Errors.Any(e => e.Code == "PasswordMismatch");
-                return Result.Failure<TokenPair>(wrongCurrent
-                    ? Error.Validation("Users.CurrentPasswordIncorrect", "Current password is incorrect.")
-                    : Error.Validation("Users.PasswordRejected", Describe(changed)));
+                if (wrongCurrent)
+                    return Result.Failure<TokenPair>(Error.Validation(
+                        "Users.CurrentPasswordIncorrect", "Current password is incorrect."));
+                // A lost CAS here is a benign concurrent-writer race, not a bad
+                // password: since #338 a logout rotates this row's ConcurrencyStamp
+                // (and an admin reset/disable can too), so a change that read the
+                // user before that commit loses its optimistic-concurrency check
+                // and UserManager returns ConcurrencyFailure. Map it to the same
+                // Users.Conflict every sibling write path uses, rather than telling
+                // the user their new password was rejected.
+                if (IsConcurrencyFailure(changed))
+                    return Result.Failure<TokenPair>(ResetConcurrencyConflict());
+                return Result.Failure<TokenPair>(Error.Validation("Users.PasswordRejected", Describe(changed)));
             }
 
             // #283 — this is the SPA's first-login "set your password" screen's
@@ -1209,21 +1219,23 @@ public sealed class IdentityProvider(
                 .FirstOrDefaultAsync(ct);
             ownerId = tokenRow?.UserId;
 
-            // #336 review (2nd round) — record BEFORE the bulk update, not
-            // after. RecordLogout is in-memory and cannot fail;
-            // ExecuteUpdateAsync hits the database and can throw (transient
-            // connection loss, deadlock). With the record afterwards, that
-            // exception skipped it entirely: the SPA has already cleared its
-            // local token and treats logout as best-effort, so the user believes
-            // they logged out while a captured access token plus an unexpired
-            // step-up grant stayed usable for the rest of the grant's life.
-            // Recording first means a database failure over-revokes (grants
-            // dead, refresh row possibly still live) instead of under-revoking —
-            // the same fail-safe direction AuthEndpoints.Logout applies to the
-            // bearer path one layer up. That fix corrected only the outer call
-            // site; this is the same hazard inside the cookie path.
+            // #336 review (2nd round) — record BEFORE the bulk update, not after.
+            // Since #338 RecordLogoutAsync advances the durable StepUpLogoutEpoch
+            // in Postgres, so it CAN throw just like ExecuteUpdateAsync (transient
+            // connection loss, deadlock) — it is no longer the infallible in-memory
+            // record it once was. The ordering still holds: when the epoch bump
+            // SUCCEEDS and the bulk update below throws, the grant-kill has already
+            // committed, so the failure over-revokes (grants dead, refresh row
+            // possibly still live) rather than under-revoking. When the bump itself
+            // throws, the whole revocation fails loudly (both hit the same
+            // database) and the short-lived grant lapses on its own expiry while
+            // the SPA has already cleared its local token — the same fail-safe
+            // direction AuthEndpoints.Logout applies to the bearer path one layer
+            // up. On a transient blip EnableRetryOnFailure replays the bump; a
+            // double increment only over-revokes, so the replay is safe (see the
+            // retry note on PersistentStepUpGrantRegistry.RecordLogoutAsync).
             if (tokenRow is not null)
-                stepUpGrants.RecordLogout(tokenRow.UserId, now);
+                await stepUpGrants.RecordLogoutAsync(tokenRow.UserId, ct);
 
             await RevokeByHashCoreAsync(presentedHash, now, ct);
         });
@@ -1232,16 +1244,11 @@ public sealed class IdentityProvider(
     // #336 review — the access-token half of logout revocation. The cookie owner
     // above and the caller's authenticated identity can be DIFFERENT users (see
     // IIdentityProvider.RecordLogoutAsync), so the cookie alone cannot identify
-    // who logged out. Records the instant only; refresh tokens are untouched.
-    //
-    // Uses the same injected TimeProvider as the cookie path, so a single logout
-    // that records both users stamps them with one consistent instant. The
-    // registry keeps the LATEST recorded instant per user, so a same-user logout
-    // that reaches both paths is idempotent rather than double-counted.
-    public Task RecordLogoutAsync(Guid userId, CancellationToken ct = default)
+    // who logged out. Advances the user's StepUpLogoutEpoch; refresh tokens are
+    // untouched.
+    public async Task RecordLogoutAsync(Guid userId, CancellationToken ct = default)
     {
-        stepUpGrants.RecordLogout(userId, timeProvider.GetUtcNow());
-        return Task.CompletedTask;
+        await stepUpGrants.RecordLogoutAsync(userId, ct);
     }
 
     private RefreshToken NewToken(ApplicationUser user, string tokenHash)

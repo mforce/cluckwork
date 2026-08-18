@@ -27,6 +27,7 @@
 | DisabledAt | timestamp with time zone |  | true |  |  |  |
 | DisabledBy | uuid |  | true |  |  |  |
 | PreferredStepperUnit | varchar(16) |  | true |  |  |  |
+| StepUpLogoutEpoch | integer | 0 | false |  |  |  |
 
 ## Viewpoints
 
@@ -46,6 +47,7 @@
 | AspNetUsers_LockoutEnabled_not_null | n | NOT NULL "LockoutEnabled" |
 | AspNetUsers_MustChangePassword_not_null | n | NOT NULL "MustChangePassword" |
 | AspNetUsers_PhoneNumberConfirmed_not_null | n | NOT NULL "PhoneNumberConfirmed" |
+| AspNetUsers_StepUpLogoutEpoch_not_null | n | NOT NULL "StepUpLogoutEpoch" |
 | AspNetUsers_TwoFactorEnabled_not_null | n | NOT NULL "TwoFactorEnabled" |
 | PK_AspNetUsers | PRIMARY KEY | PRIMARY KEY ("Id") |
 
@@ -91,6 +93,7 @@ erDiagram
   timestamp_with_time_zone DisabledAt
   uuid DisabledBy
   varchar_16_ PreferredStepperUnit
+  integer StepUpLogoutEpoch
 }
 "public.AspNetUserClaims" {
   integer Id

@@ -360,21 +360,18 @@ public static class AuthEndpoints
     // start demanding an Idempotency-Key.
     //
     // PR #336 review — the bearer recording runs FIRST, before the cookie
-    // revocation, and its own success does not depend on the cookie path at
-    // all. RecordLogoutAsync is in-memory (IStepUpGrantRegistry) and cannot
-    // fail; RevokeRefreshTokenAsync hits the database and CAN throw (e.g. a
-    // transient outage). With the DB call first, that exception used to skip
-    // the bearer recording entirely — the caller's outstanding step-up grant
-    // stayed valid, and a captured access token + grant could still perform
-    // the privileged operation after the user had logged out, any time before
-    // the grant's own short expiry, if the DB recovered in the meantime.
-    // Recording first instead means a DB failure still revokes the bearer's
-    // grants — over-revoking is the fail-safe direction for a security
-    // control, unlike under-revoking. The exception is deliberately NOT
-    // caught here: the request failing loudly when the DB is down is worth
-    // preserving (nothing here should silently paper over a real outage), and
-    // the SPA already treats logout as best-effort on its side regardless of
-    // status code.
+    // revocation, and its own success does not depend on the cookie path at all.
+    // Since #338 RecordLogoutAsync advances the durable StepUpLogoutEpoch in
+    // Postgres, so it CAN throw, just like RevokeRefreshTokenAsync — no longer the
+    // infallible in-memory record it once was. Recording first still wins the case
+    // that matters: when the epoch bump SUCCEEDS and the refresh revocation then
+    // throws, the grant-kill has already committed, so the failure over-revokes
+    // rather than leaving a captured access token + grant usable until the grant's
+    // own short expiry. When the bump itself throws (both hit the same database),
+    // the whole logout fails loudly and the short-lived grant lapses on its own
+    // expiry. The exception is deliberately NOT caught here: a request failing
+    // loudly when the DB is down is worth preserving, and the SPA already treats
+    // logout as best-effort regardless of status code.
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IIdentityProvider identity,
         ICurrentUser currentUser, IWebHostEnvironment env, CancellationToken ct)

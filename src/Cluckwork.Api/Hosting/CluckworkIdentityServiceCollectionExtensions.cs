@@ -116,11 +116,11 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         services.AddScoped<FirstRunStatusService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
 
-        // #308 — the registry is a SINGLETON: replay tracking and logout
-        // epochs must be visible across every request, not scoped per-request
-        // like TenantContext/CurrentUserContext. The service itself is scoped
-        // (it resolves UserManager, which is scoped).
-        services.AddSingleton<IStepUpGrantRegistry, InMemoryStepUpGrantRegistry>();
+        // #338 — the registry is now SCOPED: it holds no in-process state (replay
+        // lives in IClaimOnceStore, the logout epoch in ApplicationUser), so it
+        // just reaches the scoped AppDbContext directly. Registered via an
+        // Infrastructure extension because the concrete type is internal.
+        services.AddPersistentStepUpGrantRegistry();
         services.AddScoped<IStepUpGrantService, StepUpGrantService>();
 
         return services;
