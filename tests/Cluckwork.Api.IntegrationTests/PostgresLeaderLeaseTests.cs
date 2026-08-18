@@ -6,9 +6,10 @@ using Npgsql;
 using Testcontainers.PostgreSql;
 
 // #271 — direct proof of the leader lease's contract: AT MOST ONE ACTIVE LEADER,
-// with crash recovery. A dedicated Postgres container (advisory locks are
-// lock-manager state, not tables — no schema is needed) keeps these tests isolated
-// from the shared integration factory, whose own worker now holds the (271, 1) lock.
+// with crash recovery and transaction-pooling backend-affinity. A dedicated Postgres
+// container (advisory locks are lock-manager state, not tables — no schema is needed)
+// keeps these tests isolated from the shared integration factory, whose own worker
+// now holds the (271, 1) lock.
 public sealed class PostgresLeaderLeaseTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(
@@ -56,8 +57,6 @@ public sealed class PostgresLeaderLeaseTests : IAsyncLifetime
     // Loss mid-work: the leader's underlying session is killed out from under it. Its
     // next acquisition detects the lost session and relinquishes leadership, and the
     // freed lock is grabbable by another instance — the exact double-run guard.
-    // Removing the session-liveness check makes this go red (the original lease would
-    // keep claiming Leader while a competitor also holds the lock).
     [Fact]
     public async Task LeaderLosesSession_RelinquishesLeadership_AndLockIsReacquirable()
     {
@@ -77,6 +76,32 @@ public sealed class PostgresLeaderLeaseTests : IAsyncLifetime
         // The original leader detects it lost its session and no longer claims
         // leadership (the competitor now holds the lock).
         Assert.Equal(LeaseStatus.Follower, await leader.TryAcquireAsync(CancellationToken.None));
+    }
+
+    // Transaction-pooling safety (Codex P1): the connection stays alive but is now
+    // served by a DIFFERENT backend than the one that took the advisory lock. The
+    // held-path affinity check must detect the migration and relinquish, rather than
+    // keep claiming leadership on the stale `held` flag. Observed via the connection
+    // being torn down and reopened (a new backend PID). Removing the PID-equality
+    // check makes this go red (no relinquish → same connection → same PID).
+    [Fact]
+    public async Task LeaderMigratedToAnotherBackend_RelinquishesTheStaleSession()
+    {
+        await using var leader = NewLease();
+
+        Assert.Equal(LeaseStatus.Leader, await leader.TryAcquireAsync(CancellationToken.None));
+        var backendBeforeMigration = leader.BackendProcessId;
+        Assert.NotNull(backendBeforeMigration);
+
+        // Simulate a transaction-pooling proxy: alive connection, different backend.
+        leader.OverrideBackendPidProbe((_, _) => Task.FromResult(-1));
+
+        // Held-path re-affirm sees the mismatch, relinquishes (disposes the session),
+        // and reacquires on a fresh connection — a different backend PID.
+        await leader.TryAcquireAsync(CancellationToken.None);
+        var backendAfterMigration = leader.BackendProcessId;
+
+        Assert.NotEqual(backendBeforeMigration, backendAfterMigration);
     }
 
     // Polls acquisition until this lease wins the lock or a short deadline passes —
