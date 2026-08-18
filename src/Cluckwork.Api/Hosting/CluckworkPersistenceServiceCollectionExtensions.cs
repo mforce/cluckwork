@@ -2,6 +2,7 @@ namespace Cluckwork.Api.Hosting;
 
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Identity;
+using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
@@ -40,6 +41,10 @@ internal static class CluckworkPersistenceServiceCollectionExtensions
             allowInsecureConnection:
                 configuration.GetValue<bool>("Database:AllowInsecureConnection"),
             onWarning: connectionStringWarnings.Add);
+
+        // #271 — the leader lease opens its own dedicated, non-pooled connection
+        // from the same normalised, TLS-floor-validated string the DbContext uses.
+        services.AddSingleton(new LeaderLeaseConnectionString(connectionString));
 
         services.AddScoped<TenantStampInterceptor>();
         services.AddDbContext<AppDbContext>((sp, options) =>

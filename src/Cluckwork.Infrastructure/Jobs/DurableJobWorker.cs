@@ -21,12 +21,15 @@ public sealed class DurableJob
 
 public enum DurableJobStatus { Pending, Running, Completed, Failed }
 
-// Intervals are injectable for the loop-level tests only; DI fills the
-// defaults (ActivatorUtilities resolves optional parameters and prefers the
-// registered heartbeat singleton).
+// The lease is a REQUIRED dependency (fail-closed: a host that forgets to register
+// an ILeaderLease fails at startup rather than silently running every replica as
+// leader). The heartbeat, sweeps and intervals are injectable for the tests only;
+// DI fills the defaults (ActivatorUtilities resolves optional parameters and prefers
+// the registered singletons).
 public sealed class DurableJobWorker(
     IServiceScopeFactory scopeFactory,
     ILogger<DurableJobWorker> logger,
+    ILeaderLease leaderLease,
     DurableJobWorkerHeartbeat? heartbeat = null,
     DailyEntryLockSweep? lockSweep = null,
     RefreshTokenPurgeSweep? refreshTokenPurgeSweep = null,
@@ -43,21 +46,34 @@ public sealed class DurableJobWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // A transient DB outage must not escape ExecuteAsync: the host default
-        // (BackgroundServiceExceptionBehavior.StopHost) would take the whole
-        // API down with it (#65). Failures log and retry with capped backoff;
-        // StopHost stays as the backstop for anything thrown OUTSIDE the
-        // guarded iteration (e.g. a fatal bug in the loop itself).
+        // (BackgroundServiceExceptionBehavior.StopHost) would take the whole API
+        // down with it (#65). Failures log and retry with capped backoff; StopHost
+        // stays as the backstop for anything thrown OUTSIDE the guarded iteration
+        // (e.g. a fatal bug in the loop itself).
         //
-        // One scheduling mechanism only: success waits the poll interval,
-        // failure waits the backoff — a PeriodicTimer on top would stretch
-        // every retry back to the poll interval and make the logged backoff
-        // a lie (codex review of PR #79). Task.Delay throws on cancellation,
-        // which ends the loop as a normal shutdown.
+        // One scheduling mechanism only: success waits the poll interval, failure
+        // waits the backoff — a PeriodicTimer on top would stretch every retry back
+        // to the poll interval and make the logged backoff a lie (codex review of
+        // PR #79). Task.Delay throws on cancellation, which ends the loop as a normal
+        // shutdown.
+        //
+        // #271 — before doing any work, this instance must be the single active
+        // leader. A follower keeps the loop alive (so its health check stays green)
+        // but runs neither the poll nor the sweeps; at most one instance is the leader
+        // at a time, so at most one runs the recurring work. A FAULTED acquisition
+        // (could not reach the lock at all) is NOT a follower: it backs off with the
+        // heartbeat left unstamped so a sustained fault degrades /health.
         heartbeat.MarkStarted();
         var backoff = TimeSpan.Zero;
         while (!stoppingToken.IsCancellationRequested)
         {
-            if (await TryProcessPendingJobsAsync(stoppingToken))
+            var leadership = await TryAcquireLeadershipAsync(stoppingToken);
+
+            // A healthy follower: the loop ran, checked leadership, and correctly
+            // stood down. Stamp the heartbeat so the health check reads this as a live
+            // worker, not a stall (#271) — the sweeps are simply not this instance's
+            // to run right now.
+            if (leadership == LeaseStatus.Follower)
             {
                 heartbeat.MarkSuccessfulPoll();
                 backoff = TimeSpan.Zero;
@@ -65,11 +81,43 @@ public sealed class DurableJobWorker(
                 continue;
             }
 
+            if (leadership == LeaseStatus.Leader
+                && await TryProcessPendingJobsAsync(stoppingToken))
+            {
+                heartbeat.MarkSuccessfulPoll();
+                backoff = TimeSpan.Zero;
+                await Task.Delay(pollInterval, stoppingToken);
+                continue;
+            }
+
+            // A faulted acquisition, or a leader whose poll failed: back off and leave
+            // the heartbeat unstamped so a sustained fault degrades /health.
             backoff = backoff == TimeSpan.Zero
                 ? initialBackoff
                 : TimeSpan.FromTicks(Math.Min(backoff.Ticks * 2, MaxBackoff.Ticks));
             logger.LogWarning("Durable job poll failed; next attempt in {Backoff}.", backoff);
             await Task.Delay(backoff, stoppingToken);
+        }
+    }
+
+    // One guarded leadership acquisition. The lease reports faults as
+    // LeaseStatus.Faulted rather than throwing; this catch is defence in depth for a
+    // lease impl that breaks that contract — an unexpected throw becomes Faulted so
+    // the loop backs off instead of the host stopping. Real cancellation propagates.
+    private async Task<LeaseStatus> TryAcquireLeadershipAsync(CancellationToken ct)
+    {
+        try
+        {
+            return await leaderLease.TryAcquireAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Leader-lease acquisition failed.");
+            return LeaseStatus.Faulted;
         }
     }
 

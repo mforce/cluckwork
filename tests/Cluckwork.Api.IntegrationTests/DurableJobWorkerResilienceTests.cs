@@ -18,7 +18,8 @@ public sealed class DurableJobWorkerResilienceTests
     }
 
     private static DurableJobWorker Worker(Func<Exception> exceptionFactory) =>
-        new(new ThrowingScopeFactory(exceptionFactory), NullLogger<DurableJobWorker>.Instance);
+        new(new ThrowingScopeFactory(exceptionFactory), NullLogger<DurableJobWorker>.Instance,
+            new AlwaysLeaderLease());
 
     [Fact]
     public async Task ThrowingIteration_ReturnsFalse_DoesNotPropagate()
@@ -60,6 +61,7 @@ public sealed class DurableJobWorkerResilienceTests
         var worker = new DurableJobWorker(
             new ThrowingScopeFactory(() => new InvalidOperationException("DB is gone")),
             NullLogger<DurableJobWorker>.Instance,
+            new AlwaysLeaderLease(),
             pollInterval: TimeSpan.FromMilliseconds(5),
             initialBackoff: TimeSpan.FromMilliseconds(5));
 
