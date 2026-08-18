@@ -118,6 +118,20 @@ them, so renaming one silently breaks every rule built against it.
 | `Auth.RefreshRevocationFailed` | The app's own attempt to revoke a refresh token (or a whole token family, following a replay) throws instead of completing — the safety action meant to lock a suspected attacker out failed to run. Covers the whole attempt, including the prerequisite lookup of the token's owner: a failure anywhere in it means the revoke did not happen. Emitted **once** per failed attempt. | `UserId` (when known — a failure in the owner lookup itself has no user id to report, and says so rather than staying silent). |
 | `Auth.RateLimitRejected` | The per-IP fixed-window limiter rejects a request against the login or refresh policy with 429. Deliberately excludes the client-errors policy (#217) — that budget guards log-pipeline volume, not a credential. | `ClientIp`, `Path`. |
 
+### Operational (non-credential) security events
+
+These do not signal a credential attack — they signal that a shared-state
+(Redis) dependency is degraded, or that the per-account report-concurrency
+capacity ceiling has been breached. They carry no identity fields and are safe
+to forward unredacted. A deployment backend **should** alert on a sustained rate
+of either: each means the app is running in a degraded mode that a green health
+check does not reveal.
+
+| Event ID | Fires when | Fields |
+|---|---|---|
+| `SharedState.RedisUnavailable` | A shared-state (Redis) operation throws and the caller degrades: grant-replay fails closed, and the auth limiter and the report-concurrency lease fall back to their in-process implementations (#543/#544/#545). A sustained rate means a limiter is silently stuck in per-instance fallback. | `capability` (which port degraded). |
+| `ReportConcurrency.OverCapacity` | A running report's lease lapsed (a reachable backend rejected the renewal) and no free slot was available to re-count it — the account is over its per-instance report-concurrency ceiling with this report on top (#545). Bounded and self-healing as reports finish; a persistent rate means the shared store is dropping slots under load or during outage recovery. | `capability`. |
+
 ### No identity-existence oracle
 
 The API already collapses "no such user", "account locked", and "wrong
@@ -154,10 +168,12 @@ operator must:
   malfunctioning caller (the anonymous `/client-errors` endpoint is the
   obvious vector, already rate-limited and byte-capped at the app layer, #217)
   can't run up an unbounded aggregation bill.
-- **Alert on the five event IDs above** for brute-force (`LoginFailed` rate,
-  `AccountLockedOut`), replay/theft (`RefreshTokenReplayDetected`,
-  `RefreshRevocationFailed`), and abnormal rejection rates
-  (`RateLimitRejected`).
+- **Alert on the five authentication event IDs above** for brute-force
+  (`LoginFailed` rate, `AccountLockedOut`), replay/theft
+  (`RefreshTokenReplayDetected`, `RefreshRevocationFailed`), and abnormal
+  rejection rates (`RateLimitRejected`); and on the two **operational** events
+  (`SharedState.RedisUnavailable`, `ReportConcurrency.OverCapacity`) for a
+  degraded shared-state dependency or a breached per-account capacity ceiling.
 - **Treat `ClientIp`/`UserId` per its own retention policy** — they are
   legitimate correlation fields (the amendment to #273 requires them for
   alerting), not something this repo omits, but a deployment's retention and
