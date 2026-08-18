@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests.SharedState;
 
+using System.Threading.Tasks;
 using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.SharedState;
 using Microsoft.Extensions.Logging;
@@ -55,6 +56,10 @@ public sealed class ResilientFallbackTests
     private sealed class ThrowingFixedWindowCounter : IFixedWindowCounter
     {
         public long Increment(string key, TimeSpan window) => throw new RedisException("down");
+
+        public ValueTask<FixedWindowResult> IncrementAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
+            throw new RedisException("down");
     }
 
     private sealed class ThrowingLease : ILease
@@ -75,6 +80,10 @@ public sealed class ResilientFallbackTests
     private sealed class TimingOutFixedWindowCounter : IFixedWindowCounter
     {
         public long Increment(string key, TimeSpan window) =>
+            throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
+
+        public ValueTask<FixedWindowResult> IncrementAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
             throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
     }
 
@@ -98,6 +107,10 @@ public sealed class ResilientFallbackTests
     private sealed class WorkingFixedWindowCounter : IFixedWindowCounter
     {
         public long Increment(string key, TimeSpan window) => 42;
+
+        public ValueTask<FixedWindowResult> IncrementAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
+            new(new FixedWindowResult(42, TimeSpan.FromMinutes(5)));
     }
 
     private sealed class WorkingLease : ILease
@@ -156,6 +169,34 @@ public sealed class ResilientFallbackTests
 
         Assert.Equal(42, counter.Increment("k", TimeSpan.FromMinutes(5)));
 
+        Assert.Empty(logger.Warnings);
+    }
+
+    [Fact]
+    public async Task CounterAsync_WhenRedisThrows_ReturnsFallbackValueAndAlarms()
+    {
+        var logger = new RecordingLogger<ResilientFixedWindowCounter>();
+        var fallback = new InProcessFixedWindowCounter(new FakeTimeProvider());
+        var counter = new ResilientFixedWindowCounter(new ThrowingFixedWindowCounter(), fallback, logger);
+
+        var result = await counter.IncrementAsync("k", TimeSpan.FromMinutes(5));
+
+        Assert.Equal(1, result.Count);
+        Assert.True(result.Remaining > TimeSpan.Zero);
+        Assert.Single(logger.Warnings);
+        Assert.Contains(SecurityEvents.SharedStateRedisUnavailable, logger.Warnings[0]);
+    }
+
+    [Fact]
+    public async Task CounterAsync_WhenRedisWorks_ReturnsRedisValueAndDoesNotAlarm()
+    {
+        var logger = new RecordingLogger<ResilientFixedWindowCounter>();
+        var fallback = new InProcessFixedWindowCounter(new FakeTimeProvider());
+        var counter = new ResilientFixedWindowCounter(new WorkingFixedWindowCounter(), fallback, logger);
+
+        var result = await counter.IncrementAsync("k", TimeSpan.FromMinutes(5));
+
+        Assert.Equal(42, result.Count);
         Assert.Empty(logger.Warnings);
     }
 

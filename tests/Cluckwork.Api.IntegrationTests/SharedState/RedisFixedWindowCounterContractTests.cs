@@ -33,6 +33,21 @@ public sealed class RedisFixedWindowCounterContractTests(RedisFixture fixture) :
     }
 
     [Fact]
+    public async Task IncrementAsync_returns_count_and_positive_remaining()
+    {
+        var counter = new RedisFixedWindowCounter(fixture.Redis, Guid.NewGuid().ToString("N"));
+        var window = TimeSpan.FromSeconds(30);
+
+        var first = await counter.IncrementAsync("k", window);
+        Assert.Equal(1, first.Count);
+        Assert.True(first.Remaining > TimeSpan.Zero && first.Remaining <= window,
+            $"remaining {first.Remaining} must be in (0, {window}]");
+
+        var second = await counter.IncrementAsync("k", window);
+        Assert.Equal(2, second.Count);
+    }
+
+    [Fact]
     public void NonWholeMillisecondWindow_Throws()
     {
         var counter = new RedisFixedWindowCounter(fixture.Redis, Guid.NewGuid().ToString("N"));

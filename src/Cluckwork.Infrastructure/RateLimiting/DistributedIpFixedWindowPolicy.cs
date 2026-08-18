@@ -32,12 +32,21 @@ public sealed class DistributedIpFixedWindowPolicy : IRateLimiterPolicy<string>
         _window = window;
     }
 
+    // Null on purpose: the single global RateLimiterOptions.OnRejected handler owns the 429
+    // body, the Retry-After header, and the auth-only RateLimitRejected security event. That the
+    // framework falls back to the global handler when a policy's OnRejected is null is guarded by
+    // DistributedRateLimiterWiringTests.No_attacker_supplied_dimension_in_key_or_log (it asserts
+    // the event fires); a runtime change to that behaviour fails there by name, not silently.
     public Func<OnRejectedContext, CancellationToken, ValueTask>? OnRejected => null;
 
     public RateLimitPartition<string> GetPartition(HttpContext httpContext)
     {
-        var counter = httpContext.RequestServices.GetRequiredService<IFixedWindowCounter>();
-        var timeProvider = httpContext.RequestServices.GetRequiredService<TimeProvider>();
+        var key = $"{_keyPrefix}:{RateLimitKey.ForClient(httpContext.Connection.RemoteIpAddress)}";
+        var services = httpContext.RequestServices;
+
+        // Resolve the singletons inside the partition factory so they are fetched only on a
+        // cache miss (first request per key), not on every GetPartition call.
+        //
         // The policy prefix is part of the COUNTER key. All three IP-keyed policies
         // (login / refresh / client-errors) share ONE injected IFixedWindowCounter, so a key
         // of the IP alone collapses their three budgets into one bucket per IP — refresh would
@@ -45,9 +54,10 @@ public sealed class DistributedIpFixedWindowPolicy : IRateLimiterPolicy<string>
         // separate. Keying on the POLICY name keeps them independent, while routes that
         // deliberately share a budget (login / step-up / change-password all use
         // LoginPolicyName, #273) still land in the same bucket by design.
-        var key = $"{_keyPrefix}:{RateLimitKey.ForClient(httpContext.Connection.RemoteIpAddress)}";
-
         return RateLimitPartition.Get(key, k =>
-            new DistributedIpFixedWindowRateLimiter(counter, timeProvider, k, _permitLimit, _window));
+            new DistributedIpFixedWindowRateLimiter(
+                services.GetRequiredService<IFixedWindowCounter>(),
+                services.GetRequiredService<TimeProvider>(),
+                k, _permitLimit, _window));
     }
 }

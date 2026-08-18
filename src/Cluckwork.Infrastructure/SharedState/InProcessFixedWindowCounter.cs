@@ -1,5 +1,7 @@
 namespace Cluckwork.Infrastructure.SharedState;
 
+using System.Threading;
+using System.Threading.Tasks;
 
 // #543 — in-process <see cref="IFixedWindowCounter"/> fallback (Option B: a
 // deliberately single-instance deploy runs without Redis).
@@ -30,7 +32,17 @@ internal sealed class InProcessFixedWindowCounter(TimeProvider timeProvider) : I
     private readonly Dictionary<string, (DateTimeOffset WindowStart, DateTimeOffset WindowEnd, long Count)> _counters = [];
     private int _sweepCount;
 
-    public long Increment(string key, TimeSpan window)
+    public long Increment(string key, TimeSpan window) => IncrementCore(key, window).Count;
+
+    public ValueTask<FixedWindowResult> IncrementAsync(
+        string key, TimeSpan window, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        // Pure in-memory work — nothing to await; complete synchronously.
+        return new ValueTask<FixedWindowResult>(IncrementCore(key, window));
+    }
+
+    private FixedWindowResult IncrementCore(string key, TimeSpan window)
     {
         ArgumentNullException.ThrowIfNull(key);
         // Whole milliseconds only (>= 1ms): windowMs = (long)window.TotalMilliseconds
@@ -71,7 +83,13 @@ internal sealed class InProcessFixedWindowCounter(TimeProvider timeProvider) : I
             }
 
             MaybeSweep(now);
-            return _counters[key].Count;
+            var current = _counters[key];
+            // Remaining until this key's window rolls over, from the SAME injected
+            // clock the window is bucketed on — never negative.
+            var remaining = current.WindowEnd - now;
+            if (remaining < TimeSpan.Zero)
+                remaining = TimeSpan.Zero;
+            return new FixedWindowResult(current.Count, remaining);
         }
     }
 

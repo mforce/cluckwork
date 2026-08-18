@@ -36,7 +36,10 @@ public sealed class DistributedRateLimiterWiringFactory : CluckworkWebApplicatio
     public const int LoginLimit = 3;
 
     public CollectingSink Sink { get; } = new();
-    public ToggleablePrimary Primary { get; } = new();
+    // internal, not public: ToggleablePrimary.IncrementAsync returns the internal
+    // FixedWindowResult, so a public property/type here would be CS0050 (a public member
+    // cannot expose a less-accessible type). Same-assembly test access is unaffected.
+    internal ToggleablePrimary Primary { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -72,7 +75,7 @@ public sealed class DistributedRateLimiterWiringFactory : CluckworkWebApplicatio
     // ResilientFallbackTests' throwing stubs use), otherwise delegates to its
     // own in-process counter — and RECORDS every key it sees, so tests (d)/(e)
     // can assert on what the shared store was asked to count.
-    public sealed class ToggleablePrimary : IFixedWindowCounter
+    internal sealed class ToggleablePrimary : IFixedWindowCounter
     {
         private readonly InProcessFixedWindowCounter _inner = new(TimeProvider.System);
         private volatile bool _down = true;
@@ -89,6 +92,15 @@ public sealed class DistributedRateLimiterWiringFactory : CluckworkWebApplicatio
                 throw new RedisException("down");
             lock (SeenKeys) { SeenKeys.Add(key); }
             return _inner.Increment(key, window);
+        }
+
+        public ValueTask<FixedWindowResult> IncrementAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default)
+        {
+            if (_down)
+                throw new RedisException("down");
+            lock (SeenKeys) { SeenKeys.Add(key); }
+            return _inner.IncrementAsync(key, window, cancellationToken);
         }
     }
 }

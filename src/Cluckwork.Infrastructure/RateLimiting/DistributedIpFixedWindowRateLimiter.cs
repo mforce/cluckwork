@@ -47,43 +47,64 @@ internal sealed class DistributedIpFixedWindowRateLimiter : RateLimiter
 
     protected override RateLimitLease AttemptAcquireCore(int permitCount)
     {
-        // Contract: the ASP.NET rate-limiting middleware acquires exactly one permit per
-        // request. permitCount == 0 is the framework's "is anything available?" probe and
-        // must NOT consume (the shared counter is increment-only, so we cannot peek — treat
-        // the probe as always-available; the real request that follows does the increment).
-        // Anything > 1 is unsupported: the shared port only increments by one.
+        var permitted = TryConsumePermit(permitCount, out var earlyLease);
+        if (!permitted)
+            return earlyLease!;
+
+        // Synchronous path: NOT the ASP.NET rate-limiting middleware hot path (that awaits
+        // AcquireAsync -> AcquireAsyncCore below). Kept for the RateLimiter contract and any
+        // direct AttemptAcquire caller. Retry-After is a host-clock estimate here because the
+        // synchronous counter returns only the count; the async path uses the counter's own clock.
+        var count = _counter.Increment(_key, _window);
+        return count <= _permitLimit
+            ? new DistributedLease(isAcquired: true, retryAfter: null)
+            : new DistributedLease(isAcquired: false, retryAfter: HostClockRetryAfter());
+    }
+
+    protected override async ValueTask<RateLimitLease> AcquireAsyncCore(
+        int permitCount, CancellationToken cancellationToken)
+    {
+        var permitted = TryConsumePermit(permitCount, out var earlyLease);
+        if (!permitted)
+            return earlyLease!;
+
+        // Async on purpose: the shared counter's Redis round trip must NOT block the ASP.NET
+        // request thread on the auth hot path (#544 review). The count and the remaining window
+        // both come from the counter (Redis server clock), so the Retry-After never drifts
+        // against the API host clock.
+        var result = await _counter.IncrementAsync(_key, _window, cancellationToken);
+        return result.Count <= _permitLimit
+            ? new DistributedLease(isAcquired: true, retryAfter: null)
+            : new DistributedLease(isAcquired: false, retryAfter: result.Remaining);
+    }
+
+    // Shared guard for both acquire paths. Returns false with an early lease when the caller's
+    // permitCount is the framework's availability probe (0 -> admit, no consume) or unsupported
+    // (> 1); returns true to proceed with exactly one increment. Also records activity for
+    // IdleDuration-based eviction.
+    private bool TryConsumePermit(int permitCount, out RateLimitLease? earlyLease)
+    {
         ArgumentOutOfRangeException.ThrowIfNegative(permitCount);
         if (permitCount == 0)
-            return new DistributedLease(isAcquired: true, retryAfter: null);
+        {
+            // Availability probe: the increment-only counter cannot peek, so treat it as
+            // available without consuming; the real request that follows does the increment.
+            earlyLease = new DistributedLease(isAcquired: true, retryAfter: null);
+            return false;
+        }
         if (permitCount > 1)
             throw new ArgumentOutOfRangeException(nameof(permitCount),
                 "DistributedIpFixedWindowRateLimiter supports at most one permit per acquisition.");
 
         Interlocked.Exchange(ref _lastActivityTimestamp, _timeProvider.GetTimestamp());
-
-        // One increment per request, whether or not it is admitted: a rejected request
-        // still counts (the counter is increment-only and cannot un-consume). Admit iff
-        // the post-increment count is within the budget.
-        var count = _counter.Increment(_key, _window);
-        if (count <= _permitLimit)
-            return new DistributedLease(isAcquired: true, retryAfter: null);
-
-        return new DistributedLease(isAcquired: false, retryAfter: RetryAfterToWindowEnd());
+        earlyLease = null;
+        return true;
     }
 
-    protected override ValueTask<RateLimitLease> AcquireAsyncCore(
-        int permitCount, CancellationToken cancellationToken)
-    {
-        // No queueing (QueueLimit is 0 for these policies) and the counter is synchronous,
-        // so there is nothing to await — mirror the sync path exactly.
-        cancellationToken.ThrowIfCancellationRequested();
-        return new ValueTask<RateLimitLease>(AttemptAcquireCore(permitCount));
-    }
-
-    // Seconds until the current wall-clock-aligned window rolls over, computed the SAME way
-    // the counter buckets (floor(epochMs / windowMs) * windowMs + windowMs). The global
-    // OnRejected handler reads MetadataName.RetryAfter and ceils it to whole seconds.
-    private TimeSpan RetryAfterToWindowEnd()
+    // Seconds until the current wall-clock-aligned window rolls over, computed the SAME way the
+    // in-process counter buckets. Used ONLY by the synchronous path (see AttemptAcquireCore); the
+    // async path takes the remaining window from the counter itself.
+    private TimeSpan HostClockRetryAfter()
     {
         var windowMs = (long)_window.TotalMilliseconds;
         var epochMs = _timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
