@@ -41,14 +41,25 @@ using Npgsql;
 // is cluster-global but bound to the backend session that took it, so a later poll
 // served by a different backend no longer holds it — and the proxy could even hand
 // the lock-holding backend to another replica, whose re-entrant pg_try_advisory_lock
-// would then also succeed. To stay fail-safe we capture the backend PID that took
-// the lock (in the SAME statement as the acquire, so it is truly that backend) and
-// re-verify it on every poll; a mismatch means our commands have migrated off the
-// lock's session, so we relinquish leadership rather than run as a second leader.
-// The net effect under transaction pooling is that no instance holds leadership
-// stably and /health degrades (visible), never a silent double-run. Making the
-// lease WORK under transaction pooling — a dedicated session-pinned lease endpoint —
-// is deliberately a follow-up, not this slice.
+// would then also succeed. To narrow that window we capture the backend PID that
+// took the lock (in the SAME statement as the acquire, so it is truly that backend)
+// and re-verify it on every poll; a mismatch means our commands have migrated off
+// the lock's session, so we relinquish leadership instead of continuing to lead.
+//
+// This is NOT a full fix for transaction pooling, and single-leader is NOT
+// guaranteed there — do not claim it. The affinity check runs at the START of each
+// poll, not on the acquire path, so between one replica acquiring and its next
+// probe a second replica can reuse the pooled lock-holding backend, succeed via the
+// re-entrant lock, and run one ProcessPendingJobsAsync cycle CONCURRENTLY. Under
+// transaction pooling, safety therefore rests entirely on the at-least-once +
+// idempotent-handler contract (the sweeps tolerate a concurrent run), NOT on
+// single-leader; there is no cheap client-side fix (pinning the backend would mean
+// holding a transaction open for the process lifetime — an idle-in-transaction that
+// starves vacuum, which is worse). The lease REQUIRES a session-pinned endpoint (a
+// direct connection or a session-pooled proxy) for its single-leader guarantee. A
+// dedicated session-pinned lease endpoint that makes pooled deploys single-leader is
+// tracked as a follow-up (#556); on a session-pinned endpoint the affinity check is
+// exact and this whole caveat does not apply.
 //
 // Single-caller: TryAcquireAsync is only ever called from the one worker loop,
 // sequentially, so no internal synchronisation is needed. DisposeAsync runs only
