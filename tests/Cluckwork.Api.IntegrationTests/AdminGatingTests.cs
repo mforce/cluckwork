@@ -261,7 +261,7 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         var foreignEmail = $"foreign-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(foreignEmail);
 
-        var (admin, _, _, _, _) = await SetupAsync();
+        var (admin, _, accountId, _, _) = await SetupAsync();
         var response = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
             new { email = foreignEmail, password = TestHarness.Password, role = "Worker" });
 
@@ -269,13 +269,15 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
 
         // #532 review — status alone would also pass if the user had been
         // created in the FOREIGN account. Pin the account, since "which farm did
-        // this land in" is the entire property under test.
+        // this land in" is the entire property under test. `accountId` is the
+        // admin's OWN account from SetupAsync (a fresh Guid per call, not
+        // SeedDefaults.AccountId) — the tenant the endpoint is bound to.
         var created = await response.Content.ReadFromJsonAsync<Created>();
-        var accountOfCreated = await factory.WithTenantScopeAsync(SeedDefaults.AccountId, db => db.Users
+        var accountOfCreated = await factory.WithTenantScopeAsync(accountId, db => db.Users
             .Where(u => u.Id == created!.Id)
             .Select(u => u.AccountId)
             .SingleAsync());
-        Assert.Equal(SeedDefaults.AccountId, accountOfCreated);
+        Assert.Equal(accountId, accountOfCreated);
     }
 
     [Fact]
