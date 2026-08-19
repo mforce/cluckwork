@@ -289,6 +289,7 @@ test.describe("#310 session races", () => {
     // sessions are then distinguishable on screen, so the assertion can name
     // which one won instead of inferring it.
     const sales = castMember("Sales");
+    await page.getByLabel(tEn("auth:farmCode")).fill("default-farm");
     await page.getByLabel(tEn("auth:email")).fill(sales.email);
     await page.getByLabel(tEn("auth:password")).fill(sales.password);
     const loginLanded = page.waitForResponse(
@@ -392,6 +393,7 @@ test.describe("#310 session races", () => {
 
     // And the forced re-auth is a plain re-auth, not a wedged account:
     // Sales signs straight back in and lands in a Sales-shaped shell.
+    await page.getByLabel(tEn("auth:farmCode")).fill("default-farm");
     await page.getByLabel(tEn("auth:email")).fill(sales.email);
     await page.getByLabel(tEn("auth:password")).fill(sales.password);
     await page.getByRole("button", { name: tEn("auth:signIn") }).click();

@@ -592,23 +592,20 @@ total — clients never sum pages.
 isolation with EF global query filters. Single-farm login today, multi-tenant
 infrastructure dormant.
 
-**Farm code** — the per-farm login identifier. It is the account's slug
-(`Account.Slug`): lowercase, 3–32 characters, and immutable in this epic. The
-sign-in form asks for it before the email, because one email address can now
-exist in several farms and only the farm code says which one is meant.
-
-**Farm code (account slug, #531)** — a short, stable, URL-safe identifier for an
-account: lowercase letters, digits and hyphens, 3–32 characters, no leading or
-trailing hyphen. Unlike the account's internal id (a GUID), it is meant to be
-typed and read aloud. It is chosen once and **immutable** — a provisioning typo
-has no in-app fix this phase — and a handful of words are reserved (`api`,
-`admin`, `www`, `health`, `app`, `login`, `auth`, and similar). The default
-farm's code is `default-farm`. Operators discover the codes with the
-`list-accounts` command. The farm code is the way to disambiguate login across farms (#532): the sign-in
-form requires it before the email, and a wrong or unrecognised one is refused
-with its own message. (Written earlier, before #532 shipped: it was recorded
-and discoverable but not yet used at sign-in, and there was no SPA surface for
-it.)
+**Farm code (account slug, #531)** — the per-farm login identifier: a short,
+stable, URL-safe slug (`Account.Slug`) for an account — lowercase letters,
+digits and hyphens, 3–32 characters, no leading or trailing hyphen. Unlike the
+account's internal id (a GUID), it is meant to be typed and read aloud. It is
+chosen once and **immutable** — a provisioning typo has no in-app fix this
+phase — and a handful of words are reserved (`api`, `admin`, `www`, `health`,
+`app`, `login`, `auth`, and similar). The default farm's code is
+`default-farm`. Operators discover the codes with the `list-accounts` command.
+The farm code is the way to disambiguate login across farms (#532): the sign-in
+form requires it before the email, because one email address can now exist in
+several farms and only the farm code says which one is meant, and a wrong or
+unrecognised one is refused with its own message. (Written earlier, before
+#532 shipped: it was recorded and discoverable but not yet used at sign-in, and
+there was no SPA surface for it.)
 
 **Account status — active / suspended (#531)** — an account is *active* by
 default. **Suspending** it takes the farm offline; **reactivating** brings it
