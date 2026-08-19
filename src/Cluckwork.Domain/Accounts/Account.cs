@@ -1,5 +1,6 @@
 namespace Cluckwork.Domain.Accounts;
 
+using System.Text.RegularExpressions;
 using Cluckwork.Domain.Catalog;
 
 // The farm's own settings row. Spec §3.2 models `farms` as a table under the
@@ -14,8 +15,28 @@ public sealed class Account : AggregateRoot<Guid>
     public const int MaxTimeZoneIdLength = 64;
     public const int MaxFormatOverrideLength = 32;
     public const string DefaultLocale = "en-US";
+    public const int SlugMaxLength = 32;
+
+    // Farm code (#531). Lowercase, URL-safe, stored ALREADY-NORMALIZED so a
+    // plain unique index suffices — deliberately NOT a lower("Slug") expression
+    // index (the four in InitialCreate are un-regenerable #407 fixtures; no
+    // reason to mint a fifth). Immutable this epic (decision 10): there is no
+    // ChangeSlug, on purpose — a provisioning typo has no in-epic fix, which is
+    // why #533's provision-account echoes the slug before it commits.
+    public static readonly IReadOnlySet<string> ReservedSlugs =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "api", "admin", "www", "health", "app", "static", "assets", "login", "auth",
+        };
+
+    // 3–32 chars, lowercase alnum + hyphen, no leading/trailing hyphen.
+    // UPPERCASE IS REJECTED, not folded: the stored value is guaranteed
+    // lowercase, which is exactly what lets the unique index be plain.
+    private static readonly Regex SlugPattern =
+        new("^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$", RegexOptions.Compiled);
 
     public string Name { get; private set; } = string.Empty;
+    public string Slug { get; private set; } = string.Empty;
     public string TimeZoneId { get; private set; } = "UTC";
     public string Locale { get; private set; } = DefaultLocale;
     public string DefaultCurrencyCode { get; private set; } = "USD";
@@ -48,15 +69,17 @@ public sealed class Account : AggregateRoot<Guid>
     private Account() { }
 
     public static Account Create(
-        Guid id, string name, string timeZoneId, string currencyCode,
+        Guid id, string name, string slug, string timeZoneId, string currencyCode,
         string locale = DefaultLocale)
     {
+        var normalizedSlug = ValidateSlug(slug);
         var currency = CurrencyCatalog.Resolve(currencyCode);
         return new Account
         {
             Id = id,
             AccountId = id,
             Name = name,
+            Slug = normalizedSlug,
             TimeZoneId = timeZoneId,
             Locale = locale,
             DefaultCurrencyCode = currency.Code,
@@ -64,6 +87,41 @@ public sealed class Account : AggregateRoot<Guid>
             DefaultCurrencyMinorUnit = currency.MinorUnit,
             IsActive = true
         };
+    }
+
+    // Invariant guard (throws), consistent with Flock.Create — an invalid or
+    // reserved farm code is a provisioning error, not an expected Result
+    // failure. Trims only; case is NOT folded, so an uppercase slug is REJECTED
+    // rather than silently accepted, keeping the stored value lowercase.
+    private static string ValidateSlug(string slug)
+    {
+        var normalized = (slug ?? string.Empty).Trim();
+        if (!SlugPattern.IsMatch(normalized))
+            throw new ArgumentException(
+                $"'{slug}' is not a valid farm code (lowercase letters, digits and hyphens, " +
+                "3–32 characters, no leading or trailing hyphen).", nameof(slug));
+        if (ReservedSlugs.Contains(normalized))
+            throw new ArgumentException($"'{normalized}' is a reserved farm code.", nameof(slug));
+        return normalized;
+    }
+
+    // #531 — take the farm offline / bring it back. IsActive already existed and
+    // nothing read it; enforcement (blocking a suspended account's login) is
+    // #532. Each bumps Version — the EF concurrency token EF never auto-
+    // increments — so two concurrent writers cannot both match WHERE Version=N;
+    // the loser gets a DbUpdateConcurrencyException instead of silently
+    // overwriting. Unconditional on purpose: no current-state guard, so a
+    // suspend/reactivate always advances the token.
+    public void Suspend()
+    {
+        IsActive = false;
+        Version++;
+    }
+
+    public void Reactivate()
+    {
+        IsActive = true;
+        Version++;
     }
 
     // #123 — the whole settings block replaced under the Version token.

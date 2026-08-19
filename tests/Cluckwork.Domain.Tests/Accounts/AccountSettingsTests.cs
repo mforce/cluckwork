@@ -9,7 +9,7 @@ using Cluckwork.Domain.Common;
 public sealed class AccountSettingsTests
 {
     private static Account UsdFarm() =>
-        Account.Create(Guid.NewGuid(), "Test Farm Co", "UTC", "USD");
+        Account.Create(Guid.NewGuid(), "Test Farm Co", "test-farm", "UTC", "USD");
 
     private static Result Update(
         Account account,
@@ -164,7 +164,7 @@ public sealed class AccountSettingsTests
     {
         // Guards the reason the derivation is conditional: re-deriving on every
         // save would let a catalog change silently reinterpret stored money.
-        var account = Account.Create(Guid.NewGuid(), "Yen Farm", "Asia/Tokyo", "JPY");
+        var account = Account.Create(Guid.NewGuid(), "Yen Farm", "yen-farm", "Asia/Tokyo", "JPY");
         Assert.Equal(0, account.DefaultCurrencyMinorUnit);
 
         Update(account, name: "Yen Farm 2");
@@ -211,7 +211,7 @@ public sealed class AccountSettingsTests
     public void NewAccount_StartsOnTheDefaultPalette()
     {
         var account = Account.Create(
-            Guid.NewGuid(), "Test Farm", "UTC", "USD");
+            Guid.NewGuid(), "Test Farm", "test-farm", "UTC", "USD");
 
         Assert.Equal(FarmBrands.Default, account.Brand);
     }
@@ -219,7 +219,7 @@ public sealed class AccountSettingsTests
     [Fact]
     public void UpdateSettings_WithACuratedBrand_StoresIt()
     {
-        var account = Account.Create(Guid.NewGuid(), "Test Farm", "UTC", "USD");
+        var account = Account.Create(Guid.NewGuid(), "Test Farm", "test-farm", "UTC", "USD");
 
         var result = account.UpdateSettings(
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
@@ -238,7 +238,7 @@ public sealed class AccountSettingsTests
     {
         // CSS matches data-brand="forest" exactly, so storing "Forest" would
         // silently render the default forever.
-        var account = Account.Create(Guid.NewGuid(), "Test Farm", "UTC", "USD");
+        var account = Account.Create(Guid.NewGuid(), "Test Farm", "test-farm", "UTC", "USD");
 
         var result = account.UpdateSettings(
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
@@ -254,7 +254,7 @@ public sealed class AccountSettingsTests
     [InlineData("   ")]
     public void UpdateSettings_WithAnUncuratedBrand_FailsWithAStableCode(string submitted)
     {
-        var account = Account.Create(Guid.NewGuid(), "Test Farm", "UTC", "USD");
+        var account = Account.Create(Guid.NewGuid(), "Test Farm", "test-farm", "UTC", "USD");
 
         var result = account.UpdateSettings(
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
@@ -269,7 +269,7 @@ public sealed class AccountSettingsTests
     {
         // The settings block is replaced as a unit under the Version token, so a
         // rejected brand must not leave a half-applied rename behind.
-        var account = Account.Create(Guid.NewGuid(), "Original", "UTC", "USD");
+        var account = Account.Create(Guid.NewGuid(), "Original", "test-farm", "UTC", "USD");
         var versionBefore = account.Version;
 
         var result = account.UpdateSettings(

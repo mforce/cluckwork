@@ -55,7 +55,7 @@ public sealed class ReportQueryBoundingTests(CluckworkWebApplicationFactory fact
         await using (var seedDb = NewContext(accountId, out _))
         {
             seedDb.Accounts.Add(Cluckwork.Domain.Accounts.Account.Create(
-                accountId, "Bounding Test Farm", "UTC", "USD"));
+                accountId, "Bounding Test Farm", "farm-" + accountId.ToString("N")[..12], "UTC", "USD"));
             seedDb.Flocks.Add(Flock.Create(
                 flockId, accountId, farmId, Guid.NewGuid(),
                 "Bounding Flock", "Test Breed",

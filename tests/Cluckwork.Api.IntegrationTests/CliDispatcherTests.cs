@@ -16,7 +16,7 @@ public sealed class CliDispatcherTests
     public void Registry_ContainsEveryVerb_WithNoDuplicateNames()
     {
         var names = CliDispatcher.Commands.Select(c => c.Name).ToArray();
-        Assert.Equal(["bootstrap-admin", "migrate", "recover-admin", "seed"], names.OrderBy(n => n).ToArray());
+        Assert.Equal(["bootstrap-admin", "list-accounts", "migrate", "recover-admin", "seed"], names.OrderBy(n => n).ToArray());
         Assert.Equal(names.Length, names.Distinct().Count());
     }
 

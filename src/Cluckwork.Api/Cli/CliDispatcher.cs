@@ -18,6 +18,7 @@ public static class CliDispatcher
         new MigrateCliCommand(),
         new RecoverAdminCliCommand(),
         new BootstrapAdminCliCommand(),
+        new ListAccountsCliCommand(),
     ];
 
     // Whether these args dispatch to a one-off verb rather than start the web

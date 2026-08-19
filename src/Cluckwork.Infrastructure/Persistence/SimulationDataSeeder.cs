@@ -1504,7 +1504,7 @@ public sealed class SimulationDataSeeder(
         var exists = await db.Accounts.IgnoreQueryFilters().AnyAsync(a => a.Id == SecondAccountId, ct);
         if (exists) return;
 
-        db.Accounts.Add(Account.Create(SecondAccountId, "Simulation Second Farm", "UTC", "USD"));
+        db.Accounts.Add(Account.Create(SecondAccountId, "Simulation Second Farm", "simulation-second-farm", "UTC", "USD"));
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Seeded second pristine simulation account {AccountId}.", SecondAccountId);
     }

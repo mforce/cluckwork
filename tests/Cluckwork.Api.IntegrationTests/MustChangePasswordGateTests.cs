@@ -28,7 +28,7 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         var email = $"pending-{Guid.NewGuid():N}@test.local";
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Accounts.Add(Cluckwork.Domain.Accounts.Account.Create(accountId, "Gate Farm", "UTC", "USD"));
+            db.Accounts.Add(Cluckwork.Domain.Accounts.Account.Create(accountId, "Gate Farm", "farm-" + accountId.ToString("N")[..12], "UTC", "USD"));
             await db.SaveChangesAsync();
         });
         await factory.SeedUserPendingPasswordChangeAsync(accountId, email);
@@ -72,7 +72,7 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         var email = $"pending-{Guid.NewGuid():N}@test.local";
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Accounts.Add(Cluckwork.Domain.Accounts.Account.Create(accountId, "Gate Farm", "UTC", "USD"));
+            db.Accounts.Add(Cluckwork.Domain.Accounts.Account.Create(accountId, "Gate Farm", "farm-" + accountId.ToString("N")[..12], "UTC", "USD"));
             await db.SaveChangesAsync();
         });
         await factory.SeedUserPendingPasswordChangeAsync(accountId, email);
@@ -114,7 +114,7 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         var email = $"pending-{Guid.NewGuid():N}@test.local";
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Accounts.Add(Cluckwork.Domain.Accounts.Account.Create(accountId, "Gate Farm", "UTC", "USD"));
+            db.Accounts.Add(Cluckwork.Domain.Accounts.Account.Create(accountId, "Gate Farm", "farm-" + accountId.ToString("N")[..12], "UTC", "USD"));
             await db.SaveChangesAsync();
         });
         await factory.SeedUserPendingPasswordChangeAsync(accountId, email);
@@ -135,7 +135,7 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         var secondEmail = $"pending2-{Guid.NewGuid():N}@test.local";
         await factory.WithTenantScopeAsync(secondAccountId, async db =>
         {
-            db.Accounts.Add(Cluckwork.Domain.Accounts.Account.Create(secondAccountId, "Gate Farm 2", "UTC", "USD"));
+            db.Accounts.Add(Cluckwork.Domain.Accounts.Account.Create(secondAccountId, "Gate Farm 2", "farm-" + secondAccountId.ToString("N")[..12], "UTC", "USD"));
             await db.SaveChangesAsync();
         });
         await factory.SeedUserPendingPasswordChangeAsync(secondAccountId, secondEmail);
@@ -152,7 +152,7 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         var email = $"pending-{Guid.NewGuid():N}@test.local";
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Accounts.Add(Account.Create(accountId, "Gate Farm", "UTC", "USD"));
+            db.Accounts.Add(Account.Create(accountId, "Gate Farm", "farm-" + accountId.ToString("N")[..12], "UTC", "USD"));
             await db.SaveChangesAsync();
         });
         await factory.SeedUserPendingPasswordChangeAsync(accountId, email);
@@ -174,7 +174,7 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         var email = $"pending-{Guid.NewGuid():N}@test.local";
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Accounts.Add(Cluckwork.Domain.Accounts.Account.Create(accountId, "Gate Farm", "UTC", "USD"));
+            db.Accounts.Add(Cluckwork.Domain.Accounts.Account.Create(accountId, "Gate Farm", "farm-" + accountId.ToString("N")[..12], "UTC", "USD"));
             await db.SaveChangesAsync();
         });
         await factory.SeedUserPendingPasswordChangeAsync(accountId, email);

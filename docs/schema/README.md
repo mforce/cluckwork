@@ -31,7 +31,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
 | [public.__EFMigrationsHistory](public.__EFMigrationsHistory.md) | 2 |  | BASE TABLE |
-| [public.Accounts](public.Accounts.md) | 16 |  | BASE TABLE |
+| [public.Accounts](public.Accounts.md) | 17 |  | BASE TABLE |
 | [public.AspNetRoles](public.AspNetRoles.md) | 4 |  | BASE TABLE |
 | [public.AspNetUsers](public.AspNetUsers.md) | 24 |  | BASE TABLE |
 | [public.AuditEvents](public.AuditEvents.md) | 10 |  | BASE TABLE |
@@ -130,6 +130,7 @@ erDiagram
   integer Version
   uuid AccountId
   varchar_16_ DefaultStepperUnit
+  varchar_32_ Slug
 }
 "public.AspNetRoles" {
   uuid Id

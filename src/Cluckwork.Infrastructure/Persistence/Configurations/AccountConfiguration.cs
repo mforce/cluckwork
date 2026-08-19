@@ -14,6 +14,11 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         builder.HasKey(e => e.Id);
         builder.Property(e => e.AccountId).IsRequired();
         builder.Property(e => e.Name).HasMaxLength(Account.MaxNameLength).IsRequired();
+
+        // #531 — the farm code. Stored already-normalized (lowercase), so a
+        // plain unique index is sufficient (no lower("Slug") expression index).
+        builder.Property(e => e.Slug).HasMaxLength(Account.SlugMaxLength).IsRequired();
+        builder.HasIndex(e => e.Slug).IsUnique();
         builder.Property(e => e.TimeZoneId).HasMaxLength(Account.MaxTimeZoneIdLength).IsRequired();
         builder.Property(e => e.Locale).HasMaxLength(Account.MaxLocaleLength).IsRequired();
         builder.Property(e => e.DefaultCurrencyCode).HasMaxLength(3).IsRequired();
