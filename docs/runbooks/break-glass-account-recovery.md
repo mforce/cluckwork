@@ -67,6 +67,13 @@ dotnet Cluckwork.Api.dll recover-admin \
 dotnet Cluckwork.Api.dll recover-admin --email owner@thefarm.example --account <account-guid> --reason "..."
 ```
 
+> **Ambiguous emails are now expected, not hypothetical (#532).** Since login is
+> farm-scoped, one address can legitimately exist in several farms, and
+> `recover-admin` looks across accounts. An ambiguous email is **refused**
+> (`Recovery.Ambiguous`) — it never picks — so pass `--account <id>` to
+> disambiguate. Find ids with the `list-accounts` command. The code already
+> behaves this way; this note is documentation only.
+
 The database connection comes from the same configuration the serving process
 uses (`ConnectionStrings__Default` / `Database__Provider`, plus the `Jwt__*`
 values the host reads at startup). In a container deployment, exec into the app

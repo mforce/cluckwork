@@ -2181,8 +2181,8 @@ export const en = {
     // Signing in
     signingInHeading: "Signing in",
     signingInBasic:
-      "Sign in with the email and password your administrator set up. A wrong password just says "
-      + "<strong>Invalid email or password</strong> — try again.",
+      "Sign in with your <strong>farm code</strong>, then the email and password your administrator "
+      + "set up. A wrong password just says <strong>Invalid email or password</strong> — try again.",
     signingInRateLimit:
       "To slow down anyone guessing passwords, sign-in attempts from the same place are <strong>limited</strong>. "
       + "After too many tries in a few minutes you'll see <strong>\"Too many sign-in attempts\"</strong> — that "
@@ -2837,6 +2837,14 @@ export const en = {
       + "it asks again next time. Nothing is lost by leaving it — the running app keeps working until you "
       + "accept.",
 
+    // #532 — the login screen asks for it before the email, because one
+    // email can belong to several farms.
+    glossaryFarmCodeTerm: "Farm code",
+    glossaryFarmCodeDef:
+      "The short code that names your farm on the sign-in screen. You type it before your "
+      + "email, because the same email address can exist in several farms and only the code "
+      + "says which one you mean. It is lowercase and it does not change.",
+
     glossaryTooManySignInAttemptsTerm: "Too many sign-in attempts",
     glossaryTooManySignInAttemptsDef:
       "Sign-in is rate limited to slow password guessing: too many attempts from one place in a few "
@@ -2867,7 +2875,6 @@ export const en = {
       + "screen asks you to re-enter your current password right there in the dialog. It confirms it's "
       + "really you before handing out — or taking away — that much access. Disabling and re-enabling ask "
       + "every time, regardless of the target's role; the other three ask only when Owner access is involved.",
-
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:
       "What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything "

@@ -1737,9 +1737,9 @@ export const es = {
 
     signingInHeading: "Iniciar sesión",
     signingInBasic:
-      "Inicie sesión con el correo electrónico y la contraseña que configuró su administrador. Una "
-      + "contraseña incorrecta simplemente indica <strong>Correo electrónico o contraseña inválidos</strong> "
-      + "— inténtelo de nuevo.",
+      "Inicie sesión con su <strong>código de granja</strong> y, a continuación, con el correo "
+      + "electrónico y la contraseña que configuró su administrador. Una contraseña incorrecta simplemente "
+      + "indica <strong>Correo electrónico o contraseña inválidos</strong> — inténtelo de nuevo.",
     signingInRateLimit:
       "Para frenar a cualquiera que intente adivinar contraseñas, los intentos de inicio de sesión desde "
       + "el mismo lugar están <strong>limitados</strong>. Después de demasiados intentos en pocos minutos "
@@ -2421,6 +2421,16 @@ export const es = {
       + "mismas fechas que eligió. Cada granja tiene su propio margen, así que los informes de otra granja "
       + "nunca consumen el suyo.",
 
+    // #532 — the login screen asks for it before the email, because one
+    // email can belong to several farms.
+    // (machine-drafted, pending native review)
+    glossaryFarmCodeTerm: "Código de granja",
+    glossaryFarmCodeDef:
+      "El código corto que identifica a su granja en la pantalla de inicio de sesión. Lo "
+      + "escribe antes que su correo electrónico, porque la misma dirección puede existir en "
+      + "varias granjas y solo el código indica a cuál se refiere. Está en minúsculas y no "
+      + "cambia.",
+
     glossaryTooManySignInAttemptsTerm: "Demasiados intentos de inicio de sesión",
     glossaryTooManySignInAttemptsDef:
       "El inicio de sesión tiene un límite de frecuencia para frenar los intentos de adivinar contraseñas: "
@@ -2445,7 +2455,6 @@ export const es = {
       + "antes de otorgar — o retirar — tanto acceso. Deshabilitar y volver a habilitar preguntan siempre, "
       + "sin importar el rol del usuario; las otras tres solo preguntan cuando está en juego el acceso de "
       + "propietario.",
-
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:
       "Lo que muestra una pantalla cuando encuentra un error, en lugar de quedar en blanco. Los datos "

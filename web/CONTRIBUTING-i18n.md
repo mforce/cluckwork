@@ -115,7 +115,7 @@ function messageFor(err: unknown): string {
 // ✓ Event handler — called during render phase
 async function onSubmit(e: FormEvent) {
   try {
-    await login(email, password);
+    await login(farmCode, email, password);
   } catch (err) {
     setError(messageFor(err));  // Uses imperative i18n.t()
   }

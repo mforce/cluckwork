@@ -1805,8 +1805,9 @@ export const tl = {
 
     signingInHeading: "Pag-sign in",
     signingInBasic:
-      "Mag-sign in gamit ang email at password na ni-set up ng iyong administrator. Ang maling password ay "
-      + "nagsasabi lang na <strong>Mali ang email o password</strong> — subukan ulit.",
+      "Mag-sign in gamit ang <strong>code ng bukid</strong> mo, at pagkatapos ang email at password na "
+      + "ni-set up ng iyong administrator. Ang maling password ay nagsasabi lang na "
+      + "<strong>Mali ang email o password</strong> — subukan ulit.",
     signingInRateLimit:
       "Para pabagalin ang sinumang nag-guess ng password, <strong>limitado</strong> ang mga pagsubok sa "
       + "pag-sign in mula sa parehong lugar. Pagkatapos ng sobrang dami ng subok sa loob ng ilang minuto, "
@@ -2511,6 +2512,16 @@ export const tl = {
       + "screen maya-maya; muling tatakbo ito gamit ang parehong mga petsang pinili mo. May sariling "
       + "alokasyon ang bawat farm, kaya hindi kailanman nauubos ng report ng ibang farm ang sa iyo.",
 
+    // #532 — the login screen asks for it before the email, because one
+    // email can belong to several farms.
+    // (machine-drafted, pending native review)
+    glossaryFarmCodeTerm: "Code ng bukid",
+    glossaryFarmCodeDef:
+      "Ang maikling code na nagpapaalam sa bukid mo sa screen ng sign in. Isinusulat mo ito "
+      + "bago ang iyong email, dahil maaaring nasa ilang bukid ang iisang email address at ang "
+      + "code lamang ang nagsasabi kung alin ang ibig mo sabihin. Lowercase ito at hindi ito "
+      + "nagbabago.",
+
     glossaryTooManySignInAttemptsTerm: "Masyadong maraming pagtatangkang mag-sign in",
     glossaryTooManySignInAttemptsDef:
       "Rate-limited ang pag-sign in para pabagalin ang panghuhula ng password: masyadong maraming "
@@ -2535,7 +2546,6 @@ export const tl = {
       + "password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago bigyan — o bawiin — ang ganoong "
       + "kalaking access. Palaging nagtatanong ang disable at enable, kahit anong role ng user; ang tatlong "
       + "iba pa ay nagtatanong lang kapag may kinalaman sa access ng Owner.",
-
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
       "Ipinapakita ito ng isang screen kapag may error, sa halip na maging blangko. Ligtas ang naka-save "

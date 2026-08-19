@@ -545,6 +545,9 @@ export function HelpPage() {
             <td><Trans ns="help" i18nKey="glossaryInstallToHomeScreenDef" components={{ strong: <strong /> }} /></td></tr>
           <tr><th scope="row">{t("glossaryNewVersionReadyTerm")}</th>
             <td>{t("glossaryNewVersionReadyDef")}</td></tr>
+          {/* #532 — the login screen now asks for it before the email. */}
+          <tr><th scope="row">{t("glossaryFarmCodeTerm")}</th>
+            <td><Trans ns="help" i18nKey="glossaryFarmCodeDef" components={{ strong: <strong /> }} /></td></tr>
           <tr><th scope="row">{t("glossaryTooManySignInAttemptsTerm")}</th>
             <td>{t("glossaryTooManySignInAttemptsDef")}</td></tr>
           <tr><th scope="row">{t("glossaryForcedReauthTerm")}</th>
