@@ -31,7 +31,7 @@ internal static class TestHarness
 
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Accounts.Add(Account.Create(accountId, "Test Farm Co", timeZoneId, "USD"));
+            db.Accounts.Add(Account.Create(accountId, "Test Farm Co", "farm-" + accountId.ToString("N")[..12], timeZoneId, "USD"));
             // Every account carries the packed-unit defaults (#97) — mirrors the
             // startup seeder's SeedDefaultEggUnitConversionsAsync.
             db.EggUnitConversions.AddRange(

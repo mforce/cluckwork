@@ -48,7 +48,7 @@ public sealed class FarmClockTests
     }
 
     private static Account AccountIn(string timeZoneId) =>
-        Account.Create(Guid.NewGuid(), "Test farm", timeZoneId, "USD");
+        Account.Create(Guid.NewGuid(), "Test farm", "test-farm", timeZoneId, "USD");
 
     private static FarmClock Build(IAccountRepository accounts, IClock clock) =>
         new(accounts, clock, NullLogger<FarmClock>.Instance);

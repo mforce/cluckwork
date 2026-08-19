@@ -30,7 +30,7 @@ public sealed class CurrencyLockSerializationTests(CluckworkWebApplicationFactor
         var accountId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Accounts.Add(Account.Create(accountId, "Race Farm", "UTC", "USD"));
+            db.Accounts.Add(Account.Create(accountId, "Race Farm", "farm-" + accountId.ToString("N")[..12], "UTC", "USD"));
             await db.SaveChangesAsync();
         });
         return accountId;

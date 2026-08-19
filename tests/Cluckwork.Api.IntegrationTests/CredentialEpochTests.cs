@@ -336,7 +336,7 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
         var email = $"epoch-{Guid.NewGuid():N}@test.local";
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Accounts.Add(Account.Create(accountId, "Epoch Gate Farm", "UTC", "USD"));
+            db.Accounts.Add(Account.Create(accountId, "Epoch Gate Farm", "farm-" + accountId.ToString("N")[..12], "UTC", "USD"));
             await db.SaveChangesAsync();
         });
         await factory.SeedUserPendingPasswordChangeAsync(accountId, email);

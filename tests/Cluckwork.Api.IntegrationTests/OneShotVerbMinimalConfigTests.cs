@@ -94,6 +94,11 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
         { "migrate", "Production" },
         { "recover-admin --email nobody@example.test", "Production" },
         { "bootstrap-admin --email owner@example.test", "Production" },
+        // Read-only cross-account read (#531). Production on purpose: it is not
+        // environment-gated and runs against the real database. An empty or
+        // fully-populated table both exit 0; a missing/unreachable DB is its own
+        // clean exit 1 (the verb's try/catch), never a crash.
+        { "list-accounts", "Production" },
         // Seeding is deliberately blocked in Production (#280), so BOTH sides of
         // that are cases. The Testing arm is the one that actually seeds.
         { "seed --profile demo", "Testing" },

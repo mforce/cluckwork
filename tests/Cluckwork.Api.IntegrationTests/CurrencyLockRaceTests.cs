@@ -33,7 +33,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         var accountId = Guid.NewGuid();
         await factory.WithTenantScopeAsync(accountId, async db =>
         {
-            db.Accounts.Add(Account.Create(accountId, "Race Farm", "UTC", "USD"));
+            db.Accounts.Add(Account.Create(accountId, "Race Farm", "farm-" + accountId.ToString("N")[..12], "UTC", "USD"));
             // #444 — every real account carries these (TestHarness.SeedAccountWithUserAsync
             // does the same); ChangeCurrencyCommand's DefaultStepperUnit defaults to
             // Individual, and UpdateFarmSettingsHandler now confirms that unit has an

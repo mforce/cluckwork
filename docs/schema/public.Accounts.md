@@ -20,6 +20,7 @@
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
 | DefaultStepperUnit | varchar(16) | 'Individual'::character varying | false |  |  |  |
+| Slug | varchar(32) |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -40,6 +41,7 @@
 | Accounts_IsActive_not_null | n | NOT NULL "IsActive" |
 | Accounts_Locale_not_null | n | NOT NULL "Locale" |
 | Accounts_Name_not_null | n | NOT NULL "Name" |
+| Accounts_Slug_not_null | n | NOT NULL "Slug" |
 | Accounts_TimeZoneId_not_null | n | NOT NULL "TimeZoneId" |
 | Accounts_UnitSystem_not_null | n | NOT NULL "UnitSystem" |
 | Accounts_Version_not_null | n | NOT NULL "Version" |
@@ -50,6 +52,7 @@
 | Name | Definition |
 | ---- | ---------- |
 | PK_Accounts | CREATE UNIQUE INDEX "PK_Accounts" ON public."Accounts" USING btree ("Id") |
+| IX_Accounts_Slug | CREATE UNIQUE INDEX "IX_Accounts_Slug" ON public."Accounts" USING btree ("Slug") |
 
 ## Relations
 
@@ -74,6 +77,7 @@ erDiagram
   integer Version
   uuid AccountId
   varchar_16_ DefaultStepperUnit
+  varchar_32_ Slug
 }
 ```
 
