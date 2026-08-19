@@ -4,6 +4,7 @@ using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
+using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,12 +45,25 @@ public sealed class RefreshTokenPurgeSweepTests(CluckworkWebApplicationFactory f
             : Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"),
     };
 
-    private Task SeedAsync(params RefreshToken[] tokens) =>
-        factory.WithTenantScopeAsync(Guid.NewGuid(), async db =>
-        {
-            db.RefreshTokens.AddRange(tokens);
-            await db.SaveChangesAsync();
-        });
+    // #546 — seeded through an UNRESOLVED tenant, deliberately.
+    //
+    // These fixtures span several accounts on purpose (Sweep_IsTenantSafeAndIdempotent
+    // seeds two), and RefreshToken carries an AccountId while being deliberately NOT
+    // tenant-query-filtered — the sweep is filter-free by design (see the header).
+    // Seeding them under a RESOLVED tenant therefore writes rows belonging to other
+    // accounts, which TenantStampInterceptor now refuses, correctly.
+    //
+    // The previous throwaway `WithTenantScopeAsync(Guid.NewGuid(), ...)` claimed a
+    // tenant these rows do not belong to. An unresolved scope states the truth
+    // instead: this is the same path the seeders and one-shot CLI verbs take, where
+    // the write guard is deliberately inert.
+    private async Task SeedAsync(params RefreshToken[] tokens)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.RefreshTokens.AddRange(tokens);
+        await db.SaveChangesAsync();
+    }
 
     private Task RunSweepAsync() =>
         factory.Services.GetRequiredService<RefreshTokenPurgeSweep>().RunAsync(CancellationToken.None);

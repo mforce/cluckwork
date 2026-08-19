@@ -44,14 +44,21 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
 
     private static string Hash() => Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
 
-    // idempotency_records has no tenant query filter, so seed/read with a throwaway
+    // idempotency_records has no tenant query filter, so READS use a throwaway
     // tenant scope (any AccountId works — the sweep never scopes).
-    private Task SeedAsync(params IdempotencyRecord[] records) =>
-        factory.WithTenantScopeAsync(Guid.NewGuid(), async db =>
-        {
-            db.IdempotencyRecords.AddRange(records);
-            await db.SaveChangesAsync();
-        });
+    //
+    // #546 — WRITES no longer can. These fixtures carry rows for several accounts
+    // and the interceptor now refuses a tracked write whose AccountId is not the
+    // resolved tenant's. A throwaway tenant claimed an account these rows do not
+    // belong to; an UNRESOLVED scope states the truth — the same path the seeders
+    // and one-shot CLI verbs take, where the write guard is deliberately inert.
+    private async Task SeedAsync(params IdempotencyRecord[] records)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.IdempotencyRecords.AddRange(records);
+        await db.SaveChangesAsync();
+    }
 
     private Task RunSweepAsync() =>
         factory.Services.GetRequiredService<IdempotencyRecordPurgeSweep>().RunAsync(CancellationToken.None);
