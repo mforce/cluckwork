@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Endpoints.Auth;
 
 using Cluckwork.Api.Hosting;
+using Cluckwork.Api.Middleware;
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
@@ -34,6 +35,12 @@ public static class AuthEndpoints
         // only the access token.
         group.MapPost("/login", Login)
             .AllowAnonymous()
+            // #532 — AllowAnonymous governs AUTHORIZATION and leaves an
+            // ambient bearer's principal in place. This marker is what makes
+            // AmbientPrincipalMiddleware blank it, so a farm-A token sent to a
+            // farm-B login cannot resolve farm A as the tenant and thereby
+            // bypass the #128 lockout on farm B's user. See the middleware.
+            .WithMetadata(new IgnoresAmbientPrincipalAttribute())
             .RequireRateLimiting(RateLimitingOptions.LoginPolicyName)
             // #309 — 4 KB, not 2 KB: System.Text.Json's DEFAULT encoder escapes
             // non-ASCII as 6-byte \uXXXX sequences, so a maximum-length (256-char)

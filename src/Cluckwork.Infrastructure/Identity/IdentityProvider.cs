@@ -421,7 +421,7 @@ public sealed class IdentityProvider(
 
             var created = await userManager.CreateAsync(user, password);
             if (!created.Succeeded)
-                return Result.Failure<Guid>(await CreateFailureAsync(created, email, accountId));
+                return Result.Failure<Guid>(await CreateFailureAsync(created, email, accountId, token));
 
             if (role is not null)
             {
@@ -1087,7 +1087,8 @@ public sealed class IdentityProvider(
     // already belongs to THIS account. A duplicate in another tenant gets a
     // generic message so the endpoint is not a cross-tenant registration
     // oracle (single-farm today, multi-tenant infrastructure dormant).
-    private async Task<Error> CreateFailureAsync(IdentityResult result, string email, Guid accountId)
+    private async Task<Error> CreateFailureAsync(
+        IdentityResult result, string email, Guid accountId, CancellationToken ct)
     {
         if (!result.Errors.Any(e => e.Code is "DuplicateUserName" or "DuplicateEmail"))
             return Error.Validation("Users.CreateFailed", Describe(result));
@@ -1097,7 +1098,7 @@ public sealed class IdentityProvider(
         // (SingleOrDefaultAsync) threw there — turning a clean 400 into a 500.
         // The account comparison that used to follow is now redundant, because
         // the lookup itself cannot return another farm's row.
-        var existing = await directory.FindByAccountEmailAsync(accountId, email);
+        var existing = await directory.FindByAccountEmailAsync(accountId, email, ct);
         return existing is not null
             ? Error.Validation("Users.DuplicateEmail", "A user with this email already exists.")
             : Error.Validation("Users.CreateFailed", "Could not create the user.");

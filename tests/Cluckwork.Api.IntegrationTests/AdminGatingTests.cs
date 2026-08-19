@@ -3,8 +3,10 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 // #73 — Admin vs not-Admin. The principle under test: anything that undoes,
@@ -264,6 +266,16 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
             new { email = foreignEmail, password = TestHarness.Password, role = "Worker" });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        // #532 review — status alone would also pass if the user had been
+        // created in the FOREIGN account. Pin the account, since "which farm did
+        // this land in" is the entire property under test.
+        var created = await response.Content.ReadFromJsonAsync<Created>();
+        var accountOfCreated = await factory.WithTenantScopeAsync(SeedDefaults.AccountId, db => db.Users
+            .Where(u => u.Id == created!.Id)
+            .Select(u => u.AccountId)
+            .SingleAsync());
+        Assert.Equal(SeedDefaults.AccountId, accountOfCreated);
     }
 
     [Fact]

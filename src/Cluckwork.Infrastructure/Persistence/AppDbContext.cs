@@ -120,6 +120,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
                 user.Metadata.RemoveIndex(index);
         }
 
+        // #532 review (owner) — Identity leaves all four of these nullable
+        // because it supports username-only users with no email. This
+        // application has none: every creation site sets UserName = email and
+        // login IS by email, so optionality buys nothing and costs two things.
+        //
+        // First, Postgres allows MULTIPLE NULLS in a unique index, so a null
+        // NormalizedUserName or NormalizedEmail sits OUTSIDE the composite
+        // uniqueness this slice exists to enforce — a hole in the feature, not
+        // merely defensive typing. Second, a stored null is a value the
+        // validator would have to keep special-casing on the update path.
+        //
+        // Required here rather than by convention, so the database enforces it
+        // instead of a comment claiming it cannot happen.
+        user.Property(u => u.Email).IsRequired();
+        user.Property(u => u.NormalizedEmail).IsRequired();
+        user.Property(u => u.UserName).IsRequired();
+        user.Property(u => u.NormalizedUserName).IsRequired();
+
         user.HasIndex(u => new { u.AccountId, u.NormalizedUserName })
             .HasDatabaseName("UserNameIndex")
             .IsUnique();

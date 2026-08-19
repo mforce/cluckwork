@@ -243,13 +243,19 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
             await db.SaveChangesAsync();
         });
         var enabledEmail = $"epoch-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(enabledEmail);
+        var enabledAccountId = await factory.SeedAccountWithUserAsync(enabledEmail);
 
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
-        var disabledWrong = await identity.LoginAsync(SeedDefaults.AccountId, disabledEmail, CreatePassword());
-        var disabledCorrect = await identity.LoginAsync(SeedDefaults.AccountId, disabledEmail, TestHarness.Password);
-        var enabledWrong = await identity.LoginAsync(SeedDefaults.AccountId, enabledEmail, CreatePassword());
+        // #532 — each probe must target the account its user is actually IN.
+        // SeedAccountWithUserAsync mints a fresh account per call, so passing
+        // SeedDefaults.AccountId made all three lookups miss and every assertion
+        // below hold for the wrong reason: this test proves a DISABLED user's
+        // failure is indistinguishable from a wrong password, and it proved
+        // nothing at all while no user was ever found.
+        var disabledWrong = await identity.LoginAsync(disabledAccountId, disabledEmail, CreatePassword());
+        var disabledCorrect = await identity.LoginAsync(disabledAccountId, disabledEmail, TestHarness.Password);
+        var enabledWrong = await identity.LoginAsync(enabledAccountId, enabledEmail, CreatePassword());
 
         Assert.True(disabledWrong.IsFailure);
         Assert.True(disabledCorrect.IsFailure);

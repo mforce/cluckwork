@@ -39,6 +39,7 @@ public sealed class DemoDataSeeder(
     TenantContext tenant,
     CurrentUserContext currentUser,
     UserManager<ApplicationUser> users,
+    IAccountUserDirectory directory,
     IEggGradeRepository eggGrades,
     CreateFlockHandler createFlock,
     RecordDailyEntryHandler recordEntry,
@@ -180,9 +181,10 @@ public sealed class DemoDataSeeder(
     // "no Owner at all" and "only disabled Owners" need different remedies.
     private async Task<(ApplicationUser? Owner, int DisabledOwners)> FindOwnerAsync(Guid accountId)
     {
-        var owners = (await users.GetUsersInRoleAsync(Roles.Owner))
-            .Where(u => u.AccountId == accountId)
-            .ToList();
+        // #532 — scoped at the query. GetUsersInRoleAsync loaded every Owner in
+        // every farm and post-filtered in memory: correct while one farm
+        // existed, an O(all farms) cross-tenant read once several do.
+        var owners = (await directory.FindByAccountRoleAsync(accountId, Roles.Owner)).ToList();
 
         return (owners.Where(u => u.DisabledAt is null).OrderBy(u => u.Id).FirstOrDefault(),
                 owners.Count(u => u.DisabledAt is not null));

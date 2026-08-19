@@ -77,11 +77,17 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
         var email = await SeedUserAsync();
         var client = factory.CreateClient();
 
+        // #532 — BOTH probes target the SAME farm. What this test guards is that
+        // an unknown USER is indistinguishable from a wrong password; resolving
+        // the unknown address to its own farm code compares two different farms'
+        // denial shapes instead, which is a different (and already-disclosed)
+        // property. Same correction as AuthBodyLimitTests.
+        var farmCode = await factory.FarmCodeForAsync(email);
         var unknownEmail = $"nobody-{Guid.NewGuid():N}@test.local";
         var unknown = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(unknownEmail), email = unknownEmail, password = "WrongPassw0rd!x" });
+            "/api/v1/auth/login", new { farmCode, email = unknownEmail, password = "WrongPassw0rd!x" });
         var wrongPassword = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = "WrongPassw0rd!x" });
+            "/api/v1/auth/login", new { farmCode, email, password = "WrongPassw0rd!x" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, unknown.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);

@@ -363,10 +363,20 @@ internal static class TestHarness
         // Test-only, and deliberately global: the point is to discover WHICH farm
         // the seeded user is in. IgnoreQueryFilters because Accounts is
         // tenant-filtered and this scope resolves no tenant.
-        var accountId = await db.Users
+        // #532 review — the whole point of this slice is that an email CAN now
+        // belong to several farms, so FirstOrDefault would silently pick
+        // whichever row Postgres ordered first and hide the ambiguity a test
+        // ought to state. Fail loudly instead: a test with a shared email must
+        // pass its farm code explicitly.
+        var accountIds = await db.Users
             .Where(u => u.NormalizedEmail == normalized)
             .Select(u => u.AccountId)
-            .FirstOrDefaultAsync();
+            .ToListAsync();
+        if (accountIds.Count > 1)
+            throw new InvalidOperationException(
+                $"'{email}' exists in {accountIds.Count} accounts, so its farm code is ambiguous. "
+                + "Pass the farm code explicitly in this test instead of resolving it from the email.");
+        var accountId = accountIds.Count == 1 ? accountIds[0] : Guid.Empty;
 
         return accountId == Guid.Empty
             ? DefaultFarmCode

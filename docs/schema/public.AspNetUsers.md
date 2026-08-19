@@ -9,10 +9,10 @@
 | DisplayName | text |  | true |  |  |  |
 | Language | varchar(16) |  | true |  |  |  |
 | MustChangePassword | boolean |  | false |  |  |  |
-| UserName | varchar(256) |  | true |  |  |  |
-| NormalizedUserName | varchar(256) |  | true |  |  |  |
-| Email | varchar(256) |  | true |  |  |  |
-| NormalizedEmail | varchar(256) |  | true |  |  |  |
+| UserName | varchar(256) |  | false |  |  |  |
+| NormalizedUserName | varchar(256) |  | false |  |  |  |
+| Email | varchar(256) |  | false |  |  |  |
+| NormalizedEmail | varchar(256) |  | false |  |  |  |
 | EmailConfirmed | boolean |  | false |  |  |  |
 | PasswordHash | text |  | true |  |  |  |
 | SecurityStamp | text |  | true |  |  |  |
@@ -43,12 +43,16 @@
 | AspNetUsers_AccountId_not_null | n | NOT NULL "AccountId" |
 | AspNetUsers_CredentialEpoch_not_null | n | NOT NULL "CredentialEpoch" |
 | AspNetUsers_EmailConfirmed_not_null | n | NOT NULL "EmailConfirmed" |
+| AspNetUsers_Email_not_null | n | NOT NULL "Email" |
 | AspNetUsers_Id_not_null | n | NOT NULL "Id" |
 | AspNetUsers_LockoutEnabled_not_null | n | NOT NULL "LockoutEnabled" |
 | AspNetUsers_MustChangePassword_not_null | n | NOT NULL "MustChangePassword" |
+| AspNetUsers_NormalizedEmail_not_null | n | NOT NULL "NormalizedEmail" |
+| AspNetUsers_NormalizedUserName_not_null | n | NOT NULL "NormalizedUserName" |
 | AspNetUsers_PhoneNumberConfirmed_not_null | n | NOT NULL "PhoneNumberConfirmed" |
 | AspNetUsers_StepUpLogoutEpoch_not_null | n | NOT NULL "StepUpLogoutEpoch" |
 | AspNetUsers_TwoFactorEnabled_not_null | n | NOT NULL "TwoFactorEnabled" |
+| AspNetUsers_UserName_not_null | n | NOT NULL "UserName" |
 | FK_AspNetUsers_Accounts_AccountId | FOREIGN KEY | FOREIGN KEY ("AccountId") REFERENCES "Accounts"("Id") ON DELETE RESTRICT |
 | PK_AspNetUsers | PRIMARY KEY | PRIMARY KEY ("Id") |
 

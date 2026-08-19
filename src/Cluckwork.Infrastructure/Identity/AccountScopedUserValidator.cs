@@ -48,6 +48,23 @@ internal sealed class AccountScopedUserValidator(
 
         var errors = new List<IdentityError>();
 
+        // The row as the DATABASE has it, or null when this user is not stored
+        // yet. This is the honest create-vs-update discriminator: the entity's
+        // own normalized columns are null during CreateAsync validation
+        // (UserManager writes them only after validating), so "NormalizedEmail
+        // is null" cannot tell a create apart from a PERSISTED row whose email
+        // is null — and #529's legacy import is exactly where such a row comes
+        // from. One indexed primary-key lookup, on a path that already issues
+        // several, to keep a security control correct.
+        var persisted = await db.Users.AsNoTracking()
+            .Where(candidate => candidate.Id == user.Id)
+            .Select(candidate => new
+            {
+                candidate.NormalizedUserName,
+                candidate.NormalizedEmail,
+            })
+            .FirstOrDefaultAsync();
+
         // An account-less user would otherwise collapse into a single pseudo-account
         // with every other account-less user, and the scoped queries below would read
         // their collisions as legitimate distinct-farm duplicates.
@@ -60,16 +77,41 @@ internal sealed class AccountScopedUserValidator(
             });
         }
 
-        await ValidateUserNameAsync(manager, user, errors);
-        await ValidateEmailAsync(manager, user, errors);
+        await ValidateUserNameAsync(manager, user, errors, persisted?.NormalizedUserName, persisted is not null);
+        await ValidateEmailAsync(manager, user, errors, persisted?.NormalizedEmail, persisted is not null);
 
         return errors.Count == 0 ? IdentityResult.Success : IdentityResult.Failed([.. errors]);
     }
 
     private async Task ValidateUserNameAsync(
-        UserManager<ApplicationUser> manager, ApplicationUser user, List<IdentityError> errors)
+        UserManager<ApplicationUser> manager, ApplicationUser user, List<IdentityError> errors,
+        string? persistedNormalizedUserName, bool isPersisted)
     {
         var userName = await manager.GetUserNameAsync(user);
+
+        // #532 review — UNCHANGED VALUES ARE NOT RE-LITIGATED. This validator
+        // runs on Identity's UPDATE pipeline too (AccessFailedAsync,
+        // ResetPasswordAsync, ChangePasswordAsync, AddToRoleAsync, stamp
+        // rotation), and AccountLockout.RecordFailedAccessAsync reads a failed
+        // IdentityResult as a lost concurrency race: it reloads and retries ten
+        // times, then returns false. So ANY persisted row this validator
+        // dislikes makes AccessFailedCount stop incrementing — the #128 account
+        // lockout goes silently inert while login keeps answering normally.
+        //
+        // A row whose normalized value already equals what is stored is, by
+        // definition, on disk under whatever rules applied when it was written.
+        // Skipping it makes the validator idempotent for unchanged values and
+        // removes that whole class, rather than just the email instance of it.
+        //
+        // isPersisted, not a null test on the entity: see the lookup in
+        // ValidateAsync for why the entity's own normalized columns cannot tell
+        // a create apart from a stored row whose value is null.
+        if (isPersisted
+            && string.Equals(persistedNormalizedUserName, manager.NormalizeName(userName), StringComparison.Ordinal))
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(userName))
         {
             errors.Add(describer.InvalidUserName(userName));
@@ -95,7 +137,8 @@ internal sealed class AccountScopedUserValidator(
     }
 
     private async Task ValidateEmailAsync(
-        UserManager<ApplicationUser> manager, ApplicationUser user, List<IdentityError> errors)
+        UserManager<ApplicationUser> manager, ApplicationUser user, List<IdentityError> errors,
+        string? persistedNormalizedEmail, bool isPersisted)
     {
         // Stock only inspects the email when RequireUniqueEmail is set; mirroring
         // that keeps this a replacement rather than a new policy. AddCluckworkIdentity
@@ -103,6 +146,19 @@ internal sealed class AccountScopedUserValidator(
         if (!manager.Options.User.RequireUniqueEmail) return;
 
         var email = await manager.GetEmailAsync(user);
+
+        // Same unchanged-value short-circuit as the user name above, and the
+        // reason it matters more here: RequireUniqueEmail is newly true, so
+        // this branch is live for the first time over a population nothing ever
+        // validated. EmailIndex was non-unique and the stock email checks never
+        // ran, so a legacy row with a blank or malformed address is possible —
+        // and without this it would fail every update-pipeline call forever.
+        if (isPersisted
+            && string.Equals(persistedNormalizedEmail, manager.NormalizeEmail(email), StringComparison.Ordinal))
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(email))
         {
             errors.Add(describer.InvalidEmail(email));

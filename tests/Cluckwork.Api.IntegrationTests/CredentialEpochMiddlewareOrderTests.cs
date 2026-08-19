@@ -15,6 +15,15 @@ public sealed class CredentialEpochMiddlewareOrderTests
         string[] expectedOrder =
         [
             "app.UseAuthentication();",
+            // #532 — between authentication and tenant resolution, and the
+            // position is the point. It blanks the ambient principal for
+            // /auth/login, so a bearer for one farm cannot resolve a tenant
+            // while the request authenticates against another. Placed AFTER
+            // tenant resolution it would be useless (the tenant is already
+            // resolved from the foreign bearer, and AccessFailedAsync then
+            // writes across the boundary, bypassing the #128 lockout); placed
+            // BEFORE authentication it would have no principal to blank.
+            "app.UseMiddleware<AmbientPrincipalMiddleware>();",
             "app.UseMiddleware<TenantResolutionMiddleware>();",
             "app.UseMiddleware<CredentialEpochMiddleware>();",
             "app.UseMiddleware<MustChangePasswordMiddleware>();",
