@@ -134,7 +134,7 @@ public sealed class OtlpExporterTests(OtlpFactory factory)
             // Npgsql/EF instruments record at least one measurement
             // (unrecorded histograms are omitted from the export entirely).
             var response = await exporting.CreateClient().PostAsJsonAsync(
-                "/api/v1/auth/login", new { email = "nobody@test.local", password = "wrong-password-123!" });
+                "/api/v1/auth/login", new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@test.local", password = "wrong-password-123!" });
             Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
         }
         finally

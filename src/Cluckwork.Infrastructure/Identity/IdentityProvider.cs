@@ -24,11 +24,17 @@ public sealed class IdentityProvider(
     IHttpContextAccessor httpContextAccessor,
     AuthSecurityEventLogger securityEvents,
     ILogger<IdentityProvider> logger,
-    Cluckwork.Application.Features.Accounts.IAccountRepository accounts) : IIdentityProvider
+    Cluckwork.Application.Features.Accounts.IAccountRepository accounts,
+    IAccountUserDirectory directory) : IIdentityProvider
 {
-    public async Task<Result<TokenPair>> LoginAsync(string email, string password, CancellationToken ct = default)
+    public async Task<Result<TokenPair>> LoginAsync(
+        Guid accountId, string email, string password, CancellationToken ct = default)
     {
-        var user = await userManager.FindByEmailAsync(email);
+        // #532 — ACCOUNT-SCOPED. The old global userManager.FindByEmailAsync was
+        // not merely unscoped, it was a crash: UserStore backs it with
+        // SingleOrDefaultAsync, so the first email shared by two farms threw
+        // here — breaking login for BOTH farms' users, not just the duplicate.
+        var user = await directory.FindByAccountEmailAsync(accountId, email, ct);
         if (user is null)
         {
             // Always pay the PBKDF2 cost so that "user not found" and "wrong password"
@@ -1086,8 +1092,13 @@ public sealed class IdentityProvider(
         if (!result.Errors.Any(e => e.Code is "DuplicateUserName" or "DuplicateEmail"))
             return Error.Validation("Users.CreateFailed", Describe(result));
 
-        var existing = await userManager.FindByEmailAsync(email);
-        return existing is not null && existing.AccountId == accountId
+        // #532 — scoped, and it HAD to be: this runs on the duplicate path, i.e.
+        // exactly when duplicates exist, and the global lookup it replaces
+        // (SingleOrDefaultAsync) threw there — turning a clean 400 into a 500.
+        // The account comparison that used to follow is now redundant, because
+        // the lookup itself cannot return another farm's row.
+        var existing = await directory.FindByAccountEmailAsync(accountId, email);
+        return existing is not null
             ? Error.Validation("Users.DuplicateEmail", "A user with this email already exists.")
             : Error.Validation("Users.CreateFailed", "Could not create the user.");
     }

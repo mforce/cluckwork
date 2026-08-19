@@ -156,7 +156,7 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
     {
         var client = factory.CreateClient();
         var oversized = Encoding.UTF8.GetBytes(
-            $$"""{"email":"nobody@example.com","password":"{{new string('a', LoginCapBytes * 2)}}"}""");
+            $$"""{"farmCode":"default-farm","email":"nobody@example.com","password":"{{new string('a', LoginCapBytes * 2)}}"}""");
         var mark = factory.MarkLog();
 
         var response = await client.SendAsync(ChunkedRequest(HttpMethod.Post, LoginPath, oversized, "application/json"));
@@ -184,7 +184,7 @@ public sealed class KestrelRequestBodyLimitTests(KestrelBackedFactory factory)
         // every undeclared-length body outright, the oversized test above
         // would still pass (still expects 413) while this one would catch it.
         var underCap = Encoding.UTF8.GetBytes(
-            $$"""{"email":"nobody@example.com","password":"{{new string('a', 200)}}"}""");
+            $$"""{"farmCode":"default-farm","email":"nobody@example.com","password":"{{new string('a', 200)}}"}""");
 
         var response = await client.SendAsync(ChunkedRequest(HttpMethod.Post, LoginPath, underCap, "application/json"));
 

@@ -227,7 +227,7 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
 
         _factory.CommandFault.Arm("UPDATE \"AspNetUsers\"", afterExecution: true);
         var response = await _factory.CreateClient().PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = FreshPassword() });
+            "/api/v1/auth/login", new { farmCode = await _factory.FarmCodeForAsync(email), email, password = FreshPassword() });
         _factory.CommandFault.Disarm();
 
         // The increment's UPDATE genuinely reached the server and committed —
@@ -514,7 +514,7 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
 
         _factory.CommandFault.Arm("INSERT INTO refresh_tokens", afterExecution: true);
         var response = await _factory.CreateClient(Cookieless).PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = TestHarness.Password });
+            "/api/v1/auth/login", new { farmCode = await _factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
         _factory.CommandFault.Disarm();
 
         Assert.Equal(2, _factory.CommandFault.Matches);
@@ -556,12 +556,12 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
         // One wrong password, so the reset below is not a no-op: Identity
         // short-circuits ResetAccessFailedCountAsync when the count is already 0.
         await _factory.CreateClient(Cookieless).PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = FreshPassword() });
+            "/api/v1/auth/login", new { farmCode = await _factory.FarmCodeForAsync(email), email, password = FreshPassword() });
         Assert.Equal(1, await FailedAccessCountAsync(accountId, email));
 
         _factory.CommandFault.Arm("UPDATE \"AspNetUsers\"", afterExecution: true);
         var response = await _factory.CreateClient(Cookieless).PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = TestHarness.Password });
+            "/api/v1/auth/login", new { farmCode = await _factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
         _factory.CommandFault.Disarm();
 
         Assert.True(_factory.CommandFault.Matches >= 1);

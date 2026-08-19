@@ -16,7 +16,7 @@ public sealed class LoginRequestValidatorTests
     public void Password_over_256_is_rejected_with_max_length_code()
     {
         var result = _validator.Validate(
-            new LoginRequest("user@example.com", new string('a', PasswordRules.MaxLength + 1)));
+            new LoginRequest("default-farm", "user@example.com", new string('a', PasswordRules.MaxLength + 1)));
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.ErrorCode == "Auth.Password.MaxLength");
@@ -26,7 +26,7 @@ public sealed class LoginRequestValidatorTests
     public void Email_over_256_is_rejected_with_max_length_code()
     {
         var result = _validator.Validate(
-            new LoginRequest(new string('a', 257), "ValidPassw0rd!"));
+            new LoginRequest("default-farm", new string('a', 257), "ValidPassw0rd!"));
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.ErrorCode == "Auth.Email.MaxLength");
@@ -37,7 +37,7 @@ public sealed class LoginRequestValidatorTests
     {
         // Empty is NOT the validator's concern — the endpoint must still call
         // LoginAsync and return the non-enumerating 401, unchanged by #309.
-        var result = _validator.Validate(new LoginRequest("", ""));
+        var result = _validator.Validate(new LoginRequest("default-farm", "", ""));
 
         Assert.True(result.IsValid);
     }
@@ -49,7 +49,7 @@ public sealed class LoginRequestValidatorTests
     [Fact]
     public void Email_at_256_validates_with_no_max_length_error()
     {
-        var result = _validator.Validate(new LoginRequest(new string('a', 256), "ValidPassw0rd!"));
+        var result = _validator.Validate(new LoginRequest("default-farm", new string('a', 256), "ValidPassw0rd!"));
 
         Assert.DoesNotContain(result.Errors, e => e.ErrorCode == "Auth.Email.MaxLength");
     }
@@ -58,7 +58,7 @@ public sealed class LoginRequestValidatorTests
     public void Password_at_256_validates_with_no_max_length_error()
     {
         var result = _validator.Validate(
-            new LoginRequest("user@example.com", new string('a', PasswordRules.MaxLength)));
+            new LoginRequest("default-farm", "user@example.com", new string('a', PasswordRules.MaxLength)));
 
         Assert.DoesNotContain(result.Errors, e => e.ErrorCode == "Auth.Password.MaxLength");
     }
@@ -72,7 +72,7 @@ public sealed class LoginRequestValidatorTests
     [Fact]
     public void Null_email_is_rejected_with_a_required_code()
     {
-        var result = _validator.Validate(new LoginRequest(null!, "ValidPassw0rd!"));
+        var result = _validator.Validate(new LoginRequest("default-farm", null!, "ValidPassw0rd!"));
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.ErrorCode == "Auth.Email.Required");
@@ -81,7 +81,7 @@ public sealed class LoginRequestValidatorTests
     [Fact]
     public void Null_password_is_rejected_with_a_required_code()
     {
-        var result = _validator.Validate(new LoginRequest("user@example.com", null!));
+        var result = _validator.Validate(new LoginRequest("default-farm", "user@example.com", null!));
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.ErrorCode == "Auth.Password.Required");

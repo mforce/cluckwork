@@ -1,5 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using Cluckwork.Domain.Accounts;
+
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -89,9 +91,9 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         using var scope = _factory.Services.CreateScope();
         var idp = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
 
-        Assert.True((await idp.LoginAsync(_factory.AdminEmail, tempPassword)).IsSuccess,
+        Assert.True((await idp.LoginAsync(SeedDefaults.AccountId, _factory.AdminEmail, tempPassword)).IsSuccess,
             "the printed temporary password should log in");
-        Assert.True((await idp.LoginAsync(_factory.AdminEmail, _factory.AdminPassword)).IsFailure,
+        Assert.True((await idp.LoginAsync(SeedDefaults.AccountId, _factory.AdminEmail, _factory.AdminPassword)).IsFailure,
             "the old seeded password must be rejected after recovery");
     }
 

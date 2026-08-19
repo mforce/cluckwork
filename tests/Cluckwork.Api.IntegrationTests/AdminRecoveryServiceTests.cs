@@ -64,7 +64,7 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
         using (var s = Scope())
         {
             var idp = s.ServiceProvider.GetRequiredService<IIdentityProvider>();
-            var login = await idp.LoginAsync(_factory.AdminEmail, _factory.AdminPassword);
+            var login = await idp.LoginAsync(SeedDefaults.AccountId, _factory.AdminEmail, _factory.AdminPassword);
             Assert.True(login.IsSuccess, "seeded admin should log in before recovery: " + (login.IsFailure ? login.Error.Code + " " + login.Error.Description : ""));
             oldRefreshToken = login.Value.RefreshToken;
 
@@ -103,9 +103,9 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
         using (var s = Scope())
         {
             var idp = s.ServiceProvider.GetRequiredService<IIdentityProvider>();
-            Assert.True((await idp.LoginAsync(_factory.AdminEmail, tempPassword)).IsSuccess,
+            Assert.True((await idp.LoginAsync(SeedDefaults.AccountId, _factory.AdminEmail, tempPassword)).IsSuccess,
                 "temporary password should log in (the reset must clear the lockout)");
-            Assert.True((await idp.LoginAsync(_factory.AdminEmail, _factory.AdminPassword)).IsFailure,
+            Assert.True((await idp.LoginAsync(SeedDefaults.AccountId, _factory.AdminEmail, _factory.AdminPassword)).IsFailure,
                 "old password must be rejected after recovery");
 
             var um = s.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();

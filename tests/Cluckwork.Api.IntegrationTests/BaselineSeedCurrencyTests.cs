@@ -35,7 +35,7 @@ public sealed class BaselineSeedCurrencyTests : IClassFixture<CluckworkWebApplic
 
         var client = _factory.CreateClient();
         var login = await client.PostAsJsonAsync("/api/v1/auth/login",
-            new { email, password = TestHarness.Password });
+            new { farmCode = TestHarness.DefaultFarmCode, email, password = TestHarness.Password });
         var loginBody = await login.Content.ReadAsStringAsync();
         Assert.True(login.StatusCode == HttpStatusCode.OK,
             $"Login against the migration-seeded default account failed: {(int)login.StatusCode}: {loginBody}");

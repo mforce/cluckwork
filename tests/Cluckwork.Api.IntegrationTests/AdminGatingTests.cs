@@ -246,10 +246,15 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, replayed.StatusCode);
     }
 
-    // A duplicate email in ANOTHER tenant gets the generic message — the
-    // admin endpoint must not double as a cross-tenant registration oracle.
+    // #532 — INVERTED. This used to assert that a duplicate email in another
+    // tenant was refused with a generic message, so the admin endpoint could not
+    // double as a cross-tenant registration oracle. Per-account email identity
+    // makes that refusal wrong: one email belonging to exactly one farm forever
+    // is the defect this slice removes (epic #530 decision 3). The oracle
+    // concern it protected is gone with it — there is nothing to disclose,
+    // because another farm's use of an address no longer constrains this one.
     [Fact]
-    public async Task DuplicateEmail_InAnotherAccount_GetsGenericMessage()
+    public async Task DuplicateEmail_InAnotherAccount_IsAllowed()
     {
         var foreignEmail = $"foreign-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(foreignEmail);
@@ -258,10 +263,7 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         var response = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
             new { email = foreignEmail, password = TestHarness.Password, role = "Worker" });
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Could not create the user.", body);
-        Assert.DoesNotContain("already", body);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     [Fact]

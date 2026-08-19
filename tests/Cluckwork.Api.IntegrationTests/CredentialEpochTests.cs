@@ -247,9 +247,9 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
 
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
-        var disabledWrong = await identity.LoginAsync(disabledEmail, CreatePassword());
-        var disabledCorrect = await identity.LoginAsync(disabledEmail, TestHarness.Password);
-        var enabledWrong = await identity.LoginAsync(enabledEmail, CreatePassword());
+        var disabledWrong = await identity.LoginAsync(SeedDefaults.AccountId, disabledEmail, CreatePassword());
+        var disabledCorrect = await identity.LoginAsync(SeedDefaults.AccountId, disabledEmail, TestHarness.Password);
+        var enabledWrong = await identity.LoginAsync(SeedDefaults.AccountId, enabledEmail, CreatePassword());
 
         Assert.True(disabledWrong.IsFailure);
         Assert.True(disabledCorrect.IsFailure);

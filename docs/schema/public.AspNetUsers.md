@@ -5,7 +5,7 @@
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
 | Id | uuid |  | false | [public.AspNetUserClaims](public.AspNetUserClaims.md) [public.AspNetUserLogins](public.AspNetUserLogins.md) [public.AspNetUserRoles](public.AspNetUserRoles.md) [public.AspNetUserTokens](public.AspNetUserTokens.md) |  |  |
-| AccountId | uuid |  | false |  |  |  |
+| AccountId | uuid |  | false |  | [public.Accounts](public.Accounts.md) |  |
 | DisplayName | text |  | true |  |  |  |
 | Language | varchar(16) |  | true |  |  |  |
 | MustChangePassword | boolean |  | false |  |  |  |
@@ -49,6 +49,7 @@
 | AspNetUsers_PhoneNumberConfirmed_not_null | n | NOT NULL "PhoneNumberConfirmed" |
 | AspNetUsers_StepUpLogoutEpoch_not_null | n | NOT NULL "StepUpLogoutEpoch" |
 | AspNetUsers_TwoFactorEnabled_not_null | n | NOT NULL "TwoFactorEnabled" |
+| FK_AspNetUsers_Accounts_AccountId | FOREIGN KEY | FOREIGN KEY ("AccountId") REFERENCES "Accounts"("Id") ON DELETE RESTRICT |
 | PK_AspNetUsers | PRIMARY KEY | PRIMARY KEY ("Id") |
 
 ## Indexes
@@ -56,8 +57,8 @@
 | Name | Definition |
 | ---- | ---------- |
 | PK_AspNetUsers | CREATE UNIQUE INDEX "PK_AspNetUsers" ON public."AspNetUsers" USING btree ("Id") |
-| EmailIndex | CREATE INDEX "EmailIndex" ON public."AspNetUsers" USING btree ("NormalizedEmail") |
-| UserNameIndex | CREATE UNIQUE INDEX "UserNameIndex" ON public."AspNetUsers" USING btree ("NormalizedUserName") |
+| EmailIndex | CREATE UNIQUE INDEX "EmailIndex" ON public."AspNetUsers" USING btree ("AccountId", "NormalizedEmail") |
+| UserNameIndex | CREATE UNIQUE INDEX "UserNameIndex" ON public."AspNetUsers" USING btree ("AccountId", "NormalizedUserName") |
 
 ## Relations
 
@@ -68,10 +69,11 @@ erDiagram
 "public.AspNetUserLogins" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.AspNetUsers" }o--|| "public.Accounts" : "FOREIGN KEY (#quot;AccountId#quot;) REFERENCES #quot;Accounts#quot;(#quot;Id#quot;) ON DELETE RESTRICT"
 
 "public.AspNetUsers" {
   uuid Id
-  uuid AccountId
+  uuid AccountId FK
   text DisplayName
   varchar_16_ Language
   boolean MustChangePassword
@@ -116,6 +118,25 @@ erDiagram
   text LoginProvider
   text Name
   text Value
+}
+"public.Accounts" {
+  uuid Id
+  varchar_120_ Name
+  varchar_64_ TimeZoneId
+  varchar_32_ Locale
+  varchar_3_ DefaultCurrencyCode
+  varchar_8_ DefaultCurrencySymbol
+  integer DefaultCurrencyMinorUnit
+  varchar_16_ UnitSystem
+  varchar_16_ FirstDayOfWeek
+  varchar_32_ DateFormatOverride
+  varchar_32_ TimeFormatOverride
+  varchar_32_ Brand
+  boolean IsActive
+  integer Version
+  uuid AccountId
+  varchar_16_ DefaultStepperUnit
+  varchar_32_ Slug
 }
 ```
 

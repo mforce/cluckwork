@@ -21,7 +21,7 @@ public sealed class SeedAndFlockTests(CluckworkWebApplicationFactory factory)
 
         var client = factory.CreateClient();
         var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = TestHarness.Password });
+            "/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
 
         var body = await response.Content.ReadAsStringAsync();
         Assert.True(response.StatusCode == HttpStatusCode.OK,

@@ -4,6 +4,8 @@ using Cluckwork.Api.Hosting;
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Accounts;
+using Cluckwork.Domain.Accounts;
 using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
@@ -127,6 +129,21 @@ public static class AuthEndpoints
     // — see the Login handler for what that does and does not claim.
     public const string NoOwnerProvisionedCode = "Auth.NoOwnerProvisioned";
 
+    // #532 — the farm code names a farm this deployment does not have. Epic #530
+    // decision 6 chose a DISTINCT response knowingly: it makes /auth/login a
+    // farm-enumeration oracle, and that was accepted because the alternative
+    // (a generic denial) leaves an operator who mistyped their farm code with no
+    // way to tell that from a wrong password. The slug MUST NOT reach a metric
+    // label or a log dimension — it is attacker-supplied and unbounded.
+    public const string UnknownFarmCodeCode = "Auth.UnknownFarmCode";
+
+    // #532 — the farm exists and is suspended. DISTINCT from invalid credentials
+    // by owner decision, AMENDING epic #530 decision 6, which required suspended
+    // and active farms to be indistinguishable. The trade was made explicitly:
+    // telling a farm's own staff their password is wrong is a lie that generates
+    // support load, and farm existence is already disclosed by the branch above.
+    public const string FarmSuspendedCode = "Auth.FarmSuspended";
+
     // In every environment but Development the browser reaches the app over HTTPS
     // (TLS terminates at the proxy), so the auth cookie must be Secure regardless
     // of the internal proxy→app hop scheme.
@@ -135,7 +152,8 @@ public static class AuthEndpoints
     private static async Task<IResult> Login(
         LoginRequest request, IIdentityProvider identity, IValidator<LoginRequest> validator,
         HttpResponse response, IOptions<JwtOptions> jwt, IWebHostEnvironment env,
-        FirstRunStatusService firstRun, CancellationToken ct)
+        FirstRunStatusService firstRun, IAccountRepository accounts,
+        AuthSecurityEventLogger securityEvents, CancellationToken ct)
     {
         // #309 — reject an OVERSIZED email/password (400) before the hasher. An
         // empty/short credential is NOT rejected here: it still flows to
@@ -144,7 +162,40 @@ public static class AuthEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await identity.LoginAsync(request.Email, request.Password, ct);
+        // #532 — resolve the FARM before the credential. FindBySlugAsync folds the
+        // code to lowercase and ignores the tenant query filter; both are
+        // mandatory, not tidiness. Login is AllowAnonymous, so TenantContext is
+        // unresolved and the Account filter (AccountId == Guid.Empty) matches
+        // zero rows — a lookup written the obvious way reports every farm code as
+        // unknown, silently.
+        var account = await accounts.FindBySlugAsync(request.FarmCode, ct);
+        if (account is null)
+        {
+            // Identity-free, exactly like every other unsuccessful branch, and
+            // carrying NO slug: this stream must not become the enumeration
+            // oracle the response already is, at unbounded log cardinality.
+            // Deliberately does NOT touch AccessFailedAsync — there is no user
+            // row here, and a farm code must never burn a real account's
+            // lockout budget.
+            securityEvents.LoginFailed();
+            return Results.Problem(
+                "That farm code is not recognised.",
+                statusCode: 401, title: UnknownFarmCodeCode);
+        }
+
+        if (!account.IsActive)
+        {
+            // BEFORE the credential check and before the first-run notice below:
+            // a suspended farm must answer the same way whether or not the
+            // password was right, and must not fall through to a branch that
+            // discloses its provisioning state instead.
+            securityEvents.LoginFailed();
+            return Results.Problem(
+                "This farm is suspended. Contact your administrator.",
+                statusCode: 401, title: FarmSuspendedCode);
+        }
+
+        var result = await identity.LoginAsync(account.Id, request.Email, request.Password, ct);
         if (!result.IsSuccess)
         {
             // #283 follow-up (#361) — first-run discoverability, reported HERE
@@ -193,7 +244,13 @@ public static class AuthEndpoints
             //
             // A successful sign-in never reaches this, which is what keeps the
             // check off the hot path.
-            if (!await firstRun.IsProvisionedAsync(ct))
+            // #532 (owner decision, AMENDING this issue's body, which asked for a
+            // per-account hint). Kept scoped to the DEFAULT account: making it
+            // per-account would answer "does farm X have an Owner yet?" for any
+            // farm code an attacker can guess, and would re-open the DoS the
+            // latch closed, since a farm that is never provisioned never latches
+            // and every failed login re-runs the triple-nested query.
+            if (account.Id == SeedDefaults.AccountId && !await firstRun.IsProvisionedAsync(ct))
                 // Says ADMINISTRATOR, not "no accounts" and not "no sign-in can
                 // succeed" (PR #363 review). The predicate is specifically "the
                 // default account has no Owner", which is #283's provisioning
@@ -390,7 +447,7 @@ public static class AuthEndpoints
     }
 }
 
-public sealed record LoginRequest(string Email, string Password);
+public sealed record LoginRequest(string FarmCode, string Email, string Password);
 
 public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword);
 

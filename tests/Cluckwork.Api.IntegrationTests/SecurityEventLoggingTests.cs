@@ -79,9 +79,9 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
 
         var unknownEmail = $"nobody-{Guid.NewGuid():N}@test.local";
         var unknown = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email = unknownEmail, password = "WrongPassw0rd!x" });
+            "/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(unknownEmail), email = unknownEmail, password = "WrongPassw0rd!x" });
         var wrongPassword = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = "WrongPassw0rd!x" });
+            "/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = "WrongPassw0rd!x" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, unknown.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
@@ -118,7 +118,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
         var userId = (await users.FindByEmailAsync(email))!.Id;
 
         for (var i = 0; i < LockoutMaxFailedAttempts; i++)
-            await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = "WrongPassw0rd!x" });
+            await client.PostAsJsonAsync("/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = "WrongPassw0rd!x" });
 
         var lockedOutEvents = EventsFor(SecurityEvents.AccountLockedOut);
         var loginFailedEvents = EventsFor(SecurityEvents.LoginFailed);
@@ -312,7 +312,8 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>(),
-            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 
         var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
 
@@ -370,7 +371,8 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>(),
-            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 
         var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
 
@@ -475,7 +477,8 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>(),
-            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 }
 
 [CollectionDefinition(Name)]

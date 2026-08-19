@@ -202,7 +202,7 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
         {
             var response = await client.PostAsJsonAsync(
                 "/api/v1/auth/login",
-                new { email = "nobody@example.com", password = "WrongPassw0rd!" });
+                new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = "WrongPassw0rd!" });
             Assert.NotEqual(HttpStatusCode.TooManyRequests, response.StatusCode);
         }
 
@@ -216,7 +216,7 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
         // the old in-process wiring.
         var overLimit = await httpB.PostAsJsonAsync(
             "/api/v1/auth/login",
-            new { email = "nobody@example.com", password = "WrongPassw0rd!" });
+            new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = "WrongPassw0rd!" });
         Assert.Equal(HttpStatusCode.TooManyRequests, overLimit.StatusCode);
     }
 }

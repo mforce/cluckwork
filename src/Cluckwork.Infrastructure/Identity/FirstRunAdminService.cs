@@ -93,7 +93,7 @@ public sealed class FirstRunAdminService(
     AppDbContext db,
     TenantContext tenant,
     CurrentUserContext currentUser,
-    UserManager<ApplicationUser> userManager,
+    IAccountUserDirectory directory,
     IIdentityProvider identity,
     ILogger<FirstRunAdminService> logger)
 {
@@ -219,25 +219,29 @@ public sealed class FirstRunAdminService(
         // to make safe: only one concurrent invocation can be past this point
         // at a time, so whichever one loses the race for the lock always sees
         // the winner's already-committed Owner.
-        var owners = await userManager.GetUsersInRoleAsync(Roles.Owner);
-        if (owners.Any(u => u.AccountId == accountId))
+        // #532 — scoped at the query. GetUsersInRoleAsync loaded every Owner in
+        // every farm and post-filtered in memory: correct while one farm
+        // existed, an O(all farms) cross-tenant read once several do.
+        var owners = await directory.FindByAccountRoleAsync(accountId, Roles.Owner, ct);
+        if (owners.Count > 0)
             return Result.Success(FirstRunAdminOutcome.AlreadyProvisioned());
 
         // Conflict check BEFORE mutating anything, same shape as
         // DatabaseSeeder's old cross-account guard: don't hijack an existing
         // email and don't crash — a clear fail-loud message instead.
-        var normalizedEmail = userManager.NormalizeEmail(email);
-        var conflicting = await db.Users
-            .Where(u => u.NormalizedEmail == normalizedEmail)
-            .Select(u => new { u.AccountId })
-            .FirstOrDefaultAsync(ct);
-        if (conflicting is not null)
+        // #532 — SCOPED TO THIS ACCOUNT. This check used to be global, and the
+        // message below even said "already exists under a different account" —
+        // which is now the supported case, not a conflict. Left global, it would
+        // refuse to provision farm 2's Owner whenever farm 1 already used that
+        // address, blocking the very thing epic #530 decision 3 exists to allow;
+        // and #533's provision-account reuses this same Owner-creation core, so
+        // it would have inherited the refusal.
+        var conflictingUser = await directory.FindByAccountEmailAsync(accountId, email, ct);
+        if (conflictingUser is not null)
             return Result.Failure<FirstRunAdminOutcome>(Error.Validation(
                 "Bootstrap.EmailInUse",
-                conflicting.AccountId == accountId
-                    ? $"A user with email '{email}' already exists in the default account but holds " +
-                      "no Owner role. Assign the Admin role via the Users page, or choose a different --email."
-                    : $"A user with email '{email}' already exists under a different account."));
+                $"A user with email '{email}' already exists in this account but holds " +
+                "no Owner role. Assign the Admin role via the Users page, or choose a different --email."));
 
         // Gate A (PR #350 review round 2, codex 3696740950). Everything above is
         // a READ, and the only thing that makes those reads safe is the advisory

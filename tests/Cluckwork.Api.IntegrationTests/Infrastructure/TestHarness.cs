@@ -339,14 +339,52 @@ internal static class TestHarness
     private static WebApplicationFactoryClientOptions Cookieless(CluckworkWebApplicationFactory factory) =>
         new() { HandleCookies = false, BaseAddress = factory.ClientOptions.BaseAddress };
 
+    // #532 — the farm code of the account InitialCreate seeds and AddAccountSlug
+    // backfills. Use it ONLY for a login whose email belongs to no account (the
+    // "unknown user" negative paths): a valid farm code plus an unknown email is
+    // what still produces Identity.InvalidCredentials rather than
+    // Auth.UnknownFarmCode, which is what those tests assert.
+    public const string DefaultFarmCode = "default-farm";
+
+    // #532 — for every OTHER login, resolve the farm code of the account the user
+    // actually belongs to. SeedAccountWithUserAsync mints a FRESH account per test
+    // with slug "farm-<guid12>", so most of this suite never touches the default
+    // farm; hardcoding one code would 401 them all with Auth.UnknownFarmCode.
+    // Doing the lookup here rather than threading a slug through every caller is
+    // what keeps the ~18 LoginAsync call sites unchanged.
+    public static async Task<string> FarmCodeForAsync(
+        this CluckworkWebApplicationFactory factory, string email)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var normalizer = scope.ServiceProvider.GetRequiredService<ILookupNormalizer>();
+        var normalized = normalizer.NormalizeEmail(email);
+
+        // Test-only, and deliberately global: the point is to discover WHICH farm
+        // the seeded user is in. IgnoreQueryFilters because Accounts is
+        // tenant-filtered and this scope resolves no tenant.
+        var accountId = await db.Users
+            .Where(u => u.NormalizedEmail == normalized)
+            .Select(u => u.AccountId)
+            .FirstOrDefaultAsync();
+
+        return accountId == Guid.Empty
+            ? DefaultFarmCode
+            : await db.Accounts.IgnoreQueryFilters()
+                .Where(a => a.Id == accountId)
+                .Select(a => a.Slug)
+                .FirstAsync();
+    }
+
     // Logs in over HTTP; the access token comes from the body and the refresh
     // token from the HttpOnly Set-Cookie (#145).
     public static async Task<TokenPairDto> LoginAsync(
         this CluckworkWebApplicationFactory factory, string email)
     {
         var client = factory.CreateClient(Cookieless(factory));
+        var farmCode = await factory.FarmCodeForAsync(email);
         var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = Password });
+            "/api/v1/auth/login", new { farmCode, email, password = Password });
         response.EnsureSuccessStatusCode();
         return await ReadTokensAsync(response);
     }
@@ -439,10 +477,13 @@ internal static class TestHarness
 
     // #165 — log in with an EXPLICIT password, returning the raw response so a
     // test can assert both that a new password works and that the old one 401s.
-    public static Task<HttpResponseMessage> TryLoginAsync(
-        this CluckworkWebApplicationFactory factory, string email, string password) =>
-        factory.CreateClient(Cookieless(factory)).PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password });
+    public static async Task<HttpResponseMessage> TryLoginAsync(
+        this CluckworkWebApplicationFactory factory, string email, string password)
+    {
+        var farmCode = await factory.FarmCodeForAsync(email);
+        return await factory.CreateClient(Cookieless(factory)).PostAsJsonAsync(
+            "/api/v1/auth/login", new { farmCode, email, password });
+    }
 
     // --- Row-lock observation (#162, #313) ---
     //

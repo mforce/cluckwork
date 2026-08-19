@@ -454,8 +454,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     private sealed class RevokeRefreshTokenThrowsDecorator(IdentityProvider inner) : IIdentityProvider
     {
         public Task<Result<TokenPair>> LoginAsync(
-            string email, string password, CancellationToken ct = default) =>
-            inner.LoginAsync(email, password, ct);
+            Guid accountId, string email, string password, CancellationToken ct = default) =>
+            inner.LoginAsync(accountId, email, password, ct);
 
         public Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default) =>
             inner.RefreshAsync(refreshToken, ct);
@@ -655,7 +655,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             services.GetRequiredService<Microsoft.AspNetCore.Http.IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IdentityProvider>>(),
-            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 
         var beforeRevoke = timeProvider.GetUtcNow();
 

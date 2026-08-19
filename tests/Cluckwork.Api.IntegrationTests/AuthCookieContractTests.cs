@@ -21,7 +21,7 @@ public sealed class AuthCookieContractTests(CluckworkWebApplicationFactory facto
         var email = $"c-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(email);
         var response = await factory.CreateClient(Cookieless).PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = TestHarness.Password });
+            "/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
         response.EnsureSuccessStatusCode();
         var setCookie = response.Headers.TryGetValues("Set-Cookie", out var v)
             ? v.First(c => c.StartsWith(AuthCookies.RefreshCookieName + "=", StringComparison.Ordinal))
@@ -178,7 +178,7 @@ public sealed class AuthCookieSecureTests(SecurityProxyFactory factory)
         client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
 
         var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = TestHarness.Password });
+            "/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
         response.EnsureSuccessStatusCode();
 
         var setCookie = response.Headers.GetValues("Set-Cookie")

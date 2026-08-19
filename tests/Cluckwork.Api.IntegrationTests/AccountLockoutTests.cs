@@ -20,8 +20,14 @@ public sealed class AccountLockoutTests(CluckworkWebApplicationFactory factory)
     private const int MaxAttempts = 5; // opts.Lockout.MaxFailedAccessAttempts
     private const string WrongPassword = "WrongPassw0rd!x";
 
-    private static Task<HttpResponseMessage> PostLoginAsync(HttpClient client, string email, string password) =>
-        client.PostAsJsonAsync("/api/v1/auth/login", new { email, password });
+    // #532 — instance, not static, so it can resolve the farm code of the account
+    // this test seeded. SeedAccountWithUserAsync mints a fresh account per test,
+    // so a hardcoded default-farm answers Auth.UnknownFarmCode for every one.
+    private async Task<HttpResponseMessage> PostLoginAsync(HttpClient client, string email, string password)
+    {
+        var farmCode = await factory.FarmCodeForAsync(email);
+        return await client.PostAsJsonAsync("/api/v1/auth/login", new { farmCode, email, password });
+    }
 
     private async Task<string> SeedUserAsync()
     {

@@ -37,6 +37,17 @@ public sealed class AccountRepository(AppDbContext db, TenantContext tenant) : I
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(ct);
 
+    // See the port for why IgnoreQueryFilters is mandatory rather than an
+    // optimisation. AsNoTracking: login only reads Id and IsActive off this.
+    public Task<Account?> FindBySlugAsync(string slug, CancellationToken ct = default)
+    {
+        var normalized = (slug ?? string.Empty).Trim().ToLowerInvariant();
+        return db.Accounts
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Slug == normalized, ct);
+    }
+
     public void DiscardChanges(Account account) =>
         db.Entry(account).State = EntityState.Unchanged;
 }

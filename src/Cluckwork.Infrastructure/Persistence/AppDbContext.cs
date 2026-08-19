@@ -12,6 +12,7 @@ using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext tenant)
     : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
@@ -90,5 +91,54 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         // before touching the row, so the filter is free defense-in-depth; the
         // TenantStampInterceptor leaves the explicit non-empty AccountId alone.
         builder.Entity<SimulationSeedState>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+
+        // #532 — Identity's own indexes are GLOBAL: IdentityUserContext declares
+        // UserNameIndex unique on NormalizedUserName alone, and EmailIndex
+        // non-unique on NormalizedEmail alone. Adding a composite HasIndex does
+        // NOT displace them, because the property lists differ — both survive,
+        // and the surviving global unique index keeps rejecting the second
+        // farm's copy of an email before Postgres ever evaluates the composite.
+        //
+        // WALK every index and remove the ones not led by AccountId, rather than
+        // naming the two we happen to know about ("walk everything, exclude
+        // deliberately" — AGENTS.md). GetIndexes() excludes the primary key and
+        // alternate keys, so this cannot disturb them; that is asserted by
+        // ApplicationUserIndexModelTests.ThePrimaryKey_SurvivesTheIndexWalk, so
+        // do not add a carve-out.
+        //
+        // REUSING the database names "UserNameIndex" and "EmailIndex" is
+        // LOAD-BEARING, not cosmetic. Verified by probe: with the names reused,
+        // deleting the removal walk makes EF throw at model build ("both mapped
+        // to 'AspNetUsers.EmailIndex', but with different columns") — every boot
+        // and every test fails loudly. With the composites renamed to
+        // IX_AspNetUsers_*, the same deletion builds SILENTLY with four indexes
+        // and the whole slice is inert. Do not rename them.
+        var user = builder.Entity<ApplicationUser>();
+        foreach (var index in user.Metadata.GetIndexes().ToList())
+        {
+            if (index.Properties[0].Name != nameof(ApplicationUser.AccountId))
+                user.Metadata.RemoveIndex(index);
+        }
+
+        user.HasIndex(u => new { u.AccountId, u.NormalizedUserName })
+            .HasDatabaseName("UserNameIndex")
+            .IsUnique();
+        user.HasIndex(u => new { u.AccountId, u.NormalizedEmail })
+            .HasDatabaseName("EmailIndex")
+            .IsUnique();
+
+        // A real foreign key, with NO navigation property: a navigation from an
+        // unfiltered dependent (ApplicationUser carries no query filter) to a
+        // query-filtered principal (Account does, one screen up) is a query-time
+        // hazard, and nothing needs the navigation.
+        user.HasOne<Account>()
+            .WithMany()
+            .HasForeignKey(u => u.AccountId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // A user's farm is fixed at creation. Moving one between accounts would
+        // carry its roles, password and lockout state across a tenant boundary.
+        user.Property(u => u.AccountId).Metadata
+            .SetAfterSaveBehavior(PropertySaveBehavior.Throw);
     }
 }

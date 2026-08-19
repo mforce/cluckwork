@@ -6,8 +6,12 @@ using Cluckwork.Domain.Catalog;
 // in a future IIdentityProvider implementation without touching Application.
 public interface IIdentityProvider
 {
+    // #532 — the account is resolved from the farm code BEFORE this call, and
+    // is an INPUT, not something login discovers. Previously the account fell
+    // out of whichever row a global email lookup happened to return, so nothing
+    // ever CHOSE a farm.
     Task<Result<TokenPair>> LoginAsync(
-        string email, string password, CancellationToken ct = default);
+        Guid accountId, string email, string password, CancellationToken ct = default);
 
     Task<Result<TokenPair>> RefreshAsync(
         string refreshToken, CancellationToken ct = default);

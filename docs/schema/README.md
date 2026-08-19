@@ -74,6 +74,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 ```mermaid
 erDiagram
 
+"public.AspNetUsers" }o--|| "public.Accounts" : "FOREIGN KEY (#quot;AccountId#quot;) REFERENCES #quot;Accounts#quot;(#quot;Id#quot;) ON DELETE RESTRICT"
 "public.AspNetRoleClaims" }o--|| "public.AspNetRoles" : "FOREIGN KEY (#quot;RoleId#quot;) REFERENCES #quot;AspNetRoles#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserClaims" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserLogins" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
@@ -140,7 +141,7 @@ erDiagram
 }
 "public.AspNetUsers" {
   uuid Id
-  uuid AccountId
+  uuid AccountId FK
   text DisplayName
   varchar_16_ Language
   boolean MustChangePassword

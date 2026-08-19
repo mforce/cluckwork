@@ -50,7 +50,7 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
             var result = await seedScope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync();
             Assert.True(result.IsSuccess, result.Message);
         }
-        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = TestHarness.Password });
+        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
         login.EnsureSuccessStatusCode();
         var token = (await login.Content.ReadFromJsonAsync<TokenDto>())!.AccessToken;
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
