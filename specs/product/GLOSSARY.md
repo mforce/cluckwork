@@ -592,6 +592,22 @@ total — clients never sum pages.
 isolation with EF global query filters. Single-farm login today, multi-tenant
 infrastructure dormant.
 
+**Farm code (account slug, #531)** — a short, stable, URL-safe identifier for an
+account: lowercase letters, digits and hyphens, 3–32 characters, no leading or
+trailing hyphen. Unlike the account's internal id (a GUID), it is meant to be
+typed and read aloud. It is chosen once and **immutable** — a provisioning typo
+has no in-app fix this phase — and a handful of words are reserved (`api`,
+`admin`, `www`, `health`, `app`, `login`, `auth`, and similar). The default
+farm's code is `default-farm`. Operators discover the codes with the
+`list-accounts` command. The farm code becomes the way to disambiguate login
+across farms in a later phase (#532); today it is recorded and discoverable but
+not yet used at sign-in, and there is no SPA surface for it yet.
+
+**Account status — active / suspended (#531)** — an account is *active* by
+default. **Suspending** it takes the farm offline; **reactivating** brings it
+back. The switch exists now; enforcement — blocking a suspended account's users
+from signing in — arrives with the login work (#532).
+
 **Farm / House** — physical hierarchy. Present as ids from day one, but real
 Farm/House management arrives with later phases; the MVP runs on one seeded
 farm and house. The farm's *settings* are already real (see below) — they live
