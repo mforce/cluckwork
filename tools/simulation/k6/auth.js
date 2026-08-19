@@ -1,7 +1,7 @@
 // #243 k6 harness — auth module.
 //
 // Ground truth (verified against the live sim stack, see #243 Task 5):
-//   - POST /api/v1/auth/login  {email,password} -> 200 {accessToken,accessTokenExpiry}
+//   - POST /api/v1/auth/login  {farmCode,email,password} -> 200 {accessToken,accessTokenExpiry}
 //     + Set-Cookie: cluckwork_rt=... (HttpOnly, Secure, SameSite=Strict, Path=/api/v1/auth)
 //   - The cookie is Secure and the sim stack is plain HTTP, so k6's cookie
 //     jar will NOT resend it. We extract the value from the Set-Cookie
@@ -84,7 +84,7 @@ function safeJson(res) {
 export function login(user) {
   const res = http.post(
     `${BASE_URL}${AUTH_PATHS.LOGIN}`,
-    JSON.stringify({ email: user.email, password: user.password }),
+    JSON.stringify({ farmCode: 'default-farm', email: user.email, password: user.password }),
     {
       headers: { 'Content-Type': 'application/json' },
       tags: { name: 'auth_login' },

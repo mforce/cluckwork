@@ -36,7 +36,7 @@ export async function signInForToken(member: CastMember): Promise<string> {
   const res = await fetch(`${BASE_URL}${API_PREFIX}/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email: member.email, password: member.password }),
+    body: JSON.stringify({ farmCode: "default-farm", email: member.email, password: member.password }),
   });
   if (!res.ok) {
     throw new ApiProbeError(

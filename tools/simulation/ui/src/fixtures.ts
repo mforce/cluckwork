@@ -76,6 +76,7 @@ export const test = base.extend<Fixtures>({
 
       // Both fields are `<label>Text<input/></label>`, so the label text IS the
       // accessible name — getByLabel is the user-visible handle, not a structural one.
+      await page.getByLabel(tEn("auth:farmCode")).fill("default-farm");
       await page.getByLabel(tEn("auth:email")).fill(member.email);
       await page.getByLabel(tEn("auth:password")).fill(member.password);
       await page.getByRole("button", { name: tEn("auth:signIn") }).click();
