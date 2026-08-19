@@ -158,20 +158,9 @@ public sealed class AccountScopedIdentityMigrationTests
         await using var db = BuildContext(postgres.GetConnectionString());
         await db.Database.MigrateAsync();
 
-        // An AccountId that matches no Accounts row (the default account exists
-        // from InitialCreate; this id is brand new).
-        //
-        // The expected state is 23503 (foreign_key_violation). In practice
-        // Postgres reports 23502 (not_null_violation) here, for two stacked
-        // reasons, neither of which is the migration's shape:
-        //   1. The insert runs inside EF's batched command, which precedes it
-        //      with an implicit SAVEPOINT; when the batch rolls back, Postgres
-        //      re-checks the FK constraint and raises the not-null form.
-        //   2. The connection string omits 'Include Error Detail' (redaction
-        //      default), so the DETAIL line naming FK_AspNetUsers_Accounts_AccountId
-        //      never reaches the message we can assert on.
-        // The rejection IS the FK working — with the FK absent the row would
-        // be admitted — so the assertion is that the insert threw.
+        // An AccountId matching no Accounts row. Without
+        // FK_AspNetUsers_Accounts_AccountId this insert is simply ACCEPTED, so
+        // the rejection is the constraint doing its job.
         var conflict = await Record.ExceptionAsync(() => db.Database.ExecuteSqlRawAsync(InsertUserSql(
             "0000000a-0000-0000-0000-000000000105",
             "0000000a-0000-0000-0000-000000000fff",
@@ -180,8 +169,9 @@ public sealed class AccountScopedIdentityMigrationTests
 
         Assert.NotNull(conflict);
         var postgresException = Assert.IsType<PostgresException>(conflict);
-        Assert.True(
-            postgresException.SqlState is "23503" or "23502",
-            $"unexpected SQLSTATE {postgresException.SqlState}: {postgresException.Message}");
+        // 23503 = foreign_key_violation, and ONLY that. Accepting 23502
+        // (not_null_violation) as well would make this test pass with the
+        // foreign key absent, which is the single thing it exists to prove.
+        Assert.Equal("23503", postgresException.SqlState);
     }
 }
