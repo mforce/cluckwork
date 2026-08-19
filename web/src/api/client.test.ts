@@ -595,7 +595,7 @@ describe("auth endpoints", () => {
   it("login stores the access token (memory only) and notifies listeners", async () => {
     clearAccessToken();
     fetchMock.mockResolvedValueOnce(accessResponse("atL"));
-    await login({ email: "a@b.co", password: "pw" });
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
     expect(getAccessToken()).toBe("atL");
     expect(localStorage.length).toBe(0); // never persisted
     expect(onTokens).toHaveBeenCalledTimes(1);
@@ -963,7 +963,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     const changing = changePassword({ currentPassword: "a", newPassword: "b" })
       .catch((err: unknown) => err);
     await drain();
-    await login({ email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    await login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
     otherTab.resolve();
     await changing;
 
@@ -988,7 +988,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     // The form is already inside the cookie lock, obtaining an access token.
     // A newer login must prevent that old form from borrowing the new bearer
     // when the now-stale refresh finishes.
-    await login({ email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    await login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
     refreshGate.resolve(accessResponse("stale-refresh-token"));
     await changing;
 
@@ -1018,7 +1018,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     // Supersede the form while its first request is already on the wire, then
     // make that old request answer 401. Generic apiFetch behavior would refresh
     // the newer session and resend the old form body against it.
-    await login({ email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    await login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
     firstChange.resolve(jsonResponse({ title: "Unauthorized" }, 401));
     await changing;
 
@@ -1252,7 +1252,7 @@ describe("session generation (#310)", () => {
     clearAccessToken();
     fetchMock.mockResolvedValueOnce(accessResponse("loggedInToken"));
 
-    await login({ email: "a@b.co", password: "pw" });
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
 
     expect(getAccessToken()).toBe("loggedInToken");
     expect(onTokens).toHaveBeenCalledTimes(1);
@@ -1270,7 +1270,7 @@ describe("session generation (#310)", () => {
     const restoring = restoreSession(); // older bootstrap refresh in flight
     await drain();
 
-    await login({ email: "a@b.co", password: "pw" }); // a newer, explicit login completes first
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // a newer, explicit login completes first
     expect(getAccessToken()).toBe("newLoginToken");
     expect(onTokens).toHaveBeenCalledTimes(1);
 
@@ -1299,7 +1299,7 @@ describe("session generation (#310)", () => {
     const fetching = apiGet<{ ok: boolean }>("/stock").catch((e: unknown) => e);
     await drain();
 
-    await login({ email: "a@b.co", password: "pw" }); // supersedes the still-parked refresh
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the still-parked refresh
     expect(getAccessToken()).toBe("freshLoginToken");
 
     refreshGate.resolve(jsonResponse({ title: "refresh token revoked" }, 401)); // stale refresh FAILS late
@@ -1358,7 +1358,7 @@ describe("session generation (#310)", () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
 
-    const loggingIn = login({ email: "a@b.co", password: "pw" }).catch((e: unknown) => e);
+    const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }).catch((e: unknown) => e);
     await drain();
 
     await logout(); // fires while the login request is still in flight
@@ -1415,7 +1415,7 @@ describe("session generation (#310)", () => {
     const fetching = apiGet<{ value: number }>("/stock");
     await drain();
 
-    await login({ email: "a@b.co", password: "pw" });
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
     refreshGate.resolve(accessResponse("stale-token"));
 
     expect(await fetching).toEqual({ value: 7 });
@@ -1457,7 +1457,7 @@ describe("session generation (#310)", () => {
     const downloading = apiGetBlob("/export/all");
     await drain();
 
-    await login({ email: "a@b.co", password: "pw" }); // supersedes the parked refresh
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the parked refresh
     refreshGate.resolve(accessResponse("stale-token"));
 
     const { blob } = await downloading;
@@ -1508,7 +1508,7 @@ describe("session generation (#310)", () => {
     const restoring = restoreSession();
     await drain();
 
-    await login({ email: "a@b.co", password: "pw" }); // supersedes the parked refresh
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the parked refresh
     refreshGate.resolve(accessResponse("stale-refresh-token"));
     await restoring;
 

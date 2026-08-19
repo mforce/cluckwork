@@ -39,6 +39,7 @@ function tree() {
 }
 
 function fillCredentials(email: string, password: string) {
+  fireEvent.change(screen.getByLabelText(/Farm code/), { target: { value: "default-farm" } });
   fireEvent.change(screen.getByLabelText(/Email/), { target: { value: email } });
   fireEvent.change(screen.getByLabelText(/Password/), { target: { value: password } });
 }
@@ -75,7 +76,11 @@ describe("Login", () => {
       fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     });
 
-    expect(mockApiLogin).toHaveBeenCalledWith({ email: "owner@farm.co", password: "pw" });
+    expect(mockApiLogin).toHaveBeenCalledWith({
+      farmCode: "default-farm",
+      email: "owner@farm.co",
+      password: "pw",
+    });
     // Returned to the originally requested route, now authenticated.
     expect(await screen.findByText("dashboard (protected)")).toBeInTheDocument();
   });
@@ -120,6 +125,26 @@ describe("Login", () => {
     await act(async () => callback?.(title));
 
     expect(await screen.findByText(message)).toBeInTheDocument();
+  });
+
+  // #532 — both new codes ride the ProblemDetails `title` on a 401. Assert the
+  // specific copy renders AND the generic 401 copy does not: the generic
+  // `err.status === 401` branch is exactly what would wrongly catch them.
+  it.each([
+    ["Auth.UnknownFarmCode", i18n.t("auth:unknownFarmCode")],
+    ["Auth.FarmSuspended", i18n.t("auth:farmSuspended")],
+  ])("surfaces a farm-level %s denial with its own copy, not invalidCredentials", async (title, message) => {
+    mockApiLogin.mockRejectedValue(new ApiError(401, title, "farm level"));
+    renderWithProviders(tree(), { route: "/login", token: null });
+
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:invalidCredentials"))).not.toBeInTheDocument();
+    expect(screen.queryByText("dashboard (protected)")).not.toBeInTheDocument();
   });
 
   it("shows a rate-limit message on a 429 and stays on /login", async () => {

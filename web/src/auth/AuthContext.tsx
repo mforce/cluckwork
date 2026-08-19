@@ -29,7 +29,7 @@ interface AuthState {
   // API's MustChangePasswordMiddleware is the actual enforcement.
   mustChangePassword: boolean;
   unauthenticatedReason: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (farmCode: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -104,8 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshClaims]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    await apiLogin({ email, password });
+  const login = useCallback(async (farmCode: string, email: string, password: string) => {
+    await apiLogin({ farmCode, email, password });
     // #179/codex: a fresh explicit login is a new "per login" for the splash,
     // even in a tab that already dismissed it (or belonged to another user).
     // A silent token refresh never reaches this line, so it's exempt by design.

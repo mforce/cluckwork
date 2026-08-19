@@ -55,6 +55,9 @@ export const en = {
   },
   auth: {
     title: "Cluckwork",
+    farmCode: "Farm code",
+    unknownFarmCode: "That farm code is not recognised. Check it and try again.",
+    farmSuspended: "This farm is suspended. Contact your administrator.",
     email: "Email",
     password: "Password",
     signIn: "Sign in",

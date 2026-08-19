@@ -35,6 +35,10 @@ export const es = {
   },
   auth: {
     title: "Cluckwork",
+    // machine-drafted (#532) — pending native review.
+    farmCode: "Código de granja",
+    unknownFarmCode: "No se reconoce ese código de granja. Verifícalo e inténtalo de nuevo.",
+    farmSuspended: "Esta granja está suspendida. Contacta a tu administrador.",
     email: "Correo electrónico",
     password: "Contraseña",
     signIn: "Iniciar sesión",
