@@ -37,6 +37,7 @@ using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -114,6 +115,7 @@ public sealed class SimulationDataSeeder(
     CreateExpenseHandler createExpense,
     DailyEntryLockSweep lockSweep,
     IClock clock,
+    IServiceScopeFactory scopeFactory,
     IOptions<SimulationOptions> simulationOptions,
     ILogger<SimulationDataSeeder> logger)
 {
@@ -1504,8 +1506,25 @@ public sealed class SimulationDataSeeder(
         var exists = await db.Accounts.IgnoreQueryFilters().AnyAsync(a => a.Id == SecondAccountId, ct);
         if (exists) return;
 
-        db.Accounts.Add(Account.Create(SecondAccountId, "Simulation Second Farm", "simulation-second-farm", "UTC", "USD"));
-        await db.SaveChangesAsync(ct);
+        // #546 — this row belongs to the SECOND account while this seeder's own
+        // scope is resolved to the PRIMARY one (see SeedAsync), so writing it
+        // through `db` is a cross-tenant write and TenantStampInterceptor now
+        // refuses it. Give the write its own scope resolved to the account it
+        // actually writes, mirroring DailyEntryLockSweep.LockDueEntriesAsync.
+        //
+        // BOTH the TenantContext and the AppDbContext must come from the new
+        // scope. The interceptor is bound to the scope that constructed its
+        // DbContext, so resolving the tenant here and still writing through the
+        // outer `db` would leave the guard reading the PRIMARY account — a
+        // no-op that looks like a fix. Resolving the injected `tenant` field
+        // instead would throw: it is single-assignment as of this same slice.
+        using var scope = scopeFactory.CreateScope();
+        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(SecondAccountId);
+        var secondAccountDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        secondAccountDb.Accounts.Add(
+            Account.Create(SecondAccountId, "Simulation Second Farm", "simulation-second-farm", "UTC", "USD"));
+        await secondAccountDb.SaveChangesAsync(ct);
         logger.LogInformation("Seeded second pristine simulation account {AccountId}.", SecondAccountId);
     }
 
