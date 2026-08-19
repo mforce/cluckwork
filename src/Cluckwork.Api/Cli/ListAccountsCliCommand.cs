@@ -36,7 +36,7 @@ public sealed class ListAccountsCliCommand : ICliCommand
 
             foreach (var account in accounts)
                 await Console.Out.WriteLineAsync(
-                    $"{account.Slug}\t{account.Name}\t{(account.IsActive ? "active" : "suspended")}");
+                    $"{account.Slug}\t{SanitizeForDisplay(account.Name)}\t{(account.IsActive ? "active" : "suspended")}");
 
             return 0;
         }
@@ -46,4 +46,21 @@ public sealed class ListAccountsCliCommand : ICliCommand
             return 1;
         }
     }
+
+    // #560 (codex round 2) — the account NAME is tenant-controlled free text and
+    // its write validator (UpdateFarmSettingsValidator) bounds only length, so it
+    // can carry CR/LF/tab/ANSI-escape characters. Printed verbatim into a terminal
+    // row those let one tenant forge or obscure another farm's line. Replace every
+    // control character with a space — the same char.IsControl strip
+    // ClientErrorEndpoints applies to its rendered fields against log forging.
+    // Slug is control-character-free by its regex and IsActive is a bool, so only
+    // Name needs this.
+    internal static string SanitizeForDisplay(string value) =>
+        !value.Any(char.IsControl)
+            ? value
+            : string.Create(value.Length, value, static (chars, source) =>
+            {
+                for (var i = 0; i < source.Length; i++)
+                    chars[i] = char.IsControl(source[i]) ? ' ' : source[i];
+            });
 }

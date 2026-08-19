@@ -1,7 +1,9 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Diagnostics;
+using Cluckwork.Api.Cli;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 // #531 — `list-accounts` is a real CLI dispatch branch, never exercised by
 // WebApplicationFactory (which passes empty args). This spawns the actual built
@@ -54,6 +56,43 @@ public sealed class ListAccountsCommandTests(CluckworkWebApplicationFactory fact
         // both visible only because the read ignores the (unresolved) tenant
         // filter.
         Assert.Contains("default-farm", stdout);
+        Assert.Contains(seededSlug, stdout);
+    }
+
+    // #560 (codex round 2) — the account name is tenant-controlled free text
+    // whose validator bounds only length, so it can carry CR/LF/tab/ANSI. Unit
+    // check of the strip itself.
+    [Theory]
+    [InlineData("Green Valley Farm", "Green Valley Farm")]
+    [InlineData("with\ttab", "with tab")]
+    [InlineData("line\nbreak", "line break")]
+    [InlineData("carriage\r\nreturn", "carriage  return")]
+    [InlineData("esc\u001b[31mred", "esc [31mred")]
+    public void SanitizeForDisplay_ReplacesControlCharactersWithSpaces(string input, string expected) =>
+        Assert.Equal(expected, ListAccountsCliCommand.SanitizeForDisplay(input));
+
+    [Fact]
+    public async Task ListAccounts_StripsControlCharactersFromTenantNames_SoOneFarmCannotForgeAnothersRow()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"inject-{Guid.NewGuid():N}@test.local");
+        var seededSlug = "farm-" + accountId.ToString("N")[..12];
+        // A malicious name: an embedded newline would forge a standalone row and
+        // the ANSI escape would rewrite the terminal. Written straight to the
+        // column (parameterised, so the control bytes land as data, not SQL).
+        var injected = "row-a\u001b[31m\trow-b\nFORGED-ROW";
+        await factory.WithTenantScopeAsync(accountId, db => db.Database.ExecuteSqlAsync(
+            $"UPDATE \"Accounts\" SET \"Name\" = {injected} WHERE \"Id\" = {accountId}"));
+
+        var (exitCode, stdout, stderr) = await SeedCommandRunner.RunToCompletionAsync(
+            StartListAccounts(), SubprocessTimeout);
+
+        Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
+        // No raw ESC survives, and the embedded newline did not forge a line:
+        // "FORGED-ROW" stays on the seeded account's own row (which starts with
+        // its slug) rather than becoming a line of its own.
+        Assert.DoesNotContain('\u001b', stdout);
+        Assert.DoesNotContain(
+            stdout.Split('\n'), line => line.StartsWith("FORGED-ROW", StringComparison.Ordinal));
         Assert.Contains(seededSlug, stdout);
     }
 }
