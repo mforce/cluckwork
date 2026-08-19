@@ -67,6 +67,23 @@ public sealed class TenantStampInterceptor(TenantContext tenant) : SaveChangesIn
                 // with must be the tenant's. Checking only the current value
                 // would let a row loaded under IgnoreQueryFilters be RELABELLED
                 // into the current tenant and pass — theft, not a leak.
+                //
+                // PRECONDITION, stated because it is easy to over-read this
+                // (#561 review): OriginalValue is database provenance only for
+                // an entity that was LOADED while tracked. DbSet.Update and
+                // DbSet.Remove ATTACH a detached instance and seed its original
+                // values from the caller's own current values, so a hand-built
+                // stub carrying another tenant's primary key and this tenant's
+                // AccountId would satisfy both checks and the UPDATE would key
+                // on the primary key alone.
+                //
+                // That is not reachable today: every repository mutation read
+                // (GetByIdAsync / GetTrackedAsync / GetByIdLockedAsync) is a
+                // TRACKED read behind the tenant query filter, so the snapshot
+                // really is the database's — and TrackedMutationReadTests pins
+                // exactly that, so switching one of them to AsNoTracking goes
+                // red here rather than silently voiding the theft check.
+                // Closing it by construction is #562.
                 case EntityState.Modified:
                     Verify(entry, prop.OriginalValue);
                     Verify(entry, prop.CurrentValue);
