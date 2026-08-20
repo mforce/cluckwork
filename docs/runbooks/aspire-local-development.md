@@ -11,15 +11,16 @@ endpoints and the Aspire dashboard.
 procedure deletes only the exact validated AppHost PostgreSQL volume and cannot
 be undone.
 
-**Last drilled:** 2026-08-20.
+**Last drilled:** not recorded. Run the complete procedure below before adding a
+date; a partial observability or persistence check is not a drill pass.
 
 ---
 
 ## Prerequisites
 
-Install the .NET 10 SDK, Node/npm, `jq`, and a Docker-compatible container
-engine. Use Aspire CLI 13.5. The following installs that version only under this
-worktree; it does not alter a global Aspire installation:
+Install the .NET 10 SDK, Node/npm, `curl`, `jq`, and a Docker-compatible
+container engine. Use Aspire CLI 13.5. The following installs that version only
+under this worktree; it does not alter a global Aspire installation:
 
 ```bash
 curl -fsSL https://aspire.dev/install.sh | bash -s -- \
@@ -196,25 +197,259 @@ production operations.
 
 ## Drill
 
-Safe only when `$aspire ps --format Json --non-interactive` reports no existing
-developer-owned run and the AppHost database is disposable.
+This drill is destructive to the AppHost PostgreSQL volume. Use only a
+disposable, fresh database with no Owner: the exact login assertion below is the
+fresh-database contract. Run every block from one Bash shell at the repository
+root. If the volume is not already fresh, start the stack, run the guarded reset
+procedure above, leave it stopped, and then begin.
 
-1. Start from the repository root, wait for `postgres`, `redis`, `api`, and
-   `web`, then require exactly one healthy resource with each display name.
-2. Send a valid-shaped unknown-user login through the dynamically advertised
-   web endpoint. Expect the API's `401 application/problem+json` response, not
-   Vite HTML or a proxy error.
-3. Correlate that request in `aspire logs` and `aspire otel traces`; require the
-   API server span and its PostgreSQL child. Confirm the current API resource
-   exposes HTTP, Npgsql, EF Core, and runtime metrics in the dashboard.
-4. Confirm the request creates a new namespaced limiter key in the exact Redis
-   resource. Redis is ephemeral, so do not treat restart persistence as a pass
-   condition for it.
-5. Create a unique database marker, stop and restart the AppHost normally, and
-   confirm both the marker and generated Postgres parameter persist.
-6. Run the reset procedure above. Confirm every identity, image, mount, and
-   stopped-container guard passes before the non-force volume removal; restart,
-   wait for `api`, and confirm migrations recreate the schema without the
-   marker.
-7. Stop the AppHost, require `$aspire ps --format Json --non-interactive` to be
-   empty, and update **Last drilled** above.
+Start exactly one run, wait for every orchestrated resource, resolve the dynamic
+web endpoint and exact current containers, and take the Redis before-snapshot.
+The Redis password expands only inside its container and is never printed:
+
+```bash
+set -euo pipefail
+
+apphost=./src/Cluckwork.AppHost/Cluckwork.AppHost.csproj
+aspire=./obj/aspire-cli/aspire
+drill_tmp=$(mktemp -d)
+
+cleanup_drill() {
+  "$aspire" stop --apphost "$apphost" --non-interactive >/dev/null 2>&1 || true
+  rm -f -- "$drill_tmp/headers" "$drill_tmp/body" \
+    "$drill_tmp/redis-before" "$drill_tmp/redis-after" \
+    "$drill_tmp/logs" "$drill_tmp/trace"
+  rmdir "$drill_tmp" 2>/dev/null || true
+}
+trap cleanup_drill EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+[ "$($aspire ps --format Json --non-interactive | jq -c .)" = '[]' ]
+
+$aspire run --apphost "$apphost" --detach --non-interactive
+for resource in postgres redis api web; do
+  $aspire wait "$resource" --apphost "$apphost" --timeout 180 --non-interactive
+done
+
+describe=$($aspire describe --apphost "$apphost" --format Json --non-interactive)
+for resource in postgres redis api web; do
+  count=$(printf '%s' "$describe" | jq -er --arg name "$resource" \
+    '[.resources[] | select(.displayName == $name)] | length')
+  [ "$count" -eq 1 ]
+done
+
+web_url=$(printf '%s' "$describe" | jq -er '
+  [.resources[] | select(.displayName == "web")][0]
+  | [.urls[] | select(.name == "http" and .isInternal != true)]
+  | if length == 1 then .[0].url
+    else error("expected exactly one external web HTTP endpoint")
+    end')
+
+container_for() {
+  printf '%s' "$describe" | jq -er --arg name "$1" '
+    [.resources[] | select(.displayName == $name)]
+    | if length == 1 then .[0].properties["container.id"]
+      else error("expected exactly one resource")
+      end
+    | if type == "string" and length > 0 then .
+      else error("missing container ID")
+      end'
+}
+
+redis_container=$(container_for redis)
+postgres_container=$(container_for postgres)
+
+scan_limiter_keys() {
+  docker exec "$redis_container" sh -ceu '
+    [ -n "${REDIS_PASSWORD:-}" ]
+    export REDISCLI_AUTH="$REDIS_PASSWORD"
+    exec redis-cli -h 127.0.0.1 -p 6380 \
+      --scan --pattern "{cluckwork:win:*}*"
+  ' | LC_ALL=C sort -u
+}
+
+scan_limiter_keys >"$drill_tmp/redis-before"
+```
+
+Before the application request, open the dashboard shown by the current run,
+select the current `Cluckwork.Api` resource, switch histogram rows to **Show
+count**, and record the timestamp and numeric count for these exact rows:
+
+- `http.server.request.duration`
+- `db.client.operation.duration` with Npgsql/PostgreSQL dimensions
+- `microsoft.entityframeworkcore.queries` under the
+  `Microsoft.EntityFrameworkCore` meter
+
+Also require the separate `dotnet.process.cpu.time` runtime row to be present.
+Do not record the dashboard URL or token.
+
+Generate a unique request identity and W3C trace context in memory, then send
+exactly one login through the resolved Vite proxy. The generated password and
+email are removed from the shell immediately after the request:
+
+```bash
+trace_id=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+span_id=$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')
+login_email="drill-${trace_id}@example.invalid"
+login_password="Drill-${trace_id:0:12}!aA1"
+login_json=$(jq -cn \
+  --arg email "$login_email" \
+  --arg password "$login_password" \
+  '{email: $email, password: $password}')
+
+status=$(printf '%s' "$login_json" | curl --silent --show-error \
+  --dump-header "$drill_tmp/headers" \
+  --output "$drill_tmp/body" \
+  --write-out '%{http_code}' \
+  --header "traceparent: 00-${trace_id}-${span_id}-01" \
+  --header 'content-type: application/json' \
+  --data-binary @- \
+  "$web_url/api/v1/auth/login")
+unset login_json login_password login_email
+
+[ "$status" = 401 ]
+tr -d '\r' <"$drill_tmp/headers" | grep -Eiq \
+  '^content-type:[[:space:]]*application/problem\+json([;[:space:]]|$)'
+jq -e '.title == "Auth.NoOwnerProvisioned"' "$drill_tmp/body" >/dev/null
+```
+
+Require exactly one new namespaced limiter key, then poll the AppHost-targeted
+console and OTLP queries for the same trace:
+
+```bash
+scan_limiter_keys >"$drill_tmp/redis-after"
+new_limiter_count=$(comm -13 \
+  "$drill_tmp/redis-before" "$drill_tmp/redis-after" | wc -l)
+[ "$new_limiter_count" -eq 1 ]
+
+telemetry_ready=false
+for ((attempt = 0; attempt < 60; attempt++)); do
+  $aspire logs --apphost "$apphost" --search "$trace_id" \
+    --format Json --tail 300 --non-interactive >"$drill_tmp/logs" || true
+  $aspire otel traces --apphost "$apphost" --trace-id "$trace_id" \
+    --format Json --non-interactive >"$drill_tmp/trace" || true
+
+  if grep -Fq "$trace_id" "$drill_tmp/logs" \
+      && grep -Fq '/api/v1/auth/login' "$drill_tmp/logs" \
+      && grep -Fq "$trace_id" "$drill_tmp/trace" \
+      && grep -Eiq 'server' "$drill_tmp/trace" \
+      && grep -Eiq 'Npgsql|PostgreSQL|postgres' "$drill_tmp/trace"; then
+    telemetry_ready=true
+    break
+  fi
+  sleep 1
+done
+[ "$telemetry_ready" = true ]
+```
+
+Open that exact trace in the dashboard and require the API server span to be the
+parent of an Npgsql/PostgreSQL client span. The bounded string checks above are
+only the query-readiness gate; matching two unrelated spans is not a hierarchy
+pass.
+
+In the dashboard, revisit the same current-resource rows. Require a newer
+timestamp and a strictly larger numeric count for each of the three application
+instruments; mere row presence or startup traffic does not pass. Require the
+HTTP row to show the login route and `401`, and the database row to show
+Npgsql/PostgreSQL.
+
+Create a safe unique PostgreSQL marker and record only the generated parameter
+file's metadata. The `jq` assertion checks that the parameter is nonblank but
+does not print it; PostgreSQL and Redis passwords remain inside their
+containers:
+
+```bash
+marker="aspire_drill_${trace_id:0:16}"
+case "$marker" in *[!a-z0-9_]*) exit 1 ;; esac
+
+postgres_sql() {
+  docker exec "$postgres_container" sh -ceu '
+    [ -n "${POSTGRES_PASSWORD:-}" ]
+    export PGPASSWORD="$POSTGRES_PASSWORD"
+    exec psql -h 127.0.0.1 -U "${POSTGRES_USER:-postgres}" \
+      -d cluckwork -v ON_ERROR_STOP=1 -Atc "$1"
+  ' sh "$1"
+}
+
+postgres_sql \
+  "CREATE TABLE $marker (id integer PRIMARY KEY); INSERT INTO $marker VALUES (1);" \
+  >/dev/null
+[ "$(postgres_sql "SELECT to_regclass('public.$marker') IS NOT NULL;")" = t ]
+
+secrets_id=$(dotnet msbuild "$apphost" -nologo -getProperty:UserSecretsId)
+[ "$secrets_id" = cluckwork-apphost-local ]
+secrets_file="$HOME/.microsoft/usersecrets/$secrets_id/secrets.json"
+jq -e '
+  .["Parameters:postgres-password"]
+  | type == "string" and length > 0' "$secrets_file" >/dev/null
+
+file_signature() {
+  if stat -c '%Y:%y:%s' "$1" >/dev/null 2>&1; then
+    stat -c '%Y:%y:%s' "$1"
+  else
+    stat -f '%m:%c:%z' "$1"
+  fi
+}
+secrets_signature=$(file_signature "$secrets_file")
+```
+
+Stop and restart normally, re-resolve the new container, and require both the
+marker and the parameter-file metadata to be unchanged:
+
+```bash
+$aspire stop --apphost "$apphost" --non-interactive
+
+stopped=false
+for ((attempt = 0; attempt < 60; attempt++)); do
+  if [ "$($aspire ps --format Json --non-interactive | jq -c .)" = '[]' ]; then
+    stopped=true
+    break
+  fi
+  sleep 1
+done
+[ "$stopped" = true ]
+
+$aspire run --apphost "$apphost" --detach --non-interactive
+for resource in postgres redis api web; do
+  $aspire wait "$resource" --apphost "$apphost" --timeout 180 --non-interactive
+done
+
+describe=$($aspire describe --apphost "$apphost" --format Json --non-interactive)
+postgres_container=$(container_for postgres)
+[ "$(file_signature "$secrets_file")" = "$secrets_signature" ]
+[ "$(postgres_sql "SELECT to_regclass('public.$marker') IS NOT NULL;")" = t ]
+```
+
+With that restarted stack still running, execute the complete guarded reset
+block in **Persistence and reset** above. It must print the exact container,
+configured image, immutable image ID, literal volume, and mount before stopping;
+all identity and release assertions must pass before the single non-force
+`docker volume rm`.
+
+Restart once more and require Development migrations to recover the API while
+the marker is absent from the new database:
+
+```bash
+$aspire run --apphost "$apphost" --detach --non-interactive
+$aspire wait api --apphost "$apphost" --timeout 180 --non-interactive
+
+describe=$($aspire describe --apphost "$apphost" --format Json --non-interactive)
+postgres_container=$(container_for postgres)
+[ "$(postgres_sql "SELECT to_regclass('public.$marker') IS NULL;")" = t ]
+
+$aspire stop --apphost "$apphost" --non-interactive
+final_ps=
+for ((attempt = 0; attempt < 60; attempt++)); do
+  final_ps=$($aspire ps --format Json --non-interactive | jq -c .)
+  [ "$final_ps" = '[]' ] && break
+  sleep 1
+done
+[ "$final_ps" = '[]' ]
+
+trap - EXIT INT TERM
+cleanup_drill
+```
+
+Only after every assertion passes may **Last drilled** be changed from `not
+recorded` to the current date.
