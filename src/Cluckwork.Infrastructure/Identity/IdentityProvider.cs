@@ -199,6 +199,21 @@ public sealed class IdentityProvider(
         if (user is null || user.DisabledAt is not null || stored.IssuedEpoch != user.CredentialEpoch)
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
 
+        // #532 — a suspended farm cannot rotate a session. Deliberately the SAME
+        // generic error every other refresh rejection uses, not Auth.FarmSuspended:
+        // refresh carries no user-facing copy of its own (the SPA treats any 401
+        // here as a dead session and stops), and the caller learns the real reason
+        // from CredentialEpochMiddleware on their next ordinary request, which
+        // does say Auth.FarmSuspended. Suspension also bumps every user's
+        // CredentialEpoch, so the line above already rejects most tokens; this
+        // check is what closes the window for one minted in the same instant.
+        var accountIsActive = await db.Accounts.IgnoreQueryFilters()
+            .Where(account => account.Id == stored.AccountId)
+            .Select(account => (bool?)account.IsActive)
+            .FirstOrDefaultAsync(ct);
+        if (accountIsActive != true)
+            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+
         // Presenting an already-rotated/revoked token normally means it was replayed —
         // treat as a possible theft and revoke every active token for the user.
         var viaGrace = false;

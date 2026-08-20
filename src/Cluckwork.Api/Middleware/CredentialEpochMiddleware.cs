@@ -28,27 +28,63 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                 ? parsedEpoch
                 : 0;
 
+            // #532 — Account.IsActive folds into the EXISTING per-request read as
+            // a correlated subquery: one round trip, not two. This is what makes
+            // suspension immediate rather than "effective at token expiry"
+            // (epic #530 decision 15), so it is enforcement, not a nicety — do
+            // not delete it as cosmetic.
+            //
+            // IgnoreQueryFilters is required and order-independent: Accounts is
+            // tenant-filtered, and this middleware runs without depending on
+            // TenantResolutionMiddleware having resolved anything. The accountId
+            // is already compared explicitly on the line above, so the filter
+            // would add nothing but a dependency.
             var credentialState = Guid.TryParse(userIdClaim, out var userId)
                 && Guid.TryParse(accountIdClaim, out var accountId)
                 ? await db.Users.AsNoTracking()
                     .Where(user => user.Id == userId && user.AccountId == accountId)
-                    .Select(user => new { user.CredentialEpoch, user.DisabledAt })
+                    .Select(user => new
+                    {
+                        user.CredentialEpoch,
+                        user.DisabledAt,
+                        AccountIsActive = db.Accounts.IgnoreQueryFilters()
+                            .Where(account => account.Id == user.AccountId)
+                            .Select(account => (bool?)account.IsActive)
+                            .FirstOrDefault(),
+                    })
                     .SingleOrDefaultAsync(context.RequestAborted)
                 : null;
 
+            // #532 — PRECEDENCE IS DELIBERATE, and it is the reason the epoch
+            // test moved to last. Suspending a farm bumps every one of its users'
+            // CredentialEpoch, so a suspended farm's bearer fails BOTH the
+            // account test and the epoch test. Checking the epoch first would
+            // answer Auth.CredentialsSuperseded — "sign in again" — to someone
+            // whose farm is suspended and whose sign-in cannot succeed. Order:
+            // unknown user, then disabled user, then suspended farm, then epoch.
             if (credentialState is null
-                || credentialState.CredentialEpoch != tokenEpoch
-                || credentialState.DisabledAt is not null)
+                || credentialState.DisabledAt is not null
+                || credentialState.AccountIsActive != true
+                || credentialState.CredentialEpoch != tokenEpoch)
             {
                 var disabled = credentialState?.DisabledAt is not null;
+                var farmSuspended = credentialState is not null
+                    && credentialState.DisabledAt is null
+                    && credentialState.AccountIsActive != true;
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.ContentType = "application/problem+json";
                 await context.Response.WriteAsJsonAsync(new ProblemDetails
                 {
-                    Title = disabled ? "Auth.AccountDisabled" : "Auth.CredentialsSuperseded",
+                    Title = disabled
+                        ? "Auth.AccountDisabled"
+                        : farmSuspended
+                            ? "Auth.FarmSuspended"
+                            : "Auth.CredentialsSuperseded",
                     Detail = disabled
                         ? "Your account has been disabled."
-                        : "Your credentials have been superseded. Sign in again.",
+                        : farmSuspended
+                            ? "This farm is suspended. Contact your administrator."
+                            : "Your credentials have been superseded. Sign in again.",
                     Status = StatusCodes.Status401Unauthorized,
                 });
                 return;
