@@ -1,5 +1,6 @@
 import type { AccessTokenResponse, LoginRequest, ProblemDetails } from "./types";
 import { clearAccessToken, getAccessToken, setAccessToken } from "../auth/tokenStore";
+import { accountIdFromToken } from "../auth/claims";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { newTraceparent } from "../lib/traceparent";
@@ -390,6 +391,9 @@ type HeldAuthCookieLock = Readonly<{
 }>;
 
 async function executeRefresh(generation: number, signal?: AbortSignal): Promise<string> {
+  // Captured BEFORE the call: the refresh may rotate the cookie and the token
+  // store, so reading it afterwards would compare the new token against itself.
+  const tabAccountId = accountIdFromToken(getAccessToken());
   try {
     const res = await raw<AccessTokenResponse>("/auth/refresh", {
       method: "POST",
@@ -402,6 +406,25 @@ async function executeRefresh(generation: number, signal?: AbortSignal): Promise
     if (sessionGeneration !== generation) {
       await revokeSupersededCookie();
       throw new StaleSessionError();
+    }
+    // #532 — the cookie is per-origin, this store is per-tab. Another tab
+    // logging into a different farm replaces the cookie, so this refresh can
+    // return a session for a farm this tab never chose. Adopting it would let
+    // the retry replay this tab's pending request — including its BODY —
+    // against the other farm. Refuse instead, and tear the tab's session down.
+    //
+    // A tab with NO prior token is the legitimate cold-restore path (nothing to
+    // compare against), so only a genuine MISMATCH is refused.
+    //
+    // A plain Error (not StaleSessionError, not a 429 ApiError, not an
+    // AbortError): it is not transient, so the caller's refresh-failure branch
+    // runs its usual single teardown — clearAccessToken() + onUnauthenticated
+    // + rethrow the ORIGINAL 401 — instead of retrying on the other farm's
+    // token. Reusing that existing teardown is what keeps this path from
+    // inventing a second "session is over" code path.
+    const refreshedAccountId = accountIdFromToken(res.accessToken);
+    if (tabAccountId !== null && refreshedAccountId !== null && refreshedAccountId !== tabAccountId) {
+      throw new Error("Refused: refresh returned a different account's session.");
     }
     setAccessToken(res.accessToken);
     onTokensChanged?.();

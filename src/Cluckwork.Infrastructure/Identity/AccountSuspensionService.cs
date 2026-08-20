@@ -31,7 +31,7 @@ using Microsoft.EntityFrameworkCore;
 //
 // The guarantee above is IMMEDIATE for USE, not for ISSUANCE, and this is said
 // plainly rather than over-claimed: login checks Account.IsActive (AuthEndpoints
-// :186) and mints (:213) in two separate steps. A suspension that commits in
+// :201) and mints (:213) in two separate steps. A suspension that commits in
 // that window leaves a refresh-token row that POST-DATES the revocation sweep,
 // and login returns 200. The minted credential is inert, though: the access
 // token is refused on its next request (CredentialEpochMiddleware re-reads
@@ -41,11 +41,12 @@ using Microsoft.EntityFrameworkCore;
 // is ReactivationRevokesTheSessionsMintedBetweenSuspendAndReactivate, which
 // inserts exactly this artifact on purpose because the race is not reproducible
 // on demand. Closing the window itself would require login to take a FOR SHARE
-// lock on the account row inside its issuance transaction — a lock on the login
-// hot path, and it creates the account-then-token lock ordering that could
-// deadlock against this service (this service takes account first, then the
-// user and token rows, and every other locking path does the same). That is
-// deliberately not done.
+// lock on the account row inside its issuance transaction. That lock is NOT
+// taken, for cost, not for deadlock: it puts a lock plus an extra round trip on
+// the login hot path in order to close a window whose only product is a
+// credential that can never be used. (Consistent account-first lock ordering
+// would only SERIALISE the two paths — it could not deadlock them, since every
+// locking path takes the account row first.)
 public sealed class AccountSuspensionService(
     AppDbContext db, TenantContext tenant, IAccountRepository accounts, TimeProvider timeProvider)
 {

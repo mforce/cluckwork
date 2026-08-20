@@ -22,6 +22,12 @@ using Microsoft.Extensions.DependencyInjection;
 //     → ABearerWhoseEpochStillMatches_IsRejected_WhenTheFarmIsInactive
 //   * the suspended-farm check in RefreshAsync
 //     → ARefreshTokenWhoseEpochStillMatches_IsRejected_WhenTheFarmIsInactive
+//       (this one only reaches that check since the refresh token is decoded
+//       with Uri.UnescapeDataString: the raw cookie value is percent-encoded,
+//       so an encoded token hashed to nothing and RefreshAsync failed at its
+//       FIRST branch — InvalidRefreshToken — before the suspended-farm check
+//       ever ran. Round 5 proved the guard was deletable with the whole suite
+//       green on that account; the decode is what makes this test genuine.)
 //   * reactivation's revoke (nothing survives a suspend/reactivate cycle)
 //     → ReactivationRevokesTheSessionsMintedBetweenSuspendAndReactivate
 //   * account scoping (the ExecuteUpdateAsync pair is scoped by AccountId and
@@ -139,6 +145,88 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         Assert.Equal(0, await LiveRefreshTokenCountAsync(accountId));
     }
 
+    // #532 round-5 — the revocation sweep stamps RevokedAt from the TimeProvider
+    // read, not from the row's CreatedAt or a constant. Pin the exact instant by
+    // driving the service with the harness FakeTimeProvider: a mutation that
+    // changed which clock (or which value) feeds RevokedAt would land a
+    // different instant here and redden.
+    [Fact]
+    public async Task SuspendAsync_StampsRevokedAtFromTheTimeProviderRead()
+    {
+        var email = $"susp-revokeat-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        _ = await factory.LoginAsync(email);
+        Assert.Equal(1, await LiveRefreshTokenCountAsync(accountId));
+
+        var clock = new Cluckwork.Api.IntegrationTests.SharedState.FakeTimeProvider();
+        clock.Advance(TimeSpan.FromDays(3)); // a distinctive, non-"now" instant
+
+        // Resolve the collaborators from ONE scope so they share the transaction
+        // and tenant, and pass the FakeTimeProvider in place of the DI singleton.
+        using var scope = factory.Services.CreateScope();
+        var sp = scope.ServiceProvider;
+        var service = new AccountSuspensionService(
+            sp.GetRequiredService<AppDbContext>(),
+            sp.GetRequiredService<TenantContext>(),
+            sp.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            clock);
+
+        var result = await service.SuspendAsync(accountId);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Description : "");
+
+        using (var checkScope = factory.Services.CreateScope())
+        {
+            var db = checkScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var row = await db.RefreshTokens.AsNoTracking()
+                .SingleAsync(t => t.AccountId == accountId && t.RevokedAt != null);
+            Assert.Equal(clock.GetUtcNow(), row.RevokedAt);
+        }
+    }
+
+    // #532 round-5 — the revocation sweep filters on `RevokedAt == null`, so an
+    // already-revoked row must NOT be touched. Dropping that predicate would
+    // re-stamp the existing RevokedAt (overwriting the original revocation
+    // instant) on every suspend/reactivate. Pin it with an already-revoked row
+    // whose stamp must survive the sweep untouched.
+    [Fact]
+    public async Task SuspendAsync_DoesNotOverwriteAnAlreadyRevokedRefreshRow()
+    {
+        var email = $"susp-alreadyrev-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        _ = await factory.LoginAsync(email);
+        Assert.Equal(1, await LiveRefreshTokenCountAsync(accountId));
+
+        // A second row that is ALREADY revoked, stamped with a distinctive
+        // instant. The sweep must leave this exact instant in place.
+        var preRevokedStamp = new DateTimeOffset(2020, 5, 5, 5, 5, 5, TimeSpan.Zero);
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var userId = await db.Users.Where(u => u.Email == email).Select(u => u.Id).SingleAsync();
+            db.RefreshTokens.Add(new RefreshToken
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                AccountId = accountId,
+                TokenHash = Guid.NewGuid().ToString("N"),
+                CreatedAt = preRevokedStamp,
+                ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
+                IssuedEpoch = 0,
+                RevokedAt = preRevokedStamp,
+            });
+            await db.SaveChangesAsync();
+        });
+
+        await SuspendAsync(accountId);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.RefreshTokens.AsNoTracking()
+            .SingleAsync(t => t.AccountId == accountId && t.RevokedAt == preRevokedStamp);
+        // The sweep must have left the pre-existing revocation stamp untouched —
+        // not overwritten with the TimeProvider instant of the suspend.
+        Assert.Equal(preRevokedStamp, row.RevokedAt);
+    }
+
     [Fact]
     public async Task SuspendedFarm_RejectsLogin_WithFarmSuspended()
     {
@@ -207,7 +295,10 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         using (var scope = factory.Services.CreateScope())
         {
             var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
-            Assert.True((await identity.RefreshAsync(tokens.RefreshToken)).IsFailure,
+            // Uri.UnescapeDataString for the same reason as
+            // ARefreshTokenWhoseEpochStillMatches…: the cookie value is
+            // percent-encoded and RefreshAsync hashes whatever it is given.
+            Assert.True((await identity.RefreshAsync(Uri.UnescapeDataString(tokens.RefreshToken))).IsFailure,
                 "a refresh token minted before the suspension must not survive reactivation");
         }
     }
@@ -259,6 +350,74 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         Assert.Equal(AuthEndpoints.FarmSuspendedCode, problem!.Title);
     }
 
+    // #532 round-5 — the fail-CLOSED distinction that `!= true` makes and
+    // `== false` does not: a user row whose account row is MISSING yields a
+    // NULL AccountIsActive in the correlated subquery. `!= true` rejects it
+    // (null is not true); `== false` would let it through (null is not false)
+    // and the request would proceed on a matching epoch. The two spellings are
+    // indistinguishable for an existing inactive account — only a missing one
+    // separates them. The FK is dropped for the window so the user can reference
+    // a non-existent account, and restored before the test ends.
+    [Fact]
+    public async Task ABearerWhoseAccountRowIsMissing_IsRejected_WhenTheEpochStillMatches()
+    {
+        var email = $"susp-orphan-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var tokens = await factory.LoginAsync(email);
+        var client = factory.CreateAuthedClient(tokens.AccessToken);
+
+        // The epoch still matches (nothing has bumped it), so the ONLY clause
+        // that can reject this is the account one — and it must do so even
+        // though the account row is gone (AccountIsActive reads NULL, not
+        // false). A `== false` implementation would let this 200.
+        //
+        // One explicit connection + transaction for the drop/delete so the DDL
+        // and the row delete share a session: the FK must be gone before the
+        // account row can be deleted, and both must commit before the request
+        // below runs. A direct NpgsqlConnection (not EF's pooled DbConnection)
+        // so the DDL and the parameterised delete are unambiguous.
+        await using var conn = new Npgsql.NpgsqlConnection(factory.ConnectionString);
+        await conn.OpenAsync();
+        // The FK constraint name is mixed-case, so it MUST be quoted in the
+        // DROP — an unquoted identifier is lowercased by Postgres and the
+        // constraint silently survives (with IF EXISTS, a no-op).
+        {
+            using var drop = conn.CreateCommand();
+            drop.CommandText = "ALTER TABLE \"AspNetUsers\" DROP CONSTRAINT IF EXISTS \"FK_AspNetUsers_Accounts_AccountId\";";
+            await drop.ExecuteNonQueryAsync();
+
+            var del = conn.CreateCommand();
+            del.CommandText = $"DELETE FROM \"Accounts\" WHERE \"Id\" = '{accountId}';";
+            Assert.Equal(1, await del.ExecuteNonQueryAsync());
+        }
+        try
+        {
+            var response = await client.GetAsync("/api/v1/users");
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+            Assert.Equal(AuthEndpoints.FarmSuspendedCode, problem!.Title);
+        }
+        finally
+        {
+            // Restore the FK so the shared schema is left intact for other tests
+            // in this collection. The user row still references the deleted
+            // account, so drop it first, then re-add the constraint.
+            using var tx = await conn.BeginTransactionAsync();
+            var delUser = conn.CreateCommand();
+            delUser.Transaction = tx;
+            delUser.CommandText = "DELETE FROM \"AspNetUsers\" WHERE \"AccountId\" = @id;";
+            delUser.Parameters.Add(new Npgsql.NpgsqlParameter("@id", accountId));
+            await delUser.ExecuteNonQueryAsync();
+
+            using var add = conn.CreateCommand();
+            add.Transaction = tx;
+            add.CommandText = "ALTER TABLE \"AspNetUsers\" ADD CONSTRAINT \"FK_AspNetUsers_Accounts_AccountId\" FOREIGN KEY (\"AccountId\") REFERENCES \"Accounts\" (\"Id\") ON DELETE RESTRICT;";
+            await add.ExecuteNonQueryAsync();
+
+            await tx.CommitAsync();
+        }
+    }
+
     [Fact]
     public async Task ARefreshTokenWhoseEpochStillMatches_IsRejected_WhenTheFarmIsInactive()
     {
@@ -270,9 +429,17 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
 
         // IssuedEpoch still equals the user's CredentialEpoch, so the epoch check
         // in RefreshAsync passes. Only the suspended-farm check rejects this.
+        // Uri.UnescapeDataString because this bypasses HTTP: ExtractRefreshCookie
+        // hands back the RAW Set-Cookie value, which is percent-encoded, and
+        // RefreshAsync hashes whatever it is given. Without the decode the hash
+        // matches no stored row and the method returns InvalidRefreshToken at its
+        // FIRST branch — so this test would assert IsFailure and get it for a
+        // reason that has nothing to do with the farm being suspended. Round 5
+        // proved the suspended-farm guard was deletable with the whole suite
+        // green because of exactly this. Same reason as RetryBoundaryTests.cs.
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
-        Assert.True((await identity.RefreshAsync(tokens.RefreshToken)).IsFailure,
+        Assert.True((await identity.RefreshAsync(Uri.UnescapeDataString(tokens.RefreshToken))).IsFailure,
             "a suspended farm must not rotate a session, even when the epoch still matches");
     }
 
@@ -304,12 +471,27 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         });
         Assert.Equal(1, await LiveRefreshTokenCountAsync(accountId));
 
+        // Read BEFORE reactivation. Suspend already bumped these once; the
+        // point of capturing the pre-reactivation value is to prove REACTIVATION
+        // bumps them a SECOND time (round-5 review): without the reactivation
+        // epoch/stamp update, a matching-epoch bearer minted in the instant
+        // before the suspension committed would become usable again the moment
+        // the farm comes back, for its remaining token lifetime. Refresh
+        // revocation alone does not kill the already-issued access token.
+        var userBefore = await ReadUserAsync(email);
+
         await ReactivateAsync(accountId);
 
         // Set revokeSessions to false on ReactivateAsync and this is the ONLY
         // test that reddens. The pre-suspension-session test does not: suspend
         // already bumped the epoch, so those credentials are dead either way.
         Assert.Equal(0, await LiveRefreshTokenCountAsync(accountId));
+
+        // Reactivation revokes AND bumps, in the same statement as suspend does.
+        var userAfter = await ReadUserAsync(email);
+        Assert.Equal(userBefore.CredentialEpoch + 1, userAfter.CredentialEpoch);
+        Assert.NotEqual(userBefore.SecurityStamp, userAfter.SecurityStamp);
+        Assert.NotEqual(userBefore.ConcurrencyStamp, userAfter.ConcurrencyStamp);
     }
 
     [Fact]
@@ -342,9 +524,12 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         var client = factory.CreateAuthedClient(tokens.AccessToken);
 
         // The middleware reads DisabledAt from the USER row, never from the JWT
-        // claims, so this must be persisted — and persisted BEFORE the suspension
-        // bumps the epoch, or the bearer would fail the epoch clause first and the
-        // precedence under test would never be exercised.
+        // claims, so this must be persisted. (The write ORDER here is not
+        // load-bearing: the middleware reads the final row state at request time,
+        // so disabling before or after the suspension's epoch bump gives the
+        // identical outcome. What this test pins is the PRECEDENCE — that a
+        // disabled user in a suspended farm is told their account is disabled,
+        // not that the farm is suspended.)
 
         await factory.WithTenantScopeAsync(accountId, db =>
             db.Users.Where(u => u.Email == victim)

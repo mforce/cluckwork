@@ -117,7 +117,11 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
         using (var s = Scope())
         {
             var idp = s.ServiceProvider.GetRequiredService<IIdentityProvider>();
-            Assert.True((await idp.RefreshAsync(oldRefreshToken)).IsFailure,
+            // Uri.UnescapeDataString because this bypasses HTTP: the refresh
+            // token was captured from the RAW Set-Cookie value, which is
+            // percent-encoded, and RefreshAsync hashes whatever it is given
+            // (same reason as RetryBoundaryTests.cs).
+            Assert.True((await idp.RefreshAsync(Uri.UnescapeDataString(oldRefreshToken))).IsFailure,
                 "the refresh token minted before recovery must be revoked");
         }
 

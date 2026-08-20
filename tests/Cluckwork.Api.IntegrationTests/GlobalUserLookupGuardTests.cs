@@ -51,6 +51,16 @@ public sealed class GlobalUserLookupGuardTests
         "Cluckwork.Infrastructure/Identity/AdminRecoveryService.cs",
     ];
 
+    // True when fileName[start..start+length) is all ASCII digits. Validating
+    // every digit (not a sampled two) is what keeps a name like
+    // "1abcdefgh9.Designer.cs" from passing the migration exemption.
+    private static bool IsAllDigits(string s, int start, int length)
+    {
+        for (var i = start; i < start + length; i++)
+            if (!char.IsDigit(s[i])) return false;
+        return true;
+    }
+
     private static string SourceRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -74,21 +84,41 @@ public sealed class GlobalUserLookupGuardTests
             var relative = Path.GetRelativePath(SourceRoot(), file)
                 .Replace(Path.DirectorySeparatorChar, '/');
             if (AllowedFiles.Contains(relative)) continue;
-            // Exempt only what EF GENERATES: the model snapshot and the
-            // <timestamp>_<Name>.cs / .Designer.cs migration pair. Those mention
-            // entity members, not calls. A hand-written class placed in a
-            // Migrations folder is NOT exempted — matching the directory rather
-            // than the file-name pattern would let an offending production
-            // class move there with no code change and blind the guard
-            // (round-3 review).
+            // Exempt only what EF GENERATES, and ONLY under a Migrations
+            // directory. Two shapes, each matching exactly what `ef migrations`
+            // mints — no looser "ends with" that a hand-written file could
+            // slip through:
+            //   * the model snapshot: exactly `<ContextName>ModelSnapshot.cs`
+            //     (e.g. AppDbContextModelSnapshot.cs), or
+            //   * a migration file: a full 14-digit timestamp followed by `_`
+            //     and a name, optionally with a `.Designer.cs` suffix
+            //     (e.g. 20260819202301_RequireUserIdentityColumns.cs and its
+            //     .Designer.cs twin).
+            // Both mention entity members, not calls, so a banned token there
+            // is scaffold output, not a production lookup. A file named e.g.
+            // UserLookupModelSnapshot.cs OUTSIDE a Migrations directory is a
+            // production file and is NOT exempted: the directory + exact-name
+            // requirement is what stops a hand-written class from inheriting
+            // the exemption by name alone (round-3 / round-5 review).
             var fileName = Path.GetFileName(file);
-            if (fileName.EndsWith("ModelSnapshot.cs", StringComparison.Ordinal))
-                continue;
-            if (fileName.EndsWith(".Designer.cs", StringComparison.Ordinal)
-                && fileName.Length > 14
-                && char.IsDigit(fileName[0])
-                && char.IsDigit(fileName[9]))
-                continue;
+            // "Under a Migrations directory": the directory component is exactly
+            // "Migrations", so a sibling "Xmigrations" or a file merely named
+            // *Migrations.cs cannot qualify.
+            var dirName = Path.GetFileName(Path.GetDirectoryName(file));
+            var underMigrations = string.Equals(dirName, "Migrations", StringComparison.Ordinal);
+            if (underMigrations)
+            {
+                var snapshotName = "AppDbContext" + "ModelSnapshot.cs";
+                if (fileName.Equals(snapshotName, StringComparison.Ordinal))
+                    continue;
+                // A full 14-digit timestamp (every one of them a digit), then
+                // an underscore, then a non-empty name — the .Designer.cs twin
+                // carries the same prefix and is covered by the same check.
+                if (fileName.Length > 15
+                    && fileName[14] == '_'
+                    && IsAllDigits(fileName, 0, 14))
+                    continue;
+            }
 
             var lines = File.ReadAllLines(file);
             for (var i = 0; i < lines.Length; i++)

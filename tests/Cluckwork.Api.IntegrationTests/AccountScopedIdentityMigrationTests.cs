@@ -73,13 +73,11 @@ public sealed class AccountScopedIdentityMigrationTests
         var emailValue = nullColumn switch
         {
             "Email" => "NULL",
-            "NormalizedEmail" => "'nullemail@example.com'",
             _ => "'nullemail@example.com'",
         };
         var normalizedEmailValue = nullColumn switch
         {
             "NormalizedEmail" => "NULL",
-            "Email" => "NULL",
             _ => "'NULLEMAIL@EXAMPLE.COM'",
         };
         var userNameValue = nullColumn switch
@@ -244,17 +242,13 @@ public sealed class AccountScopedIdentityMigrationTests
         var conflict = await Record.ExceptionAsync(() => db.Database.ExecuteSqlRawAsync(
             InsertUserWithOneNullIdentityColumnSql(userId, DefaultAccountId, nullColumn)));
 
-        // ONLY a NOT-NULL signal is accepted: 23502 (not_null_violation) is
-        // what Postgres raises when a plain SQL NULL reaches the parameter, and
-        // 22P02 (invalid_input_syntax) is what Npgsql raises for a parameter
-        // sent as an untyped NULL against a NOT NULL column — the two code
-        // paths by which the same constraint is refused. A set containing
-        // 23505 would let a UNIQUE constraint (not the NOT NULL one) be the
-        // thing refusing the row, which is not what this proves.
+        // ONLY 23502 (not_null_violation) is accepted — the Postgres signal
+        // that a plain SQL NULL reached the parameter against a NOT NULL
+        // column. A set containing 23505 would let a UNIQUE constraint (not
+        // the NOT NULL one) be the thing refusing the row, which is not what
+        // this proves.
         var postgresException = Assert.IsAssignableFrom<NpgsqlException>(conflict);
-        // 23502 = not_null_violation, the ONLY value accepted. A set that
-        // included 23505 would let a UNIQUE constraint (not the NOT NULL one)
-        // be the thing refusing the row, which is not what this proves.
+        // 23502 = not_null_violation, the ONLY value accepted.
         //
         // (Do not "help" a 22P02 failure by widening the accepted set to cover
         // it: 22P02 here means invalid_input_syntax on a column VALUE, which is

@@ -362,6 +362,77 @@ describe("apiFetch — transparent refresh", () => {
   });
 });
 
+// #532 — the refresh cookie is per-ORIGIN (one per browser, last login wins)
+// while the token store is per-TAB. A refresh in an old tab can therefore
+// return a session for a DIFFERENT farm than the one this tab was operating as
+// (another tab logged in elsewhere). Adopting it would let the retry replay
+// this tab's pending request — body and all — against the other farm.
+// executeRefresh refuses a token whose account_id differs from the tab's own.
+function jwtWithAccountId(accountId: string, marker: string): string {
+  const payload = btoa(
+    JSON.stringify({ sub: `user-${marker}`, account_id: accountId, exp: 9999999999 }),
+  );
+  return `hdr.${payload.replace(/=+$/, "")}.sig`;
+}
+
+describe("executeRefresh — cross-farm adoption guard (#532)", () => {
+  it("refuses a refreshed token from a DIFFERENT farm: no retry, session torn down", async () => {
+    setAccessToken(jwtWithAccountId("acct-A", "tab"));
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
+      .mockResolvedValueOnce(
+        accessResponse(jwtWithAccountId("acct-B", "other-farm")),
+      ); // refresh returns farm B's session
+
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(401);
+    // Exactly original + one refresh: the original request was NOT retried
+    // against the other farm.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(callsTo(fetchMock, "/stock")).toHaveLength(1);
+    // This tab's session was torn down: token cleared, sent to login.
+    expect(getAccessToken()).toBeNull();
+    expect(onUnauth).toHaveBeenCalledTimes(1);
+    expect(onTokens).not.toHaveBeenCalled(); // the other farm's token was never adopted
+  });
+
+  it("adopts and retries normally when the refreshed token carries the SAME farm", async () => {
+    setAccessToken(jwtWithAccountId("acct-A", "tab"));
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
+      .mockResolvedValueOnce(
+        accessResponse(jwtWithAccountId("acct-A", "rotated")),
+      ) // refresh rotates within the same farm
+      .mockResolvedValueOnce(jsonResponse({ ok: true })); // the retry
+
+    const body = await apiGet<{ ok: boolean }>("/stock");
+    expect(body).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const retried = callsTo(fetchMock, "/stock")[1];
+    expect(authOf(retried)).toBe(`Bearer ${jwtWithAccountId("acct-A", "rotated")}`);
+    expect(getAccessToken()).toBe(jwtWithAccountId("acct-A", "rotated"));
+    expect(onUnauth).not.toHaveBeenCalled();
+    expect(onTokens).toHaveBeenCalledTimes(1);
+  });
+
+  it("still allows adoption on a cold restore (no prior token in this tab)", async () => {
+    clearAccessToken(); // the legitimate cold-restore path: nothing to compare against
+    fetchMock
+      .mockResolvedValueOnce(
+        accessResponse(jwtWithAccountId("acct-B", "restored")),
+      ) // the silent refresh
+      .mockResolvedValueOnce(jsonResponse({ ok: true })); // the request
+
+    const body = await apiGet<{ ok: boolean }>("/stock");
+    expect(body).toEqual({ ok: true });
+    expect(getAccessToken()).toBe(jwtWithAccountId("acct-B", "restored"));
+    expect(onUnauth).not.toHaveBeenCalled();
+    expect(onTokens).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("apiFetch — refresh failure is fail-closed and non-recursive", () => {
   it("clears the session and rethrows the ORIGINAL error when refresh 401s", async () => {
     fetchMock

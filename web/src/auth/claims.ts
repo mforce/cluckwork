@@ -39,6 +39,26 @@ export function currentUserIsAdmin(): boolean {
   return role === "Admin" || role === "Manager";
 }
 
+// #532 — decodes the account claim from an ARBITRARY token string, not the
+// stored one. executeRefresh needs to compare the account of the token it is
+// about to adopt against the account this tab was already operating as: the
+// refresh cookie is per-ORIGIN (one per browser, last login wins) while the
+// token store is per-TAB, so a refresh in an old tab can legitimately return a
+// different farm's session.
+export function accountIdFromToken(token: string | null): string | null {
+  if (!token) return null;
+  try {
+    let payloadPart = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    payloadPart = payloadPart.padEnd(payloadPart.length + ((4 - (payloadPart.length % 4)) % 4), "=");
+    const payload = JSON.parse(atob(payloadPart)) as { account_id?: unknown };
+    return typeof payload.account_id === "string" && payload.account_id.length > 0
+      ? payload.account_id
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 // #356 (codex review of #492 round 10) — the caller's own id, straight from
 // the token's standard "sub" claim, for UI checks that must not depend on
 // /me succeeding. SessionProvider deliberately keeps the shell up with
