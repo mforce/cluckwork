@@ -196,7 +196,7 @@ production operations.
 
 ## Drill
 
-Safe only when `aspire ps --format Json --non-interactive` reports no existing
+Safe only when `$aspire ps --format Json --non-interactive` reports no existing
 developer-owned run and the AppHost database is disposable.
 
 1. Start from the repository root, wait for `postgres`, `redis`, `api`, and
@@ -216,5 +216,5 @@ developer-owned run and the AppHost database is disposable.
    stopped-container guard passes before the non-force volume removal; restart,
    wait for `api`, and confirm migrations recreate the schema without the
    marker.
-7. Stop the AppHost, require `aspire ps --format Json --non-interactive` to be
+7. Stop the AppHost, require `$aspire ps --format Json --non-interactive` to be
    empty, and update **Last drilled** above.
