@@ -1,62 +1,144 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using Cluckwork.Api.Configuration;
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using OpenTelemetry.Exporter;
 
-// #214 — the OTLP exporter is config-gated: no Otlp:Endpoint means no exporter
-// (today's behavior, zero overhead), a valid endpoint boots and exports, and a
-// malformed value fails at startup — not silently, not on the first request —
-// matching the repo's eager-config-validation convention.
-public sealed class OtlpFactory : CluckworkWebApplicationFactory
+public sealed class OtlpConfigurationResolverTests
 {
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    [Theory]
+    [InlineData("Otlp:Endpoint", "", "", null, null)]
+    [InlineData("Otlp:Protocol", "grpc", null, "grpc", null)]
+    [InlineData("Otlp:Headers", "Authorization=test", null, null, "Authorization=test")]
+    public void Any_canonical_transport_key_selects_the_complete_canonical_profile(
+        string canonicalKey,
+        string canonicalValue,
+        string? expectedEndpoint,
+        string? expectedProtocol,
+        string? expectedHeaders)
     {
-        base.ConfigureWebHost(builder);
-        builder.UseSetting("Otlp:Endpoint", "http://127.0.0.1:4317");
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            [canonicalKey] = canonicalValue,
+            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://standard.example:4317",
+            ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf",
+            ["OTEL_EXPORTER_OTLP_HEADERS"] = "x-otlp-api-key=standard-secret",
+        });
+
+        var resolved = OtlpConfigurationResolver.Resolve(configuration);
+
+        Assert.Equal(OtlpTransportProfileSource.Canonical, resolved.Source);
+        Assert.False(resolved.Options.Enabled);
+        Assert.Equal(expectedEndpoint, resolved.Options.Endpoint);
+        Assert.Equal(expectedProtocol, resolved.Options.Protocol);
+        Assert.Equal(expectedHeaders, resolved.Options.Headers);
     }
+
+    [Fact]
+    public void No_canonical_transport_key_maps_all_standard_values_together()
+    {
+        var resolved = OtlpConfigurationResolver.Resolve(BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://standard.example:4317",
+            ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf",
+            ["OTEL_EXPORTER_OTLP_HEADERS"] = "x-otlp-api-key=standard-secret",
+        }));
+
+        Assert.Equal(OtlpTransportProfileSource.Standard, resolved.Source);
+        Assert.Equal("https://standard.example:4317", resolved.Options.Endpoint);
+        Assert.Equal("http/protobuf", resolved.Options.Protocol);
+        Assert.Equal("x-otlp-api-key=standard-secret", resolved.Options.Headers);
+    }
+
+    [Fact]
+    public void Allow_insecure_endpoint_applies_to_standard_profile_without_selecting_canonical_profile()
+    {
+        var resolved = OtlpConfigurationResolver.Resolve(BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Otlp:AllowInsecureEndpoint"] = "true",
+            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://standard.example:4317",
+        }));
+
+        Assert.Equal(OtlpTransportProfileSource.Standard, resolved.Source);
+        Assert.True(resolved.Options.AllowInsecureEndpoint);
+        Assert.Equal("http://standard.example:4317", resolved.Options.Endpoint);
+    }
+
+    [Fact]
+    public void Blank_canonical_endpoint_disables_export_despite_a_standard_endpoint()
+    {
+        var resolved = OtlpConfigurationResolver.Resolve(BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Otlp:Endpoint"] = "",
+            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://standard.example:4317",
+        }));
+
+        Assert.Equal(OtlpTransportProfileSource.Canonical, resolved.Source);
+        Assert.False(resolved.Options.Enabled);
+        Assert.Equal("", resolved.Options.Endpoint);
+    }
+
+    [Fact]
+    public void Canonical_endpoint_only_does_not_inherit_standard_protocol_or_headers()
+    {
+        var resolved = OtlpConfigurationResolver.Resolve(BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Otlp:Endpoint"] = "https://canonical.example:4317",
+            ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf",
+            ["OTEL_EXPORTER_OTLP_HEADERS"] = "x-otlp-api-key=standard-secret",
+        }));
+
+        Assert.Equal(OtlpTransportProfileSource.Canonical, resolved.Source);
+        Assert.Equal("https://canonical.example:4317", resolved.Options.Endpoint);
+        Assert.Null(resolved.Options.Protocol);
+        Assert.Null(resolved.Options.Headers);
+    }
+
+    [Fact]
+    public void Missing_settings_return_a_disabled_standard_profile_with_the_default_protocol()
+    {
+        var resolved = OtlpConfigurationResolver.Resolve(BuildConfiguration(new Dictionary<string, string?>()));
+
+        Assert.Equal(OtlpTransportProfileSource.Standard, resolved.Source);
+        Assert.False(resolved.Options.Enabled);
+        Assert.Equal(OtlpOptions.DefaultProtocol, resolved.Options.ParseProtocol());
+    }
+
+    private static IConfiguration BuildConfiguration(IReadOnlyDictionary<string, string?> values) =>
+        new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 }
 
-[Collection(OtlpCollection.Name)]
-public sealed class OtlpExporterTests(OtlpFactory factory)
+// The shared factory explicitly selects the canonical disabled profile. These
+// cases exercise only validation that rejects before an enabled exporter host
+// exists; valid exporting coverage belongs to the isolated child-process suite.
+public sealed class OtlpExporterHostValidationTests(CluckworkWebApplicationFactory factory)
+    : IClassFixture<CluckworkWebApplicationFactory>
 {
-    [Fact]
-    public async Task App_boots_and_serves_with_a_valid_otlp_endpoint_configured()
-    {
-        var client = factory.CreateClient();
-
-        var response = await client.GetAsync("/health/live");
-
-        response.EnsureSuccessStatusCode();
-    }
-
     [Fact]
     public void Malformed_otlp_endpoint_fails_at_startup_with_a_pointed_message()
     {
         using var broken = factory.WithWebHostBuilder(builder =>
             builder.UseSetting("Otlp:Endpoint", "not a uri"));
 
-        var ex = Record.Exception(() => broken.CreateClient());
+        var exception = Record.Exception(() => broken.CreateClient());
 
-        Assert.NotNull(ex);
-        Assert.Contains("Otlp:Endpoint", ex!.Message);
+        Assert.NotNull(exception);
+        Assert.Contains("Otlp:Endpoint", exception!.Message);
     }
 
-    // "localhost:4317" parses as an ABSOLUTE uri with Scheme=localhost — other
-    // OTel SDKs accept the shape, ours must reject it at boot rather than let
-    // the exporter fail later with an unpointed error (agent review of #226).
     [Fact]
     public void Non_http_scheme_endpoint_fails_at_startup_with_a_pointed_message()
     {
         using var broken = factory.WithWebHostBuilder(builder =>
             builder.UseSetting("Otlp:Endpoint", "localhost:4317"));
 
-        var ex = Record.Exception(() => broken.CreateClient());
+        var exception = Record.Exception(() => broken.CreateClient());
 
-        Assert.NotNull(ex);
-        Assert.Contains("Otlp:Endpoint", ex!.Message);
+        Assert.NotNull(exception);
+        Assert.Contains("Otlp:Endpoint", exception!.Message);
     }
 
     [Fact]
@@ -65,16 +147,14 @@ public sealed class OtlpExporterTests(OtlpFactory factory)
         using var broken = factory.WithWebHostBuilder(builder =>
             builder.UseSetting("Otlp:Protocol", "carrier-pigeon"));
 
-        var ex = Record.Exception(() => broken.CreateClient());
+        var exception = Record.Exception(() => broken.CreateClient());
 
-        Assert.NotNull(ex);
-        Assert.Contains("Otlp:Protocol", ex!.Message);
+        Assert.NotNull(exception);
+        Assert.Contains("Otlp:Protocol", exception!.Message);
     }
 
-    // Eager validation must not hide behind the endpoint gate: a typo'd
-    // protocol with export disabled still fails at boot (codex review of #226).
     [Fact]
-    public void Unknown_otlp_protocol_fails_at_startup_even_without_an_endpoint()
+    public void Unknown_otlp_protocol_fails_at_startup_even_with_export_disabled()
     {
         using var broken = factory.WithWebHostBuilder(builder =>
         {
@@ -82,76 +162,18 @@ public sealed class OtlpExporterTests(OtlpFactory factory)
             builder.UseSetting("Otlp:Protocol", "carrier-pigeon");
         });
 
-        var ex = Record.Exception(() => broken.CreateClient());
+        var exception = Record.Exception(() => broken.CreateClient());
 
-        Assert.NotNull(ex);
-        Assert.Contains("Otlp:Protocol", ex!.Message);
+        Assert.NotNull(exception);
+        Assert.Contains("Otlp:Protocol", exception!.Message);
     }
 
-    // The real thing: spans must LEAVE the process carrying our service name.
-    // A local HTTP listener plays OTLP collector; disposing the host force-
-    // flushes the batch exporter, so no dependence on the batch schedule. The
-    // driver request is an API route — /health/* is span-filtered by design.
     [Fact]
-    public async Task Spans_are_posted_to_the_configured_otlp_endpoint()
+    public async Task Disabled_otlp_endpoint_boots_without_an_exporter()
     {
-        using var collector = new FakeOtlpCollector();
-        var exporting = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Otlp:Endpoint", collector.Endpoint);
-            builder.UseSetting("Otlp:Protocol", "http/protobuf");
-        });
-        try
-        {
-            var response = await exporting.CreateClient().GetAsync("/api/v1/flocks");
-            Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
-        }
-        finally
-        {
-            exporting.Dispose();
-        }
+        var response = await factory.CreateClient().GetAsync("/health/live");
 
-        var body = await collector.WaitForPathAsync("/v1/traces", TimeSpan.FromSeconds(15));
-        // Protobuf embeds resource strings verbatim — the service name proves
-        // this is a real span payload, not an empty keep-alive.
-        Assert.Contains("Cluckwork.Api", System.Text.Encoding.ASCII.GetString(body));
-    }
-
-    // #215 — metrics ride the same pipeline: host dispose force-flushes the
-    // periodic reader, so request/runtime/DB meters must land on /v1/metrics.
-    [Fact]
-    public async Task Metrics_are_posted_to_the_configured_otlp_endpoint()
-    {
-        using var collector = new FakeOtlpCollector();
-        var exporting = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Otlp:Endpoint", collector.Endpoint);
-            builder.UseSetting("Otlp:Protocol", "http/protobuf");
-        });
-        try
-        {
-            // Login queries the user store — a real DB round-trip, so the
-            // Npgsql/EF instruments record at least one measurement
-            // (unrecorded histograms are omitted from the export entirely).
-            var response = await exporting.CreateClient().PostAsJsonAsync(
-                "/api/v1/auth/login", new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@test.local", password = "wrong-password-123!" });
-            Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
-        }
-        finally
-        {
-            exporting.Dispose();
-        }
-
-        var body = await collector.WaitForPathAsync("/v1/metrics", TimeSpan.FromSeconds(15));
-        var text = System.Text.Encoding.ASCII.GetString(body);
-        // Instrument names ride verbatim in the protobuf — one representative
-        // per required source (#215 AC 1): request histograms, runtime, Npgsql,
-        // EF Core. Names observed from a real export, not guessed.
-        Assert.Contains("Cluckwork.Api", text);
-        Assert.Contains("http.server.request.duration", text);
-        Assert.Contains("dotnet.gc.collections", text);
-        Assert.Contains("db.client.operation.duration", text);
-        Assert.Contains("microsoft.entityframeworkcore", text);
+        response.EnsureSuccessStatusCode();
     }
 }
 
@@ -352,97 +374,5 @@ public sealed class OtlpEndpointResolutionTests
 
         Assert.DoesNotContain(withUserInfo.Endpoint, userInfoEx.Message);
         Assert.DoesNotContain(withQuery.Endpoint, queryEx.Message);
-    }
-}
-
-[CollectionDefinition(Name)]
-public sealed class OtlpCollection : ICollectionFixture<OtlpFactory>
-{
-    public const string Name = "otlp";
-}
-
-// Minimal OTLP "collector": captures each signal path's first body — traces
-// and metrics arrive as separate POSTs in nondeterministic order (#215).
-// Listener failures surface through the fault task instead of degrading into
-// a generic timeout (cavecrew review of #226); Start retries a fresh port to
-// close the probe-then-bind race.
-internal sealed class FakeOtlpCollector : IDisposable
-{
-    private readonly System.Net.HttpListener _listener = new();
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, TaskCompletionSource<byte[]>> _byPath = new();
-    private readonly TaskCompletionSource<byte[]> _fault =
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-    private TaskCompletionSource<byte[]> For(string path) =>
-        _byPath.GetOrAdd(path, _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
-
-    public FakeOtlpCollector()
-    {
-        for (var attempt = 1; ; attempt++)
-        {
-            var port = FreePort();
-            Endpoint = $"http://127.0.0.1:{port}";
-            _listener.Prefixes.Clear();
-            _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
-            try
-            {
-                _listener.Start();
-                break;
-            }
-            catch (System.Net.HttpListenerException) when (attempt < 3)
-            {
-                // Port grabbed between probe and bind — rare; try another.
-            }
-        }
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                while (_listener.IsListening)
-                {
-                    var ctx = await _listener.GetContextAsync();
-                    using var buffer = new MemoryStream();
-                    await ctx.Request.InputStream.CopyToAsync(buffer);
-                    For(ctx.Request.Url!.AbsolutePath).TrySetResult(buffer.ToArray());
-                    ctx.Response.StatusCode = 200;
-                    ctx.Response.Close();
-                }
-            }
-            catch (Exception ex) when (ex is System.Net.HttpListenerException or ObjectDisposedException
-                                       && !_listener.IsListening)
-            {
-                // Normal shutdown: Dispose() stopped the listener mid-accept.
-            }
-            catch (Exception ex)
-            {
-                _fault.TrySetException(ex);
-            }
-        });
-    }
-
-    public string Endpoint { get; private set; }
-
-    public async Task<byte[]> WaitForPathAsync(string path, TimeSpan timeout)
-    {
-        var request = For(path).Task;
-        var winner = await Task.WhenAny(request, _fault.Task, Task.Delay(timeout));
-        if (winner == _fault.Task) await _fault.Task; // rethrow the listener failure
-        Assert.True(winner == request, $"no OTLP export arrived on {path} before the timeout");
-        return await request;
-    }
-
-    private static int FreePort()
-    {
-        var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
-        probe.Start();
-        var port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port;
-        probe.Stop();
-        return port;
-    }
-
-    public void Dispose()
-    {
-        try { _listener.Stop(); } catch { /* not listening / already disposed */ }
-        ((IDisposable)_listener).Dispose();
     }
 }

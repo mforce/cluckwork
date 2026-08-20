@@ -22,6 +22,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.*" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.*" />
     <PackageReference Include="Testcontainers.Redis" Version="4.*" />
+    <PackageReference Include="Google.Protobuf" Version="3.*" />
     <!-- Transitive-pin override: Testcontainers 4.13.0 still resolves SSH.NET
          2025.1.0, which carries GHSA-q939-rpr3-3284 (high — ScpClient recursive
          download allows arbitrary file write via server-controlled SCP

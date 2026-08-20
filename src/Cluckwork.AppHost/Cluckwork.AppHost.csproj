@@ -1,0 +1,30 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.5.0">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsAspireHost>true</IsAspireHost>
+    <!-- Package mode keeps ordinary/CI dotnet builds self-contained; Aspire
+         13.5's ASPIRE010 only recommends CLI-bundle mode, while basic
+         aspire run can consume the package-mode paths stamped in metadata. -->
+    <AspireUseCliBundle>false</AspireUseCliBundle>
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+    <UserSecretsId>cluckwork-apphost-local</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.5.0" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.5.0" />
+    <PackageReference Include="Aspire.Hosting.Redis" Version="13.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Cluckwork.Api/Cluckwork.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Cluckwork.AppHost.Tests" />
+  </ItemGroup>
+</Project>
