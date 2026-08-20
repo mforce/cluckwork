@@ -19,8 +19,25 @@ the SPA and the JSON API — no CORS, no version skew between a bundle and its A
 
 ## Run it
 
-Prerequisites: **Docker**. (For development you also want the .NET 10 SDK and
-Node 26+ — see [`CONTRIBUTING.md`](CONTRIBUTING.md).)
+### Local development with Aspire
+
+Aspire is the preferred full-stack development path. Prerequisites: the
+**.NET 10 SDK**, **Node 26+**, **Docker**, and **Aspire CLI 13.5**. From the
+repository root:
+
+```bash
+aspire run
+```
+
+Aspire starts PostgreSQL, Redis, the API, and Vite; waits on their existing
+health checks; and prints the dynamically assigned web and secured dashboard
+URLs. The complete setup, observation, persistence, and safe-reset procedure is
+in [Aspire local development](docs/runbooks/aspire-local-development.md).
+
+### Production-like Docker stack
+
+Prerequisite: **Docker**. This builds the single-container production shape
+instead of the split development processes:
 
 ```bash
 cp deploy/.env.example deploy/.env
