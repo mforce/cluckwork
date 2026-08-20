@@ -61,10 +61,12 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
     private IReadOnlyList<LogEvent> EventsFor(string securityEvent) =>
         [.. factory.Sink.Events.Where(e => ScalarOf(e, "SecurityEvent") == securityEvent)];
 
+    private Guid _accountId;
+
     private async Task<string> SeedUserAsync()
     {
         var email = $"secevt-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        _accountId = await factory.SeedAccountWithUserAsync(email);
         return email;
     }
 
@@ -205,10 +207,10 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
 
         // Rotate once — token A is now revoked, replaced by B. Grace is disabled
         // on this factory, so presenting A again below is unambiguously a replay.
-        var rotated = await client.PostRefreshAsync(tokens.RefreshToken);
+        var rotated = await client.PostRefreshAsync(tokens.RefreshToken, expectedAccount: _accountId.ToString());
         rotated.EnsureSuccessStatusCode();
 
-        var replay = await client.PostRefreshAsync(tokens.RefreshToken);
+        var replay = await client.PostRefreshAsync(tokens.RefreshToken, expectedAccount: _accountId.ToString());
 
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
         var replayEvents = EventsFor(SecurityEvents.RefreshTokenReplayDetected);
@@ -292,7 +294,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
 
         var tokens = await factory.LoginAsync(email);
         var client = factory.CreateClient(new() { HandleCookies = false });
-        var rotated = await client.PostRefreshAsync(tokens.RefreshToken);
+        var rotated = await client.PostRefreshAsync(tokens.RefreshToken, expectedAccount: _accountId.ToString());
         rotated.EnsureSuccessStatusCode();
 
         // Direct construction (bypassing HTTP/DI for the DbContext only) so the

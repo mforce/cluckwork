@@ -230,7 +230,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(HttpStatusCode.OK,
-            (await factory.CreateClient().PostRefreshAsync(target.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(target.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
     }
 
     [Fact]

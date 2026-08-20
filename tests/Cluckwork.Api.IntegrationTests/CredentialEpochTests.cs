@@ -22,7 +22,7 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
     public async Task ChangeOwnPassword_RejectsTheAccessTokenIssuedBeforeTheCredentialEpochBump()
     {
         var email = $"epoch-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
         var beforeReset = await factory.LoginAsync(email);
         var client = factory.CreateAuthedClient(beforeReset.AccessToken);
 
@@ -96,7 +96,7 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
     public async Task PreviousEpochRefreshReplay_DoesNotRevokeTheFreshEpochSession()
     {
         var email = $"epoch-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
         var beforeReset = await factory.LoginAsync(email);
         var client = factory.CreateAuthedClient(beforeReset.AccessToken);
 
@@ -111,9 +111,9 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
         // The old token is already revoked by the password change. It must fail
         // before the reuse detector, rather than revoking this new epoch's token.
         Assert.Equal(HttpStatusCode.Unauthorized,
-            (await factory.CreateClient().PostRefreshAsync(beforeReset.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(beforeReset.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
         Assert.Equal(HttpStatusCode.OK,
-            (await factory.CreateClient().PostRefreshAsync(fresh.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(fresh.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
             .SingleAsync());
         Assert.Null(revokedAt);
         Assert.Equal(HttpStatusCode.OK,
-            (await factory.CreateClient().PostRefreshAsync(currentEpochSibling.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(currentEpochSibling.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(0, retired.IssuedEpoch);
         Assert.Null(retired.RevokedAt);
         Assert.Equal(HttpStatusCode.OK,
-            (await factory.CreateClient().PostRefreshAsync(currentEpochSibling.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(currentEpochSibling.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
     }
 
     [Fact]
@@ -223,7 +223,7 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
         var login = await factory.TryLoginAsync(email, TestHarness.Password);
         Assert.Equal(HttpStatusCode.Unauthorized, login.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized,
-            (await factory.CreateClient().PostRefreshAsync(tokens.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(tokens.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
         var stepUp = await factory.CreateAuthedClient(tokens.AccessToken)
             .PostAsJsonAsync("/api/v1/auth/step-up", new { password = TestHarness.Password });
         Assert.Equal(HttpStatusCode.Unauthorized, stepUp.StatusCode);
@@ -328,7 +328,8 @@ public sealed class CredentialEpochTests(CluckworkWebApplicationFactory factory)
         });
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout/");
         request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
-        request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieName}={tokens.RefreshToken}");
+        request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieNameFor(accountId)}={tokens.RefreshToken}");
+        request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, accountId.ToString());
 
         var response = await factory.CreateAuthedClient(tokens.AccessToken).SendAsync(request);
 

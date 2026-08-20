@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Net.Http.Headers;
 using Cluckwork.Api.Endpoints.Auth;
@@ -19,6 +20,13 @@ using Microsoft.Extensions.DependencyInjection;
 internal static class TestHarness
 {
     public const string Password = "TestPassw0rd!23";
+
+    // Existing refresh tests pass the cookie value around as a string. Preserve
+    // that API while remembering the per-farm name it arrived under, so a later
+    // headerless PostRefreshAsync faithfully models the browser's one-cookie
+    // bootstrap instead of silently falling back to the legacy shared name.
+    private static readonly ConcurrentDictionary<string, string> RefreshCookieNamesByValue =
+        new(StringComparer.Ordinal);
 
     // Creates an Account row + an ApplicationUser bound to it, returning the account id.
     // Users are Admin by default — #73 gated the corrective endpoints, and most tests
@@ -425,32 +433,89 @@ internal static class TestHarness
 
     // Pulls the refresh-token value out of the Set-Cookie header (empty when the
     // cookie is being cleared, e.g. logout / failed refresh).
-    public static string ExtractRefreshCookie(HttpResponseMessage response)
+    // #532 — per-farm names: the refresh cookie is cluckwork_rt_<accountId:N>.
+    // With an accountId it extracts that farm's cookie (legacy included); with
+    // none it accepts any per-farm OR legacy cookie — the one-farm suites that
+    // predate the rename rely on the lenient shape.
+    public static string ExtractRefreshCookie(HttpResponseMessage response, Guid? accountId = null)
     {
         if (!response.Headers.TryGetValues("Set-Cookie", out var cookies))
             return string.Empty;
-        var prefix = AuthCookies.RefreshCookieName + "=";
-        var cookie = cookies.FirstOrDefault(c => c.StartsWith(prefix, StringComparison.Ordinal));
+        string? cookie;
+        if (accountId is { } account)
+        {
+            var perFarmName = AuthCookies.RefreshCookieNameFor(account) + "=";
+            cookie = cookies.FirstOrDefault(c => c.StartsWith(perFarmName, StringComparison.Ordinal));
+            if (cookie is null)
+            {
+                var legacyName = AuthCookies.LegacyRefreshCookieName + "=";
+                cookie = cookies.FirstOrDefault(c => c.StartsWith(legacyName, StringComparison.Ordinal));
+            }
+        }
+        else
+        {
+            cookie = cookies.FirstOrDefault(c =>
+                c.StartsWith(AuthCookies.LegacyRefreshCookieName + "=", StringComparison.Ordinal)
+                || c.StartsWith("cluckwork_rt_", StringComparison.Ordinal));
+        }
         if (cookie is null) return string.Empty;
-        return cookie[prefix.Length..].Split(';', 2)[0];
+        var name = cookie.Split('=', 2)[0];
+        var value = cookie[(name.Length + 1)..].Split(';', 2)[0];
+        if (!string.IsNullOrEmpty(value))
+            RefreshCookieNamesByValue[value] = name;
+        return value;
     }
 
     // POST /auth/refresh the cookie way: refresh token in the cookie, the #145
     // CSRF header present. Pass csrf: false to exercise the missing-header path.
-    public static Task<HttpResponseMessage> PostRefreshAsync(
-        this HttpClient client, string? refreshToken, bool csrf = true)
-        => client.PostRefreshAsync(refreshToken, csrf, expectedAccount: null);
-
-    // #547 — overload carrying the tab's expected-farm header
+    //
+    // #547 — expectedAccount carries the tab's expected-farm header
     // (AuthCookies.ExpectedAccountHeaderName). Pass a non-Guid string to
     // exercise the unparseable-header path; null means "header absent".
+    //
+    // #532 — expectedAccount selects that per-farm cookie name. When the header
+    // is absent, use the name remembered when the response cookie was
+    // extracted so existing tests faithfully model headerless bootstrap. Only
+    // hand-built tokens with no known source fall back to the legacy name.
     public static Task<HttpResponseMessage> PostRefreshAsync(
-        this HttpClient client, string? refreshToken, bool csrf, string? expectedAccount)
+        this HttpClient client, string? refreshToken, bool csrf = true, string? expectedAccount = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/refresh");
         if (csrf) request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
         if (refreshToken is not null)
-            request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieName}={refreshToken}");
+        {
+            // ExtractRefreshCookie returns the percent-escaped wire value and
+            // remembers the name it arrived under. AuthCookies decodes that
+            // value once before identity hashes it, matching a real browser.
+            var cookieName = Guid.TryParse(expectedAccount, out var accountForName)
+                ? AuthCookies.RefreshCookieNameFor(accountForName)
+                : RefreshCookieNamesByValue.GetValueOrDefault(
+                    refreshToken, AuthCookies.LegacyRefreshCookieName);
+            request.Headers.Add("Cookie", $"{cookieName}={refreshToken}");
+        }
+        if (expectedAccount is not null)
+            request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, expectedAccount);
+        return client.SendAsync(request);
+    }
+
+    // #532 — a hand-built refresh request that presents EXACTLY the given
+    // Cookie header (several per-farm cookies, a legacy cookie, a garbage
+    // name, …) — the shapes the browser would send but the one-token helpers
+    // above cannot express. The header is optional.
+    //
+    // #532 (per-farm rename) — the caller passes the header the way a BROWSER
+    // would build it: cookie values percent-escaped, exactly as the
+    // framework's Set-Cookie writer emitted them. The server decodes once, so
+    // an escaped value here hashes to the same bytes the endpoints hashed. A
+    // raw token must be escaped with Uri.EscapeDataString before being spliced
+    // in — an unescaped base64 token is hashed as-is and the lookup misses.
+    public static Task<HttpResponseMessage> PostRefreshRawAsync(
+        this HttpClient client, string? cookieHeader, bool csrf = true, string? expectedAccount = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/refresh");
+        if (csrf) request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        if (cookieHeader is not null)
+            request.Headers.Add("Cookie", cookieHeader);
         if (expectedAccount is not null)
             request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, expectedAccount);
         return client.SendAsync(request);
@@ -461,18 +526,32 @@ internal static class TestHarness
     //
     // #336 — accessToken sends the bearer the SPA now attaches when the tab
     // still holds one. The two credentials are independent on purpose, so a
-    // test can present a cookie and a bearer naming DIFFERENT users (the
-    // per-origin cookie vs. per-tab token split), or a bearer with no cookie
-    // at all. Left null it behaves exactly as before.
+    // test can present a selected per-farm cookie and a bearer naming different
+    // users, or a bearer with no cookie at all. Left null it behaves exactly as
+    // before.
     public static Task<HttpResponseMessage> PostLogoutAsync(
-        this HttpClient client, string? refreshToken, bool csrf = true, string? accessToken = null)
+        this HttpClient client, string? refreshToken, bool csrf = true, string? accessToken = null,
+        Guid? accountId = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
         if (csrf) request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
         if (refreshToken is not null)
-            request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieName}={refreshToken}");
+        {
+            // #532 — the value rides in EXACTLY the form it arrived in
+            // (already percent-escaped from the Set-Cookie header). The
+            // server decodes once before hashing, so the wire form and the
+            // raw form both work; sending the escaped form is the faithful
+            // browser shape.
+            var cookieName = accountId is { } account
+                ? AuthCookies.RefreshCookieNameFor(account)
+                : RefreshCookieNamesByValue.GetValueOrDefault(
+                    refreshToken, AuthCookies.LegacyRefreshCookieName);
+            request.Headers.Add("Cookie", $"{cookieName}={refreshToken}");
+        }
         if (accessToken is not null)
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        if (accountId is { } acc)
+            request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, acc.ToString());
         return client.SendAsync(request);
     }
 
@@ -609,13 +688,15 @@ internal static class TestHarness
 public sealed record TokenPairDto(string AccessToken, string RefreshToken, DateTimeOffset AccessTokenExpiry)
 {
     // #532 — ExtractRefreshCookie returns the RAW Set-Cookie value, which is
-    // percent-encoded. RefreshAsync hashes whatever it is given, so handing it
-    // the raw value makes the lookup miss and the method fails at its FIRST
-    // branch — a test asserting IsFailure then passes for a reason unrelated to
-    // what it claims to test. Round 5 found the suspended-farm guard deletable
-    // with the whole suite green because of exactly that.
-    //
-    // Use this property for any DIRECT RefreshAsync call. Callers that send the
-    // token back over HTTP as a cookie must keep using RefreshToken.
+    // percent-encoded (base64 '+' '/' '=' → %2B %2F %3D). The server decodes
+    // the cookie once before hashing, so any value handed to a method that
+    // hashes its argument (a direct RefreshAsync/RevokeRefreshTokenAsync call,
+    // or a hand-built Cookie header the test then escapes) must be the DECODED
+    // form — that is this property. Round 5 found the suspended-farm guard
+    // deletable with the whole suite green because of exactly the raw/decoded
+    // confusion: a test asserting IsFailure passed for a reason unrelated to
+    // what it claims to test. Callers that send the token back over HTTP as a
+    // cookie keep using RefreshToken: PostRefreshAsync escapes it to the wire
+    // form itself.
     public string RefreshTokenForDirectCall => Uri.UnescapeDataString(RefreshToken);
 }

@@ -51,6 +51,10 @@ export const tl = {
     invalidCredentials: "Mali ang email o password.",
     credentialsSuperseded: "Nagbago ang iyong mga kredensyal. Mag-sign in muli.",
     accountDisabled: "Na-disable ang iyong account.",
+    // #532 — per-farm refresh cookie: several farms hold sessions in this
+    // browser. Machine-drafted (#182) — pending native review.
+    farmSelectionRequired:
+      "May mga session para sa ilang bukid sa browser na ito. Pumili ng bukid at mag-sign in.",
     tooManyAttempts:
       "Sobra na ang subok sa pag-sign in. Maghintay ng ilang minuto at subukan ulit.",
     apiDown: "Hindi makapag-sign in. Gumagana ba ang API?",
@@ -1824,12 +1828,12 @@ export const tl = {
       + "kahit mag-reload at kahit bukas ang app sa <strong>ilang tab</strong> nang sabay-sabay. "
       + "Pagkatapos ma-<strong>update</strong> ang app, maaaring hilingin sa iyong mag-sign in muli — "
       + "normal lang iyon.",
-    // machine-drafted (#393) — pending native review.
+    // machine-drafted (#532) — pending native review.
     signingInMultiTabResync:
-      "Ang pag-sign in bilang ibang tao sa isang <strong>browser tab</strong> habang ang isa pang tab ng "
-      + "parehong browser ay kalagitnaan pa lang ng sarili nitong tahimik na pag-check ay paminsan-minsang "
-      + "maaaring mag-sign out sa iyo agad pagkatapos — mag-sign in na lang ulit. Nangyayari lang ito sa "
-      + "bihirang sitwasyong ito na may maraming tab at hindi kailanman nawawala ang anumang na-save mo na.",
+      "May sariling ligtas na session ang bawat bukid sa browser na ito, kaya hindi na pinapalitan ng mga "
+      + "bukid na bukas sa magkakaibang <strong>tab</strong> ang session ng isa't isa. Kung makakita ang isang "
+      + "reload ng mga session para sa ilang bukid at hindi alam ng tab kung alin ang gagamitin, babalik ang "
+      + "Cluckwork sa pag-sign in — piliin ang code ng bukid at mag-sign in. Walang session ng ibang bukid na binubura.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Unang pag-sign in sa isang bagong-bagong farm.</strong> Walang default na password — "
@@ -2529,13 +2533,12 @@ export const tl = {
       + "hanggang lumipas ang maikling paghihintay. Hindi nito naaapektuhan ang session na naka-sign in "
       + "na.",
 
-    // #393 (machine-drafted, pending native review)
-    glossaryForcedReauthTerm: "Na-sign out kaagad pagkatapos lumipat ng account",
+    // #532 (machine-drafted, pending native review)
+    glossaryForcedReauthTerm: "Ilang bukid sa isang browser",
     glossaryForcedReauthDef:
-      "Ang pag-sign in bilang ibang tao sa isang <strong>browser tab</strong> habang kalagitnaan ng sarili "
-      + "nitong tahimik na pagsuri sa background ang isa pang tab ay paminsan-minsang maaaring mag-sign out "
-      + "kaagad sa bagong session. Mag-sign in na lang ulit — nangyayari lang ito sa maikling sandaling iyon "
-      + "ng maraming tab at walang nawawalang naka-save na.",
+      "May hiwalay na ligtas na session cookie ang bawat bukid, kaya hindi maaaring palitan o burahin ng isang "
+      + "bukid ang session ng iba. Kapag nakakita ang bagong tab ng ilang session at wala pa itong napiling isa, "
+      + "babalik ito sa pag-sign in sa halip na manghula; piliin ang code ng bukid na gusto mo.",
 
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",

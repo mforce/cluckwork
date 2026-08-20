@@ -757,15 +757,20 @@ it is never written to `localStorage`/`sessionStorage`, so an XSS payload has no
 durable credential to steal and the 15-minute lifetime bounds any exposure. The
 durable **refresh token** is an `HttpOnly; Secure; SameSite=Strict` cookie
 path-scoped to `/api/v1/auth` — the browser attaches it automatically and JS
-cannot read it. A page reload (memory cleared) silently refreshes against the
-cookie to restore the session; an expired/absent cookie lands cleanly on login.
+cannot read it. Its name includes the farm account ID (#532), so one browser can
+hold independent sessions for several farms without one farm's login, refresh,
+password change, or logout overwriting another's cookie. A page reload (memory
+cleared) with exactly one farm cookie silently restores that session. With
+several and no known farm, the server refuses to guess (`Auth.FarmSelectionRequired`)
+and sends the user to login to choose a farm; it rotates or clears none of them.
+An expired/absent cookie lands cleanly on login.
 CSRF is covered by SameSite=Strict plus a custom header (`X-Cluckwork-Auth`) that
 a cross-site request cannot set. Rotation + theft-detection (single-use, revoke
 the whole family on replay) are unchanged — this moved the storage, not the
 hygiene. Deploying #145 forces one re-login (the old localStorage token is
-purged on first load). Because the refresh token now lives only in the shared
-cookie, two tabs refreshing at once would each present the same value and the
-second would trip theft-detection, logging both out; refresh is therefore
+purged on first load). Tabs on the same farm still share that farm's cookie, so
+two same-farm tabs refreshing at once would each present the same value and the
+second could trip theft-detection, logging both out; refresh is therefore
 **serialised across tabs** via the browser Web Locks API (#169) so only one tab
 refreshes at a time and the next presents the freshly-rotated cookie. Server
 theft-detection stays strict; browsers without the API fall back to per-tab
@@ -783,18 +788,14 @@ replays can never fork one token into two live sessions.
 
 **Superseded-flight cookie revocation (#393)** — a refresh (or sign-in, or
 password change) that goes stale mid-flight — superseded by a newer sign-in
-before its own response lands — still rotates the shared refresh cookie the
+before its own response lands — still rotates its farm's refresh cookie the
 instant the browser receives that response, before the app's own bookkeeping
-ever runs. The stale flight's cookie is therefore always revoked, even when
-the newer sign-in already has a token in hand: which of the two responses'
-cookies the browser actually kept is real network timing, not something the
-app can observe or infer from "is someone currently signed in." User-visible
-consequence, narrow and rare: switching to a different sign-in in one browser
-tab while another tab of the same browser is mid-refresh can occasionally
-revoke the credential behind the *newer* sign-in too, surfacing as an
-unexpected "please sign in again" shortly after. No work is lost — it is
-exactly the same experience as any other session timeout, just sooner than
-expected. See the Help page's "Signing in" section.
+ever runs. The stale flight's cookie is therefore always revoked. Which of two
+responses for the **same farm** the browser kept is real network timing, so a
+same-farm account switch during an in-flight refresh can still surface as an
+unexpected "please sign in again." A different farm's cookie is a different
+name and cannot be touched by that race (#532). No work is lost; see the Help
+page's "Signing in" section.
 
 **Credential epoch (#364)** — a monotonically increasing per-user number carried
 in every access token and stamped onto every refresh token. A request is valid

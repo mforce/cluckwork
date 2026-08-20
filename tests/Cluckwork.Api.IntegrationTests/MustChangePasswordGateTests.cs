@@ -160,7 +160,8 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout/");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
-        request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieName}={tokens.RefreshToken}");
+        request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieNameFor(accountId)}={tokens.RefreshToken}");
+        request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, accountId.ToString());
 
         var response = await factory.CreateClient().SendAsync(request);
 

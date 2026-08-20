@@ -67,13 +67,13 @@ using Microsoft.IdentityModel.Tokens;
 //     grant and the one that recorded the logout (#338 review).
 //     AuthEndpoints.Logout records the logout along TWO independent axes,
 //     because the credentials a logout presents need not name one user: the
-//     refresh COOKIE is per-origin (one per browser, last login wins) while
-//     the SPA holds each ACCESS TOKEN in its own tab's memory. So the cookie
+//     account header selects a per-farm refresh COOKIE while the SPA holds each
+//     ACCESS TOKEN in its own tab's memory. So the cookie
 //     owner is recorded via IdentityProvider.RevokeRefreshTokenAsync, AND the
 //     authenticated bearer's subject via RecordLogoutAsync. Deriving the owner
-//     from the cookie alone (as this shipped) meant a user logging out from a
-//     tab whose cookie had since been claimed by a different user — or whose
-//     cookie was missing/expired — kept their grant alive, which is precisely
+//     from the cookie alone (as this shipped) meant a user logging out when the
+//     selected cookie named someone else — or was missing/expired — kept their
+//     grant alive, which is precisely
 //     the person this guarantee is for (#336 review). Neither axis revokes the
 //     other's refresh tokens: ending one tab's session must not sign the user
 //     out of every device. A missing or unparseable epoch claim FAILS CLOSED

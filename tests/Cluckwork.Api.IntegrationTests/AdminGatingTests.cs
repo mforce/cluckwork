@@ -220,7 +220,7 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         {
             HandleCookies = false,
         });
-        var refreshed = await client.PostRefreshAsync(pair.RefreshToken);
+        var refreshed = await client.PostRefreshAsync(pair.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
         var newPair = await TestHarness.ReadTokensAsync(refreshed);
 

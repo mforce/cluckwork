@@ -107,14 +107,14 @@ public sealed class RefreshGraceClockRaceTests(RefreshGraceClockRaceFactory fact
         var t0 = await factory.LoginAsync(email);
 
         factory.Barrier.Arm();
-        var loser = client.PostRefreshAsync(t0.RefreshToken);
+        var loser = client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString());
         // Parked before the lookup executes — so the loser has already captured
         // whatever instant it measures grace from, and has not yet observed the
         // rotation the winner is about to commit.
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await factory.Barrier.WaitUntilReachedAsync(timeout.Token);
 
-        var winner = await client.PostRefreshAsync(t0.RefreshToken);
+        var winner = await client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.OK, winner.StatusCode);
 
         factory.Barrier.Release();
@@ -142,7 +142,7 @@ public sealed class RefreshGraceClockRaceTests(RefreshGraceClockRaceFactory fact
         var client = factory.CreateClient(Cookieless);
 
         var t0 = await factory.LoginAsync(email);
-        var t1Response = await client.PostRefreshAsync(t0.RefreshToken); // t0 → t1, normally
+        var t1Response = await client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString()); // t0 → t1, normally
         Assert.Equal(HttpStatusCode.OK, t1Response.StatusCode);
         var t1 = await TestHarness.ReadTokensAsync(t1Response);
 
@@ -154,11 +154,11 @@ public sealed class RefreshGraceClockRaceTests(RefreshGraceClockRaceFactory fact
             await db.Database.ExecuteSqlInterpolatedAsync(
                 $"""UPDATE refresh_tokens SET "RevokedAt" = {ahead} WHERE "AccountId" = {accountId} AND "RevokedAt" IS NOT NULL"""));
 
-        var replay = await client.PostRefreshAsync(t0.RefreshToken);
+        var replay = await client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
 
         // Inert, not theft: the live tip still refreshes and the family survives.
-        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(t1.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(t1.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
         Assert.Equal(1, await ActiveTokenCountAsync(accountId));
     }
 
@@ -184,11 +184,11 @@ public sealed class RefreshGraceClockRaceTests(RefreshGraceClockRaceFactory fact
         var client = factory.CreateClient(Cookieless);
 
         var t0 = await factory.LoginAsync(email);
-        var t1Response = await client.PostRefreshAsync(t0.RefreshToken);  // t0 → t1, normally
+        var t1Response = await client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString());  // t0 → t1, normally
         Assert.Equal(HttpStatusCode.OK, t1Response.StatusCode);
         var t1 = await TestHarness.ReadTokensAsync(t1Response);
 
-        var t2Response = await client.PostRefreshAsync(t0.RefreshToken);  // grace: t0 → t2, marks t1
+        var t2Response = await client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString());  // grace: t0 → t2, marks t1
         Assert.Equal(HttpStatusCode.OK, t2Response.StatusCode);
         var t2 = await TestHarness.ReadTokensAsync(t2Response);
 
@@ -197,10 +197,10 @@ public sealed class RefreshGraceClockRaceTests(RefreshGraceClockRaceFactory fact
             await db.Database.ExecuteSqlInterpolatedAsync(
                 $"""UPDATE refresh_tokens SET "RevokedAt" = {DateTimeOffset.UtcNow.AddSeconds(5)} WHERE "AccountId" = {accountId} AND "RevokedByGrace" = true"""));
 
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t1.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t1.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
 
         // Theft, not inert: the live tip dies with the rest of the family.
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t2.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t2.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
         Assert.Equal(0, await ActiveTokenCountAsync(accountId));
     }
 
@@ -215,8 +215,8 @@ public sealed class RefreshGraceClockRaceTests(RefreshGraceClockRaceFactory fact
         var client = factory.CreateClient(Cookieless);
 
         var t0 = await factory.LoginAsync(email);
-        var t1 = await TestHarness.ReadTokensAsync(await client.PostRefreshAsync(t0.RefreshToken));
-        var t2 = await TestHarness.ReadTokensAsync(await client.PostRefreshAsync(t1.RefreshToken));
+        var t1 = await TestHarness.ReadTokensAsync(await client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString()));
+        var t2 = await TestHarness.ReadTokensAsync(await client.PostRefreshAsync(t1.RefreshToken, expectedAccount: accountId.ToString()));
 
         // Restamp t0 — the oldest row, and the only one whose replacement (t1) is
         // itself already revoked.
@@ -224,9 +224,9 @@ public sealed class RefreshGraceClockRaceTests(RefreshGraceClockRaceFactory fact
             await db.Database.ExecuteSqlInterpolatedAsync(
                 $"""UPDATE refresh_tokens SET "RevokedAt" = {DateTimeOffset.UtcNow.AddSeconds(5)} WHERE "Id" = (SELECT "Id" FROM refresh_tokens WHERE "AccountId" = {accountId} ORDER BY "CreatedAt" LIMIT 1)"""));
 
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t0.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t2.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t2.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
         Assert.Equal(0, await ActiveTokenCountAsync(accountId));
     }
 
@@ -257,16 +257,16 @@ public sealed class RefreshClockAnomalyGraceDisabledTests(RefreshClockAnomalyGra
         var client = factory.CreateClient(Cookieless);
 
         var t0 = await factory.LoginAsync(email);
-        var t1 = await TestHarness.ReadTokensAsync(await client.PostRefreshAsync(t0.RefreshToken));
+        var t1 = await TestHarness.ReadTokensAsync(await client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString()));
 
         await factory.WithTenantScopeAsync(accountId, async db =>
             await db.Database.ExecuteSqlInterpolatedAsync(
                 $"""UPDATE refresh_tokens SET "RevokedAt" = {DateTimeOffset.UtcNow.AddSeconds(5)} WHERE "AccountId" = {accountId} AND "RevokedAt" IS NOT NULL"""));
 
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t0.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
 
         // Grace is off, so even a clock anomaly is strict theft — the family goes.
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t1.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(t1.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
         var active = await factory.WithTenantScopeAsync(accountId, db =>
             db.RefreshTokens.CountAsync(t => t.AccountId == accountId && t.RevokedAt == null));
         Assert.Equal(0, active);

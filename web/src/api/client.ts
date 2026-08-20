@@ -2,6 +2,13 @@ import type { AccessTokenResponse, LoginRequest, ProblemDetails } from "./types"
 import { clearAccessToken, getAccessToken, setAccessToken } from "../auth/tokenStore";
 import { bindAccount, clearBoundAccount, getBoundAccountId } from "../auth/tokenStore";
 import { accountIdFromToken } from "../auth/claims";
+
+// #532 — the per-farm refresh cookie makes the round-6 cross-tab bootstrap
+// broadcast unnecessary: a login writes ONLY its own farm's cookie, so the
+// other tabs' cookies are no longer invalidated by it. The BroadcastChannel
+// receiver is deleted outright with it — round 9 showed it was untested and
+// that any same-origin context could post an unauthenticated or malformed
+// message to force-logout every tab and strip the client half of the guard.
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { newTraceparent } from "../lib/traceparent";
@@ -25,47 +32,12 @@ export const STEP_UP_HEADER = "X-Cluckwork-Step-Up";
 // session, see executeRefresh).
 const ACCOUNT_HEADER = "X-Cluckwork-Account";
 const SESSION_CHANGED_TITLE = "Auth.SessionChanged";
-
-// #547 — cross-tab session bootstrap. A login rotates the browser's single
-// origin-scoped refresh cookie, so every OTHER tab in this browser is now
-// holding an access token for a farm the cookie no longer names. Push them
-// through a clean bootstrap instead of letting them discover the mismatch at
-// their next refresh. A notification, not a synchronisation protocol: the
-// recipient only clears THIS tab's in-memory state and re-bootstraps — the
-// shared cookie itself is never touched here (a refusal must never revoke
-// another tab's session, #310). Guarded for absence (some environments and
-// the test DOM have no BroadcastChannel): degrade silently, never throw.
-type SessionBootstrapMessage = { type: "session-bootstrap"; accountId: string };
-let sessionBootstrapChannel: BroadcastChannel | null = null;
-if (typeof BroadcastChannel !== "undefined") {
-  try {
-    sessionBootstrapChannel = new BroadcastChannel("cluckwork.session");
-    sessionBootstrapChannel.onmessage = (event: MessageEvent<SessionBootstrapMessage>) => {
-      const message = event.data;
-      if (!message || message.type !== "session-bootstrap") return;
-      // Same farm this tab already operates as — nothing to do. A differing
-      // farm (or a tab that was unbound) clears its own token + binding and
-      // re-bootstraps against the cookie the new login just rotated.
-      if (message.accountId === getBoundAccountId()) return;
-      clearAccessToken();
-      clearBoundAccount();
-      onUnauthenticated?.();
-    };
-  } catch {
-    sessionBootstrapChannel = null;
-  }
-}
-
-function announceSessionBootstrap(accountId: string | null): void {
-  if (accountId !== null) {
-    try {
-      sessionBootstrapChannel?.postMessage({ type: "session-bootstrap", accountId });
-    } catch {
-      // Degrade silently — the notification is best-effort; other tabs
-      // recover on their next refresh either way.
-    }
-  }
-}
+// #532 — the server's distinct code for "several per-farm cookies are present
+// and the caller named none" (the bootstrap-without-a-header path). The SPA
+// treats it like any other terminal 401: clear the tab's session and send the
+// user to login, whose farm-code field handles it (the farm picker is #535's
+// job).
+const FARM_SELECTION_REQUIRED_TITLE = "Auth.FarmSelectionRequired";
 
 export class ApiError extends Error {
   constructor(
@@ -261,8 +233,10 @@ export async function login(body: LoginRequest): Promise<void> {
   // carries no usable account claim: the next refresh then fails closed on the
   // unattributable-token rule instead of trusting a fresh farm.
   bindAccount(accountIdFromToken(res.accessToken));
-  // #547 — a login rotated the shared cookie; tell the other tabs to bootstrap.
-  announceSessionBootstrap(accountIdFromToken(res.accessToken));
+  // #532 — no cross-tab announcement: a login now writes only its own
+  // farm's cookie, so the other tabs' cookies are untouched and their
+  // sessions remain valid. (The round-6 BroadcastChannel bootstrap is
+  // deleted — see the import comment at the top of this file.)
   onTokensChanged?.();
 }
 
@@ -286,8 +260,8 @@ export async function changePassword(
   // before it lands would otherwise have the response write a fresh token back
   // over the cleared session.
   const generation = sessionGeneration;
-  // Refresh and password-change both replace the one per-origin HttpOnly
-  // cookie. Keep the password change inside the same cross-tab lock as refresh,
+  // Refresh and password-change both replace this farm's HttpOnly cookie.
+  // Keep the password change inside the same cross-tab lock as refresh,
   // or an already-started old-epoch refresh can answer last and overwrite the
   // E+1 cookie this request just issued. Passing the held lock context lets
   // apiFetch do its normal 401 refresh-and-retry inside this lock without
@@ -315,6 +289,12 @@ export async function changePassword(
     throw new StaleSessionError();
   }
   setAccessToken(res.accessToken);
+  // #532 — changePassword adopts a token (the server hands this device a fresh
+  // pair after revoking every other session), so like login it must bind the
+  // tab to its farm. Without this, the tab's next refresh would omit
+  // X-Cluckwork-Account and fall into the bootstrap path instead of naming
+  // the farm it just authenticated.
+  bindAccount(accountIdFromToken(res.accessToken));
   onTokensChanged?.();
 }
 
@@ -352,10 +332,12 @@ export async function logout(): Promise<void> {
   // discarded on arrival by the generation check in refreshTokens().
   sessionGeneration++;
   abortInFlightAuthCookieOperation?.();
-  // #336 — capture BEFORE clearing: this tab's access token names the user who
-  // actually clicked logout, and the clear below is deliberately synchronous.
-  // Read it after and we would always send nothing.
+  // #336/#532 — capture BEFORE clearing: the bearer identifies the actor and
+  // the farm binding selects this tab's refresh cookie. The clears below are
+  // deliberately synchronous; read either value afterward and logout would
+  // lose the context needed for its best-effort server-side revocation.
   const bearer = getAccessToken();
+  const accountId = getBoundAccountId();
   clearAccessToken();
   // #532 — explicit logout is the user ending the session: the binding is
   // cleared with the token, and the next login rebinds.
@@ -366,18 +348,15 @@ export async function logout(): Promise<void> {
     // cookie to know whether a session exists, so we always ask the server to
     // revoke + clear it.
     //
-    // #336 — the bearer is sent too, when this tab still has one. The refresh
-    // cookie is per-origin (one per browser, last login wins) while this store
-    // is per-tab, so the cookie can belong to a DIFFERENT user than the one
-    // logging out here; without the bearer the server would revoke that other
-    // user's step-up grants and leave this user's alive. It stays OPTIONAL —
-    // the endpoint is AllowAnonymous, so an already-expired token just leaves
-    // the call unauthenticated and the cookie path still ends the session, and
-    // the server exempts /auth/logout from the Idempotency-Key requirement so
-    // authenticating it does not make the request need one.
+    // #336/#532 — the bearer records the actor when this tab still has one;
+    // the account header selects the same tab's per-farm cookie even after the
+    // access token expires. Both remain optional because the endpoint is
+    // AllowAnonymous, and it is exempt from the Idempotency-Key requirement.
+    const headers: Record<string, string> = { [CSRF_HEADER]: "1" };
+    if (accountId !== null) headers[ACCOUNT_HEADER] = accountId;
     await raw<void>(
       "/auth/logout",
-      { method: "POST", headers: { [CSRF_HEADER]: "1" } },
+      { method: "POST", headers },
       bearer ?? undefined,
     );
   } catch (err) {
@@ -481,12 +460,10 @@ class RefreshAdoptionRefusedError extends Error {
 
 async function executeRefresh(generation: number, signal?: AbortSignal): Promise<string> {
   try {
-    // #547 — tell the server which farm THIS tab expects. The refresh cookie
-    // is per-origin (one per browser, last login anywhere wins) while this
-    // store is per-tab, so the server compares the header against the stored
-    // token's AccountId and refuses (Auth.SessionChanged) before rotating when
-    // they differ. Unbound tabs (the load-time bootstrap) omit it: absent
-    // means "no expectation", which the server must not read as a mismatch.
+    // #547/#532 — tell the server which per-farm cookie THIS tab expects.
+    // Unbound tabs (the load-time bootstrap) omit it; the server accepts one
+    // unambiguous per-farm cookie and asks the user to choose when several are
+    // present.
     const headers: Record<string, string> = { [CSRF_HEADER]: "1" };
     const expectedAccount = getBoundAccountId();
     if (expectedAccount !== null) headers[ACCOUNT_HEADER] = expectedAccount;
@@ -508,11 +485,13 @@ async function executeRefresh(generation: number, signal?: AbortSignal): Promise
       throw new StaleSessionError();
     }
 
-    // #532 — the refresh cookie is per-ORIGIN (one per browser, last login
-    // anywhere wins) while this store is per-TAB. A refresh in an old tab can
-    // return a session for a farm this tab never chose; adopting it would let
-    // the retry replay this tab's pending request, BODY INCLUDED, against that
-    // farm.
+    // #532 — defence-in-depth, not the primary guarantee: since the per-farm
+    // refresh cookie, a refresh can no longer RETURN another farm's session —
+    // the cookie name selects which farm's cookie the server reads, and this
+    // tab only ever names its own farm (X-Cluckwork-Account, or the bootstrap
+    // path's single cookie). The comparison below is what keeps a tampered or
+    // confused server from still being adopted; the COOKIE NAME is what
+    // prevents cross-farm adoption.
     //
     // Two rules, and both fail CLOSED:
     //   - a token we cannot attribute to a farm is never adopted. Round 7
@@ -561,23 +540,33 @@ async function executeRefresh(generation: number, signal?: AbortSignal): Promise
       if (err instanceof RefreshAdoptionRefusedError) throw err;
       throw new StaleSessionError();
     }
-    // #547 — the server refused because the stored token's farm differs from
-    // the one this tab told it to expect. Recoverable by re-bootstrapping the
-    // tab (its own login will re-rotate the shared cookie), NOT by signing in
-    // on the other farm's behalf — and NEVER by revoking: the cookie
-    // legitimately belongs to the other farm's tab, which did nothing wrong
-    // (#310, same reason the stale-generation branch above declines to revoke).
-    if (err instanceof ApiError && err.status === 401 && err.title === SESSION_CHANGED_TITLE) {
+    // #547/#532 — the server refused (Auth.SessionChanged: this farm has no
+    // live cookie, or the stored token's farm differs from the one this tab
+    // told it to expect) or reported several farms without a selector
+    // (Auth.FarmSelectionRequired: the bootstrap path found more than one
+    // per-farm cookie). Both are terminal for THIS tab: recoverable by
+    // re-bootstrapping (a login on the right farm), never by signing in on
+    // another farm's behalf — and never by revoking: another farm's cookie is
+    // not ours to touch (#310, same reason the stale-generation branch above
+    // declines to revoke).
+    //
+    // #532 P1-1 — the binding SURVIVES the teardown. Round 9 proved that
+    // clearing it here puts the tab back into the trusting cold-restore state:
+    // the next refresh omits X-Cluckwork-Account, the bootstrap path runs, and
+    // a tab that KNOWS its farm adopts whatever cookie the server picks.
+    // Keeping the binding makes the next refresh name the farm again and fail
+    // closed instead.
+    if (err instanceof ApiError && err.status === 401
+        && (err.title === SESSION_CHANGED_TITLE || err.title === FARM_SELECTION_REQUIRED_TITLE)) {
       clearAccessToken();
-      clearBoundAccount();
       onUnauthenticated?.(err.title);
       throw err;
     }
     if (err instanceof RefreshAdoptionRefusedError) {
-      // #547 — do NOT revoke here. This refusal means the browser's single
-      // origin-scoped refresh cookie belongs to a DIFFERENT farm than this tab
-      // chose; the other tab that owns it did nothing wrong, and signing it
-      // out is exactly what #310 forbids — the same reason the stale-generation
+      // #547/#532 — do NOT revoke here. This refusal means the browser's
+      // refresh cookie belongs to a DIFFERENT farm than this tab chose; the
+      // other tab that owns it did nothing wrong, and signing it out is
+      // exactly what #310 forbids — the same reason the stale-generation
       // branch above declines to revoke. Refusal tears down THIS tab only.
       throw err;
     }
@@ -591,7 +580,7 @@ async function executeHeldRefresh(
 ): Promise<string> {
   // The parent password-change operation is deliberately unbounded because it
   // cannot be replayed safely after an ambiguous commit. Refresh remains
-  // replayable, though, and must not hold the shared cookie lock forever. Give
+  // replayable, though, and must not hold the cross-tab auth lock forever. Give
   // only this nested request a timeout while forwarding explicit logout's abort.
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -607,7 +596,7 @@ async function executeHeldRefresh(
 }
 
 async function refreshTokens(heldLock?: HeldAuthCookieLock): Promise<string> {
-  // changePassword owns the shared cookie lock while apiFetch performs its
+  // changePassword owns the cross-tab auth lock while apiFetch performs its
   // normal 401 refresh-and-retry. Web Locks are not reentrant, so execute that
   // nested refresh directly under the lock already held by the caller. Keep
   // the generation that entered the queue: resnapshotting here could attach a

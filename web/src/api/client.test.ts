@@ -407,11 +407,10 @@ describe("apiFetch — transparent refresh", () => {
   });
 });
 
-// #532 — the refresh cookie is per-ORIGIN (one per browser, last login wins)
-// while the token store is per-TAB. A refresh in an old tab can therefore
-// return a session for a DIFFERENT farm than the one this tab was operating as
-// (another tab logged in elsewhere). Adopting it would let the retry replay
-// this tab's pending request — body and all — against the other farm.
+// #532 — per-farm cookie selection prevents the ordinary cross-tab collision,
+// but the SPA still fails closed if a malformed server response returns a token
+// for a different farm. Adopting it would let the retry replay this tab's
+// pending request — body and all — against the wrong farm.
 
 
 describe("executeRefresh — cross-farm adoption guard (#532)", () => {
@@ -610,7 +609,7 @@ describe("executeRefresh — expected-account header (#547)", () => {
     expect(headerOf(refresh, "X-Cluckwork-Account")).toBeNull(); // unbound → no expectation
   });
 
-  it("an Auth.SessionChanged 401 tears down THIS tab only — no revoke of the other farm's cookie", async () => {
+  it("an Auth.SessionChanged 401 tears down THIS tab only, and the binding SURVIVES — no revoke of the other farm's cookie", async () => {
     // Empty store: the refresh is the SILENT bootstrap refresh
     // (currentAccessToken → refreshTokens), which surfaces the refresh's own
     // error — so the Auth.SessionChanged title reaches the caller directly.
@@ -628,7 +627,13 @@ describe("executeRefresh — expected-account header (#547)", () => {
     expect((err as ApiError).title).toBe("NoSession"); // currentAccessToken wraps it
     // This tab is torn down and re-bootstraps…
     expect(getAccessToken()).toBeNull();
-    expect(getBoundAccountId()).toBeNull();
+    // #532 P1-1 — THE assertion that pins the binding: it SURVIVES the
+    // teardown. Round 9 proved that clearing it here (the pre-#532 behaviour,
+    // which this test previously asserted) puts the tab back into the
+    // trusting cold-restore state — the next refresh omits
+    // X-Cluckwork-Account and the bootstrap path adopts whatever the server
+    // picks. A tab that knows its farm must keep knowing it.
+    expect(getBoundAccountId()).toBe("acct-A");
     // …because the REFRESH answered Auth.SessionChanged. It reaches the
     // teardown twice — executeRefresh's own branch AND currentAccessToken's
     // catch, which fires onUnauthenticated for any non-stale refresh failure
@@ -640,6 +645,34 @@ describe("executeRefresh — expected-account header (#547)", () => {
     // …and the other farm's cookie is deliberately left alone (#310).
     expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0);
     expect(callsTo(fetchMock, "/stock")).toHaveLength(0); // no request was ever sent — no token
+  });
+
+  it("an Auth.FarmSelectionRequired 401 tears the tab down and routes to login, and the binding survives", async () => {
+    // #532 — the bootstrap path found several per-farm cookies and the tab
+    // named none: the server refuses to guess. The SPA treats it like the
+    // other terminal 401s: clear the token, fire onUnauthenticated (which
+    // AuthContext wires to the /login navigation), rethrow.
+    bindAccount("acct-A");
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ title: "Auth.FarmSelectionRequired", detail: "This browser holds sessions for several farms; choose one." }, 401),
+    );
+
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(401);
+    expect(getAccessToken()).toBeNull();
+    // The binding survives, exactly as with Auth.SessionChanged: a re-login on
+    // the right farm rebinds, and until then the next refresh must keep
+    // naming the farm it knows.
+    expect(getBoundAccountId()).toBe("acct-A");
+    // The login-page copy is what the user sees: AuthContext stores the title
+    // and Login.tsx renders auth:farmSelectionRequired for it.
+    expect(onUnauth).toHaveBeenCalledTimes(2);
+    expect(onUnauth).toHaveBeenNthCalledWith(1, "Auth.FarmSelectionRequired");
+    expect(onUnauth).toHaveBeenNthCalledWith(2, "Auth.FarmSelectionRequired");
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0);
   });
 });
 
@@ -671,31 +704,6 @@ describe("#547 — login binds the tab to its farm (the header's source)", () =>
     // above: without the login-time binding, the server would see no
     // expectation and the client-side refusal could not have fired either.
     expect(headerOf(callsTo(fetchMock, "/auth/refresh")[0], "X-Cluckwork-Account")).toBe("acct-A");
-  });
-});
-
-describe("#547 — cross-tab bootstrap broadcast", () => {
-  // The module creates its channel at import time, so this runs after the
-  // module loaded: in this DOM BroadcastChannel exists (jsdom), and a second
-  // channel on the same name receives its messages.
-  it("a login posts the new account to the shared channel (other tabs re-bootstrap from it)", async () => {
-    // The module created its channel at import time; a second channel with the
-    // same name receives its posts, so this proves the announcement without
-    // reaching into the module. (jsdom provides BroadcastChannel; the module
-    // guards for its absence and would simply skip the post otherwise.)
-    const received: unknown[] = [];
-    const receiver = new BroadcastChannel("cluckwork.session");
-    receiver.onmessage = (event: MessageEvent) => received.push(event.data);
-
-    const loggedIn = jwtWithAccountId("acct-A", "fresh-login");
-    fetchMock.mockResolvedValueOnce(accessResponse(loggedIn));
-    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
-
-    // BroadcastChannel delivery is async even in-process: drain one macrotask.
-    await drain();
-
-    expect(received).toEqual([{ type: "session-bootstrap", accountId: "acct-A" }]);
-    receiver.close();
   });
 });
 
@@ -943,6 +951,7 @@ describe("auth endpoints", () => {
 
   it("logout revokes cookie-authenticated (CSRF header, no body), then clears the token", async () => {
     setAccessToken("at-logout");
+    bindAccount("acct-A");
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await logout();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -951,15 +960,14 @@ describe("auth endpoints", () => {
     expect(init.method).toBe("POST");
     expect(init.body).toBeUndefined(); // refresh token is in the cookie, not the body
     expect(headerOf(fetchMock.mock.calls[0] as Call, CSRF)).toBe("1");
+    expect(headerOf(fetchMock.mock.calls[0] as Call, "X-Cluckwork-Account")).toBe("acct-A");
     expect(getAccessToken()).toBeNull();
+    expect(getBoundAccountId()).toBeNull();
   });
 
-  // #336 — the refresh cookie is per-ORIGIN (one per browser, last login wins)
-  // while this token store is per-TAB, so the cookie can belong to a DIFFERENT
-  // user than the one logging out. The bearer is what tells the server who
-  // actually clicked logout, so their step-up grants are the ones revoked;
-  // without it the server revokes the cookie owner's and leaves this user's
-  // alive. It must be read BEFORE the synchronous clear, or it is always null.
+  // #336/#532 — the account header selects the per-farm cookie, while the
+  // bearer identifies who clicked logout for step-up revocation. It must be
+  // read BEFORE the synchronous clear, or it is always null.
   it("logout sends this tab's bearer, captured before the token is cleared", async () => {
     const token = `tok-${crypto.randomUUID()}`;
     setAccessToken(token);
@@ -1043,6 +1051,25 @@ describe("auth endpoints", () => {
 });
 
 describe("changePassword (#165)", () => {
+  // #532 — changePassword adopts a token (the server hands this device a fresh
+  // pair after revoking every other session), so like login it must BIND the
+  // tab to its farm. Without the bind, the tab's next refresh omits
+  // X-Cluckwork-Account and falls into the bootstrap path instead of naming
+  // the farm it just authenticated.
+  it("binds the tab to its farm from the returned token (like login does)", async () => {
+    expect(getBoundAccountId()).toBeNull();
+    const changed = jwtWithAccountId("acct-A", "after-change");
+    fetchMock.mockResolvedValueOnce(accessResponse(changed));
+
+    await changePassword({ currentPassword: "x", newPassword: "y" });
+
+    // The binding is derived from the returned token's account claim, not set
+    // by the test. Deleting the bindAccount call in changePassword() makes this
+    // null — and the tab's next refresh would silently become a cold restore.
+    expect(getBoundAccountId()).toBe("acct-A");
+    expect(getAccessToken()).toBe(changed);
+  });
+
   it("posts to /auth/change-password and swaps in the returned access token", async () => {
     fetchMock.mockResolvedValueOnce(accessResponse("at-after-change"));
     // Runtime-generated so no literal secret lands in source. Built through a

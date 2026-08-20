@@ -2,6 +2,8 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
+using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -9,10 +11,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 // #547 (slice T4) — the refresh endpoint compares the tab's expected farm
 // (the X-Cluckwork-Account header) against the STORED token's AccountId before
-// anything rotates. The refresh cookie is per-origin (one per browser, last
-// login anywhere wins) while access tokens are per-tab, so one browser holding
-// two farms can otherwise hand a tab the wrong farm's session — and that tab
-// would then retry its pending request, body included, against that farm.
+// anything rotates. Per-farm cookie names make a normal cross-farm selection
+// impossible; this remains defence-in-depth against a malformed or misplaced
+// cookie before a tab retries its pending request, body included.
 //
 // The guarantee each test pins:
 //   * a mismatch is refused with the DISTINCT Auth.SessionChanged code and
@@ -109,9 +110,10 @@ public sealed class RefreshAccountBindingTests(CluckworkWebApplicationFactory fa
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
 
         // The rotation is real: the fresh cookie works, the old token is dead.
+        var fresh = (await TestHarness.ReadTokensAsync(refreshed)).RefreshToken;
         var next = await factory
             .CreateClient(TestHarness.Cookieless(factory))
-            .PostRefreshAsync(TestHarness.ExtractRefreshCookie(refreshed), csrf: true, expectedAccount: farmA.ToString());
+            .PostRefreshAsync(fresh, csrf: true, expectedAccount: farmA.ToString());
         Assert.Equal(HttpStatusCode.OK, next.StatusCode);
 
         var stale = await factory
@@ -131,7 +133,8 @@ public sealed class RefreshAccountBindingTests(CluckworkWebApplicationFactory fa
         // before any tab knows its farm, so absent means "no expectation".
         var refreshed = await factory
             .CreateClient(TestHarness.Cookieless(factory))
-            .PostRefreshAsync(tokens.RefreshToken, csrf: true);
+            .PostRefreshRawAsync(
+                AuthCookies.RefreshCookieNameFor(farmA) + "=" + tokens.RefreshToken);
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
         Assert.False(string.IsNullOrEmpty(TestHarness.ExtractRefreshCookie(refreshed)),
             "a successful bootstrap refresh must rotate the cookie");
@@ -151,16 +154,316 @@ public sealed class RefreshAccountBindingTests(CluckworkWebApplicationFactory fa
         // Honouring it as "no expectation" would let a broken or hostile
         // client opt out of the check, so it is treated as a MISMATCH —
         // refused with the same distinct code, not a 500, not a silent pass.
+        // The unparseable header is refused BEFORE the cookie is read, so the
+        // cookie name used to build the request is irrelevant to the refusal —
+        // it must still be well-formed so the request is well-formed. Use farmA.
         var refused = await factory
             .CreateClient(TestHarness.Cookieless(factory))
-            .PostRefreshAsync(tokens.RefreshToken, csrf: true, expectedAccount: "not-a-guid");
+            .PostRefreshRawAsync(
+                AuthCookies.RefreshCookieNameFor(farmA) + "=" + tokens.RefreshToken,
+                expectedAccount: "not-a-guid");
         Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
         Assert.Equal("Auth.SessionChanged", await ProblemTitleAsync(refused));
 
         // ...and it rotated nothing: the token still works without the header.
         var stillWorks = await factory
             .CreateClient(TestHarness.Cookieless(factory))
-            .PostRefreshAsync(tokens.RefreshToken, csrf: true);
+            .PostRefreshAsync(tokens.RefreshToken, expectedAccount: farmA.ToString());
         Assert.Equal(HttpStatusCode.OK, stillWorks.StatusCode);
+    }
+}
+
+// #532 — per-farm cookie names make cross-farm selection structural: the
+// X-Cluckwork-Account header chooses one cookie, while a headerless bootstrap
+// is accepted only when the browser holds exactly one farm session.
+[Collection(IntegrationCollection.Name)]
+public sealed class PerFarmRefreshCookieTests(CluckworkWebApplicationFactory factory)
+{
+    // The API emits Secure cookies in the integration environment, while the
+    // in-process test transport itself is HTTP. Keep a real CookieContainer at
+    // an HTTPS logical origin, then attach exactly the header it selects to the
+    // cookieless transport. This exercises browser storage/path/expiry behavior
+    // without weakening the production Secure attribute for tests.
+    private sealed class TestBrowser(CluckworkWebApplicationFactory factory)
+    {
+        private static readonly Uri CookieOrigin = new("https://cluckwork.test/api/v1/auth/");
+        private readonly CookieContainer cookies = new();
+        private readonly HttpClient client = factory.CreateClient(TestHarness.Cookieless(factory));
+
+        public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request)
+        {
+            var cookieHeader = cookies.GetCookieHeader(CookieOrigin);
+            if (!string.IsNullOrEmpty(cookieHeader))
+                request.Headers.TryAddWithoutValidation("Cookie", cookieHeader);
+
+            var response = await client.SendAsync(request);
+            if (response.Headers.TryGetValues("Set-Cookie", out var setCookies))
+            {
+                foreach (var setCookie in setCookies)
+                    cookies.SetCookies(CookieOrigin, setCookie);
+            }
+            return response;
+        }
+
+        public string? CookieValue(Guid accountId) =>
+            cookies.GetCookies(CookieOrigin)[AuthCookies.RefreshCookieNameFor(accountId)]?.Value;
+    }
+
+    private static async Task<(Guid Farm, string RefreshToken, string AccessToken)> LoginAsync(
+        CluckworkWebApplicationFactory factory, TestBrowser browser, string email)
+    {
+        var farm = await factory.SeedAccountWithUserAsync(email);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
+        {
+            Content = JsonContent.Create(new
+            {
+                farmCode = await factory.FarmCodeForAsync(email),
+                email,
+                password = TestHarness.Password,
+            }),
+        };
+        var response = await browser.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var tokens = await TestHarness.ReadTokensAsync(response);
+        Assert.False(string.IsNullOrEmpty(tokens.RefreshToken));
+        return (farm, tokens.RefreshToken, tokens.AccessToken);
+    }
+
+    private static Task<HttpResponseMessage> RefreshBrowserAsync(
+        TestBrowser browser, Guid? accountId = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/refresh");
+        request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        if (accountId is { } account)
+            request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, account.ToString());
+        return browser.SendAsync(request);
+    }
+
+    private static void AssertNoSetCookie(HttpResponseMessage response, string cookieName)
+    {
+        Assert.False(
+            response.Headers.TryGetValues("Set-Cookie", out var cookies)
+            && cookies.Any(c => c.StartsWith(cookieName + "=", StringComparison.Ordinal)),
+            $"response must not set or clear '{cookieName}'");
+    }
+
+    private static void AssertClearsCookie(HttpResponseMessage response, string cookieName)
+    {
+        Assert.True(response.Headers.TryGetValues("Set-Cookie", out var cookies));
+        var cookie = cookies!.Single(c => c.StartsWith(cookieName + "=", StringComparison.Ordinal));
+        Assert.Contains("expires=Thu, 01 Jan 1970", cookie, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<string?> ProblemTitleAsync(HttpResponseMessage response)
+    {
+        if (response.Content is null) return null;
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        return problem?.Title;
+    }
+
+    private static async Task<(Guid[] TokenIds, string TipHash)> FamilyAsync(
+        CluckworkWebApplicationFactory factory, Guid accountId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<Cluckwork.Infrastructure.Persistence.AppDbContext>();
+        var tokens = await db.RefreshTokens.AsNoTracking()
+            .Where(t => t.AccountId == accountId)
+            .ToListAsync();
+        var tip = tokens.Single(t => t.RevokedAt is null);
+        return (tokens.Select(t => t.Id).ToArray(), tip.TokenHash);
+    }
+
+    [Fact]
+    public async Task TwoFarms_RefreshRotatesOnlyItsOwnCookie_OtherCookieByteIdentical()
+    {
+        // One client means one real CookieContainer: both logins land in the
+        // same browser jar, and every refresh sends both path-matching cookies.
+        var browser = new TestBrowser(factory);
+        var (farmA, tokenA0, _) = await LoginAsync(
+            factory, browser, $"532-a-{Guid.NewGuid():N}@test.local");
+        var (farmB, tokenB0, _) = await LoginAsync(
+            factory, browser, $"532-b-{Guid.NewGuid():N}@test.local");
+        var cookieA = AuthCookies.RefreshCookieNameFor(farmA);
+        var cookieB = AuthCookies.RefreshCookieNameFor(farmB);
+
+        var refreshA = await RefreshBrowserAsync(browser, farmA);
+        Assert.Equal(HttpStatusCode.OK, refreshA.StatusCode);
+        var tokenA1 = TestHarness.ExtractRefreshCookie(refreshA, farmA);
+        Assert.False(string.IsNullOrEmpty(tokenA1));
+        Assert.NotEqual(tokenA0, tokenA1);
+        AssertNoSetCookie(refreshA, cookieB);
+        Assert.Equal(tokenB0, browser.CookieValue(farmB));
+
+        // Farm B's original byte sequence remains usable. This is the durable
+        // proof that farm A neither rotated nor revoked B's family.
+        var refreshB = await RefreshBrowserAsync(browser, farmB);
+        Assert.Equal(HttpStatusCode.OK, refreshB.StatusCode);
+        AssertNoSetCookie(refreshB, cookieA);
+        Assert.NotEqual(tokenB0, TestHarness.ExtractRefreshCookie(refreshB, farmB));
+
+        // Do not assert that tokenA0 is immediately rejected: #176's existing
+        // grace contract deliberately accepts an immediate duplicate request
+        // and returns the already-minted replacement without forking a family.
+    }
+
+    [Fact]
+    public async Task RefreshNamingAFarmWithNoCookie_IsSessionChanged_AndSetsNoCookie()
+    {
+        var client = factory.CreateClient(TestHarness.Cookieless(factory));
+        var loginClient = new TestBrowser(factory);
+        var (farmA, tokenA, _) = await LoginAsync(
+            factory, loginClient, $"532-c-{Guid.NewGuid():N}@test.local");
+        var farmB = await factory.SeedAccountWithUserAsync(
+            $"532-d-{Guid.NewGuid():N}@test.local");
+
+        var refused = await client.PostRefreshRawAsync(
+            AuthCookies.RefreshCookieNameFor(farmA) + "=" + tokenA,
+            expectedAccount: farmB.ToString());
+
+        Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
+        Assert.Equal("Auth.SessionChanged", await ProblemTitleAsync(refused));
+        Assert.False(refused.Headers.TryGetValues("Set-Cookie", out _));
+
+        var stillWorks = await client.PostRefreshRawAsync(
+            AuthCookies.RefreshCookieNameFor(farmA) + "=" + tokenA,
+            expectedAccount: farmA.ToString());
+        Assert.Equal(HttpStatusCode.OK, stillWorks.StatusCode);
+    }
+
+    [Fact]
+    public async Task Bootstrap_WithExactlyOneCookie_Succeeds()
+    {
+        var browser = new TestBrowser(factory);
+        var (farm, _, _) = await LoginAsync(
+            factory, browser, $"532-e-{Guid.NewGuid():N}@test.local");
+
+        var refreshed = await RefreshBrowserAsync(browser);
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.False(string.IsNullOrEmpty(TestHarness.ExtractRefreshCookie(refreshed, farm)));
+    }
+
+    [Fact]
+    public async Task Bootstrap_WithTwoCookies_IsFarmSelectionRequired_AndTouchesNothing()
+    {
+        var client = factory.CreateClient(TestHarness.Cookieless(factory));
+        var loginClient = new TestBrowser(factory);
+        var (farmA, tokenA, _) = await LoginAsync(
+            factory, loginClient, $"532-f-{Guid.NewGuid():N}@test.local");
+        var (farmB, tokenB, _) = await LoginAsync(
+            factory, loginClient, $"532-g-{Guid.NewGuid():N}@test.local");
+        var (familyABefore, tipABefore) = await FamilyAsync(factory, farmA);
+        var (familyBBefore, tipBBefore) = await FamilyAsync(factory, farmB);
+
+        var refused = await client.PostRefreshRawAsync(
+            $"{AuthCookies.RefreshCookieNameFor(farmA)}={tokenA}; "
+            + $"{AuthCookies.RefreshCookieNameFor(farmB)}={tokenB}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
+        Assert.Equal(AuthEndpoints.FarmSelectionRequiredCode, await ProblemTitleAsync(refused));
+        Assert.False(refused.Headers.TryGetValues("Set-Cookie", out _));
+
+        var (familyAAfter, tipAAfter) = await FamilyAsync(factory, farmA);
+        var (familyBAfter, tipBAfter) = await FamilyAsync(factory, farmB);
+        Assert.Equal(familyABefore, familyAAfter);
+        Assert.Equal(tipABefore, tipAAfter);
+        Assert.Equal(familyBBefore, familyBAfter);
+        Assert.Equal(tipBBefore, tipBAfter);
+    }
+
+    [Fact]
+    public async Task Logout_ClearsOnlyTheCallerFarmCookie_OtherFarmStillRefreshes()
+    {
+        var browser = new TestBrowser(factory);
+        var (farmA, _, accessA) = await LoginAsync(
+            factory, browser, $"532-h-{Guid.NewGuid():N}@test.local");
+        var (farmB, _, _) = await LoginAsync(
+            factory, browser, $"532-i-{Guid.NewGuid():N}@test.local");
+        var cookieA = AuthCookies.RefreshCookieNameFor(farmA);
+        var cookieB = AuthCookies.RefreshCookieNameFor(farmB);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, farmA.ToString());
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
+        var logout = await browser.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+        AssertClearsCookie(logout, cookieA);
+        AssertNoSetCookie(logout, cookieB);
+        Assert.Equal(HttpStatusCode.OK, (await RefreshBrowserAsync(browser, farmB)).StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangePassword_FarmA_LeavesFarmBCookieUntouched_AndStillUsable()
+    {
+        var browser = new TestBrowser(factory);
+        var (farmA, _, accessA) = await LoginAsync(
+            factory, browser, $"532-j-{Guid.NewGuid():N}@test.local");
+        var (farmB, _, _) = await LoginAsync(
+            factory, browser, $"532-k-{Guid.NewGuid():N}@test.local");
+        var cookieA = AuthCookies.RefreshCookieNameFor(farmA);
+        var cookieB = AuthCookies.RefreshCookieNameFor(farmB);
+        var newPassword = $"Aa1!{Guid.NewGuid():N}";
+
+        var change = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/change-password")
+        {
+            Content = JsonContent.Create(new
+            {
+                currentPassword = TestHarness.Password,
+                newPassword,
+            }),
+        };
+        change.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
+        var response = await browser.SendAsync(change);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var setCookies = response.Headers.GetValues("Set-Cookie").ToList();
+        Assert.Contains(setCookies, c => c.StartsWith(cookieA + "=", StringComparison.Ordinal));
+        Assert.DoesNotContain(setCookies, c =>
+            c.StartsWith(AuthCookies.LegacyRefreshCookieName + "=", StringComparison.Ordinal));
+        AssertNoSetCookie(response, cookieB);
+        Assert.Equal(HttpStatusCode.OK, (await RefreshBrowserAsync(browser, farmB)).StatusCode);
+    }
+
+    [Fact]
+    public async Task LegacyCookie_RefreshSucceeds_SetsPerFarmCookie_AndDeletesLegacy()
+    {
+        var loginClient = new TestBrowser(factory);
+        var (farm, token, _) = await LoginAsync(
+            factory, loginClient, $"532-l-{Guid.NewGuid():N}@test.local");
+        var client = factory.CreateClient(TestHarness.Cookieless(factory));
+
+        // A freshly loaded legacy session has no access token and therefore no
+        // account selector. The stored token row supplies the farm on upgrade.
+        var refreshed = await client.PostRefreshRawAsync(
+            AuthCookies.LegacyRefreshCookieName + "=" + token);
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        var setCookies = refreshed.Headers.GetValues("Set-Cookie").ToList();
+        Assert.Contains(setCookies, c => c.StartsWith(
+            AuthCookies.RefreshCookieNameFor(farm) + "=", StringComparison.Ordinal));
+        AssertClearsCookie(refreshed, AuthCookies.LegacyRefreshCookieName);
+    }
+
+    [Fact]
+    public async Task UnparseableHeader_IsSessionChanged_AndRotatesNothing()
+    {
+        var loginClient = new TestBrowser(factory);
+        var (farm, token, _) = await LoginAsync(
+            factory, loginClient, $"532-m-{Guid.NewGuid():N}@test.local");
+        var (familyBefore, tipBefore) = await FamilyAsync(factory, farm);
+        var client = factory.CreateClient(TestHarness.Cookieless(factory));
+
+        var refused = await client.PostRefreshRawAsync(
+            AuthCookies.RefreshCookieNameFor(farm) + "=" + token,
+            expectedAccount: "not-a-guid");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
+        Assert.Equal("Auth.SessionChanged", await ProblemTitleAsync(refused));
+        Assert.False(refused.Headers.TryGetValues("Set-Cookie", out _));
+        var (familyAfter, tipAfter) = await FamilyAsync(factory, farm);
+        Assert.Equal(familyBefore, familyAfter);
+        Assert.Equal(tipBefore, tipAfter);
     }
 }

@@ -376,7 +376,7 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
         var client = _factory.CreateClient(Cookieless);
 
         _factory.CommitFault.ArmOnce();
-        var response = await client.PostRefreshAsync(tokens.RefreshToken);
+        var response = await client.PostRefreshAsync(tokens.RefreshToken, expectedAccount: accountId.ToString());
         _factory.CommitFault.Disarm();
 
         // The rotation really did commit — without this the test could pass
@@ -390,7 +390,7 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
 
         // The token was not merely reported — it is the live one, and usable.
         // This is what "the child was never delivered" cost the user.
-        var next = await client.PostRefreshAsync(rotated);
+        var next = await client.PostRefreshAsync(rotated, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.OK, next.StatusCode);
 
         // And the rotation happened exactly once: one live tip, never a fork.
@@ -421,7 +421,7 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
         var client = _factory.CreateClient(Cookieless);
 
         _factory.CommandFault.Arm("UPDATE refresh_tokens", afterExecution: true);
-        var response = await client.PostRefreshAsync(tokens.RefreshToken);
+        var response = await client.PostRefreshAsync(tokens.RefreshToken, expectedAccount: accountId.ToString());
         _factory.CommandFault.Disarm();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -471,7 +471,7 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
             .FirstOrDefaultAsync(t => t.AccountId == accountId && t.RevokedAt == null));
 
         // The winner rotates it out from under the loser.
-        var winner = await _factory.CreateClient(Cookieless).PostRefreshAsync(tokens.RefreshToken);
+        var winner = await _factory.CreateClient(Cookieless).PostRefreshAsync(tokens.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.OK, winner.StatusCode);
 
         // Uri.UnescapeDataString because this call bypasses HTTP: the cookie
@@ -524,7 +524,7 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
         var delivered = TestHarness.ExtractRefreshCookie(response);
         Assert.NotEqual(string.Empty, delivered);
         Assert.Equal(HttpStatusCode.OK,
-            (await _factory.CreateClient(Cookieless).PostRefreshAsync(delivered)).StatusCode);
+            (await _factory.CreateClient(Cookieless).PostRefreshAsync(delivered, expectedAccount: accountId.ToString())).StatusCode);
 
         // One login, one token — not an orphan alongside a delivered one.
         Assert.Equal(1, await LiveTokenCountAsync(accountId));

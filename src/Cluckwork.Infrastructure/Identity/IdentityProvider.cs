@@ -177,12 +177,10 @@ public sealed class IdentityProvider(
         if (stored is null)
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
 
-        // #547 — the tab told us which farm it expects; the stored token says
-        // which farm it actually belongs to. A mismatch means this browser's
-        // single origin-scoped cookie belongs to a DIFFERENT farm than the tab
-        // asking — tab A's token expired, tab B logged into another farm and
-        // overwrote the cookie, and tab A is now one rotation away from
-        // replaying its pending write against tab B's farm.
+        // #547/#532 — the tab told us which farm it expects; the stored token
+        // says which farm it actually belongs to. Per-farm names prevent this
+        // mismatch in normal traffic, but retain the check as defence-in-depth
+        // against a malformed or misplaced cookie.
         //
         // Refuse BEFORE rotating, and leave the stored token untouched and
         // usable: the tab that asked is the one that must recover, and it must

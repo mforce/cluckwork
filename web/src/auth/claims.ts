@@ -41,10 +41,10 @@ export function currentUserIsAdmin(): boolean {
 
 // #532 — decodes the account claim from an ARBITRARY token string, not the
 // stored one. executeRefresh needs to compare the account of the token it is
-// about to adopt against the account this tab was already operating as: the
-// refresh cookie is per-ORIGIN (one per browser, last login wins) while the
-// token store is per-TAB, so a refresh in an old tab can legitimately return a
-// different farm's session.
+// about to adopt against the account this tab was already operating as. The
+// per-farm cookie name prevents ordinary cross-tab collisions; this decoder
+// keeps the client fail-closed if a malformed response still names another
+// farm.
 export function accountIdFromToken(token: string | null): string | null {
   if (!token) return null;
   try {

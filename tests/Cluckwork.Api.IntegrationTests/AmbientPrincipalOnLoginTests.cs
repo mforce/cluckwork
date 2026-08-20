@@ -145,7 +145,7 @@ public sealed class AmbientPrincipalOnLoginTests(CluckworkWebApplicationFactory 
         var bearerEmail = $"ref-a-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(bearerEmail);
         var cookieEmail = $"ref-b-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(cookieEmail);
+        var accountId = await factory.SeedAccountWithUserAsync(cookieEmail);
 
         var bearerToken = (await factory.LoginAsync(bearerEmail)).AccessToken;
         var cookieTokens = await factory.LoginAsync(cookieEmail);
@@ -153,7 +153,7 @@ public sealed class AmbientPrincipalOnLoginTests(CluckworkWebApplicationFactory 
         // A cookie-less client carrying the bearer by hand, so the bearer and
         // the cookie can name different farms in the same request.
         var client = WithBearer(factory, bearerToken);
-        var response = await client.PostRefreshAsync(cookieTokens.RefreshToken);
+        var response = await client.PostRefreshAsync(cookieTokens.RefreshToken, expectedAccount: accountId.ToString());
 
         // Identical to the no-bearer outcome: a clean rotation. Asserting
         // SUCCESS, not merely "not 500": a swap that 401s the cookie owner's

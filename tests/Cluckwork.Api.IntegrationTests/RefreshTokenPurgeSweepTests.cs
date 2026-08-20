@@ -132,26 +132,26 @@ public sealed class RefreshTokenPurgeSweepTests(CluckworkWebApplicationFactory f
     public async Task Sweep_DoesNotBreakReuseDetection_ReplayAfterChainMovedOnStillRevokesFamily()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
         var client = factory.CreateClient(Cookieless);
 
         var initial = await factory.LoginAsync(email);
-        var r1 = await RefreshAsync(client, initial.RefreshToken);   // initial → r1
-        var live = await RefreshAsync(client, r1.RefreshToken);      // r1 → live (r1 no longer the tip)
+        var r1 = await RefreshAsync(client, initial.RefreshToken, accountId);   // initial → r1
+        var live = await RefreshAsync(client, r1.RefreshToken, accountId);      // r1 → live (r1 no longer the tip)
 
         await RunSweepAsync(); // must not disturb the reuse-detection lineage
 
-        var replay = await client.PostRefreshAsync(initial.RefreshToken);
+        var replay = await client.PostRefreshAsync(initial.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
 
         // Cascade: the still-live tip is dead too — the whole session torn down.
-        var afterCascade = await client.PostRefreshAsync(live.RefreshToken);
+        var afterCascade = await client.PostRefreshAsync(live.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, afterCascade.StatusCode);
     }
 
-    private static async Task<TokenPairDto> RefreshAsync(HttpClient client, string refreshToken)
+    private static async Task<TokenPairDto> RefreshAsync(HttpClient client, string refreshToken, Guid accountId)
     {
-        var response = await client.PostRefreshAsync(refreshToken);
+        var response = await client.PostRefreshAsync(refreshToken, expectedAccount: accountId.ToString());
         response.EnsureSuccessStatusCode();
         return await TestHarness.ReadTokensAsync(response);
     }

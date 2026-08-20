@@ -1,7 +1,9 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
+using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -15,9 +17,9 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
     private static readonly WebApplicationFactoryClientOptions Cookieless =
         new() { HandleCookies = false };
 
-    private async Task<TokenPairDto> RefreshAsync(HttpClient client, string refreshToken)
+    private async Task<TokenPairDto> RefreshAsync(HttpClient client, string refreshToken, Guid accountId)
     {
-        var response = await client.PostRefreshAsync(refreshToken);
+        var response = await client.PostRefreshAsync(refreshToken, expectedAccount: accountId.ToString());
         response.EnsureSuccessStatusCode();
         return await TestHarness.ReadTokensAsync(response);
     }
@@ -26,17 +28,17 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
     public async Task Refresh_RotatesToken_AndIssuesNewPair()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
         var client = factory.CreateClient(Cookieless);
 
         var initial = await factory.LoginAsync(email);
-        var rotated = await RefreshAsync(client, initial.RefreshToken);
+        var rotated = await RefreshAsync(client, initial.RefreshToken, accountId);
 
         Assert.NotEqual(initial.RefreshToken, rotated.RefreshToken);
         Assert.False(string.IsNullOrWhiteSpace(rotated.AccessToken));
 
         // The new refresh token itself works.
-        var rotatedAgain = await RefreshAsync(client, rotated.RefreshToken);
+        var rotatedAgain = await RefreshAsync(client, rotated.RefreshToken, accountId);
         Assert.NotEqual(rotated.RefreshToken, rotatedAgain.RefreshToken);
     }
 
@@ -47,7 +49,7 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
     public async Task Refresh_ImmediateReplayWithinGrace_Succeeds_WithoutRevokingTheSession()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
         var client = factory.CreateClient(Cookieless);
 
         // A SECOND, independent session for the same user (another device), logged
@@ -56,18 +58,18 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
         var sibling = await factory.LoginAsync(email);
 
         var initial = await factory.LoginAsync(email);
-        await RefreshAsync(client, initial.RefreshToken); // initial → live (delivered)
+        await RefreshAsync(client, initial.RefreshToken, accountId); // initial → live (delivered)
 
         // The dead tab's retry: it still holds `initial` (never saw the rotation).
         // Within the grace window this is honoured rather than read as theft.
-        var replay = await client.PostRefreshAsync(initial.RefreshToken);
+        var replay = await client.PostRefreshAsync(initial.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
 
         // The handed-back token works, AND the pre-existing sibling session is
         // untouched — proving no family revocation occurred.
         var handed = await TestHarness.ReadTokensAsync(replay);
-        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(handed.RefreshToken)).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(sibling.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(handed.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(sibling.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
     }
 
     // #176 — the grace is bounded to ONE hop off a normal rotation: the token
@@ -78,24 +80,24 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
     public async Task Refresh_GraceCannotBeLeapFroggedDownTheChain_RevokesTheFamily()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
         var client = factory.CreateClient(Cookieless);
 
         var t0 = await factory.LoginAsync(email);
-        var t1 = await RefreshAsync(client, t0.RefreshToken);       // t0 → t1 (normal)
+        var t1 = await RefreshAsync(client, t0.RefreshToken, accountId);       // t0 → t1 (normal)
 
         // Dead-tab grace retry: replay t0 → t2. This marks t1 as revoked-by-grace.
-        var graceResp = await client.PostRefreshAsync(t0.RefreshToken);
+        var graceResp = await client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.OK, graceResp.StatusCode);
         var t2 = await TestHarness.ReadTokensAsync(graceResp);
 
         // The leap-frog: present t1 (the link revoked by the grace advance). It
         // must NOT grace a second time — it is theft → the family is revoked.
-        var leap = await client.PostRefreshAsync(t1.RefreshToken);
+        var leap = await client.PostRefreshAsync(t1.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, leap.StatusCode);
 
         // Cascade: the live tip t2 is dead too — the whole session is torn down.
-        var afterCascade = await client.PostRefreshAsync(t2.RefreshToken);
+        var afterCascade = await client.PostRefreshAsync(t2.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, afterCascade.StatusCode);
     }
 
@@ -125,8 +127,8 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
         var t0 = await factory.LoginAsync(email);
 
         var responses = await Task.WhenAll(
-            client.PostRefreshAsync(t0.RefreshToken),
-            client.PostRefreshAsync(t0.RefreshToken));
+            client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString()),
+            client.PostRefreshAsync(t0.RefreshToken, expectedAccount: accountId.ToString()));
 
         // A concurrency conflict must fail closed (401), never surface as a 500.
         Assert.All(responses, r => Assert.True(
@@ -149,20 +151,20 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
     public async Task Refresh_ReplayAfterChainMovedOn_RevokesTheWholeFamily()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
         var client = factory.CreateClient(Cookieless);
 
         var initial = await factory.LoginAsync(email);
-        var r1 = await RefreshAsync(client, initial.RefreshToken); // initial → r1
-        var live = await RefreshAsync(client, r1.RefreshToken);     // r1 → r2 (r1 no longer the tip)
+        var r1 = await RefreshAsync(client, initial.RefreshToken, accountId); // initial → r1
+        var live = await RefreshAsync(client, r1.RefreshToken, accountId);     // r1 → r2 (r1 no longer the tip)
 
         // Replaying `initial` now: its replacement r1 is already revoked, so this
         // is not a benign grace retry — it is a replay → revoke the family.
-        var replay = await client.PostRefreshAsync(initial.RefreshToken);
+        var replay = await client.PostRefreshAsync(initial.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
 
         // The still-live tip r2 is dead too — the whole session is torn down.
-        var afterCascade = await client.PostRefreshAsync(live.RefreshToken);
+        var afterCascade = await client.PostRefreshAsync(live.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, afterCascade.StatusCode);
     }
 
@@ -170,26 +172,29 @@ public sealed class RefreshTokenFlowTests(CluckworkWebApplicationFactory factory
     public async Task Refresh_WithGarbageToken_IsRejected()
     {
         var client = factory.CreateClient(Cookieless);
-        var response = await client.PostRefreshAsync("not-a-real-token");
+        var fakeAccount = Guid.NewGuid();
+        var response = await client.PostRefreshAsync("not-a-real-token", expectedAccount: fakeAccount.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
 
     [Fact]
     public async Task Logout_RevokesRefreshToken_CookieAuthenticated_NoBearerOrKey()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
 
         var tokens = await factory.LoginAsync(email);
 
         // The real SPA logout: cookie + CSRF header, no bearer and no
         // Idempotency-Key. It must succeed (an authenticated/keyless logout would
         // 400 at the idempotency middleware — #145 review) and revoke the token.
-        var logout = await factory.CreateClient(Cookieless).PostLogoutAsync(tokens.RefreshToken);
+        var logout = await factory.CreateClient(Cookieless).PostLogoutAsync(tokens.RefreshToken, accountId: accountId);
         Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
 
         // The revoked token can no longer be refreshed.
-        var afterLogout = await factory.CreateClient(Cookieless).PostRefreshAsync(tokens.RefreshToken);
+        var afterLogout = await factory.CreateClient(Cookieless)
+            .PostRefreshAsync(tokens.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, afterLogout.StatusCode);
     }
 }
@@ -216,20 +221,20 @@ public sealed class RefreshGraceDisabledTests(RefreshGraceDisabledFactory factor
     public async Task Refresh_ImmediateReplay_WithGraceDisabled_RevokesTheWholeFamily()
     {
         var email = $"u-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
         var client = factory.CreateClient(Cookieless);
 
         var initial = await factory.LoginAsync(email);
-        var live = await client.PostRefreshAsync(initial.RefreshToken); // initial → live
+        var live = await client.PostRefreshAsync(initial.RefreshToken, expectedAccount: accountId.ToString()); // initial → live
         live.EnsureSuccessStatusCode();
         var liveTokens = await TestHarness.ReadTokensAsync(live);
 
         // Grace off → an immediate replay is strict theft, no benign window.
-        var replay = await client.PostRefreshAsync(initial.RefreshToken);
+        var replay = await client.PostRefreshAsync(initial.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
 
         // Family revoked: the live tip is dead too.
-        var afterCascade = await client.PostRefreshAsync(liveTokens.RefreshToken);
+        var afterCascade = await client.PostRefreshAsync(liveTokens.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, afterCascade.StatusCode);
     }
 }

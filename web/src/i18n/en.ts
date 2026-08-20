@@ -65,6 +65,12 @@ export const en = {
     invalidCredentials: "Invalid email or password.",
     credentialsSuperseded: "Your credentials changed. Please sign in again.",
     accountDisabled: "Your account has been disabled.",
+    // #532 — the per-farm refresh cookie: several farms hold sessions in this
+    // browser and the tab could not pick one. Treated like the other terminal
+    // 401s — the tab is torn down and the login page's farm-code field handles
+    // the choice (the picker that would make this self-service is #535's job).
+    farmSelectionRequired:
+      "This browser holds sessions for several farms. Choose a farm and sign in.",
     tooManyAttempts:
       "Too many sign-in attempts. Please wait a few minutes and try again.",
     apiDown: "Could not sign in. Is the API running?",
@@ -2196,14 +2202,13 @@ export const en = {
       "Your sign-in is kept in your browser securely and stays active as you work, even across reloads and "
       + "with the app open in <strong>several tabs</strong> at once. After the app is <strong>updated</strong> "
       + "you may be asked to sign in once more — that's expected.",
-    // #393 — revokeSupersededCookie() now always revokes a superseded flight's
-    // cookie, including the rare branch where the newer sign-in's own cookie
-    // was the one caught by that revoke. User-visible result: an unexpected
-    // "please sign in again" shortly after switching accounts across tabs.
+    // #532 — each farm now owns a distinct refresh cookie. A cold tab cannot
+    // guess when several farms are present, so it returns to login instead.
     signingInMultiTabResync:
-      "Signing in as someone else in one <strong>browser tab</strong> while another tab of the same browser is "
-      + "midway through its own quiet check can occasionally sign you back out right after — just sign in "
-      + "again. This only happens in that narrow multi-tab moment and never loses anything you already saved.",
+      "Each farm keeps its own secure session in this browser, so farms open in different "
+      + "<strong>tabs</strong> no longer replace one another. If a reload finds sessions for several farms "
+      + "but cannot tell which farm this tab belongs to, Cluckwork returns to sign-in — choose the farm code "
+      + "and sign in. No other farm's session is cleared.",
     // #283 — first-run provisioning: no default credential ever ships with
     // the app, so the very first sign-in always starts from a printed
     // one-time password.
@@ -2851,14 +2856,12 @@ export const en = {
       + "minutes are refused with this message until a short cool-off passes. It never affects an already "
       + "signed-in session.",
 
-    // #393 — same forced-reauth edge case as signingInMultiTabResync above,
-    // now in the glossary table's own term/definition form.
-    glossaryForcedReauthTerm: "Signed out right after switching accounts",
+    // #532 — the per-farm browser-session contract in glossary form.
+    glossaryForcedReauthTerm: "Several farms in one browser",
     glossaryForcedReauthDef:
-      "Signing in as someone else in one <strong>browser tab</strong> while another tab is midway through "
-      + "its own quiet background check can occasionally sign the new session back out again immediately. "
-      + "Just sign in again — this only happens in that narrow multi-tab moment and nothing already saved "
-      + "is lost.",
+      "Each farm has a separate secure session cookie, so one farm cannot overwrite or clear another farm's "
+      + "session. When a newly loaded tab finds several farm sessions and has not chosen one, it returns to "
+      + "sign-in rather than guessing; choose the farm code you want.",
 
     glossaryTooManyReportsTerm: "Too many reports at once",
     glossaryTooManyReportsDef:

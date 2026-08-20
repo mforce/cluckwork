@@ -46,6 +46,10 @@ export const es = {
     invalidCredentials: "Correo electrónico o contraseña inválidos.",
     credentialsSuperseded: "Sus credenciales cambiaron. Inicie sesión de nuevo.",
     accountDisabled: "Su cuenta ha sido deshabilitada.",
+    // #532 — per-farm refresh cookie: several farms hold sessions in this
+    // browser. Machine-drafted (#182) — pending native review.
+    farmSelectionRequired:
+      "Este navegador mantiene sesiones de varias granjas. Elija una granja e inicie sesión.",
     tooManyAttempts:
       "Demasiados intentos de inicio de sesión. Espere unos minutos y vuelva a intentarlo.",
     apiDown: "No se pudo iniciar sesión. ¿Está la API en ejecución?",
@@ -1756,12 +1760,12 @@ export const es = {
       + "incluso al recargar y con la aplicación abierta en <strong>varias pestañas</strong> a la vez. "
       + "Después de que la aplicación se <strong>actualiza</strong> es posible que se le pida iniciar "
       + "sesión una vez más — eso es normal.",
-    // machine-drafted (#393) — pending native review.
+    // machine-drafted (#532) — pending native review.
     signingInMultiTabResync:
-      "Iniciar sesión como otra persona en una <strong>pestaña del navegador</strong> mientras otra pestaña "
-      + "del mismo navegador está a mitad de su propia verificación silenciosa puede, en ocasiones, cerrarle "
-      + "la sesión justo después — simplemente vuelva a iniciar sesión. Esto solo ocurre en ese momento "
-      + "puntual con varias pestañas y nunca pierde nada que ya haya guardado.",
+      "Cada granja mantiene su propia sesión segura en este navegador, por lo que las granjas abiertas en "
+      + "distintas <strong>pestañas</strong> ya no se reemplazan entre sí. Si al recargar hay sesiones de "
+      + "varias granjas y la pestaña no sabe cuál usar, Cluckwork vuelve al inicio de sesión — elija el código "
+      + "de granja e inicie sesión. No se borra la sesión de ninguna otra granja.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada — "
@@ -2437,13 +2441,12 @@ export const es = {
       + "demasiados intentos desde un mismo lugar en pocos minutos se rechazan con este mensaje hasta que "
       + "pasa un breve período de espera. Nunca afecta a una sesión que ya inició.",
 
-    // #393 (machine-drafted, pending native review)
-    glossaryForcedReauthTerm: "Sesión cerrada justo después de cambiar de cuenta",
+    // #532 (machine-drafted, pending native review)
+    glossaryForcedReauthTerm: "Varias granjas en un navegador",
     glossaryForcedReauthDef:
-      "Iniciar sesión como otra persona en una <strong>pestaña del navegador</strong> mientras otra pestaña "
-      + "está a mitad de su propia comprobación silenciosa en segundo plano puede, en ocasiones, cerrar la "
-      + "nueva sesión de inmediato. Simplemente vuelva a iniciar sesión — esto solo ocurre en ese momento "
-      + "puntual de varias pestañas y no se pierde nada de lo ya guardado.",
+      "Cada granja tiene una cookie de sesión segura independiente, por lo que una granja no puede sobrescribir "
+      + "ni borrar la sesión de otra. Si una pestaña nueva encuentra varias sesiones y aún no eligió una, vuelve "
+      + "al inicio de sesión en lugar de adivinar; elija el código de la granja que desea.",
 
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",

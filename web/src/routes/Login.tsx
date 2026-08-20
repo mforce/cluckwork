@@ -25,6 +25,9 @@ const ACCOUNT_DISABLED = "Auth.AccountDisabled";
 // decision to use a distinct code exists to avoid.
 const UNKNOWN_FARM_CODE = "Auth.UnknownFarmCode";
 const FARM_SUSPENDED = "Auth.FarmSuspended";
+// #532 — several per-farm cookies, no selector: the tab was torn down and the
+// user lands here to pick a farm and sign in (the picker is #535's job).
+const FARM_SELECTION_REQUIRED = "Auth.FarmSelectionRequired";
 
 // Matched on the code, never on the message: the copy is translated and the
 // server's English detail is not what identifies the case.
@@ -88,6 +91,11 @@ export function Login() {
       setError(t("credentialsSuperseded"));
     else if (unauthenticatedReason === ACCOUNT_DISABLED)
       setError(t("accountDisabled"));
+    // #532 — torn down because this browser holds several farms' sessions and
+    // the tab could not name one. The form's farm-code field IS the picker for
+    // now; the dedicated picker is #535.
+    else if (unauthenticatedReason === FARM_SELECTION_REQUIRED)
+      setError(t("farmSelectionRequired"));
     // #532 — apiFetch tears a session down and preserves the 401 title when a
     // SUSPENSION is the reason (AuthContext stores it), so a user kicked out
     // mid-shift lands here already signed out. Without this branch the page is

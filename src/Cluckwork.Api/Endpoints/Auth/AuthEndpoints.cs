@@ -137,6 +137,13 @@ public static class AuthEndpoints
         return group;
     }
 
+    // #532 — several per-farm refresh cookies are present and the caller has not
+    // named one (the bootstrap path with the header absent). Distinct from a
+    // dead session: nothing is rotated and nothing is cleared, so no tab is
+    // harmed — the SPA treats it as "go to login" for now; the farm picker that
+    // makes the code self-service is #535's job.
+    public const string FarmSelectionRequiredCode = "Auth.FarmSelectionRequired";
+
     // #283 follow-up (#361) — the error code a failed sign-in carries when the
     // DEFAULT ACCOUNT has no Owner, so the SPA can explain the dead end instead
     // of showing the generic denial. Rides the ProblemDetails `title`, like
@@ -283,7 +290,11 @@ public static class AuthEndpoints
             return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
         }
 
-        AuthCookies.SetRefreshCookie(response, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
+        // #532 — per-farm cookie: this login writes the cookie for the farm
+        // that was just authenticated and can no longer disturb any other
+        // farm's cookie. The old last-login-wins-over-every-tab behaviour is
+        // gone by construction, not by a guard.
+        AuthCookies.SetRefreshCookie(response, account.Id, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
     }
 
@@ -311,9 +322,81 @@ public static class AuthEndpoints
         if (!AuthCookies.HasCsrfHeader(request))
             return Results.Problem("Missing required header.", statusCode: 403, title: "Auth.CsrfHeaderRequired");
 
-        var refreshToken = AuthCookies.ReadRefreshCookie(request);
+        // #532 — the header selects WHICH cookie to read. Present and
+        // parseable: read only that farm's cookie. Absent: the bootstrap path
+        // below (the tab does not know its farm yet). Present but unparseable:
+        // refuse, read nothing — fail closed, as before: a client that thinks
+        // it knows its farm and got it wrong must not fall through to the
+        // broader bootstrap path.
+        Guid? accountId = null;
+        if (request.Headers.TryGetValue(AuthCookies.ExpectedAccountHeaderName, out var expectedValue))
+        {
+            if (!Guid.TryParse(expectedValue.ToString(), out var parsedAccountId))
+                return Results.Problem("Not authenticated.", statusCode: 401, title: "Auth.SessionChanged");
+            accountId = parsedAccountId;
+        }
+        else
+        {
+            // Bootstrap: the page loaded and the tab has no access token yet,
+            // so it does not know its farm. Exactly one per-farm cookie is the
+            // overwhelmingly common case (one farm per browser) and keeps
+            // working with no user-visible change. Several means do not guess —
+            // a distinct code, no rotation, nothing cleared; the SPA sends the
+            // user to login, whose farm-code field handles it (the picker is
+            // #535's job). None: try the one-way legacy upgrade below before
+            // returning the ordinary no-session 401.
+            var candidates = AuthCookies.RefreshCookieAccounts(request);
+            if (candidates.Count > 1)
+                return Results.Problem(
+                    "This browser holds sessions for several farms; choose one.",
+                    statusCode: 401, title: FarmSelectionRequiredCode);
+            if (candidates.Count == 1)
+                accountId = candidates[0];
+        }
+
+        var refreshToken = accountId is { } selectedAccount
+            ? AuthCookies.ReadRefreshCookie(request, selectedAccount)
+            : null;
         if (refreshToken is null)
-            return Results.Problem("Not authenticated.", statusCode: 401, title: "Identity.InvalidRefreshToken");
+        {
+            // #532 — the one-way legacy upgrade: a pre-per-farm session presents
+            // the shared name, which NO endpoint but this one accepts (Login and
+            // change-password always write the new per-farm form). Rotate it as
+            // normal, then write the new per-farm cookie AND delete the legacy
+            // one in the SAME response — the browser ends up with exactly one
+            // cookie for this farm. The legacy name is never written, so the
+            // branch drains naturally within one refresh-token lifetime.
+            // Removal condition: this branch can be deleted once
+            // Jwt:RefreshTokenDays (30) has elapsed since deploy; #537 should
+            // record that.
+            //
+            // The token value is opaque, so the stored token's AccountId —
+            // returned on the minted TokenPair — tells a headerless bootstrap
+            // which per-farm name to write. If a caller supplied an expected
+            // farm, RefreshAsync also checks it before rotating; a legacy token
+            // for another farm therefore fails closed and remains untouched.
+            var legacy = AuthCookies.ReadLegacyRefreshCookie(request);
+            if (legacy is not null && legacy.Length <= MaxRefreshTokenLength)
+            {
+                var legacyResult = await identity.RefreshAsync(legacy, ct, accountId);
+                if (legacyResult.IsSuccess)
+                    return LegacyUpgradeResult(response, legacyResult.Value, jwt.Value.RefreshTokenDays, CookieSecure(env));
+                // A dead legacy cookie (rotated elsewhere / expired) is not
+                // this farm's to clear on the legacy name — it is not per-farm.
+                // Leave it; it is inert. Fall through to the no-cookie 401.
+            }
+
+            // A named farm with no matching cookie is a changed session. With
+            // no selector and no legacy/per-farm cookie, this is the ordinary
+            // headerless no-session bootstrap response. Neither clears a
+            // cookie: there is no selected live credential to touch.
+            return Results.Problem(
+                "Not authenticated.", statusCode: 401,
+                title: accountId is null ? "Identity.InvalidRefreshToken" : "Auth.SessionChanged");
+        }
+
+        var selectedAccountId = accountId
+            ?? throw new InvalidOperationException("A per-farm refresh cookie requires an account selector.");
 
         // #309 — a real refresh token is a fixed, short base64 string. Treat an
         // over-length cookie value like a MISSING cookie (clear + the same
@@ -323,37 +406,42 @@ public static class AuthEndpoints
         // non-enumerating, this just matches the response actually produced.
         if (refreshToken.Length > MaxRefreshTokenLength)
         {
-            AuthCookies.ClearRefreshCookie(response, CookieSecure(env));
+            AuthCookies.ClearRefreshCookie(response, selectedAccountId, CookieSecure(env));
             return Results.Problem("Not authenticated.", statusCode: 401, title: "Identity.InvalidRefreshToken");
         }
 
-        // #547 — the tab tells us which farm it expects (header, not body —
-        // refresh takes no body, see AuthCookies.ExpectedAccountHeaderName).
-        // Absent is the legitimate bootstrap path and means "no expectation".
-        // Present but unparseable is a MISMATCH, not absent: a malformed
-        // expectation is a client that thinks it knows its farm, and honouring
-        // it as "no expectation" would let a broken or hostile client opt out
-        // of the check. Fail closed.
-        Guid? expectedAccountId = null;
-        if (request.Headers.TryGetValue(AuthCookies.ExpectedAccountHeaderName, out var expectedValue))
-        {
-            if (!Guid.TryParse(expectedValue.ToString(), out var parsedExpected))
-                expectedAccountId = Guid.Empty;
-            else
-                expectedAccountId = parsedExpected;
-        }
-
-        var result = await identity.RefreshAsync(refreshToken, ct, expectedAccountId);
+        var result = await identity.RefreshAsync(refreshToken, ct, selectedAccountId);
         if (!result.IsSuccess)
         {
             // The cookie's token is invalid / already rotated / expired — expire
             // it so the browser stops presenting a dead token on every load.
-            AuthCookies.ClearRefreshCookie(response, CookieSecure(env));
+            // The clear can only ever reach the cookie of the farm the caller
+            // named (#532): P1-2's "cleared the other farm's cookie" is
+            // unrepresentable here, not guarded.
+            AuthCookies.ClearRefreshCookie(response, selectedAccountId, CookieSecure(env));
             return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
         }
 
-        AuthCookies.SetRefreshCookie(response, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
+        // #547 — RefreshAsync's expectedAccountId check above is
+        // defence-in-depth, not the primary guarantee: the cookie was selected
+        // by the caller's own farm name, so the stored token's AccountId should
+        // always match it. If it ever does not, something is wrong and we want
+        // to fail closed on it.
+
+        AuthCookies.SetRefreshCookie(response, selectedAccountId, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
+    }
+
+    // #532 — the legacy upgrade response: the new per-farm cookie AND the legacy
+    // delete ride the same response, so the browser ends the exchange holding
+    // exactly one refresh cookie for this farm. (The legacy name is read-only
+    // from here on; this helper is the one place it is ever deleted.)
+    private static IResult LegacyUpgradeResult(
+        HttpResponse response, TokenPair pair, int lifetimeDays, bool secure)
+    {
+        AuthCookies.SetRefreshCookie(response, pair.AccountId, pair.RefreshToken, lifetimeDays, secure);
+        AuthCookies.ClearLegacyRefreshCookie(response, secure);
+        return Results.Ok(new AccessTokenResponse(pair.AccessToken, pair.AccessTokenExpiry));
     }
 
     private static async Task<IResult> ChangePassword(
@@ -377,7 +465,15 @@ public static class AuthEndpoints
 
         // Every prior session was revoked; hand this device a fresh cookie + access
         // token so the one that made the change stays signed in.
-        AuthCookies.SetRefreshCookie(response, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
+        // #532 — the graph found this endpoint rewrote the shared cookie with no
+        // account expectation at all; it was never part of #547. It now writes
+        // the cookie for the CURRENT USER's account — the only farm it can
+        // affect — so a change-password in farm A can no longer overwrite
+        // farm B's cookie. The account is the handler's own return value
+        // (ChangeOwnPasswordHandler returns it), not an ICurrentUser property:
+        // the interface is the authorization input, and adding account
+        // resolution to it would widen that surface for no gain.
+        AuthCookies.SetRefreshCookie(response, result.Value.AccountId, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
     }
 
@@ -418,18 +514,16 @@ public static class AuthEndpoints
     // #336 review — logout revokes along TWO independent axes, because the two
     // credentials a logout can present do not necessarily name the same user:
     //
-    //   - the refresh COOKIE is per-origin. A browser holds exactly one, and the
-    //     most recent login owns it.
+    //   - refresh COOKIES are per-farm; the tab's account header selects one.
     //   - the ACCESS TOKEN is per-tab: web/src/auth/tokenStore.ts keeps it in
     //     that tab's module memory, so a tab logged in as A survives a later
     //     login as B in another tab.
     //
-    // So user A clicking logout in their tab can present B's cookie. Deriving
-    // the grant owner from the cookie alone recorded the logout against B and
-    // left A's outstanding step-up grant usable with A's still-valid (stolen)
-    // access token — after A had explicitly logged out, which is exactly the
-    // person StepUpGrantService's logout guarantee exists for. The same gap
-    // opened whenever the cookie was simply missing or expired.
+    // The bearer and selected cookie can still name different users: the
+    // header is a cookie selector, while the bearer identifies the actor.
+    // Deriving the grant owner from the cookie alone can therefore leave the
+    // actor's outstanding step-up grant alive. The same gap opens whenever the
+    // selected cookie is missing or expired.
     //
     // Hence both, each guarded on its own presence and neither depending on the
     // other:
@@ -460,6 +554,11 @@ public static class AuthEndpoints
     // expiry. The exception is deliberately NOT caught here: a request failing
     // loudly when the DB is down is worth preserving, and the SPA already treats
     // logout as best-effort regardless of status code.
+    //
+    // #532 — the account header selects this tab's per-farm cookie. When it is
+    // absent, the bearer account_id claim is the fallback. With neither, clear
+    // nothing and return 204; logout remains idempotent and never sweeps other
+    // farms' cookies.
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IIdentityProvider identity,
         ICurrentUser currentUser, IWebHostEnvironment env, CancellationToken ct)
@@ -470,10 +569,34 @@ public static class AuthEndpoints
         if (currentUser.IsResolved)
             await identity.RecordLogoutAsync(currentUser.UserId, ct);
 
-        var refreshToken = AuthCookies.ReadRefreshCookie(request);
-        if (refreshToken is not null)
-            await identity.RevokeRefreshTokenAsync(refreshToken, ct);
-        AuthCookies.ClearRefreshCookie(response, CookieSecure(env));
+        // The header is checked first, and it wins: it is the tab declaring
+        // which farm it is ending. The per-farm rename made that declaration
+        // load-bearing for the SPA's own logout (the browser sends every
+        // farm's cookie, so the tab must say which one it means), and it is
+        // exactly as much of a trust boundary as the bearer's claim — the
+        // cookie the named farm holds is what gets revoked, and presenting a
+        // farm's cookie is possession of that farm's credential. With the
+        // header absent the bearer's account_id claim routes the logout without
+        // growing ICurrentUser with cookie-routing state. With neither there is
+        // nothing to clear (idempotent 204).
+        Guid? accountId = null;
+        if (request.Headers.TryGetValue(AuthCookies.ExpectedAccountHeaderName, out var headerValue)
+            && Guid.TryParse(headerValue.ToString(), out var parsed))
+            accountId = parsed;
+        else if (request.HttpContext.User.Identity?.IsAuthenticated == true)
+        {
+            var claim = request.HttpContext.User.FindFirst("account_id")?.Value;
+            if (Guid.TryParse(claim, out var callerAccount))
+                accountId = callerAccount;
+        }
+
+        if (accountId is { } account)
+        {
+            var refreshToken = AuthCookies.ReadRefreshCookie(request, account);
+            if (refreshToken is not null)
+                await identity.RevokeRefreshTokenAsync(refreshToken, ct);
+            AuthCookies.ClearRefreshCookie(response, account, CookieSecure(env));
+        }
         return Results.NoContent();
     }
 }
