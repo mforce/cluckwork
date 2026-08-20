@@ -4,6 +4,17 @@ Aspire is the local orchestration path for the development stack. It starts the
 existing PostgreSQL, Redis, API and Vite applications; it does not replace the
 production-like Docker Compose workflow or introduce a deployment path.
 
+**When to use:** developing or debugging the complete local stack with dynamic
+endpoints and the Aspire dashboard.
+
+**Blast radius:** normal start/stop preserves PostgreSQL data. The reset
+procedure deletes only the exact validated AppHost PostgreSQL volume and cannot
+be undone.
+
+**Last drilled:** 2026-08-20.
+
+---
+
 ## Prerequisites
 
 Install the .NET 10 SDK, Node/npm, `jq`, and a Docker-compatible container
@@ -182,3 +193,28 @@ docker compose -f deploy/docker-compose.yml up --build
 
 Aspire is local orchestration only; it does not change Compose, simulation, or
 production operations.
+
+## Drill
+
+Safe only when `aspire ps --format Json --non-interactive` reports no existing
+developer-owned run and the AppHost database is disposable.
+
+1. Start from the repository root, wait for `postgres`, `redis`, `api`, and
+   `web`, then require exactly one healthy resource with each display name.
+2. Send a valid-shaped unknown-user login through the dynamically advertised
+   web endpoint. Expect the API's `401 application/problem+json` response, not
+   Vite HTML or a proxy error.
+3. Correlate that request in `aspire logs` and `aspire otel traces`; require the
+   API server span and its PostgreSQL child. Confirm the current API resource
+   exposes HTTP, Npgsql, EF Core, and runtime metrics in the dashboard.
+4. Confirm the request creates a new namespaced limiter key in the exact Redis
+   resource. Redis is ephemeral, so do not treat restart persistence as a pass
+   condition for it.
+5. Create a unique database marker, stop and restart the AppHost normally, and
+   confirm both the marker and generated Postgres parameter persist.
+6. Run the reset procedure above. Confirm every identity, image, mount, and
+   stopped-container guard passes before the non-force volume removal; restart,
+   wait for `api`, and confirm migrations recreate the schema without the
+   marker.
+7. Stop the AppHost, require `aspire ps --format Json --non-interactive` to be
+   empty, and update **Last drilled** above.

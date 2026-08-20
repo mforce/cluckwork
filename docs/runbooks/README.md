@@ -1,11 +1,12 @@
 # Runbooks
 
 Procedures a human follows under pressure: break-glass credential recovery, first
-admin provisioning, restoring from backup, verifying an accessibility fix on real
-assistive tech.
+admin provisioning, local-stack orchestration, restoring from backup, verifying
+an accessibility fix on real assistive tech.
 
 | Runbook | When |
 |---|---|
+| [Aspire local development](aspire-local-development.md) | Run, observe, persist, or safely reset the local PostgreSQL, Redis, API, and Vite stack. |
 | [First admin provisioning (`bootstrap-admin`)](first-admin-provisioning.md) | A fresh database has no Owner. |
 | [Break-glass account recovery (`recover-admin`)](break-glass-account-recovery.md) | An Owner exists but is locked out. |
 | [Backup & restore](backup-and-restore.md) | Disaster-recovery dump, and putting one back. |
