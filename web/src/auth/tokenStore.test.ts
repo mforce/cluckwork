@@ -11,6 +11,21 @@ import {
 // The in-memory access token is reset after every test in src/test/setup.ts.
 
 describe("tokenStore (in-memory access token, #145)", () => {
+  it("loads with an empty in-memory binding when sessionStorage reads are blocked", async () => {
+    vi.resetModules();
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("The operation is insecure.", "SecurityError");
+    });
+
+    try {
+      const unavailableStorage = await import("./tokenStore");
+      expect(unavailableStorage.getBoundAccountId()).toBeNull();
+      expect(getItem).toHaveBeenCalledWith("cluckwork.boundAccountId");
+    } finally {
+      getItem.mockRestore();
+    }
+  });
+
   it("starts empty", () => {
     expect(getAccessToken()).toBeNull();
   });

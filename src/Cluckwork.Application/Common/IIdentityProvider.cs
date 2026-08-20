@@ -23,7 +23,13 @@ public interface IIdentityProvider
     Task<Result<TokenPair>> RefreshAsync(
         string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null);
 
-    Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default);
+    // When expectedAccountId is present, resolve the stored token's account and
+    // do nothing unless it matches. Logout uses this for the temporary shared
+    // legacy cookie: a browser may hold that cookie for one farm alongside a
+    // selected per-farm cookie for another. Null preserves the unconditional
+    // legacy-only logout contract.
+    Task RevokeRefreshTokenAsync(
+        string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null);
 
     // #308/#336 review — record that THIS user logged out, independently of any
     // refresh token. RevokeRefreshTokenAsync already records a logout for the

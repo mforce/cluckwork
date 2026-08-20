@@ -456,7 +456,7 @@ internal static class TestHarness
         {
             cookie = cookies.FirstOrDefault(c =>
                 c.StartsWith(AuthCookies.LegacyRefreshCookieName + "=", StringComparison.Ordinal)
-                || c.StartsWith("cluckwork_rt_", StringComparison.Ordinal));
+                || c.StartsWith(AuthCookies.LegacyRefreshCookieName + "_", StringComparison.Ordinal));
         }
         if (cookie is null) return string.Empty;
         var name = cookie.Split('=', 2)[0];

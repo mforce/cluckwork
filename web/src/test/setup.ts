@@ -29,4 +29,5 @@ afterEach(() => {
   // first and the clear then wipes that hint too → every test starts hint-free.
   void i18n.changeLanguage("en");
   localStorage.clear();
+  sessionStorage.clear();
 });

@@ -42,7 +42,26 @@ export function clearAccessToken(): void {
 // genuinely fresh tab has no binding and uses restoreSession's unbound
 // bootstrap path.
 const BOUND_ACCOUNT_KEY = "cluckwork.boundAccountId";
-let boundAccountId: string | null = sessionStorage.getItem(BOUND_ACCOUNT_KEY);
+
+function readBoundAccount(): string | null {
+  try {
+    return sessionStorage.getItem(BOUND_ACCOUNT_KEY);
+  } catch {
+    // Site data is unavailable — keep this tab usable with memory-only state.
+    return null;
+  }
+}
+
+function persistBoundAccount(accountId: string | null): void {
+  try {
+    if (accountId === null) sessionStorage.removeItem(BOUND_ACCOUNT_KEY);
+    else sessionStorage.setItem(BOUND_ACCOUNT_KEY, accountId);
+  } catch {
+    // The in-memory binding remains authoritative for this page lifetime.
+  }
+}
+
+let boundAccountId: string | null = readBoundAccount();
 
 export function getBoundAccountId(): string | null {
   return boundAccountId;
@@ -50,8 +69,7 @@ export function getBoundAccountId(): string | null {
 
 export function bindAccount(accountId: string | null): void {
   boundAccountId = accountId;
-  if (accountId === null) sessionStorage.removeItem(BOUND_ACCOUNT_KEY);
-  else sessionStorage.setItem(BOUND_ACCOUNT_KEY, accountId);
+  persistBoundAccount(accountId);
 }
 
 export function clearBoundAccount(): void {

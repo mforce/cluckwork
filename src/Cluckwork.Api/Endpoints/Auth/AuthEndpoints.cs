@@ -559,8 +559,11 @@ public static class AuthEndpoints
     // absent, the bearer account_id claim is the fallback. With neither, clear
     // no per-farm cookie; logout remains idempotent and never sweeps another
     // farm's named session. The temporary legacy cookie is different: its old
-    // shared name cannot select a farm, and it was the browser's only session
-    // under that scheme, so Logout always revokes and clears it when present.
+    // shared name cannot select a farm. With no selected farm it is the only
+    // presented session and is revoked unconditionally. Alongside a selected
+    // farm it may belong to another farm from a pre-deploy tab, so its durable
+    // owner must match the selection before it is revoked. The browser copy is
+    // still cleared because the legacy name is being drained.
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IIdentityProvider identity,
         ICurrentUser currentUser, IWebHostEnvironment env, CancellationToken ct)
@@ -597,16 +600,17 @@ public static class AuthEndpoints
             : null;
         var legacyRefreshToken = AuthCookies.ReadLegacyRefreshCookie(request);
 
-        // Revoke every presented credential before clearing either browser
-        // copy. If the database operation fails, Logout fails loudly and a
-        // retry can safely repeat the idempotent revocations. The same token
-        // can temporarily appear under both names during migration; revoke it
-        // once, but still delete both cookies below.
+        // Revoke every in-scope credential before clearing either browser copy.
+        // If the database operation fails, Logout fails loudly and a retry can
+        // safely repeat the idempotent revocations. Comparing the two values is
+        // only a cost optimisation: when the same token temporarily appears
+        // under both names, one idempotent revoke is enough. Both cookies are
+        // still deleted below.
         if (selectedRefreshToken is not null)
             await identity.RevokeRefreshTokenAsync(selectedRefreshToken, ct);
         if (legacyRefreshToken is not null
             && !string.Equals(legacyRefreshToken, selectedRefreshToken, StringComparison.Ordinal))
-            await identity.RevokeRefreshTokenAsync(legacyRefreshToken, ct);
+            await identity.RevokeRefreshTokenAsync(legacyRefreshToken, ct, accountId);
 
         var secure = CookieSecure(env);
         if (accountId is { } account)

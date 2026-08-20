@@ -1218,7 +1218,8 @@ public sealed class IdentityProvider(
     private static string Describe(IdentityResult result) =>
         string.Join(" ", result.Errors.Select(e => e.Description));
 
-    public async Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default)
+    public async Task RevokeRefreshTokenAsync(
+        string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null)
     {
         // Bulk conditional update, not a tracked read-modify-save: the #176 xmin
         // concurrency token would otherwise make this throw if the token was
@@ -1259,8 +1260,19 @@ public sealed class IdentityProvider(
             // AuthEndpoints.Logout).
             var tokenRow = await db.RefreshTokens
                 .Where(t => t.TokenHash == presentedHash)
-                .Select(t => new { t.UserId })
+                .Select(t => new { t.UserId, t.AccountId })
                 .FirstOrDefaultAsync(ct);
+
+            // A selected-farm logout may also carry the temporary shared-name
+            // legacy cookie for another farm. Resolve its durable owner before
+            // either revocation axis and refuse to cross that account boundary.
+            // An unknown/purged token likewise produces no write: there is no
+            // owner we can safely attribute, and an unknown token has no live
+            // row to revoke.
+            if (expectedAccountId is { } expectedAccount
+                && tokenRow?.AccountId != expectedAccount)
+                return;
+
             ownerId = tokenRow?.UserId;
 
             // #336 review (2nd round) — record BEFORE the bulk update, not after.

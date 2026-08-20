@@ -937,6 +937,25 @@ describe("apiGetBlob — file download", () => {
 });
 
 describe("auth endpoints", () => {
+  it("login succeeds with an in-memory farm binding when sessionStorage writes are blocked", async () => {
+    clearAccessToken();
+    clearBoundAccount();
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("The operation is insecure.", "SecurityError");
+    });
+    fetchMock.mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-A", "storage-blocked")));
+
+    try {
+      await expect(login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }))
+        .resolves.toBeUndefined();
+      expect(getAccessToken()).toBe(jwtWithAccountId("acct-A", "storage-blocked"));
+      expect(getBoundAccountId()).toBe("acct-A");
+      expect(setItem).toHaveBeenCalledWith("cluckwork.boundAccountId", "acct-A");
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
   it("login stores the access token (memory only) and notifies listeners", async () => {
     clearAccessToken();
     fetchMock.mockResolvedValueOnce(accessResponse("atL"));
