@@ -593,4 +593,16 @@ internal static class TestHarness
     }
 }
 
-public sealed record TokenPairDto(string AccessToken, string RefreshToken, DateTimeOffset AccessTokenExpiry);
+public sealed record TokenPairDto(string AccessToken, string RefreshToken, DateTimeOffset AccessTokenExpiry)
+{
+    // #532 — ExtractRefreshCookie returns the RAW Set-Cookie value, which is
+    // percent-encoded. RefreshAsync hashes whatever it is given, so handing it
+    // the raw value makes the lookup miss and the method fails at its FIRST
+    // branch — a test asserting IsFailure then passes for a reason unrelated to
+    // what it claims to test. Round 5 found the suspended-farm guard deletable
+    // with the whole suite green because of exactly that.
+    //
+    // Use this property for any DIRECT RefreshAsync call. Callers that send the
+    // token back over HTTP as a cookie must keep using RefreshToken.
+    public string RefreshTokenForDirectCall => Uri.UnescapeDataString(RefreshToken);
+}

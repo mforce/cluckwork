@@ -1,5 +1,6 @@
 import type { AccessTokenResponse, LoginRequest, ProblemDetails } from "./types";
 import { clearAccessToken, getAccessToken, setAccessToken } from "../auth/tokenStore";
+import { bindAccount, clearBoundAccount, getBoundAccountId } from "../auth/tokenStore";
 import { accountIdFromToken } from "../auth/claims";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
@@ -109,7 +110,13 @@ async function raw<T>(
   // A caller that declared its own type keeps it: the farm-logo upload (#123)
   // PUTs raw image bytes, not JSON.
   if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  // A caller that declared its own bearer keeps it: login() passes "" (the
+  // endpoint is AllowAnonymous and the test pins the header's ABSENCE) while
+  // the access token it returns is still needed by the caller for local state
+  // — decode it from the RESPONSE, never from an Authorization header.
+  if (!headers.has("Authorization")) {
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  }
   attachTraceparent(headers);
 
   const res = await fetch(`${BASE}${path}`, { ...init, headers });
@@ -178,10 +185,19 @@ export async function login(body: LoginRequest): Promise<void> {
   const generation = ++sessionGeneration;
   // The server sets the HttpOnly refresh cookie; the body returns only the
   // access token, which lives in memory for this tab's lifetime.
-  const res = await raw<AccessTokenResponse>("/auth/login", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  const res = await raw<AccessTokenResponse>(
+    "/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+    // #532 — login's response token is decoded to bind this tab to its farm.
+    // The REAL server token always carries the account_id claim (the
+    // cross-farm guard depends on it), so this is an attribution of a known
+    // token, not adoption of an unknown one — unlike a refresh, which must
+    // fail closed on an unattributable token.
+    "",
+  );
   // Superseded while in flight (e.g. a logout landed before this resolved) —
   // do not resurrect a session the user already ended. The response already
   // set a refresh cookie, so revoke it too, not just the in-memory token.
@@ -190,6 +206,12 @@ export async function login(body: LoginRequest): Promise<void> {
     throw new StaleSessionError();
   }
   setAccessToken(res.accessToken);
+  // #532 — a tab that logged in must be bound to its farm before its first
+  // refresh, or that refresh is treated as a cold restore and could adopt a
+  // foreign session. bindAccount(null) leaves the tab unbound when the token
+  // carries no usable account claim: the next refresh then fails closed on the
+  // unattributable-token rule instead of trusting a fresh farm.
+  bindAccount(accountIdFromToken(res.accessToken));
   onTokensChanged?.();
 }
 
@@ -284,6 +306,9 @@ export async function logout(): Promise<void> {
   // Read it after and we would always send nothing.
   const bearer = getAccessToken();
   clearAccessToken();
+  // #532 — explicit logout is the user ending the session: the binding is
+  // cleared with the token, and the next login rebinds.
+  clearBoundAccount();
   try {
     // Cookie-authenticated: the HttpOnly refresh cookie rides along and the CSRF
     // header satisfies the check. Always fires — JS can't read the HttpOnly
@@ -390,10 +415,20 @@ type HeldAuthCookieLock = Readonly<{
   signal: AbortSignal;
 }>;
 
+// #532 round 8 — a REFUSED adoption (cross-farm guard) is a distinct failure
+// mode from an obsolete generation, a network error, or a rate limit. The
+// caller's refresh-failure branch treats it as a session teardown (clear the
+// token, fire onUnauthenticated, rethrow the ORIGINAL 401), and the catch
+// below re-throws it as itself — never wraps it in StaleSessionError — so a
+// parked request can never ride a refusal into a superseded session.
+class RefreshAdoptionRefusedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RefreshAdoptionRefusedError";
+  }
+}
+
 async function executeRefresh(generation: number, signal?: AbortSignal): Promise<string> {
-  // Captured BEFORE the call: the refresh may rotate the cookie and the token
-  // store, so reading it afterwards would compare the new token against itself.
-  const tabAccountId = accountIdFromToken(getAccessToken());
   try {
     const res = await raw<AccessTokenResponse>("/auth/refresh", {
       method: "POST",
@@ -403,29 +438,46 @@ async function executeRefresh(generation: number, signal?: AbortSignal): Promise
 
     // A SUCCESSFUL refresh rotated the cookie before we got here, so a
     // discarded one leaves live credentials in the browser — revoke them.
+    // The generation check runs FIRST: a stale refresh is discarded wholesale,
+    // and the cross-farm guard is irrelevant to a refresh that will never be
+    // adopted. Running the guard before the generation check would let a
+    // stale refresh's token (for a DIFFERENT farm) trigger a refusal + revoke
+    // that tears down the NEWER session — exactly what #310 forbids.
     if (sessionGeneration !== generation) {
       await revokeSupersededCookie();
       throw new StaleSessionError();
     }
-    // #532 — the cookie is per-origin, this store is per-tab. Another tab
-    // logging into a different farm replaces the cookie, so this refresh can
-    // return a session for a farm this tab never chose. Adopting it would let
-    // the retry replay this tab's pending request — including its BODY —
-    // against the other farm. Refuse instead, and tear the tab's session down.
+
+    // #532 — the refresh cookie is per-ORIGIN (one per browser, last login
+    // anywhere wins) while this store is per-TAB. A refresh in an old tab can
+    // return a session for a farm this tab never chose; adopting it would let
+    // the retry replay this tab's pending request, BODY INCLUDED, against that
+    // farm.
     //
-    // A tab with NO prior token is the legitimate cold-restore path (nothing to
-    // compare against), so only a genuine MISMATCH is refused.
+    // Two rules, and both fail CLOSED:
+    //   - a token we cannot attribute to a farm is never adopted. Round 7
+    //     adopted a token with no account_id, and the literal string
+    //     "not-a-jwt", by trusting a null here;
+    //   - a token for a different farm than this tab is bound to is never
+    //     adopted, and the binding survives teardown so this cannot be
+    //     defeated by simply refreshing twice.
     //
-    // A plain Error (not StaleSessionError, not a 429 ApiError, not an
-    // AbortError): it is not transient, so the caller's refresh-failure branch
-    // runs its usual single teardown — clearAccessToken() + onUnauthenticated
-    // + rethrow the ORIGINAL 401 — instead of retrying on the other farm's
-    // token. Reusing that existing teardown is what keeps this path from
-    // inventing a second "session is over" code path.
+    // An UNBOUND tab is the legitimate cold restore (first load, or after a
+    // reload) and adopts — then binds, so it is unbound exactly once.
     const refreshedAccountId = accountIdFromToken(res.accessToken);
-    if (tabAccountId !== null && refreshedAccountId !== null && refreshedAccountId !== tabAccountId) {
-      throw new Error("Refused: refresh returned a different account's session.");
+    if (refreshedAccountId === null) {
+      throw new RefreshAdoptionRefusedError(
+        "Refresh returned a token with no usable account claim.",
+      );
     }
+    const boundAccountId = getBoundAccountId();
+    if (boundAccountId !== null && refreshedAccountId !== boundAccountId) {
+      throw new RefreshAdoptionRefusedError(
+        "Refresh returned a session for a different farm.",
+      );
+    }
+
+    bindAccount(refreshedAccountId);
     setAccessToken(res.accessToken);
     onTokensChanged?.();
     return res.accessToken;
@@ -434,8 +486,26 @@ async function executeRefresh(generation: number, signal?: AbortSignal): Promise
     // late success: the real error (e.g. a genuinely revoked refresh token)
     // might otherwise tear down a newer, still-valid session. No revoke here —
     // a failed refresh issued no cookie to revoke.
+    //
+    // A REFUSED adoption is re-thrown as itself when the generation is still
+    // current: it IS the session teardown, and its response rotated a cookie
+    // that clearAccessToken() + navigate cannot reach, so revoke it like a
+    // discarded successful refresh (a reload would otherwise restore the very
+    // session this tab just refused). When the generation is stale the refusal
+    // is discarded like any other stale failure — the NEWER session keeps its
+    // cookie (that revoke is exactly what #310 forbids), and the refusal must
+    // not be wrapped in StaleSessionError (that would let a parked request
+    // ride the refusal into the newer session instead of failing closed).
     if (err instanceof StaleSessionError) throw err;
-    throw sessionGeneration !== generation ? new StaleSessionError() : err;
+    if (sessionGeneration !== generation) {
+      if (err instanceof RefreshAdoptionRefusedError) throw err;
+      throw new StaleSessionError();
+    }
+    if (err instanceof RefreshAdoptionRefusedError) {
+      await revokeSupersededCookie();
+      throw err;
+    }
+    throw err;
   }
 }
 

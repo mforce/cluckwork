@@ -667,7 +667,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         // endpoint ever sees it — a round trip this direct, in-process call
         // skips, so it must undo the encoding itself or hash a value the login
         // call never actually stored.
-        var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
+        var rawRefreshToken = tokens.RefreshTokenForDirectCall;
 
         interceptor.Armed = true;
         await Assert.ThrowsAsync<InvalidOperationException>(

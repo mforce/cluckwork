@@ -483,7 +483,7 @@ public sealed class RetryBoundaryTests : IClassFixture<RetryBoundaryFactory>, ID
         // until a mutation check caught it.)
         var result = await loser.ServiceProvider
             .GetRequiredService<IIdentityProvider>()
-            .RefreshAsync(Uri.UnescapeDataString(tokens.RefreshToken));
+            .RefreshAsync(tokens.RefreshTokenForDirectCall);
 
         // Fails CLOSED — never a success synthesised by the probe.
         Assert.True(result.IsFailure);

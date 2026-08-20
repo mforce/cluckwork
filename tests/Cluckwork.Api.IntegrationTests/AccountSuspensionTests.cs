@@ -298,7 +298,7 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
             // Uri.UnescapeDataString for the same reason as
             // ARefreshTokenWhoseEpochStillMatches…: the cookie value is
             // percent-encoded and RefreshAsync hashes whatever it is given.
-            Assert.True((await identity.RefreshAsync(Uri.UnescapeDataString(tokens.RefreshToken))).IsFailure,
+            Assert.True((await identity.RefreshAsync(tokens.RefreshTokenForDirectCall)).IsFailure,
                 "a refresh token minted before the suspension must not survive reactivation");
         }
     }
@@ -378,20 +378,22 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         // so the DDL and the parameterised delete are unambiguous.
         await using var conn = new Npgsql.NpgsqlConnection(factory.ConnectionString);
         await conn.OpenAsync();
-        // The FK constraint name is mixed-case, so it MUST be quoted in the
-        // DROP — an unquoted identifier is lowercased by Postgres and the
-        // constraint silently survives (with IF EXISTS, a no-op).
-        {
-            using var drop = conn.CreateCommand();
-            drop.CommandText = "ALTER TABLE \"AspNetUsers\" DROP CONSTRAINT IF EXISTS \"FK_AspNetUsers_Accounts_AccountId\";";
-            await drop.ExecuteNonQueryAsync();
-
-            var del = conn.CreateCommand();
-            del.CommandText = $"DELETE FROM \"Accounts\" WHERE \"Id\" = '{accountId}';";
-            Assert.Equal(1, await del.ExecuteNonQueryAsync());
-        }
         try
         {
+            // The FK constraint name is mixed-case, so it MUST be quoted in the
+            // DROP — an unquoted identifier is lowercased by Postgres and the
+            // constraint silently survives (with IF EXISTS, a no-op).
+            using (var drop = conn.CreateCommand())
+            {
+                drop.CommandText = "ALTER TABLE \"AspNetUsers\" DROP CONSTRAINT IF EXISTS \"FK_AspNetUsers_Accounts_AccountId\";";
+                await drop.ExecuteNonQueryAsync();
+            }
+            using (var del = conn.CreateCommand())
+            {
+                del.CommandText = $"DELETE FROM \"Accounts\" WHERE \"Id\" = '{accountId}';";
+                Assert.Equal(1, await del.ExecuteNonQueryAsync());
+            }
+
             var response = await client.GetAsync("/api/v1/users");
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
             var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
@@ -401,7 +403,10 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         {
             // Restore the FK so the shared schema is left intact for other tests
             // in this collection. The user row still references the deleted
-            // account, so drop it first, then re-add the constraint.
+            // account, so drop it first, then re-add the constraint. The try
+            // starts BEFORE the DROP so every partially completed setup
+            // (drop done, delete not yet; delete done, request not yet) reaches
+            // this restore.
             using var tx = await conn.BeginTransactionAsync();
             var delUser = conn.CreateCommand();
             delUser.Transaction = tx;
@@ -415,6 +420,16 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
             await add.ExecuteNonQueryAsync();
 
             await tx.CommitAsync();
+        }
+
+        // Pin the restore: assert the constraint is present again. Replacing the
+        // ADD CONSTRAINT above with a no-op leaves this assertion red — a
+        // permanently broken FK is no longer invisible.
+        using (var chk = conn.CreateCommand())
+        {
+            chk.CommandText = "SELECT COUNT(*) FROM pg_constraint WHERE conname = 'FK_AspNetUsers_Accounts_AccountId';";
+            var count = (long)(await chk.ExecuteScalarAsync())!;
+            Assert.True(count == 1, $"FK_AspNetUsers_Accounts_AccountId must be restored after the test (got {count})");
         }
     }
 
@@ -439,7 +454,7 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         // green because of exactly this. Same reason as RetryBoundaryTests.cs.
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
-        Assert.True((await identity.RefreshAsync(Uri.UnescapeDataString(tokens.RefreshToken))).IsFailure,
+        Assert.True((await identity.RefreshAsync(tokens.RefreshTokenForDirectCall)).IsFailure,
             "a suspended farm must not rotate a session, even when the epoch still matches");
     }
 
@@ -552,5 +567,34 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         var service = scope.ServiceProvider.GetRequiredService<AccountSuspensionService>();
         var result = await service.SuspendAsync(Guid.NewGuid());
         Assert.True(result.IsFailure);
+    }
+
+    // #532 round 8 — pins the percent-decode that round 5's fix silently
+    // depended on. ExtractRefreshCookie returns the RAW Set-Cookie value,
+    // which is percent-encoded. RefreshAsync hashes whatever it is given, so
+    // the raw value hashes to nothing and the method fails at its FIRST
+    // branch. This test asserts BOTH sides: raw fails, decoded succeeds.
+    // If the encoding behaviour ever changes underneath these callers, this
+    // test reddens.
+    [Fact]
+    public async Task RefreshToken_RawValue_Fails_DecodedValue_Succeeds_OnAnActiveFarm()
+    {
+        var email = $"susp-decode-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var tokens = await factory.LoginAsync(email);
+
+        using var scope = factory.Services.CreateScope();
+        var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
+
+        // Raw (percent-encoded) value: the hash matches no stored row →
+        // InvalidRefreshToken at the first branch.
+        var rawResult = await identity.RefreshAsync(tokens.RefreshToken);
+        Assert.True(rawResult.IsFailure,
+            "the raw percent-encoded refresh token must NOT be accepted");
+
+        // Decoded value: the hash matches → a fresh pair is issued.
+        var decodedResult = await identity.RefreshAsync(tokens.RefreshTokenForDirectCall);
+        Assert.True(decodedResult.IsSuccess,
+            "the decoded refresh token MUST be accepted on an active farm");
     }
 }

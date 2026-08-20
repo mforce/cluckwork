@@ -321,7 +321,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
             new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 
-        var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
+        var rawRefreshToken = tokens.RefreshTokenForDirectCall;
 
         interceptor.Armed = true;
         await Assert.ThrowsAsync<InvalidOperationException>(() => provider.RefreshAsync(rawRefreshToken));
@@ -380,7 +380,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
             new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 
-        var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
+        var rawRefreshToken = tokens.RefreshTokenForDirectCall;
 
         // This is the token's FIRST rotation — not a replay — so it exercises
         // RefreshAsync's tracked-save revocation, never the bulk-update path
@@ -424,7 +424,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
 
         interceptor.Armed = true;
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => provider.RevokeRefreshTokenAsync(Uri.UnescapeDataString(tokens.RefreshToken)));
+            () => provider.RevokeRefreshTokenAsync(tokens.RefreshTokenForDirectCall));
         interceptor.Armed = false;
 
         Assert.Single(EventsFor(SecurityEvents.RefreshRevocationFailed));
@@ -451,7 +451,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
 
         interceptor.Armed = true;
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => provider.RevokeRefreshTokenAsync(Uri.UnescapeDataString(tokens.RefreshToken)));
+            () => provider.RevokeRefreshTokenAsync(tokens.RefreshTokenForDirectCall));
         interceptor.Armed = false;
 
         var failed = Assert.Single(EventsFor(SecurityEvents.RefreshRevocationFailed));

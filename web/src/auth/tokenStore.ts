@@ -24,6 +24,33 @@ export function clearAccessToken(): void {
   accessToken = null;
 }
 
+// #532 — the farm this TAB is bound to, tracked separately from the access
+// token and deliberately NOT cleared by clearAccessToken().
+//
+// The cross-farm guard in client.ts compares a refreshed token's account
+// against this. Deriving it from the stored token instead makes the guard a
+// one-shot: refusing a foreign token tears the session down, clearing the
+// token, and the next refresh then sees an empty store — the same state as a
+// legitimate cold restore — and adopts the foreign farm with no comparison.
+// Round 7 reproduced exactly that with two concurrent requests.
+//
+// Cleared only by an explicit logout (the user chose to end the session) and
+// by a page reload (module memory dies; a genuinely fresh tab has nothing to
+// compare against, which is what restoreSession is for).
+let boundAccountId: string | null = null;
+
+export function getBoundAccountId(): string | null {
+  return boundAccountId;
+}
+
+export function bindAccount(accountId: string | null): void {
+  boundAccountId = accountId;
+}
+
+export function clearBoundAccount(): void {
+  boundAccountId = null;
+}
+
 // Remove any token left in localStorage by the pre-#145 scheme. Called once at
 // startup; safe to call when storage is unavailable (private mode).
 export function purgeLegacyTokens(): void {
