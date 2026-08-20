@@ -336,7 +336,11 @@ internal static class TestHarness
     // point at http://localhost/ and reach nothing. Under the in-memory
     // TestServer (every other suite) the factory's ClientOptions.BaseAddress is
     // that same default, so this changes nothing there.
-    private static WebApplicationFactoryClientOptions Cookieless(CluckworkWebApplicationFactory factory) =>
+    // #547 — internal→public for RefreshAccountBindingTests: a cookie-less
+    // client is the only shape that can present a hand-picked refresh token
+    // (the browser would attach its own jar), which is exactly what that
+    // suite's two-farm matrix needs.
+    public static WebApplicationFactoryClientOptions Cookieless(CluckworkWebApplicationFactory factory) =>
         new() { HandleCookies = false, BaseAddress = factory.ClientOptions.BaseAddress };
 
     // #532 — the farm code of the account InitialCreate seeds and AddAccountSlug
@@ -435,11 +439,20 @@ internal static class TestHarness
     // CSRF header present. Pass csrf: false to exercise the missing-header path.
     public static Task<HttpResponseMessage> PostRefreshAsync(
         this HttpClient client, string? refreshToken, bool csrf = true)
+        => client.PostRefreshAsync(refreshToken, csrf, expectedAccount: null);
+
+    // #547 — overload carrying the tab's expected-farm header
+    // (AuthCookies.ExpectedAccountHeaderName). Pass a non-Guid string to
+    // exercise the unparseable-header path; null means "header absent".
+    public static Task<HttpResponseMessage> PostRefreshAsync(
+        this HttpClient client, string? refreshToken, bool csrf, string? expectedAccount)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/refresh");
         if (csrf) request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
         if (refreshToken is not null)
             request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieName}={refreshToken}");
+        if (expectedAccount is not null)
+            request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, expectedAccount);
         return client.SendAsync(request);
     }
 

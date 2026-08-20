@@ -169,13 +169,32 @@ public sealed class IdentityProvider(
     private string ClientIp =>
         httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
-    public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default)
+    public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null)
     {
         var presentedHash = Hash(refreshToken);
 
         var stored = await db.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == presentedHash, ct);
         if (stored is null)
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+
+        // #547 — the tab told us which farm it expects; the stored token says
+        // which farm it actually belongs to. A mismatch means this browser's
+        // single origin-scoped cookie belongs to a DIFFERENT farm than the tab
+        // asking — tab A's token expired, tab B logged into another farm and
+        // overwrote the cookie, and tab A is now one rotation away from
+        // replaying its pending write against tab B's farm.
+        //
+        // Refuse BEFORE rotating, and leave the stored token untouched and
+        // usable: the tab that asked is the one that must recover, and it must
+        // not damage the session that legitimately owns the cookie. Rotating or
+        // revoking here would sign out the farm that did nothing wrong.
+        //
+        // A DISTINCT code, unlike every other refresh rejection: this one is
+        // recoverable by re-bootstrapping the tab, not by signing in again, and
+        // the SPA needs to tell those apart.
+        if (expectedAccountId is not null && stored.AccountId != expectedAccountId)
+            return Result.Failure<TokenPair>(Error.Validation(
+                "Auth.SessionChanged", "This session now belongs to a different farm."));
 
         // #468 — the clock is read AFTER the lookup, and this ordering is load-
         // bearing: the #176 grace window below measures how long ago the row we

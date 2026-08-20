@@ -435,7 +435,10 @@ describe("executeRefresh — cross-farm adoption guard (#532)", () => {
     // refresh cookie that a teardown cannot reach, so a reload would otherwise
     // restore the session this tab just refused (see #310/#393).
     expect(callsTo(fetchMock, "/stock")).toHaveLength(1);
-    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(1);
+    // #547 — no revoke: the refusal means the cookie belongs to ANOTHER farm's
+    // tab, and revoking it would sign out a tab that did nothing wrong (#310).
+    // Refusal tears down THIS tab only.
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0);
     // This tab's session was torn down: token cleared, sent to login.
     expect(getAccessToken()).toBeNull();
     expect(onUnauth).toHaveBeenCalledTimes(1);
@@ -546,7 +549,7 @@ describe("executeRefresh — cross-farm adoption guard (#532)", () => {
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(401);
     expect(callsTo(fetchMock, "/stock")).toHaveLength(1); // no retry on the unattributable token
-    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(1); // the refusal revoked its rotated cookie
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0); // #547 — a refusal never revokes the other farm's cookie
     expect(getAccessToken()).toBeNull();
     expect(onUnauth).toHaveBeenCalledTimes(1);
   });
@@ -562,9 +565,137 @@ describe("executeRefresh — cross-farm adoption guard (#532)", () => {
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(401);
     expect(callsTo(fetchMock, "/stock")).toHaveLength(1); // no retry on the unparseable token
-    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(1); // the refusal revoked its rotated cookie
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0); // #547 — a refusal never revokes the other farm's cookie
     expect(getAccessToken()).toBeNull();
     expect(onUnauth).toHaveBeenCalledTimes(1);
+  });
+});
+
+// #547 — the SERVER-side half of the cross-farm guard: the tab tells
+// /auth/refresh which farm it expects (X-Cluckwork-Account) and the server
+// compares it against the stored token's AccountId before rotating. These
+// tests pin the client's half of the contract: the header rides along when
+// the tab is bound, is omitted when unbound, and an Auth.SessionChanged 401
+// tears down THIS tab only — never a revoke of the other farm's cookie.
+
+describe("executeRefresh — expected-account header (#547)", () => {
+  it("sends X-Cluckwork-Account when the tab is bound", async () => {
+    bindAccount("acct-A");
+    setAccessToken(jwtWithAccountId("acct-A", "tab"));
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
+      .mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-A", "rotated"))) // refresh
+      .mockResolvedValueOnce(jsonResponse({ ok: true })); // retry
+
+    await apiGet("/stock");
+
+    const refresh = callsTo(fetchMock, "/auth/refresh")[0];
+    expect(headerOf(refresh, "X-Cluckwork-Account")).toBe("acct-A");
+    expect(headerOf(refresh, CSRF)).toBe("1"); // the CSRF header still rides too
+  });
+
+  it("omits X-Cluckwork-Account when the tab is unbound (the bootstrap path)", async () => {
+    // Cold restore: the in-memory store is EMPTY, so the refresh is the silent
+    // bootstrap refresh (currentAccessToken → refreshTokens), not a 401 retry.
+    clearAccessToken();
+    expect(getBoundAccountId()).toBeNull();
+    fetchMock
+      .mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-B", "restored"))) // the silent refresh
+      .mockResolvedValueOnce(jsonResponse({ ok: true })); // the request, on the restored token
+
+    await apiGet("/stock");
+
+    expect(getAccessToken()).toBe(jwtWithAccountId("acct-B", "restored"));
+    const refresh = callsTo(fetchMock, "/auth/refresh")[0];
+    expect(headerOf(refresh, "X-Cluckwork-Account")).toBeNull(); // unbound → no expectation
+  });
+
+  it("an Auth.SessionChanged 401 tears down THIS tab only — no revoke of the other farm's cookie", async () => {
+    // Empty store: the refresh is the SILENT bootstrap refresh
+    // (currentAccessToken → refreshTokens), which surfaces the refresh's own
+    // error — so the Auth.SessionChanged title reaches the caller directly.
+    bindAccount("acct-A");
+    clearAccessToken(); // the binding survives: this tab still knows its farm
+    expect(getBoundAccountId()).toBe("acct-A");
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ title: "Auth.SessionChanged", detail: "This session now belongs to a different farm." }, 401),
+    ); // the server refused: the cookie belongs to another farm
+
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(401);
+    expect((err as ApiError).title).toBe("NoSession"); // currentAccessToken wraps it
+    // This tab is torn down and re-bootstraps…
+    expect(getAccessToken()).toBeNull();
+    expect(getBoundAccountId()).toBeNull();
+    // …because the REFRESH answered Auth.SessionChanged. It reaches the
+    // teardown twice — executeRefresh's own branch AND currentAccessToken's
+    // catch, which fires onUnauthenticated for any non-stale refresh failure
+    // (the pre-existing double-navigation pattern for a silent-refresh
+    // failure). Both carry the REFRESH's title, never the wrap's.
+    expect(onUnauth).toHaveBeenCalledTimes(2);
+    expect(onUnauth).toHaveBeenNthCalledWith(1, "Auth.SessionChanged");
+    expect(onUnauth).toHaveBeenNthCalledWith(2, "Auth.SessionChanged");
+    // …and the other farm's cookie is deliberately left alone (#310).
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0);
+    expect(callsTo(fetchMock, "/stock")).toHaveLength(0); // no request was ever sent — no token
+  });
+});
+
+describe("#547 — login binds the tab to its farm (the header's source)", () => {
+  it("a login stores the token AND binds the tab, so its next refresh sends the header — and a different-farm refresh is refused", async () => {
+    clearAccessToken();
+    expect(getBoundAccountId()).toBeNull();
+    const loggedIn = jwtWithAccountId("acct-A", "fresh-login");
+    fetchMock.mockResolvedValueOnce(accessResponse(loggedIn)); // the login itself
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
+
+    // THE binding the cross-farm guard depends on: derived from the login
+    // token's account claim, not set by the test. Deleting the bindAccount
+    // call in login() makes this null and the next assertions red.
+    expect(getBoundAccountId()).toBe("acct-A");
+
+    // A refresh for ANOTHER farm is now refused (client-side guard — the
+    // server-side check is the same comparison over HTTP): no retry, teardown,
+    // no revoke of the other farm's cookie.
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
+      .mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-B", "other-farm")));
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(401);
+    expect(callsTo(fetchMock, "/stock")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0);
+    // The header the server check relies on was actually sent by the refresh
+    // above: without the login-time binding, the server would see no
+    // expectation and the client-side refusal could not have fired either.
+    expect(headerOf(callsTo(fetchMock, "/auth/refresh")[0], "X-Cluckwork-Account")).toBe("acct-A");
+  });
+});
+
+describe("#547 — cross-tab bootstrap broadcast", () => {
+  // The module creates its channel at import time, so this runs after the
+  // module loaded: in this DOM BroadcastChannel exists (jsdom), and a second
+  // channel on the same name receives its messages.
+  it("a login posts the new account to the shared channel (other tabs re-bootstrap from it)", async () => {
+    // The module created its channel at import time; a second channel with the
+    // same name receives its posts, so this proves the announcement without
+    // reaching into the module. (jsdom provides BroadcastChannel; the module
+    // guards for its absence and would simply skip the post otherwise.)
+    const received: unknown[] = [];
+    const receiver = new BroadcastChannel("cluckwork.session");
+    receiver.onmessage = (event: MessageEvent) => received.push(event.data);
+
+    const loggedIn = jwtWithAccountId("acct-A", "fresh-login");
+    fetchMock.mockResolvedValueOnce(accessResponse(loggedIn));
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
+
+    // BroadcastChannel delivery is async even in-process: drain one macrotask.
+    await drain();
+
+    expect(received).toEqual([{ type: "session-bootstrap", accountId: "acct-A" }]);
+    receiver.close();
   });
 });
 

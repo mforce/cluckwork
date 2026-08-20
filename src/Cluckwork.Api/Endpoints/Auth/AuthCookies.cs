@@ -12,6 +12,19 @@ public static class AuthCookies
     public const string RefreshCookieName = "cluckwork_rt";
     public const string CsrfHeaderName = "X-Cluckwork-Auth";
 
+    // #547 — the tab tells us which farm it believes it is refreshing. The
+    // refresh cookie is per-ORIGIN (one per browser, last login anywhere wins)
+    // while access tokens are per-TAB, so a tab can send a cookie belonging to
+    // a farm it never chose. Compared against the STORED token's AccountId
+    // before anything rotates.
+    //
+    // A header, not a body field: refresh takes no body — the handler drains it
+    // to enforce the #309 size cap — and adding one would change that contract.
+    //
+    // OPTIONAL by design: the load-time bootstrap runs before any tab knows its
+    // farm. Absent means "no expectation", which is not the same as a mismatch.
+    public const string ExpectedAccountHeaderName = "X-Cluckwork-Account";
+
     // Scoped so the cookie rides only the auth endpoints, never every API call.
     private const string CookiePath = "/api/v1/auth";
 

@@ -13,8 +13,16 @@ public interface IIdentityProvider
     Task<Result<TokenPair>> LoginAsync(
         Guid accountId, string email, string password, CancellationToken ct = default);
 
+    // #547 — expectedAccountId is the farm the tab told the endpoint it is
+    // refreshing, sent as the X-Cluckwork-Account header. The server compares
+    // it against the STORED token's AccountId and refuses (Auth.SessionChanged)
+    // BEFORE anything rotates when they differ: the refresh cookie is
+    // per-origin while access tokens are per-tab, so one browser holding two
+    // farms can otherwise hand a tab the wrong farm's session. Absent (null)
+    // means "no expectation" — the load-time bootstrap path — and is not a
+    // mismatch.
     Task<Result<TokenPair>> RefreshAsync(
-        string refreshToken, CancellationToken ct = default);
+        string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null);
 
     Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default);
 

@@ -117,11 +117,13 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
         using (var s = Scope())
         {
             var idp = s.ServiceProvider.GetRequiredService<IIdentityProvider>();
-            // Uri.UnescapeDataString because this bypasses HTTP: the refresh
-            // token was captured from the RAW Set-Cookie value, which is
-            // percent-encoded, and RefreshAsync hashes whatever it is given
-            // (same reason as RetryBoundaryTests.cs).
-            Assert.True((await idp.RefreshAsync(Uri.UnescapeDataString(oldRefreshToken))).IsFailure,
+            // The UnescapeDataString is a NO-OP on purpose: this token never
+            // came from a cookie — it is the raw string straight out of
+            // LoginAsync's TokenPair record, not a percent-encoded Set-Cookie
+            // value like RetryBoundaryTests captures. No decode needed; kept
+            // so this call site reads identically to the cookie-sourced ones
+            // and nobody "fixes" it by removing a decode that was never there.
+            Assert.True((await idp.RefreshAsync(oldRefreshToken)).IsFailure,
                 "the refresh token minted before recovery must be revoked");
         }
 

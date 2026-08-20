@@ -327,7 +327,23 @@ public static class AuthEndpoints
             return Results.Problem("Not authenticated.", statusCode: 401, title: "Identity.InvalidRefreshToken");
         }
 
-        var result = await identity.RefreshAsync(refreshToken, ct);
+        // #547 — the tab tells us which farm it expects (header, not body —
+        // refresh takes no body, see AuthCookies.ExpectedAccountHeaderName).
+        // Absent is the legitimate bootstrap path and means "no expectation".
+        // Present but unparseable is a MISMATCH, not absent: a malformed
+        // expectation is a client that thinks it knows its farm, and honouring
+        // it as "no expectation" would let a broken or hostile client opt out
+        // of the check. Fail closed.
+        Guid? expectedAccountId = null;
+        if (request.Headers.TryGetValue(AuthCookies.ExpectedAccountHeaderName, out var expectedValue))
+        {
+            if (!Guid.TryParse(expectedValue.ToString(), out var parsedExpected))
+                expectedAccountId = Guid.Empty;
+            else
+                expectedAccountId = parsedExpected;
+        }
+
+        var result = await identity.RefreshAsync(refreshToken, ct, expectedAccountId);
         if (!result.IsSuccess)
         {
             // The cookie's token is invalid / already rotated / expired — expire
