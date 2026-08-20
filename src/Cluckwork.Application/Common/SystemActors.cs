@@ -18,4 +18,10 @@ public static class SystemActors
 
     /// <summary>Offline break-glass recovery (#265). Author of the User.BreakGlassReset row.</summary>
     public const string BreakGlass = "(break-glass)";
+
+    /// <summary>Operator taking a farm offline (#534). Author of the Account.Suspend row.</summary>
+    public const string SuspendAccount = "(suspend-account)";
+
+    /// <summary>Operator bringing a farm back (#534). Author of the Account.Reactivate row.</summary>
+    public const string ReactivateAccount = "(reactivate-account)";
 }

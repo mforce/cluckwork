@@ -3,6 +3,8 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Eggs;
+using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -577,5 +579,29 @@ public sealed class DailyEntryAdjustTests(CluckworkWebApplicationFactory factory
         });
         Assert.Equal(HttpStatusCode.OK, adjust.StatusCode);
         Assert.Equal("ManagerAdjusted", (await GetEntryAsync(client, oldEntry)).Status);
+    }
+
+    [Fact]
+    public async Task LockSweep_StillLocksEntries_ForASuspendedFarm()
+    {
+        var (client, accountId, farmId, flockId, grades) = await SetupAsync("Large");
+        var oldEntry = await RecordAndSubmitAsync(
+            client, farmId, flockId, Today.AddDays(-(DailyEntryLockSweep.LockAfterDays + 1)),
+            100, 0, (grades["Large"], 100));
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<AccountSuspensionService>();
+            var result = await service.SuspendAsync(accountId, reason: null);
+            Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Description : "");
+        }
+
+        await factory.Services.GetRequiredService<DailyEntryLockSweep>().RunAsync(CancellationToken.None);
+
+        var status = await factory.WithTenantScopeAsync(accountId, db => db.DailyEntries
+            .Where(entry => entry.Id == oldEntry)
+            .Select(entry => entry.Status)
+            .SingleAsync());
+        Assert.Equal(DailyEntryStatus.Locked, status);
     }
 }

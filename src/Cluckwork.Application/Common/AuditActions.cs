@@ -49,6 +49,12 @@ public static class AuditActions
     public const string AccountSetBanner = "Account.SetBanner";
     public const string AccountRemoveBanner = "Account.RemoveBanner";
     public const string AccountUpdateSettings = "Account.UpdateSettings";
+    // #534 — the operator lifecycle verbs. Written ONLY on a real state change:
+    // re-running `suspend-account` against an already-suspended farm still
+    // re-revokes its sessions but appends no second row, so the trail reads as
+    // one row per actual transition rather than one per operator keystroke.
+    public const string AccountSuspend = "Account.Suspend";
+    public const string AccountReactivate = "Account.Reactivate";
     public const string ProductCreate = "Product.Create";
     public const string ProductUpdate = "Product.Update";
     public const string ProductActivate = "Product.Activate";

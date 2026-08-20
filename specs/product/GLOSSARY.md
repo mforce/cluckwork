@@ -607,10 +607,17 @@ unrecognised one is refused with its own message. (Written earlier, before
 #532 shipped: it was recorded and discoverable but not yet used at sign-in, and
 there was no SPA surface for it.)
 
-**Account status — active / suspended (#531)** — an account is *active* by
-default. **Suspending** it takes the farm offline; **reactivating** brings it
-back. The switch exists now; enforcement — blocking a suspended account's users
-from signing in — arrives with the login work (#532).
+**Account status — active / suspended (#531/#532/#534)** — an account is
+*active* by default. **Suspending** it takes the farm offline; **reactivating**
+brings it back. Suspension is **immediate**: a suspended farm's users are
+refused at sign-in *and* on their very next authenticated request, not merely
+when their token expires, and every refresh session is revoked. Signing out
+still works. Nothing is deleted, so reactivation restores the farm exactly —
+except that sessions issued before the suspension stay dead, so everyone signs
+in again. Operators run `suspend-account --slug <farm-code> [--reason <text>]`
+and `reactivate-account --slug <farm-code> [--reason <text>]` at a shell on the
+deployment. Each writes an audit row **when it actually changes the farm's
+state**, so re-running either is safe and leaves one row per real transition.
 
 **Farm / House** — physical hierarchy. Present as ids from day one, but real
 Farm/House management arrives with later phases; the MVP runs on one seeded

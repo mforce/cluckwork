@@ -1701,6 +1701,8 @@ export const tl = {
     "auditAction.Account.SetBanner": "Na-set ang banner ng bukid",
     "auditAction.Account.RemoveBanner": "Naalis ang banner ng bukid",
     "auditAction.Account.UpdateSettings": "Na-update ang mga setting ng bukid",
+    "auditAction.Account.Suspend": "Sinuspinde ang bukid",
+    "auditAction.Account.Reactivate": "Muling binuksan ang bukid",
     "auditAction.Product.Create": "Nagawa ang produkto",
     "auditAction.Product.Update": "Na-update ang produkto",
     "auditAction.Product.Activate": "Na-activate ang produkto",
@@ -2274,7 +2276,10 @@ export const tl = {
       + "iyong kauna-unahang owner account, bago pa may sinumang makagawa nito. Ang \"(break-glass)\" "
       + "ay ang pang-emergency na utos na nagre-reset ng password kapag na-lock out ang lahat — "
       + "itinatala rin ng entry na iyon kung saang makina ito pinatakbo at ang ibinigay na dahilan, "
-      + "kaya hindi kailanman anonimo ang isang emergency reset. Ang iba ay pinapangalanan ang taong gumawa.",
+      + "kaya hindi kailanman anonimo ang isang emergency reset. Ang \"(suspend-account)\" at "
+      + "\"(reactivate-account)\" ay mga utos na pinapatakbo ng operator upang i-offline ang buong bukid "
+      + "at ibalik ito; itinatala rin ng mga entry na iyon ang makinang pinatakbuhan at ang ibinigay na dahilan. "
+      + "Ang iba ay pinapangalanan ang taong gumawa.",
     auditRecordHistoryOlder:
       "Ang mga record na ginawa bago ito idagdag ay walang linyang \"ginawa ni\" — wala lang talagang "
       + "entry ng paggawa sa log para sa kanila, at walang iniimbentong bago pagkatapos. Kung nabago ang "
