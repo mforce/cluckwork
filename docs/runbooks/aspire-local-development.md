@@ -338,9 +338,11 @@ for ((attempt = 0; attempt < 60; attempt++)); do
 
   if grep -Fq "$trace_id" "$drill_tmp/logs" \
       && grep -Fq '/api/v1/auth/login' "$drill_tmp/logs" \
+      && ! grep -Fiq 'x-otlp-api-key' "$drill_tmp/logs" \
       && grep -Fq "$trace_id" "$drill_tmp/trace" \
       && grep -Eiq 'server' "$drill_tmp/trace" \
-      && grep -Eiq 'Npgsql|PostgreSQL|postgres' "$drill_tmp/trace"; then
+      && grep -Eiq 'Npgsql|PostgreSQL|postgres' "$drill_tmp/trace" \
+      && ! grep -Fiq 'x-otlp-api-key' "$drill_tmp/trace"; then
     telemetry_ready=true
     break
   fi
