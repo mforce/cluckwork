@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Diagnostics;
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Testcontainers.PostgreSql;
 
@@ -79,7 +80,8 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         string Issue,
         string MessageToken,
         Action<ProcessStartInfo> Violate,
-        Action<ProcessStartInfo> Satisfy);
+        Action<ProcessStartInfo> Satisfy,
+        string? FailureFamily = null);
 
     private static readonly ServingGuard[] ServingOnlyGuards =
     [
@@ -127,6 +129,44 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         new("#316 binding", "at 'Otlp:AllowInsecureEndpoint'",
             Violate: psi => psi.Environment["Otlp__AllowInsecureEndpoint"] = "not-a-boolean",
             Satisfy: psi => psi.Environment["Otlp__AllowInsecureEndpoint"] = "true"),
+
+        // #565 — standard OTLP variables form the alternative complete transport
+        // profile when no canonical key is present. Every violation clears every
+        // canonical transport key LAST, after the pre-existing #316 rows had a
+        // chance to satisfy themselves, so the standard profile is the one the
+        // resolver and role boundary actually validate.
+        new("#565 standard endpoint", "Otlp:Endpoint must be an absolute http(s) URI",
+            Violate: psi =>
+            {
+                RemoveCanonicalOtlpTransport(psi);
+                psi.Environment[OtlpConfigurationResolver.StandardEndpointKey] = "not a uri";
+            },
+            Satisfy: RemoveStandardOtlpTransport,
+            FailureFamily: "#316 endpoint"),
+
+        new("#565 standard protocol", "Otlp:Protocol must be",
+            Violate: psi =>
+            {
+                RemoveCanonicalOtlpTransport(psi);
+                psi.Environment[OtlpConfigurationResolver.StandardEndpointKey] = "https://collector.invalid:4317";
+                psi.Environment[OtlpConfigurationResolver.StandardProtocolKey] = "not-a-protocol";
+            },
+            Satisfy: RemoveStandardOtlpTransport,
+            FailureFamily: "#316 protocol"),
+
+        new("#565 standard plaintext", "Production OTLP export requires an https Otlp:Endpoint",
+            Violate: psi =>
+            {
+                RemoveCanonicalOtlpTransport(psi);
+                psi.Environment.Remove("Otlp__AllowInsecureEndpoint");
+                psi.Environment[OtlpConfigurationResolver.StandardEndpointKey] = "http://collector.invalid:4317";
+            },
+            Satisfy: psi =>
+            {
+                RemoveStandardOtlpTransport(psi);
+                psi.Environment[OtlpConfigurationResolver.StandardEndpointKey] = "https://collector.invalid:4317";
+            },
+            FailureFamily: "#316 endpoint"),
 
         // #260 — an empty trusted-proxy list silently makes HSTS inert and
         // collapses the per-IP login limiter to one global bucket.
@@ -270,6 +310,20 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
     private static readonly string[] InheritedOsVariables =
         ["PATH", "HOME", "DOTNET_ROOT", "TMPDIR", "LANG", "LC_ALL", "USER"];
 
+    private static void RemoveCanonicalOtlpTransport(ProcessStartInfo psi)
+    {
+        psi.Environment.Remove("Otlp__Endpoint");
+        psi.Environment.Remove("Otlp__Protocol");
+        psi.Environment.Remove("Otlp__Headers");
+    }
+
+    private static void RemoveStandardOtlpTransport(ProcessStartInfo psi)
+    {
+        psi.Environment.Remove(OtlpConfigurationResolver.StandardEndpointKey);
+        psi.Environment.Remove(OtlpConfigurationResolver.StandardProtocolKey);
+        psi.Environment.Remove(OtlpConfigurationResolver.StandardHeadersKey);
+    }
+
     private static Process Start(
         string verb, string connectionString, ServingGuard violate)
     {
@@ -337,6 +391,16 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
             0 == exitCode,
             $"the serving-only guard {issue} aborted the one-shot `migrate` verb — the #331 "
             + $"regression. expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
+
+        // #565's standard-profile transport failures must retain the declared
+        // one-shot degradation contract, not merely happen not to abort migrate.
+        // Other serving guards do not necessarily use the telemetry boundary, so
+        // deliberately do not generalize this assertion across the whole table.
+        if (guard.Issue.StartsWith("#565 ", StringComparison.Ordinal))
+        {
+            Assert.Contains("warning: OTLP export disabled for this command", stderr, StringComparison.Ordinal);
+            Assert.Contains(guard.MessageToken, stderr, StringComparison.Ordinal);
+        }
     }
 
     // The other direction, so the arms above are never vacuous for ANY guard.
@@ -383,7 +447,9 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
 
         // The half that makes this ordering-proof: no OTHER guard may be what
         // stopped the boot, because no other guard is violated.
-        foreach (var other in ServingOnlyGuards.Where(g => !ReferenceEquals(g, guard)))
+        foreach (var other in ServingOnlyGuards.Where(g =>
+                     !ReferenceEquals(g, guard)
+                     && (g.FailureFamily ?? g.Issue) != (guard.FailureFamily ?? guard.Issue)))
             Assert.False(
                 stderr.Contains(other.MessageToken, StringComparison.Ordinal),
                 $"only {issue} was violated, but the boot failed naming {other.Issue} "

@@ -4,12 +4,39 @@ import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+export function resolveDevServer(processEnvironment: NodeJS.ProcessEnv): {
+  port: number;
+  strictPort: boolean;
+} {
+  const port = processEnvironment.PORT;
+  if (port === undefined) return { port: 5173, strictPort: false };
+
+  if (!/^\d+$/.test(port)) {
+    throw new Error("PORT must be an integer from 1 through 65535.");
+  }
+
+  const parsedPort = Number(port);
+  if (parsedPort < 1 || parsedPort > 65535) {
+    throw new Error("PORT must be an integer from 1 through 65535.");
+  }
+
+  return { port: parsedPort, strictPort: true };
+}
+
+export function resolveApiTarget(
+  processEnvironment: NodeJS.ProcessEnv,
+  fileEnvironment: Record<string, string>,
+): string {
+  return processEnvironment.VITE_API_TARGET ?? fileEnvironment.VITE_API_TARGET ?? "http://localhost:8080";
+}
+
 // Dev-only proxy: the SPA calls same-origin "/api/..." and Vite forwards to the
 // backend, so no CORS config is needed on the API for local dev. Override the
 // target with VITE_API_TARGET (defaults to the docker-compose port 8080).
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const target = env.VITE_API_TARGET ?? "http://localhost:8080";
+  const server = resolveDevServer(process.env);
+  const target = resolveApiTarget(process.env, env);
   return {
     plugins: [
       react(),
@@ -83,7 +110,7 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     server: {
-      port: 5173,
+      ...server,
       proxy: {
         "/api": { target, changeOrigin: true },
       },

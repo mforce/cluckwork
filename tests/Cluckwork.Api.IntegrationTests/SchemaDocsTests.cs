@@ -34,9 +34,16 @@ public sealed class SchemaDocsTests
     // boundary the sweep deliberately does not evaluate.
     private const string PgWord = "post";
     private const string GresWord = "gres";
+    private const string RedWord = "red";
+    private const string IsWord = "is";
+    private const string RedisEndpoint = RedWord + IsWord + ":6379";
+    private const string RedisMalformedEndpoint = RedisEndpoint + ",tunnel=::::";
 
     private const string PostgresImage =
         "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a";
+
+    private const string RedisImage =
+        "redis:7.4-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2";
 
     private static readonly string RepoRoot = FindRepoRoot();
     private static readonly string DocsDir = Path.Combine(RepoRoot, "docs", "schema");
@@ -114,51 +121,111 @@ public sealed class SchemaDocsTests
     [Fact]
     public void PostgresImagePin_IsOneIdenticalStringAcrossEveryTrackedFile()
     {
+        var barePostgresLiteralAllowList = new Dictionary<string, (string Value, int Count)[]>
+        {
+            // URI scheme names accepted by the connection-string normalizer —
+            // a scheme, not an image reference.
+            ["src/Cluckwork.Infrastructure/Providers/Postgres/PostgresConnectionString.cs"] = [(PgWord + GresWord, 1)],
+            // #318 test asserting the retired predictable-credentials fallback
+            // is NAMED in the failure message — error-text fixture, not an
+            // image reference.
+            ["tests/Cluckwork.Api.IntegrationTests/AppDbContextDesignTimeFactoryTests.cs"] = [(PgWord + GresWord + "/" + PgWord + GresWord, 1)],
+            // Aspire names the resource separately from the immutable full
+            // reference so its version-aware PostgreSQL volume helper can
+            // consume the reviewed tag before the later SHA assignment clears it.
+            ["src/Cluckwork.AppHost/Program.cs"] = [(PgWord + GresWord, 1)],
+            // The AppHost model asserts Aspire's normalized image component
+            // independently of the production full-reference constant.
+            ["tests/Cluckwork.AppHost.Tests/AppHostModelTests.cs"] =
+                [(PgWord + GresWord, 5), ("library/" + PgWord + GresWord, 1)],
+        };
+
+        AssertImagePinIsOneIdenticalStringAcrossEveryTrackedFile(
+            repository: PgWord + GresWord,
+            canonicalReference: PostgresImage,
+            bareLiteralAllowList: barePostgresLiteralAllowList,
+            runtimeEndpointAllowList: new Dictionary<string, (string Value, int Count)[]>(),
+            imageVariableAliases: ["pg"]);
+    }
+
+    [Fact]
+    public void RedisImagePin_IsOneIdenticalStringAcrossEveryTrackedFile()
+    {
+        var bareRedisLiteralAllowList = new Dictionary<string, (string Value, int Count)[]>
+        {
+            ["src/Cluckwork.AppHost/Program.cs"] = [(RedWord + IsWord, 1)],
+            ["tests/Cluckwork.AppHost.Tests/AppHostModelTests.cs"] =
+                [(RedWord + IsWord, 7), ("library/" + RedWord + IsWord, 1)],
+        };
+
+        var runtimeRedisEndpointAllowList = new Dictionary<string, (string Value, int Count)[]>
+        {
+            ["deploy/docker-compose.yml"] = [(RedisEndpoint, 1)],
+            ["tests/Cluckwork.Api.IntegrationTests/SharedState/SharedStateRegistrationTests.cs"] =
+                [(RedisEndpoint, 2), (RedisMalformedEndpoint, 2)],
+            ["tools/simulation/bootstrap.sh"] = [(RedisEndpoint, 1)],
+            ["tools/simulation/verify-harness.sh"] = [(RedisEndpoint, 1)],
+        };
+
+        AssertImagePinIsOneIdenticalStringAcrossEveryTrackedFile(
+            repository: RedWord + IsWord,
+            canonicalReference: RedisImage,
+            bareLiteralAllowList: bareRedisLiteralAllowList,
+            runtimeEndpointAllowList: runtimeRedisEndpointAllowList,
+            imageVariableAliases: []);
+    }
+
+    private static void AssertImagePinIsOneIdenticalStringAcrossEveryTrackedFile(
+        string repository,
+        string canonicalReference,
+        IReadOnlyDictionary<string, (string Value, int Count)[]> bareLiteralAllowList,
+        IReadOnlyDictionary<string, (string Value, int Count)[]> runtimeEndpointAllowList,
+        IReadOnlyList<string> imageVariableAliases)
+    {
         // Discover, THEN validate: a pattern that only matched digest-pinned
-        // strings would let a new latest-tagged (or otherwise unpinned)
-        // postgres reference escape the sweep entirely. This candidate
-        // pattern matches any postgres image reference — pinned or not — and
-        // every match must equal the canonical pin. `(?!//)` keeps
-        // `postgres://` connection URIs (generate.sh's DSN) out of scope.
+        // strings would let a new latest-tagged (or otherwise unpinned) image
+        // reference escape the sweep entirely. This candidate pattern matches
+        // any repository image reference — pinned or not — and every match
+        // must equal the canonical pin. `(?!//)` keeps connection URIs out of
+        // scope.
         // (Written to avoid containing a matching literal itself — this file
         // is inside its own sweep.)
-        var candidatePattern = new Regex(@"postgres:(?!//)[A-Za-z0-9][A-Za-z0-9._-]*(?:@sha256:[0-9a-f]{64})?");
-        // A reference with NO tag at all (compose `image: postgres`,
-        // Dockerfile `FROM postgres`) is valid and floats to latest — it has
+        var escapedRepository = Regex.Escape(repository);
+        var candidatePattern = new Regex(escapedRepository + @":(?!//)[A-Za-z0-9][A-Za-z0-9._-]*(?:@sha256:[0-9a-f]{64})?");
+        // A reference with NO tag at all is valid and floats to latest — it has
         // no colon for the pattern above to see, so it needs its own
         // detector, scoped to the two syntaxes where a bare name is a live
         // image reference rather than prose.
-        // Namespaced/registry-qualified forms (docker.io/library/postgres,
-        // registry:5000/ns/postgres) float to latest exactly the same way,
-        // so the optional prefix segments are part of the detector.
+        // Namespaced/registry-qualified forms float to latest exactly the
+        // same way, so the optional prefix segments are part of the detector.
         // YAML allows the image key itself to be quoted or to carry space
         // before the colon — every image-key pattern shares this spelling.
         const string ImageKey = @"[""']?image[""']?[ \t]*:";
         // COPY --from= consumes an external image when the name isn't a
         // build stage — a third syntax where a bare name is a live reference.
-        var untaggedPattern = new Regex(@"(?im)^\s*(?:" + ImageKey + @"\s*|FROM\s+)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
+        var untaggedPattern = new Regex(@"(?im)^\s*(?:" + ImageKey + @"\s*|FROM\s+)[""']?(?:[a-z0-9.-]+(?::\d+)?/)*" + escapedRepository + @"[""']?(?=\s|$)");
         // COPY --from= UNANCHORED (like the mount rules): a continued COPY
         // puts --from= on a line that no longer starts with COPY, and the
         // token is unambiguous wherever it appears.
-        var copyFromPattern = new Regex(@"(?im)--from=[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
+        var copyFromPattern = new Regex(@"(?im)--from=[""']?(?:[a-z0-9.-]+(?::\d+)?/)*" + escapedRepository + @"[""']?(?=\s|$)");
         // Compose additional_contexts may back a build context with an image
         // via the docker-image:// scheme — a bare name there floats to
         // latest like any untagged reference.
         var dockerImageContextPattern = new Regex(
-            @"(?im)docker-image://[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=[,\s""'}\]]|$)");
+            @"(?im)docker-image://[""']?(?:[a-z0-9.-]+(?::\d+)?/)*" + escapedRepository + @"[""']?(?=[,\s""'}\]]|$)");
         // An interpolated docker-image:// reference is never a reviewable
         // pin, whatever the variable's name — same name-blind refusal as a
         // variable FROM image (a scheme-prefixed value is always an image).
         var dockerImageVarPattern = new Regex(@"(?im)docker-image://[^\s""',}\]]*\$");
-        // A postgres-reference-shaped C# string literal (a Testcontainers
-        // image constant, e.g.) must BE the canonical pin — a bare
-        // 'postgres' literal floats to latest with no colon for the global
+        // A repository-reference-shaped C# string literal (a Testcontainers
+        // image constant, e.g.) must BE the canonical pin — a bare literal
+        // floats to latest with no colon for the global
         // candidate to see.
         // Scoped to IMAGE-CONSUMING expressions — an *Image* assignment, a
         // *Builder("...") construction, or WithImage("...") — because the
         // bare word is ALSO a legitimate scheme name, username, and database
-        // name in C# sources (PostgresConnectionString's scheme handling and
-        // the design-time factory's DSN fixtures surfaced as baseline false
+        // name in C# sources (connection-string scheme handling and
+        // design-time DSN fixtures surfaced as baseline false
         // positives when the sweep ran anchor-free). An image reference fed
         // through any other expression is opaque indirection, same boundary
         // as variable names.
@@ -174,7 +241,7 @@ public sealed class SchemaDocsTests
         // tag class excludes whitespace so trailing indentation never folds
         // into the captured value.
         var csharpImageLiteralPattern = new Regex(
-            @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)[$@]*(?<q>""+)\s*(?<img>(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^""@\s]+)?(?:@sha256:[0-9a-f]{64})?)\s*\k<q>");
+            @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)[$@]*(?<q>""+)\s*(?<img>(?:[a-z0-9.-]+(?::\d+)?/)*" + escapedRepository + @"(?::[^""@\s]+)?(?:@sha256:[0-9a-f]{64})?)\s*\k<q>");
         // An ORDINARY (or ordinary-interpolated) literal processes escape
         // sequences, so its evaluated value need not appear contiguously in
         // the source — such a literal in an image-consuming expression is
@@ -191,7 +258,7 @@ public sealed class SchemaDocsTests
         // the wrapper vocabulary is unbounded. So image-shaped literals get a
         // CONTEXT-FREE rule: EVERY C# string literal, wherever it sits, has
         // its evaluated value checked (ordinary literals are escape-decoded
-        // first), and a value that is postgres-shaped but not the canonical
+        // first), and a value shaped as this repository but not the canonical
         // pin is refused unless that exact (file, value) pair is in the
         // reviewed allow-list below. Walk everything, exclude deliberately —
         // never enumerate consuming expressions. The expression-anchored
@@ -202,29 +269,14 @@ public sealed class SchemaDocsTests
         var csharpRawMultilinePattern = new Regex(
             @"(?<q>""{3,})(?<body>[\s\S]*?)\k<q>");
         var decodedImageShapePattern = new Regex(
-            @"^(?:[a-z0-9.-]+(?::\d+)?/)*postgres(?::[^@\s""]+)?(?:@sha256:[0-9a-f]{64})?$");
-        // The bare word 'postgres' is ALSO a legitimate scheme name, database
-        // name, and username. Each entry here is a reviewed non-image use of
-        // a postgres-shaped literal, pinned to an EXACT occurrence count —
+            @"^(?:[a-z0-9.-]+(?::\d+)?/)*" + escapedRepository + @"(?::[^@\s""]+)?(?:@sha256:[0-9a-f]{64})?$");
+        // A bare repository word can ALSO be a legitimate scheme name,
+        // database name, or username. Each entry in the supplied allow-list
+        // is a reviewed non-image use of a repository-shaped literal, pinned
+        // to an EXACT occurrence count —
         // an allowance for one reviewed occurrence must not silently extend
         // to a second one added later, and a stale entry (count drops) must
         // fail too. Keyed by repo-relative path + exact evaluated value.
-        // Values are composed from the class consts (identifier composition,
-        // which the chain-folding scan deliberately does not evaluate — the
-        // documented opaque-indirection boundary) so this file carries
-        // neither a postgres-shaped literal nor a foldable literal chain of
-        // its own: it is inside its own sweep, and allow-listing it would
-        // open a hole in the guard.
-        var barePostgresLiteralAllowList = new Dictionary<string, (string Value, int Count)[]>
-        {
-            // URI scheme names accepted by the connection-string normalizer —
-            // a scheme, not an image reference.
-            ["src/Cluckwork.Infrastructure/Providers/Postgres/PostgresConnectionString.cs"] = [(PgWord + GresWord, 1)],
-            // #318 test asserting the retired predictable-credentials fallback
-            // is NAMED in the failure message — error-text fixture, not an
-            // image reference.
-            ["tests/Cluckwork.Api.IntegrationTests/AppDbContextDesignTimeFactoryTests.cs"] = [(PgWord + GresWord + "/" + PgWord + GresWord, 1)],
-        };
         var allowSeen = new Dictionary<(string File, string Value), int>();
         // BuildKit RUN mounts pull an external image when from= names no
         // build stage or context — a fourth bare-reference syntax.
@@ -234,7 +286,7 @@ public sealed class SchemaDocsTests
         // from may be the FIRST option (type defaults to bind), so the
         // preceding-option prefix is optional.
         var runMountFromPattern = new Regex(
-            @"(?im)--mount=(?:[^\s]*[,=])?from=[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=[,\s""']|$)");
+            @"(?im)--mount=(?:[^\s]*[,=])?from=[""']?(?:[a-z0-9.-]+(?::\d+)?/)*" + escapedRepository + @"[""']?(?=[,\s""']|$)");
         // A mount option token cut by a line continuation defers its option
         // text (including a possible from=) past the line — refused as a
         // shape. A COMPLETE option followed by space-then-continuation is
@@ -254,7 +306,7 @@ public sealed class SchemaDocsTests
         // the canonical reference — and tagless, so neither pattern above
         // sees it (no colon for the first, an @ failing the second's
         // end-of-token lookahead).
-        var digestOnlyPattern = new Regex(@"postgres@sha256:[0-9a-f]{64}");
+        var digestOnlyPattern = new Regex(escapedRepository + @"@sha256:[0-9a-f]{64}");
         // A compose-interpolated tag (a dollar-brace variable where the tag
         // belongs) resolves at runtime to whatever the operator's env says —
         // by definition not a reviewable pin, and invisible to all three
@@ -263,10 +315,10 @@ public sealed class SchemaDocsTests
         // — this file is inside its own sweep. The pattern source is composed
         // from the class consts for the same reason: the context-free scan
         // below reads every literal AND folds literal + literal chains in
-        // this file too, and a folded source text that IS postgres-shaped
+        // this file too, and a folded source text that is repository-shaped
         // would self-match. (The remaining literal sub-chain folds to a
         // colon-led fragment, which is not image-shaped.)
-        var interpolatedPattern = new Regex(PgWord + GresWord + ":" + @"\$\{?[A-Za-z_][A-Za-z0-9_:-]*\}?");
+        var interpolatedPattern = new Regex(escapedRepository + ":" + @"\$\{?[A-Za-z_][A-Za-z0-9_:-]*\}?");
         // ALLOW-LIST, not marker enumeration: rounds 10-16 of review each
         // produced one more YAML syntax that defers or indirects an image
         // value (block scalars, comments, anchors, explicit tags...). The
@@ -277,9 +329,9 @@ public sealed class SchemaDocsTests
         // MAPPING named image opens (ci.yml's job id): a mapping's next
         // line is another key, a deferred value's next line is a scalar.
         // FROM lines get the same treatment: a backslash continuation or a
-        // postgres-naming interpolated value is refused. The remaining
+        // repository-naming interpolated value is refused. The remaining
         // boundary is unchanged: a variable whose name does not identify
-        // postgres is opaque indirection no text scan can close.
+        // the repository is opaque indirection no text scan can close.
         // Node properties (a tag or anchor) and sequence dashes may precede
         // the key itself — a tagged plain key still resolves to `image`.
         var imageKeyLinePattern = new Regex(@"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s]+[ \t]+)*" + ImageKey + @"[ \t]*(?<value>[^\r\n]*?)[ \t]*\r?$",
@@ -336,10 +388,10 @@ public sealed class SchemaDocsTests
         // shape itself is rejected, whatever it decodes to.
         var escapedKeyPattern = new Regex(@"^[ \t]*(?:-[ \t]+)*(?:[&!][^\s""]+[ \t]+)*""[^""\r\n]*\\[^""\r\n]*""[ \t]*:");
         var fromLinePattern = new Regex(@"(?im)^[ \t]*FROM[ \t][^\r\n]*");
-        // A bare (untagged) postgres reference hiding in an ARG default
-        // (ARG X=postgres) floats to latest when the ARG parameterizes FROM.
-        var argPostgresDefaultPattern = new Regex(
-            @"(?im)^[ \t]*ARG[ \t]+[A-Za-z_][A-Za-z0-9_]*=[""']?(?:[a-z0-9.-]+(?::\d+)?/)*postgres[""']?(?=\s|$)");
+        // A bare (untagged) repository reference hiding in an ARG default
+        // floats to latest when the ARG parameterizes FROM.
+        var argRepositoryDefaultPattern = new Regex(
+            @"(?im)^[ \t]*ARG[ \t]+[A-Za-z_][A-Za-z0-9_]*=[""']?(?:[a-z0-9.-]+(?::\d+)?/)*" + escapedRepository + @"[""']?(?=\s|$)");
         // A FROM whose image is entirely a variable is never reviewable —
         // whatever the variable's name, its value comes from ARG/build args.
         // (FROM context is narrow enough that this needs no name heuristic,
@@ -348,9 +400,18 @@ public sealed class SchemaDocsTests
         // variable may expand ANYWHERE within it (registry/${VAR} as much as
         // ${VAR} alone) — any dollar in the image token refuses the line.
         var fromVariablePattern = new Regex(@"(?im)^[ \t]*FROM[ \t]+(?:--[A-Za-z0-9-]+=[^\s]+[ \t]+)*[^\s]*\$");
-        var pgNamePattern = new Regex(@"postgres|_pg_?|pg_", RegexOptions.IgnoreCase);
+        // A repository can have a reviewed short form in a Docker ARG name
+        // (for example, `pg_`); make those aliases an explicit fact argument
+        // rather than smuggling one repository's convention into the generic
+        // walker. Only the two original variable-name boundaries are allowed.
+        var repositoryNamePattern = new Regex(
+            string.Join("|", new[] { escapedRepository }
+                .Concat(imageVariableAliases.Select(alias =>
+                    "(?:_" + Regex.Escape(alias) + "_?|" + Regex.Escape(alias) + "_)"))),
+            RegexOptions.IgnoreCase);
         var mappingKeyPattern = new Regex(@"^[ \t]*[A-Za-z0-9_.-]+:([ \t]|\r?$)");
         var hits = new Dictionary<string, List<string>>();
+        var runtimeEndpointSeen = new Dictionary<(string File, string Value), int>();
 
         foreach (var relative in TrackedFiles())
         {
@@ -363,26 +424,36 @@ public sealed class SchemaDocsTests
             catch (IOException) { continue; }
             foreach (Match m in candidatePattern.Matches(text))
             {
+                if (runtimeEndpointAllowList.TryGetValue(relative, out var allowedEndpoints)
+                    && allowedEndpoints.Any(a => a.Value == m.Value))
+                {
+                    runtimeEndpointSeen[(relative, m.Value)] =
+                        runtimeEndpointSeen.GetValueOrDefault((relative, m.Value)) + 1;
+                    continue;
+                }
                 if (!hits.TryGetValue(m.Value, out var files))
                     hits[m.Value] = files = [];
                 files.Add(relative);
             }
             foreach (Match m in untaggedPattern.Matches(text))
             {
-                if (!hits.TryGetValue("postgres (untagged — floats to latest)", out var files))
-                    hits["postgres (untagged — floats to latest)"] = files = [];
+                var key = $"{repository} (untagged — floats to latest)";
+                if (!hits.TryGetValue(key, out var files))
+                    hits[key] = files = [];
                 files.Add(relative);
             }
             foreach (Match m in copyFromPattern.Matches(text))
             {
-                if (!hits.TryGetValue("postgres (untagged, in a --from= — floats to latest)", out var files))
-                    hits["postgres (untagged, in a --from= — floats to latest)"] = files = [];
+                var key = $"{repository} (untagged, in a --from= — floats to latest)";
+                if (!hits.TryGetValue(key, out var files))
+                    hits[key] = files = [];
                 files.Add(relative);
             }
             foreach (Match m in dockerImageContextPattern.Matches(text))
             {
-                if (!hits.TryGetValue("postgres (untagged, in a docker-image:// context — floats to latest)", out var files))
-                    hits["postgres (untagged, in a docker-image:// context — floats to latest)"] = files = [];
+                var key = $"{repository} (untagged, in a docker-image:// context — floats to latest)";
+                if (!hits.TryGetValue(key, out var files))
+                    hits[key] = files = [];
                 files.Add(relative);
             }
             foreach (Match m in dockerImageVarPattern.Matches(text))
@@ -393,8 +464,9 @@ public sealed class SchemaDocsTests
             }
             foreach (Match m in runMountFromPattern.Matches(text))
             {
-                if (!hits.TryGetValue("postgres (untagged, in a RUN mount from= — floats to latest)", out var files))
-                    hits["postgres (untagged, in a RUN mount from= — floats to latest)"] = files = [];
+                var key = $"{repository} (untagged, in a RUN mount from= — floats to latest)";
+                if (!hits.TryGetValue(key, out var files))
+                    hits[key] = files = [];
                 files.Add(relative);
             }
             if (relative.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
@@ -409,9 +481,10 @@ public sealed class SchemaDocsTests
                 foreach (Match m in csharpImageLiteralPattern.Matches(codeText))
                 {
                     var val = m.Groups["img"].Value;
-                    if (val == PostgresImage) continue;
-                    if (!hits.TryGetValue($"\"{val}\" (postgres-shaped C# string literal — not the canonical pin)", out var files))
-                        hits[$"\"{val}\" (postgres-shaped C# string literal — not the canonical pin)"] = files = [];
+                    if (val == canonicalReference) continue;
+                    var key = $"\"{val}\" ({repository}-shaped C# string literal — not the canonical pin)";
+                    if (!hits.TryGetValue(key, out var files))
+                        hits[key] = files = [];
                     files.Add(relative);
                 }
                 foreach (Match m in csharpEscapedLiteralPattern.Matches(codeText))
@@ -576,29 +649,36 @@ public sealed class SchemaDocsTests
                     var isChain = j > i;
                     var hadEscape = tokens.Skip(i).Take(j - i + 1).Any(t => t.HadEscape);
                     i = j + 1;
+                    if (runtimeEndpointAllowList.TryGetValue(relative, out var allowedEndpoints)
+                        && allowedEndpoints.Any(a => a.Value == folded))
+                    {
+                        runtimeEndpointSeen[(relative, folded)] =
+                            runtimeEndpointSeen.GetValueOrDefault((relative, folded)) + 1;
+                        continue;
+                    }
                     if (!decodedImageShapePattern.IsMatch(folded)) continue;
-                    if (!isChain && folded == PostgresImage) continue;
+                    if (!isChain && folded == canonicalReference) continue;
                     string msg;
                     if (isChain)
                     {
                         // A chain folding to the CANONICAL pin is refused
                         // too: the pin must be one contiguous reviewable
                         // string everywhere.
-                        msg = $"\"{folded}\" (composed C# literal chain evaluating to a postgres-shaped value — write the reference as one contiguous literal)";
+                        msg = $"\"{folded}\" (composed C# literal chain evaluating to a {repository}-shaped value — write the reference as one contiguous literal)";
                     }
                     else if (hadEscape)
                     {
-                        msg = "escape-disguised postgres reference (an ordinary C# literal whose DECODED value is image-shaped) — write the reference unescaped";
+                        msg = $"escape-disguised {repository} reference (an ordinary C# literal whose DECODED value is image-shaped) — write the reference unescaped";
                     }
                     else
                     {
-                        if (barePostgresLiteralAllowList.TryGetValue(relative, out var allowed)
+                        if (bareLiteralAllowList.TryGetValue(relative, out var allowed)
                             && allowed.Any(a => a.Value == folded))
                         {
                             allowSeen[(relative, folded)] = allowSeen.GetValueOrDefault((relative, folded)) + 1;
                             continue;
                         }
-                        msg = $"\"{folded}\" (postgres-shaped C# literal outside the canonical pin — pin it, or add a reviewed allow-list entry if it is not an image reference)";
+                        msg = $"\"{folded}\" ({repository}-shaped C# literal outside the canonical pin — pin it, or add a reviewed allow-list entry if it is not an image reference)";
                     }
                     if (!hits.TryGetValue(msg, out var files))
                         hits[msg] = files = [];
@@ -655,11 +735,11 @@ public sealed class SchemaDocsTests
                 // directive itself.
                 if (line.TrimEnd().EndsWith('\\') || line.TrimEnd().EndsWith('`'))
                     AddHit($"{line.Trim()} (FROM continued past the line — not a reviewable pin)");
-                else if (line.Contains('$') && pgNamePattern.IsMatch(line))
+                else if (line.Contains('$') && repositoryNamePattern.IsMatch(line))
                     AddHit($"{line.Trim()} (interpolated image line — not a reviewable pin)");
             }
-            foreach (Match m in argPostgresDefaultPattern.Matches(text))
-                AddHit($"{m.Value.Trim()} (untagged postgres in an ARG default — floats to latest)");
+            foreach (Match m in argRepositoryDefaultPattern.Matches(text))
+                AddHit($"{m.Value.Trim()} (untagged {repository} in an ARG default — floats to latest)");
             foreach (Match m in fromVariablePattern.Matches(text))
                 AddHit($"{m.Value.Trim()}... (FROM via variable — not a reviewable pin)");
 
@@ -790,7 +870,7 @@ public sealed class SchemaDocsTests
         // Each allow-list entry must match its reviewed occurrence count
         // EXACTLY — one more means an unreviewed occurrence is hiding behind
         // an existing allowance; one fewer means the entry is stale.
-        foreach (var (file, entries) in barePostgresLiteralAllowList)
+        foreach (var (file, entries) in bareLiteralAllowList)
         {
             foreach (var (value, expected) in entries)
             {
@@ -803,10 +883,27 @@ public sealed class SchemaDocsTests
             }
         }
 
-        Assert.True(hits.Count > 0, "No postgres image reference found anywhere — the sweep itself is broken.");
-        Assert.True(hits.Count == 1 && hits.ContainsKey(PostgresImage),
-            "Postgres image references that are not the canonical digest-pinned string:\n" + string.Join("\n",
-                hits.Where(kv => kv.Key != PostgresImage)
+        // Runtime endpoints share the repository word but are not container
+        // images. They are reviewed individually, with the same exact-count
+        // discipline as bare literals: a new occurrence cannot hide behind a
+        // path-level or context-based exemption.
+        foreach (var (file, entries) in runtimeEndpointAllowList)
+        {
+            foreach (var (value, expected) in entries)
+            {
+                var seen = runtimeEndpointSeen.GetValueOrDefault((file, value));
+                if (seen == expected) continue;
+                var msg = $"runtime-endpoint allow-list count drift for \"{value}\" in {file}: expected {expected}, found {seen} — a new occurrence needs its own review; a vanished one means the entry is stale";
+                if (!hits.TryGetValue(msg, out var files))
+                    hits[msg] = files = [];
+                files.Add(file);
+            }
+        }
+
+        Assert.True(hits.Count > 0, $"No {repository} image reference found anywhere — the sweep itself is broken.");
+        Assert.True(hits.Count == 1 && hits.ContainsKey(canonicalReference),
+            $"{char.ToUpperInvariant(repository[0])}{repository[1..]} image references that are not the canonical digest-pinned string:\n" + string.Join("\n",
+                hits.Where(kv => kv.Key != canonicalReference)
                     .Select(kv => $"  {kv.Key}\n    in: {string.Join(", ", kv.Value.Distinct())}")));
     }
 

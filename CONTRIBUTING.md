@@ -42,6 +42,9 @@ against a plaintext local Postgres (the #261/#262 TLS floor).
 A fresh database has no admin user — base data is migration-baked, credentials
 never are. Provision one: [first admin provisioning](docs/runbooks/first-admin-provisioning.md).
 
+**Aspire local stack:** see [Aspire local development](docs/runbooks/aspire-local-development.md)
+to orchestrate Postgres, Redis, API and Vite locally. It is not a deployment path.
+
 ### Resetting the dev database
 
 Always wipe through Compose:

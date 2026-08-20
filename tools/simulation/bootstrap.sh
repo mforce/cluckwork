@@ -263,6 +263,12 @@ TRUSTED_PROXY_CIDR=127.0.0.1/32
 # OTLP endpoint. ---
 Otlp__Endpoint=http://otel-collector:4317
 Otlp__Protocol=grpc
+# Canonical Otlp__* is authoritative. Keep the standard SDK variables present
+# but blank so this Production-profile harness proves profile precedence rather
+# than inheriting an operator's ambient collector transport.
+OTEL_EXPORTER_OTLP_ENDPOINT=
+OTEL_EXPORTER_OTLP_PROTOCOL=
+OTEL_EXPORTER_OTLP_HEADERS=
 # The serving app runs Production config, which requires an https collector
 # (#316). This stack's collector is a sidecar on the stack's own private
 # compose network, so the traffic never leaves it — acknowledge that plaintext

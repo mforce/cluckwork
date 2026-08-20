@@ -73,8 +73,7 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
             // from its own fix), then the BINDING itself (so a non-boolean
             // `Otlp:AllowInsecureEndpoint` threw from Get<OtlpOptions>() before any
             // of it ran). Scope the subsystem, not the setting that bit you.
-            otlp = configuration.GetSection(OtlpOptions.SectionName).Get<OtlpOptions>()
-                ?? new OtlpOptions();
+            otlp = OtlpConfigurationResolver.Resolve(configuration).Options;
             protocol = otlp.ParseProtocol();
             if (otlp.Enabled)
             {
@@ -110,8 +109,10 @@ internal static class CluckworkTelemetryServiceCollectionExtensions
         {
             options.Endpoint = endpoint;
             options.Protocol = protocol;
-            if (!string.IsNullOrWhiteSpace(otlp.Headers))
-                options.Headers = otlp.Headers;
+            // OtlpExporterOptions reads OTEL_EXPORTER_OTLP_* during construction.
+            // Assign all three selected profile fields so a canonical endpoint
+            // cannot retain an ambient collector credential (#565).
+            options.Headers = otlp.Headers ?? string.Empty;
         };
 
         services.AddOpenTelemetry()
