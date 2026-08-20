@@ -306,6 +306,19 @@ else:
         ok.append(f"Otlp endpoint OK ({parts.scheme}"
                   f"{', plaintext explicitly acknowledged' if parts.scheme != 'https' else ''})")
 
+# #565 — a configured canonical profile must not inherit any of the SDK's
+# standard transport leaves. The simulation deliberately supplies all three as
+# explicit blanks so the resolved app environment exercises that authority.
+if endpoint is not None and str(endpoint).strip():
+    for standard_key in ("OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_PROTOCOL", "OTEL_EXPORTER_OTLP_HEADERS"):
+        value = env.get(standard_key)
+        if value is None:
+            fail.append(f"{standard_key} is not set on the app service while Otlp__Endpoint is configured")
+        elif str(value) != "":
+            fail.append(f"{standard_key} must be empty while Otlp__Endpoint is configured (received a nonempty value)")
+    if all(env.get(key) == "" for key in ("OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_PROTOCOL", "OTEL_EXPORTER_OTLP_HEADERS")):
+        ok.append("canonical OTLP profile masks all standard OTLP transport variables")
+
 # --- #543 shared-state Redis connection string ----------------------------
 # Mirrors SharedStateRegistration.IsWellFormedConnectionString at a BOUNDED
 # level (the #510 precedent below): the app's serving boot guard fails on a
