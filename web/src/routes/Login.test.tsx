@@ -117,6 +117,10 @@ describe("Login", () => {
   it.each([
     ["Auth.CredentialsSuperseded", i18n.t("auth:credentialsSuperseded")],
     ["Auth.AccountDisabled", i18n.t("auth:accountDisabled")],
+    // #532 — an already-signed-in user whose farm is suspended mid-shift is
+    // torn down and redirected here; the reason must surface without a second
+    // sign-in attempt.
+    ["Auth.FarmSuspended", i18n.t("auth:farmSuspended")],
   ])("surfaces a protected-request %s reason on the login page", async (title, message) => {
     renderWithProviders(tree(), { route: "/dashboard", token: { sub: "u1", role: "Sales" } });
     expect(await screen.findByText("dashboard (protected)")).toBeInTheDocument();

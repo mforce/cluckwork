@@ -74,8 +74,20 @@ public sealed class GlobalUserLookupGuardTests
             var relative = Path.GetRelativePath(SourceRoot(), file)
                 .Replace(Path.DirectorySeparatorChar, '/');
             if (AllowedFiles.Contains(relative)) continue;
-            // Generated EF migration snapshots mention entity members, not calls.
-            if (file.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            // Exempt only what EF GENERATES: the model snapshot and the
+            // <timestamp>_<Name>.cs / .Designer.cs migration pair. Those mention
+            // entity members, not calls. A hand-written class placed in a
+            // Migrations folder is NOT exempted — matching the directory rather
+            // than the file-name pattern would let an offending production
+            // class move there with no code change and blind the guard
+            // (round-3 review).
+            var fileName = Path.GetFileName(file);
+            if (fileName.EndsWith("ModelSnapshot.cs", StringComparison.Ordinal))
+                continue;
+            if (fileName.EndsWith(".Designer.cs", StringComparison.Ordinal)
+                && fileName.Length > 14
+                && char.IsDigit(fileName[0])
+                && char.IsDigit(fileName[9]))
                 continue;
 
             var lines = File.ReadAllLines(file);

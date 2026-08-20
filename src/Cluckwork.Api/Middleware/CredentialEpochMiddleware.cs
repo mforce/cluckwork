@@ -34,11 +34,15 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
             // (epic #530 decision 15), so it is enforcement, not a nicety — do
             // not delete it as cosmetic.
             //
-            // IgnoreQueryFilters is required and order-independent: Accounts is
-            // tenant-filtered, and this middleware runs without depending on
-            // TenantResolutionMiddleware having resolved anything. The accountId
-            // is already compared explicitly on the line above, so the filter
-            // would add nothing but a dependency.
+            // IgnoreQueryFilters is DEFENSIVE, not required: it makes this read
+            // independent of TenantResolutionMiddleware having run. Today
+            // nothing depends on that — TenantResolutionMiddleware resolves the
+            // tenant from the SAME account_id claim, so on any request that
+            // reaches the subquery tenant.AccountId == accountId and the
+            // filter matches, and an unparseable claim means Guid.TryParse above
+            // is false and the subquery is never built. Keep it anyway: a read
+            // whose correctness does not hinge on middleware order is worth
+            // keeping. No test claims to cover this.
             var credentialState = Guid.TryParse(userIdClaim, out var userId)
                 && Guid.TryParse(accountIdClaim, out var accountId)
                 ? await db.Users.AsNoTracking()
@@ -68,8 +72,11 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                 || credentialState.CredentialEpoch != tokenEpoch)
             {
                 var disabled = credentialState?.DisabledAt is not null;
+                // DisabledAt is null here by construction: farmSuspended is only
+                // read in the disabled ? … : farmSuspended ? … ternaries below,
+                // where the disabled branch already failed, so the DisabledAt
+                // clause is unreachable and has been deleted.
                 var farmSuspended = credentialState is not null
-                    && credentialState.DisabledAt is null
                     && credentialState.AccountIsActive != true;
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.ContentType = "application/problem+json";

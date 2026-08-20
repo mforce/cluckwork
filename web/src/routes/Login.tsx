@@ -88,6 +88,13 @@ export function Login() {
       setError(t("credentialsSuperseded"));
     else if (unauthenticatedReason === ACCOUNT_DISABLED)
       setError(t("accountDisabled"));
+    // #532 — apiFetch tears a session down and preserves the 401 title when a
+    // SUSPENSION is the reason (AuthContext stores it), so a user kicked out
+    // mid-shift lands here already signed out. Without this branch the page is
+    // a blank form until they submit a second time. Reuses the same
+    // auth:farmSuspended copy the login POST path renders.
+    else if (unauthenticatedReason === FARM_SUSPENDED)
+      setError(t("farmSuspended"));
   }, [t, unauthenticatedReason]);
 
   // #283 follow-up — a freshly migrated default account has base reference data

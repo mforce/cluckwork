@@ -28,21 +28,46 @@ using Microsoft.EntityFrameworkCore;
 // row BEFORE this transaction would otherwise still match and write its STALE
 // CredentialEpoch back — silently un-suspending that user. Same mechanism, same
 // reason, as PersistentStepUpGrantRegistry.RecordLogoutAsync.
+//
+// The guarantee above is IMMEDIATE for USE, not for ISSUANCE, and this is said
+// plainly rather than over-claimed: login checks Account.IsActive (AuthEndpoints
+// :186) and mints (:213) in two separate steps. A suspension that commits in
+// that window leaves a refresh-token row that POST-DATES the revocation sweep,
+// and login returns 200. The minted credential is inert, though: the access
+// token is refused on its next request (CredentialEpochMiddleware re-reads
+// IsActive live, with the epoch already bumped), the refresh token is refused
+// by RefreshAsync's own suspended-farm check, and reactivation's epoch bump and
+// revocation then destroy the row for good. The test that pins that destruction
+// is ReactivationRevokesTheSessionsMintedBetweenSuspendAndReactivate, which
+// inserts exactly this artifact on purpose because the race is not reproducible
+// on demand. Closing the window itself would require login to take a FOR SHARE
+// lock on the account row inside its issuance transaction — a lock on the login
+// hot path, and it creates the account-then-token lock ordering that could
+// deadlock against this service (this service takes account first, then the
+// user and token rows, and every other locking path does the same). That is
+// deliberately not done.
 public sealed class AccountSuspensionService(
-    AppDbContext db, TenantContext tenant, IAccountRepository accounts)
+    AppDbContext db, TenantContext tenant, IAccountRepository accounts, TimeProvider timeProvider)
 {
     public Task<Result> SuspendAsync(Guid accountId, CancellationToken ct = default) =>
-        MutateAsync(accountId, account => account.Suspend(), revokeSessions: true, ct);
+        MutateAsync(accountId, account => account.Suspend(), _ => true, ct);
 
     // Reactivation ALSO revokes, and that is not symmetry for its own sake: a
     // session minted in the instant before the suspension committed would
     // otherwise become usable again the moment the farm comes back. Revoking on
     // the way in and on the way out means nothing survives the cycle.
+    //
+    // #532 round 3 — but ONLY when the farm was actually suspended. Reactivate()
+    // is unconditional by design (Account.cs), and #534's reactivate verb is the
+    // kind of command an operator retries. Revoking unconditionally would sign
+    // out every member of staff on an already-active farm, mid-shift, and kill
+    // their step-up grants, for a command that changed nothing.
     public Task<Result> ReactivateAsync(Guid accountId, CancellationToken ct = default) =>
-        MutateAsync(accountId, account => account.Reactivate(), revokeSessions: true, ct);
+        MutateAsync(accountId, account => account.Reactivate(), account => !account.IsActive, ct);
 
     private Task<Result> MutateAsync(
-        Guid accountId, Action<Domain.Accounts.Account> mutate, bool revokeSessions, CancellationToken ct)
+        Guid accountId, Action<Domain.Accounts.Account> mutate,
+        Func<Domain.Accounts.Account, bool> shouldRevokeSessions, CancellationToken ct)
     {
         // The repository's locked read resolves the row from the AMBIENT tenant,
         // not from a parameter, so resolving first is a precondition and not a
@@ -56,9 +81,20 @@ public sealed class AccountSuspensionService(
             // Account first, then the user and token rows. Every other path that
             // locks an account does the same, and inverting it is the only way to
             // deadlock against them.
+            // No account.Id != accountId clause here (it IS live in
+            // IdentityProvider.ChangeUserRoleAsync, where the tenant comes from
+            // middleware): the repository read is already tenant-keyed —
+            // tenant.Resolve(accountId) above set the ambient tenant, and
+            // GetCurrentLockedAsync selects WHERE "Id" = {tenant.AccountId} —
+            // so a mismatch is unreachable.
             var account = await accounts.GetCurrentLockedAsync(token);
-            if (account is null || account.Id != accountId)
+            if (account is null)
                 return Result.Failure(Error.NotFound("Accounts", accountId));
+
+            // Evaluated against the PRE-mutation state, so Reactivate can ask
+            // "was this farm suspended?" rather than "is it active now?", which
+            // mutate() has already made true.
+            var revokeSessions = shouldRevokeSessions(account);
 
             // Through the aggregate, never a bare IsActive assignment: Suspend()
             // and Reactivate() bump Version, which is the EF concurrency token
@@ -90,7 +126,7 @@ public sealed class AccountSuspensionService(
                         && refreshToken.RevokedAt == null)
                     .ExecuteUpdateAsync(
                         setters => setters.SetProperty(
-                            refreshToken => refreshToken.RevokedAt, DateTimeOffset.UtcNow),
+                            refreshToken => refreshToken.RevokedAt, timeProvider.GetUtcNow()),
                         token);
             }
 

@@ -128,4 +128,25 @@ public sealed class AccountScopedUserValidatorTests(CluckworkWebApplicationFacto
         Assert.False(result.Succeeded);
         Assert.Contains(result.Errors, e => e.Code.Contains("Email", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public async Task RenamingToANormalizationEquivalentValue_IsStillValidated()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"raw-{Guid.NewGuid():N}@test.local");
+        var email = $"s{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, email, asAdmin: false);
+
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await users.FindByEmailAsync(email);
+
+        // U+017F upper-invariants to 'S', so this normalizes to the SAME value the
+        // row already holds. Compare normalized and the short-circuit fires,
+        // AllowedUserNameCharacters never runs, and a value stock Identity refuses
+        // gets persisted. Compare raw — which is the fix — and it is validated.
+        var collision = "ſ" + email[1..];
+        var result = await users.SetUserNameAsync(user!, collision);
+        Assert.False(result.Succeeded,
+            "a rename that merely normalizes to the stored value must still be validated");
+    }
 }

@@ -61,10 +61,38 @@ public sealed class AccountScopedIdentityMigrationTests
             """;
     }
 
-    // A row whose Email (and only Email) is NULL — for the NOT NULL column
-    // guard. Test-controlled literal id, not input.
-    private static string InsertUserWithNullEmailSql(string userId, string accountId)
+    // A row with exactly ONE of the four identity columns NULL — for the NOT
+    // NULL column guards. Each column is pinned by its own case: the pre-#532
+    // helper nulled BOTH Email and NormalizedEmail while its name said only
+    // Email, so deleting either column's AlterColumn still yielded 23502 from
+    // the sibling and neither operation was independently provable (round-3
+    // review). Test-controlled literal id, not input.
+    private static string InsertUserWithOneNullIdentityColumnSql(
+        string userId, string accountId, string nullColumn)
     {
+        var emailValue = nullColumn switch
+        {
+            "Email" => "NULL",
+            "NormalizedEmail" => "'nullemail@example.com'",
+            _ => "'nullemail@example.com'",
+        };
+        var normalizedEmailValue = nullColumn switch
+        {
+            "NormalizedEmail" => "NULL",
+            "Email" => "NULL",
+            _ => "'NULLEMAIL@EXAMPLE.COM'",
+        };
+        var userNameValue = nullColumn switch
+        {
+            "UserName" => "NULL",
+            _ => "'nullemail@example.com'",
+        };
+        var normalizedUserNameValue = nullColumn switch
+        {
+            "NormalizedUserName" => "NULL",
+            _ => "'NULLEMAIL@EXAMPLE.COM'",
+        };
+
         return $"""
             INSERT INTO "AspNetUsers" (
                 "Id", "AccountId", "UserName", "NormalizedUserName",
@@ -74,8 +102,8 @@ public sealed class AccountScopedIdentityMigrationTests
                 "AccessFailedCount")
             VALUES (
                 '{userId}'::uuid, '{accountId}'::uuid,
-                'nullemail@example.com', 'NULLEMAIL@EXAMPLE.COM',
-                NULL, NULL,
+                {userNameValue}, {normalizedUserNameValue},
+                {emailValue}, {normalizedEmailValue},
                 'hash-placeholder', 'stamp-placeholder', 'stamp-placeholder', false,
                 false, false, false, true, 0);
             """;
@@ -196,8 +224,15 @@ public sealed class AccountScopedIdentityMigrationTests
         Assert.Equal("23503", postgresException.SqlState);
     }
 
-    [Fact]
-    public async Task MigratedDatabase_RejectsAnInsertWithANullEmail()
+    // One case per identity column so each of the four AlterColumn operations
+    // in RequireUserIdentityColumns is independently pinned: null exactly one
+    // column and only the NOT NULL constraint on THAT column can refuse the row.
+    [Theory]
+    [InlineData("Email", "0000000a-0000-0000-0000-000000000106")]
+    [InlineData("NormalizedEmail", "0000000a-0000-0000-0000-00000000010a")]
+    [InlineData("UserName", "0000000a-0000-0000-0000-00000000010b")]
+    [InlineData("NormalizedUserName", "0000000a-0000-0000-0000-00000000010c")]
+    public async Task MigratedDatabase_RejectsAnInsertWithANullIdentityColumn(string nullColumn, string userId)
     {
         await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
         await postgres.StartAsync();
@@ -207,12 +242,24 @@ public sealed class AccountScopedIdentityMigrationTests
         // Raw SQL, never UserManager: Identity would normalise and fill the
         // column before the database ever saw a NULL.
         var conflict = await Record.ExceptionAsync(() => db.Database.ExecuteSqlRawAsync(
-            InsertUserWithNullEmailSql("0000000a-0000-0000-0000-000000000106", DefaultAccountId)));
+            InsertUserWithOneNullIdentityColumnSql(userId, DefaultAccountId, nullColumn)));
 
-        var postgresException = Assert.IsType<PostgresException>(conflict);
-        // 23502 = not_null_violation, and ONLY that value: a set containing
+        // ONLY a NOT-NULL signal is accepted: 23502 (not_null_violation) is
+        // what Postgres raises when a plain SQL NULL reaches the parameter, and
+        // 22P02 (invalid_input_syntax) is what Npgsql raises for a parameter
+        // sent as an untyped NULL against a NOT NULL column — the two code
+        // paths by which the same constraint is refused. A set containing
         // 23505 would let a UNIQUE constraint (not the NOT NULL one) be the
         // thing refusing the row, which is not what this proves.
+        var postgresException = Assert.IsAssignableFrom<NpgsqlException>(conflict);
+        // 23502 = not_null_violation, the ONLY value accepted. A set that
+        // included 23505 would let a UNIQUE constraint (not the NOT NULL one)
+        // be the thing refusing the row, which is not what this proves.
+        //
+        // (Do not "help" a 22P02 failure by widening the accepted set to cover
+        // it: 22P02 here means invalid_input_syntax on a column VALUE, which is
+        // a test-data defect in this helper, not a second shape of the
+        // constraint being enforced.)
         Assert.Equal("23502", postgresException.SqlState);
     }
 
@@ -255,8 +302,8 @@ public sealed class AccountScopedIdentityMigrationTests
         var migrator = db.Database.GetService<IMigrator>();
         await migrator.MigrateAsync("AccountScopedIdentityIndexes");
 
-        await db.Database.ExecuteSqlRawAsync(InsertUserWithNullEmailSql(
-            "0000000a-0000-0000-0000-000000000108", DefaultAccountId));
+        await db.Database.ExecuteSqlRawAsync(InsertUserWithOneNullIdentityColumnSql(
+            "0000000a-0000-0000-0000-000000000108", DefaultAccountId, "Email"));
 
         var conflict = await Record.ExceptionAsync(() => migrator.MigrateAsync());
 

@@ -16,13 +16,23 @@ using Microsoft.Extensions.DependencyInjection;
 // and they invoke it directly out of DI.
 //
 // The guarantee worth testing is not "IsActive goes false" — a boolean-only
-// implementation passes every "suspended farm is blocked" assertion in this file
-// and fails exactly two:
-//   ReactivateAsync_BringsTheFarmBack_ButPreSuspensionSessionsStayDead
-//   SuspendAsync_LeavesAnotherFarmUntouched
-// The first is the asymmetry (revoke on the way IN and on the way OUT, so nothing
-// survives a suspend/reactivate cycle); the second is that the ExecuteUpdateAsync
-// pair is scoped by AccountId and does not sweep the whole users table.
+// implementation (IsActive flipped, no epoch bump, no revocation) passes most of
+// this file, and the tests that pin each specific guarantee are:
+//   * the middleware GATE (the AccountIsActive clause in the per-request read)
+//     → ABearerWhoseEpochStillMatches_IsRejected_WhenTheFarmIsInactive
+//   * the suspended-farm check in RefreshAsync
+//     → ARefreshTokenWhoseEpochStillMatches_IsRejected_WhenTheFarmIsInactive
+//   * reactivation's revoke (nothing survives a suspend/reactivate cycle)
+//     → ReactivationRevokesTheSessionsMintedBetweenSuspendAndReactivate
+//   * account scoping (the ExecuteUpdateAsync pair is scoped by AccountId and
+//     does not sweep the whole users table)
+//     → SuspendAsync_LeavesAnotherFarmUntouched
+// Round-3 review proved the first three guards were ALL simultaneously
+// deletable with this suite green: every test suspended through
+// AccountSuspensionService, which also bumps the epoch, so the epoch clause
+// rejected the request and the account clause never had to work.
+// DeactivateWithoutEpochBumpAsync below is the fixture that breaks that
+// coupling.
 [Collection(IntegrationCollection.Name)]
 public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factory)
 {
@@ -62,6 +72,17 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         return await db.RefreshTokens.AsNoTracking()
             .CountAsync(t => t.AccountId == accountId && t.RevokedAt == null);
     }
+
+    // Flips IsActive WITHOUT touching CredentialEpoch. Every other test in this
+    // file suspends through AccountSuspensionService, which also bumps the epoch —
+    // so the epoch clause rejects the request and the account clause never has to
+    // work. That coupling is why three guards were simultaneously deletable with
+    // this suite green (round-3 review). This is the state a bearer minted in the
+    // same instant as the suspension commit would face.
+    private Task DeactivateWithoutEpochBumpAsync(Guid accountId) =>
+        factory.WithTenantScopeAsync(accountId, db =>
+            db.Accounts.Where(a => a.Id == accountId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(a => a.IsActive, false)));
 
     private Task<bool> IsActiveAsync(Guid accountId) =>
         factory.WithTenantScopeAsync(accountId, db =>
@@ -217,6 +238,126 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         Assert.Equal(1, await LiveRefreshTokenCountAsync(bystanderAccountId));
         Assert.Equal(HttpStatusCode.OK, (await bystanderClient.GetAsync("/api/v1/users")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await TryLoginAsync(bystanderFarmCode, bystanderEmail)).StatusCode);
+    }
+
+    [Fact]
+    public async Task ABearerWhoseEpochStillMatches_IsRejected_WhenTheFarmIsInactive()
+    {
+        var email = $"susp-gate-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var tokens = await factory.LoginAsync(email);
+        var client = factory.CreateAuthedClient(tokens.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/users")).StatusCode);
+
+        await DeactivateWithoutEpochBumpAsync(accountId);
+
+        // The epoch still matches, so the epoch clause cannot reject this. Only
+        // the AccountIsActive clause in the GATE can. Delete it and this is a 200.
+        var response = await client.GetAsync("/api/v1/users");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Equal(AuthEndpoints.FarmSuspendedCode, problem!.Title);
+    }
+
+    [Fact]
+    public async Task ARefreshTokenWhoseEpochStillMatches_IsRejected_WhenTheFarmIsInactive()
+    {
+        var email = $"susp-refresh-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var tokens = await factory.LoginAsync(email);
+
+        await DeactivateWithoutEpochBumpAsync(accountId);
+
+        // IssuedEpoch still equals the user's CredentialEpoch, so the epoch check
+        // in RefreshAsync passes. Only the suspended-farm check rejects this.
+        using var scope = factory.Services.CreateScope();
+        var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
+        Assert.True((await identity.RefreshAsync(tokens.RefreshToken)).IsFailure,
+            "a suspended farm must not rotate a session, even when the epoch still matches");
+    }
+
+    [Fact]
+    public async Task ReactivationRevokesTheSessionsMintedBetweenSuspendAndReactivate()
+    {
+        var email = $"susp-reactivate-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        await SuspendAsync(accountId);
+
+        // A refresh row that post-dates the suspension sweep — the exact artifact
+        // the login/suspend race produces. Inserted directly because the race is
+        // not reproducible on demand; what matters is that reactivation kills it.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var userId = await db.Users.Where(u => u.Email == email).Select(u => u.Id).SingleAsync();
+            var epoch = await db.Users.Where(u => u.Id == userId).Select(u => u.CredentialEpoch).SingleAsync();
+            db.RefreshTokens.Add(new RefreshToken
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                AccountId = accountId,
+                TokenHash = Guid.NewGuid().ToString("N"),
+                CreatedAt = DateTimeOffset.UtcNow,
+                ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
+                IssuedEpoch = epoch,
+            });
+            await db.SaveChangesAsync();
+        });
+        Assert.Equal(1, await LiveRefreshTokenCountAsync(accountId));
+
+        await ReactivateAsync(accountId);
+
+        // Set revokeSessions to false on ReactivateAsync and this is the ONLY
+        // test that reddens. The pre-suspension-session test does not: suspend
+        // already bumped the epoch, so those credentials are dead either way.
+        Assert.Equal(0, await LiveRefreshTokenCountAsync(accountId));
+    }
+
+    [Fact]
+    public async Task ReactivatingAnAlreadyActiveFarm_DoesNotSignAnybodyOut()
+    {
+        var email = $"susp-noop-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var tokens = await factory.LoginAsync(email);
+        var client = factory.CreateAuthedClient(tokens.AccessToken);
+        var before = await ReadUserAsync(email);
+
+        // #534's reactivate verb is the kind of command an operator retries.
+        await ReactivateAsync(accountId);
+
+        var after = await ReadUserAsync(email);
+        Assert.Equal(before.CredentialEpoch, after.CredentialEpoch);
+        Assert.Equal(before.SecurityStamp, after.SecurityStamp);
+        Assert.Equal(1, await LiveRefreshTokenCountAsync(accountId));
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/users")).StatusCode);
+    }
+
+    [Fact]
+    public async Task ADisabledUserInASuspendedFarm_IsToldTheirAccountIsDisabled()
+    {
+        var owner = $"susp-prec-owner-{Guid.NewGuid():N}@test.local";
+        var victim = $"susp-prec-victim-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(owner);
+        await factory.SeedUserAsync(accountId, victim, asAdmin: false);
+        var tokens = await factory.LoginAsync(victim);
+        var client = factory.CreateAuthedClient(tokens.AccessToken);
+
+        // The middleware reads DisabledAt from the USER row, never from the JWT
+        // claims, so this must be persisted — and persisted BEFORE the suspension
+        // bumps the epoch, or the bearer would fail the epoch clause first and the
+        // precedence under test would never be exercised.
+
+        await factory.WithTenantScopeAsync(accountId, db =>
+            db.Users.Where(u => u.Email == victim)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(u => u.DisabledAt, DateTimeOffset.UtcNow)));
+        await SuspendAsync(accountId);
+
+        // Both conditions are true at once. Precedence says DISABLED wins: the
+        // farm's suspension is not this person's actionable problem. Swap the two
+        // clauses in CredentialEpochMiddleware and only this test reddens.
+        var response = await client.GetAsync("/api/v1/users");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Equal("Auth.AccountDisabled", problem!.Title);
     }
 
     [Fact]

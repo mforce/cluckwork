@@ -2,7 +2,9 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using System.Net.Http.Headers;
+using System.Reflection;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Api.Middleware;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -127,5 +129,53 @@ public sealed class AmbientPrincipalOnLoginTests(CluckworkWebApplicationFactory 
             });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    // #532 round 3 — the SAME cross-farm case as the login tests above, but for
+    // /auth/refresh: farm A's VALID bearer and farm B's VALID refresh cookie in
+    // one request. Without /refresh's IgnoresAmbientPrincipalAttribute the
+    // bearer resolves farm A as the ambient tenant while RefreshAsync rotates
+    // farm B's cookie — a tracked SaveChanges that TenantStampInterceptor
+    // refuses, so the caller gets a 500 instead of a clean rotation. Deleting
+    // the marker reddens ONLY this file (nothing else in the suite sends a
+    // bearer to /auth/refresh).
+    [Fact]
+    public async Task AForeignFarmsValidBearer_DoesNotBlockAnotherFarmsRefresh()
+    {
+        var bearerEmail = $"ref-a-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(bearerEmail);
+        var cookieEmail = $"ref-b-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(cookieEmail);
+
+        var bearerToken = (await factory.LoginAsync(bearerEmail)).AccessToken;
+        var cookieTokens = await factory.LoginAsync(cookieEmail);
+
+        // A cookie-less client carrying the bearer by hand, so the bearer and
+        // the cookie can name different farms in the same request.
+        var client = WithBearer(factory, bearerToken);
+        var response = await client.PostRefreshAsync(cookieTokens.RefreshToken);
+
+        // Identical to the no-bearer outcome: a clean rotation. Asserting
+        // SUCCESS, not merely "not 500": a swap that 401s the cookie owner's
+        // own rotation would satisfy a negative assertion.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotEqual(string.Empty, TestHarness.ExtractRefreshCookie(response));
+    }
+
+    // #532 round 3 — the belt that pairs the braces above: both auth paths are
+    // on IdempotencyMiddleware.ResponseNotCacheable, which is what keeps a live
+    // access token out of idempotency_records if either endpoint ever resolves
+    // a tenant again. Deleting EITHER entry reddens this test.
+    [Fact]
+    public void LoginAndRefresh_AreBothOnTheIdempotencyResponseNotCacheableList()
+    {
+        var field = typeof(IdempotencyMiddleware).GetField(
+            "ResponseNotCacheable",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?.GetValue(null) as string[];
+
+        Assert.NotNull(field);
+        Assert.Contains("/api/v1/auth/login", field);
+        Assert.Contains("/api/v1/auth/refresh", field);
     }
 }
