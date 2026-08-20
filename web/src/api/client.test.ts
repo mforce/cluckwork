@@ -1707,6 +1707,31 @@ describe("session generation (#310)", () => {
     expect(headerOf(revokes[1], "X-Cluckwork-Account")).toBe("acct-A");
   });
 
+  it("attributes a superseded change-password cookie to its response farm, not the newer login", async () => {
+    const changeGate = deferred<Response>();
+    bindAccount("acct-A");
+    setAccessToken(jwtWithAccountId("acct-A", "before-change"));
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/change-password")) return changeGate.promise;
+      if (url.endsWith("/auth/login"))
+        return Promise.resolve(accessResponse(jwtWithAccountId("acct-C", "new-login")));
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((e: unknown) => e);
+    await drain();
+
+    await login({ farmCode: "farm-c", email: "c@example.test", password: "pw" });
+    changeGate.resolve(accessResponse(jwtWithAccountId("acct-A", "changed")));
+    await changing;
+
+    const revokes = callsTo(fetchMock, "/auth/logout");
+    expect(revokes).toHaveLength(1);
+    expect(headerOf(revokes[0], "X-Cluckwork-Account")).toBe("acct-A");
+  });
+
   it("commits a change-password response normally when nothing races it (control)", async () => {
     setAccessToken(`tok-${crypto.randomUUID()}`);
     fetchMock.mockResolvedValueOnce(accessResponse("at-after-change"));
@@ -1743,6 +1768,34 @@ describe("session generation (#310)", () => {
     expect(headerOf(revokes[1], "X-Cluckwork-Account")).toBe("acct-late");
   });
 
+  it("attributes a superseded login cookie to its response farm, not the newer login", async () => {
+    clearAccessToken();
+    const loginGate = deferred<Response>();
+    let loginCalls = 0;
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/login")) {
+        loginCalls++;
+        return loginCalls === 1
+          ? loginGate.promise
+          : Promise.resolve(accessResponse(jwtWithAccountId("acct-C", "new-login")));
+      }
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const staleLogin = login({ farmCode: "farm-b", email: "b@example.test", password: "pw" })
+      .catch((e: unknown) => e);
+    await drain();
+
+    await login({ farmCode: "farm-c", email: "c@example.test", password: "pw" });
+    loginGate.resolve(accessResponse(jwtWithAccountId("acct-B", "stale-login")));
+    await staleLogin;
+
+    const revokes = callsTo(fetchMock, "/auth/logout");
+    expect(revokes).toHaveLength(1);
+    expect(headerOf(revokes[0], "X-Cluckwork-Account")).toBe("acct-B");
+  });
+
   it("does not send an ambiguous revoke when a discarded response has no account attribution", async () => {
     clearAccessToken();
     const loginGate = deferred<Response>();
@@ -1757,6 +1810,10 @@ describe("session generation (#310)", () => {
       .catch((e: unknown) => e);
     await drain();
     await logout();
+    // A different session may already have rebound the tab. That binding is
+    // not evidence about the unattributable response's cookie and must never
+    // be used as a fallback selector.
+    bindAccount("acct-C");
 
     loginGate.resolve(accessResponse("not-a-jwt"));
     await loggingIn;
@@ -1888,13 +1945,14 @@ describe("session generation (#310)", () => {
   // either. Skipping the revoke here (the old behavior) could leave the
   // previous user's cookie live in the browser, silently, with the new
   // session's correct in-memory token masking it until reload.
-  it("still revokes the stale refresh's cookie even though a newer login already set a token", async () => {
+  it("attributes a superseded refresh cookie to its response farm, not the newer login", async () => {
     clearAccessToken();
+    bindAccount("acct-A");
     const refreshGate = deferred<Response>();
     fetchMock.mockImplementation((url: string) => {
       if (url.endsWith("/auth/refresh")) return refreshGate.promise;
       if (url.endsWith("/auth/login"))
-        return Promise.resolve(accessResponse(jwtWithAccountId("acct-A", "new-login")));
+        return Promise.resolve(accessResponse(jwtWithAccountId("acct-C", "new-login")));
       if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
       throw new Error(`unexpected fetch: ${url}`);
     });
@@ -1906,7 +1964,7 @@ describe("session generation (#310)", () => {
     refreshGate.resolve(accessResponse(jwtWithAccountId("acct-A", "stale-refresh")));
     await restoring;
 
-    expect(getAccessToken()).toBe(jwtWithAccountId("acct-A", "new-login")); // the live login survives
+    expect(getAccessToken()).toBe(jwtWithAccountId("acct-C", "new-login")); // the live login survives
     // The stale refresh's response DID rotate a cookie in the browser — that
     // must be revoked regardless, or a reload risks walking back into the
     // WRONG session depending on which Set-Cookie the browser actually kept.

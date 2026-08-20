@@ -25,8 +25,8 @@ public static class AuthCookies
     // too, but N keeps the name short and matches how account ids are logged.
     public static string RefreshCookieNameFor(Guid accountId) => $"cluckwork_rt_{accountId:N}";
 
-    // Pre-per-farm sessions carry this name. Read-only, and only by the
-    // migration path in Refresh — never written. See PART D.
+    // Pre-per-farm sessions carry this name. Read-only, and accepted only by
+    // Refresh's migration path and Logout — never written. See PART D.
     public const string LegacyRefreshCookieName = "cluckwork_rt";
 
     public const string CsrfHeaderName = "X-Cluckwork-Auth";
@@ -60,8 +60,8 @@ public static class AuthCookies
     public static string? ReadRefreshCookie(HttpRequest request, Guid accountId) =>
         ReadCookie(request, RefreshCookieNameFor(accountId));
 
-    // #532 — the pre-per-farm cookie, read-only. Only Refresh's migration
-    // branch may read it; no endpoint ever writes this name again.
+    // #532 — the pre-per-farm cookie, read-only. Refresh's migration branch
+    // accepts it, and Logout must revoke it; no endpoint writes this name again.
     public static string? ReadLegacyRefreshCookie(HttpRequest request) =>
         ReadCookie(request, LegacyRefreshCookieName);
 
@@ -80,8 +80,8 @@ public static class AuthCookies
     }
 
     // Delete the legacy cookie with the SAME attributes as every other auth
-    // cookie so the browser matches and removes it. Used ONLY by Refresh's
-    // migration branch, in the same response that writes the per-farm cookie.
+    // cookie so the browser matches and removes it. Refresh uses this while
+    // migrating the session; Logout uses it while ending the old session.
     public static void ClearLegacyRefreshCookie(HttpResponse response, bool secure) =>
         response.Cookies.Delete(LegacyRefreshCookieName, BuildOptions(secure, _ => { }));
 

@@ -1831,9 +1831,9 @@ export const tl = {
     // machine-drafted (#532) — pending native review.
     signingInMultiTabResync:
       "May sariling ligtas na session ang bawat bukid sa browser na ito, kaya hindi na pinapalitan ng mga "
-      + "bukid na bukas sa magkakaibang <strong>tab</strong> ang session ng isa't isa. Kung makakita ang isang "
-      + "reload ng mga session para sa ilang bukid at hindi alam ng tab kung alin ang gagamitin, babalik ang "
-      + "Cluckwork sa pag-sign in — piliin ang code ng bukid at mag-sign in. Walang session ng ibang bukid na binubura.",
+      + "bukid na bukas sa magkakaibang <strong>tab</strong> ang session ng isa't isa. Naaalala ng tab ang bukid "
+      + "nito kapag nag-reload. Ang tab na walang natatandaang bukid at makakakita ng ilang session ay babalik pa rin "
+      + "sa pag-sign in sa halip na manghula — piliin ang code ng bukid at mag-sign in. Walang session ng ibang bukid na binubura.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Unang pag-sign in sa isang bagong-bagong farm.</strong> Walang default na password — "
@@ -2537,8 +2537,9 @@ export const tl = {
     glossaryForcedReauthTerm: "Ilang bukid sa isang browser",
     glossaryForcedReauthDef:
       "May hiwalay na ligtas na session cookie ang bawat bukid, kaya hindi maaaring palitan o burahin ng isang "
-      + "bukid ang session ng iba. Kapag nakakita ang bagong tab ng ilang session at wala pa itong napiling isa, "
-      + "babalik ito sa pag-sign in sa halip na manghula; piliin ang code ng bukid na gusto mo.",
+      + "bukid ang session ng iba. Naaalala ng tab ang napili nitong bukid kapag nag-reload. Kapag nakakita ang "
+      + "tab na walang natatandaang bukid ng ilang session, babalik ito sa pag-sign in sa halip na "
+      + "manghula; piliin ang code ng bukid na gusto mo.",
 
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",

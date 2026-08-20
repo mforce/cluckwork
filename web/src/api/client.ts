@@ -191,15 +191,13 @@ class StaleSessionError extends Error {
 // wrong-session security hole.
 async function revokeSupersededCookie(discardedAccessToken: string): Promise<void> {
   // #547 made the account selector mandatory for a precise logout: omitting it
-  // is now a deliberate no-op when there is no bearer fallback. Prefer the
-  // tab's binding so this cleanup can never select some other farm named by a
-  // stale response. Logout may already have cleared that binding, though, while
-  // the successful discarded response has just written a cookie. In that case
-  // its server-issued access token is the only safe attribution for that cookie.
-  // If neither source identifies a farm, do not send an ambiguous request (or
-  // guess and risk another farm's cookie); report that best-effort cleanup could
-  // not uphold #393 instead.
-  const accountId = getBoundAccountId() ?? accountIdFromToken(discardedAccessToken);
+  // is now a deliberate no-op when there is no bearer fallback. The discarded
+  // response's own token is the authority: that response wrote the cookie named
+  // for the token's farm. The tab binding may already name the NEWER session
+  // that superseded it, so using the binding as a fallback could revoke exactly
+  // the session the user chose. If the response token cannot identify its farm,
+  // refuse to guess and report that best-effort cleanup could not uphold #393.
+  const accountId = accountIdFromToken(discardedAccessToken);
   if (accountId === null) {
     console.error("discarded response: cannot attribute its refresh cookie to a farm; revoke skipped");
     return;

@@ -434,8 +434,8 @@ public static class AuthEndpoints
 
     // #532 — the legacy upgrade response: the new per-farm cookie AND the legacy
     // delete ride the same response, so the browser ends the exchange holding
-    // exactly one refresh cookie for this farm. (The legacy name is read-only
-    // from here on; this helper is the one place it is ever deleted.)
+    // exactly one refresh cookie for this farm. The legacy name remains
+    // read-only; Logout is the only other path that deletes it.
     private static IResult LegacyUpgradeResult(
         HttpResponse response, TokenPair pair, int lifetimeDays, bool secure)
     {
@@ -557,8 +557,10 @@ public static class AuthEndpoints
     //
     // #532 — the account header selects this tab's per-farm cookie. When it is
     // absent, the bearer account_id claim is the fallback. With neither, clear
-    // nothing and return 204; logout remains idempotent and never sweeps other
-    // farms' cookies.
+    // no per-farm cookie; logout remains idempotent and never sweeps another
+    // farm's named session. The temporary legacy cookie is different: its old
+    // shared name cannot select a farm, and it was the browser's only session
+    // under that scheme, so Logout always revokes and clears it when present.
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IIdentityProvider identity,
         ICurrentUser currentUser, IWebHostEnvironment env, CancellationToken ct)
@@ -590,13 +592,27 @@ public static class AuthEndpoints
                 accountId = callerAccount;
         }
 
+        var selectedRefreshToken = accountId is { } selectedAccount
+            ? AuthCookies.ReadRefreshCookie(request, selectedAccount)
+            : null;
+        var legacyRefreshToken = AuthCookies.ReadLegacyRefreshCookie(request);
+
+        // Revoke every presented credential before clearing either browser
+        // copy. If the database operation fails, Logout fails loudly and a
+        // retry can safely repeat the idempotent revocations. The same token
+        // can temporarily appear under both names during migration; revoke it
+        // once, but still delete both cookies below.
+        if (selectedRefreshToken is not null)
+            await identity.RevokeRefreshTokenAsync(selectedRefreshToken, ct);
+        if (legacyRefreshToken is not null
+            && !string.Equals(legacyRefreshToken, selectedRefreshToken, StringComparison.Ordinal))
+            await identity.RevokeRefreshTokenAsync(legacyRefreshToken, ct);
+
+        var secure = CookieSecure(env);
         if (accountId is { } account)
-        {
-            var refreshToken = AuthCookies.ReadRefreshCookie(request, account);
-            if (refreshToken is not null)
-                await identity.RevokeRefreshTokenAsync(refreshToken, ct);
-            AuthCookies.ClearRefreshCookie(response, account, CookieSecure(env));
-        }
+            AuthCookies.ClearRefreshCookie(response, account, secure);
+        if (legacyRefreshToken is not null)
+            AuthCookies.ClearLegacyRefreshCookie(response, secure);
         return Results.NoContent();
     }
 }

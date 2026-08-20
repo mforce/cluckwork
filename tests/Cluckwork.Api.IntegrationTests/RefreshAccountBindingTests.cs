@@ -447,6 +447,88 @@ public sealed class PerFarmRefreshCookieTests(CluckworkWebApplicationFactory fac
     }
 
     [Fact]
+    public async Task Logout_WithOnlyALegacyCookie_ClearsAndRevokesIt()
+    {
+        var loginClient = new TestBrowser(factory);
+        var (_, token, _) = await LoginAsync(
+            factory, loginClient, $"532-legacy-logout-{Guid.NewGuid():N}@test.local");
+        var client = factory.CreateClient(TestHarness.Cookieless(factory));
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        request.Headers.Add(
+            "Cookie", AuthCookies.LegacyRefreshCookieName + "=" + token);
+        var logout = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+        var afterLogout = await client.PostRefreshRawAsync(
+            AuthCookies.LegacyRefreshCookieName + "=" + token);
+        Assert.Equal(HttpStatusCode.Unauthorized, afterLogout.StatusCode);
+        AssertClearsCookie(logout, AuthCookies.LegacyRefreshCookieName);
+    }
+
+    [Fact]
+    public async Task Logout_WithSelectedFarmAndLegacyCookies_ClearsAndRevokesBoth()
+    {
+        var loginClient = new TestBrowser(factory);
+        var (farm, farmToken, _) = await LoginAsync(
+            factory, loginClient, $"532-farm-logout-{Guid.NewGuid():N}@test.local");
+        var (legacyFarm, legacyToken, _) = await LoginAsync(
+            factory, loginClient, $"532-mixed-legacy-logout-{Guid.NewGuid():N}@test.local");
+        var client = factory.CreateClient(TestHarness.Cookieless(factory));
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, farm.ToString());
+        request.Headers.Add(
+            "Cookie",
+            $"{AuthCookies.RefreshCookieNameFor(farm)}={farmToken}; "
+            + $"{AuthCookies.LegacyRefreshCookieName}={legacyToken}");
+        var logout = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+        AssertClearsCookie(logout, AuthCookies.RefreshCookieNameFor(farm));
+        AssertClearsCookie(logout, AuthCookies.LegacyRefreshCookieName);
+
+        var farmAfterLogout = await client.PostRefreshRawAsync(
+            AuthCookies.RefreshCookieNameFor(farm) + "=" + farmToken,
+            expectedAccount: farm.ToString());
+        Assert.Equal(HttpStatusCode.Unauthorized, farmAfterLogout.StatusCode);
+
+        var legacyAfterLogout = await client.PostRefreshRawAsync(
+            AuthCookies.LegacyRefreshCookieName + "=" + legacyToken,
+            expectedAccount: legacyFarm.ToString());
+        Assert.Equal(HttpStatusCode.Unauthorized, legacyAfterLogout.StatusCode);
+    }
+
+    [Fact]
+    public async Task LegacyCookie_WithDifferentFarmSelector_IsRefusedAndRotatesNothing()
+    {
+        var loginClient = new TestBrowser(factory);
+        var (farmA, tokenA, _) = await LoginAsync(
+            factory, loginClient, $"532-legacy-a-{Guid.NewGuid():N}@test.local");
+        var farmB = await factory.SeedAccountWithUserAsync(
+            $"532-legacy-b-{Guid.NewGuid():N}@test.local");
+        var (familyBefore, tipBefore) = await FamilyAsync(factory, farmA);
+        var client = factory.CreateClient(TestHarness.Cookieless(factory));
+
+        var refused = await client.PostRefreshRawAsync(
+            AuthCookies.LegacyRefreshCookieName + "=" + tokenA,
+            expectedAccount: farmB.ToString());
+
+        Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
+        Assert.Equal("Auth.SessionChanged", await ProblemTitleAsync(refused));
+        Assert.False(refused.Headers.TryGetValues("Set-Cookie", out _));
+        var (familyAfter, tipAfter) = await FamilyAsync(factory, farmA);
+        Assert.Equal(familyBefore, familyAfter);
+        Assert.Equal(tipBefore, tipAfter);
+
+        var stillWorks = await client.PostRefreshRawAsync(
+            AuthCookies.LegacyRefreshCookieName + "=" + tokenA);
+        Assert.Equal(HttpStatusCode.OK, stillWorks.StatusCode);
+    }
+
+    [Fact]
     public async Task UnparseableHeader_IsSessionChanged_AndRotatesNothing()
     {
         var loginClient = new TestBrowser(factory);

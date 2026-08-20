@@ -2202,13 +2202,14 @@ export const en = {
       "Your sign-in is kept in your browser securely and stays active as you work, even across reloads and "
       + "with the app open in <strong>several tabs</strong> at once. After the app is <strong>updated</strong> "
       + "you may be asked to sign in once more — that's expected.",
-    // #532 — each farm now owns a distinct refresh cookie. A cold tab cannot
-    // guess when several farms are present, so it returns to login instead.
+    // #532 — each farm owns a distinct refresh cookie. A tab remembers its
+    // non-secret farm selector across reloads; a fresh tab cannot guess when
+    // several farms are present, so it returns to login instead.
     signingInMultiTabResync:
       "Each farm keeps its own secure session in this browser, so farms open in different "
-      + "<strong>tabs</strong> no longer replace one another. If a reload finds sessions for several farms "
-      + "but cannot tell which farm this tab belongs to, Cluckwork returns to sign-in — choose the farm code "
-      + "and sign in. No other farm's session is cleared.",
+      + "<strong>tabs</strong> no longer replace one another. A tab remembers its farm across reloads. A tab "
+      + "with no remembered farm that finds several sessions returns to sign-in rather than guessing — choose "
+      + "the farm code and sign in. No other farm's session is cleared.",
     // #283 — first-run provisioning: no default credential ever ships with
     // the app, so the very first sign-in always starts from a printed
     // one-time password.
@@ -2860,8 +2861,8 @@ export const en = {
     glossaryForcedReauthTerm: "Several farms in one browser",
     glossaryForcedReauthDef:
       "Each farm has a separate secure session cookie, so one farm cannot overwrite or clear another farm's "
-      + "session. When a newly loaded tab finds several farm sessions and has not chosen one, it returns to "
-      + "sign-in rather than guessing; choose the farm code you want.",
+      + "session. A tab remembers its chosen farm across reloads. When a tab with no remembered farm finds "
+      + "several sessions, it returns to sign-in rather than guessing; choose the farm code you want.",
 
     glossaryTooManyReportsTerm: "Too many reports at once",
     glossaryTooManyReportsDef:

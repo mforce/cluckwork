@@ -19,10 +19,12 @@ export const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:8081';
 export const CSRF_HEADER_NAME = 'X-Cluckwork-Auth';
 export const CSRF_HEADER_VALUE = '1';
 
-// Name of the HttpOnly/Secure refresh-token cookie the API sets. Secure +
-// plain HTTP loopback means k6's cookie jar will never resend it, so every
-// consumer must extract and re-send it manually (see auth.js).
-export const REFRESH_COOKIE_NAME = 'cluckwork_rt';
+// Base prefix of the per-farm HttpOnly/Secure refresh-token cookies the API
+// sets. Secure + plain HTTP loopback means k6's cookie jar will never resend
+// one, so auth.js extracts its full name and value and re-sends both manually.
+// Keep this contract aligned with tools/simulation/ui/src/env.ts's
+// REFRESH_COOKIE_NAME_PREFIX; k6 and Playwright are separate non-CI callers.
+export const REFRESH_COOKIE_NAME_PREFIX = 'cluckwork_rt';
 
 export const AUTH_PATHS = {
   LOGIN: '/api/v1/auth/login',

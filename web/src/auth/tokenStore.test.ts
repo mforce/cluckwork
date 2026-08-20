@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { getAccessToken, setAccessToken, clearAccessToken, purgeLegacyTokens } from "./tokenStore";
+import {
+  bindAccount,
+  clearAccessToken,
+  clearBoundAccount,
+  getAccessToken,
+  purgeLegacyTokens,
+  setAccessToken,
+} from "./tokenStore";
 
 // The in-memory access token is reset after every test in src/test/setup.ts.
 
@@ -57,5 +64,20 @@ describe("tokenStore (in-memory access token, #145)", () => {
   it("purgeLegacyTokens is a no-op when there is nothing to purge", () => {
     expect(() => purgeLegacyTokens()).not.toThrow();
     expect(getAccessToken()).toBeNull();
+  });
+
+  it("keeps the non-secret farm binding across a reload and removes it on logout", async () => {
+    clearBoundAccount();
+    bindAccount("acct-A");
+
+    vi.resetModules();
+    const afterReload = await import("./tokenStore");
+    expect(afterReload.getBoundAccountId()).toBe("acct-A");
+
+    afterReload.clearBoundAccount();
+    vi.resetModules();
+    const afterLogout = await import("./tokenStore");
+    expect(afterLogout.getBoundAccountId()).toBeNull();
+    clearBoundAccount();
   });
 });

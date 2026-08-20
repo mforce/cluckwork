@@ -42,7 +42,11 @@ export const API_PREFIX = "/api/v1";
  */
 export const CSRF_HEADER_NAME = "X-Cluckwork-Auth";
 
-/** Base prefix of the per-farm HttpOnly refresh cookies the API sets. */
+/**
+ * Base prefix of the per-farm HttpOnly refresh cookies the API sets.
+ * Keep this aligned with tools/simulation/k6/config.js's
+ * REFRESH_COOKIE_NAME_PREFIX; Playwright and k6 are separate non-CI callers.
+ */
 export const REFRESH_COOKIE_NAME_PREFIX = "cluckwork_rt";
 
 /** Finds a per-farm refresh cookie, optionally restricted by an additional condition. */

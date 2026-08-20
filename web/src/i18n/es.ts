@@ -1763,9 +1763,9 @@ export const es = {
     // machine-drafted (#532) — pending native review.
     signingInMultiTabResync:
       "Cada granja mantiene su propia sesión segura en este navegador, por lo que las granjas abiertas en "
-      + "distintas <strong>pestañas</strong> ya no se reemplazan entre sí. Si al recargar hay sesiones de "
-      + "varias granjas y la pestaña no sabe cuál usar, Cluckwork vuelve al inicio de sesión — elija el código "
-      + "de granja e inicie sesión. No se borra la sesión de ninguna otra granja.",
+      + "distintas <strong>pestañas</strong> ya no se reemplazan entre sí. Una pestaña recuerda su granja al "
+      + "recargar. Una pestaña sin una granja recordada que encuentre varias sesiones vuelve al inicio de sesión en "
+      + "lugar de adivinar — elija el código de granja e inicie sesión. No se borra la sesión de ninguna otra granja.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada — "
@@ -2445,8 +2445,9 @@ export const es = {
     glossaryForcedReauthTerm: "Varias granjas en un navegador",
     glossaryForcedReauthDef:
       "Cada granja tiene una cookie de sesión segura independiente, por lo que una granja no puede sobrescribir "
-      + "ni borrar la sesión de otra. Si una pestaña nueva encuentra varias sesiones y aún no eligió una, vuelve "
-      + "al inicio de sesión en lugar de adivinar; elija el código de la granja que desea.",
+      + "ni borrar la sesión de otra. Una pestaña recuerda la granja elegida al recargar. Si una pestaña sin una "
+      + "granja recordada encuentra varias sesiones, vuelve al inicio de sesión en lugar de adivinar; elija "
+      + "el código de la granja que desea.",
 
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",

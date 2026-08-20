@@ -759,11 +759,15 @@ durable **refresh token** is an `HttpOnly; Secure; SameSite=Strict` cookie
 path-scoped to `/api/v1/auth` — the browser attaches it automatically and JS
 cannot read it. Its name includes the farm account ID (#532), so one browser can
 hold independent sessions for several farms without one farm's login, refresh,
-password change, or logout overwriting another's cookie. A page reload (memory
-cleared) with exactly one farm cookie silently restores that session. With
-several and no known farm, the server refuses to guess (`Auth.FarmSelectionRequired`)
-and sends the user to login to choose a farm; it rotates or clears none of them.
-An expired/absent cookie lands cleanly on login.
+password change, or logout overwriting another's cookie. The SPA keeps the
+non-secret farm ID in per-tab `sessionStorage`, while the access token remains
+memory-only, so a reload names and silently restores that tab's farm even when
+the browser holds several farm cookies. A fresh tab with several cookies and no
+remembered farm still makes the server refuse to guess
+(`Auth.FarmSelectionRequired`) and sends the user to login to choose a farm; it
+rotates or clears none of them. Explicit logout removes the tab binding, and
+closing the tab discards it with the rest of `sessionStorage`. An expired/absent
+cookie lands cleanly on login.
 CSRF is covered by SameSite=Strict plus a custom header (`X-Cluckwork-Auth`) that
 a cross-site request cannot set. Rotation + theft-detection (single-use, revoke
 the whole family on replay) are unchanged — this moved the storage, not the
