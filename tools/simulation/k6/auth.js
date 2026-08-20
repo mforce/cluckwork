@@ -1,13 +1,13 @@
 // #243 k6 harness — auth module.
 //
 // Ground truth (verified against the live sim stack, see #243 Task 5):
-//   - POST /api/v1/auth/login  {email,password} -> 200 {accessToken,accessTokenExpiry}
-//     + Set-Cookie: cluckwork_rt=... (HttpOnly, Secure, SameSite=Strict, Path=/api/v1/auth)
+//   - POST /api/v1/auth/login  {farmCode,email,password} -> 200 {accessToken,accessTokenExpiry}
+//     + Set-Cookie: cluckwork_rt_<account-id>=... (HttpOnly, Secure, SameSite=Strict, Path=/api/v1/auth)
 //   - The cookie is Secure and the sim stack is plain HTTP, so k6's cookie
-//     jar will NOT resend it. We extract the value from the Set-Cookie
-//     response header ourselves and send it back as an explicit Cookie
+//     jar will NOT resend it. We extract the full name and value from the
+//     Set-Cookie response header ourselves and send them back as an explicit Cookie
 //     header on every subsequent refresh call.
-//   - POST /api/v1/auth/refresh, header Cookie: cluckwork_rt=<value> + header
+//   - POST /api/v1/auth/refresh, header Cookie: cluckwork_rt_<account-id>=<value> + header
 //     X-Cluckwork-Auth: 1 (presence-only), NO body -> 200
 //     {accessToken,accessTokenExpiry} + a NEW rotated Set-Cookie.
 //   - Authed calls: Authorization: Bearer <accessToken>.
@@ -33,7 +33,7 @@ import {
   AUTH_PATHS,
   CSRF_HEADER_NAME,
   CSRF_HEADER_VALUE,
-  REFRESH_COOKIE_NAME,
+  REFRESH_COOKIE_NAME_PREFIX,
 } from './config.js';
 
 // How close to `accessTokenExpiry` (in seconds) before maybeRefresh() will
@@ -42,12 +42,12 @@ import {
 const DEFAULT_REFRESH_SKEW_SECONDS = 60;
 
 /**
- * Pull a single cookie's value verbatim (still percent-encoded, exactly as
- * the server sent it) out of a k6 response's Set-Cookie header. k6 folds a
- * single Set-Cookie header into a string, but returns an array when a
+ * Pull a single per-farm cookie's full name and value (still percent-encoded,
+ * exactly as the server sent it) out of a k6 response's Set-Cookie header. k6
+ * folds a single Set-Cookie header into a string, but returns an array when a
  * response sets more than one cookie — handle both.
  */
-function extractSetCookie(res, cookieName) {
+function extractSetCookie(res, cookieNamePrefix) {
   const raw = res.headers['Set-Cookie'];
   if (!raw) {
     return null;
@@ -60,8 +60,8 @@ function extractSetCookie(res, cookieName) {
       continue;
     }
     const name = firstPair.slice(0, eqIndex);
-    if (name === cookieName) {
-      return firstPair.slice(eqIndex + 1);
+    if (name.startsWith(`${cookieNamePrefix}_`)) {
+      return { name, value: firstPair.slice(eqIndex + 1) };
     }
   }
   return null;
@@ -77,14 +77,14 @@ function safeJson(res) {
 
 /**
  * Log in as `user` ({email,password}). Returns a fresh session:
- *   { email, token, expiry, cookie, refreshing }
+ *   { email, token, expiry, cookieName, cookie, refreshing }
  * Throws (and marks failed checks) on anything but a clean 200 with both a
  * token and the refresh cookie.
  */
 export function login(user) {
   const res = http.post(
     `${BASE_URL}${AUTH_PATHS.LOGIN}`,
-    JSON.stringify({ email: user.email, password: user.password }),
+    JSON.stringify({ farmCode: 'default-farm', email: user.email, password: user.password }),
     {
       headers: { 'Content-Type': 'application/json' },
       tags: { name: 'auth_login' },
@@ -92,13 +92,13 @@ export function login(user) {
   );
 
   const body = safeJson(res);
-  const cookie = extractSetCookie(res, REFRESH_COOKIE_NAME);
+  const cookie = extractSetCookie(res, REFRESH_COOKIE_NAME_PREFIX);
 
   const ok = check(res, {
     'login: status 200': (r) => r.status === 200,
     'login: has accessToken': () => !!(body && body.accessToken),
     'login: has accessTokenExpiry': () => !!(body && body.accessTokenExpiry),
-    'login: Set-Cookie has cluckwork_rt': () => cookie !== null,
+    'login: Set-Cookie has per-farm refresh cookie': () => cookie !== null,
   });
 
   if (!ok) {
@@ -111,7 +111,8 @@ export function login(user) {
     email: user.email,
     token: body.accessToken,
     expiry: body.accessTokenExpiry,
-    cookie,
+    cookieName: cookie.name,
+    cookie: cookie.value,
     refreshing: false,
   };
 }
@@ -139,7 +140,7 @@ export function refresh(session) {
   try {
     const res = http.post(`${BASE_URL}${AUTH_PATHS.REFRESH}`, null, {
       headers: {
-        Cookie: `${REFRESH_COOKIE_NAME}=${session.cookie}`,
+        Cookie: `${session.cookieName}=${session.cookie}`,
         [CSRF_HEADER_NAME]: CSRF_HEADER_VALUE,
       },
       tags: { name: 'auth_refresh' },
@@ -154,7 +155,7 @@ export function refresh(session) {
     }
 
     const body = safeJson(res);
-    const newCookie = extractSetCookie(res, REFRESH_COOKIE_NAME);
+    const newCookie = extractSetCookie(res, REFRESH_COOKIE_NAME_PREFIX);
 
     const ok = check(res, {
       'refresh: status 200': (r) => r.status === 200,
@@ -171,7 +172,8 @@ export function refresh(session) {
 
     session.token = body.accessToken;
     session.expiry = body.accessTokenExpiry;
-    session.cookie = newCookie;
+    session.cookieName = newCookie.name;
+    session.cookie = newCookie.value;
 
     return session;
   } finally {

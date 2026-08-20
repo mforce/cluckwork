@@ -33,12 +33,33 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         // service that isn't itself in the request pipeline."
         services.AddHttpContextAccessor();
 
+        // #532 — BEFORE AddIdentityCore, and that order is the entire mechanism.
+        // AddIdentityCore registers the stock UserValidator<ApplicationUser> with
+        // TryAddScoped, so ours being present first makes that call a no-op.
+        // Register it after instead and BOTH run: UserManager executes every
+        // registered IUserValidator, and the stock one's GLOBAL FindByNameAsync
+        // then rejects the second farm's copy of an email as DuplicateUserName
+        // before Postgres ever evaluates the composite index — with nothing in
+        // any log naming the cause. AccountScopedUserValidatorRegistrationTests
+        // asserts the COUNT, not just the type, because a type-only assertion
+        // passes with two validators registered.
+        // #532 — the single place a user is resolved by an ambiguous identifier.
+        // Internal implementation, public port, registered through the
+        // Infrastructure extension like PersistentStepUpGrantRegistry.
+        services.AddAccountUserDirectory();
+        services.AddAccountScopedUserValidator();
+
         services
             .AddIdentityCore<ApplicationUser>(options =>
             {
                 options.Password.RequiredLength = 12;
                 options.Lockout.MaxFailedAccessAttempts = 5;
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                // #532 — makes AccountScopedUserValidator's email branch live.
+                // Stock Identity reads this option only inside the validator we
+                // just displaced, so setting it without the replacement would
+                // do nothing at all.
+                options.User.RequireUniqueEmail = true;
             })
             .AddRoles<ApplicationRole>()
             .AddEntityFrameworkStores<AppDbContext>()
@@ -102,6 +123,8 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         services.AddScoped<IIdentityProvider, IdentityProvider>();
         // Break-glass recovery must remain available in Production.
         services.AddScoped<AdminRecoveryService>();
+        // #532 — no CLI or HTTP surface yet; #534's operator verbs resolve it.
+        services.AddScoped<AccountSuspensionService>();
         // #283 — first-run admin provisioning (`bootstrap-admin`), same
         // always-available-in-Production posture as break-glass recovery: a
         // real deploy's first login depends on it.

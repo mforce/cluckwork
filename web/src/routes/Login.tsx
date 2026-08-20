@@ -19,6 +19,15 @@ interface LocationState {
 const NO_OWNER_PROVISIONED = "Auth.NoOwnerProvisioned";
 const CREDENTIALS_SUPERSEDED = "Auth.CredentialsSuperseded";
 const ACCOUNT_DISABLED = "Auth.AccountDisabled";
+// #532 — both ride the ProblemDetails `title` on a 401, so they MUST be matched
+// before messageFor's generic 401 branch. Without that, a suspended farm's staff
+// are told their password is wrong, which is the exact outcome the owner's
+// decision to use a distinct code exists to avoid.
+const UNKNOWN_FARM_CODE = "Auth.UnknownFarmCode";
+const FARM_SUSPENDED = "Auth.FarmSuspended";
+// #532 — several per-farm cookies, no selector: the tab was torn down and the
+// user lands here to pick a farm and sign in (the picker is #535's job).
+const FARM_SELECTION_REQUIRED = "Auth.FarmSelectionRequired";
 
 // Matched on the code, never on the message: the copy is translated and the
 // server's English detail is not what identifies the case.
@@ -38,6 +47,10 @@ function isNoOwnerProvisioned(err: unknown): boolean {
 // tool outside render (#182).
 function messageFor(err: unknown): string {
   if (err instanceof ApiError) {
+    // #532 — ahead of the generic 401 below, which would otherwise report a
+    // suspended farm or a mistyped farm code as a bad password.
+    if (err.title === UNKNOWN_FARM_CODE) return i18n.t("auth:unknownFarmCode");
+    if (err.title === FARM_SUSPENDED) return i18n.t("auth:farmSuspended");
     if (err.status === 401) return i18n.t("auth:invalidCredentials");
     // Rate limited (#143) — too many attempts from this address.
     if (err.status === 429) return i18n.t("auth:tooManyAttempts");
@@ -67,6 +80,7 @@ export function Login() {
     if (!isLoading && isAuthenticated) navigate(from, { replace: true });
   }, [isLoading, isAuthenticated, from, navigate]);
 
+  const [farmCode, setFarmCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +91,18 @@ export function Login() {
       setError(t("credentialsSuperseded"));
     else if (unauthenticatedReason === ACCOUNT_DISABLED)
       setError(t("accountDisabled"));
+    // #532 — torn down because this browser holds several farms' sessions and
+    // the tab could not name one. The form's farm-code field IS the picker for
+    // now; the dedicated picker is #535.
+    else if (unauthenticatedReason === FARM_SELECTION_REQUIRED)
+      setError(t("farmSelectionRequired"));
+    // #532 — apiFetch tears a session down and preserves the 401 title when a
+    // SUSPENSION is the reason (AuthContext stores it), so a user kicked out
+    // mid-shift lands here already signed out. Without this branch the page is
+    // a blank form until they submit a second time. Reuses the same
+    // auth:farmSuspended copy the login POST path renders.
+    else if (unauthenticatedReason === FARM_SUSPENDED)
+      setError(t("farmSuspended"));
   }, [t, unauthenticatedReason]);
 
   // #283 follow-up — a freshly migrated default account has base reference data
@@ -99,7 +125,7 @@ export function Login() {
     await run("signin", async () => {
       setError(null);
       try {
-        await login(email, password);
+        await login(farmCode, email, password);
         navigate(from, { replace: true });
       } catch (err) {
         // The server distinguishes "the default account has no Owner" from an
@@ -139,6 +165,23 @@ export function Login() {
             <p>{t("noAdminYetHint")}</p>
           </div>
         )}
+        <label>
+          {t("farmCode")}
+          <input
+            type="text"
+            value={farmCode}
+            onChange={(e) => setFarmCode(e.target.value)}
+            // #532 — the server folds case, so these only stop the user seeing a
+            // code they did not type. autoCapitalize is the one that matters:
+            // iOS and Android capitalise the first letter of a plain text input
+            // by default, and farm codes are lowercase-only.
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            maxLength={32}
+            required
+          />
+        </label>
         <label>
           {t("email")}
           <input

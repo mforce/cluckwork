@@ -121,9 +121,21 @@ public sealed class BootstrapLockContinuityInterceptor(Func<string> connectionSt
     // only; two = a second proof also ran after the create transaction opened.
     public int ProofQueries => Volatile.Read(ref _proofQueries);
 
-    // Commands touching AspNetUsers that EF issued AFTER the fault. Non-zero
-    // means the region carried on past the connection loss — i.e. onto a
-    // reconnected session that no longer holds the lock.
+    // Commands touching AspNetUsers that EF issued AFTER the fault ON A
+    // DIFFERENT BACKEND than the one that was killed. Non-zero means the region
+    // carried on past the connection loss — i.e. onto a reconnected session that
+    // no longer holds the lock.
+    //
+    // #532 — the PID comparison is what makes this measure the sentence above
+    // rather than merely "a command was issued". Counting issuance alone tied
+    // the guard to an incidental query SHAPE: it read 0 only because the first
+    // post-fault statement happened to be UserManager.GetUsersInRoleAsync's
+    // AspNetRoles lookup, whose text does not contain AspNetUsers. Replacing
+    // that with one account-scoped JOIN — the same guarantee, one round trip
+    // instead of two — made it read 1 for a command issued on the DEAD
+    // connection, which then threw. That is the failure being detected working
+    // correctly, not the region continuing, and the other two assertions
+    // (createAttempts, usersInDefaultAccount) were both still 0 throughout.
     public int UserTableCommandsAfterFault => Volatile.Read(ref _userTableCommandsAfterFault);
 
     public int CreateAttempts => Volatile.Read(ref _createAttempts);
@@ -145,7 +157,8 @@ public sealed class BootstrapLockContinuityInterceptor(Func<string> connectionSt
             Interlocked.Increment(ref _proofQueries);
 
         if (Volatile.Read(ref _faultInjected) == 1 &&
-            text.Contains(UsersTable, StringComparison.Ordinal))
+            text.Contains(UsersTable, StringComparison.Ordinal) &&
+            BackendPid(command) != Volatile.Read(ref _killedPid))
             Interlocked.Increment(ref _userTableCommandsAfterFault);
 
         if (!text.Contains(CreateUserSql, StringComparison.Ordinal)) return;

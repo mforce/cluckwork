@@ -40,6 +40,10 @@ export const tl = {
   },
   auth: {
     title: "Cluckwork",
+    // machine-drafted (#532) — pending native review.
+    farmCode: "Code ng bukid",
+    unknownFarmCode: "Hindi nakikilala ang code ng bukid na iyon. Suriin ito at subukang muli.",
+    farmSuspended: "Suspendido ang bukid na ito. Makipag-ugnayan sa iyong administrator.",
     email: "Email",
     password: "Password",
     signIn: "Mag-sign in",
@@ -47,6 +51,10 @@ export const tl = {
     invalidCredentials: "Mali ang email o password.",
     credentialsSuperseded: "Nagbago ang iyong mga kredensyal. Mag-sign in muli.",
     accountDisabled: "Na-disable ang iyong account.",
+    // #532 — per-farm refresh cookie: several farms hold sessions in this
+    // browser. Machine-drafted (#182) — pending native review.
+    farmSelectionRequired:
+      "May mga session para sa ilang bukid sa browser na ito. Pumili ng bukid at mag-sign in.",
     tooManyAttempts:
       "Sobra na ang subok sa pag-sign in. Maghintay ng ilang minuto at subukan ulit.",
     apiDown: "Hindi makapag-sign in. Gumagana ba ang API?",
@@ -1801,8 +1809,9 @@ export const tl = {
 
     signingInHeading: "Pag-sign in",
     signingInBasic:
-      "Mag-sign in gamit ang email at password na ni-set up ng iyong administrator. Ang maling password ay "
-      + "nagsasabi lang na <strong>Mali ang email o password</strong> — subukan ulit.",
+      "Mag-sign in gamit ang <strong>code ng bukid</strong> mo, at pagkatapos ang email at password na "
+      + "ni-set up ng iyong administrator. Ang maling password ay nagsasabi lang na "
+      + "<strong>Mali ang email o password</strong> — subukan ulit.",
     signingInRateLimit:
       "Para pabagalin ang sinumang nag-guess ng password, <strong>limitado</strong> ang mga pagsubok sa "
       + "pag-sign in mula sa parehong lugar. Pagkatapos ng sobrang dami ng subok sa loob ng ilang minuto, "
@@ -1819,12 +1828,12 @@ export const tl = {
       + "kahit mag-reload at kahit bukas ang app sa <strong>ilang tab</strong> nang sabay-sabay. "
       + "Pagkatapos ma-<strong>update</strong> ang app, maaaring hilingin sa iyong mag-sign in muli — "
       + "normal lang iyon.",
-    // machine-drafted (#393) — pending native review.
+    // machine-drafted (#532) — pending native review.
     signingInMultiTabResync:
-      "Ang pag-sign in bilang ibang tao sa isang <strong>browser tab</strong> habang ang isa pang tab ng "
-      + "parehong browser ay kalagitnaan pa lang ng sarili nitong tahimik na pag-check ay paminsan-minsang "
-      + "maaaring mag-sign out sa iyo agad pagkatapos — mag-sign in na lang ulit. Nangyayari lang ito sa "
-      + "bihirang sitwasyong ito na may maraming tab at hindi kailanman nawawala ang anumang na-save mo na.",
+      "May sariling ligtas na session ang bawat bukid sa browser na ito, kaya hindi na pinapalitan ng mga "
+      + "bukid na bukas sa magkakaibang <strong>tab</strong> ang session ng isa't isa. Naaalala ng tab ang bukid "
+      + "nito kapag nag-reload. Ang tab na walang natatandaang bukid at makakakita ng ilang session ay babalik pa rin "
+      + "sa pag-sign in sa halip na manghula — piliin ang code ng bukid at mag-sign in. Walang session ng ibang bukid na binubura.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Unang pag-sign in sa isang bagong-bagong farm.</strong> Walang default na password — "
@@ -2507,6 +2516,16 @@ export const tl = {
       + "screen maya-maya; muling tatakbo ito gamit ang parehong mga petsang pinili mo. May sariling "
       + "alokasyon ang bawat farm, kaya hindi kailanman nauubos ng report ng ibang farm ang sa iyo.",
 
+    // #532 — the login screen asks for it before the email, because one
+    // email can belong to several farms.
+    // (machine-drafted, pending native review)
+    glossaryFarmCodeTerm: "Code ng bukid",
+    glossaryFarmCodeDef:
+      "Ang maikling code na nagpapaalam sa bukid mo sa screen ng sign in. Isinusulat mo ito "
+      + "bago ang iyong email, dahil maaaring nasa ilang bukid ang iisang email address at ang "
+      + "code lamang ang nagsasabi kung alin ang ibig mo sabihin. Lowercase ito at hindi ito "
+      + "nagbabago.",
+
     glossaryTooManySignInAttemptsTerm: "Masyadong maraming pagtatangkang mag-sign in",
     glossaryTooManySignInAttemptsDef:
       "Rate-limited ang pag-sign in para pabagalin ang panghuhula ng password: masyadong maraming "
@@ -2514,13 +2533,13 @@ export const tl = {
       + "hanggang lumipas ang maikling paghihintay. Hindi nito naaapektuhan ang session na naka-sign in "
       + "na.",
 
-    // #393 (machine-drafted, pending native review)
-    glossaryForcedReauthTerm: "Na-sign out kaagad pagkatapos lumipat ng account",
+    // #532 (machine-drafted, pending native review)
+    glossaryForcedReauthTerm: "Ilang bukid sa isang browser",
     glossaryForcedReauthDef:
-      "Ang pag-sign in bilang ibang tao sa isang <strong>browser tab</strong> habang kalagitnaan ng sarili "
-      + "nitong tahimik na pagsuri sa background ang isa pang tab ay paminsan-minsang maaaring mag-sign out "
-      + "kaagad sa bagong session. Mag-sign in na lang ulit — nangyayari lang ito sa maikling sandaling iyon "
-      + "ng maraming tab at walang nawawalang naka-save na.",
+      "May hiwalay na ligtas na session cookie ang bawat bukid, kaya hindi maaaring palitan o burahin ng isang "
+      + "bukid ang session ng iba. Naaalala ng tab ang napili nitong bukid kapag nag-reload. Kapag nakakita ang "
+      + "tab na walang natatandaang bukid ng ilang session, babalik ito sa pag-sign in sa halip na "
+      + "manghula; piliin ang code ng bukid na gusto mo.",
 
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
@@ -2531,7 +2550,6 @@ export const tl = {
       + "password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago bigyan — o bawiin — ang ganoong "
       + "kalaking access. Palaging nagtatanong ang disable at enable, kahit anong role ng user; ang tatlong "
       + "iba pa ay nagtatanong lang kapag may kinalaman sa access ng Owner.",
-
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
       "Ipinapakita ito ng isang screen kapag may error, sa halip na maging blangko. Ligtas ang naka-save "

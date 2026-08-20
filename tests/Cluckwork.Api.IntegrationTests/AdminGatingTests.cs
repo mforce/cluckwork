@@ -3,8 +3,10 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 // #73 — Admin vs not-Admin. The principle under test: anything that undoes,
@@ -218,7 +220,7 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         {
             HandleCookies = false,
         });
-        var refreshed = await client.PostRefreshAsync(pair.RefreshToken);
+        var refreshed = await client.PostRefreshAsync(pair.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
         var newPair = await TestHarness.ReadTokensAsync(refreshed);
 
@@ -246,22 +248,36 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, replayed.StatusCode);
     }
 
-    // A duplicate email in ANOTHER tenant gets the generic message — the
-    // admin endpoint must not double as a cross-tenant registration oracle.
+    // #532 — INVERTED. This used to assert that a duplicate email in another
+    // tenant was refused with a generic message, so the admin endpoint could not
+    // double as a cross-tenant registration oracle. Per-account email identity
+    // makes that refusal wrong: one email belonging to exactly one farm forever
+    // is the defect this slice removes (epic #530 decision 3). The oracle
+    // concern it protected is gone with it — there is nothing to disclose,
+    // because another farm's use of an address no longer constrains this one.
     [Fact]
-    public async Task DuplicateEmail_InAnotherAccount_GetsGenericMessage()
+    public async Task DuplicateEmail_InAnotherAccount_IsAllowed()
     {
         var foreignEmail = $"foreign-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(foreignEmail);
 
-        var (admin, _, _, _, _) = await SetupAsync();
+        var (admin, _, accountId, _, _) = await SetupAsync();
         var response = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
             new { email = foreignEmail, password = TestHarness.Password, role = "Worker" });
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Could not create the user.", body);
-        Assert.DoesNotContain("already", body);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        // #532 review — status alone would also pass if the user had been
+        // created in the FOREIGN account. Pin the account, since "which farm did
+        // this land in" is the entire property under test. `accountId` is the
+        // admin's OWN account from SetupAsync (a fresh Guid per call, not
+        // SeedDefaults.AccountId) — the tenant the endpoint is bound to.
+        var created = await response.Content.ReadFromJsonAsync<Created>();
+        var accountOfCreated = await factory.WithTenantScopeAsync(accountId, db => db.Users
+            .Where(u => u.Id == created!.Id)
+            .Select(u => u.AccountId)
+            .SingleAsync());
+        Assert.Equal(accountId, accountOfCreated);
     }
 
     [Fact]

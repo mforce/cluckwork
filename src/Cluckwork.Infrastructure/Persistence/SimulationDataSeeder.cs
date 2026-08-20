@@ -89,6 +89,7 @@ public sealed class SimulationDataSeeder(
     TenantContext tenant,
     CurrentUserContext currentUser,
     UserManager<ApplicationUser> users,
+    IAccountUserDirectory directory,
     CreateUserHandler createUser,
     CreateFlockHandler createFlock,
     AssignFlockHandler assignFlock,
@@ -496,9 +497,8 @@ public sealed class SimulationDataSeeder(
     {
         if (!await db.Roles.AnyAsync(r => r.Name == Roles.Owner, ct)) return (false, null, 0);
 
-        var owners = (await users.GetUsersInRoleAsync(Roles.Owner))
-            .Where(u => u.AccountId == accountId)
-            .ToList();
+        // #532 — see DemoDataSeeder: scoped at the query, not post-filtered.
+        var owners = (await directory.FindByAccountRoleAsync(accountId, Roles.Owner)).ToList();
 
         return (true,
                 owners.Where(u => u.DisabledAt is null).OrderBy(u => u.Id).FirstOrDefault(),
@@ -641,7 +641,13 @@ public sealed class SimulationDataSeeder(
     private async Task<SimActor> EnsureUserAsync(
         Guid accountId, string email, string role, string name, string password, CancellationToken ct)
     {
-        var existing = await users.FindByEmailAsync(email);
+        // #532 — ACCOUNT-SCOPED, and this is the one that mattered. The global
+        // lookup adopted ANOTHER farm's user as this account's persona when only
+        // a foreign row existed, and threw outright once both farms had one
+        // (UserStore backs FindByEmailAsync with SingleOrDefaultAsync).
+        // SimActor.Roles is an authorization input (#500), so a mis-attributed
+        // persona is a tenant-isolation defect, not a cosmetic one.
+        var existing = await directory.FindByAccountEmailAsync(accountId, email, ct);
         if (existing is null)
         {
             // #308 — actingUserId only matters for the Role==Owner step-up gate,
@@ -651,7 +657,7 @@ public sealed class SimulationDataSeeder(
                 new CreateUserCommand(email, password, role, name), accountId, Guid.Empty, ct);
             Require(result, $"create cast user {email}");
 
-            existing = await users.FindByEmailAsync(email)
+            existing = await directory.FindByAccountEmailAsync(accountId, email, ct)
                 ?? throw new InvalidOperationException(
                     $"Simulation seed: cast user {email} was created but cannot be read back.");
         }
@@ -1695,10 +1701,10 @@ public sealed class SimulationDataSeeder(
         Guid accountId, CancellationToken ct)
     {
         var usersTotal = await db.Users.CountAsync(u => u.AccountId == accountId, ct);
-        var ownerCount = (await users.GetUsersInRoleAsync(Roles.Owner)).Count(u => u.AccountId == accountId);
-        var managerCount = (await users.GetUsersInRoleAsync(Roles.Manager)).Count(u => u.AccountId == accountId);
-        var salesCount = (await users.GetUsersInRoleAsync(Roles.Sales)).Count(u => u.AccountId == accountId);
-        var readOnlyCount = (await users.GetUsersInRoleAsync(Roles.ReadOnly)).Count(u => u.AccountId == accountId);
+        var ownerCount = (await directory.FindByAccountRoleAsync(accountId, Roles.Owner)).Count;
+        var managerCount = (await directory.FindByAccountRoleAsync(accountId, Roles.Manager)).Count;
+        var salesCount = (await directory.FindByAccountRoleAsync(accountId, Roles.Sales)).Count;
+        var readOnlyCount = (await directory.FindByAccountRoleAsync(accountId, Roles.ReadOnly)).Count;
         // Workers deliberately carry no role row (SeedCastAsync) — derive by
         // subtraction rather than a role lookup that would always find none.
         var workerCount = usersTotal - ownerCount - managerCount - salesCount - readOnlyCount;

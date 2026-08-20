@@ -308,6 +308,12 @@ app.UseFarmLogoRequestBodyCap();
 app.UseFarmBannerRequestBodyCap();
 
 app.UseAuthentication();
+// #532 — must sit between authentication and tenant resolution. It blanks the
+// ambient principal for endpoints marked IgnoresAmbientPrincipal (/auth/login),
+// so a bearer for one farm cannot resolve a tenant while the request
+// authenticates against another. Without it, a farm-A bearer posting a farm-B
+// login bypasses the #128 account lockout entirely — see the middleware.
+app.UseMiddleware<AmbientPrincipalMiddleware>();
 app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseMiddleware<CredentialEpochMiddleware>();
 // #283 — the first-run "you must set a new password" gate. BEFORE

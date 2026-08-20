@@ -1339,6 +1339,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Email")
+                        .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
@@ -1359,10 +1360,12 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<string>("NormalizedEmail")
+                        .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
                     b.Property<string>("NormalizedUserName")
+                        .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
@@ -1391,15 +1394,17 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<string>("UserName")
+                        .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("NormalizedEmail")
+                    b.HasIndex("AccountId", "NormalizedEmail")
+                        .IsUnique()
                         .HasDatabaseName("EmailIndex");
 
-                    b.HasIndex("NormalizedUserName")
+                    b.HasIndex("AccountId", "NormalizedUserName")
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
 
@@ -2035,6 +2040,15 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("UnitPrice")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Cluckwork.Infrastructure.Identity.ApplicationUser", b =>
+                {
+                    b.HasOne("Cluckwork.Domain.Accounts.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

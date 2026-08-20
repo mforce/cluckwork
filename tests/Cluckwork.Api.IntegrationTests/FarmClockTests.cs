@@ -34,6 +34,10 @@ public sealed class FarmClockTests
             return Task.FromResult(account);
         }
 
+        // The clock never resolves a farm code either — that is login's path (#532).
+        public Task<Account?> FindBySlugAsync(string slug, CancellationToken ct = default) =>
+            throw new NotSupportedException();
+
         // The clock never writes; only the settings and money handlers use these.
         public Task<Account?> GetCurrentTrackedAsync(CancellationToken ct = default) =>
             throw new NotSupportedException();

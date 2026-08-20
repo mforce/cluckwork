@@ -222,7 +222,7 @@ public sealed class MultiInstanceIdempotencyTests : IAsyncLifetime
         // Everything from here on is real HTTP against the real, bootstrapped
         // admin — no direct DB/DI reach-in from the test.
         var loginResponse = await httpA.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email = adminEmail, password = temporaryPassword });
+            "/api/v1/auth/login", new { farmCode = TestHarness.DefaultFarmCode, email = adminEmail, password = temporaryPassword });
         Assert.True(loginResponse.IsSuccessStatusCode,
             $"login against instance A failed: {loginResponse.StatusCode} {await loginResponse.Content.ReadAsStringAsync()}");
         var temporaryAccessToken = ExtractString(await loginResponse.Content.ReadAsStringAsync(), "accessToken");

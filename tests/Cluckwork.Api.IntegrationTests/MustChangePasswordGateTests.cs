@@ -84,7 +84,7 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         // of the existing host configuration.
         var loginClient = throwingFactory.CreateClient();
         var loginResponse = await loginClient.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = TestHarness.Password });
+            "/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
         loginResponse.EnsureSuccessStatusCode();
         var token = (await loginResponse.Content.ReadFromJsonAsync<Cluckwork.Api.Endpoints.Auth.AccessTokenResponse>())!.AccessToken;
 
@@ -160,7 +160,8 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout/");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
-        request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieName}={tokens.RefreshToken}");
+        request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieNameFor(accountId)}={tokens.RefreshToken}");
+        request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, accountId.ToString());
 
         var response = await factory.CreateClient().SendAsync(request);
 
@@ -208,14 +209,16 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
 // reliably, without depending on framework body-binding exception behavior.
 internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider inner) : IIdentityProvider
 {
-    public Task<Result<TokenPair>> LoginAsync(string email, string password, CancellationToken ct = default) =>
-        inner.LoginAsync(email, password, ct);
+    public Task<Result<TokenPair>> LoginAsync(
+        Guid accountId, string email, string password, CancellationToken ct = default) =>
+        inner.LoginAsync(accountId, email, password, ct);
 
-    public Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default) =>
-        inner.RefreshAsync(refreshToken, ct);
+    public Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null) =>
+        inner.RefreshAsync(refreshToken, ct, expectedAccountId);
 
-    public Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default) =>
-        inner.RevokeRefreshTokenAsync(refreshToken, ct);
+    public Task RevokeRefreshTokenAsync(
+        string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null) =>
+        inner.RevokeRefreshTokenAsync(refreshToken, ct, expectedAccountId);
 
     public Task RecordLogoutAsync(Guid userId, CancellationToken ct = default) =>
         inner.RecordLogoutAsync(userId, ct);

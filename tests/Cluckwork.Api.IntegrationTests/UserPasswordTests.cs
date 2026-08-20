@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using System.Net.Http.Json;
+using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -70,7 +71,7 @@ public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
         // The worker is signed in BEFORE the reset — this is the session a reset
         // has to evict (otherwise a compromised session survives the reset).
         var worker = await factory.LoginAsync(email);
-        var refreshed = await factory.CreateClient().PostRefreshAsync(worker.RefreshToken);
+        var refreshed = await factory.CreateClient().PostRefreshAsync(worker.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
         // Assert against the LIVE token the rotation produced, not the one just
         // consumed: replaying the consumed token would 401 once the #176 reuse
@@ -86,7 +87,7 @@ public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
 
         // The worker's CURRENT token is dead: no new access tokens for the old holder.
         Assert.Equal(HttpStatusCode.Unauthorized,
-            (await factory.CreateClient().PostRefreshAsync(live.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(live.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
     }
 
     // #165 review — the admin path deliberately skips the current-password proof,
@@ -129,7 +130,8 @@ public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         // The rotated cookie really is on the response (a cached replay would omit it).
         Assert.Contains(first.Headers.GetValues("Set-Cookie"),
-            c => c.StartsWith("cluckwork_rt=", StringComparison.Ordinal));
+            c => c.StartsWith(
+                AuthCookies.RefreshCookieNameFor(accountId) + "=", StringComparison.Ordinal));
         var rotated = await TestHarness.ReadTokensAsync(first);
 
         // Use the newly issued access token: the original one is deliberately
@@ -219,11 +221,11 @@ public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
         var handed = await TestHarness.ReadTokensAsync(response);
         Assert.False(string.IsNullOrWhiteSpace(handed.AccessToken));
         Assert.Equal(HttpStatusCode.OK,
-            (await factory.CreateClient().PostRefreshAsync(handed.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(handed.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
 
         // The OTHER device's session is gone.
         Assert.Equal(HttpStatusCode.Unauthorized,
-            (await factory.CreateClient().PostRefreshAsync(otherDevice.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(otherDevice.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
 
         // And the credential really changed.
         Assert.Equal(HttpStatusCode.OK, (await factory.TryLoginAsync(email, newPassword)).StatusCode);

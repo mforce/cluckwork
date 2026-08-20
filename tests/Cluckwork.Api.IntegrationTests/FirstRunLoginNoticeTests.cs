@@ -27,11 +27,15 @@ using Microsoft.Extensions.DependencyInjection;
 public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory factory)
     : IClassFixture<CluckworkWebApplicationFactory>
 {
-    private static async Task<(HttpStatusCode Status, string? Title)> AttemptLoginAsync(
+    // #532 — instance, not static: resolves the farm code of the account the
+    // email actually belongs to, falling back to the default farm for the
+    // deliberately-unknown addresses this suite probes with.
+    private async Task<(HttpStatusCode Status, string? Title)> AttemptLoginAsync(
         HttpClient client, string email, string password)
     {
+        var farmCode = await factory.FarmCodeForAsync(email);
         var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password });
+            "/api/v1/auth/login", new { farmCode, email, password });
         var problem = await response.Content
             .ReadFromJsonAsync<System.Text.Json.JsonElement>();
         return (response.StatusCode,
@@ -43,6 +47,25 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
     // in test files).
     private async Task CreateOwnerInAsync(Guid accountId, string email)
     {
+        // #532 — the account must EXIST before a user can reference it.
+        // AspNetUsers.AccountId is now a real foreign key
+        // (FK_AspNetUsers_Accounts_AccountId), so the previous shape — a user
+        // pointing at a bare Guid.NewGuid() — is refused by Postgres with
+        // 23503. The test's intent is unchanged: an Owner under a DIFFERENT
+        // account, which must now be a real one.
+        // Guarded: this helper is also called for the DEFAULT account (step 2b
+        // seeds a non-Owner there), whose row InitialCreate already inserted.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var exists = await db.Accounts.IgnoreQueryFilters()
+                .AnyAsync(a => a.Id == accountId);
+            if (exists) return;
+
+            db.Accounts.Add(Account.Create(
+                accountId, "Other Farm Co", "farm-" + accountId.ToString("N")[..12], "UTC", "USD"));
+            await db.SaveChangesAsync();
+        });
+
         using var scope = factory.Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
@@ -182,7 +205,7 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
 
         var client = factory.CreateClient();
         var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password });
+            "/api/v1/auth/login", new { farmCode = TestHarness.DefaultFarmCode, email, password });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();

@@ -61,10 +61,12 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
     private IReadOnlyList<LogEvent> EventsFor(string securityEvent) =>
         [.. factory.Sink.Events.Where(e => ScalarOf(e, "SecurityEvent") == securityEvent)];
 
+    private Guid _accountId;
+
     private async Task<string> SeedUserAsync()
     {
         var email = $"secevt-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        _accountId = await factory.SeedAccountWithUserAsync(email);
         return email;
     }
 
@@ -77,11 +79,17 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
         var email = await SeedUserAsync();
         var client = factory.CreateClient();
 
+        // #532 — BOTH probes target the SAME farm. What this test guards is that
+        // an unknown USER is indistinguishable from a wrong password; resolving
+        // the unknown address to its own farm code compares two different farms'
+        // denial shapes instead, which is a different (and already-disclosed)
+        // property. Same correction as AuthBodyLimitTests.
+        var farmCode = await factory.FarmCodeForAsync(email);
         var unknownEmail = $"nobody-{Guid.NewGuid():N}@test.local";
         var unknown = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email = unknownEmail, password = "WrongPassw0rd!x" });
+            "/api/v1/auth/login", new { farmCode, email = unknownEmail, password = "WrongPassw0rd!x" });
         var wrongPassword = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = "WrongPassw0rd!x" });
+            "/api/v1/auth/login", new { farmCode, email, password = "WrongPassw0rd!x" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, unknown.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
@@ -118,7 +126,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
         var userId = (await users.FindByEmailAsync(email))!.Id;
 
         for (var i = 0; i < LockoutMaxFailedAttempts; i++)
-            await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = "WrongPassw0rd!x" });
+            await client.PostAsJsonAsync("/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = "WrongPassw0rd!x" });
 
         var lockedOutEvents = EventsFor(SecurityEvents.AccountLockedOut);
         var loginFailedEvents = EventsFor(SecurityEvents.LoginFailed);
@@ -199,10 +207,10 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
 
         // Rotate once — token A is now revoked, replaced by B. Grace is disabled
         // on this factory, so presenting A again below is unambiguously a replay.
-        var rotated = await client.PostRefreshAsync(tokens.RefreshToken);
+        var rotated = await client.PostRefreshAsync(tokens.RefreshToken, expectedAccount: _accountId.ToString());
         rotated.EnsureSuccessStatusCode();
 
-        var replay = await client.PostRefreshAsync(tokens.RefreshToken);
+        var replay = await client.PostRefreshAsync(tokens.RefreshToken, expectedAccount: _accountId.ToString());
 
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
         var replayEvents = EventsFor(SecurityEvents.RefreshTokenReplayDetected);
@@ -286,7 +294,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
 
         var tokens = await factory.LoginAsync(email);
         var client = factory.CreateClient(new() { HandleCookies = false });
-        var rotated = await client.PostRefreshAsync(tokens.RefreshToken);
+        var rotated = await client.PostRefreshAsync(tokens.RefreshToken, expectedAccount: _accountId.ToString());
         rotated.EnsureSuccessStatusCode();
 
         // Direct construction (bypassing HTTP/DI for the DbContext only) so the
@@ -312,9 +320,10 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>(),
-            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 
-        var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
+        var rawRefreshToken = tokens.RefreshTokenForDirectCall;
 
         interceptor.Armed = true;
         await Assert.ThrowsAsync<InvalidOperationException>(() => provider.RefreshAsync(rawRefreshToken));
@@ -370,9 +379,10 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>(),
-            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 
-        var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
+        var rawRefreshToken = tokens.RefreshTokenForDirectCall;
 
         // This is the token's FIRST rotation — not a replay — so it exercises
         // RefreshAsync's tracked-save revocation, never the bulk-update path
@@ -416,7 +426,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
 
         interceptor.Armed = true;
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => provider.RevokeRefreshTokenAsync(Uri.UnescapeDataString(tokens.RefreshToken)));
+            () => provider.RevokeRefreshTokenAsync(tokens.RefreshTokenForDirectCall));
         interceptor.Armed = false;
 
         Assert.Single(EventsFor(SecurityEvents.RefreshRevocationFailed));
@@ -443,7 +453,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
 
         interceptor.Armed = true;
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => provider.RevokeRefreshTokenAsync(Uri.UnescapeDataString(tokens.RefreshToken)));
+            () => provider.RevokeRefreshTokenAsync(tokens.RefreshTokenForDirectCall));
         interceptor.Armed = false;
 
         var failed = Assert.Single(EventsFor(SecurityEvents.RefreshRevocationFailed));
@@ -475,7 +485,8 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>(),
-            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 }
 
 [CollectionDefinition(Name)]

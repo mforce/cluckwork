@@ -36,6 +36,20 @@ public interface IAccountRepository
     // is what guards stale writes.
     Task<Account?> GetCurrentLockedAsync(CancellationToken ct = default);
 
+    // #532 — farm-code login. Resolves an account by its slug with NO ambient
+    // tenant, and that is the whole difficulty: /auth/login is AllowAnonymous,
+    // so TenantContext is unresolved and the Account query filter
+    // (AccountId == tenant.AccountId, i.e. Guid.Empty) matches ZERO rows. A
+    // lookup written the obvious way therefore reports EVERY farm code as
+    // unknown, and does so silently — the implementation must IgnoreQueryFilters.
+    //
+    // The slug is normalized INSIDE the implementation rather than by the
+    // caller: stored slugs are guaranteed lowercase (Account.ValidateSlug trims
+    // but REJECTS uppercase rather than folding it), so a caller that forgets
+    // to fold turns a phone keyboard's auto-capital into "unknown farm code".
+    // One place, impossible to forget.
+    Task<Account?> FindBySlugAsync(string slug, CancellationToken ct = default);
+
     // Put a tracked account back the way the database has it. A rolled-back
     // transaction undoes the row but not the in-memory entity, and something
     // else saves through this context later in the same request (the

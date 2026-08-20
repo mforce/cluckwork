@@ -68,7 +68,7 @@ public sealed class AuthRateLimitLoggingTests(AuthRateLimitLoggingFactory factor
 
     private static Task<HttpResponseMessage> PostLoginAsync(HttpClient client) =>
         client.PostAsJsonAsync("/api/v1/auth/login",
-            new { email = "nobody@example.com", password = "WrongPassw0rd!" });
+            new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = "WrongPassw0rd!" });
 
     [Fact]
     public async Task Login_rate_limit_rejection_emits_RateLimitRejected_exactly_once()
@@ -104,7 +104,7 @@ public sealed class AuthRateLimitLoggingTests(AuthRateLimitLoggingFactory factor
 
         var loginClient = ProxiedClient(clientIp);
         var loginResponse = await loginClient.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = TestHarness.Password });
+            "/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
         loginResponse.EnsureSuccessStatusCode();
         var accessToken = (await loginResponse.Content
             .ReadFromJsonAsync<AccessTokenResponse>())!.AccessToken;

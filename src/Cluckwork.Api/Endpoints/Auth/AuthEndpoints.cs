@@ -1,9 +1,12 @@
 namespace Cluckwork.Api.Endpoints.Auth;
 
 using Cluckwork.Api.Hosting;
+using Cluckwork.Api.Middleware;
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Accounts;
+using Cluckwork.Domain.Accounts;
 using Cluckwork.Application.Features.Users.ChangeOwnPassword;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
@@ -32,6 +35,12 @@ public static class AuthEndpoints
         // only the access token.
         group.MapPost("/login", Login)
             .AllowAnonymous()
+            // #532 — AllowAnonymous governs AUTHORIZATION and leaves an
+            // ambient bearer's principal in place. This marker is what makes
+            // AmbientPrincipalMiddleware blank it, so a farm-A token sent to a
+            // farm-B login cannot resolve farm A as the tenant and thereby
+            // bypass the #128 lockout on farm B's user. See the middleware.
+            .WithMetadata(new IgnoresAmbientPrincipalAttribute())
             .RequireRateLimiting(RateLimitingOptions.LoginPolicyName)
             // #309 — 4 KB, not 2 KB: System.Text.Json's DEFAULT encoder escapes
             // non-ASCII as 6-byte \uXXXX sequences, so a maximum-length (256-char)
@@ -50,6 +59,14 @@ public static class AuthEndpoints
         // token comes from the cookie, never the body (#145).
         group.MapPost("/refresh", Refresh)
             .AllowAnonymous()
+            // #532 — same reason as /login. A bearer sent here still populates
+            // context.User, so TenantResolutionMiddleware resolves THAT farm
+            // while RefreshAsync rotates a cookie belonging to another: the
+            // rotation is a tracked SaveChanges, so TenantStampInterceptor
+            // refuses it and the caller gets a 500 instead of a rotation or a
+            // clean 401. Isolation holds — the write is refused — but the 500 is
+            // reachable with a hand-crafted request.
+            .WithMetadata(new IgnoresAmbientPrincipalAttribute())
             .RequireRateLimiting(RateLimitingOptions.RefreshPolicyName)
             // #309 — refresh carries no body of its own (the token rides in the
             // cookie); 1 KB is a defensive cap so a junk body can't be streamed in.
@@ -120,12 +137,34 @@ public static class AuthEndpoints
         return group;
     }
 
+    // #532 — several per-farm refresh cookies are present and the caller has not
+    // named one (the bootstrap path with the header absent). Distinct from a
+    // dead session: nothing is rotated and nothing is cleared, so no tab is
+    // harmed — the SPA treats it as "go to login" for now; the farm picker that
+    // makes the code self-service is #535's job.
+    public const string FarmSelectionRequiredCode = "Auth.FarmSelectionRequired";
+
     // #283 follow-up (#361) — the error code a failed sign-in carries when the
     // DEFAULT ACCOUNT has no Owner, so the SPA can explain the dead end instead
     // of showing the generic denial. Rides the ProblemDetails `title`, like
     // every other login error code. Scoped to that account, not to the instance
     // — see the Login handler for what that does and does not claim.
     public const string NoOwnerProvisionedCode = "Auth.NoOwnerProvisioned";
+
+    // #532 — the farm code names a farm this deployment does not have. Epic #530
+    // decision 6 chose a DISTINCT response knowingly: it makes /auth/login a
+    // farm-enumeration oracle, and that was accepted because the alternative
+    // (a generic denial) leaves an operator who mistyped their farm code with no
+    // way to tell that from a wrong password. The slug MUST NOT reach a metric
+    // label or a log dimension — it is attacker-supplied and unbounded.
+    public const string UnknownFarmCodeCode = "Auth.UnknownFarmCode";
+
+    // #532 — the farm exists and is suspended. DISTINCT from invalid credentials
+    // by owner decision, AMENDING epic #530 decision 6, which required suspended
+    // and active farms to be indistinguishable. The trade was made explicitly:
+    // telling a farm's own staff their password is wrong is a lie that generates
+    // support load, and farm existence is already disclosed by the branch above.
+    public const string FarmSuspendedCode = "Auth.FarmSuspended";
 
     // In every environment but Development the browser reaches the app over HTTPS
     // (TLS terminates at the proxy), so the auth cookie must be Secure regardless
@@ -135,7 +174,8 @@ public static class AuthEndpoints
     private static async Task<IResult> Login(
         LoginRequest request, IIdentityProvider identity, IValidator<LoginRequest> validator,
         HttpResponse response, IOptions<JwtOptions> jwt, IWebHostEnvironment env,
-        FirstRunStatusService firstRun, CancellationToken ct)
+        FirstRunStatusService firstRun, IAccountRepository accounts,
+        AuthSecurityEventLogger securityEvents, CancellationToken ct)
     {
         // #309 — reject an OVERSIZED email/password (400) before the hasher. An
         // empty/short credential is NOT rejected here: it still flows to
@@ -144,7 +184,40 @@ public static class AuthEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await identity.LoginAsync(request.Email, request.Password, ct);
+        // #532 — resolve the FARM before the credential. FindBySlugAsync folds the
+        // code to lowercase and ignores the tenant query filter; both are
+        // mandatory, not tidiness. Login is AllowAnonymous, so TenantContext is
+        // unresolved and the Account filter (AccountId == Guid.Empty) matches
+        // zero rows — a lookup written the obvious way reports every farm code as
+        // unknown, silently.
+        var account = await accounts.FindBySlugAsync(request.FarmCode, ct);
+        if (account is null)
+        {
+            // Identity-free, exactly like every other unsuccessful branch, and
+            // carrying NO slug: this stream must not become the enumeration
+            // oracle the response already is, at unbounded log cardinality.
+            // Deliberately does NOT touch AccessFailedAsync — there is no user
+            // row here, and a farm code must never burn a real account's
+            // lockout budget.
+            securityEvents.LoginFailed();
+            return Results.Problem(
+                "That farm code is not recognised.",
+                statusCode: 401, title: UnknownFarmCodeCode);
+        }
+
+        if (!account.IsActive)
+        {
+            // BEFORE the credential check and before the first-run notice below:
+            // a suspended farm must answer the same way whether or not the
+            // password was right, and must not fall through to a branch that
+            // discloses its provisioning state instead.
+            securityEvents.LoginFailed();
+            return Results.Problem(
+                "This farm is suspended. Contact your administrator.",
+                statusCode: 401, title: FarmSuspendedCode);
+        }
+
+        var result = await identity.LoginAsync(account.Id, request.Email, request.Password, ct);
         if (!result.IsSuccess)
         {
             // #283 follow-up (#361) — first-run discoverability, reported HERE
@@ -193,7 +266,13 @@ public static class AuthEndpoints
             //
             // A successful sign-in never reaches this, which is what keeps the
             // check off the hot path.
-            if (!await firstRun.IsProvisionedAsync(ct))
+            // #532 (owner decision, AMENDING this issue's body, which asked for a
+            // per-account hint). Kept scoped to the DEFAULT account: making it
+            // per-account would answer "does farm X have an Owner yet?" for any
+            // farm code an attacker can guess, and would re-open the DoS the
+            // latch closed, since a farm that is never provisioned never latches
+            // and every failed login re-runs the triple-nested query.
+            if (account.Id == SeedDefaults.AccountId && !await firstRun.IsProvisionedAsync(ct))
                 // Says ADMINISTRATOR, not "no accounts" and not "no sign-in can
                 // succeed" (PR #363 review). The predicate is specifically "the
                 // default account has no Owner", which is #283's provisioning
@@ -211,7 +290,11 @@ public static class AuthEndpoints
             return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
         }
 
-        AuthCookies.SetRefreshCookie(response, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
+        // #532 — per-farm cookie: this login writes the cookie for the farm
+        // that was just authenticated and can no longer disturb any other
+        // farm's cookie. The old last-login-wins-over-every-tab behaviour is
+        // gone by construction, not by a guard.
+        AuthCookies.SetRefreshCookie(response, account.Id, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
     }
 
@@ -239,9 +322,81 @@ public static class AuthEndpoints
         if (!AuthCookies.HasCsrfHeader(request))
             return Results.Problem("Missing required header.", statusCode: 403, title: "Auth.CsrfHeaderRequired");
 
-        var refreshToken = AuthCookies.ReadRefreshCookie(request);
+        // #532 — the header selects WHICH cookie to read. Present and
+        // parseable: read only that farm's cookie. Absent: the bootstrap path
+        // below (the tab does not know its farm yet). Present but unparseable:
+        // refuse, read nothing — fail closed, as before: a client that thinks
+        // it knows its farm and got it wrong must not fall through to the
+        // broader bootstrap path.
+        Guid? accountId = null;
+        if (request.Headers.TryGetValue(AuthCookies.ExpectedAccountHeaderName, out var expectedValue))
+        {
+            if (!Guid.TryParse(expectedValue.ToString(), out var parsedAccountId))
+                return Results.Problem("Not authenticated.", statusCode: 401, title: "Auth.SessionChanged");
+            accountId = parsedAccountId;
+        }
+        else
+        {
+            // Bootstrap: the page loaded and the tab has no access token yet,
+            // so it does not know its farm. Exactly one per-farm cookie is the
+            // overwhelmingly common case (one farm per browser) and keeps
+            // working with no user-visible change. Several means do not guess —
+            // a distinct code, no rotation, nothing cleared; the SPA sends the
+            // user to login, whose farm-code field handles it (the picker is
+            // #535's job). None: try the one-way legacy upgrade below before
+            // returning the ordinary no-session 401.
+            var candidates = AuthCookies.RefreshCookieAccounts(request);
+            if (candidates.Count > 1)
+                return Results.Problem(
+                    "This browser holds sessions for several farms; choose one.",
+                    statusCode: 401, title: FarmSelectionRequiredCode);
+            if (candidates.Count == 1)
+                accountId = candidates[0];
+        }
+
+        var refreshToken = accountId is { } selectedAccount
+            ? AuthCookies.ReadRefreshCookie(request, selectedAccount)
+            : null;
         if (refreshToken is null)
-            return Results.Problem("Not authenticated.", statusCode: 401, title: "Identity.InvalidRefreshToken");
+        {
+            // #532 — the one-way legacy upgrade: a pre-per-farm session presents
+            // the shared name, which NO endpoint but this one accepts (Login and
+            // change-password always write the new per-farm form). Rotate it as
+            // normal, then write the new per-farm cookie AND delete the legacy
+            // one in the SAME response — the browser ends up with exactly one
+            // cookie for this farm. The legacy name is never written, so the
+            // branch drains naturally within one refresh-token lifetime.
+            // Removal condition: this branch can be deleted once
+            // Jwt:RefreshTokenDays (30) has elapsed since deploy; #537 should
+            // record that.
+            //
+            // The token value is opaque, so the stored token's AccountId —
+            // returned on the minted TokenPair — tells a headerless bootstrap
+            // which per-farm name to write. If a caller supplied an expected
+            // farm, RefreshAsync also checks it before rotating; a legacy token
+            // for another farm therefore fails closed and remains untouched.
+            var legacy = AuthCookies.ReadLegacyRefreshCookie(request);
+            if (legacy is not null && legacy.Length <= MaxRefreshTokenLength)
+            {
+                var legacyResult = await identity.RefreshAsync(legacy, ct, accountId);
+                if (legacyResult.IsSuccess)
+                    return LegacyUpgradeResult(response, legacyResult.Value, jwt.Value.RefreshTokenDays, CookieSecure(env));
+                // A dead legacy cookie (rotated elsewhere / expired) is not
+                // this farm's to clear on the legacy name — it is not per-farm.
+                // Leave it; it is inert. Fall through to the no-cookie 401.
+            }
+
+            // A named farm with no matching cookie is a changed session. With
+            // no selector and no legacy/per-farm cookie, this is the ordinary
+            // headerless no-session bootstrap response. Neither clears a
+            // cookie: there is no selected live credential to touch.
+            return Results.Problem(
+                "Not authenticated.", statusCode: 401,
+                title: accountId is null ? "Identity.InvalidRefreshToken" : "Auth.SessionChanged");
+        }
+
+        var selectedAccountId = accountId
+            ?? throw new InvalidOperationException("A per-farm refresh cookie requires an account selector.");
 
         // #309 — a real refresh token is a fixed, short base64 string. Treat an
         // over-length cookie value like a MISSING cookie (clear + the same
@@ -251,21 +406,42 @@ public static class AuthEndpoints
         // non-enumerating, this just matches the response actually produced.
         if (refreshToken.Length > MaxRefreshTokenLength)
         {
-            AuthCookies.ClearRefreshCookie(response, CookieSecure(env));
+            AuthCookies.ClearRefreshCookie(response, selectedAccountId, CookieSecure(env));
             return Results.Problem("Not authenticated.", statusCode: 401, title: "Identity.InvalidRefreshToken");
         }
 
-        var result = await identity.RefreshAsync(refreshToken, ct);
+        var result = await identity.RefreshAsync(refreshToken, ct, selectedAccountId);
         if (!result.IsSuccess)
         {
             // The cookie's token is invalid / already rotated / expired — expire
             // it so the browser stops presenting a dead token on every load.
-            AuthCookies.ClearRefreshCookie(response, CookieSecure(env));
+            // The clear can only ever reach the cookie of the farm the caller
+            // named (#532): P1-2's "cleared the other farm's cookie" is
+            // unrepresentable here, not guarded.
+            AuthCookies.ClearRefreshCookie(response, selectedAccountId, CookieSecure(env));
             return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
         }
 
-        AuthCookies.SetRefreshCookie(response, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
+        // #547 — RefreshAsync's expectedAccountId check above is
+        // defence-in-depth, not the primary guarantee: the cookie was selected
+        // by the caller's own farm name, so the stored token's AccountId should
+        // always match it. If it ever does not, something is wrong and we want
+        // to fail closed on it.
+
+        AuthCookies.SetRefreshCookie(response, selectedAccountId, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
+    }
+
+    // #532 — the legacy upgrade response: the new per-farm cookie AND the legacy
+    // delete ride the same response, so the browser ends the exchange holding
+    // exactly one refresh cookie for this farm. The legacy name remains
+    // read-only; Logout is the only other path that deletes it.
+    private static IResult LegacyUpgradeResult(
+        HttpResponse response, TokenPair pair, int lifetimeDays, bool secure)
+    {
+        AuthCookies.SetRefreshCookie(response, pair.AccountId, pair.RefreshToken, lifetimeDays, secure);
+        AuthCookies.ClearLegacyRefreshCookie(response, secure);
+        return Results.Ok(new AccessTokenResponse(pair.AccessToken, pair.AccessTokenExpiry));
     }
 
     private static async Task<IResult> ChangePassword(
@@ -289,7 +465,15 @@ public static class AuthEndpoints
 
         // Every prior session was revoked; hand this device a fresh cookie + access
         // token so the one that made the change stays signed in.
-        AuthCookies.SetRefreshCookie(response, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
+        // #532 — the graph found this endpoint rewrote the shared cookie with no
+        // account expectation at all; it was never part of #547. It now writes
+        // the cookie for the CURRENT USER's account — the only farm it can
+        // affect — so a change-password in farm A can no longer overwrite
+        // farm B's cookie. The account is the handler's own return value
+        // (ChangeOwnPasswordHandler returns it), not an ICurrentUser property:
+        // the interface is the authorization input, and adding account
+        // resolution to it would widen that surface for no gain.
+        AuthCookies.SetRefreshCookie(response, result.Value.AccountId, result.Value.RefreshToken, jwt.Value.RefreshTokenDays, CookieSecure(env));
         return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
     }
 
@@ -330,18 +514,16 @@ public static class AuthEndpoints
     // #336 review — logout revokes along TWO independent axes, because the two
     // credentials a logout can present do not necessarily name the same user:
     //
-    //   - the refresh COOKIE is per-origin. A browser holds exactly one, and the
-    //     most recent login owns it.
+    //   - refresh COOKIES are per-farm; the tab's account header selects one.
     //   - the ACCESS TOKEN is per-tab: web/src/auth/tokenStore.ts keeps it in
     //     that tab's module memory, so a tab logged in as A survives a later
     //     login as B in another tab.
     //
-    // So user A clicking logout in their tab can present B's cookie. Deriving
-    // the grant owner from the cookie alone recorded the logout against B and
-    // left A's outstanding step-up grant usable with A's still-valid (stolen)
-    // access token — after A had explicitly logged out, which is exactly the
-    // person StepUpGrantService's logout guarantee exists for. The same gap
-    // opened whenever the cookie was simply missing or expired.
+    // The bearer and selected cookie can still name different users: the
+    // header is a cookie selector, while the bearer identifies the actor.
+    // Deriving the grant owner from the cookie alone can therefore leave the
+    // actor's outstanding step-up grant alive. The same gap opens whenever the
+    // selected cookie is missing or expired.
     //
     // Hence both, each guarded on its own presence and neither depending on the
     // other:
@@ -372,6 +554,16 @@ public static class AuthEndpoints
     // expiry. The exception is deliberately NOT caught here: a request failing
     // loudly when the DB is down is worth preserving, and the SPA already treats
     // logout as best-effort regardless of status code.
+    //
+    // #532 — the account header selects this tab's per-farm cookie. When it is
+    // absent, the bearer account_id claim is the fallback. With neither, clear
+    // no per-farm cookie; logout remains idempotent and never sweeps another
+    // farm's named session. The temporary legacy cookie is different: its old
+    // shared name cannot select a farm. With no selected farm it is the only
+    // presented session and is revoked unconditionally. Alongside a selected
+    // farm it may belong to another farm from a pre-deploy tab, so its durable
+    // owner must match the selection before it is revoked. The browser copy is
+    // still cleared because the legacy name is being drained.
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IIdentityProvider identity,
         ICurrentUser currentUser, IWebHostEnvironment env, CancellationToken ct)
@@ -382,15 +574,54 @@ public static class AuthEndpoints
         if (currentUser.IsResolved)
             await identity.RecordLogoutAsync(currentUser.UserId, ct);
 
-        var refreshToken = AuthCookies.ReadRefreshCookie(request);
-        if (refreshToken is not null)
-            await identity.RevokeRefreshTokenAsync(refreshToken, ct);
-        AuthCookies.ClearRefreshCookie(response, CookieSecure(env));
+        // The header is checked first, and it wins: it is the tab declaring
+        // which farm it is ending. The per-farm rename made that declaration
+        // load-bearing for the SPA's own logout (the browser sends every
+        // farm's cookie, so the tab must say which one it means), and it is
+        // exactly as much of a trust boundary as the bearer's claim — the
+        // cookie the named farm holds is what gets revoked, and presenting a
+        // farm's cookie is possession of that farm's credential. With the
+        // header absent the bearer's account_id claim routes the logout without
+        // growing ICurrentUser with cookie-routing state. With neither there is
+        // nothing to clear (idempotent 204).
+        Guid? accountId = null;
+        if (request.Headers.TryGetValue(AuthCookies.ExpectedAccountHeaderName, out var headerValue)
+            && Guid.TryParse(headerValue.ToString(), out var parsed))
+            accountId = parsed;
+        else if (request.HttpContext.User.Identity?.IsAuthenticated == true)
+        {
+            var claim = request.HttpContext.User.FindFirst("account_id")?.Value;
+            if (Guid.TryParse(claim, out var callerAccount))
+                accountId = callerAccount;
+        }
+
+        var selectedRefreshToken = accountId is { } selectedAccount
+            ? AuthCookies.ReadRefreshCookie(request, selectedAccount)
+            : null;
+        var legacyRefreshToken = AuthCookies.ReadLegacyRefreshCookie(request);
+
+        // Revoke every in-scope credential before clearing either browser copy.
+        // If the database operation fails, Logout fails loudly and a retry can
+        // safely repeat the idempotent revocations. Comparing the two values is
+        // only a cost optimisation: when the same token temporarily appears
+        // under both names, one idempotent revoke is enough. Both cookies are
+        // still deleted below.
+        if (selectedRefreshToken is not null)
+            await identity.RevokeRefreshTokenAsync(selectedRefreshToken, ct);
+        if (legacyRefreshToken is not null
+            && !string.Equals(legacyRefreshToken, selectedRefreshToken, StringComparison.Ordinal))
+            await identity.RevokeRefreshTokenAsync(legacyRefreshToken, ct, accountId);
+
+        var secure = CookieSecure(env);
+        if (accountId is { } account)
+            AuthCookies.ClearRefreshCookie(response, account, secure);
+        if (legacyRefreshToken is not null)
+            AuthCookies.ClearLegacyRefreshCookie(response, secure);
         return Results.NoContent();
     }
 }
 
-public sealed record LoginRequest(string Email, string Password);
+public sealed record LoginRequest(string FarmCode, string Email, string Password);
 
 public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword);
 

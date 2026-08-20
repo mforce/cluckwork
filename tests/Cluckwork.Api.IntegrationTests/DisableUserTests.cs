@@ -214,7 +214,7 @@ public sealed class DisableUserTests(CluckworkWebApplicationFactory factory)
         await EnableAsync(owner, id, await StepUpAsync(owner));
 
         Assert.Equal(HttpStatusCode.Unauthorized,
-            (await factory.CreateClient().PostRefreshAsync(target.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(target.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
     }
 
     [Fact]

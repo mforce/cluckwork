@@ -33,7 +33,7 @@ function Probe() {
       <span data-testid="auth">{String(isAuthenticated)}</span>
       <span data-testid="pending-pw">{String(mustChangePassword)}</span>
       <span data-testid="user-id">{userId ?? "null"}</span>
-      <button onClick={() => void login("a@b.co", "pw")}>login</button>
+      <button onClick={() => void login("default-farm", "a@b.co", "pw")}>login</button>
       <button onClick={() => void logout()}>logout</button>
     </div>
   );
@@ -76,7 +76,11 @@ describe("AuthProvider lifecycle", () => {
 
     await act(async () => resolveLogin());
 
-    expect(mockApiLogin).toHaveBeenCalledWith({ email: "a@b.co", password: "pw" });
+    expect(mockApiLogin).toHaveBeenCalledWith({
+      farmCode: "default-farm",
+      email: "a@b.co",
+      password: "pw",
+    });
     expect(screen.getByTestId("role")).toHaveTextContent("Sales");
     expect(screen.getByTestId("admin")).toHaveTextContent("false");
     expect(screen.getByTestId("auth")).toHaveTextContent("true");

@@ -6,19 +6,36 @@ using Cluckwork.Domain.Catalog;
 // in a future IIdentityProvider implementation without touching Application.
 public interface IIdentityProvider
 {
+    // #532 — the account is resolved from the farm code BEFORE this call, and
+    // is an INPUT, not something login discovers. Previously the account fell
+    // out of whichever row a global email lookup happened to return, so nothing
+    // ever CHOSE a farm.
     Task<Result<TokenPair>> LoginAsync(
-        string email, string password, CancellationToken ct = default);
+        Guid accountId, string email, string password, CancellationToken ct = default);
 
+    // #547 — expectedAccountId is the farm the tab told the endpoint it is
+    // refreshing, sent as the X-Cluckwork-Account header. The server compares
+    // it against the STORED token's AccountId and refuses (Auth.SessionChanged)
+    // BEFORE anything rotates when they differ. Per-farm cookie names make a
+    // normal mismatch impossible; the comparison remains defence-in-depth
+    // against a malformed or misplaced cookie. Absent (null) is reserved for
+    // headerless legacy migration and is not a mismatch.
     Task<Result<TokenPair>> RefreshAsync(
-        string refreshToken, CancellationToken ct = default);
+        string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null);
 
-    Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default);
+    // When expectedAccountId is present, resolve the stored token's account and
+    // do nothing unless it matches. Logout uses this for the temporary shared
+    // legacy cookie: a browser may hold that cookie for one farm alongside a
+    // selected per-farm cookie for another. Null preserves the unconditional
+    // legacy-only logout contract.
+    Task RevokeRefreshTokenAsync(
+        string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null);
 
     // #308/#336 review — record that THIS user logged out, independently of any
     // refresh token. RevokeRefreshTokenAsync already records a logout for the
-    // cookie's owner, but the cookie and the caller's access token can name
-    // DIFFERENT users: the refresh cookie is per-origin (one per browser, last
-    // login wins) while the SPA keeps each access token in its own tab's memory.
+    // cookie's owner, but the selected cookie and caller's access token can name
+    // different users: the account header routes the per-farm cookie while the
+    // SPA keeps each access token in its own tab's memory.
     // So the user who actually clicked logout is the bearer's subject, and only
     // this call reaches them — see AuthEndpoints.Logout.
     //
@@ -151,7 +168,12 @@ public interface IIdentityProvider
 public sealed record TokenPair(
     string AccessToken,
     string RefreshToken,
-    DateTimeOffset AccessTokenExpiry);
+    DateTimeOffset AccessTokenExpiry,
+    // #532 — the farm the token pair belongs to. Login/ChangeOwnPassword know it
+    // at mint time; Refresh recovers it from the stored token row. The
+    // per-farm refresh cookie (#532 per-farm rename) needs it to know WHICH
+    // cookie name to write, because the token value itself is opaque.
+    Guid AccountId);
 
 // #356 — DisabledAt is null for an active user. Exposed on the LIST rather
 // than filtered out of it: an Owner cannot re-enable someone they cannot see.

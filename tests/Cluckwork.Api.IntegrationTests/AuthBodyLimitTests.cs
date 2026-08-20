@@ -75,7 +75,7 @@ public sealed class AuthBodyLimitTests(AuthBodyLimitFactory factory)
         // ~8 KB password → body well over the 4 KB login cap; a declared
         // Content-Length is refused before binding or the hasher.
         var response = await client.PostAsJsonAsync(LoginPath,
-            new { email = "nobody@example.com", password = new string('a', 8192) });
+            new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = new string('a', 8192) });
 
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
         Assert.Equal(0, factory.Hasher.VerifyCount);
@@ -120,7 +120,7 @@ public sealed class AuthBodyLimitTests(AuthBodyLimitFactory factory)
         var client = factory.CreateClient();
 
         var declared = await client.PostAsJsonAsync(LoginPath,
-            new { email = "nobody@example.com", password = new string('a', 8192) });
+            new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = new string('a', 8192) });
 
         var chunked = await client.SendAsync(
             LyingLengthRequest(new string('a', 8192), declaredLength: 10));
@@ -141,7 +141,7 @@ public sealed class AuthBodyLimitTests(AuthBodyLimitFactory factory)
     private static HttpRequestMessage LyingLengthRequest(string password, long declaredLength)
     {
         var bytes = Encoding.UTF8.GetBytes(
-            $"{{\"email\":\"nobody@example.com\",\"password\":\"{password}\"}}");
+            $"{{\"farmCode\":\"default-farm\",\"email\":\"nobody@example.com\",\"password\":\"{password}\"}}");
         var content = new StreamContent(new NonSeekableStream(bytes));
         content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         content.Headers.ContentLength = declaredLength;
@@ -157,7 +157,7 @@ public sealed class AuthBodyLimitTests(AuthBodyLimitFactory factory)
         // 257-char password: body is well under the 4 KB cap, so it binds — but
         // the login validator's max-length rule 400s it before the hasher.
         var response = await client.PostAsJsonAsync(LoginPath,
-            new { email = "nobody@example.com", password = new string('a', 257) });
+            new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = new string('a', 257) });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(0, factory.Hasher.VerifyCount);
@@ -175,7 +175,7 @@ public sealed class AuthBodyLimitTests(AuthBodyLimitFactory factory)
         var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(LoginPath,
-            new { email = $"ghost-{Guid.NewGuid():N}@example.com", password = new string('a', 256) });
+            new { farmCode = TestHarness.DefaultFarmCode, email = $"ghost-{Guid.NewGuid():N}@example.com", password = new string('a', 256) });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.True(factory.Hasher.VerifyCount >= 1,
@@ -189,7 +189,7 @@ public sealed class AuthBodyLimitTests(AuthBodyLimitFactory factory)
         var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(LoginPath,
-            new { email = $"ghost-{Guid.NewGuid():N}@example.com", password = "WrongPassw0rd!" });
+            new { farmCode = TestHarness.DefaultFarmCode, email = $"ghost-{Guid.NewGuid():N}@example.com", password = "WrongPassw0rd!" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         // The unknown-user path must STILL hash, or timing leaks user existence.
@@ -204,10 +204,17 @@ public sealed class AuthBodyLimitTests(AuthBodyLimitFactory factory)
         await factory.SeedAccountWithUserAsync(email);
         var client = factory.CreateClient();
 
+        // #532 — BOTH probes must target the SAME farm. The indistinguishability
+        // this test guards is between a known and an unknown USER, and it is now
+        // a per-farm property: the default farm answers Auth.NoOwnerProvisioned
+        // while it has no Owner (#283/#361), so probing the unknown user there
+        // and the known user here compares two different farms' denial shapes
+        // and fails for a reason that has nothing to do with user existence.
+        var farmCode = await factory.FarmCodeForAsync(email);
         var unknown = await client.PostAsJsonAsync(LoginPath,
-            new { email = $"ghost-{Guid.NewGuid():N}@example.com", password = "WrongPassw0rd!" });
+            new { farmCode, email = $"ghost-{Guid.NewGuid():N}@example.com", password = "WrongPassw0rd!" });
         var known = await client.PostAsJsonAsync(LoginPath,
-            new { email, password = "WrongPassw0rd!" });
+            new { farmCode, email, password = "WrongPassw0rd!" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, unknown.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, known.StatusCode);
@@ -223,7 +230,7 @@ public sealed class AuthBodyLimitTests(AuthBodyLimitFactory factory)
         var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(LoginPath,
-            new { email, password = TestHarness.Password });
+            new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

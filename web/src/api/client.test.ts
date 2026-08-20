@@ -19,6 +19,7 @@ import {
   getLastTraceId,
 } from "./client";
 import { getAccessToken, setAccessToken, clearAccessToken } from "../auth/tokenStore";
+import { bindAccount, clearBoundAccount, getBoundAccountId } from "../auth/tokenStore";
 
 // The fetch client owns the SPA's session lifecycle: bearer-attach, one
 // transparent refresh-and-retry on 401, single-flight refresh, and fail-closed
@@ -36,9 +37,39 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+// executeRefresh refuses a token whose account_id differs from the tab's own.
+//
+// #532 round 8 — mint as base64URL, like the server does: the standard-btoa
+// fixture was the reason claims.ts's base64url translation looked deletable in
+// round 7 (a test-minted payload never contains the URL-safe characters). A
+// payload whose base64 form contains "+" (one 0xff byte does: …"//w=…")
+// carries "-" in its base64url form, so deleting the translation line in
+// claims.ts reddens the same-farm rotation test below, which mints such a
+// token for BOTH the stored and the refreshed position.
+function b64url(input: string): string {
+  return btoa(input).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function jwtPayloadUrl(claims: Record<string, unknown>): string {
+  return b64url(JSON.stringify(claims));
+}
+function jwtWithAccountId(accountId: string, marker: string, withPlus = false): string {
+  return `hdr.${jwtPayloadUrl({ sub: `user-${marker}${withPlus ? "\xff" : ""}`, account_id: accountId, exp: 9999999999 })}.sig`;
+}
+
 // The access-token body login/refresh now return (no refresh token).
 function accessResponse(accessToken: string, status = 200): Response {
   return jsonResponse({ accessToken, accessTokenExpiry: FUTURE }, status);
+}
+
+// #532 round 8 — the cross-farm guard fails closed on any token it cannot
+// attribute to a farm. A plain-string token ("at2", "newLoginToken", …) is
+// UNATTRIBUTABLE, so a refresh that returns one is REFUSED, not adopted — and
+// the #310 supersession paths below (which resolve a refresh gate with such a
+// token and then assert the discard) would never run. These helpers mint the
+// same markers WITH an account claim, so the guard adopts (the tab is
+// unbound) and the supersession logic under test actually executes.
+function claimfulToken(marker: string): string {
+  return jwtWithAccountId("acct-" + marker.split("-")[0], marker);
 }
 
 type Call = [string, RequestInit];
@@ -78,7 +109,20 @@ beforeEach(() => {
   onTokens = vi.fn();
   setOnUnauthenticated(onUnauth);
   setOnTokensChanged(onTokens);
+  // #532 — the cross-farm guard fails closed on any token it cannot attribute
+  // to a farm, so a token that has no account claim at all (like this
+  // placeholder) only ever exercises the REFRESH-failure paths in this file.
+  // The round-7 mutation (delete the null-claim throw) reddens the dedicated
+  // claim-less test below, not these.
+  // #532 — the cross-farm guard fails closed on any token it cannot attribute
+  // to a farm, so a claim-less placeholder only ever exercises the
+  // REFRESH-failure paths in this file. Deleting the null-claim throw in
+  // executeRefresh reddens the dedicated claim-less test below (the tab is
+  // unbound, so an unattributable token would be adopted and the refresh
+  // would succeed) — these tests stay green either way by design.
   setAccessToken("at1");
+  clearBoundAccount(); // #532 — the farm binding is module state too; a bound
+  // leftover would silently flip a "cold restore" test into a "bound tab" test.
 });
 
 afterEach(() => {
@@ -86,6 +130,7 @@ afterEach(() => {
   setOnUnauthenticated(null);
   setOnTokensChanged(null);
   clearAccessToken();
+  clearBoundAccount();
 });
 
 describe("apiFetch — happy path", () => {
@@ -143,11 +188,11 @@ describe("apiFetch — no in-memory token", () => {
   it("uses the refreshed token when the silent refresh succeeds", async () => {
     clearAccessToken();
     fetchMock
-      .mockResolvedValueOnce(accessResponse("at2")) // silent refresh
+      .mockResolvedValueOnce(accessResponse(claimfulToken("at2"))) // silent refresh
       .mockResolvedValueOnce(jsonResponse({ ok: true })); // the request, now authed
     const body = await apiGet<{ ok: boolean }>("/stock");
     expect(body).toEqual({ ok: true });
-    expect(authOf(callsTo(fetchMock, "/stock")[0])).toBe("Bearer at2");
+    expect(authOf(callsTo(fetchMock, "/stock")[0])).toBe(`Bearer ${claimfulToken("at2")}`);
   });
 });
 
@@ -280,7 +325,7 @@ describe("apiFetch — transparent refresh", () => {
   it("on 401, refreshes once and retries the original request with the new token", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
-      .mockResolvedValueOnce(accessResponse("at2")) // refresh
+      .mockResolvedValueOnce(accessResponse(claimfulToken("at2"))) // refresh
       .mockResolvedValueOnce(jsonResponse({ ok: true })); // retry
 
     const body = await apiGet<{ ok: boolean }>("/stock");
@@ -297,15 +342,15 @@ describe("apiFetch — transparent refresh", () => {
     expect(headerOf(calls[1], CSRF)).toBe("1");
     // Retry hits the same URL with the refreshed token.
     expect(calls[2][0]).toBe("/api/v1/stock");
-    expect(authOf(calls[2])).toBe("Bearer at2");
+    expect(authOf(calls[2])).toBe(`Bearer ${claimfulToken("at2")}`);
     expect(onTokens).toHaveBeenCalledTimes(1);
-    expect(getAccessToken()).toBe("at2");
+    expect(getAccessToken()).toBe(claimfulToken("at2"));
   });
 
   it("replays a write across a refresh with the SAME idempotency key and body", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original POST
-      .mockResolvedValueOnce(accessResponse("at2")) // refresh
+      .mockResolvedValueOnce(accessResponse(claimfulToken("at2"))) // refresh
       .mockResolvedValueOnce(jsonResponse({ id: "1" })); // retry POST
 
     await apiPost("/customers", { name: "x" }, "fixed-key");
@@ -318,7 +363,7 @@ describe("apiFetch — transparent refresh", () => {
     // Same idempotency key → the server dedupes the replay instead of double-writing.
     expect(headerOf(retry, "Idempotency-Key")).toBe("fixed-key");
     expect(headerOf(original, "Idempotency-Key")).toBe("fixed-key");
-    expect(authOf(retry)).toBe("Bearer at2"); // only the bearer changed
+    expect(authOf(retry)).toBe(`Bearer ${claimfulToken("at2")}`); // only the bearer changed
   });
 
   it("shares a single in-flight refresh across concurrent 401s (single-flight)", async () => {
@@ -329,7 +374,7 @@ describe("apiFetch — transparent refresh", () => {
         refreshes += 1;
         if (refreshes > 1) throw new Error("a second refresh must not start while one is in flight");
         await gate.promise; // hold open until both 401s have parked on this refresh
-        return accessResponse("at2");
+        return accessResponse(claimfulToken("at2"));
       }
       const auth = new Headers(init.headers).get("Authorization");
       return auth === "Bearer at1" ? jsonResponse({ title: "expired" }, 401) : jsonResponse({ ok: true });
@@ -349,16 +394,316 @@ describe("apiFetch — transparent refresh", () => {
   it("refreshes again on a later 401 — the single-flight latch is cleared on success", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // cycle 1 original
-      .mockResolvedValueOnce(accessResponse("at2"))
+      .mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-cyc", "at2")))
       .mockResolvedValueOnce(jsonResponse({ ok: 1 })) // cycle 1 retry
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // cycle 2 original
-      .mockResolvedValueOnce(accessResponse("at3"))
+      .mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-cyc", "at3")))
       .mockResolvedValueOnce(jsonResponse({ ok: 2 })); // cycle 2 retry
 
     await apiGet("/a");
     await apiGet("/b");
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(2); // a stuck latch would only refresh once
-    expect(getAccessToken()).toBe("at3");
+    expect(getAccessToken()).toBe(jwtWithAccountId("acct-cyc", "at3"));
+  });
+});
+
+// #532 — per-farm cookie selection prevents the ordinary cross-tab collision,
+// but the SPA still fails closed if a malformed server response returns a token
+// for a different farm. Adopting it would let the retry replay this tab's
+// pending request — body and all — against the wrong farm.
+
+
+describe("executeRefresh — cross-farm adoption guard (#532)", () => {
+  it("refuses a refreshed token from a DIFFERENT farm: no retry, session torn down", async () => {
+    // The tab's binding is what the guard compares against (round 6 derived it
+    // from the stored token and was a one-shot — see below). Bind it explicitly.
+    bindAccount("acct-A");
+    setAccessToken(jwtWithAccountId("acct-A", "tab"));
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
+      .mockResolvedValueOnce(
+        accessResponse(jwtWithAccountId("acct-B", "other-farm")),
+      ); // refresh returns farm B's session
+
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(401);
+    // The original request was NOT retried against the other farm. The extra
+    // call is the refusal's own cookie revoke: the refused response rotated a
+    // refresh cookie that a teardown cannot reach, so a reload would otherwise
+    // restore the session this tab just refused (see #310/#393).
+    expect(callsTo(fetchMock, "/stock")).toHaveLength(1);
+    // #547 — no revoke: the refusal means the cookie belongs to ANOTHER farm's
+    // tab, and revoking it would sign out a tab that did nothing wrong (#310).
+    // Refusal tears down THIS tab only.
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0);
+    // This tab's session was torn down: token cleared, sent to login.
+    expect(getAccessToken()).toBeNull();
+    expect(onUnauth).toHaveBeenCalledTimes(1);
+    expect(onTokens).not.toHaveBeenCalled(); // the other farm's token was never adopted
+  });
+
+  it("adopts and retries normally when the refreshed token carries the SAME farm", async () => {
+    bindAccount("acct-A");
+    // withPlus: the 0xff byte makes the payload's base64 contain "+", i.e. the
+    // base64url form carries "-". This is the test that reddens if the
+    // base64url translation line in claims.ts is deleted: without it the
+    // account claim would not decode, the guard would refuse, and the retry
+    // would never happen. (Round 7 found that line deletable precisely
+    // because the btoa fixture never minted one.)
+    setAccessToken(jwtWithAccountId("acct-A", "tab", true));
+    const rotated = jwtWithAccountId("acct-A", "rotated", true);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
+      .mockResolvedValueOnce(accessResponse(rotated)) // refresh rotates within the same farm
+      .mockResolvedValueOnce(jsonResponse({ ok: true })); // the retry
+
+    const body = await apiGet<{ ok: boolean }>("/stock");
+    expect(body).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const retried = callsTo(fetchMock, "/stock")[1];
+    expect(authOf(retried)).toBe(`Bearer ${rotated}`);
+    expect(getAccessToken()).toBe(rotated);
+    expect(onUnauth).not.toHaveBeenCalled();
+    expect(onTokens).toHaveBeenCalledTimes(1);
+  });
+
+  it("still allows adoption on a cold restore (no prior token in this tab), and binds", async () => {
+    clearAccessToken(); // the legitimate cold-restore path: nothing to compare against
+    expect(getBoundAccountId()).toBeNull(); // ...and no binding — genuinely unbound
+    fetchMock
+      .mockResolvedValueOnce(
+        accessResponse(jwtWithAccountId("acct-B", "restored")),
+      ) // the silent refresh
+      .mockResolvedValueOnce(jsonResponse({ ok: true })); // the request
+
+    const body = await apiGet<{ ok: boolean }>("/stock");
+    expect(body).toEqual({ ok: true });
+    expect(getAccessToken()).toBe(jwtWithAccountId("acct-B", "restored"));
+    // The restored tab is bound after adopting, so it is unbound exactly once:
+    // a later refresh for a DIFFERENT farm is now refused, not silently adopted.
+    expect(getBoundAccountId()).toBe("acct-B");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
+      .mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-C", "other"))); // a foreign farm now
+
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(401);
+    expect(onUnauth).toHaveBeenCalledTimes(1);
+  });
+
+  // THE round-7 P1, proven sequential: a refusal tears the session down, which
+  // clears the stored token — the SAME state the cold-restore allowance trusts
+  // when it derives the tab's farm from the token. With the binding surviving
+  // teardown, a second request must still be refused and NOT retried on the
+  // foreign farm. Round 6's guard was defeated by exactly this: two ordinary
+  // concurrent requests, the first refused, the second's POST /eggs replayed on
+  // farm B's bearer with farm A's body.
+  it("a repeat refusal is still refused — the binding survives the first refusal's teardown", async () => {
+    bindAccount("acct-A");
+    setAccessToken(jwtWithAccountId("acct-A", "tab"));
+
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // request 1 original
+      .mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-B", "other-farm"))); // refresh → farm B
+    const first = await apiGet("/stock").catch((e: unknown) => e);
+
+    // First refusal: torn down, no retry.
+    expect(first).toBeInstanceOf(ApiError);
+    expect((first as ApiError).status).toBe(401);
+    expect(getAccessToken()).toBeNull(); // teardown cleared the store — the round-6 one-shot state
+    expect(getBoundAccountId()).toBe("acct-A"); // ...but the binding survived it
+
+    // The second request: an empty store plus a binding is NOT a cold restore.
+    fetchMock
+      .mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-B", "other-farm-again"))); // refresh again
+    const second = await apiPost<{ id?: string }>("/eggs", { body: "farm-A-body" }, "repeat-key").catch(
+      (e: unknown) => e,
+    );
+
+    expect(second).toBeInstanceOf(ApiError);
+    expect((second as ApiError).status).toBe(401);
+    // The second refresh was refused: /eggs was never sent on farm B's bearer.
+    expect(callsTo(fetchMock, "/eggs")).toHaveLength(0);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(2);
+    expect(getAccessToken()).toBeNull();
+  });
+
+  // Round 7 adopted a token with no account_id, and the literal string
+  // "not-a-jwt", because the guard trusted a null on the REFRESHED token. Both
+  // are refused now: a token we cannot attribute to a farm is never adopted.
+  it("refuses a refreshed token whose payload lacks an account_id claim", async () => {
+    // UNBOUND tab: the null-claim throw is the ONLY check that fires here.
+    // A bound tab would be caught by the mismatch check instead, which would
+    // make the null-claim throw untestable (deleting it leaves this green).
+    setAccessToken(jwtWithAccountId("acct-A", "tab"));
+    const noAccount = `hdr.${jwtPayloadUrl({ sub: "user-x", exp: 9999999999 })}.sig`;
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
+      .mockResolvedValueOnce(accessResponse(noAccount)); // refresh: no account claim
+
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(401);
+    expect(callsTo(fetchMock, "/stock")).toHaveLength(1); // no retry on the unattributable token
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0); // #547 — a refusal never revokes the other farm's cookie
+    expect(getAccessToken()).toBeNull();
+    expect(onUnauth).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses an unparseable refreshed token ('not-a-jwt')", async () => {
+    // UNBOUND tab: same reasoning as the null-claim test above.
+    setAccessToken(jwtWithAccountId("acct-A", "tab"));
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
+      .mockResolvedValueOnce(accessResponse("not-a-jwt")); // refresh: garbage
+
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(401);
+    expect(callsTo(fetchMock, "/stock")).toHaveLength(1); // no retry on the unparseable token
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0); // #547 — a refusal never revokes the other farm's cookie
+    expect(getAccessToken()).toBeNull();
+    expect(onUnauth).toHaveBeenCalledTimes(1);
+  });
+});
+
+// #547 — the SERVER-side half of the cross-farm guard: the tab tells
+// /auth/refresh which farm it expects (X-Cluckwork-Account) and the server
+// compares it against the stored token's AccountId before rotating. These
+// tests pin the client's half of the contract: the header rides along when
+// the tab is bound, is omitted when unbound, and an Auth.SessionChanged 401
+// tears down THIS tab only — never a revoke of the other farm's cookie.
+
+describe("executeRefresh — expected-account header (#547)", () => {
+  it("sends X-Cluckwork-Account when the tab is bound", async () => {
+    bindAccount("acct-A");
+    setAccessToken(jwtWithAccountId("acct-A", "tab"));
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
+      .mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-A", "rotated"))) // refresh
+      .mockResolvedValueOnce(jsonResponse({ ok: true })); // retry
+
+    await apiGet("/stock");
+
+    const refresh = callsTo(fetchMock, "/auth/refresh")[0];
+    expect(headerOf(refresh, "X-Cluckwork-Account")).toBe("acct-A");
+    expect(headerOf(refresh, CSRF)).toBe("1"); // the CSRF header still rides too
+  });
+
+  it("omits X-Cluckwork-Account when the tab is unbound (the bootstrap path)", async () => {
+    // Cold restore: the in-memory store is EMPTY, so the refresh is the silent
+    // bootstrap refresh (currentAccessToken → refreshTokens), not a 401 retry.
+    clearAccessToken();
+    expect(getBoundAccountId()).toBeNull();
+    fetchMock
+      .mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-B", "restored"))) // the silent refresh
+      .mockResolvedValueOnce(jsonResponse({ ok: true })); // the request, on the restored token
+
+    await apiGet("/stock");
+
+    expect(getAccessToken()).toBe(jwtWithAccountId("acct-B", "restored"));
+    const refresh = callsTo(fetchMock, "/auth/refresh")[0];
+    expect(headerOf(refresh, "X-Cluckwork-Account")).toBeNull(); // unbound → no expectation
+  });
+
+  it("an Auth.SessionChanged 401 tears down THIS tab only, and the binding SURVIVES — no revoke of the other farm's cookie", async () => {
+    // Empty store: the refresh is the SILENT bootstrap refresh
+    // (currentAccessToken → refreshTokens), which surfaces the refresh's own
+    // error — so the Auth.SessionChanged title reaches the caller directly.
+    bindAccount("acct-A");
+    clearAccessToken(); // the binding survives: this tab still knows its farm
+    expect(getBoundAccountId()).toBe("acct-A");
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ title: "Auth.SessionChanged", detail: "This session now belongs to a different farm." }, 401),
+    ); // the server refused: the cookie belongs to another farm
+
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(401);
+    expect((err as ApiError).title).toBe("NoSession"); // currentAccessToken wraps it
+    // This tab is torn down and re-bootstraps…
+    expect(getAccessToken()).toBeNull();
+    // #532 P1-1 — THE assertion that pins the binding: it SURVIVES the
+    // teardown. Round 9 proved that clearing it here (the pre-#532 behaviour,
+    // which this test previously asserted) puts the tab back into the
+    // trusting cold-restore state — the next refresh omits
+    // X-Cluckwork-Account and the bootstrap path adopts whatever the server
+    // picks. A tab that knows its farm must keep knowing it.
+    expect(getBoundAccountId()).toBe("acct-A");
+    // …because the REFRESH answered Auth.SessionChanged. It reaches the
+    // teardown twice — executeRefresh's own branch AND currentAccessToken's
+    // catch, which fires onUnauthenticated for any non-stale refresh failure
+    // (the pre-existing double-navigation pattern for a silent-refresh
+    // failure). Both carry the REFRESH's title, never the wrap's.
+    expect(onUnauth).toHaveBeenCalledTimes(2);
+    expect(onUnauth).toHaveBeenNthCalledWith(1, "Auth.SessionChanged");
+    expect(onUnauth).toHaveBeenNthCalledWith(2, "Auth.SessionChanged");
+    // …and the other farm's cookie is deliberately left alone (#310).
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0);
+    expect(callsTo(fetchMock, "/stock")).toHaveLength(0); // no request was ever sent — no token
+  });
+
+  it("an Auth.FarmSelectionRequired 401 tears the tab down and routes to login, and the binding survives", async () => {
+    // #532 — the bootstrap path found several per-farm cookies and the tab
+    // named none: the server refuses to guess. The SPA treats it like the
+    // other terminal 401s: clear the token, fire onUnauthenticated (which
+    // AuthContext wires to the /login navigation), rethrow.
+    bindAccount("acct-A");
+    clearAccessToken();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ title: "Auth.FarmSelectionRequired", detail: "This browser holds sessions for several farms; choose one." }, 401),
+    );
+
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(401);
+    expect(getAccessToken()).toBeNull();
+    // The binding survives, exactly as with Auth.SessionChanged: a re-login on
+    // the right farm rebinds, and until then the next refresh must keep
+    // naming the farm it knows.
+    expect(getBoundAccountId()).toBe("acct-A");
+    // The login-page copy is what the user sees: AuthContext stores the title
+    // and Login.tsx renders auth:farmSelectionRequired for it.
+    expect(onUnauth).toHaveBeenCalledTimes(2);
+    expect(onUnauth).toHaveBeenNthCalledWith(1, "Auth.FarmSelectionRequired");
+    expect(onUnauth).toHaveBeenNthCalledWith(2, "Auth.FarmSelectionRequired");
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0);
+  });
+});
+
+describe("#547 — login binds the tab to its farm (the header's source)", () => {
+  it("a login stores the token AND binds the tab, so its next refresh sends the header — and a different-farm refresh is refused", async () => {
+    clearAccessToken();
+    expect(getBoundAccountId()).toBeNull();
+    const loggedIn = jwtWithAccountId("acct-A", "fresh-login");
+    fetchMock.mockResolvedValueOnce(accessResponse(loggedIn)); // the login itself
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
+
+    // THE binding the cross-farm guard depends on: derived from the login
+    // token's account claim, not set by the test. Deleting the bindAccount
+    // call in login() makes this null and the next assertions red.
+    expect(getBoundAccountId()).toBe("acct-A");
+
+    // A refresh for ANOTHER farm is now refused (client-side guard — the
+    // server-side check is the same comparison over HTTP): no retry, teardown,
+    // no revoke of the other farm's cookie.
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
+      .mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-B", "other-farm")));
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(401);
+    expect(callsTo(fetchMock, "/stock")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0);
+    // The header the server check relies on was actually sent by the refresh
+    // above: without the login-time binding, the server would see no
+    // expectation and the client-side refusal could not have fired either.
+    expect(headerOf(callsTo(fetchMock, "/auth/refresh")[0], "X-Cluckwork-Account")).toBe("acct-A");
   });
 });
 
@@ -380,7 +725,7 @@ describe("apiFetch — refresh failure is fail-closed and non-recursive", () => 
   it("does NOT retry-refresh when the retry itself 401s (one transparent refresh only)", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original
-      .mockResolvedValueOnce(accessResponse("at2")) // refresh ok
+      .mockResolvedValueOnce(accessResponse(claimfulToken("at2"))) // refresh ok
       .mockResolvedValueOnce(jsonResponse({ title: "still 401" }, 401)); // retry 401
 
     const err = await apiGet("/stock").catch((e: unknown) => e);
@@ -430,7 +775,7 @@ describe("apiFetch — refresh failure is fail-closed and non-recursive", () => 
     setAccessToken("at1b");
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // req 2 original
-      .mockResolvedValueOnce(accessResponse("at2")) // refresh ok
+      .mockResolvedValueOnce(accessResponse(claimfulToken("at2"))) // refresh ok
       .mockResolvedValueOnce(jsonResponse({ ok: true })); // req 2 retry
     await expect(apiGet<{ ok: boolean }>("/b")).resolves.toEqual({ ok: true });
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(2);
@@ -525,7 +870,7 @@ describe("write idempotency", () => {
     const bytes = new Blob(["png"], { type: "image/png" });
     fetchMock
       .mockResolvedValueOnce(new Response(null, { status: 401 }))   // the write
-      .mockResolvedValueOnce(accessResponse("fresh"))               // the refresh
+      .mockResolvedValueOnce(accessResponse(claimfulToken("fresh")))               // the refresh
       .mockResolvedValueOnce(jsonResponse({ contentHash: "abc" })); // the retry
 
     await apiPutBytes("/account/logo", bytes, "image/png", "logo-key");
@@ -535,7 +880,7 @@ describe("write idempotency", () => {
     // A body consumed by the first attempt would make the retry upload nothing;
     // a Blob can be read again, which is why the retry is safe at all.
     expect(writes[1][1].body).toBe(bytes);
-    expect(authOf(writes[1])).toBe("Bearer fresh");
+    expect(authOf(writes[1])).toBe(`Bearer ${claimfulToken("fresh")}`);
     expect(headerOf(writes[1], "Idempotency-Key")).toBe("logo-key");
   });
 
@@ -572,13 +917,13 @@ describe("apiGetBlob — file download", () => {
   it("transparently refreshes on 401 and retries the download with the new token", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "expired" }, 401)) // original blob request
-      .mockResolvedValueOnce(accessResponse("at2")) // refresh
+      .mockResolvedValueOnce(accessResponse(claimfulToken("at2"))) // refresh
       .mockResolvedValueOnce(new Response("data", { status: 200 })); // retry
 
     const { blob } = await apiGetBlob("/export/all");
     expect(blob.size).toBe(4); // "data"
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(authOf(fetchMock.mock.calls[2] as Call)).toBe("Bearer at2");
+    expect(authOf(fetchMock.mock.calls[2] as Call)).toBe(`Bearer ${claimfulToken("at2")}`);
   });
 
   it("with no session, attempts one refresh, then throws 401 + fires onUnauthenticated", async () => {
@@ -592,10 +937,29 @@ describe("apiGetBlob — file download", () => {
 });
 
 describe("auth endpoints", () => {
+  it("login succeeds with an in-memory farm binding when sessionStorage writes are blocked", async () => {
+    clearAccessToken();
+    clearBoundAccount();
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("The operation is insecure.", "SecurityError");
+    });
+    fetchMock.mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-A", "storage-blocked")));
+
+    try {
+      await expect(login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }))
+        .resolves.toBeUndefined();
+      expect(getAccessToken()).toBe(jwtWithAccountId("acct-A", "storage-blocked"));
+      expect(getBoundAccountId()).toBe("acct-A");
+      expect(setItem).toHaveBeenCalledWith("cluckwork.boundAccountId", "acct-A");
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
   it("login stores the access token (memory only) and notifies listeners", async () => {
     clearAccessToken();
     fetchMock.mockResolvedValueOnce(accessResponse("atL"));
-    await login({ email: "a@b.co", password: "pw" });
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
     expect(getAccessToken()).toBe("atL");
     expect(localStorage.length).toBe(0); // never persisted
     expect(onTokens).toHaveBeenCalledTimes(1);
@@ -606,6 +970,7 @@ describe("auth endpoints", () => {
 
   it("logout revokes cookie-authenticated (CSRF header, no body), then clears the token", async () => {
     setAccessToken("at-logout");
+    bindAccount("acct-A");
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await logout();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -614,15 +979,14 @@ describe("auth endpoints", () => {
     expect(init.method).toBe("POST");
     expect(init.body).toBeUndefined(); // refresh token is in the cookie, not the body
     expect(headerOf(fetchMock.mock.calls[0] as Call, CSRF)).toBe("1");
+    expect(headerOf(fetchMock.mock.calls[0] as Call, "X-Cluckwork-Account")).toBe("acct-A");
     expect(getAccessToken()).toBeNull();
+    expect(getBoundAccountId()).toBeNull();
   });
 
-  // #336 — the refresh cookie is per-ORIGIN (one per browser, last login wins)
-  // while this token store is per-TAB, so the cookie can belong to a DIFFERENT
-  // user than the one logging out. The bearer is what tells the server who
-  // actually clicked logout, so their step-up grants are the ones revoked;
-  // without it the server revokes the cookie owner's and leaves this user's
-  // alive. It must be read BEFORE the synchronous clear, or it is always null.
+  // #336/#532 — the account header selects the per-farm cookie, while the
+  // bearer identifies who clicked logout for step-up revocation. It must be
+  // read BEFORE the synchronous clear, or it is always null.
   it("logout sends this tab's bearer, captured before the token is cleared", async () => {
     const token = `tok-${crypto.randomUUID()}`;
     setAccessToken(token);
@@ -706,6 +1070,25 @@ describe("auth endpoints", () => {
 });
 
 describe("changePassword (#165)", () => {
+  // #532 — changePassword adopts a token (the server hands this device a fresh
+  // pair after revoking every other session), so like login it must BIND the
+  // tab to its farm. Without the bind, the tab's next refresh omits
+  // X-Cluckwork-Account and falls into the bootstrap path instead of naming
+  // the farm it just authenticated.
+  it("binds the tab to its farm from the returned token (like login does)", async () => {
+    expect(getBoundAccountId()).toBeNull();
+    const changed = jwtWithAccountId("acct-A", "after-change");
+    fetchMock.mockResolvedValueOnce(accessResponse(changed));
+
+    await changePassword({ currentPassword: "x", newPassword: "y" });
+
+    // The binding is derived from the returned token's account claim, not set
+    // by the test. Deleting the bindAccount call in changePassword() makes this
+    // null — and the tab's next refresh would silently become a cold restore.
+    expect(getBoundAccountId()).toBe("acct-A");
+    expect(getAccessToken()).toBe(changed);
+  });
+
   it("posts to /auth/change-password and swaps in the returned access token", async () => {
     fetchMock.mockResolvedValueOnce(accessResponse("at-after-change"));
     // Runtime-generated so no literal secret lands in source. Built through a
@@ -743,7 +1126,7 @@ describe("changePassword (#165)", () => {
   it("refreshes and retries inside the cookie lock when the access token expired", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "Unauthorized" }, 401))
-      .mockResolvedValueOnce(accessResponse("refreshed-access"))
+      .mockResolvedValueOnce(accessResponse(claimfulToken("refreshed-access")))
       .mockResolvedValueOnce(accessResponse("password-change-access"));
 
     await changePassword({ currentPassword: "a", newPassword: "b" });
@@ -754,7 +1137,7 @@ describe("changePassword (#165)", () => {
     // The one logical write keeps its idempotency key across the auth retry.
     expect(headerOf(changes[1], "Idempotency-Key"))
       .toBe(headerOf(changes[0], "Idempotency-Key"));
-    expect(authOf(changes[1])).toBe("Bearer refreshed-access");
+    expect(authOf(changes[1])).toBe(`Bearer ${claimfulToken("refreshed-access")}`);
     expect(getAccessToken()).toBe("password-change-access");
   });
 });
@@ -813,7 +1196,7 @@ describe("stepUp (#308)", () => {
   it("still refreshes and retries when the session itself has expired (401)", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "Unauthorized" }, 401))
-      .mockResolvedValueOnce(accessResponse("at2"))
+      .mockResolvedValueOnce(accessResponse(claimfulToken("at2")))
       .mockResolvedValueOnce(jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
 
     const grant = await stepUp("right");
@@ -864,7 +1247,7 @@ describe("cross-tab refresh coordination (#169)", () => {
 
     clearAccessToken(); // next call forces a silent refresh
     fetchMock.mockImplementation(async (url: string) =>
-      url.endsWith("/auth/refresh") ? accessResponse("at2") : jsonResponse({ ok: true }),
+      url.endsWith("/auth/refresh") ? accessResponse(claimfulToken("at2")) : jsonResponse({ ok: true }),
     );
 
     const inflight = apiGet<{ ok: boolean }>("/a");
@@ -882,7 +1265,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     // The SUT acquired the SHARED, stable lock name — the crux of cross-tab
     // coordination. (Asserted on the code's own call, not the setup call above.)
     expect(sutLockName(locks)).toBe("cluckwork.auth.refresh");
-    expect(getAccessToken()).toBe("at2");
+    expect(getAccessToken()).toBe(claimfulToken("at2"));
   });
 
   it("serializes password change after an in-flight refresh so stale credentials cannot win last", async () => {
@@ -910,7 +1293,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     // already-resolved password response is not requested until refresh exits.
     changeGate.resolve(accessResponse("password-change-token"));
     await drain();
-    refreshGate.resolve(accessResponse("stale-refresh-token"));
+    refreshGate.resolve(accessResponse(claimfulToken("stale-refresh-token")));
 
     await expect(refreshing).resolves.toBe(true);
     await expect(changing).resolves.toBeUndefined();
@@ -955,7 +1338,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     const otherTab = deferred<void>();
     locks.request("cluckwork.auth.refresh", () => otherTab.promise);
     fetchMock.mockImplementation(async (url: string) => {
-      if (url.endsWith("/auth/login")) return accessResponse("new-login-token");
+      if (url.endsWith("/auth/login")) return accessResponse(claimfulToken("new-login-token"));
       if (url.endsWith("/auth/change-password")) return accessResponse("stale-change-token");
       throw new Error(`unexpected fetch: ${url}`);
     });
@@ -963,11 +1346,11 @@ describe("cross-tab refresh coordination (#169)", () => {
     const changing = changePassword({ currentPassword: "a", newPassword: "b" })
       .catch((err: unknown) => err);
     await drain();
-    await login({ email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    await login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
     otherTab.resolve();
     await changing;
 
-    expect(getAccessToken()).toBe("new-login-token");
+    expect(getAccessToken()).toBe(claimfulToken("new-login-token"));
     expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(0);
   });
 
@@ -975,7 +1358,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     const refreshGate = deferred<Response>();
     fetchMock.mockImplementation(async (url: string) => {
       if (url.endsWith("/auth/refresh")) return refreshGate.promise;
-      if (url.endsWith("/auth/login")) return accessResponse("new-login-token");
+      if (url.endsWith("/auth/login")) return accessResponse(claimfulToken("new-login-token"));
       if (url.endsWith("/auth/change-password")) return accessResponse("stale-change-token");
       throw new Error(`unexpected fetch: ${url}`);
     });
@@ -988,11 +1371,11 @@ describe("cross-tab refresh coordination (#169)", () => {
     // The form is already inside the cookie lock, obtaining an access token.
     // A newer login must prevent that old form from borrowing the new bearer
     // when the now-stale refresh finishes.
-    await login({ email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
-    refreshGate.resolve(accessResponse("stale-refresh-token"));
+    await login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    refreshGate.resolve(accessResponse(claimfulToken("stale-refresh-token")));
     await changing;
 
-    expect(getAccessToken()).toBe("new-login-token");
+    expect(getAccessToken()).toBe(claimfulToken("new-login-token"));
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
     expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(0);
   });
@@ -1006,8 +1389,8 @@ describe("cross-tab refresh coordination (#169)", () => {
         if (changeCalls === 1) return firstChange.promise;
         return accessResponse("stale-form-retry-token");
       }
-      if (url.endsWith("/auth/login")) return accessResponse("new-login-token");
-      if (url.endsWith("/auth/refresh")) return accessResponse("new-login-refreshed");
+      if (url.endsWith("/auth/login")) return accessResponse(claimfulToken("new-login-token"));
+      if (url.endsWith("/auth/refresh")) return accessResponse(claimfulToken("new-login-refreshed"));
       throw new Error(`unexpected fetch: ${url}`);
     });
 
@@ -1018,11 +1401,11 @@ describe("cross-tab refresh coordination (#169)", () => {
     // Supersede the form while its first request is already on the wire, then
     // make that old request answer 401. Generic apiFetch behavior would refresh
     // the newer session and resend the old form body against it.
-    await login({ email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    await login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
     firstChange.resolve(jsonResponse({ title: "Unauthorized" }, 401));
     await changing;
 
-    expect(getAccessToken()).toBe("new-login-token");
+    expect(getAccessToken()).toBe(claimfulToken("new-login-token"));
     expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(1);
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
   });
@@ -1066,7 +1449,7 @@ describe("cross-tab refresh coordination (#169)", () => {
       fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
         if (url.endsWith("/auth/refresh")) {
           refreshCalls += 1;
-          if (refreshCalls > 1) return accessResponse("recovered-token");
+          if (refreshCalls > 1) return accessResponse(claimfulToken("recovered-token"));
           refreshSignal = init.signal ?? undefined;
           return new Promise<Response>((_resolve, reject) => {
             rejectRefresh = reject;
@@ -1138,7 +1521,7 @@ describe("cross-tab refresh coordination (#169)", () => {
 
     clearAccessToken();
     fetchMock.mockImplementation(async (url: string) =>
-      url.endsWith("/auth/refresh") ? accessResponse("at2") : jsonResponse({ ok: true }),
+      url.endsWith("/auth/refresh") ? accessResponse(claimfulToken("at2")) : jsonResponse({ ok: true }),
     );
 
     const a = await apiGet<{ ok: boolean }>("/a"); // proceeds despite the other lock
@@ -1154,14 +1537,14 @@ describe("cross-tab refresh coordination (#169)", () => {
     vi.stubGlobal("navigator", { locks: fakeLockManager() });
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ title: "boom" }, 500)) // refresh 1 (under lock) fails
-      .mockResolvedValueOnce(accessResponse("at2")); // refresh 2 succeeds
+      .mockResolvedValueOnce(accessResponse(claimfulToken("at2"))); // refresh 2 succeeds
 
     await expect(restoreSession()).resolves.toBe(false);
     await expect(restoreSession()).resolves.toBe(true);
 
     // A stuck latch would have refused the second refresh entirely.
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(2);
-    expect(getAccessToken()).toBe("at2");
+    expect(getAccessToken()).toBe(claimfulToken("at2"));
   });
 
   it("aborts and releases the lock if a refresh hangs past the timeout (no cross-tab starvation)", async () => {
@@ -1195,14 +1578,14 @@ describe("cross-tab refresh coordination (#169)", () => {
     vi.stubGlobal("navigator", {}); // no .locks — like jsdom / older Safari
     clearAccessToken();
     fetchMock.mockImplementation(async (url: string) =>
-      url.endsWith("/auth/refresh") ? accessResponse("at2") : jsonResponse({ ok: true }),
+      url.endsWith("/auth/refresh") ? accessResponse(claimfulToken("at2")) : jsonResponse({ ok: true }),
     );
 
     const a = await apiGet<{ ok: boolean }>("/a");
 
     expect(a).toEqual({ ok: true });
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1); // still refreshes, just uncoordinated
-    expect(getAccessToken()).toBe("at2");
+    expect(getAccessToken()).toBe(claimfulToken("at2"));
   });
 });
 
@@ -1212,11 +1595,11 @@ describe("cross-tab refresh coordination (#169)", () => {
 describe("session generation (#310)", () => {
   it("commits a bootstrap refresh normally when nothing else races it (control)", async () => {
     clearAccessToken();
-    fetchMock.mockResolvedValueOnce(accessResponse("bootedToken"));
+    fetchMock.mockResolvedValueOnce(accessResponse(claimfulToken("bootedToken")));
 
     await expect(restoreSession()).resolves.toBe(true);
 
-    expect(getAccessToken()).toBe("bootedToken");
+    expect(getAccessToken()).toBe(claimfulToken("bootedToken"));
     expect(onTokens).toHaveBeenCalledTimes(1);
   });
 
@@ -1235,7 +1618,7 @@ describe("session generation (#310)", () => {
 
     await logout(); // user logs out while the bootstrap refresh is still pending
 
-    refreshGate.resolve(accessResponse("resurrected-token")); // the stale refresh finally answers
+    refreshGate.resolve(accessResponse(claimfulToken("resurrected-token"))); // the stale refresh finally answers
     await expect(restoring).resolves.toBe(false); // discarded — never reports a restored session
 
     expect(getAccessToken()).toBeNull(); // must stay logged out
@@ -1252,7 +1635,7 @@ describe("session generation (#310)", () => {
     clearAccessToken();
     fetchMock.mockResolvedValueOnce(accessResponse("loggedInToken"));
 
-    await login({ email: "a@b.co", password: "pw" });
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
 
     expect(getAccessToken()).toBe("loggedInToken");
     expect(onTokens).toHaveBeenCalledTimes(1);
@@ -1263,21 +1646,21 @@ describe("session generation (#310)", () => {
     const refreshGate = deferred<Response>();
     fetchMock.mockImplementation((url: string) => {
       if (url.endsWith("/auth/refresh")) return refreshGate.promise;
-      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("newLoginToken"));
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse(claimfulToken("newLoginToken")));
       throw new Error(`unexpected fetch: ${url}`);
     });
 
     const restoring = restoreSession(); // older bootstrap refresh in flight
     await drain();
 
-    await login({ email: "a@b.co", password: "pw" }); // a newer, explicit login completes first
-    expect(getAccessToken()).toBe("newLoginToken");
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // a newer, explicit login completes first
+    expect(getAccessToken()).toBe(claimfulToken("newLoginToken"));
     expect(onTokens).toHaveBeenCalledTimes(1);
 
-    refreshGate.resolve(accessResponse("staleBootstrapToken")); // the old refresh answers late
+    refreshGate.resolve(accessResponse(claimfulToken("staleBootstrapToken"))); // the old refresh answers late
     await expect(restoring).resolves.toBe(false); // discarded, not adopted
 
-    expect(getAccessToken()).toBe("newLoginToken"); // untouched by the stale refresh
+    expect(getAccessToken()).toBe(claimfulToken("newLoginToken")); // untouched by the stale refresh
     expect(onTokens).toHaveBeenCalledTimes(1); // still just the login's single notification
   });
 
@@ -1299,7 +1682,7 @@ describe("session generation (#310)", () => {
     const fetching = apiGet<{ ok: boolean }>("/stock").catch((e: unknown) => e);
     await drain();
 
-    await login({ email: "a@b.co", password: "pw" }); // supersedes the still-parked refresh
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the still-parked refresh
     expect(getAccessToken()).toBe("freshLoginToken");
 
     refreshGate.resolve(jsonResponse({ title: "refresh token revoked" }, 401)); // stale refresh FAILS late
@@ -1323,7 +1706,7 @@ describe("session generation (#310)", () => {
     setAccessToken(`tok-${crypto.randomUUID()}`);
     fetchMock.mockImplementation((url: string) => {
       if (url.endsWith("/auth/change-password")) return changeGate.promise;
-      if (url.endsWith("/auth/logout")) return Promise.resolve(jsonResponse({}, 204));
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
       throw new Error(`unexpected fetch: ${url}`);
     });
 
@@ -1334,10 +1717,38 @@ describe("session generation (#310)", () => {
     await logout();
     expect(getAccessToken()).toBeNull();
 
-    changeGate.resolve(jsonResponse({ accessToken: "resurrected" }));
+    changeGate.resolve(accessResponse(jwtWithAccountId("acct-A", "resurrected")));
     await changing;
 
     expect(getAccessToken()).toBeNull(); // the ended session stays ended
+    const revokes = callsTo(fetchMock, "/auth/logout");
+    expect(revokes).toHaveLength(2);
+    expect(headerOf(revokes[1], "X-Cluckwork-Account")).toBe("acct-A");
+  });
+
+  it("attributes a superseded change-password cookie to its response farm, not the newer login", async () => {
+    const changeGate = deferred<Response>();
+    bindAccount("acct-A");
+    setAccessToken(jwtWithAccountId("acct-A", "before-change"));
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/change-password")) return changeGate.promise;
+      if (url.endsWith("/auth/login"))
+        return Promise.resolve(accessResponse(jwtWithAccountId("acct-C", "new-login")));
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+      .catch((e: unknown) => e);
+    await drain();
+
+    await login({ farmCode: "farm-c", email: "c@example.test", password: "pw" });
+    changeGate.resolve(accessResponse(jwtWithAccountId("acct-A", "changed")));
+    await changing;
+
+    const revokes = callsTo(fetchMock, "/auth/logout");
+    expect(revokes).toHaveLength(1);
+    expect(headerOf(revokes[0], "X-Cluckwork-Account")).toBe("acct-A");
   });
 
   it("commits a change-password response normally when nothing races it (control)", async () => {
@@ -1358,12 +1769,12 @@ describe("session generation (#310)", () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
 
-    const loggingIn = login({ email: "a@b.co", password: "pw" }).catch((e: unknown) => e);
+    const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }).catch((e: unknown) => e);
     await drain();
 
     await logout(); // fires while the login request is still in flight
 
-    loginGate.resolve(accessResponse("late-login-token"));
+    loginGate.resolve(accessResponse(claimfulToken("late-login-token")));
     const result = await loggingIn;
     expect(result).toBeInstanceOf(Error); // discarded, surfaced as a rejection — not silently accepted
 
@@ -1371,7 +1782,65 @@ describe("session generation (#310)", () => {
     expect(onTokens).not.toHaveBeenCalled();
     // The late login's Set-Cookie already reached the browser; revoke it, or a
     // reload restores the session the user just ended.
-    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(2);
+    const revokes = callsTo(fetchMock, "/auth/logout");
+    expect(revokes).toHaveLength(2);
+    expect(headerOf(revokes[1], "X-Cluckwork-Account")).toBe("acct-late");
+  });
+
+  it("attributes a superseded login cookie to its response farm, not the newer login", async () => {
+    clearAccessToken();
+    const loginGate = deferred<Response>();
+    let loginCalls = 0;
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/login")) {
+        loginCalls++;
+        return loginCalls === 1
+          ? loginGate.promise
+          : Promise.resolve(accessResponse(jwtWithAccountId("acct-C", "new-login")));
+      }
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const staleLogin = login({ farmCode: "farm-b", email: "b@example.test", password: "pw" })
+      .catch((e: unknown) => e);
+    await drain();
+
+    await login({ farmCode: "farm-c", email: "c@example.test", password: "pw" });
+    loginGate.resolve(accessResponse(jwtWithAccountId("acct-B", "stale-login")));
+    await staleLogin;
+
+    const revokes = callsTo(fetchMock, "/auth/logout");
+    expect(revokes).toHaveLength(1);
+    expect(headerOf(revokes[0], "X-Cluckwork-Account")).toBe("acct-B");
+  });
+
+  it("does not send an ambiguous revoke when a discarded response has no account attribution", async () => {
+    clearAccessToken();
+    const loginGate = deferred<Response>();
+    const consoleErr = vi.spyOn(console, "error").mockImplementation(() => {});
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/login")) return loginGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" })
+      .catch((e: unknown) => e);
+    await drain();
+    await logout();
+    // A different session may already have rebound the tab. That binding is
+    // not evidence about the unattributable response's cookie and must never
+    // be used as a fallback selector.
+    bindAccount("acct-C");
+
+    loginGate.resolve(accessResponse("not-a-jwt"));
+    await loggingIn;
+
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(1);
+    expect(consoleErr).toHaveBeenCalledTimes(1);
+    expect(consoleErr.mock.calls[0].map(String).join(" ")).toContain("cannot attribute");
+    consoleErr.mockRestore();
   });
 
   // #310 review — a request parked on a refresh that a LOGOUT discarded must
@@ -1391,7 +1860,7 @@ describe("session generation (#310)", () => {
     await drain();
 
     await logout();
-    refreshGate.resolve(accessResponse("discarded-token"));
+    refreshGate.resolve(accessResponse(claimfulToken("discarded-token")));
 
     const settled = await fetching;
     expect(settled).toBeInstanceOf(ApiError);
@@ -1404,19 +1873,19 @@ describe("session generation (#310)", () => {
   it("retries a request on the newer login's token when the retry refresh is superseded", async () => {
     const refreshGate = deferred<Response>();
     fetchMock.mockImplementation((url: string) => {
-      if (url.endsWith("/stock") && getAccessToken() === "newLoginToken")
+      if (url.endsWith("/stock") && getAccessToken() === claimfulToken("newLoginToken"))
         return Promise.resolve(jsonResponse({ value: 7 }));
       if (url.endsWith("/stock")) return Promise.resolve(jsonResponse({ title: "expired" }, 401));
       if (url.endsWith("/auth/refresh")) return refreshGate.promise;
-      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("newLoginToken"));
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse(claimfulToken("newLoginToken")));
       throw new Error(`unexpected fetch: ${url}`);
     });
 
     const fetching = apiGet<{ value: number }>("/stock");
     await drain();
 
-    await login({ email: "a@b.co", password: "pw" });
-    refreshGate.resolve(accessResponse("stale-token"));
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
+    refreshGate.resolve(accessResponse(claimfulToken("stale-token")));
 
     expect(await fetching).toEqual({ value: 7 });
   });
@@ -1434,7 +1903,7 @@ describe("session generation (#310)", () => {
     await drain();
 
     await logout();
-    refreshGate.resolve(accessResponse("discarded-token"));
+    refreshGate.resolve(accessResponse(claimfulToken("discarded-token")));
 
     const settled = await fetching;
     expect(settled).toBeInstanceOf(ApiError);
@@ -1446,19 +1915,19 @@ describe("session generation (#310)", () => {
   it("retries a download on the newer login's token when a refresh is superseded", async () => {
     const refreshGate = deferred<Response>();
     fetchMock.mockImplementation((url: string) => {
-      if (url.endsWith("/export/all") && getAccessToken() === "newLoginToken")
+      if (url.endsWith("/export/all") && getAccessToken() === claimfulToken("newLoginToken"))
         return Promise.resolve(new Response("data", { status: 200 }));
       if (url.endsWith("/export/all")) return Promise.resolve(jsonResponse({ title: "expired" }, 401));
       if (url.endsWith("/auth/refresh")) return refreshGate.promise;
-      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("newLoginToken"));
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse(claimfulToken("newLoginToken")));
       throw new Error(`unexpected fetch: ${url}`);
     });
 
     const downloading = apiGetBlob("/export/all");
     await drain();
 
-    await login({ email: "a@b.co", password: "pw" }); // supersedes the parked refresh
-    refreshGate.resolve(accessResponse("stale-token"));
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the parked refresh
+    refreshGate.resolve(accessResponse(claimfulToken("stale-token")));
 
     const { blob } = await downloading;
     expect(blob.size).toBe(4); // "data" — served on the live login's token
@@ -1477,7 +1946,7 @@ describe("session generation (#310)", () => {
     await drain();
 
     await logout();
-    refreshGate.resolve(accessResponse("discarded-token"));
+    refreshGate.resolve(accessResponse(claimfulToken("discarded-token")));
 
     const settled = await downloading;
     expect(settled).toBeInstanceOf(ApiError);
@@ -1495,12 +1964,14 @@ describe("session generation (#310)", () => {
   // either. Skipping the revoke here (the old behavior) could leave the
   // previous user's cookie live in the browser, silently, with the new
   // session's correct in-memory token masking it until reload.
-  it("still revokes the stale refresh's cookie even though a newer login already set a token", async () => {
+  it("attributes a superseded refresh cookie to its response farm, not the newer login", async () => {
     clearAccessToken();
+    bindAccount("acct-A");
     const refreshGate = deferred<Response>();
     fetchMock.mockImplementation((url: string) => {
       if (url.endsWith("/auth/refresh")) return refreshGate.promise;
-      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse("newLoginToken"));
+      if (url.endsWith("/auth/login"))
+        return Promise.resolve(accessResponse(jwtWithAccountId("acct-C", "new-login")));
       if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
       throw new Error(`unexpected fetch: ${url}`);
     });
@@ -1508,14 +1979,16 @@ describe("session generation (#310)", () => {
     const restoring = restoreSession();
     await drain();
 
-    await login({ email: "a@b.co", password: "pw" }); // supersedes the parked refresh
-    refreshGate.resolve(accessResponse("stale-refresh-token"));
+    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the parked refresh
+    refreshGate.resolve(accessResponse(jwtWithAccountId("acct-A", "stale-refresh")));
     await restoring;
 
-    expect(getAccessToken()).toBe("newLoginToken"); // the live login survives
+    expect(getAccessToken()).toBe(jwtWithAccountId("acct-C", "new-login")); // the live login survives
     // The stale refresh's response DID rotate a cookie in the browser — that
     // must be revoked regardless, or a reload risks walking back into the
     // WRONG session depending on which Set-Cookie the browser actually kept.
-    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(1);
+    const revokes = callsTo(fetchMock, "/auth/logout");
+    expect(revokes).toHaveLength(1);
+    expect(headerOf(revokes[0], "X-Cluckwork-Account")).toBe("acct-A");
   });
 });

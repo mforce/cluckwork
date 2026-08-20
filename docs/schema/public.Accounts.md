@@ -4,7 +4,7 @@
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| Id | uuid |  | false |  |  |  |
+| Id | uuid |  | false | [public.AspNetUsers](public.AspNetUsers.md) |  |  |
 | Name | varchar(120) |  | false |  |  |  |
 | TimeZoneId | varchar(64) |  | false |  |  |  |
 | Locale | varchar(32) |  | false |  |  |  |
@@ -59,6 +59,7 @@
 ```mermaid
 erDiagram
 
+"public.AspNetUsers" }o--|| "public.Accounts" : "FOREIGN KEY (#quot;AccountId#quot;) REFERENCES #quot;Accounts#quot;(#quot;Id#quot;) ON DELETE RESTRICT"
 
 "public.Accounts" {
   uuid Id
@@ -78,6 +79,32 @@ erDiagram
   uuid AccountId
   varchar_16_ DefaultStepperUnit
   varchar_32_ Slug
+}
+"public.AspNetUsers" {
+  uuid Id
+  uuid AccountId FK
+  text DisplayName
+  varchar_16_ Language
+  boolean MustChangePassword
+  varchar_256_ UserName
+  varchar_256_ NormalizedUserName
+  varchar_256_ Email
+  varchar_256_ NormalizedEmail
+  boolean EmailConfirmed
+  text PasswordHash
+  text SecurityStamp
+  text ConcurrencyStamp
+  text PhoneNumber
+  boolean PhoneNumberConfirmed
+  boolean TwoFactorEnabled
+  timestamp_with_time_zone LockoutEnd
+  boolean LockoutEnabled
+  integer AccessFailedCount
+  integer CredentialEpoch
+  timestamp_with_time_zone DisabledAt
+  uuid DisabledBy
+  varchar_16_ PreferredStepperUnit
+  integer StepUpLogoutEpoch
 }
 ```
 

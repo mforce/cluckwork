@@ -59,6 +59,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider t
             expires.UtcDateTime,
             credentials);
 
-        return new TokenPair(new JwtSecurityTokenHandler().WriteToken(token), refreshToken, expires);
+        return new TokenPair(
+            new JwtSecurityTokenHandler().WriteToken(token), refreshToken, expires, user.AccountId);
     }
 }

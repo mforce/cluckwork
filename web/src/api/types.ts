@@ -7,6 +7,10 @@ export interface AccessTokenResponse {
 }
 
 export interface LoginRequest {
+  // #532 — the farm code (Account.Slug). Sent as typed; the server trims and
+  // lowercases before the lookup, because stored slugs are guaranteed lowercase
+  // and a phone keyboard's auto-capital would otherwise read as "unknown farm".
+  farmCode: string;
   email: string;
   password: string;
 }

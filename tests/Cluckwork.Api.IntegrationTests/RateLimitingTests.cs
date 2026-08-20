@@ -52,7 +52,7 @@ public sealed class RateLimitingTests : IClassFixture<RateLimitFactory>
 
     private static Task<HttpResponseMessage> PostLoginAsync(HttpClient client) =>
         client.PostAsJsonAsync("/api/v1/auth/login",
-            new { email = "nobody@example.com", password = "WrongPassw0rd!" });
+            new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = "WrongPassw0rd!" });
 
     // #145 — refresh reads the token from the cookie and needs the CSRF header;
     // with the header but no cookie it still lands on 401 within the limit (and
@@ -103,7 +103,7 @@ public sealed class RateLimitingTests : IClassFixture<RateLimitFactory>
         for (var i = 0; i < RateLimitFactory.LoginLimit; i++)
         {
             var oversized = await client.PostAsJsonAsync("/api/v1/auth/login",
-                new { email = "nobody@example.com", password = new string('a', 8192) });
+                new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = new string('a', 8192) });
             Assert.Equal(HttpStatusCode.RequestEntityTooLarge, oversized.StatusCode);
         }
 

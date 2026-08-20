@@ -19,12 +19,13 @@ public sealed class AuthCookieContractTests(CluckworkWebApplicationFactory facto
     private async Task<(HttpResponseMessage Response, string SetCookie)> LoginRawAsync()
     {
         var email = $"c-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
         var response = await factory.CreateClient(Cookieless).PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = TestHarness.Password });
+            "/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
         response.EnsureSuccessStatusCode();
         var setCookie = response.Headers.TryGetValues("Set-Cookie", out var v)
-            ? v.First(c => c.StartsWith(AuthCookies.RefreshCookieName + "=", StringComparison.Ordinal))
+            ? v.First(c => c.StartsWith(
+                AuthCookies.RefreshCookieNameFor(accountId) + "=", StringComparison.Ordinal))
             : "";
         return (response, setCookie);
     }
@@ -73,14 +74,18 @@ public sealed class AuthCookieContractTests(CluckworkWebApplicationFactory facto
     public async Task Refresh_with_an_over_length_cookie_is_401_and_clears_the_cookie()
     {
         var overLength = new string('a', 600); // > MaxRefreshTokenLength (512)
-        var response = await factory.CreateClient(Cookieless).PostRefreshAsync(overLength);
+        // #532 — the over-length guard reads the PER-FARM cookie, so the
+        // garbage must ride the named farm's name (the pre-rename shared name
+        // no longer reaches it).
+        var farm = await factory.SeedAccountWithUserAsync($"cookie-{Guid.NewGuid():N}@test.local");
+        var response = await factory.CreateClient(Cookieless).PostRefreshAsync(overLength, expectedAccount: farm.ToString());
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
 
         Assert.True(response.Headers.TryGetValues("Set-Cookie", out var cookies),
             "an over-length refresh cookie must still be cleared with a Set-Cookie response");
         var refreshCookie = cookies!.First(
-            c => c.StartsWith(AuthCookies.RefreshCookieName + "=", StringComparison.Ordinal));
+            c => c.StartsWith(AuthCookies.RefreshCookieNameFor(farm) + "=", StringComparison.Ordinal));
         // Response.Cookies.Delete emits an expired (Unix-epoch) Expires
         // attribute, so the browser drops the 600-char garbage value instead of
         // continuing to store/present it — this is what "cleared" looks like on
@@ -152,7 +157,7 @@ public sealed class AuthCookieContractTests(CluckworkWebApplicationFactory facto
     private async Task<string> SeedAsync()
     {
         var email = $"c-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
         return email;
     }
 }
@@ -167,7 +172,7 @@ public sealed class AuthCookieSecureTests(SecurityProxyFactory factory)
     public async Task Refresh_cookie_is_marked_secure_over_forwarded_https()
     {
         var email = $"c-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email);
 
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -178,11 +183,12 @@ public sealed class AuthCookieSecureTests(SecurityProxyFactory factory)
         client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "https");
 
         var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login", new { email, password = TestHarness.Password });
+            "/api/v1/auth/login", new { farmCode = await factory.FarmCodeForAsync(email), email, password = TestHarness.Password });
         response.EnsureSuccessStatusCode();
 
         var setCookie = response.Headers.GetValues("Set-Cookie")
-            .First(c => c.StartsWith(AuthCookies.RefreshCookieName + "=", StringComparison.Ordinal));
+            .First(c => c.StartsWith(
+                AuthCookies.RefreshCookieNameFor(accountId) + "=", StringComparison.Ordinal));
         Assert.Contains("secure", setCookie, StringComparison.OrdinalIgnoreCase);
     }
 }

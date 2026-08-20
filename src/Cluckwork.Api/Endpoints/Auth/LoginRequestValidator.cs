@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Endpoints.Auth;
 
 using Cluckwork.Application.Features.Users;
+using Cluckwork.Domain.Accounts;
 using FluentValidation;
 
 // #309 — MAX-length-only guard on the login credentials, plus a not-null guard
@@ -27,6 +28,18 @@ public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
         // evaluating MaximumLength once null is already flagged (avoiding a
         // confusing double-error) and doesn't affect FluentValidation's default
         // Continue mode used elsewhere in this codebase.
+        // #532 — same MAX-length-only stance as the two fields below. An
+        // oversized farm code 400s while an unknown one answers
+        // Auth.UnknownFarmCode: those ARE distinguishable, deliberately and
+        // consistently with #309's existing treatment of an oversized email.
+        // No pattern rule — a malformed code must land on the same branch as an
+        // unknown one, because the server folds case before the lookup and a
+        // format rejection here would leak nothing extra while costing a
+        // legitimate typo a confusing error.
+        RuleFor(x => x.FarmCode)
+            .Cascade(CascadeMode.Stop)
+            .Must(v => v is not null).WithMessage("Farm code is required.").WithErrorCode("Auth.FarmCode.Required")
+            .MaximumLength(Account.SlugMaxLength).WithErrorCode("Auth.FarmCode.MaxLength");
         RuleFor(x => x.Email)
             .Cascade(CascadeMode.Stop)
             .Must(v => v is not null).WithMessage("Email is required.").WithErrorCode("Auth.Email.Required")

@@ -333,7 +333,7 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
 
         // The refresh runs while the disable is parked — it reads the target's
         // pre-disable state and mints its child from it.
-        var refresh = await factory.CreateClient().PostRefreshAsync(session.RefreshToken);
+        var refresh = await factory.CreateClient().PostRefreshAsync(session.RefreshToken, expectedAccount: accountId.ToString());
 
         await tx.RollbackAsync();
         Assert.True((await disable).IsSuccess, "the disable must still complete");
@@ -352,7 +352,7 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized,
             (await factory.CreateAuthedClient(child.AccessToken).GetAsync("/api/v1/flocks")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized,
-            (await factory.CreateClient().PostRefreshAsync(child.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(child.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
 
         // Belt and braces on the row state. Assert.All over an EMPTY sequence
         // is vacuously true, and in this interleaving the disable's bulk revoke

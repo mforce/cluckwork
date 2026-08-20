@@ -97,7 +97,7 @@ file static class ForwardedRequests
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
         {
-            Content = JsonContent.Create(new { email = "nobody@example.com", password = "WrongPassw0rd!" })
+            Content = JsonContent.Create(new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = "WrongPassw0rd!" })
         };
         if (forwardedFor is not null) request.Headers.Add("X-Forwarded-For", forwardedFor);
         if (forwardedProto is not null) request.Headers.Add("X-Forwarded-Proto", forwardedProto);

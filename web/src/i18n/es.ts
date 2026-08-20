@@ -35,6 +35,10 @@ export const es = {
   },
   auth: {
     title: "Cluckwork",
+    // machine-drafted (#532) — pending native review.
+    farmCode: "Código de granja",
+    unknownFarmCode: "No se reconoce ese código de granja. Verifícalo e inténtalo de nuevo.",
+    farmSuspended: "Esta granja está suspendida. Contacta a tu administrador.",
     email: "Correo electrónico",
     password: "Contraseña",
     signIn: "Iniciar sesión",
@@ -42,6 +46,10 @@ export const es = {
     invalidCredentials: "Correo electrónico o contraseña inválidos.",
     credentialsSuperseded: "Sus credenciales cambiaron. Inicie sesión de nuevo.",
     accountDisabled: "Su cuenta ha sido deshabilitada.",
+    // #532 — per-farm refresh cookie: several farms hold sessions in this
+    // browser. Machine-drafted (#182) — pending native review.
+    farmSelectionRequired:
+      "Este navegador mantiene sesiones de varias granjas. Elija una granja e inicie sesión.",
     tooManyAttempts:
       "Demasiados intentos de inicio de sesión. Espere unos minutos y vuelva a intentarlo.",
     apiDown: "No se pudo iniciar sesión. ¿Está la API en ejecución?",
@@ -1733,9 +1741,9 @@ export const es = {
 
     signingInHeading: "Iniciar sesión",
     signingInBasic:
-      "Inicie sesión con el correo electrónico y la contraseña que configuró su administrador. Una "
-      + "contraseña incorrecta simplemente indica <strong>Correo electrónico o contraseña inválidos</strong> "
-      + "— inténtelo de nuevo.",
+      "Inicie sesión con su <strong>código de granja</strong> y, a continuación, con el correo "
+      + "electrónico y la contraseña que configuró su administrador. Una contraseña incorrecta simplemente "
+      + "indica <strong>Correo electrónico o contraseña inválidos</strong> — inténtelo de nuevo.",
     signingInRateLimit:
       "Para frenar a cualquiera que intente adivinar contraseñas, los intentos de inicio de sesión desde "
       + "el mismo lugar están <strong>limitados</strong>. Después de demasiados intentos en pocos minutos "
@@ -1752,12 +1760,12 @@ export const es = {
       + "incluso al recargar y con la aplicación abierta en <strong>varias pestañas</strong> a la vez. "
       + "Después de que la aplicación se <strong>actualiza</strong> es posible que se le pida iniciar "
       + "sesión una vez más — eso es normal.",
-    // machine-drafted (#393) — pending native review.
+    // machine-drafted (#532) — pending native review.
     signingInMultiTabResync:
-      "Iniciar sesión como otra persona en una <strong>pestaña del navegador</strong> mientras otra pestaña "
-      + "del mismo navegador está a mitad de su propia verificación silenciosa puede, en ocasiones, cerrarle "
-      + "la sesión justo después — simplemente vuelva a iniciar sesión. Esto solo ocurre en ese momento "
-      + "puntual con varias pestañas y nunca pierde nada que ya haya guardado.",
+      "Cada granja mantiene su propia sesión segura en este navegador, por lo que las granjas abiertas en "
+      + "distintas <strong>pestañas</strong> ya no se reemplazan entre sí. Una pestaña recuerda su granja al "
+      + "recargar. Una pestaña sin una granja recordada que encuentre varias sesiones vuelve al inicio de sesión en "
+      + "lugar de adivinar — elija el código de granja e inicie sesión. No se borra la sesión de ninguna otra granja.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada — "
@@ -2417,19 +2425,29 @@ export const es = {
       + "mismas fechas que eligió. Cada granja tiene su propio margen, así que los informes de otra granja "
       + "nunca consumen el suyo.",
 
+    // #532 — the login screen asks for it before the email, because one
+    // email can belong to several farms.
+    // (machine-drafted, pending native review)
+    glossaryFarmCodeTerm: "Código de granja",
+    glossaryFarmCodeDef:
+      "El código corto que identifica a su granja en la pantalla de inicio de sesión. Lo "
+      + "escribe antes que su correo electrónico, porque la misma dirección puede existir en "
+      + "varias granjas y solo el código indica a cuál se refiere. Está en minúsculas y no "
+      + "cambia.",
+
     glossaryTooManySignInAttemptsTerm: "Demasiados intentos de inicio de sesión",
     glossaryTooManySignInAttemptsDef:
       "El inicio de sesión tiene un límite de frecuencia para frenar los intentos de adivinar contraseñas: "
       + "demasiados intentos desde un mismo lugar en pocos minutos se rechazan con este mensaje hasta que "
       + "pasa un breve período de espera. Nunca afecta a una sesión que ya inició.",
 
-    // #393 (machine-drafted, pending native review)
-    glossaryForcedReauthTerm: "Sesión cerrada justo después de cambiar de cuenta",
+    // #532 (machine-drafted, pending native review)
+    glossaryForcedReauthTerm: "Varias granjas en un navegador",
     glossaryForcedReauthDef:
-      "Iniciar sesión como otra persona en una <strong>pestaña del navegador</strong> mientras otra pestaña "
-      + "está a mitad de su propia comprobación silenciosa en segundo plano puede, en ocasiones, cerrar la "
-      + "nueva sesión de inmediato. Simplemente vuelva a iniciar sesión — esto solo ocurre en ese momento "
-      + "puntual de varias pestañas y no se pierde nada de lo ya guardado.",
+      "Cada granja tiene una cookie de sesión segura independiente, por lo que una granja no puede sobrescribir "
+      + "ni borrar la sesión de otra. Una pestaña recuerda la granja elegida al recargar. Si una pestaña sin una "
+      + "granja recordada encuentra varias sesiones, vuelve al inicio de sesión en lugar de adivinar; elija "
+      + "el código de la granja que desea.",
 
     // #308 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
@@ -2441,7 +2459,6 @@ export const es = {
       + "antes de otorgar — o retirar — tanto acceso. Deshabilitar y volver a habilitar preguntan siempre, "
       + "sin importar el rol del usuario; las otras tres solo preguntan cuando está en juego el acceso de "
       + "propietario.",
-
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:
       "Lo que muestra una pantalla cuando encuentra un error, en lugar de quedar en blanco. Los datos "

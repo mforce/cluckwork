@@ -145,6 +145,7 @@
 
 import { expect, test } from "../src/fixtures";
 import { castMember, owner } from "../src/cast";
+import { findRefreshCookie } from "../src/env";
 import { tEn } from "../src/i18n";
 
 /**
@@ -230,7 +231,7 @@ test.describe("#310 session races", () => {
     // 2. The credential itself is gone. If the late refresh had committed, its
     //    rotated cookie would be sitting here ready to restore the session.
     const cookies = await page.context().cookies();
-    const refreshCookie = cookies.find((c) => c.name === "cluckwork_rt" && c.value !== "");
+    const refreshCookie = findRefreshCookie(cookies, (cookie) => cookie.value !== "");
     expect(
       refreshCookie,
       "a live refresh cookie survived the logout — the late response resurrected the session",
@@ -289,6 +290,7 @@ test.describe("#310 session races", () => {
     // sessions are then distinguishable on screen, so the assertion can name
     // which one won instead of inferring it.
     const sales = castMember("Sales");
+    await page.getByLabel(tEn("auth:farmCode")).fill("default-farm");
     await page.getByLabel(tEn("auth:email")).fill(sales.email);
     await page.getByLabel(tEn("auth:password")).fill(sales.password);
     const loginLanded = page.waitForResponse(
@@ -392,6 +394,7 @@ test.describe("#310 session races", () => {
 
     // And the forced re-auth is a plain re-auth, not a wedged account:
     // Sales signs straight back in and lands in a Sales-shaped shell.
+    await page.getByLabel(tEn("auth:farmCode")).fill("default-farm");
     await page.getByLabel(tEn("auth:email")).fill(sales.email);
     await page.getByLabel(tEn("auth:password")).fill(sales.password);
     await page.getByRole("button", { name: tEn("auth:signIn") }).click();

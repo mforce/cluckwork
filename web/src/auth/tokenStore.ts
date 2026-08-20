@@ -24,6 +24,58 @@ export function clearAccessToken(): void {
   accessToken = null;
 }
 
+// #532 — the farm this TAB is bound to, tracked separately from the access
+// token and deliberately NOT cleared by clearAccessToken(). It is a non-secret
+// selector, persisted in sessionStorage so this tab can name its farm after a
+// reload when the browser holds several farms' HttpOnly cookies. sessionStorage
+// is tab-scoped and disappears when the tab closes; the access token remains
+// memory-only.
+//
+// The cross-farm guard in client.ts compares a refreshed token's account
+// against this. Deriving it from the stored token instead makes the guard a
+// one-shot: refusing a foreign token tears the session down, clearing the
+// token, and the next refresh then sees an empty store — the same state as a
+// legitimate cold restore — and adopts the foreign farm with no comparison.
+// Round 7 reproduced exactly that with two concurrent requests.
+//
+// Cleared only by an explicit logout (the user chose to end the session). A
+// genuinely fresh tab has no binding and uses restoreSession's unbound
+// bootstrap path.
+const BOUND_ACCOUNT_KEY = "cluckwork.boundAccountId";
+
+function readBoundAccount(): string | null {
+  try {
+    return sessionStorage.getItem(BOUND_ACCOUNT_KEY);
+  } catch {
+    // Site data is unavailable — keep this tab usable with memory-only state.
+    return null;
+  }
+}
+
+function persistBoundAccount(accountId: string | null): void {
+  try {
+    if (accountId === null) sessionStorage.removeItem(BOUND_ACCOUNT_KEY);
+    else sessionStorage.setItem(BOUND_ACCOUNT_KEY, accountId);
+  } catch {
+    // The in-memory binding remains authoritative for this page lifetime.
+  }
+}
+
+let boundAccountId: string | null = readBoundAccount();
+
+export function getBoundAccountId(): string | null {
+  return boundAccountId;
+}
+
+export function bindAccount(accountId: string | null): void {
+  boundAccountId = accountId;
+  persistBoundAccount(accountId);
+}
+
+export function clearBoundAccount(): void {
+  bindAccount(null);
+}
+
 // Remove any token left in localStorage by the pre-#145 scheme. Called once at
 // startup; safe to call when storage is unavailable (private mode).
 export function purgeLegacyTokens(): void {

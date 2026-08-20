@@ -55,6 +55,9 @@ export const en = {
   },
   auth: {
     title: "Cluckwork",
+    farmCode: "Farm code",
+    unknownFarmCode: "That farm code is not recognised. Check it and try again.",
+    farmSuspended: "This farm is suspended. Contact your administrator.",
     email: "Email",
     password: "Password",
     signIn: "Sign in",
@@ -62,6 +65,12 @@ export const en = {
     invalidCredentials: "Invalid email or password.",
     credentialsSuperseded: "Your credentials changed. Please sign in again.",
     accountDisabled: "Your account has been disabled.",
+    // #532 — the per-farm refresh cookie: several farms hold sessions in this
+    // browser and the tab could not pick one. Treated like the other terminal
+    // 401s — the tab is torn down and the login page's farm-code field handles
+    // the choice (the picker that would make this self-service is #535's job).
+    farmSelectionRequired:
+      "This browser holds sessions for several farms. Choose a farm and sign in.",
     tooManyAttempts:
       "Too many sign-in attempts. Please wait a few minutes and try again.",
     apiDown: "Could not sign in. Is the API running?",
@@ -2178,8 +2187,8 @@ export const en = {
     // Signing in
     signingInHeading: "Signing in",
     signingInBasic:
-      "Sign in with the email and password your administrator set up. A wrong password just says "
-      + "<strong>Invalid email or password</strong> — try again.",
+      "Sign in with your <strong>farm code</strong>, then the email and password your administrator "
+      + "set up. A wrong password just says <strong>Invalid email or password</strong> — try again.",
     signingInRateLimit:
       "To slow down anyone guessing passwords, sign-in attempts from the same place are <strong>limited</strong>. "
       + "After too many tries in a few minutes you'll see <strong>\"Too many sign-in attempts\"</strong> — that "
@@ -2193,14 +2202,14 @@ export const en = {
       "Your sign-in is kept in your browser securely and stays active as you work, even across reloads and "
       + "with the app open in <strong>several tabs</strong> at once. After the app is <strong>updated</strong> "
       + "you may be asked to sign in once more — that's expected.",
-    // #393 — revokeSupersededCookie() now always revokes a superseded flight's
-    // cookie, including the rare branch where the newer sign-in's own cookie
-    // was the one caught by that revoke. User-visible result: an unexpected
-    // "please sign in again" shortly after switching accounts across tabs.
+    // #532 — each farm owns a distinct refresh cookie. A tab remembers its
+    // non-secret farm selector across reloads; a fresh tab cannot guess when
+    // several farms are present, so it returns to login instead.
     signingInMultiTabResync:
-      "Signing in as someone else in one <strong>browser tab</strong> while another tab of the same browser is "
-      + "midway through its own quiet check can occasionally sign you back out right after — just sign in "
-      + "again. This only happens in that narrow multi-tab moment and never loses anything you already saved.",
+      "Each farm keeps its own secure session in this browser, so farms open in different "
+      + "<strong>tabs</strong> no longer replace one another. A tab remembers its farm across reloads. A tab "
+      + "with no remembered farm that finds several sessions returns to sign-in rather than guessing — choose "
+      + "the farm code and sign in. No other farm's session is cleared.",
     // #283 — first-run provisioning: no default credential ever ships with
     // the app, so the very first sign-in always starts from a printed
     // one-time password.
@@ -2834,20 +2843,26 @@ export const en = {
       + "it asks again next time. Nothing is lost by leaving it — the running app keeps working until you "
       + "accept.",
 
+    // #532 — the login screen asks for it before the email, because one
+    // email can belong to several farms.
+    glossaryFarmCodeTerm: "Farm code",
+    glossaryFarmCodeDef:
+      "The short code that names your farm on the sign-in screen. You type it before your "
+      + "email, because the same email address can exist in several farms and only the code "
+      + "says which one you mean. It is lowercase and it does not change.",
+
     glossaryTooManySignInAttemptsTerm: "Too many sign-in attempts",
     glossaryTooManySignInAttemptsDef:
       "Sign-in is rate limited to slow password guessing: too many attempts from one place in a few "
       + "minutes are refused with this message until a short cool-off passes. It never affects an already "
       + "signed-in session.",
 
-    // #393 — same forced-reauth edge case as signingInMultiTabResync above,
-    // now in the glossary table's own term/definition form.
-    glossaryForcedReauthTerm: "Signed out right after switching accounts",
+    // #532 — the per-farm browser-session contract in glossary form.
+    glossaryForcedReauthTerm: "Several farms in one browser",
     glossaryForcedReauthDef:
-      "Signing in as someone else in one <strong>browser tab</strong> while another tab is midway through "
-      + "its own quiet background check can occasionally sign the new session back out again immediately. "
-      + "Just sign in again — this only happens in that narrow multi-tab moment and nothing already saved "
-      + "is lost.",
+      "Each farm has a separate secure session cookie, so one farm cannot overwrite or clear another farm's "
+      + "session. A tab remembers its chosen farm across reloads. When a tab with no remembered farm finds "
+      + "several sessions, it returns to sign-in rather than guessing; choose the farm code you want.",
 
     glossaryTooManyReportsTerm: "Too many reports at once",
     glossaryTooManyReportsDef:
@@ -2864,7 +2879,6 @@ export const en = {
       + "screen asks you to re-enter your current password right there in the dialog. It confirms it's "
       + "really you before handing out — or taking away — that much access. Disabling and re-enabling ask "
       + "every time, regardless of the target's role; the other three ask only when Owner access is involved.",
-
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:
       "What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything "

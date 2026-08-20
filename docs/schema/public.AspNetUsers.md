@@ -5,14 +5,14 @@
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
 | Id | uuid |  | false | [public.AspNetUserClaims](public.AspNetUserClaims.md) [public.AspNetUserLogins](public.AspNetUserLogins.md) [public.AspNetUserRoles](public.AspNetUserRoles.md) [public.AspNetUserTokens](public.AspNetUserTokens.md) |  |  |
-| AccountId | uuid |  | false |  |  |  |
+| AccountId | uuid |  | false |  | [public.Accounts](public.Accounts.md) |  |
 | DisplayName | text |  | true |  |  |  |
 | Language | varchar(16) |  | true |  |  |  |
 | MustChangePassword | boolean |  | false |  |  |  |
-| UserName | varchar(256) |  | true |  |  |  |
-| NormalizedUserName | varchar(256) |  | true |  |  |  |
-| Email | varchar(256) |  | true |  |  |  |
-| NormalizedEmail | varchar(256) |  | true |  |  |  |
+| UserName | varchar(256) |  | false |  |  |  |
+| NormalizedUserName | varchar(256) |  | false |  |  |  |
+| Email | varchar(256) |  | false |  |  |  |
+| NormalizedEmail | varchar(256) |  | false |  |  |  |
 | EmailConfirmed | boolean |  | false |  |  |  |
 | PasswordHash | text |  | true |  |  |  |
 | SecurityStamp | text |  | true |  |  |  |
@@ -43,12 +43,17 @@
 | AspNetUsers_AccountId_not_null | n | NOT NULL "AccountId" |
 | AspNetUsers_CredentialEpoch_not_null | n | NOT NULL "CredentialEpoch" |
 | AspNetUsers_EmailConfirmed_not_null | n | NOT NULL "EmailConfirmed" |
+| AspNetUsers_Email_not_null | n | NOT NULL "Email" |
 | AspNetUsers_Id_not_null | n | NOT NULL "Id" |
 | AspNetUsers_LockoutEnabled_not_null | n | NOT NULL "LockoutEnabled" |
 | AspNetUsers_MustChangePassword_not_null | n | NOT NULL "MustChangePassword" |
+| AspNetUsers_NormalizedEmail_not_null | n | NOT NULL "NormalizedEmail" |
+| AspNetUsers_NormalizedUserName_not_null | n | NOT NULL "NormalizedUserName" |
 | AspNetUsers_PhoneNumberConfirmed_not_null | n | NOT NULL "PhoneNumberConfirmed" |
 | AspNetUsers_StepUpLogoutEpoch_not_null | n | NOT NULL "StepUpLogoutEpoch" |
 | AspNetUsers_TwoFactorEnabled_not_null | n | NOT NULL "TwoFactorEnabled" |
+| AspNetUsers_UserName_not_null | n | NOT NULL "UserName" |
+| FK_AspNetUsers_Accounts_AccountId | FOREIGN KEY | FOREIGN KEY ("AccountId") REFERENCES "Accounts"("Id") ON DELETE RESTRICT |
 | PK_AspNetUsers | PRIMARY KEY | PRIMARY KEY ("Id") |
 
 ## Indexes
@@ -56,8 +61,8 @@
 | Name | Definition |
 | ---- | ---------- |
 | PK_AspNetUsers | CREATE UNIQUE INDEX "PK_AspNetUsers" ON public."AspNetUsers" USING btree ("Id") |
-| EmailIndex | CREATE INDEX "EmailIndex" ON public."AspNetUsers" USING btree ("NormalizedEmail") |
-| UserNameIndex | CREATE UNIQUE INDEX "UserNameIndex" ON public."AspNetUsers" USING btree ("NormalizedUserName") |
+| EmailIndex | CREATE UNIQUE INDEX "EmailIndex" ON public."AspNetUsers" USING btree ("AccountId", "NormalizedEmail") |
+| UserNameIndex | CREATE UNIQUE INDEX "UserNameIndex" ON public."AspNetUsers" USING btree ("AccountId", "NormalizedUserName") |
 
 ## Relations
 
@@ -68,10 +73,11 @@ erDiagram
 "public.AspNetUserLogins" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.AspNetUsers" }o--|| "public.Accounts" : "FOREIGN KEY (#quot;AccountId#quot;) REFERENCES #quot;Accounts#quot;(#quot;Id#quot;) ON DELETE RESTRICT"
 
 "public.AspNetUsers" {
   uuid Id
-  uuid AccountId
+  uuid AccountId FK
   text DisplayName
   varchar_16_ Language
   boolean MustChangePassword
@@ -116,6 +122,25 @@ erDiagram
   text LoginProvider
   text Name
   text Value
+}
+"public.Accounts" {
+  uuid Id
+  varchar_120_ Name
+  varchar_64_ TimeZoneId
+  varchar_32_ Locale
+  varchar_3_ DefaultCurrencyCode
+  varchar_8_ DefaultCurrencySymbol
+  integer DefaultCurrencyMinorUnit
+  varchar_16_ UnitSystem
+  varchar_16_ FirstDayOfWeek
+  varchar_32_ DateFormatOverride
+  varchar_32_ TimeFormatOverride
+  varchar_32_ Brand
+  boolean IsActive
+  integer Version
+  uuid AccountId
+  varchar_16_ DefaultStepperUnit
+  varchar_32_ Slug
 }
 ```
 

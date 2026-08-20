@@ -235,7 +235,7 @@ def post(path, body, token=None, idempotency_key=None):
 # The printed one-time password IS a real login (bootstrap-admin logs the
 # account in with MustChangePassword=true, not merely creates it) — proving
 # that also proves the temp password actually reached the account.
-login = post("/login", {"email": email, "password": temp_password})
+login = post("/login", {"farmCode": "default-farm", "email": email, "password": temp_password})
 # Clears MustChangePassword server-side and rotates every session — the SAME
 # endpoint the SPA's first-login "Set your password" screen uses.
 post(

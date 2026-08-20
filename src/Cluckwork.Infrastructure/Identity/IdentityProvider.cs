@@ -24,11 +24,17 @@ public sealed class IdentityProvider(
     IHttpContextAccessor httpContextAccessor,
     AuthSecurityEventLogger securityEvents,
     ILogger<IdentityProvider> logger,
-    Cluckwork.Application.Features.Accounts.IAccountRepository accounts) : IIdentityProvider
+    Cluckwork.Application.Features.Accounts.IAccountRepository accounts,
+    IAccountUserDirectory directory) : IIdentityProvider
 {
-    public async Task<Result<TokenPair>> LoginAsync(string email, string password, CancellationToken ct = default)
+    public async Task<Result<TokenPair>> LoginAsync(
+        Guid accountId, string email, string password, CancellationToken ct = default)
     {
-        var user = await userManager.FindByEmailAsync(email);
+        // #532 — ACCOUNT-SCOPED. The old global userManager.FindByEmailAsync was
+        // not merely unscoped, it was a crash: UserStore backs it with
+        // SingleOrDefaultAsync, so the first email shared by two farms threw
+        // here — breaking login for BOTH farms' users, not just the duplicate.
+        var user = await directory.FindByAccountEmailAsync(accountId, email, ct);
         if (user is null)
         {
             // Always pay the PBKDF2 cost so that "user not found" and "wrong password"
@@ -163,13 +169,30 @@ public sealed class IdentityProvider(
     private string ClientIp =>
         httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
-    public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default)
+    public async Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null)
     {
         var presentedHash = Hash(refreshToken);
 
         var stored = await db.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == presentedHash, ct);
         if (stored is null)
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+
+        // #547/#532 — the tab told us which farm it expects; the stored token
+        // says which farm it actually belongs to. Per-farm names prevent this
+        // mismatch in normal traffic, but retain the check as defence-in-depth
+        // against a malformed or misplaced cookie.
+        //
+        // Refuse BEFORE rotating, and leave the stored token untouched and
+        // usable: the tab that asked is the one that must recover, and it must
+        // not damage the session that legitimately owns the cookie. Rotating or
+        // revoking here would sign out the farm that did nothing wrong.
+        //
+        // A DISTINCT code, unlike every other refresh rejection: this one is
+        // recoverable by re-bootstrapping the tab, not by signing in again, and
+        // the SPA needs to tell those apart.
+        if (expectedAccountId is not null && stored.AccountId != expectedAccountId)
+            return Result.Failure<TokenPair>(Error.Validation(
+                "Auth.SessionChanged", "This session now belongs to a different farm."));
 
         // #468 — the clock is read AFTER the lookup, and this ordering is load-
         // bearing: the #176 grace window below measures how long ago the row we
@@ -191,6 +214,21 @@ public sealed class IdentityProvider(
         // letting replay detection revoke a later epoch's credentials.
         var user = await userManager.FindByIdAsync(stored.UserId.ToString());
         if (user is null || user.DisabledAt is not null || stored.IssuedEpoch != user.CredentialEpoch)
+            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+
+        // #532 — a suspended farm cannot rotate a session. Deliberately the SAME
+        // generic error every other refresh rejection uses, not Auth.FarmSuspended:
+        // refresh carries no user-facing copy of its own (the SPA treats any 401
+        // here as a dead session and stops), and the caller learns the real reason
+        // from CredentialEpochMiddleware on their next ordinary request, which
+        // does say Auth.FarmSuspended. Suspension also bumps every user's
+        // CredentialEpoch, so the line above already rejects most tokens; this
+        // check is what closes the window for one minted in the same instant.
+        var accountIsActive = await db.Accounts.IgnoreQueryFilters()
+            .Where(account => account.Id == stored.AccountId)
+            .Select(account => (bool?)account.IsActive)
+            .FirstOrDefaultAsync(ct);
+        if (accountIsActive != true)
             return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
 
         // Presenting an already-rotated/revoked token normally means it was replayed —
@@ -415,7 +453,7 @@ public sealed class IdentityProvider(
 
             var created = await userManager.CreateAsync(user, password);
             if (!created.Succeeded)
-                return Result.Failure<Guid>(await CreateFailureAsync(created, email, accountId));
+                return Result.Failure<Guid>(await CreateFailureAsync(created, email, accountId, token));
 
             if (role is not null)
             {
@@ -1081,13 +1119,19 @@ public sealed class IdentityProvider(
     // already belongs to THIS account. A duplicate in another tenant gets a
     // generic message so the endpoint is not a cross-tenant registration
     // oracle (single-farm today, multi-tenant infrastructure dormant).
-    private async Task<Error> CreateFailureAsync(IdentityResult result, string email, Guid accountId)
+    private async Task<Error> CreateFailureAsync(
+        IdentityResult result, string email, Guid accountId, CancellationToken ct)
     {
         if (!result.Errors.Any(e => e.Code is "DuplicateUserName" or "DuplicateEmail"))
             return Error.Validation("Users.CreateFailed", Describe(result));
 
-        var existing = await userManager.FindByEmailAsync(email);
-        return existing is not null && existing.AccountId == accountId
+        // #532 — scoped, and it HAD to be: this runs on the duplicate path, i.e.
+        // exactly when duplicates exist, and the global lookup it replaces
+        // (SingleOrDefaultAsync) threw there — turning a clean 400 into a 500.
+        // The account comparison that used to follow is now redundant, because
+        // the lookup itself cannot return another farm's row.
+        var existing = await directory.FindByAccountEmailAsync(accountId, email, ct);
+        return existing is not null
             ? Error.Validation("Users.DuplicateEmail", "A user with this email already exists.")
             : Error.Validation("Users.CreateFailed", "Could not create the user.");
     }
@@ -1174,7 +1218,8 @@ public sealed class IdentityProvider(
     private static string Describe(IdentityResult result) =>
         string.Join(" ", result.Errors.Select(e => e.Description));
 
-    public async Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default)
+    public async Task RevokeRefreshTokenAsync(
+        string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null)
     {
         // Bulk conditional update, not a tracked read-modify-save: the #176 xmin
         // concurrency token would otherwise make this throw if the token was
@@ -1215,8 +1260,19 @@ public sealed class IdentityProvider(
             // AuthEndpoints.Logout).
             var tokenRow = await db.RefreshTokens
                 .Where(t => t.TokenHash == presentedHash)
-                .Select(t => new { t.UserId })
+                .Select(t => new { t.UserId, t.AccountId })
                 .FirstOrDefaultAsync(ct);
+
+            // A selected-farm logout may also carry the temporary shared-name
+            // legacy cookie for another farm. Resolve its durable owner before
+            // either revocation axis and refuse to cross that account boundary.
+            // An unknown/purged token likewise produces no write: there is no
+            // owner we can safely attribute, and an unknown token has no live
+            // row to revoke.
+            if (expectedAccountId is { } expectedAccount
+                && tokenRow?.AccountId != expectedAccount)
+                return;
+
             ownerId = tokenRow?.UserId;
 
             // #336 review (2nd round) — record BEFORE the bulk update, not after.

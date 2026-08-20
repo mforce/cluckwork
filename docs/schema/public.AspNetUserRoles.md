@@ -44,7 +44,7 @@ erDiagram
 }
 "public.AspNetUsers" {
   uuid Id
-  uuid AccountId
+  uuid AccountId FK
   text DisplayName
   varchar_16_ Language
   boolean MustChangePassword

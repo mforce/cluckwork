@@ -281,14 +281,18 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     public async Task CreateOwner_StepUpRevokedByLogout_Is403_AndNoOwnerCreated()
     {
         var email = $"admin-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var account = await factory.SeedAccountWithUserAsync(email);
         var pair = await factory.LoginAsync(email);
         var owner = factory.CreateAuthedClient(pair.AccessToken);
 
         var grant = await StepUpAsync(owner, TestHarness.Password);
 
+        var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        logoutRequest.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        logoutRequest.Headers.Add("Cookie", AuthCookies.RefreshCookieNameFor(account) + "=" + pair.RefreshToken);
+        logoutRequest.Headers.Add(AuthCookies.ExpectedAccountHeaderName, account.ToString());
         var loggedOut = await factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false })
-            .PostLogoutAsync(pair.RefreshToken);
+            .SendAsync(logoutRequest);
         Assert.Equal(HttpStatusCode.NoContent, loggedOut.StatusCode);
 
         // Same still-valid (unexpired, no denylist) access token as before the
@@ -319,29 +323,35 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
 
     // Seeds an independent account + Owner and logs them in. Two of these are two
     // unmistakably different users, so nothing below can pass by conflating them.
-    private async Task<(HttpClient Client, TokenPairDto Tokens)> OwnerSessionAsync()
+    private async Task<(HttpClient Client, Guid Account, TokenPairDto Tokens)> OwnerSessionAsync()
     {
         var email = $"admin-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var account = await factory.SeedAccountWithUserAsync(email);
         var tokens = await factory.LoginAsync(email);
-        return (factory.CreateAuthedClient(tokens.AccessToken), tokens);
+        // #532 — the cookie the logout/refresh endpoints read is the one the
+        // token's farm owns, and the token's farm is exactly the seed's: the
+        // access token's account_id claim is minted from the user row this
+        // seed created. (The earlier version of this helper re-derived the
+        // account from the JWT — an extra moving part for no gain.)
+        return (factory.CreateAuthedClient(tokens.AccessToken), account, tokens);
     }
 
-    // THE FINDING. A holds a grant and logs out from A's own tab — but the
-    // browser's single per-origin cookie now belongs to B, so that is what rides
-    // along. Recording only the cookie's owner revokes B's grants and leaves A's
-    // alive, which is the whole bug.
+    // THE FINDING. A holds a grant and logs out while presenting B's selected
+    // per-farm cookie. Recording only the cookie's owner revokes B's grants and
+    // leaves A's alive, which is the whole bug.
     [Fact]
     public async Task CreateOwner_StepUpRevokedByLogout_EvenWhenTheCookieBelongsToAnotherUser()
     {
-        var (ownerA, tokensA) = await OwnerSessionAsync();
-        var (_, tokensB) = await OwnerSessionAsync(); // logged in later — owns the cookie now
+        var (ownerA, _, tokensA) = await OwnerSessionAsync();
+        var (_, accountB, tokensB) = await OwnerSessionAsync();
 
         var grant = await StepUpAsync(ownerA, TestHarness.Password);
 
         // A's tab logs out: A's bearer, B's cookie. Exactly what the browser sends.
+        // #532 — the browser sends every farm's cookie; the tab declares which
+        // one it means, so the presented token rides B's per-farm name.
         var loggedOut = await factory.CreateClient(Cookieless)
-            .PostLogoutAsync(tokensB.RefreshToken, accessToken: tokensA.AccessToken);
+            .PostLogoutAsync(tokensB.RefreshToken, accessToken: tokensA.AccessToken, accountId: accountB);
         Assert.Equal(HttpStatusCode.NoContent, loggedOut.StatusCode);
 
         // A's access token is untouched by the logout (no server-side denylist) —
@@ -360,14 +370,24 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task Logout_WithAForeignCookie_StillRevokesThatCookiesOwnSession()
     {
-        var (_, tokensA) = await OwnerSessionAsync();
-        var (_, tokensB) = await OwnerSessionAsync();
+        var (_, accountA, tokensA) = await OwnerSessionAsync();
+        var (_, accountB, tokensB) = await OwnerSessionAsync();
 
-        await factory.CreateClient(Cookieless)
-            .PostLogoutAsync(tokensB.RefreshToken, accessToken: tokensA.AccessToken);
+        // #532 — the pre-per-farm logout read the SHARED cookie, so whatever
+        // cookie value a request carried was what the endpoint hashed. With
+        // per-farm cookies the endpoint reads the NAMED farm's cookie: the
+        // presented value rides under B's per-farm name (the tab is B's tab),
+        // and what gets revoked is the value the browser actually holds.
+        var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        logoutRequest.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        logoutRequest.Headers.Add("Cookie", AuthCookies.RefreshCookieNameFor(accountB) + "=" + tokensB.RefreshToken);
+        logoutRequest.Headers.Add(AuthCookies.ExpectedAccountHeaderName, accountB.ToString());
+        logoutRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokensA.AccessToken);
+        await factory.CreateClient(Cookieless).SendAsync(logoutRequest);
 
         // B's refresh token — the credential actually presented — is dead.
-        var refreshed = await factory.CreateClient(Cookieless).PostRefreshAsync(tokensB.RefreshToken);
+        var refreshed = await factory.CreateClient(Cookieless)
+            .PostRefreshAsync(tokensB.RefreshToken, csrf: true, expectedAccount: accountB.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, refreshed.StatusCode);
     }
 
@@ -378,14 +398,19 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task Logout_WithAForeignCookie_DoesNotRevokeTheBearerUsersOtherSessions()
     {
-        var (_, tokensA) = await OwnerSessionAsync();
-        var (_, tokensB) = await OwnerSessionAsync();
+        var (_, accountA, tokensA) = await OwnerSessionAsync();
+        var (_, accountB, tokensB) = await OwnerSessionAsync();
 
-        await factory.CreateClient(Cookieless)
-            .PostLogoutAsync(tokensB.RefreshToken, accessToken: tokensA.AccessToken);
+        var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        logoutRequest.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        logoutRequest.Headers.Add("Cookie", AuthCookies.RefreshCookieNameFor(accountB) + "=" + tokensB.RefreshToken);
+        logoutRequest.Headers.Add(AuthCookies.ExpectedAccountHeaderName, accountB.ToString());
+        logoutRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokensA.AccessToken);
+        await factory.CreateClient(Cookieless).SendAsync(logoutRequest);
 
         // A's own refresh token was never presented and is still good.
-        var refreshed = await factory.CreateClient(Cookieless).PostRefreshAsync(tokensA.RefreshToken);
+        var refreshed = await factory.CreateClient(Cookieless)
+            .PostRefreshRawAsync(AuthCookies.RefreshCookieNameFor(accountA) + "=" + tokensA.RefreshToken, expectedAccount: accountA.ToString());
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
     }
 
@@ -395,11 +420,11 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task CreateOwner_StepUpRevokedByLogout_EvenWithNoRefreshCookieAtAll()
     {
-        var (owner, tokens) = await OwnerSessionAsync();
+        var (owner, account, tokens) = await OwnerSessionAsync();
         var grant = await StepUpAsync(owner, TestHarness.Password);
 
         var loggedOut = await factory.CreateClient(Cookieless)
-            .PostLogoutAsync(refreshToken: null, accessToken: tokens.AccessToken);
+            .PostLogoutAsync(refreshToken: null, accessToken: tokens.AccessToken, accountId: account);
         Assert.Equal(HttpStatusCode.NoContent, loggedOut.StatusCode);
 
         var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
@@ -417,11 +442,11 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task CreateOwner_StepUpRevokedByLogout_WhenCookieAndBearerAreTheSameUser()
     {
-        var (owner, tokens) = await OwnerSessionAsync();
+        var (owner, account, tokens) = await OwnerSessionAsync();
         var grant = await StepUpAsync(owner, TestHarness.Password);
 
         var loggedOut = await factory.CreateClient(Cookieless)
-            .PostLogoutAsync(tokens.RefreshToken, accessToken: tokens.AccessToken);
+            .PostLogoutAsync(tokens.RefreshToken, accessToken: tokens.AccessToken, accountId: account);
         Assert.Equal(HttpStatusCode.NoContent, loggedOut.StatusCode);
 
         var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
@@ -430,7 +455,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
 
         // The session ended as well — the cookie path is intact alongside the new one.
-        var refreshed = await factory.CreateClient(Cookieless).PostRefreshAsync(tokens.RefreshToken);
+        var refreshed = await factory.CreateClient(Cookieless)
+            .PostRefreshAsync(tokens.RefreshToken, csrf: true, expectedAccount: account.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, refreshed.StatusCode);
     }
 
@@ -454,13 +480,14 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     private sealed class RevokeRefreshTokenThrowsDecorator(IdentityProvider inner) : IIdentityProvider
     {
         public Task<Result<TokenPair>> LoginAsync(
-            string email, string password, CancellationToken ct = default) =>
-            inner.LoginAsync(email, password, ct);
+            Guid accountId, string email, string password, CancellationToken ct = default) =>
+            inner.LoginAsync(accountId, email, password, ct);
 
-        public Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default) =>
-            inner.RefreshAsync(refreshToken, ct);
+        public Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null) =>
+            inner.RefreshAsync(refreshToken, ct, expectedAccountId);
 
-        public Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default) =>
+        public Task RevokeRefreshTokenAsync(
+            string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null) =>
             throw new InvalidOperationException(
                 "Simulated transient DB outage (#336 review regression test).");
 
@@ -519,7 +546,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     public async Task Logout_WhenCookieRevocationThrows_StillRecordsTheBearersLogout_AndFails500()
     {
         var email = $"admin-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var account = await factory.SeedAccountWithUserAsync(email);
         var tokens = await factory.LoginAsync(email);
 
         // The step-up registry is an in-process singleton (see
@@ -541,7 +568,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         // AND the caller authenticated (so the bearer path has a subject to
         // record). Exactly the ordinary logged-in-tab shape.
         var loggedOut = await faulted.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false })
-            .PostLogoutAsync(tokens.RefreshToken, accessToken: tokens.AccessToken);
+            .PostLogoutAsync(tokens.RefreshToken, accessToken: tokens.AccessToken, accountId: account);
 
         // The request still fails loudly when the DB is down — worth
         // preserving; the SPA already treats logout as best-effort.
@@ -655,7 +682,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             services.GetRequiredService<Microsoft.AspNetCore.Http.IHttpContextAccessor>(),
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IdentityProvider>>(),
-            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>());
+            services.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
 
         var beforeRevoke = timeProvider.GetUtcNow();
 
@@ -666,7 +694,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         // endpoint ever sees it — a round trip this direct, in-process call
         // skips, so it must undo the encoding itself or hash a value the login
         // call never actually stored.
-        var rawRefreshToken = Uri.UnescapeDataString(tokens.RefreshToken);
+        var rawRefreshToken = tokens.RefreshTokenForDirectCall;
 
         interceptor.Armed = true;
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -928,10 +956,10 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task CreateOwner_StepUpIssuedAfterAnAuthenticatedLogout_IsStillAccepted()
     {
-        var (owner, tokens) = await OwnerSessionAsync();
+        var (owner, account, tokens) = await OwnerSessionAsync();
 
         await factory.CreateClient(Cookieless)
-            .PostLogoutAsync(tokens.RefreshToken, accessToken: tokens.AccessToken);
+            .PostLogoutAsync(tokens.RefreshToken, accessToken: tokens.AccessToken, accountId: account);
 
         // A brand-new grant, re-confirming the password after the logout.
         var grant = await StepUpAsync(owner, TestHarness.Password);
@@ -951,10 +979,10 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task Logout_WithABearer_NeedsNoIdempotencyKey()
     {
-        var (_, tokens) = await OwnerSessionAsync();
+        var (_, account, tokens) = await OwnerSessionAsync();
 
         var response = await factory.CreateClient(Cookieless)
-            .PostLogoutAsync(tokens.RefreshToken, accessToken: tokens.AccessToken);
+            .PostLogoutAsync(tokens.RefreshToken, accessToken: tokens.AccessToken, accountId: account);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.NotEqual(HttpStatusCode.BadRequest, response.StatusCode);
@@ -981,11 +1009,11 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     // The logout registry is an in-process singleton, so the logout and the
     // step-up MUST both run against the same host — hence one frozen-clock
     // factory shared by every call in these tests, not the ambient `factory`.
-    private async Task<(HttpClient Owner, string RefreshToken, ManualTimeProvider Clock,
+    private async Task<(HttpClient Owner, Guid Account, string RefreshToken, ManualTimeProvider Clock,
         WebApplicationFactory<Program> Host)> FrozenClockOwnerAsync(DateTimeOffset start)
     {
         var email = $"admin-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        var account = await factory.SeedAccountWithUserAsync(email);
         var pair = await factory.LoginAsync(email);
 
         var clock = new ManualTimeProvider(start);
@@ -993,13 +1021,24 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             b.ConfigureTestServices(s => s.AddSingleton<TimeProvider>(clock)));
         var owner = frozen.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
         owner.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", pair.AccessToken);
-        return (owner, pair.RefreshToken, clock, frozen);
+        return (owner, account, pair.RefreshToken, clock, frozen);
     }
 
-    private static async Task LogoutAsync(WebApplicationFactory<Program> host, string refreshToken)
+    private static async Task LogoutAsync(WebApplicationFactory<Program> host, Guid account, string refreshToken)
     {
+        // #532 — the pre-per-farm logout read the SHARED cookie, so the cookie's
+        // owner was always the bearer here. With per-farm cookies the endpoint
+        // reads the NAMED farm's cookie: the presented value rides under this
+        // session's own per-farm name and the tab declares it, exactly as the
+        // SPA's logout does. The token is the RAW (decoded) value — the server
+        // hashes whatever the browser sends, and the browser resends the
+        // Set-Cookie value verbatim.
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        request.Headers.Add("Cookie", AuthCookies.RefreshCookieNameFor(account) + "=" + refreshToken);
+        request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, account.ToString());
         var response = await host.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false })
-            .PostLogoutAsync(refreshToken);
+            .SendAsync(request);
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
@@ -1011,9 +1050,9 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     public async Task CreateOwner_StepUpIssuedAfterLogoutInTheSameSecond_IsAccepted()
     {
         var anchor = WholeSecondAnchor();
-        var (owner, refreshToken, clock, host) = await FrozenClockOwnerAsync(anchor.AddMilliseconds(500));
+        var (owner, account, refreshToken, clock, host) = await FrozenClockOwnerAsync(anchor.AddMilliseconds(500));
 
-        await LogoutAsync(host, refreshToken);
+        await LogoutAsync(host, account, refreshToken);
 
         // Same whole second, later ticks — a grant that did not exist at logout.
         clock.Now = anchor.AddMilliseconds(800);
@@ -1034,12 +1073,12 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     public async Task CreateOwner_StepUpIssuedBeforeLogoutInTheSameSecond_IsStillRevoked()
     {
         var anchor = WholeSecondAnchor();
-        var (owner, refreshToken, clock, host) = await FrozenClockOwnerAsync(anchor.AddMilliseconds(200));
+        var (owner, account, refreshToken, clock, host) = await FrozenClockOwnerAsync(anchor.AddMilliseconds(200));
 
         var grant = await StepUpAsync(owner, TestHarness.Password);
 
         clock.Now = anchor.AddMilliseconds(500);
-        await LogoutAsync(host, refreshToken);
+        await LogoutAsync(host, account, refreshToken);
 
         var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
         var response = await CreateUserWithStepUpAsync(owner, newOwnerEmail, "Admin", grant.Token);
@@ -1056,11 +1095,11 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task CreateOwner_StepUpIssuedAtTheExactLogoutInstant_IsStillRevoked()
     {
-        var (owner, refreshToken, _, host) = await FrozenClockOwnerAsync(WholeSecondAnchor().AddMilliseconds(500));
+        var (owner, account, refreshToken, _, host) = await FrozenClockOwnerAsync(WholeSecondAnchor().AddMilliseconds(500));
 
         var grant = await StepUpAsync(owner, TestHarness.Password);
         // Clock untouched: the logout is recorded at the grant's own instant.
-        await LogoutAsync(host, refreshToken);
+        await LogoutAsync(host, account, refreshToken);
 
         var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
         var response = await CreateUserWithStepUpAsync(owner, newOwnerEmail, "Admin", grant.Token);

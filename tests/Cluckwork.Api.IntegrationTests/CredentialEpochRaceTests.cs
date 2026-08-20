@@ -137,7 +137,7 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
         var active = await factory.LoginAsync(email);
 
         factory.Barrier.Arm();
-        var rotationTask = factory.CreateClient().PostRefreshAsync(active.RefreshToken);
+        var rotationTask = factory.CreateClient().PostRefreshAsync(active.RefreshToken, expectedAccount: accountId.ToString());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await factory.Barrier.WaitUntilReachedAsync(timeout.Token);
 
@@ -160,7 +160,7 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
         var child = await TestHarness.ReadTokensAsync(rotation);
 
         Assert.Equal(HttpStatusCode.Unauthorized,
-            (await factory.CreateClient().PostRefreshAsync(child.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(child.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
         });
 
         factory.Barrier.Arm();
-        var replayTask = factory.CreateClient().PostRefreshAsync(stale.RefreshToken);
+        var replayTask = factory.CreateClient().PostRefreshAsync(stale.RefreshToken, expectedAccount: accountId.ToString());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await factory.Barrier.WaitUntilReachedAsync(timeout.Token);
 
@@ -201,7 +201,7 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await replayTask).StatusCode);
         Assert.Equal(HttpStatusCode.OK,
-            (await factory.CreateClient().PostRefreshAsync(fresh.RefreshToken)).StatusCode);
+            (await factory.CreateClient().PostRefreshAsync(fresh.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
     }
 
     [Fact]

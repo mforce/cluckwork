@@ -80,9 +80,11 @@ production-equivalent. All isolated to `tools/simulation/.env.sim`; see
 1. **All three per-IP rate-limit buckets raised** (Login, Refresh,
    ClientErrors) to 1,000,000. **Invalidates:** any claim about real-world
    per-IP throttling behavior under load.
-2. **k6 manages the `cluckwork_rt` refresh cookie manually** — it is
-   `Secure` and the sim stack is plain HTTP over loopback, so k6's cookie
-   jar never resends it; the harness extracts and re-sends it itself.
+2. **k6 manages each `cluckwork_rt_<account-id>` refresh cookie manually** —
+   it is `Secure` and the sim stack is plain HTTP over loopback, so k6's cookie
+   jar never resends it; the harness extracts and re-sends its full name and
+   value itself. The base name is `REFRESH_COOKIE_NAME_PREFIX` in
+   `tools/simulation/k6/config.js`, cross-referenced by the Playwright holder.
    **Invalidates:** nothing measurement-wise; noted because it means this
    run does not exercise a browser's own cookie handling.
 3. **A local Postgres sidecar** — plaintext connection, uncapped host
