@@ -48,3 +48,10 @@ TestResults/
 .claude/skills
 .codex/skills
 skills-lock.json
+
+# graphify knowledge-graph artifacts. Derived data: rebuilt from the source tree
+# by `graphify update` in well under a minute, at zero token cost, so committing
+# it buys nothing and costs review noise on every PR that happens to have run it.
+# A stale full rebuild reached 173 MB in one worktree and would have been swept
+# into a feature PR by `git add -A`.
+graphify-out/
