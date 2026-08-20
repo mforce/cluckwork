@@ -189,9 +189,26 @@ class StaleSessionError extends Error {
 // own cookie was the one actually live, and this forces IT to re-authenticate
 // too — an inconvenience confined to an already-narrow race window, never a
 // wrong-session security hole.
-async function revokeSupersededCookie(): Promise<void> {
+async function revokeSupersededCookie(discardedAccessToken: string): Promise<void> {
+  // #547 made the account selector mandatory for a precise logout: omitting it
+  // is now a deliberate no-op when there is no bearer fallback. Prefer the
+  // tab's binding so this cleanup can never select some other farm named by a
+  // stale response. Logout may already have cleared that binding, though, while
+  // the successful discarded response has just written a cookie. In that case
+  // its server-issued access token is the only safe attribution for that cookie.
+  // If neither source identifies a farm, do not send an ambiguous request (or
+  // guess and risk another farm's cookie); report that best-effort cleanup could
+  // not uphold #393 instead.
+  const accountId = getBoundAccountId() ?? accountIdFromToken(discardedAccessToken);
+  if (accountId === null) {
+    console.error("discarded response: cannot attribute its refresh cookie to a farm; revoke skipped");
+    return;
+  }
   try {
-    await raw<void>("/auth/logout", { method: "POST", headers: { [CSRF_HEADER]: "1" } });
+    await raw<void>("/auth/logout", {
+      method: "POST",
+      headers: { [CSRF_HEADER]: "1", [ACCOUNT_HEADER]: accountId },
+    });
   } catch (err) {
     // Best-effort, like logout's own revoke: report it rather than swallow, but
     // never surface it to the caller whose result was already discarded.
@@ -223,7 +240,7 @@ export async function login(body: LoginRequest): Promise<void> {
   // do not resurrect a session the user already ended. The response already
   // set a refresh cookie, so revoke it too, not just the in-memory token.
   if (sessionGeneration !== generation) {
-    await revokeSupersededCookie();
+    await revokeSupersededCookie(res.accessToken);
     throw new StaleSessionError();
   }
   setAccessToken(res.accessToken);
@@ -285,7 +302,7 @@ export async function changePassword(
   // This response rotates the refresh cookie too, so a discarded one needs that
   // cookie revoked, not merely the in-memory token dropped.
   if (sessionGeneration !== generation) {
-    await revokeSupersededCookie();
+    await revokeSupersededCookie(res.accessToken);
     throw new StaleSessionError();
   }
   setAccessToken(res.accessToken);
@@ -481,7 +498,7 @@ async function executeRefresh(generation: number, signal?: AbortSignal): Promise
     // stale refresh's token (for a DIFFERENT farm) trigger a refusal + revoke
     // that tears down the NEWER session — exactly what #310 forbids.
     if (sessionGeneration !== generation) {
-      await revokeSupersededCookie();
+      await revokeSupersededCookie(res.accessToken);
       throw new StaleSessionError();
     }
 

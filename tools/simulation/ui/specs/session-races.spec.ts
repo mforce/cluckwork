@@ -145,6 +145,7 @@
 
 import { expect, test } from "../src/fixtures";
 import { castMember, owner } from "../src/cast";
+import { findRefreshCookie } from "../src/env";
 import { tEn } from "../src/i18n";
 
 /**
@@ -230,7 +231,7 @@ test.describe("#310 session races", () => {
     // 2. The credential itself is gone. If the late refresh had committed, its
     //    rotated cookie would be sitting here ready to restore the session.
     const cookies = await page.context().cookies();
-    const refreshCookie = cookies.find((c) => c.name === "cluckwork_rt" && c.value !== "");
+    const refreshCookie = findRefreshCookie(cookies, (cookie) => cookie.value !== "");
     expect(
       refreshCookie,
       "a live refresh cookie survived the logout — the late response resurrected the session",

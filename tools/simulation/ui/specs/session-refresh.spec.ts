@@ -37,7 +37,11 @@
 
 import { expect, test } from "../src/fixtures";
 import { owner } from "../src/cast";
-import { RUN_SLOW_SPECS } from "../src/env";
+import {
+  findRefreshCookie,
+  REFRESH_COOKIE_NAME_PREFIX,
+  RUN_SLOW_SPECS,
+} from "../src/env";
 import { tEn } from "../src/i18n";
 
 /** Measured from a real login against the sim stack, not assumed. */
@@ -79,12 +83,14 @@ test.describe("Session", () => {
     // is hidden — asserting only the second would pass if the cookie were simply
     // absent and the session broken in some other way.
     const cookies = await page.context().cookies();
-    const refresh = cookies.find((c) => c.name === "cluckwork_rt");
+    const refresh = findRefreshCookie(cookies);
     expect(refresh, "no refresh cookie was set at all").toBeTruthy();
     expect(refresh!.httpOnly, "the refresh cookie is readable by scripts").toBe(true);
 
     const visible = await page.evaluate(() => document.cookie);
-    expect(visible, "the refresh cookie is exposed through document.cookie").not.toContain("cluckwork_rt");
+    expect(visible, "the refresh cookie is exposed through document.cookie").not.toContain(
+      REFRESH_COOKIE_NAME_PREFIX,
+    );
   });
 
   test("forces a 401: the app refreshes and retries without bouncing the user to /login", async ({

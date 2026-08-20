@@ -1687,7 +1687,7 @@ describe("session generation (#310)", () => {
     setAccessToken(`tok-${crypto.randomUUID()}`);
     fetchMock.mockImplementation((url: string) => {
       if (url.endsWith("/auth/change-password")) return changeGate.promise;
-      if (url.endsWith("/auth/logout")) return Promise.resolve(jsonResponse({}, 204));
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
       throw new Error(`unexpected fetch: ${url}`);
     });
 
@@ -1698,10 +1698,13 @@ describe("session generation (#310)", () => {
     await logout();
     expect(getAccessToken()).toBeNull();
 
-    changeGate.resolve(jsonResponse({ accessToken: "resurrected" }));
+    changeGate.resolve(accessResponse(jwtWithAccountId("acct-A", "resurrected")));
     await changing;
 
     expect(getAccessToken()).toBeNull(); // the ended session stays ended
+    const revokes = callsTo(fetchMock, "/auth/logout");
+    expect(revokes).toHaveLength(2);
+    expect(headerOf(revokes[1], "X-Cluckwork-Account")).toBe("acct-A");
   });
 
   it("commits a change-password response normally when nothing races it (control)", async () => {
@@ -1735,7 +1738,33 @@ describe("session generation (#310)", () => {
     expect(onTokens).not.toHaveBeenCalled();
     // The late login's Set-Cookie already reached the browser; revoke it, or a
     // reload restores the session the user just ended.
-    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(2);
+    const revokes = callsTo(fetchMock, "/auth/logout");
+    expect(revokes).toHaveLength(2);
+    expect(headerOf(revokes[1], "X-Cluckwork-Account")).toBe("acct-late");
+  });
+
+  it("does not send an ambiguous revoke when a discarded response has no account attribution", async () => {
+    clearAccessToken();
+    const loginGate = deferred<Response>();
+    const consoleErr = vi.spyOn(console, "error").mockImplementation(() => {});
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/login")) return loginGate.promise;
+      if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" })
+      .catch((e: unknown) => e);
+    await drain();
+    await logout();
+
+    loginGate.resolve(accessResponse("not-a-jwt"));
+    await loggingIn;
+
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(1);
+    expect(consoleErr).toHaveBeenCalledTimes(1);
+    expect(consoleErr.mock.calls[0].map(String).join(" ")).toContain("cannot attribute");
+    consoleErr.mockRestore();
   });
 
   // #310 review — a request parked on a refresh that a LOGOUT discarded must
@@ -1864,7 +1893,8 @@ describe("session generation (#310)", () => {
     const refreshGate = deferred<Response>();
     fetchMock.mockImplementation((url: string) => {
       if (url.endsWith("/auth/refresh")) return refreshGate.promise;
-      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse(claimfulToken("newLoginToken")));
+      if (url.endsWith("/auth/login"))
+        return Promise.resolve(accessResponse(jwtWithAccountId("acct-A", "new-login")));
       if (url.endsWith("/auth/logout")) return Promise.resolve(new Response(null, { status: 204 }));
       throw new Error(`unexpected fetch: ${url}`);
     });
@@ -1873,13 +1903,15 @@ describe("session generation (#310)", () => {
     await drain();
 
     await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the parked refresh
-    refreshGate.resolve(accessResponse(claimfulToken("stale-refresh-token")));
+    refreshGate.resolve(accessResponse(jwtWithAccountId("acct-A", "stale-refresh")));
     await restoring;
 
-    expect(getAccessToken()).toBe(claimfulToken("newLoginToken")); // the live login survives
+    expect(getAccessToken()).toBe(jwtWithAccountId("acct-A", "new-login")); // the live login survives
     // The stale refresh's response DID rotate a cookie in the browser — that
     // must be revoked regardless, or a reload risks walking back into the
     // WRONG session depending on which Set-Cookie the browser actually kept.
-    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(1);
+    const revokes = callsTo(fetchMock, "/auth/logout");
+    expect(revokes).toHaveLength(1);
+    expect(headerOf(revokes[0], "X-Cluckwork-Account")).toBe("acct-A");
   });
 });

@@ -42,5 +42,14 @@ export const API_PREFIX = "/api/v1";
  */
 export const CSRF_HEADER_NAME = "X-Cluckwork-Auth";
 
-/** Name of the HttpOnly refresh cookie the API sets (k6/config.js REFRESH_COOKIE_NAME). */
-export const REFRESH_COOKIE_NAME = "cluckwork_rt";
+/** Base prefix of the per-farm HttpOnly refresh cookies the API sets. */
+export const REFRESH_COOKIE_NAME_PREFIX = "cluckwork_rt";
+
+/** Finds a per-farm refresh cookie, optionally restricted by an additional condition. */
+export function findRefreshCookie<T extends { name: string }>(
+  cookies: readonly T[],
+  predicate: (cookie: T) => boolean = () => true,
+): T | undefined {
+  const perFarmPrefix = `${REFRESH_COOKIE_NAME_PREFIX}_`;
+  return cookies.find((cookie) => cookie.name.startsWith(perFarmPrefix) && predicate(cookie));
+}

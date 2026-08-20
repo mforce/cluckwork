@@ -74,16 +74,96 @@ public sealed class GlobalUserLookupGuardTests
     [Fact]
     public void NoProductionCode_MakesAGloballyScopedIdentityUserLookup()
     {
-        var offenders = new List<string>();
+        var offenders = ScanFiles(
+            Directory.EnumerateFiles(SourceRoot(), "*.cs", SearchOption.AllDirectories));
 
-        foreach (var file in Directory.EnumerateFiles(SourceRoot(), "*.cs", SearchOption.AllDirectories))
+        Assert.True(offenders.Count == 0,
+            "Globally-scoped Identity user lookups found in src/. Route them through "
+            + "IAccountUserDirectory, or add a deliberate exclusion with a reason:\n  "
+            + string.Join("\n  ", offenders));
+    }
+
+    // #532 round 8 — the migration exemption is exercised by these two cases.
+    // Rounds 4 and 5 tightened the exemption twice, but forcing
+    // underMigrations = false and running the test in 15 ms proved nothing
+    // exercises it at all. These tests write temporary files under a
+    // Migrations directory and delete them in a finally.
+
+    [Fact]
+    public void MigrationShapedFile_ContainingBannedToken_IsExempt()
+    {
+        var srcRoot = SourceRoot();
+        var migrationsDir = Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Persistence", "Migrations");
+        var fileName = "20990101000000_TempExemptionTest.cs";
+        var filePath = Path.Combine(migrationsDir, fileName);
+        try
+        {
+            Directory.CreateDirectory(migrationsDir);
+            File.WriteAllText(filePath,
+                "namespace T;\npublic class TempExemptionTest\n{\n    public const string S = \"FindByEmailAsync\";\n}\n");
+
+            // Force underMigrations = false by renaming to a non-migration name
+            // in a non-Migrations directory, proving the guard CAUGHT it there.
+            var prodDir = Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Identity");
+            var prodPath = Path.Combine(prodDir, "20990101000000_TempExemptionTest.cs");
+            File.Move(filePath, prodPath);
+            var caughtOffenders = ScanFiles([prodPath]);
+            Assert.True(caughtOffenders.Count > 0,
+                "same filename OUTSIDE a Migrations directory must be CAUGHT");
+            File.Move(prodPath, filePath);
+
+            // Back under Migrations with the migration-shaped name: EXEMPT.
+            var exemptOffenders = ScanFiles([filePath]);
+            Assert.True(exemptOffenders.Count == 0,
+                "migration-shaped file under Migrations/ must be EXEMPT");
+        }
+        finally
+        {
+            foreach (var p in new[] { filePath, Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Identity", "20990101000000_TempExemptionTest.cs") })
+                if (File.Exists(p)) File.Delete(p);
+        }
+    }
+
+    [Fact]
+    public void ProductionShapedSnapshot_ContainingBannedToken_IsCaught()
+    {
+        var srcRoot = SourceRoot();
+        var migrationsDir = Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Persistence", "Migrations");
+        var fileName = "UserLookupModelSnapshot.cs";
+        var filePath = Path.Combine(migrationsDir, fileName);
+        try
+        {
+            Directory.CreateDirectory(migrationsDir);
+            File.WriteAllText(filePath,
+                "namespace T;\npublic class UserLookupModelSnapshot\n{\n    public const string S = \"FindByEmailAsync\";\n}\n");
+
+            var offenders = ScanFiles([filePath]);
+            Assert.True(offenders.Count > 0,
+                "UserLookupModelSnapshot.cs (production-shaped, not the EF-generated "
+                + "AppDbContextModelSnapshot.cs) must be CAUGHT even under Migrations/");
+        }
+        finally
+        {
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
+    // This is the guard's single scanner. The repository-wide assertion and
+    // focused fixture tests deliberately exercise this same code path.
+    private static List<string> ScanFiles(IEnumerable<string> files)
+    {
+        var offenders = new List<string>();
+        var sourceRoot = SourceRoot();
+
+        foreach (var file in files)
         {
             // Path-relative, not just the file name: a future file called
             // AccountUserDirectory.cs anywhere else under src/ would otherwise
             // inherit the exemption silently.
-            var relative = Path.GetRelativePath(SourceRoot(), file)
+            var relative = Path.GetRelativePath(sourceRoot, file)
                 .Replace(Path.DirectorySeparatorChar, '/');
             if (AllowedFiles.Contains(relative)) continue;
+
             // Exempt only what EF GENERATES, and ONLY under a Migrations
             // directory. Two shapes, each matching exactly what `ef migrations`
             // mints — no looser "ends with" that a hand-written file could
@@ -131,107 +211,11 @@ public sealed class GlobalUserLookupGuardTests
                 foreach (var banned in Banned)
                 {
                     if (line.Contains(banned, StringComparison.Ordinal))
-                        offenders.Add($"{Path.GetFileName(file)}:{i + 1}  {trimmed}");
+                        offenders.Add($"{fileName}:{i + 1}  {trimmed}");
                 }
             }
         }
 
-        Assert.True(offenders.Count == 0,
-            "Globally-scoped Identity user lookups found in src/. Route them through "
-            + "IAccountUserDirectory, or add a deliberate exclusion with a reason:\n  "
-            + string.Join("\n  ", offenders));
-    }
-
-    // #532 round 8 — the migration exemption is exercised by these two cases.
-    // Rounds 4 and 5 tightened the exemption twice, but forcing
-    // underMigrations = false and running the test in 15 ms proved nothing
-    // exercises it at all. These tests write temporary files under a
-    // Migrations directory and delete them in a finally.
-
-    [Fact]
-    public void MigrationShapedFile_ContainingBannedToken_IsExempt()
-    {
-        var srcRoot = SourceRoot();
-        var migrationsDir = Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Persistence", "Migrations");
-        var fileName = "20990101000000_TempExemptionTest.cs";
-        var filePath = Path.Combine(migrationsDir, fileName);
-        try
-        {
-            Directory.CreateDirectory(migrationsDir);
-            File.WriteAllText(filePath,
-                "namespace T;\npublic class TempExemptionTest\n{\n    public const string S = \"FindByEmailAsync\";\n}\n");
-
-            // Force underMigrations = false by renaming to a non-migration name
-            // in a non-Migrations directory, proving the guard CAUGHT it there.
-            var prodDir = Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Identity");
-            var prodPath = Path.Combine(prodDir, "20990101000000_TempExemptionTest.cs");
-            File.Move(filePath, prodPath);
-            var caughtOffenders = ScanSingleFile(prodPath);
-            Assert.True(caughtOffenders.Count > 0,
-                "same filename OUTSIDE a Migrations directory must be CAUGHT");
-            File.Move(prodPath, filePath);
-
-            // Back under Migrations with the migration-shaped name: EXEMPT.
-            var exemptOffenders = ScanSingleFile(filePath);
-            Assert.True(exemptOffenders.Count == 0,
-                "migration-shaped file under Migrations/ must be EXEMPT");
-        }
-        finally
-        {
-            foreach (var p in new[] { filePath, Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Identity", "20990101000000_TempExemptionTest.cs") })
-                if (File.Exists(p)) File.Delete(p);
-        }
-    }
-
-    [Fact]
-    public void ProductionShapedSnapshot_ContainingBannedToken_IsCaught()
-    {
-        var srcRoot = SourceRoot();
-        var migrationsDir = Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Persistence", "Migrations");
-        var fileName = "UserLookupModelSnapshot.cs";
-        var filePath = Path.Combine(migrationsDir, fileName);
-        try
-        {
-            Directory.CreateDirectory(migrationsDir);
-            File.WriteAllText(filePath,
-                "namespace T;\npublic class UserLookupModelSnapshot\n{\n    public const string S = \"FindByEmailAsync\";\n}\n");
-
-            var offenders = ScanSingleFile(filePath);
-            Assert.True(offenders.Count > 0,
-                "UserLookupModelSnapshot.cs (production-shaped, not the EF-generated "
-                + "AppDbContextModelSnapshot.cs) must be CAUGHT even under Migrations/");
-        }
-        finally
-        {
-            if (File.Exists(filePath)) File.Delete(filePath);
-        }
-    }
-
-    // Scans a single file with the same exemption logic as the main guard.
-    // Returns the list of offending lines (empty = exempt or clean).
-    private static List<string> ScanSingleFile(string filePath)
-    {
-        var offenders = new List<string>();
-        var fileName = Path.GetFileName(filePath);
-        var dirName = Path.GetFileName(Path.GetDirectoryName(filePath));
-        var underMigrations = string.Equals(dirName, "Migrations", StringComparison.Ordinal);
-        if (underMigrations)
-        {
-            if (fileName.Equals("AppDbContext" + "ModelSnapshot.cs", StringComparison.Ordinal))
-                return offenders;
-            if (fileName.Length > 15 && fileName[14] == '_' && IsAllDigits(fileName, 0, 14))
-                return offenders;
-        }
-        var lines = File.ReadAllLines(filePath);
-        for (var i = 0; i < lines.Length; i++)
-        {
-            var line = lines[i];
-            var trimmed = line.TrimStart();
-            if (trimmed.StartsWith("//", StringComparison.Ordinal)) continue;
-            foreach (var banned in Banned)
-                if (line.Contains(banned, StringComparison.Ordinal))
-                    offenders.Add($"{fileName}:{i + 1}  {trimmed}");
-        }
         return offenders;
     }
 }
