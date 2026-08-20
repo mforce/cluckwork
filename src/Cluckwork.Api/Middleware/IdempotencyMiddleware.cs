@@ -78,11 +78,12 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
         // missing Idempotency-Key, i.e. the SPA could no longer log out.
         "/api/v1/auth/logout",
         // #532 — login and refresh both return a LIVE ACCESS TOKEN in the body.
-        // Neither resolves a tenant today (login blanks its principal, refresh
-        // is anonymous), so the gate below already skips them — but that is a
-        // property of two other files, not of this list. Being here means a
-        // future change that resolves a tenant on either path cannot silently
-        // start persisting a live credential into idempotency_records, keyed by
+        // Both endpoints blank their ambient principal via
+        // IgnoresAmbientPrincipalAttribute, so neither resolves a tenant and
+        // the gate below skips them — and being on this list is what keeps that
+        // true if the marker is ever removed. Being here also means a future
+        // change that resolves a tenant on either path cannot silently start
+        // persisting a live credential into idempotency_records, keyed by
         // account rather than by user and replayable by anyone in that account.
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",

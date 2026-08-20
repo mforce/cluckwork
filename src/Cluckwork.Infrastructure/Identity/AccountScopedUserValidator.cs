@@ -60,7 +60,9 @@ internal sealed class AccountScopedUserValidator(
             .Where(candidate => candidate.Id == user.Id)
             .Select(candidate => new
             {
+                candidate.UserName,
                 candidate.NormalizedUserName,
+                candidate.Email,
                 candidate.NormalizedEmail,
             })
             .FirstOrDefaultAsync();
@@ -77,15 +79,15 @@ internal sealed class AccountScopedUserValidator(
             });
         }
 
-        await ValidateUserNameAsync(manager, user, errors, persisted?.NormalizedUserName, persisted is not null);
-        await ValidateEmailAsync(manager, user, errors, persisted?.NormalizedEmail, persisted is not null);
+        await ValidateUserNameAsync(manager, user, errors, persisted?.UserName, persisted is not null);
+        await ValidateEmailAsync(manager, user, errors, persisted?.Email, persisted is not null);
 
         return errors.Count == 0 ? IdentityResult.Success : IdentityResult.Failed([.. errors]);
     }
 
     private async Task ValidateUserNameAsync(
         UserManager<ApplicationUser> manager, ApplicationUser user, List<IdentityError> errors,
-        string? persistedNormalizedUserName, bool isPersisted)
+        string? persistedUserName, bool isPersisted)
     {
         var userName = await manager.GetUserNameAsync(user);
 
@@ -106,8 +108,13 @@ internal sealed class AccountScopedUserValidator(
         // isPersisted, not a null test on the entity: see the lookup in
         // ValidateAsync for why the entity's own normalized columns cannot tell
         // a create apart from a stored row whose value is null.
-        if (isPersisted
-            && string.Equals(persistedNormalizedUserName, manager.NormalizeName(userName), StringComparison.Ordinal))
+        //
+        // The comparison is on the RAW value, not the normalized one, and that is
+        // load-bearing: 'ſ' (U+017F) and 's' both upper-invariant to 'S', so
+        // comparing normalized values would treat a CHANGE to 'ſ@example.com' as
+        // unchanged, skip AllowedUserNameCharacters, and store a value stock
+        // Identity rejects. Unchanged has to mean byte-identical.
+        if (isPersisted && string.Equals(persistedUserName, userName, StringComparison.Ordinal))
         {
             return;
         }
@@ -138,7 +145,7 @@ internal sealed class AccountScopedUserValidator(
 
     private async Task ValidateEmailAsync(
         UserManager<ApplicationUser> manager, ApplicationUser user, List<IdentityError> errors,
-        string? persistedNormalizedEmail, bool isPersisted)
+        string? persistedEmail, bool isPersisted)
     {
         // Stock only inspects the email when RequireUniqueEmail is set; mirroring
         // that keeps this a replacement rather than a new policy. AddCluckworkIdentity
@@ -153,8 +160,10 @@ internal sealed class AccountScopedUserValidator(
         // validated. EmailIndex was non-unique and the stock email checks never
         // ran, so a legacy row with a blank or malformed address is possible —
         // and without this it would fail every update-pipeline call forever.
-        if (isPersisted
-            && string.Equals(persistedNormalizedEmail, manager.NormalizeEmail(email), StringComparison.Ordinal))
+        // The comparison is on the RAW value again, for the same load-bearing
+        // reason as the user name: two different raw addresses can normalize to
+        // one, so unchanged has to mean byte-identical.
+        if (isPersisted && string.Equals(persistedEmail, email, StringComparison.Ordinal))
         {
             return;
         }

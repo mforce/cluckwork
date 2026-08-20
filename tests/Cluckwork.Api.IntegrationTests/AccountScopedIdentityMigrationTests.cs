@@ -6,6 +6,7 @@ using Cluckwork.Infrastructure.Providers;
 using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 using Testcontainers.PostgreSql;
 
@@ -55,6 +56,26 @@ public sealed class AccountScopedIdentityMigrationTests
                 '{userId}'::uuid, '{accountId}'::uuid,
                 '{userName}', '{normalisedUserName}',
                 '{email}', '{normalisedEmail}',
+                'hash-placeholder', 'stamp-placeholder', 'stamp-placeholder', false,
+                false, false, false, true, 0);
+            """;
+    }
+
+    // A row whose Email (and only Email) is NULL — for the NOT NULL column
+    // guard. Test-controlled literal id, not input.
+    private static string InsertUserWithNullEmailSql(string userId, string accountId)
+    {
+        return $"""
+            INSERT INTO "AspNetUsers" (
+                "Id", "AccountId", "UserName", "NormalizedUserName",
+                "Email", "NormalizedEmail",
+                "PasswordHash", "SecurityStamp", "ConcurrencyStamp", "MustChangePassword",
+                "EmailConfirmed", "PhoneNumberConfirmed", "TwoFactorEnabled", "LockoutEnabled",
+                "AccessFailedCount")
+            VALUES (
+                '{userId}'::uuid, '{accountId}'::uuid,
+                'nullemail@example.com', 'NULLEMAIL@EXAMPLE.COM',
+                NULL, NULL,
                 'hash-placeholder', 'stamp-placeholder', 'stamp-placeholder', false,
                 false, false, false, true, 0);
             """;
@@ -173,5 +194,74 @@ public sealed class AccountScopedIdentityMigrationTests
         // (not_null_violation) as well would make this test pass with the
         // foreign key absent, which is the single thing it exists to prove.
         Assert.Equal("23503", postgresException.SqlState);
+    }
+
+    [Fact]
+    public async Task MigratedDatabase_RejectsAnInsertWithANullEmail()
+    {
+        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await postgres.StartAsync();
+        await using var db = BuildContext(postgres.GetConnectionString());
+        await db.Database.MigrateAsync();
+
+        // Raw SQL, never UserManager: Identity would normalise and fill the
+        // column before the database ever saw a NULL.
+        var conflict = await Record.ExceptionAsync(() => db.Database.ExecuteSqlRawAsync(
+            InsertUserWithNullEmailSql("0000000a-0000-0000-0000-000000000106", DefaultAccountId)));
+
+        var postgresException = Assert.IsType<PostgresException>(conflict);
+        // 23502 = not_null_violation, and ONLY that value: a set containing
+        // 23505 would let a UNIQUE constraint (not the NOT NULL one) be the
+        // thing refusing the row, which is not what this proves.
+        Assert.Equal("23502", postgresException.SqlState);
+    }
+
+    [Fact]
+    public async Task TheIdentityIndexMigration_RefusesToRun_OverAnOrphanUserId()
+    {
+        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await postgres.StartAsync();
+        await using var db = BuildContext(postgres.GetConnectionString());
+
+        // Migrations by NAME, not timestamped id: AccountSlugMigrationTests
+        // explains why — the timestamp is whatever `ef migrations add` mints.
+        var migrator = db.Database.GetService<IMigrator>();
+        await migrator.MigrateAsync("AddAccountSlug");
+
+        // No FK on AspNetUsers.AccountId at this point, so an orphan is simply
+        // insertable — exactly the row the pre-check exists to refuse.
+        await db.Database.ExecuteSqlRawAsync(InsertUserSql(
+            "0000000a-0000-0000-0000-000000000107",
+            "0000000a-0000-0000-0000-000000000fff",
+            "orphan@example.com", "ORPHAN@EXAMPLE.COM",
+            "orphan@example.com", "ORPHAN@EXAMPLE.COM"));
+
+        var conflict = await Record.ExceptionAsync(() => migrator.MigrateAsync());
+
+        var postgresException = Assert.IsType<PostgresException>(conflict);
+        Assert.Contains(
+            "reference an account that does not exist", postgresException.Message);
+    }
+
+    [Fact]
+    public async Task TheRequireColumnsMigration_RefusesToRun_OverANullIdentityColumn()
+    {
+        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await postgres.StartAsync();
+        await using var db = BuildContext(postgres.GetConnectionString());
+
+        // The columns are still nullable at this point, so a NULL is insertable
+        // — exactly the row the pre-check exists to refuse.
+        var migrator = db.Database.GetService<IMigrator>();
+        await migrator.MigrateAsync("AccountScopedIdentityIndexes");
+
+        await db.Database.ExecuteSqlRawAsync(InsertUserWithNullEmailSql(
+            "0000000a-0000-0000-0000-000000000108", DefaultAccountId));
+
+        var conflict = await Record.ExceptionAsync(() => migrator.MigrateAsync());
+
+        var postgresException = Assert.IsType<PostgresException>(conflict);
+        Assert.Contains(
+            "have a NULL Email, NormalizedEmail, UserName or NormalizedUserName", postgresException.Message);
     }
 }

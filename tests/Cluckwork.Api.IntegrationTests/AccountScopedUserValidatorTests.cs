@@ -30,12 +30,28 @@ public sealed class AccountScopedUserValidatorTests(CluckworkWebApplicationFacto
                 .SetProperty(u => u.Email, corrupted)
                 .SetProperty(u => u.NormalizedEmail, corrupted.ToUpperInvariant())));
 
-    private async Task<(IdentityResult Result, int Count)> AccessFailedOnceAsync(string originalEmail)
+    // Sibling of CorruptStoredEmailAsync: corrupts the user-name pair instead, so
+    // the USERNAME half of the validator's unchanged-value short-circuit is
+    // guarded the same way the email half is.
+    private Task CorruptStoredUserNameAsync(Guid accountId, Guid userId, string corrupted) =>
+        factory.WithTenantScopeAsync(accountId, db => db.Users
+            .Where(u => u.Id == userId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(u => u.UserName, corrupted)
+                .SetProperty(u => u.NormalizedUserName, corrupted.ToUpperInvariant())));
+
+    private async Task<(IdentityResult Result, int Count)> AccessFailedOnceAsync(
+        string originalEmail, Guid? userId = null)
     {
         using var scope = factory.Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var user = await db.Users.SingleAsync(u => u.UserName == originalEmail);
+        // By id where given (the corruption may have set UserName itself),
+        // by the original email otherwise (UserName == email is the app's
+        // invariant, and the email case never touches UserName).
+        var user = userId is null
+            ? await db.Users.SingleAsync(u => u.UserName == originalEmail)
+            : await db.Users.SingleAsync(u => u.Id == userId);
 
         var result = await users.AccessFailedAsync(user);
         var count = await db.Users.AsNoTracking()
@@ -57,6 +73,34 @@ public sealed class AccountScopedUserValidatorTests(CluckworkWebApplicationFacto
         await CorruptStoredEmailAsync(accountId, email, corrupted);
 
         var (result, count) = await AccessFailedOnceAsync(email);
+
+        Assert.True(result.Succeeded,
+            "a persisted row the validator dislikes must not fail the update pipeline — "
+            + "AccountLockout reads that as a concurrency race and the #128 lockout goes inert: "
+            + string.Join("; ", result.Errors.Select(e => $"{e.Code}:{e.Description}")));
+        Assert.Equal(1, count);
+    }
+
+    [Theory]
+    [InlineData("legacy user")]
+    public async Task ALegacyRowWithAnUnvalidatedUserName_StillIncrementsItsLockoutCounter(string corrupted)
+    {
+        // A space is outside Identity's default AllowedUserNameCharacters, so a
+        // validator that re-litigated the stored value would fail the update
+        // pipeline exactly as the email case does. Deleting the username
+        // short-circuit must redden this test.
+        var email = $"legacyuser-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+
+        // The corruption sets UserName itself, so both it and the lookup below
+        // must address the user by id, not by name (AccessFailedOnceAsync
+        // finds it by UserName == originalEmail only because the email case
+        // never touches UserName).
+        var userId = await factory.WithTenantScopeAsync(accountId, db =>
+            db.Users.Where(u => u.Email == email).Select(u => u.Id).FirstAsync());
+        await CorruptStoredUserNameAsync(accountId, userId, corrupted);
+
+        var (result, count) = await AccessFailedOnceAsync(email, userId);
 
         Assert.True(result.Succeeded,
             "a persisted row the validator dislikes must not fail the update pipeline — "

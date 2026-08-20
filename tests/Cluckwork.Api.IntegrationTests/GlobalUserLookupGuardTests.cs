@@ -47,8 +47,8 @@ public sealed class GlobalUserLookupGuardTests
     // guessing (Recovery.Ambiguous).
     private static readonly string[] AllowedFiles =
     [
-        "AccountUserDirectory.cs",
-        "AdminRecoveryService.cs",
+        "Cluckwork.Infrastructure/Identity/AccountUserDirectory.cs",
+        "Cluckwork.Infrastructure/Identity/AdminRecoveryService.cs",
     ];
 
     private static string SourceRoot()
@@ -68,7 +68,12 @@ public sealed class GlobalUserLookupGuardTests
 
         foreach (var file in Directory.EnumerateFiles(SourceRoot(), "*.cs", SearchOption.AllDirectories))
         {
-            if (AllowedFiles.Contains(Path.GetFileName(file))) continue;
+            // Path-relative, not just the file name: a future file called
+            // AccountUserDirectory.cs anywhere else under src/ would otherwise
+            // inherit the exemption silently.
+            var relative = Path.GetRelativePath(SourceRoot(), file)
+                .Replace(Path.DirectorySeparatorChar, '/');
+            if (AllowedFiles.Contains(relative)) continue;
             // Generated EF migration snapshots mention entity members, not calls.
             if (file.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
                 continue;

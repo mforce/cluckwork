@@ -59,6 +59,14 @@ public static class AuthEndpoints
         // token comes from the cookie, never the body (#145).
         group.MapPost("/refresh", Refresh)
             .AllowAnonymous()
+            // #532 — same reason as /login. A bearer sent here still populates
+            // context.User, so TenantResolutionMiddleware resolves THAT farm
+            // while RefreshAsync rotates a cookie belonging to another: the
+            // rotation is a tracked SaveChanges, so TenantStampInterceptor
+            // refuses it and the caller gets a 500 instead of a rotation or a
+            // clean 401. Isolation holds — the write is refused — but the 500 is
+            // reachable with a hand-crafted request.
+            .WithMetadata(new IgnoresAmbientPrincipalAttribute())
             .RequireRateLimiting(RateLimitingOptions.RefreshPolicyName)
             // #309 — refresh carries no body of its own (the token rides in the
             // cookie); 1 KB is a defensive cap so a junk body can't be streamed in.

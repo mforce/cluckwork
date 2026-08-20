@@ -92,6 +92,28 @@ public sealed class ApplicationUserIndexModelTests
     }
 
     [Fact]
+    public void TheIdentityColumns_AreAllNotNull_OnTheBuiltModel()
+    {
+        using var db = BuildContext();
+        var entity = UserEntity(db);
+
+        var nullable = new[]
+        {
+            nameof(ApplicationUser.Email),
+            nameof(ApplicationUser.NormalizedEmail),
+            nameof(ApplicationUser.UserName),
+            nameof(ApplicationUser.NormalizedUserName),
+        }
+        .Where(name => entity.FindProperty(name) is { IsNullable: true })
+        .ToList();
+
+        Assert.True(nullable.Count == 0,
+            "The identity columns are nullable on the model — RequireUserIdentityColumns "
+            + "made them NOT NULL in the database and RequireUserIdentityColumns is what the "
+            + "migration pre-checks protect: " + string.Join(", ", nullable));
+    }
+
+    [Fact]
     public void ThePrimaryKey_SurvivesTheIndexWalk()
     {
         using var db = BuildContext();
