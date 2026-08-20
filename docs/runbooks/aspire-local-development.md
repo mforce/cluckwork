@@ -213,9 +213,12 @@ set -euo pipefail
 apphost=./src/Cluckwork.AppHost/Cluckwork.AppHost.csproj
 aspire=./obj/aspire-cli/aspire
 drill_tmp=$(mktemp -d)
+run_owned=false
 
 cleanup_drill() {
-  "$aspire" stop --apphost "$apphost" --non-interactive >/dev/null 2>&1 || true
+  if [ "$run_owned" = true ]; then
+    "$aspire" stop --apphost "$apphost" --non-interactive >/dev/null 2>&1 || true
+  fi
   rm -f -- "$drill_tmp/headers" "$drill_tmp/body" \
     "$drill_tmp/redis-before" "$drill_tmp/redis-after" \
     "$drill_tmp/logs" "$drill_tmp/trace"
@@ -228,6 +231,7 @@ trap 'exit 143' TERM
 [ "$($aspire ps --format Json --non-interactive | jq -c .)" = '[]' ]
 
 $aspire run --apphost "$apphost" --detach --non-interactive
+run_owned=true
 for resource in postgres redis api web; do
   $aspire wait "$resource" --apphost "$apphost" --timeout 180 --non-interactive
 done
@@ -264,6 +268,8 @@ scan_limiter_keys() {
   docker exec "$redis_container" sh -ceu '
     [ -n "${REDIS_PASSWORD:-}" ]
     export REDISCLI_AUTH="$REDIS_PASSWORD"
+    # Aspire 13.5 run mode makes 6379 the TLS listener and adds the
+    # container-internal 6380 secondary listener for plaintext Redis CLI use.
     exec redis-cli -h 127.0.0.1 -p 6380 \
       --scan --pattern "{cluckwork:win:*}*"
   ' | LC_ALL=C sort -u
@@ -399,6 +405,7 @@ marker and the parameter-file metadata to be unchanged:
 
 ```bash
 $aspire stop --apphost "$apphost" --non-interactive
+run_owned=false
 
 stopped=false
 for ((attempt = 0; attempt < 60; attempt++)); do
@@ -411,6 +418,7 @@ done
 [ "$stopped" = true ]
 
 $aspire run --apphost "$apphost" --detach --non-interactive
+run_owned=true
 for resource in postgres redis api web; do
   $aspire wait "$resource" --apphost "$apphost" --timeout 180 --non-interactive
 done
@@ -431,7 +439,9 @@ Restart once more and require Development migrations to recover the API while
 the marker is absent from the new database:
 
 ```bash
+run_owned=false
 $aspire run --apphost "$apphost" --detach --non-interactive
+run_owned=true
 $aspire wait api --apphost "$apphost" --timeout 180 --non-interactive
 
 describe=$($aspire describe --apphost "$apphost" --format Json --non-interactive)
@@ -439,6 +449,7 @@ postgres_container=$(container_for postgres)
 [ "$(postgres_sql "SELECT to_regclass('public.$marker') IS NULL;")" = t ]
 
 $aspire stop --apphost "$apphost" --non-interactive
+run_owned=false
 final_ps=
 for ((attempt = 0; attempt < 60; attempt++)); do
   final_ps=$($aspire ps --format Json --non-interactive | jq -c .)
