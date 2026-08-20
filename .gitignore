@@ -3,6 +3,7 @@ bin/
 obj/
 
 # User/local IDE files
+.idea/
 .vs/
 .vscode/
 *.user
