@@ -535,15 +535,22 @@ public sealed class PerFarmRefreshCookieTests(CluckworkWebApplicationFactory fac
         AssertClearsCookie(logout, AuthCookies.RefreshCookieNameFor(farm));
         AssertClearsCookie(logout, AuthCookies.LegacyRefreshCookieName);
 
-        var selectedAfterLogout = await client.PostRefreshRawAsync(
-            AuthCookies.RefreshCookieNameFor(farm) + "=" + selectedToken,
-            expectedAccount: farm.ToString());
-        Assert.Equal(HttpStatusCode.Unauthorized, selectedAfterLogout.StatusCode);
-
+        // ORDER IS LOAD-BEARING: probe the LEGACY token first. Presenting the
+        // revoked SELECTED token trips #176 reuse detection, which revokes the
+        // whole family — including the legacy token. Probed the other way round,
+        // this test passes even when logout skips the same-farm legacy revoke
+        // entirely, because the second assertion measures that cascade instead
+        // of logout. Round 12 proved it: inverting the account comparison left
+        // the old ordering green.
         var legacyAfterLogout = await client.PostRefreshRawAsync(
             AuthCookies.LegacyRefreshCookieName + "=" + legacyToken,
             expectedAccount: farm.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, legacyAfterLogout.StatusCode);
+
+        var selectedAfterLogout = await client.PostRefreshRawAsync(
+            AuthCookies.RefreshCookieNameFor(farm) + "=" + selectedToken,
+            expectedAccount: farm.ToString());
+        Assert.Equal(HttpStatusCode.Unauthorized, selectedAfterLogout.StatusCode);
     }
 
     [Fact]
