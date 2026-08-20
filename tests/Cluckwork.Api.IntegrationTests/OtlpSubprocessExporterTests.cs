@@ -313,7 +313,17 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
         using var client = new HttpClient { BaseAddress = baseUrl, Timeout = TimeSpan.FromSeconds(30) };
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
         {
-            Content = JsonContent.Create(new { email = "nobody@test.local", password = "wrong-password-123!" }),
+            // #532 — login requires a farm code. This request only has to REACH the
+            // handler and fail, and the 401 below holds either way: with the default
+            // farm present it is Identity.InvalidCredentials, without it
+            // Auth.UnknownFarmCode. Omitting the code is a 400 from the validator,
+            // which never reaches the instrumentation this test exists to drive.
+            Content = JsonContent.Create(new
+            {
+                farmCode = TestHarness.DefaultFarmCode,
+                email = "nobody@test.local",
+                password = "wrong-password-123!",
+            }),
         };
         request.Headers.TryAddWithoutValidation("traceparent", $"00-{traceId}-0123456789abcdef-01");
         var response = await client.SendAsync(request);
