@@ -2447,6 +2447,8 @@ export const es = {
     glossaryFarmProvisioningDef:
       "El comando exclusivo para operadores que crea una granja nueva, sus categorías de huevos y "
       + "conversiones de unidades empacadas predeterminadas, y su primer propietario en una sola transacción. "
+      + "La granja comienza en UTC; después de que el propietario cambie la contraseña de un solo uso en el "
+      + "primer inicio de sesión, selecciona la zona horaria IANA de la granja en Configuración. "
       + "Se ejecuta fuera de la aplicación; los usuarios de la granja no lo invocan.",
 
     glossaryTooManySignInAttemptsTerm: "Demasiados intentos de inicio de sesión",

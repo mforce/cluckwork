@@ -297,6 +297,12 @@ describe("HelpPage", () => {
       expect(catalog.help.glossaryFarmProvisioningDef).toBeTruthy();
       expect(catalog.help.glossaryFarmProvisioningDef).not.toBe(en.help.glossaryFarmProvisioningDef);
     }
+    expect(en.help.glossaryFarmProvisioningDef).toContain("UTC");
+    expect(en.help.glossaryFarmProvisioningDef).toContain("Settings");
+    expect(es.help.glossaryFarmProvisioningDef).toContain("UTC");
+    expect(es.help.glossaryFarmProvisioningDef).toContain("Configuración");
+    expect(tl.help.glossaryFarmProvisioningDef).toContain("UTC");
+    expect(tl.help.glossaryFarmProvisioningDef).toContain("Settings");
   });
 
   it("counts disable/enable among the step-up-gated actions, alongside the three Owner-scoped ones (#356)", () => {

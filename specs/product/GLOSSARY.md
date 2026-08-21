@@ -613,11 +613,13 @@ there was no SPA surface for it.)
 **Farm provisioning (#533)** — the offline `provision-account` operator command
 creates a new account, its ten canonical egg grades, its six packed-unit
 conversions, and its first Owner as one transaction. The Owner receives a
-generated one-time password and must replace it at first sign-in. The command
-does not migrate the schema and is intended to run with the ordinary DML-only
-runtime database role after the migration job. A farm code is immutable, so the
-command echoes its normalized value before writing and the database's unique
-index is the final authority when two operators race for the same code.
+generated one-time password and must replace it at first sign-in. A new farm
+starts in UTC; after that password change, the Owner selects the farm's IANA
+timezone in Settings. The command does not migrate the schema and is intended
+to run with the ordinary DML-only runtime database role after the migration
+job. A farm code is immutable, so the command echoes its normalized value
+before writing and the database's unique index is the final authority when two
+operators race for the same code.
 
 **Account status — active / suspended (#531/#532/#534)** — an account is
 *active* by default. **Suspending** it takes the farm offline; **reactivating**

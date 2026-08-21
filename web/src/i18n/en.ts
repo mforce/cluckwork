@@ -2861,7 +2861,9 @@ export const en = {
     glossaryFarmProvisioningTerm: "Farm provisioning",
     glossaryFarmProvisioningDef:
       "The operator-only command that creates a new farm, its default egg grades and packed-unit "
-      + "conversions, and its first Owner in one transaction. It runs outside the app; farm users do not invoke it.",
+      + "conversions, and its first Owner in one transaction. The farm starts in UTC; after the Owner "
+      + "replaces the one-time password at first sign-in, they select its IANA timezone in Settings. "
+      + "It runs outside the app; farm users do not invoke it.",
 
     glossaryTooManySignInAttemptsTerm: "Too many sign-in attempts",
     glossaryTooManySignInAttemptsDef:

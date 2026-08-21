@@ -2537,8 +2537,10 @@ export const tl = {
     glossaryFarmProvisioningTerm: "Pag-provision ng bukid",
     glossaryFarmProvisioningDef:
       "Ang command para lamang sa operator na gumagawa ng bagong bukid, ng mga default na egg grade at "
-      + "conversion ng naka-pack na unit nito, at ng una nitong Owner sa iisang transaksyon. Tumatakbo ito "
-      + "sa labas ng app; hindi ito pinapatakbo ng mga user ng bukid.",
+      + "conversion ng naka-pack na unit nito, at ng una nitong Owner sa iisang transaksyon. "
+      + "Nagsisimula sa UTC ang bukid; pagkatapos palitan ng Owner ang isang-gamit na password sa unang "
+      + "pag-sign in, pipiliin nila ang IANA timezone ng bukid sa Settings. "
+      + "Tumatakbo ito sa labas ng app; hindi ito pinapatakbo ng mga user ng bukid.",
 
     glossaryTooManySignInAttemptsTerm: "Masyadong maraming pagtatangkang mag-sign in",
     glossaryTooManySignInAttemptsDef:
