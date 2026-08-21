@@ -87,6 +87,10 @@ public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory 
         var slug = Slug(accountId);
 
         var first = await RunAsync($"suspend-account --slug {slug}");
+        var versionAfterFirstSuspend = await factory.WithTenantScopeAsync(accountId, db => db.Accounts
+            .Where(a => a.Id == accountId)
+            .Select(a => a.Version)
+            .SingleAsync());
         var second = await RunAsync($"suspend-account --slug {slug}");
 
         Assert.Equal(0, first.ExitCode);
@@ -95,6 +99,11 @@ public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory 
         var count = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
             .CountAsync(a => a.AccountId == accountId && a.Action == "Account.Suspend"));
         Assert.Equal(1, count);
+        var versionAfterSecondSuspend = await factory.WithTenantScopeAsync(accountId, db => db.Accounts
+            .Where(a => a.Id == accountId)
+            .Select(a => a.Version)
+            .SingleAsync());
+        Assert.Equal(versionAfterFirstSuspend, versionAfterSecondSuspend);
     }
 
     [Fact]
