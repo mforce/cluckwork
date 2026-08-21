@@ -1703,6 +1703,7 @@ export const tl = {
     "auditAction.Account.UpdateSettings": "Na-update ang mga setting ng bukid",
     "auditAction.Account.Suspend": "Sinuspinde ang bukid",
     "auditAction.Account.Reactivate": "Muling binuksan ang bukid",
+    "auditAction.Account.Provisioned": "Ginawa ang bukid",
     "auditAction.Product.Create": "Nagawa ang produkto",
     "auditAction.Product.Update": "Na-update ang produkto",
     "auditAction.Product.Activate": "Na-activate ang produkto",
@@ -2279,6 +2280,7 @@ export const tl = {
       + "kaya hindi kailanman anonimo ang isang emergency reset. Ang \"(suspend-account)\" at "
       + "\"(reactivate-account)\" ay mga utos na pinapatakbo ng operator upang i-offline ang buong bukid "
       + "at ibalik ito; itinatala rin ng mga entry na iyon ang makinang pinatakbuhan at ang ibinigay na dahilan. "
+      + "Ang \"(provision-account)\" ay gumagawa ng bagong bukid at unang Owner nito bago makapag-sign in ang sinuman sa bukid na iyon. "
       + "Ang iba ay pinapangalanan ang taong gumawa.",
     auditRecordHistoryOlder:
       "Ang mga record na ginawa bago ito idagdag ay walang linyang \"ginawa ni\" — wala lang talagang "

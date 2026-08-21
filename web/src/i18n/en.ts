@@ -2084,6 +2084,7 @@ export const en = {
     "auditAction.Account.UpdateSettings": "Farm settings updated",
     "auditAction.Account.Suspend": "Farm suspended",
     "auditAction.Account.Reactivate": "Farm reactivated",
+    "auditAction.Account.Provisioned": "Farm provisioned",
     "auditAction.Product.Create": "Product created",
     "auditAction.Product.Update": "Product updated",
     "auditAction.Product.Activate": "Product activated",
@@ -2625,6 +2626,7 @@ export const en = {
       + "\"(suspend-account)\" and \"(reactivate-account)\" are the commands an operator runs to take the "
       + "whole farm offline and bring it back; those entries record the machine they were run from and the "
       + "reason given too. "
+      + "\"(provision-account)\" creates a new farm and its first Owner before anyone on that farm can sign in. "
       + "Everything else names the person who did it.",
     auditRecordHistoryOlder:
       "Records created before this was added show no \"created by\" line — there is simply no creation "

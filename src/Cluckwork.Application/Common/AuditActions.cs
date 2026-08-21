@@ -17,6 +17,7 @@ namespace Cluckwork.Application.Common;
 // built against the old string.
 public static class AuditActions
 {
+    public const string AccountProvisioned = "Account.Provisioned";
     public const string DailyEntryAdjust = "DailyEntry.Adjust";
     public const string DailyEntryVoid = "DailyEntry.Void";
     public const string SalesOrderVoid = "SalesOrder.Void";

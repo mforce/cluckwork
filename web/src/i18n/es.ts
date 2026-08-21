@@ -1639,6 +1639,7 @@ export const es = {
     "auditAction.Account.UpdateSettings": "Configuración de la granja actualizada",
     "auditAction.Account.Suspend": "Granja suspendida",
     "auditAction.Account.Reactivate": "Granja reactivada",
+    "auditAction.Account.Provisioned": "Granja aprovisionada",
     "auditAction.Product.Create": "Producto creado",
     "auditAction.Product.Update": "Producto actualizado",
     "auditAction.Product.Activate": "Producto activado",
@@ -2193,6 +2194,7 @@ export const es = {
       + "restablecimiento de emergencia nunca es anónimo. \"(suspend-account)\" y \"(reactivate-account)\" "
       + "son los comandos que ejecuta un operador para dejar toda la granja fuera de línea y activarla de "
       + "nuevo; esas entradas también registran la máquina desde la que se ejecutaron y el motivo indicado. "
+      + "\"(provision-account)\" crea una granja nueva y su primer propietario antes de que alguien de esa granja pueda iniciar sesión. "
       + "Todo lo demás nombra a la persona que lo hizo.",
     auditRecordHistoryOlder:
       "Los registros creados antes de que esto se agregara no muestran la línea de \"creado por\": "
