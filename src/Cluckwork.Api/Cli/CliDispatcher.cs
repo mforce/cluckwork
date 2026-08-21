@@ -19,6 +19,8 @@ public static class CliDispatcher
         new RecoverAdminCliCommand(),
         new BootstrapAdminCliCommand(),
         new ListAccountsCliCommand(),
+        new SuspendAccountCliCommand(),
+        new ReactivateAccountCliCommand(),
     ];
 
     // Whether these args dispatch to a one-off verb rather than start the web

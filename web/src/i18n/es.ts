@@ -1637,6 +1637,8 @@ export const es = {
     "auditAction.Account.SetBanner": "Banner de la granja establecido",
     "auditAction.Account.RemoveBanner": "Banner de la granja eliminado",
     "auditAction.Account.UpdateSettings": "Configuración de la granja actualizada",
+    "auditAction.Account.Suspend": "Granja suspendida",
+    "auditAction.Account.Reactivate": "Granja reactivada",
     "auditAction.Product.Create": "Producto creado",
     "auditAction.Product.Update": "Producto actualizado",
     "auditAction.Product.Activate": "Producto activado",
@@ -2188,7 +2190,10 @@ export const es = {
       + "propietario, antes de que existiera alguien para hacerlo. \"(break-glass)\" es el comando de "
       + "emergencia que restablece una contraseña cuando todos han perdido el acceso; esa entrada "
       + "también registra desde qué equipo se ejecutó y el motivo indicado, de modo que un "
-      + "restablecimiento de emergencia nunca es anónimo. Todo lo demás nombra a la persona que lo hizo.",
+      + "restablecimiento de emergencia nunca es anónimo. \"(suspend-account)\" y \"(reactivate-account)\" "
+      + "son los comandos que ejecuta un operador para dejar toda la granja fuera de línea y activarla de "
+      + "nuevo; esas entradas también registran la máquina desde la que se ejecutaron y el motivo indicado. "
+      + "Todo lo demás nombra a la persona que lo hizo.",
     auditRecordHistoryOlder:
       "Los registros creados antes de que esto se agregara no muestran la línea de \"creado por\": "
       + "simplemente no hay una entrada de creación en el registro para ellos, y no se inventa ninguna "

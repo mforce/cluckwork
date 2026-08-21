@@ -51,7 +51,7 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
     {
         using var scope = factory.Services.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<AccountSuspensionService>();
-        var result = await service.SuspendAsync(accountId);
+        var result = await service.SuspendAsync(accountId, reason: null);
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Description : "");
     }
 
@@ -59,7 +59,7 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
     {
         using var scope = factory.Services.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<AccountSuspensionService>();
-        var result = await service.ReactivateAsync(accountId);
+        var result = await service.ReactivateAsync(accountId, reason: null);
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Description : "");
     }
 
@@ -169,9 +169,11 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
             sp.GetRequiredService<AppDbContext>(),
             sp.GetRequiredService<TenantContext>(),
             sp.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
-            clock);
+            clock,
+            sp.GetRequiredService<Cluckwork.Application.Common.IAuditWriter>(),
+            sp.GetRequiredService<CurrentUserContext>());
 
-        var result = await service.SuspendAsync(accountId);
+        var result = await service.SuspendAsync(accountId, reason: null);
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Description : "");
 
         using (var checkScope = factory.Services.CreateScope())
@@ -565,7 +567,7 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
     {
         using var scope = factory.Services.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<AccountSuspensionService>();
-        var result = await service.SuspendAsync(Guid.NewGuid());
+        var result = await service.SuspendAsync(Guid.NewGuid(), reason: null);
         Assert.True(result.IsFailure);
     }
 

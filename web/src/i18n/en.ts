@@ -2082,6 +2082,8 @@ export const en = {
     "auditAction.Account.SetBanner": "Farm banner set",
     "auditAction.Account.RemoveBanner": "Farm banner removed",
     "auditAction.Account.UpdateSettings": "Farm settings updated",
+    "auditAction.Account.Suspend": "Farm suspended",
+    "auditAction.Account.Reactivate": "Farm reactivated",
     "auditAction.Product.Create": "Product created",
     "auditAction.Product.Update": "Product updated",
     "auditAction.Product.Activate": "Product activated",
@@ -2619,7 +2621,11 @@ export const en = {
       + "an email. \"(bootstrap-admin)\" is the command that created your very first owner account, before "
       + "anyone existed to do it. \"(break-glass)\" is the emergency command that resets a password when "
       + "everyone is locked out — that entry also records which machine it was run from and the reason given, "
-      + "so an emergency reset is never anonymous. Everything else names the person who did it.",
+      + "so an emergency reset is never anonymous. "
+      + "\"(suspend-account)\" and \"(reactivate-account)\" are the commands an operator runs to take the "
+      + "whole farm offline and bring it back; those entries record the machine they were run from and the "
+      + "reason given too. "
+      + "Everything else names the person who did it.",
     auditRecordHistoryOlder:
       "Records created before this was added show no \"created by\" line — there is simply no creation "
       + "entry in the log for them, and none is invented after the fact. If such a record has been changed "
