@@ -95,6 +95,7 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
     [InlineData("slug-reserved", "Account.SlugInvalid")]
     [InlineData("timezone-invalid", "Provision.TimeZoneUnknown")]
     [InlineData("timezone-windows-id", "Provision.TimeZoneUnknown")]
+    [InlineData("timezone-tzdata-path", "Provision.TimeZoneUnknown")]
     [InlineData("locale-invalid", "Provision.LocaleInvalid")]
     [InlineData("currency-invalid", "Provision.CurrencyInvalid")]
     public async Task Provision_RejectsInvalidInputWithoutWrites(string invalidField, string expectedCode)
@@ -109,6 +110,7 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
         var email = invalidField == "email-required" ? " " : $"owner-{suffix}@example.test";
         var timeZone = invalidField == "timezone-invalid" ? "Nowhere/Invalid"
             : invalidField == "timezone-windows-id" ? "Pacific Standard Time"
+            : invalidField == "timezone-tzdata-path" ? "right/America/Los_Angeles"
             : "UTC";
         var locale = invalidField == "locale-invalid" ? "zz-ZZ" : "en-US";
         var currency = invalidField == "currency-invalid" ? "US" : "USD";

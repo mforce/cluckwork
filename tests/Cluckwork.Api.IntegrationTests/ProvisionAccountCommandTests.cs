@@ -49,6 +49,33 @@ public sealed class ProvisionAccountCommandTests(CluckworkWebApplicationFactory 
         Assert.Equal(HttpStatusCode.OK, (await factory.TryLoginAsync(email, password)).StatusCode);
     }
 
+    [Theory]
+    [InlineData("--timezone")]
+    [InlineData("--time-zone America/Los_Angeles")]
+    [InlineData("--timezone UTC --timezone America/Los_Angeles")]
+    public async Task ProvisionAccount_RejectsMalformedOptionsWithoutWrites(string malformedOptions)
+    {
+        _ = factory.Services;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        var slug = $"bad-cli-{suffix}";
+        var email = $"bad-cli-owner-{suffix}@example.test";
+        var process = Start(
+            $"provision-account --name \"Bad CLI Farm\" --slug {slug} --owner-email {email} {malformedOptions}",
+            factory.ConnectionString);
+
+        var (exitCode, stdout, stderr) = await SeedCommandRunner.RunToCompletionAsync(
+            process, SubprocessTimeout, "malformed provision-account did not exit");
+
+        Assert.Equal(1, exitCode);
+        Assert.DoesNotContain("Farm code:", stdout);
+        Assert.DoesNotContain("Temporary password:", stdout);
+        Assert.Contains("Provisioning failed:", stderr);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.False(await db.Accounts.IgnoreQueryFilters().AnyAsync(account => account.Slug == slug));
+    }
+
     private static Process Start(string arguments, string connectionString)
     {
         var info = new ProcessStartInfo("dotnet", $"\"{ApiDllPath}\" {arguments}")

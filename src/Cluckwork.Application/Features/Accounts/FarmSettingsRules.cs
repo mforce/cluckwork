@@ -10,8 +10,9 @@ public static class FarmSettingsRules
         try
         {
             var normalized = timeZoneId.Trim();
-            var timeZone = TimeZoneInfo.FindSystemTimeZoneById(normalized);
-            return timeZone.HasIanaId || normalized.Equals("UTC", StringComparison.Ordinal);
+            _ = TimeZoneInfo.FindSystemTimeZoneById(normalized);
+            return normalized.Equals("UTC", StringComparison.Ordinal)
+                || TimeZoneInfo.TryConvertIanaIdToWindowsId(normalized, out _);
         }
         catch (Exception ex) when (ex is TimeZoneNotFoundException
                                       or InvalidTimeZoneException

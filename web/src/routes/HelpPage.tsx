@@ -548,6 +548,8 @@ export function HelpPage() {
           {/* #532 — the login screen now asks for it before the email. */}
           <tr><th scope="row">{t("glossaryFarmCodeTerm")}</th>
             <td><Trans ns="help" i18nKey="glossaryFarmCodeDef" components={{ strong: <strong /> }} /></td></tr>
+          <tr><th scope="row">{t("glossaryFarmProvisioningTerm")}</th>
+            <td>{t("glossaryFarmProvisioningDef")}</td></tr>
           <tr><th scope="row">{t("glossaryTooManySignInAttemptsTerm")}</th>
             <td>{t("glossaryTooManySignInAttemptsDef")}</td></tr>
           <tr><th scope="row">{t("glossaryForcedReauthTerm")}</th>

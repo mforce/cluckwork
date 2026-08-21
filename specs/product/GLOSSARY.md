@@ -590,9 +590,10 @@ total — clients never sum pages.
 
 ## Cross-cutting
 
-**Account** — the tenant. Every row carries `AccountId`; the API enforces
-isolation with EF global query filters. Single-farm login today, multi-tenant
-infrastructure dormant.
+**Account** — the tenant, presented to users as a farm. Multiple accounts can
+coexist; the farm code selects the tenant at sign-in, and the same email address
+can belong to users in several farms. Every tenant-owned row carries
+`AccountId`; the API enforces isolation with EF global query filters.
 
 **Farm code (account slug, #531)** — the per-farm login identifier: a short,
 stable, URL-safe slug (`Account.Slug`) for an account — lowercase letters,

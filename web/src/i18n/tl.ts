@@ -2533,6 +2533,13 @@ export const tl = {
       + "code lamang ang nagsasabi kung alin ang ibig mo sabihin. Lowercase ito at hindi ito "
       + "nagbabago.",
 
+    // #533 (machine-drafted, pending native review)
+    glossaryFarmProvisioningTerm: "Pag-provision ng bukid",
+    glossaryFarmProvisioningDef:
+      "Ang command para lamang sa operator na gumagawa ng bagong bukid, ng mga default na egg grade at "
+      + "conversion ng naka-pack na unit nito, at ng una nitong Owner sa iisang transaksyon. Tumatakbo ito "
+      + "sa labas ng app; hindi ito pinapatakbo ng mga user ng bukid.",
+
     glossaryTooManySignInAttemptsTerm: "Masyadong maraming pagtatangkang mag-sign in",
     glossaryTooManySignInAttemptsDef:
       "Rate-limited ang pag-sign in para pabagalin ang panghuhula ng password: masyadong maraming "

@@ -2442,6 +2442,13 @@ export const es = {
       + "varias granjas y solo el código indica a cuál se refiere. Está en minúsculas y no "
       + "cambia.",
 
+    // #533 (machine-drafted, pending native review)
+    glossaryFarmProvisioningTerm: "Aprovisionamiento de granja",
+    glossaryFarmProvisioningDef:
+      "El comando exclusivo para operadores que crea una granja nueva, sus categorías de huevos y "
+      + "conversiones de unidades empacadas predeterminadas, y su primer propietario en una sola transacción. "
+      + "Se ejecuta fuera de la aplicación; los usuarios de la granja no lo invocan.",
+
     glossaryTooManySignInAttemptsTerm: "Demasiados intentos de inicio de sesión",
     glossaryTooManySignInAttemptsDef:
       "El inicio de sesión tiene un límite de frecuencia para frenar los intentos de adivinar contraseñas: "

@@ -277,6 +277,19 @@ describe("HelpPage", () => {
       expect(catalog.help.auditSystemActors).toContain("(provision-account)");
   });
 
+  it("documents farm provisioning in the in-app glossary (#533)", () => {
+    render(<HelpPage />);
+    expect(screen.getByRole("rowheader", { name: "Farm provisioning" })).toBeInTheDocument();
+    expect(screen.getByText(/operator-only command that creates a new farm/i)).toBeInTheDocument();
+
+    for (const catalog of [es, tl]) {
+      expect(catalog.help.glossaryFarmProvisioningTerm).toBeTruthy();
+      expect(catalog.help.glossaryFarmProvisioningTerm).not.toBe(en.help.glossaryFarmProvisioningTerm);
+      expect(catalog.help.glossaryFarmProvisioningDef).toBeTruthy();
+      expect(catalog.help.glossaryFarmProvisioningDef).not.toBe(en.help.glossaryFarmProvisioningDef);
+    }
+  });
+
   it("counts disable/enable among the step-up-gated actions, alongside the three Owner-scoped ones (#356)", () => {
     // #356 added two more step-up-gated actions to the Users screen. The old
     // "Three actions ... every other action ... does not ask again" copy

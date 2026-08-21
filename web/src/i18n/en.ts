@@ -2858,6 +2858,11 @@ export const en = {
       + "email, because the same email address can exist in several farms and only the code "
       + "says which one you mean. It is lowercase and it does not change.",
 
+    glossaryFarmProvisioningTerm: "Farm provisioning",
+    glossaryFarmProvisioningDef:
+      "The operator-only command that creates a new farm, its default egg grades and packed-unit "
+      + "conversions, and its first Owner in one transaction. It runs outside the app; farm users do not invoke it.",
+
     glossaryTooManySignInAttemptsTerm: "Too many sign-in attempts",
     glossaryTooManySignInAttemptsDef:
       "Sign-in is rate limited to slow password guessing: too many attempts from one place in a few "
