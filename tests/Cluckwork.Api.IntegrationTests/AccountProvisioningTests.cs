@@ -25,7 +25,7 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
         using var scope = factory.Services.CreateScope();
         var result = await scope.ServiceProvider
             .GetRequiredService<AccountProvisioner>()
-            .ProvisionAsync("  Second Farm  ", slug, email, " UTC ", "en-US", "usd");
+            .ProvisionAsync("  Second Farm  ", slug, email, "en-US", "usd");
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Description : string.Empty);
         var outcome = result.Value;
@@ -93,9 +93,6 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
     [InlineData("email-required", "Provision.EmailRequired")]
     [InlineData("slug-invalid", "Account.SlugInvalid")]
     [InlineData("slug-reserved", "Account.SlugInvalid")]
-    [InlineData("timezone-invalid", "Provision.TimeZoneUnknown")]
-    [InlineData("timezone-windows-id", "Provision.TimeZoneUnknown")]
-    [InlineData("timezone-tzdata-path", "Provision.TimeZoneUnknown")]
     [InlineData("locale-invalid", "Provision.LocaleInvalid")]
     [InlineData("currency-invalid", "Provision.CurrencyInvalid")]
     public async Task Provision_RejectsInvalidInputWithoutWrites(string invalidField, string expectedCode)
@@ -108,17 +105,13 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
             : invalidField == "slug-reserved" ? "admin"
             : $"valid-{suffix}";
         var email = invalidField == "email-required" ? " " : $"owner-{suffix}@example.test";
-        var timeZone = invalidField == "timezone-invalid" ? "Nowhere/Invalid"
-            : invalidField == "timezone-windows-id" ? "Pacific Standard Time"
-            : invalidField == "timezone-tzdata-path" ? "right/America/Los_Angeles"
-            : "UTC";
         var locale = invalidField == "locale-invalid" ? "zz-ZZ" : "en-US";
         var currency = invalidField == "currency-invalid" ? "US" : "USD";
         var countsBefore = await WriteCountsAsync();
 
         using var scope = factory.Services.CreateScope();
         var result = await scope.ServiceProvider.GetRequiredService<AccountProvisioner>()
-            .ProvisionAsync(name, slug, email, timeZone, locale, currency);
+            .ProvisionAsync(name, slug, email, locale, currency);
 
         Assert.True(result.IsFailure);
         Assert.Equal(expectedCode, result.Error.Code);
@@ -334,7 +327,7 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
         using var scope = factory.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<AccountProvisioner>()
             .ProvisionSkippingSlugPrecheckForTestAsync(
-                accountId, "Race Farm", slug, email, "UTC", "en-US", "USD");
+                accountId, "Race Farm", slug, email, "en-US", "USD");
     }
 
     private async Task<WriteCounts> WriteCountsAsync()

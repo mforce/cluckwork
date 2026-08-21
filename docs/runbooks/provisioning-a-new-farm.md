@@ -46,15 +46,15 @@ docker run --rm --env-file <runtime-credential.env> \
   --name "Example Farm" \
   --slug example-farm \
   --owner-email owner@example.com \
-  --timezone America/Los_Angeles \
   --locale en-US \
   --currency USD
 ```
 
 Pass the verb only: the image entrypoint already supplies
-`dotnet Cluckwork.Api.dll`. The timezone, locale, and currency flags default to
-`UTC`, `en-US`, and `USD`, but production provisioning should state them
-explicitly.
+`dotnet Cluckwork.Api.dll`. Locale and currency default to `en-US` and `USD`,
+but production provisioning should state them explicitly. A new farm always
+starts in `UTC`; after the Owner's first login and required password change,
+select its IANA timezone in **Settings**.
 
 The command echoes the normalized farm code before any write; runtime warnings
 may appear before that line. On success it exits `0`, prints the new account id
@@ -67,7 +67,8 @@ deliver it to the Owner out of band.
 1. Run `list-accounts` again and confirm the new code is `active`.
 2. Sign in using the new farm code, Owner email, and printed password.
 3. Confirm the SPA shows **Set your password** and blocks every other screen.
-4. Set a permanent password and confirm the farm opens normally.
+4. Set a permanent password, select the farm's IANA timezone in **Settings**,
+   and confirm the farm opens normally.
 
 ## If it fails
 

@@ -15,7 +15,6 @@ public sealed class ProvisionAccountCliCommand : ICliCommand
         "--name",
         "--slug",
         "--owner-email",
-        "--timezone",
         "--locale",
         "--currency",
     ];
@@ -52,7 +51,6 @@ public sealed class ProvisionAccountCliCommand : ICliCommand
                     CliDispatcher.ArgValue(args, "--name"),
                     slug.Value,
                     CliDispatcher.ArgValue(args, "--owner-email"),
-                    CliDispatcher.ArgValue(args, "--timezone"),
                     CliDispatcher.ArgValue(args, "--locale"),
                     CliDispatcher.ArgValue(args, "--currency"));
 
@@ -85,7 +83,7 @@ public sealed class ProvisionAccountCliCommand : ICliCommand
         {
             var option = args[i];
             if (!AllowedOptions.Contains(option, StringComparer.Ordinal))
-                return "unknown option; use the documented --name, --slug, --owner-email, --timezone, --locale, and --currency options.";
+                return "unknown option; use the documented --name, --slug, --owner-email, --locale, and --currency options.";
             if (!seen.Add(option))
                 return "an option was specified more than once.";
             if (i + 1 >= args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal))

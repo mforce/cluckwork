@@ -22,12 +22,11 @@ public sealed class AccountProvisioner(
         string? name,
         string? slug,
         string? ownerEmail,
-        string? timeZoneId = null,
         string? locale = null,
         string? currencyCode = null,
         CancellationToken ct = default)
     {
-        var validated = Validate(name, slug, ownerEmail, timeZoneId, locale, currencyCode);
+        var validated = Validate(name, slug, ownerEmail, locale, currencyCode);
         if (validated.IsFailure)
             return Result.Failure<AccountProvisionOutcome>(validated.Error);
 
@@ -45,12 +44,11 @@ public sealed class AccountProvisioner(
         string? name,
         string? slug,
         string? ownerEmail,
-        string? timeZoneId = null,
         string? locale = null,
         string? currencyCode = null,
         CancellationToken ct = default)
     {
-        var validated = Validate(name, slug, ownerEmail, timeZoneId, locale, currencyCode);
+        var validated = Validate(name, slug, ownerEmail, locale, currencyCode);
         return validated.IsFailure
             ? Result.Failure<AccountProvisionOutcome>(validated.Error)
             : await ProvisionValidatedAsync(accountId, validated.Value, ct);
@@ -96,7 +94,7 @@ public sealed class AccountProvisioner(
             return await AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
             {
                 var account = Account.Create(
-                    accountId, input.Name, input.Slug, input.TimeZoneId,
+                    accountId, input.Name, input.Slug, "UTC",
                     input.CurrencyCode, input.Locale);
                 db.Accounts.Add(account);
                 await db.SaveChangesAsync(token);
@@ -140,7 +138,6 @@ public sealed class AccountProvisioner(
         string? name,
         string? slug,
         string? ownerEmail,
-        string? timeZoneId,
         string? locale,
         string? currencyCode)
     {
@@ -161,11 +158,6 @@ public sealed class AccountProvisioner(
         if (normalizedSlug.IsFailure)
             return Result.Failure<ProvisionInput>(normalizedSlug.Error);
 
-        var normalizedTimeZone = (timeZoneId ?? "UTC").Trim();
-        if (!FarmSettingsRules.IsKnownTimeZone(normalizedTimeZone))
-            return Result.Failure<ProvisionInput>(Error.Validation(
-                "Provision.TimeZoneUnknown", $"'{timeZoneId}' is not a known IANA timezone."));
-
         var normalizedLocale = (locale ?? Account.DefaultLocale).Trim();
         if (!FarmSettingsRules.IsSpecificCulture(normalizedLocale))
             return Result.Failure<ProvisionInput>(Error.Validation(
@@ -178,7 +170,7 @@ public sealed class AccountProvisioner(
 
         return Result.Success(new ProvisionInput(
             normalizedName, normalizedSlug.Value, normalizedEmail,
-            normalizedTimeZone, normalizedLocale, normalizedCurrency));
+            normalizedLocale, normalizedCurrency));
     }
 
     private static Result<AccountProvisionOutcome> SlugTaken(string slug) =>
@@ -189,7 +181,6 @@ public sealed class AccountProvisioner(
         string Name,
         string Slug,
         string OwnerEmail,
-        string TimeZoneId,
         string Locale,
         string CurrencyCode);
 }
