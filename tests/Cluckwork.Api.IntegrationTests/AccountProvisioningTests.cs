@@ -94,6 +94,7 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
     [InlineData("slug-invalid", "Account.SlugInvalid")]
     [InlineData("slug-reserved", "Account.SlugInvalid")]
     [InlineData("timezone-invalid", "Provision.TimeZoneUnknown")]
+    [InlineData("timezone-windows-id", "Provision.TimeZoneUnknown")]
     [InlineData("locale-invalid", "Provision.LocaleInvalid")]
     [InlineData("currency-invalid", "Provision.CurrencyInvalid")]
     public async Task Provision_RejectsInvalidInputWithoutWrites(string invalidField, string expectedCode)
@@ -106,7 +107,9 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
             : invalidField == "slug-reserved" ? "admin"
             : $"valid-{suffix}";
         var email = invalidField == "email-required" ? " " : $"owner-{suffix}@example.test";
-        var timeZone = invalidField == "timezone-invalid" ? "Nowhere/Invalid" : "UTC";
+        var timeZone = invalidField == "timezone-invalid" ? "Nowhere/Invalid"
+            : invalidField == "timezone-windows-id" ? "Pacific Standard Time"
+            : "UTC";
         var locale = invalidField == "locale-invalid" ? "zz-ZZ" : "en-US";
         var currency = invalidField == "currency-invalid" ? "US" : "USD";
         var countsBefore = await WriteCountsAsync();

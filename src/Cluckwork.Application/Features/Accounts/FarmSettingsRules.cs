@@ -9,8 +9,9 @@ public static class FarmSettingsRules
         if (string.IsNullOrWhiteSpace(timeZoneId)) return false;
         try
         {
-            TimeZoneInfo.FindSystemTimeZoneById(timeZoneId.Trim());
-            return true;
+            var normalized = timeZoneId.Trim();
+            var timeZone = TimeZoneInfo.FindSystemTimeZoneById(normalized);
+            return timeZone.HasIanaId || normalized.Equals("UTC", StringComparison.Ordinal);
         }
         catch (Exception ex) when (ex is TimeZoneNotFoundException
                                       or InvalidTimeZoneException
