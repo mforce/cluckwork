@@ -18,7 +18,7 @@ concerns whose relative order does not carry a guarantee.
 
 ```mermaid
 flowchart TD
-    CLI{"one-shot verb?<br/><i>migrate · seed · recover-admin<br/>bootstrap-admin · healthcheck</i>"}
+    CLI{"one-shot verb?<br/><i>migrate · seed · recover-admin · bootstrap-admin<br/>list-accounts · suspend-account · reactivate-account<br/>provision-account · healthcheck</i>"}
     CLI -->|yes| EXIT["run, then exit — the HTTP<br/>pipeline is never registered"]
     CLI -->|no| EDGE
 
