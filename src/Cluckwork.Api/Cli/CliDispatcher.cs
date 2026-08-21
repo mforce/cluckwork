@@ -19,6 +19,7 @@ public static class CliDispatcher
         new RecoverAdminCliCommand(),
         new BootstrapAdminCliCommand(),
         new ListAccountsCliCommand(),
+        new ProvisionAccountCliCommand(),
         new SuspendAccountCliCommand(),
         new ReactivateAccountCliCommand(),
     ];
@@ -26,7 +27,7 @@ public static class CliDispatcher
     // Whether these args dispatch to a one-off verb rather than start the web
     // host is answered by ProcessRoles.From(args) (Hosting/ProcessRole.cs), which
     // reads Commands above so the two can't disagree. It deliberately does NOT
-    // live here: this dispatcher only knows the four verbs that run AFTER
+    // live here: this dispatcher only knows the verbs that run AFTER
     // Build(), and `healthcheck` — dispatched before the host exists — is a
     // one-shot process too. A predicate built from Commands alone called it
     // Serving (#347).

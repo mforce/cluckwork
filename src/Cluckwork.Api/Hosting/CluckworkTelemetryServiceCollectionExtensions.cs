@@ -11,7 +11,8 @@ using Serilog;
 internal static class CluckworkTelemetryServiceCollectionExtensions
 {
     // role is OneShot for the operator verbs (migrate / seed / recover-admin /
-    // bootstrap-admin / healthcheck). They dispatch after Build(), so a throw
+    // bootstrap-admin / list-accounts / suspend-account / reactivate-account /
+    // provision-account / healthcheck). Commands dispatch after Build(), so a throw
     // during service registration would abort them before CliDispatcher ever ran
     // — see the endpoint-resolution block below for why that matters. #347: the
     // role is computed once in Program.cs and passed in, so this is the guard's

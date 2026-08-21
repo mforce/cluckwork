@@ -99,6 +99,7 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
         // fully-populated table both exit 0; a missing/unreachable DB is its own
         // clean exit 1 (the verb's try/catch), never a crash.
         { "list-accounts", "Production" },
+        { "provision-account --name \"Minimal Config Farm\" --slug minimal-config-farm --owner-email owner@example.test", "Production" },
         // #534 — the lifecycle verbs. Production on purpose, and for the same
         // reason list-accounts is: neither is environment-gated, and both run
         // against a real database. An unknown farm code is the verb's OWN clean
