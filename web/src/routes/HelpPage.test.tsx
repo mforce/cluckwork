@@ -278,9 +278,18 @@ describe("HelpPage", () => {
   });
 
   it("documents farm provisioning in the in-app glossary (#533)", () => {
-    render(<HelpPage />);
-    expect(screen.getByRole("rowheader", { name: "Farm provisioning" })).toBeInTheDocument();
-    expect(screen.getByText(/operator-only command that creates a new farm/i)).toBeInTheDocument();
+    const originalTerm = i18n.getResource("en", "help", "glossaryFarmProvisioningTerm") as string;
+    const originalDef = i18n.getResource("en", "help", "glossaryFarmProvisioningDef") as string;
+    i18n.addResource("en", "help", "glossaryFarmProvisioningTerm", "PROVISIONING-TERM-MARKER");
+    i18n.addResource("en", "help", "glossaryFarmProvisioningDef", "PROVISIONING-DEF-MARKER");
+    try {
+      render(<HelpPage />);
+      expect(screen.getByRole("rowheader", { name: "PROVISIONING-TERM-MARKER" })).toBeInTheDocument();
+      expect(screen.getByText("PROVISIONING-DEF-MARKER")).toBeInTheDocument();
+    } finally {
+      i18n.addResource("en", "help", "glossaryFarmProvisioningTerm", originalTerm);
+      i18n.addResource("en", "help", "glossaryFarmProvisioningDef", originalDef);
+    }
 
     for (const catalog of [es, tl]) {
       expect(catalog.help.glossaryFarmProvisioningTerm).toBeTruthy();

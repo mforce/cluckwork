@@ -1011,8 +1011,9 @@ never conflated.
 
 **Must-change-password gate (#283)** — the flag (`ApplicationUser
 .MustChangePassword`) that forces the printed one-time password to actually
-get replaced instead of sitting valid indefinitely. Set only by
-`bootstrap-admin` on the Owner it creates. While set, the access token carries
+get replaced instead of sitting valid indefinitely. Set by `bootstrap-admin`
+and `provision-account` on the Owner each command creates. While set, the access
+token carries
 a matching claim, the SPA shows a **"Set your password"** screen in place of
 the app (any route), and the API refuses every other endpoint with 403 except
 signing out and the change-password call itself. Submitting the printed
