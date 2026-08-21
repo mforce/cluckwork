@@ -145,16 +145,17 @@ tell a nonexistent email apart from a real, wrong-passworded one.
 
 ### Never-logged invariant: generated one-time passwords
 
-`bootstrap-admin` (#283) and `recover-admin` (#265) print a freshly generated
-temporary password to **stdout only** — never through `ILogger`/Serilog,
-never OTLP. This is a stronger guarantee than redaction (the value never
-reaches the logging pipeline at all, so there is nothing for the enricher to
-catch if a future edit accidentally routed it through `ILogger`). Regression
-coverage: `BootstrapAdminCommandTests` /
-`RecoverAdminCommandTests` capture the real subprocess's raw stdout (which
-also carries Serilog's own Console sink output in the same stream) and assert
-it contains *only* the command's explicit `Console.Out` lines — a stray
-structured log line would show up in that same capture, not vanish silently.
+`bootstrap-admin` (#283), `recover-admin` (#265), and `provision-account`
+(#533) print a freshly generated temporary password to **stdout only** — never
+through `ILogger`/Serilog, never OTLP. This is a stronger guarantee than
+redaction: the value never reaches the logging pipeline at all.
+`BootstrapAdminCommandTests`, `RecoverAdminCommandTests`, and
+`ProvisionAccountCommandTests` capture each real subprocess's raw stdout and
+assert the password appears exactly once and never in a Serilog-formatted line.
+`SecretCliLoggingGuardTests` is the source-level proof that the property is
+referenced exactly once in each command, on a `Console.Out` line. That static
+half is load-bearing: redaction could make a forbidden logged-then-redacted
+value invisible to subprocess capture.
 
 ## What the deployment/ops repo must provide (requirement, not configuration)
 

@@ -448,7 +448,7 @@ public sealed class IdentityProvider(
                 EmailConfirmed = true,
                 AccountId = accountId,
                 DisplayName = name, // #163 — optional display name at creation
-                MustChangePassword = mustChangePassword // #283 — true only for bootstrap-admin's Owner
+                MustChangePassword = mustChangePassword // generated offline-provisioning credential
             };
 
             var created = await userManager.CreateAsync(user, password);

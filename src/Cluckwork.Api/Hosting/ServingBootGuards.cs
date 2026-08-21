@@ -5,7 +5,8 @@ namespace Cluckwork.Api.Hosting;
 //
 // Both of these used to sit inline in Program.cs BELOW the CLI dispatcher's
 // return, and that position was the whole of what stopped them aborting
-// `migrate`/`seed`/`recover-admin`/`bootstrap-admin`. Program.cs now calls this
+// `migrate`/`seed`/`recover-admin`/`bootstrap-admin`/`list-accounts`/
+// `suspend-account`/`reactivate-account`/`provision-account`. Program.cs now calls this
 // BEFORE the dispatch, deliberately: a serving-only guard sitting ahead of the
 // dispatcher and still not touching the one-shot verbs is the #331 failure mode
 // disarmed rather than merely avoided. Move this call again and nothing breaks.

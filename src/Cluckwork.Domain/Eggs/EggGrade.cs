@@ -50,6 +50,20 @@ public sealed class EggGrade : AggregateRoot<Guid>
         };
     }
 
+    public static IReadOnlyList<EggGrade> Defaults(Guid accountId, Guid farmId) =>
+    [
+        Create(Guid.NewGuid(), accountId, farmId, "Small", EggGradeType.Size, 0, true),
+        Create(Guid.NewGuid(), accountId, farmId, "Medium", EggGradeType.Size, 1, true),
+        Create(Guid.NewGuid(), accountId, farmId, "Large", EggGradeType.Size, 2, true),
+        Create(Guid.NewGuid(), accountId, farmId, "Jumbo", EggGradeType.Size, 3, true),
+        Create(Guid.NewGuid(), accountId, farmId, "Seconds", EggGradeType.Quality, 4, true),
+        Create(Guid.NewGuid(), accountId, farmId, "Cracked", EggGradeType.Quality, 5, true, DailyEntryKind.Cracked),
+        Create(Guid.NewGuid(), accountId, farmId, "Dirty", EggGradeType.Quality, 6, true, DailyEntryKind.Dirty),
+        Create(Guid.NewGuid(), accountId, farmId, "Soft Shell", EggGradeType.Quality, 7, false),
+        Create(Guid.NewGuid(), accountId, farmId, "Discarded", EggGradeType.Custom, 8, false),
+        Create(Guid.NewGuid(), accountId, farmId, "Internal Use", EggGradeType.Custom, 9, false),
+    ];
+
     // GradeType stays immutable after creation — history recorded under a bucket
     // keeps the axis it was captured with; relabeling the axis would silently
     // reinterpret past entries. DailyEntryKind is immutable for a STRONGER

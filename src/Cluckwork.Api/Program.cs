@@ -32,7 +32,7 @@ using Serilog;
 
 // #266 — the `healthcheck` verb is the container HEALTHCHECK probe. It only GETs
 // the already-running serving process's /health/ready over loopback, so — unlike
-// the migrate/seed/recover-admin verbs, which operate ON the built host via
+// the ICliCommand verbs, which operate ON the built host via
 // CliDispatcher after Build() — it needs no host, DI, DB or config. Dispatch it
 // HERE, before anything is built, so a 30s HEALTHCHECK never pays a full app
 // startup, re-validates the connection string, or re-logs boot warnings on every
@@ -108,7 +108,7 @@ var app = builder.Build();
 
 // #262 — replay the connection-string TLS warnings once, now that a logger exists (a
 // floor violation already failed the boot above during configuration). Logged before the
-// CLI dispatch so the migrate/seed one-shot verbs surface it too.
+// CLI dispatch so the host-backed one-shot verbs surface it too.
 foreach (var connectionStringWarning in persistence.ConnectionStringWarnings)
     app.Logger.LogWarning("{ConnectionStringWarning}", connectionStringWarning);
 
@@ -119,7 +119,7 @@ foreach (var connectionStringWarning in persistence.ConnectionStringWarnings)
 ServingBootGuards.EnsureServingConfiguration(
     processRole, app.Environment, builder.Configuration, rateLimiting);
 
-// One-off operator commands (seed / migrate / recover-admin) run then EXIT
+// One-off operator commands run then EXIT
 // before the web host starts — Kestrel and the hosted services never run for
 // these. Each lives in Cluckwork.Api.Cli; the dispatcher returns the exit
 // code, or null when no CLI verb matched (a normal serving start). Extracted

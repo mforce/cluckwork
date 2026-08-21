@@ -423,9 +423,11 @@ record's own history; the audit log is the cross-cutting trail.
 
 **Every event names an actor, and nothing can write one that does not (#500).**
 For a request that is the signed-in person. For the offline operator verbs,
-which have no human by design, it is one of two explicit **system actors** —
-`(bootstrap-admin)` for the first Owner's creation and `(break-glass)` for a
-`recover-admin` password reset — chosen deliberately rather than defaulted. An
+which have no human by design, it is one of five explicit **system actors** —
+`(bootstrap-admin)` for the default farm's first Owner, `(break-glass)` for a
+`recover-admin` password reset, `(suspend-account)` and `(reactivate-account)`
+for farm lifecycle changes, and `(provision-account)` for a new farm and its
+first Owner — chosen deliberately rather than defaulted. An
 event whose actor was never resolved is refused outright, so a record can never
 be filed with no author at all. Sample data is held to the same rule: a **demo**
 farm's records are signed by its Owner, and a **simulation** farm's by the member
@@ -588,9 +590,10 @@ total — clients never sum pages.
 
 ## Cross-cutting
 
-**Account** — the tenant. Every row carries `AccountId`; the API enforces
-isolation with EF global query filters. Single-farm login today, multi-tenant
-infrastructure dormant.
+**Account** — the tenant, presented to users as a farm. Multiple accounts can
+coexist; the farm code selects the tenant at sign-in, and the same email address
+can belong to users in several farms. Every tenant-owned row carries
+`AccountId`; the API enforces isolation with EF global query filters.
 
 **Farm code (account slug, #531)** — the per-farm login identifier: a short,
 stable, URL-safe slug (`Account.Slug`) for an account — lowercase letters,
@@ -606,6 +609,17 @@ several farms and only the farm code says which one is meant, and a wrong or
 unrecognised one is refused with its own message. (Written earlier, before
 #532 shipped: it was recorded and discoverable but not yet used at sign-in, and
 there was no SPA surface for it.)
+
+**Farm provisioning (#533)** — the offline `provision-account` operator command
+creates a new account, its ten canonical egg grades, its six packed-unit
+conversions, and its first Owner as one transaction. The Owner receives a
+generated one-time password and must replace it at first sign-in. A new farm
+starts in UTC; after that password change, the Owner selects the farm's IANA
+timezone in Settings. The command does not migrate the schema and is intended
+to run with the ordinary DML-only runtime database role after the migration
+job. A farm code is immutable, so the command echoes its normalized value
+before writing and the database's unique index is the final authority when two
+operators race for the same code.
 
 **Account status — active / suspended (#531/#532/#534)** — an account is
 *active* by default. **Suspending** it takes the farm offline; **reactivating**
@@ -999,8 +1013,9 @@ never conflated.
 
 **Must-change-password gate (#283)** — the flag (`ApplicationUser
 .MustChangePassword`) that forces the printed one-time password to actually
-get replaced instead of sitting valid indefinitely. Set only by
-`bootstrap-admin` on the Owner it creates. While set, the access token carries
+get replaced instead of sitting valid indefinitely. Set by `bootstrap-admin`
+and `provision-account` on the Owner each command creates. While set, the access
+token carries
 a matching claim, the SPA shows a **"Set your password"** screen in place of
 the app (any route), and the API refuses every other endpoint with 403 except
 signing out and the change-password call itself. Submitting the printed

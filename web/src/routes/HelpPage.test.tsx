@@ -257,20 +257,52 @@ describe("HelpPage", () => {
     expect(screen.getByText(/can't disable the account's last Admin \(owner\)/i)).toBeInTheDocument();
   });
 
-  // #500 — the two SYSTEM actors an owner can meet in the audit log on a real
-  // farm. Not a demo-only concern, which is why this belongs in Help at all:
-  // the first owner's creation is performed by `bootstrap-admin` and a
-  // break-glass reset by `recover-admin`, both offline commands with no
-  // signed-in person, so both rows show a bracketed name rather than an email.
+  // Every SYSTEM actor an owner can meet in the audit log on a real farm.
   it("explains the bracketed system actors in the audit log", () => {
     render(<HelpPage />);
     expect(screen.getByText(/\(bootstrap-admin\)/)).toBeInTheDocument();
     expect(screen.getByText(/\(break-glass\)/)).toBeInTheDocument();
+    expect(screen.getByText(/\(suspend-account\)/)).toBeInTheDocument();
+    expect(screen.getByText(/\(reactivate-account\)/)).toBeInTheDocument();
+    expect(screen.getByText(/\(provision-account\)/)).toBeInTheDocument();
     // The accountability half matters as much as the label: a break-glass
     // reset records the machine and the reason, so it is never anonymous.
     expect(screen.getByText(/which machine it was run from and the reason given/i)).toBeInTheDocument();
     // And it must not leave the reader thinking everything is nameless.
     expect(screen.getByText(/Everything else names the person who did it/i)).toBeInTheDocument();
+  });
+
+  it("ships the provision-account system actor in every help catalog", () => {
+    for (const catalog of [en, es, tl])
+      expect(catalog.help.auditSystemActors).toContain("(provision-account)");
+  });
+
+  it("documents farm provisioning in the in-app glossary (#533)", () => {
+    const originalTerm = i18n.getResource("en", "help", "glossaryFarmProvisioningTerm") as string;
+    const originalDef = i18n.getResource("en", "help", "glossaryFarmProvisioningDef") as string;
+    i18n.addResource("en", "help", "glossaryFarmProvisioningTerm", "PROVISIONING-TERM-MARKER");
+    i18n.addResource("en", "help", "glossaryFarmProvisioningDef", "PROVISIONING-DEF-MARKER");
+    try {
+      render(<HelpPage />);
+      expect(screen.getByRole("rowheader", { name: "PROVISIONING-TERM-MARKER" })).toBeInTheDocument();
+      expect(screen.getByText("PROVISIONING-DEF-MARKER")).toBeInTheDocument();
+    } finally {
+      i18n.addResource("en", "help", "glossaryFarmProvisioningTerm", originalTerm);
+      i18n.addResource("en", "help", "glossaryFarmProvisioningDef", originalDef);
+    }
+
+    for (const catalog of [es, tl]) {
+      expect(catalog.help.glossaryFarmProvisioningTerm).toBeTruthy();
+      expect(catalog.help.glossaryFarmProvisioningTerm).not.toBe(en.help.glossaryFarmProvisioningTerm);
+      expect(catalog.help.glossaryFarmProvisioningDef).toBeTruthy();
+      expect(catalog.help.glossaryFarmProvisioningDef).not.toBe(en.help.glossaryFarmProvisioningDef);
+    }
+    expect(en.help.glossaryFarmProvisioningDef).toContain("UTC");
+    expect(en.help.glossaryFarmProvisioningDef).toContain("Settings");
+    expect(es.help.glossaryFarmProvisioningDef).toContain("UTC");
+    expect(es.help.glossaryFarmProvisioningDef).toContain("Configuración");
+    expect(tl.help.glossaryFarmProvisioningDef).toContain("UTC");
+    expect(tl.help.glossaryFarmProvisioningDef).toContain("Settings");
   });
 
   it("counts disable/enable among the step-up-gated actions, alongside the three Owner-scoped ones (#356)", () => {

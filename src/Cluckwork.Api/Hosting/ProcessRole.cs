@@ -32,7 +32,7 @@ internal static class ProcessRoles
 {
     // Every verb whose presence at args[0] makes this a one-shot process.
     //
-    // Derived from CliDispatcher.Commands rather than restated, so a sixth verb
+    // Derived from CliDispatcher.Commands rather than restated, so a new verb
     // added to the dispatcher is classified correctly without anyone
     // remembering this file. `healthcheck` cannot come from there: it is not an
     // ICliCommand (it needs no host, so it takes no WebApplication) and is

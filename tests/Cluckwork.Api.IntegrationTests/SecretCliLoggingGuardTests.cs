@@ -16,7 +16,7 @@ using System.Text.RegularExpressions;
 // This is therefore a STATIC, source-level guard instead of a dynamic one: it
 // reads the CLI command source files directly (never executes them) and
 // asserts the generated-password property is referenced EXACTLY ONCE in each
-// file, on a line that calls Console.Out and nothing that looks like a logger
+// named secret-printing file, on a line that calls Console.Out and nothing that looks like a logger
 // call. A new reference anywhere else in either file — in particular a second
 // reference on a logger.Log* line — fails this test immediately, regardless of
 // what the redaction pipeline would have done to it downstream.
@@ -56,6 +56,10 @@ public sealed class SecretCliLoggingGuardTests
     [Theory]
     [InlineData("src/Cluckwork.Api/Cli/BootstrapAdminCliCommand.cs", "TemporaryPassword")]
     [InlineData("src/Cluckwork.Api/Cli/RecoverAdminCliCommand.cs", "TemporaryPassword")]
+    // Keep this list explicit: deriving it from all ICliCommand implementations
+    // would force "exactly once" into "at most once", allowing a secret-printing
+    // command to stop printing its generated password without failing the guard.
+    [InlineData("src/Cluckwork.Api/Cli/ProvisionAccountCliCommand.cs", "TemporaryPassword")]
     public void The_generated_password_is_referenced_exactly_once_and_only_via_ConsoleOut(
         string relativePath, string propertyName)
     {

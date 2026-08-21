@@ -27,6 +27,25 @@ public sealed class AccountSlugTests
         Assert.Equal("good-farm", Farm("  good-farm  ").Slug);
     }
 
+    [Fact]
+    public void Create_TrimsNameAndTimeZoneId()
+    {
+        var account = Account.Create(
+            Guid.NewGuid(), "  Farm  ", "good-farm", "  UTC  ", "USD");
+
+        Assert.Equal("Farm", account.Name);
+        Assert.Equal("UTC", account.TimeZoneId);
+    }
+
+    [Fact]
+    public void TryValidateSlug_RejectsUppercase_WithoutThrowing()
+    {
+        var result = Account.TryValidateSlug("SECOND-FARM");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Account.SlugInvalid", result.Error.Code);
+    }
+
     [Theory]
     [InlineData("ab")]              // too short (min 3)
     [InlineData("a")]              // too short

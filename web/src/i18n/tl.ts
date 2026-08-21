@@ -1703,6 +1703,7 @@ export const tl = {
     "auditAction.Account.UpdateSettings": "Na-update ang mga setting ng bukid",
     "auditAction.Account.Suspend": "Sinuspinde ang bukid",
     "auditAction.Account.Reactivate": "Muling binuksan ang bukid",
+    "auditAction.Account.Provisioned": "Ginawa ang bukid",
     "auditAction.Product.Create": "Nagawa ang produkto",
     "auditAction.Product.Update": "Na-update ang produkto",
     "auditAction.Product.Activate": "Na-activate ang produkto",
@@ -2279,6 +2280,7 @@ export const tl = {
       + "kaya hindi kailanman anonimo ang isang emergency reset. Ang \"(suspend-account)\" at "
       + "\"(reactivate-account)\" ay mga utos na pinapatakbo ng operator upang i-offline ang buong bukid "
       + "at ibalik ito; itinatala rin ng mga entry na iyon ang makinang pinatakbuhan at ang ibinigay na dahilan. "
+      + "Ang \"(provision-account)\" ay gumagawa ng bagong bukid at unang Owner nito bago makapag-sign in ang sinuman sa bukid na iyon. "
       + "Ang iba ay pinapangalanan ang taong gumawa.",
     auditRecordHistoryOlder:
       "Ang mga record na ginawa bago ito idagdag ay walang linyang \"ginawa ni\" — wala lang talagang "
@@ -2530,6 +2532,15 @@ export const tl = {
       + "bago ang iyong email, dahil maaaring nasa ilang bukid ang iisang email address at ang "
       + "code lamang ang nagsasabi kung alin ang ibig mo sabihin. Lowercase ito at hindi ito "
       + "nagbabago.",
+
+    // #533 (machine-drafted, pending native review)
+    glossaryFarmProvisioningTerm: "Pag-provision ng bukid",
+    glossaryFarmProvisioningDef:
+      "Ang command para lamang sa operator na gumagawa ng bagong bukid, ng mga default na egg grade at "
+      + "conversion ng naka-pack na unit nito, at ng una nitong Owner sa iisang transaksyon. "
+      + "Nagsisimula sa UTC ang bukid; pagkatapos palitan ng Owner ang isang-gamit na password sa unang "
+      + "pag-sign in, pipiliin nila ang IANA timezone ng bukid sa Settings. "
+      + "Tumatakbo ito sa labas ng app; hindi ito pinapatakbo ng mga user ng bukid.",
 
     glossaryTooManySignInAttemptsTerm: "Masyadong maraming pagtatangkang mag-sign in",
     glossaryTooManySignInAttemptsDef:

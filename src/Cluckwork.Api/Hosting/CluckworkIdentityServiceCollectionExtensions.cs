@@ -129,6 +129,7 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         // always-available-in-Production posture as break-glass recovery: a
         // real deploy's first login depends on it.
         services.AddScoped<FirstRunAdminService>();
+        services.AddScoped<AccountProvisioner>();
         // #283 follow-up — first-run discoverability for the SPA login page.
         // The latch is a SINGLETON (one observation serves every later request
         // process-wide, so the failed-sign-in path stops touching the database
@@ -149,9 +150,8 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         return services;
     }
 
-    // Serving-only (#347). A one-shot verb neither issues nor validates a token —
-    // `recover-admin` resets a password, `bootstrap-admin` creates an Owner,
-    // `migrate` applies DDL — so requiring a signing key of them would abort the
+    // Serving-only (#347). A one-shot verb neither issues nor validates a token,
+    // so requiring a signing key of one would abort the
     // break-glass path over configuration it does not use. That is precisely the
     // #331 class, and making a NEW guard eager is how it would come back; this is
     // why #510's fix belongs with #347 rather than before it.

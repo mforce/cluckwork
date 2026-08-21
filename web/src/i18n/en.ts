@@ -2084,6 +2084,7 @@ export const en = {
     "auditAction.Account.UpdateSettings": "Farm settings updated",
     "auditAction.Account.Suspend": "Farm suspended",
     "auditAction.Account.Reactivate": "Farm reactivated",
+    "auditAction.Account.Provisioned": "Farm provisioned",
     "auditAction.Product.Create": "Product created",
     "auditAction.Product.Update": "Product updated",
     "auditAction.Product.Activate": "Product activated",
@@ -2613,9 +2614,8 @@ export const en = {
       + "change is shown, so the person whose numbers went into stock is never invisible. And once they "
       + "have, your own later edits are shown too: if you put the numbers back the way you wanted them, "
       + "the column names you and the time you did it, not the edit you overwrote.",
-    // #500 — these two labels appear on a REAL farm's audit log, not just in
-    // demo data: the first Owner's creation and any break-glass password reset
-    // are performed by an offline command with no signed-in person.
+    // #500 — these system-actor labels appear on a REAL farm's audit log, not
+    // just in demo data: offline commands run with no signed-in person.
     auditSystemActors:
       "A few entries are made by the system rather than by a person, and show a name in brackets instead of "
       + "an email. \"(bootstrap-admin)\" is the command that created your very first owner account, before "
@@ -2625,6 +2625,7 @@ export const en = {
       + "\"(suspend-account)\" and \"(reactivate-account)\" are the commands an operator runs to take the "
       + "whole farm offline and bring it back; those entries record the machine they were run from and the "
       + "reason given too. "
+      + "\"(provision-account)\" creates a new farm and its first Owner before anyone on that farm can sign in. "
       + "Everything else names the person who did it.",
     auditRecordHistoryOlder:
       "Records created before this was added show no \"created by\" line — there is simply no creation "
@@ -2856,6 +2857,13 @@ export const en = {
       "The short code that names your farm on the sign-in screen. You type it before your "
       + "email, because the same email address can exist in several farms and only the code "
       + "says which one you mean. It is lowercase and it does not change.",
+
+    glossaryFarmProvisioningTerm: "Farm provisioning",
+    glossaryFarmProvisioningDef:
+      "The operator-only command that creates a new farm, its default egg grades and packed-unit "
+      + "conversions, and its first Owner in one transaction. The farm starts in UTC; after the Owner "
+      + "replaces the one-time password at first sign-in, they select its IANA timezone in Settings. "
+      + "It runs outside the app; farm users do not invoke it.",
 
     glossaryTooManySignInAttemptsTerm: "Too many sign-in attempts",
     glossaryTooManySignInAttemptsDef:

@@ -1,7 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import { en } from "./en";
 import { STATUS_VALUES } from "../components/StatusBadge";
-import { ENUMS, statusLabel } from "./enums";
+import { auditActionLabel, ENUMS, statusLabel } from "./enums";
+import i18n, { RESOURCES } from "./index";
+
+afterEach(async () => {
+  await i18n.changeLanguage("en");
+});
 
 // The enums module is the ONLY sanctioned way to turn a closed-vocabulary wire
 // value into display text (#182, Task 4). These tests are the runtime backstop
@@ -19,6 +24,15 @@ function flatKey(qualified: string): string {
 }
 
 describe("enums module (#182)", () => {
+  it("resolves Account.Provisioned through its own key in every locale", async () => {
+    for (const [language, catalog] of Object.entries(RESOURCES)) {
+      await i18n.changeLanguage(language);
+      expect(auditActionLabel("Account.Provisioned")).toBe(
+        catalog.enums["auditAction.Account.Provisioned"],
+      );
+    }
+  });
+
   // Every family, every union member -> a real, non-empty en.enums entry.
   for (const [family, def] of Object.entries(ENUMS)) {
     describe(`${family} family`, () => {

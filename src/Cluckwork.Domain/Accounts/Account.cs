@@ -78,9 +78,9 @@ public sealed class Account : AggregateRoot<Guid>
         {
             Id = id,
             AccountId = id,
-            Name = name,
+            Name = name.Trim(),
             Slug = normalizedSlug,
-            TimeZoneId = timeZoneId,
+            TimeZoneId = timeZoneId.Trim(),
             Locale = locale,
             DefaultCurrencyCode = currency.Code,
             DefaultCurrencySymbol = currency.Symbol,
@@ -89,20 +89,29 @@ public sealed class Account : AggregateRoot<Guid>
         };
     }
 
-    // Invariant guard (throws), consistent with Flock.Create — an invalid or
-    // reserved farm code is a provisioning error, not an expected Result
-    // failure. Trims only; case is NOT folded, so an uppercase slug is REJECTED
-    // rather than silently accepted, keeping the stored value lowercase.
-    private static string ValidateSlug(string slug)
+    public static Result<string> TryValidateSlug(string? slug)
     {
         var normalized = (slug ?? string.Empty).Trim();
         if (!SlugPattern.IsMatch(normalized))
-            throw new ArgumentException(
+            return Result.Failure<string>(Error.Validation(
+                "Account.SlugInvalid",
                 $"'{slug}' is not a valid farm code (lowercase letters, digits and hyphens, " +
-                "3–32 characters, no leading or trailing hyphen).", nameof(slug));
+                "3–32 characters, no leading or trailing hyphen)."));
         if (ReservedSlugs.Contains(normalized))
-            throw new ArgumentException($"'{normalized}' is a reserved farm code.", nameof(slug));
-        return normalized;
+            return Result.Failure<string>(Error.Validation(
+                "Account.SlugInvalid", $"'{normalized}' is a reserved farm code."));
+        return Result.Success(normalized);
+    }
+
+    // Invariant guard (throws), consistent with Flock.Create. Provisioning uses
+    // TryValidateSlug for an expected failure; every other factory caller keeps
+    // this backstop. One regex and one reserved set own both paths.
+    private static string ValidateSlug(string slug)
+    {
+        var result = TryValidateSlug(slug);
+        if (result.IsFailure)
+            throw new ArgumentException(result.Error.Description, nameof(slug));
+        return result.Value;
     }
 
     // #531 — take the farm offline / bring it back. IsActive already existed and

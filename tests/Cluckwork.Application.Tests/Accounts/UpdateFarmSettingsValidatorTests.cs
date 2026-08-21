@@ -46,6 +46,10 @@ public sealed class UpdateFarmSettingsValidatorTests
     [InlineData("Mars/Olympus_Mons")]
     [InlineData("America/Los Angeles")]   // space, not underscore
     [InlineData("PST")]                   // abbreviation, not an IANA id
+    [InlineData("Pacific Standard Time")] // Windows id, not an IANA id
+    [InlineData("posixrules")]            // host tzdata file, not a portable IANA id
+    [InlineData("posix/America/Los_Angeles")]
+    [InlineData("right/America/Los_Angeles")]
     public void UnusableTimeZone_Fails(string tz) =>
         Assert.True(Fails(Valid() with { TimeZoneId = tz }, nameof(UpdateFarmSettingsCommand.TimeZoneId)));
 

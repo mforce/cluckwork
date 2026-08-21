@@ -1,7 +1,9 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Eggs;
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Persistence.Interceptors;
 using Cluckwork.Infrastructure.Providers;
@@ -64,6 +66,85 @@ public sealed class BaseReferenceDataMigrationTests
             .CountAsync(g => g.AccountId == SeedDefaults.AccountId && g.FarmId == SeedDefaults.FarmId));
         Assert.Equal(6, await db.EggUnitConversions.IgnoreQueryFilters()
             .CountAsync(c => c.AccountId == SeedDefaults.AccountId));
+
+        Assert.NotNull(db.Model.FindEntityType(typeof(Account)));
+        var accountEntityType = db.Model.FindEntityType(typeof(Account))!;
+        var accountComparedProperties = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(Account.Brand),
+            nameof(Account.UnitSystem),
+            nameof(Account.DefaultCurrencyMinorUnit),
+            nameof(Account.DefaultStepperUnit),
+            nameof(Account.IsActive),
+            nameof(Account.FirstDayOfWeek),
+            nameof(Account.DateFormatOverride),
+            nameof(Account.TimeFormatOverride),
+            nameof(Account.TimeZoneId),
+        };
+        var accountExcludedProperties = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(Account.Id),
+            nameof(Account.AccountId),
+            nameof(Account.Version),
+            nameof(Account.DefaultCurrencySymbol),
+            nameof(Account.Name),
+            nameof(Account.Slug),
+            nameof(Account.Locale),
+            nameof(Account.DefaultCurrencyCode),
+        };
+        ReferenceDataComparison.AssertExactMappedPropertyPartition(
+            accountEntityType, accountComparedProperties, accountExcludedProperties);
+        Assert.Equal(9, accountComparedProperties.Count);
+        Assert.Equal(8, accountExcludedProperties.Count);
+
+        var actualAccount = Assert.Single(await db.Accounts.IgnoreQueryFilters()
+            .Where(account => account.Id == SeedDefaults.AccountId)
+            .ToListAsync());
+        var expectedAccount = Account.Create(
+            SeedDefaults.AccountId,
+            "Default Farm",
+            "default-farm",
+            "UTC",
+            "USD",
+            "en-US");
+        ReferenceDataComparison.AssertMappedPropertiesEqualByKey(
+            accountEntityType,
+            [actualAccount],
+            [expectedAccount],
+            account => account.Id,
+            accountExcludedProperties);
+
+        Assert.NotNull(db.Model.FindEntityType(typeof(EggGrade)));
+        var gradeEntityType = db.Model.FindEntityType(typeof(EggGrade))!;
+        var actualGrades = await db.EggGrades.IgnoreQueryFilters()
+            .Where(grade => grade.AccountId == SeedDefaults.AccountId && grade.FarmId == SeedDefaults.FarmId)
+            .ToListAsync();
+        ReferenceDataComparison.AssertMappedPropertiesEqualByKey(
+            gradeEntityType,
+            actualGrades,
+            EggGrade.Defaults(SeedDefaults.AccountId, SeedDefaults.FarmId),
+            grade => grade.Name,
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                nameof(EggGrade.Id), nameof(EggGrade.AccountId), nameof(EggGrade.Version),
+            });
+
+        Assert.NotNull(db.Model.FindEntityType(typeof(EggUnitConversion)));
+        var conversionEntityType = db.Model.FindEntityType(typeof(EggUnitConversion))!;
+        var actualConversions = await db.EggUnitConversions.IgnoreQueryFilters()
+            .Where(conversion => conversion.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        ReferenceDataComparison.AssertMappedPropertiesEqualByKey(
+            conversionEntityType,
+            actualConversions,
+            EggUnitConversion.Defaults(SeedDefaults.AccountId),
+            conversion => conversion.UnitCode,
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                nameof(EggUnitConversion.Id),
+                nameof(EggUnitConversion.AccountId),
+                nameof(EggUnitConversion.Version),
+            });
     }
 
     // #245 — the expression unique indexes are raw SQL (EF cannot model a
