@@ -65,8 +65,12 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
             });
 
         var owner = await db.Users.SingleAsync(u => u.AccountId == outcome.AccountId && u.Email == email);
+        Assert.Null(owner.DisabledAt);
         Assert.True(owner.MustChangePassword);
         Assert.Equal(1, owner.CredentialEpoch);
+        var accountOwners = await checkScope.ServiceProvider.GetRequiredService<IAccountUserDirectory>()
+            .FindByAccountRoleAsync(outcome.AccountId, Roles.Owner);
+        Assert.Equal(owner.Id, Assert.Single(accountOwners).Id);
 
         var actions = await db.AuditEvents.IgnoreQueryFilters()
             .Where(a => a.AccountId == outcome.AccountId)
@@ -146,6 +150,28 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
         Assert.True(result.IsFailure);
         Assert.Equal("Provision.SlugTakenRecoverable", result.Error.Code);
         Assert.Contains($"recover-admin --email {email} --account {accountId}", result.Error.Description);
+    }
+
+    [Fact]
+    public async Task Provision_WhenFarmIsSuspendedAndOwnerEnabled_ReturnsReactivationAdvice()
+    {
+        var email = $"suspended-enabled-{Guid.NewGuid():N}@example.test";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var slug = await SlugForAsync(accountId);
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var account = await db.Accounts.SingleAsync(a => a.Id == accountId);
+            account.Suspend();
+            await db.SaveChangesAsync();
+        });
+
+        using var scope = factory.Services.CreateScope();
+        var result = await scope.ServiceProvider.GetRequiredService<AccountProvisioner>()
+            .ProvisionAsync("Ignored", slug, email);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Provision.SlugTakenSuspended", result.Error.Code);
+        Assert.Contains("reactivate-account", result.Error.Description);
     }
 
     [Fact]
