@@ -15,9 +15,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.5.0" />
-    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.5.0" />
-    <PackageReference Include="Aspire.Hosting.Redis" Version="13.5.0" />
+    <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.5.1" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.5.1" />
+    <PackageReference Include="Aspire.Hosting.Redis" Version="13.5.1" />
   </ItemGroup>
 
   <ItemGroup>
