@@ -23,7 +23,8 @@ public sealed class ProvisionAccountCommandTests(CluckworkWebApplicationFactory 
         var runtimeConnection = await DmlOnlyRole.CreateConnectionStringAsync(factory.ConnectionString);
 
         var process = Start(
-            $"provision-account --name \"CLI Farm\" --slug {slug} --owner-email {email}",
+            $"provision-account --name \"CLI Farm\" --slug {slug} --owner-email {email} "
+            + "--timezone America/Los_Angeles",
             runtimeConnection);
         var (exitCode, stdout, stderr) = await SeedCommandRunner.RunToCompletionAsync(
             process, SubprocessTimeout, "provision-account did not exit");
@@ -41,6 +42,7 @@ public sealed class ProvisionAccountCommandTests(CluckworkWebApplicationFactory 
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var account = await db.Accounts.IgnoreQueryFilters().SingleAsync(a => a.Slug == slug);
+        Assert.Equal("America/Los_Angeles", account.TimeZoneId);
         Assert.Equal(email, await db.Users.Where(user => user.AccountId == account.Id)
             .Select(user => user.Email)
             .SingleAsync());

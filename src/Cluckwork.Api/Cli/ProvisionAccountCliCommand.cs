@@ -35,7 +35,7 @@ public sealed class ProvisionAccountCliCommand : ICliCommand
                     CliDispatcher.ArgValue(args, "--name"),
                     slug.Value,
                     CliDispatcher.ArgValue(args, "--owner-email"),
-                    CliDispatcher.ArgValue(args, "--time-zone"),
+                    CliDispatcher.ArgValue(args, "--timezone"),
                     CliDispatcher.ArgValue(args, "--locale"),
                     CliDispatcher.ArgValue(args, "--currency"));
 

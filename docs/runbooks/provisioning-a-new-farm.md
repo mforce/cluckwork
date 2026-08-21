@@ -13,7 +13,8 @@ conversions, one Owner, and their audit rows. They commit together or not at all
 
 **Prerequisites:** the schema is already current, the published image is the
 same release as the serving API, and the command receives the ordinary DML-only
-runtime database credential. It neither needs nor accepts the migrator role.
+runtime database credential. It does not require the migrator role and should
+not be given migrator credentials.
 
 **Last drilled:** not recorded.
 
@@ -45,7 +46,7 @@ docker run --rm --env-file <runtime-credential.env> \
   --name "Example Farm" \
   --slug example-farm \
   --owner-email owner@example.com \
-  --time-zone America/Los_Angeles \
+  --timezone America/Los_Angeles \
   --locale en-US \
   --currency USD
 ```
@@ -55,10 +56,11 @@ Pass the verb only: the image entrypoint already supplies
 `UTC`, `en-US`, and `USD`, but production provisioning should state them
 explicitly.
 
-Expected output begins by echoing the normalized farm code before any write. On
-success it exits `0`, prints the new account id and Owner email, then prints one
-temporary password. The password goes to stdout, which a host log collector may
-capture; handle it as a secret and deliver it to the Owner out of band.
+The command echoes the normalized farm code before any write; runtime warnings
+may appear before that line. On success it exits `0`, prints the new account id
+and Owner email, then prints one temporary password. The password goes to
+stdout, which a host log collector may capture; handle it as a secret and
+deliver it to the Owner out of band.
 
 ## Verify
 

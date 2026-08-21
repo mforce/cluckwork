@@ -212,6 +212,24 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
     }
 
     [Fact]
+    public async Task Provision_WhenMatchingUserIsNotAnOwner_ReturnsPlainSlugTaken()
+    {
+        var ownerEmail = $"owner-{Guid.NewGuid():N}@example.test";
+        var workerEmail = $"worker-{Guid.NewGuid():N}@example.test";
+        var accountId = await factory.SeedAccountWithUserAsync(ownerEmail);
+        await factory.SeedUserAsync(accountId, workerEmail, (string?)null);
+        var slug = await SlugForAsync(accountId);
+
+        using var scope = factory.Services.CreateScope();
+        var result = await scope.ServiceProvider.GetRequiredService<AccountProvisioner>()
+            .ProvisionAsync("Ignored", slug, workerEmail);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Provision.SlugTaken", result.Error.Code);
+        Assert.DoesNotContain("recover-admin", result.Error.Description);
+    }
+
+    [Fact]
     public async Task Provision_WithMultipleOwners_FindsTheMatchingOwnerBeyondTheFirstId()
     {
         var firstEmail = $"owner-a-{Guid.NewGuid():N}@example.test";
@@ -257,6 +275,7 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
         var winner = Assert.Single(results, result => result.IsSuccess).Value;
         var loser = Assert.Single(results, result => result.IsFailure);
         Assert.Equal("Provision.SlugTaken", loser.Error.Code);
+        Assert.True(winner.AccountId == firstId || winner.AccountId == secondId);
         var loserId = winner.AccountId == firstId ? secondId : firstId;
 
         using var scope = factory.Services.CreateScope();

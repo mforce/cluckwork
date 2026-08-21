@@ -58,7 +58,7 @@ public sealed class AuditActorTests(CluckworkWebApplicationFactory factory)
         Assert.Empty(db.ChangeTracker.Entries<AuditEvent>());
     }
 
-    // The contract both one-shot CLI verbs depend on: a caller with no human
+    // The contract one-shot CLI verbs depend on: a caller with no human
     // actor declares WHICH non-person it is, and gets a row with that label and
     // an empty ActorUserId — deliberately chosen, where "(unresolved)" was
     // defaulted into by a fallback nobody could see.
