@@ -79,6 +79,7 @@ public sealed class BaseReferenceDataMigrationTests
             nameof(Account.FirstDayOfWeek),
             nameof(Account.DateFormatOverride),
             nameof(Account.TimeFormatOverride),
+            nameof(Account.TimeZoneId),
         };
         var accountExcludedProperties = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -88,14 +89,13 @@ public sealed class BaseReferenceDataMigrationTests
             nameof(Account.DefaultCurrencySymbol),
             nameof(Account.Name),
             nameof(Account.Slug),
-            nameof(Account.TimeZoneId),
             nameof(Account.Locale),
             nameof(Account.DefaultCurrencyCode),
         };
         ReferenceDataComparison.AssertExactMappedPropertyPartition(
             accountEntityType, accountComparedProperties, accountExcludedProperties);
-        Assert.Equal(8, accountComparedProperties.Count);
-        Assert.Equal(9, accountExcludedProperties.Count);
+        Assert.Equal(9, accountComparedProperties.Count);
+        Assert.Equal(8, accountExcludedProperties.Count);
 
         var actualAccount = Assert.Single(await db.Accounts.IgnoreQueryFilters()
             .Where(account => account.Id == SeedDefaults.AccountId)
