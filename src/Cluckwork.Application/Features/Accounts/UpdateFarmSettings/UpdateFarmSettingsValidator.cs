@@ -1,6 +1,7 @@
 namespace Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 
 using System.Globalization;
+using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
 using FluentValidation;
@@ -31,7 +32,7 @@ public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSe
             .WithErrorCode("FarmSettings.TimeZoneId.Required")
             .MaximumLength(Account.MaxTimeZoneIdLength)
             .WithErrorCode("FarmSettings.TimeZoneId.MaxLength")
-            .Must(BeAKnownTimeZone)
+            .Must(FarmSettingsRules.IsKnownTimeZone)
             .WithMessage("Timezone must be a valid IANA timezone id, for example America/Los_Angeles.")
             .WithErrorCode("FarmSettings.TimeZoneId.Known");
 
@@ -41,7 +42,7 @@ public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSe
             .WithErrorCode("FarmSettings.Locale.Required")
             .MaximumLength(Account.MaxLocaleLength)
             .WithErrorCode("FarmSettings.Locale.MaxLength")
-            .Must(BeASpecificCulture)
+            .Must(FarmSettingsRules.IsSpecificCulture)
             .WithMessage("Locale must be a BCP 47 tag that includes a region, for example en-US, es-MX or ja-JP.")
             .WithErrorCode("FarmSettings.Locale.Format");
 
@@ -99,38 +100,6 @@ public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSe
         && Enum.TryParse<TEnum>(value, ignoreCase: true, out var parsed)
         && Enum.IsDefined(parsed)
         && string.Equals(parsed.ToString(), value.Trim(), StringComparison.OrdinalIgnoreCase);
-
-    private static bool BeAKnownTimeZone(string? timeZoneId)
-    {
-        if (string.IsNullOrWhiteSpace(timeZoneId)) return false;
-        try
-        {
-            TimeZoneInfo.FindSystemTimeZoneById(timeZoneId.Trim());
-            return true;
-        }
-        catch (Exception ex) when (ex is TimeZoneNotFoundException
-                                      or InvalidTimeZoneException
-                                      or ArgumentException)
-        {
-            return false;
-        }
-    }
-
-    private static bool BeASpecificCulture(string? locale)
-    {
-        if (string.IsNullOrWhiteSpace(locale)) return false;
-        try
-        {
-            // predefinedOnly: without it the runtime happily manufactures a
-            // culture for any well-shaped tag, so "zz-ZZ" would validate.
-            var culture = CultureInfo.GetCultureInfo(locale.Trim(), predefinedOnly: true);
-            return !culture.IsNeutralCulture && culture.LCID != CultureInfo.InvariantCulture.LCID;
-        }
-        catch (CultureNotFoundException)
-        {
-            return false;
-        }
-    }
 
     // Empty means "no override". A non-empty one has to survive being used —
     // an unparseable format string would otherwise throw at render time on

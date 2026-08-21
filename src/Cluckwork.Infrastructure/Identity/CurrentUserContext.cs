@@ -47,8 +47,8 @@ public sealed class CurrentUserContext : ICurrentUser
     // "unscoped, account-wide" case. So a system actor has MORE effective flock
     // reach than a restricted worker, not less.
     //
-    // That is acceptable only because of who calls this: `bootstrap-admin` and
-    // `recover-admin` touch no flock-scoped handler at all. A future system
+    // That is acceptable only because every current system-actor caller touches
+    // no flock-scoped handler at all. A future system
     // actor that reaches RecordDailyEntry, SubmitDailyEntry, RecordFeedUsage or
     // RecordWaterUsage would silently bypass flock scoping, and needs its own
     // answer rather than this one.

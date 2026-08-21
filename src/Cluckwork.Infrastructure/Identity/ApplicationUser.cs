@@ -18,8 +18,8 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     // which also confirms the unit is still an active EggUnitConversion.
     public EggUnit? PreferredStepperUnit { get; set; }
 
-    // #283 — set true ONLY by the `bootstrap-admin` first-run command on the
-    // admin it creates (never by ordinary user creation). While true, the JWT
+    // Set true for generated one-time credentials created by offline
+    // provisioning commands, never by ordinary user creation. While true, the JWT
     // carries a matching claim (JwtTokenService) and MustChangePasswordMiddleware
     // blocks every endpoint except auth/change-password and auth/logout, so a
     // freshly generated first-run secret can't sit unchanged indefinitely. Any
