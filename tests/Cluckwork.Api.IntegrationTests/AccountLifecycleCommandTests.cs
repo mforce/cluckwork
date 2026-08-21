@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Infrastructure.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -43,20 +44,28 @@ public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory 
         factory.WithTenantScopeAsync(accountId, db =>
             db.Accounts.Where(a => a.Id == accountId).Select(a => a.IsActive).SingleAsync());
 
+    private Task<int> VersionAsync(Guid accountId) =>
+        factory.WithTenantScopeAsync(accountId, db =>
+            db.Accounts.Where(a => a.Id == accountId).Select(a => a.Version).SingleAsync());
+
     private Task<int> LiveRefreshTokenCountAsync(Guid accountId) =>
         factory.WithTenantScopeAsync(accountId, db => db.RefreshTokens
             .CountAsync(token => token.AccountId == accountId && token.RevokedAt == null));
 
-    [Fact]
-    public async Task SuspendVerb_TakesTheFarmOffline_AndWritesOneAuditRowCarryingTheReasonAndSystemActor()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SuspendVerb_TakesTheFarmOffline_AndWritesOneAuditRowCarryingTheReasonAndSystemActor(
+        bool uppercaseSlug)
     {
         var email = $"suspend-command-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
         _ = await factory.LoginAsync(email);
         var slug = Slug(accountId);
+        var commandSlug = uppercaseSlug ? slug.ToUpperInvariant() : slug;
 
         var (exitCode, stdout, stderr) = await RunAsync(
-            $"suspend-account --slug {slug} --reason \"non-payment drill\"");
+            $"suspend-account --slug {commandSlug} --reason \"non-payment drill\"");
 
         Assert.True(exitCode == 0, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
         Assert.Contains(slug, stdout);
@@ -89,6 +98,40 @@ public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory 
     }
 
     [Fact]
+    public async Task SuspendVerb_RunAgainstAnAlreadySuspendedFarm_StillRevokesALiveSession()
+    {
+        var email = $"suspend-rerevoke-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var slug = Slug(accountId);
+
+        Assert.Equal(0, (await RunAsync($"suspend-account --slug {slug}")).ExitCode);
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var userId = await db.Users.Where(u => u.Email == email).Select(u => u.Id).SingleAsync();
+            var epoch = await db.Users.Where(u => u.Id == userId).Select(u => u.CredentialEpoch).SingleAsync();
+            db.RefreshTokens.Add(new RefreshToken
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                AccountId = accountId,
+                TokenHash = Guid.NewGuid().ToString("N"),
+                CreatedAt = DateTimeOffset.UtcNow,
+                ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
+                IssuedEpoch = epoch,
+            });
+            await db.SaveChangesAsync();
+        });
+        Assert.Equal(1, await LiveRefreshTokenCountAsync(accountId));
+
+        Assert.Equal(0, (await RunAsync($"suspend-account --slug {slug}")).ExitCode);
+        Assert.Equal(0, await LiveRefreshTokenCountAsync(accountId));
+        var auditCount = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .CountAsync(a => a.AccountId == accountId && a.Action == "Account.Suspend"));
+        Assert.Equal(1, auditCount);
+    }
+
+    [Fact]
     public async Task ReactivateVerb_BringsTheFarmBack_ButPreSuspensionRefreshTokensStayDead()
     {
         var email = $"reactivate-cycle-{Guid.NewGuid():N}@test.local";
@@ -97,13 +140,17 @@ public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory 
         var slug = Slug(accountId);
 
         Assert.Equal(0, (await RunAsync($"suspend-account --slug {slug}")).ExitCode);
-        var (exitCode, stdout, stderr) = await RunAsync($"reactivate-account --slug {slug}");
+        var (exitCode, stdout, stderr) = await RunAsync(
+            $"reactivate-account --slug {slug} --reason \"paid up\"");
 
         Assert.True(exitCode == 0, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
         Assert.True(await IsActiveAsync(accountId));
-        var auditCount = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
-            .CountAsync(a => a.AccountId == accountId && a.Action == "Account.Reactivate"));
-        Assert.Equal(1, auditCount);
+        var audit = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .Where(a => a.AccountId == accountId && a.Action == "Account.Reactivate")
+            .SingleAsync());
+        Assert.Equal("paid up", audit.Reason);
+        Assert.Equal("(reactivate-account)", audit.ActorEmail);
+        Assert.Equal(Guid.Empty, audit.ActorUserId);
         var response = await factory.CreateClient().PostRefreshAsync(tokens.RefreshToken, expectedAccount: accountId.ToString());
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
@@ -127,6 +174,20 @@ public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory 
         Assert.Equal(0, auditCount);
     }
 
+    [Fact]
+    public async Task ReactivateVerb_OnAnAlreadyActiveFarm_DoesNotAdvanceTheFarmSettingsVersion()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"reactivate-version-{Guid.NewGuid():N}@test.local");
+        var slug = Slug(accountId);
+        var versionBefore = await VersionAsync(accountId);
+
+        Assert.Equal(0, (await RunAsync($"reactivate-account --slug {slug}")).ExitCode);
+        Assert.Equal(versionBefore, await VersionAsync(accountId));
+
+        Assert.Equal(0, (await RunAsync($"suspend-account --slug {slug}")).ExitCode);
+        Assert.True(await VersionAsync(accountId) > versionBefore);
+    }
+
     [Theory]
     [InlineData("suspend-account")]
     [InlineData("reactivate-account")]
@@ -134,21 +195,29 @@ public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory 
     {
         var accountId = await factory.SeedAccountWithUserAsync($"unknown-slug-{Guid.NewGuid():N}@test.local");
         const string unknownSlug = "missing-farm";
+        var before = await factory.WithTenantScopeAsync(accountId, db => db.Accounts
+            .Where(a => a.Id == accountId)
+            .Select(a => new { a.Version, a.IsActive })
+            .SingleAsync());
 
         var result = await RunAsync($"{command} --slug {unknownSlug}");
 
         Assert.Equal(1, result.ExitCode);
         Assert.Contains(unknownSlug, result.Stderr);
-        Assert.True(await IsActiveAsync(accountId));
-        var auditCount = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
-            .CountAsync(a => a.AccountId == accountId));
-        Assert.Equal(0, auditCount);
+        var after = await factory.WithTenantScopeAsync(accountId, db => db.Accounts
+            .Where(a => a.Id == accountId)
+            .Select(a => new { a.Version, a.IsActive })
+            .SingleAsync());
+        Assert.Equal(before.Version, after.Version);
+        Assert.Equal(before.IsActive, after.IsActive);
     }
 
-    [Fact]
-    public async Task MissingSlugFlag_ExitsOne()
+    [Theory]
+    [InlineData("suspend-account")]
+    [InlineData("reactivate-account")]
+    public async Task MissingSlugFlag_ExitsOne(string command)
     {
-        var result = await RunAsync("suspend-account");
+        var result = await RunAsync(command);
 
         Assert.Equal(1, result.ExitCode);
         Assert.Contains("--slug", result.Stderr);

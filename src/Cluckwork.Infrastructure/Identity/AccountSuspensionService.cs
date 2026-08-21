@@ -139,10 +139,27 @@ public sealed class AccountSuspensionService(
             // Through the aggregate, never a bare IsActive assignment: Suspend()
             // and Reactivate() bump Version, which is the EF concurrency token
             // (AGENTS.md — every aggregate mutation must bump it).
-            if (suspending)
-                account.Suspend();
-            else
-                account.Reactivate();
+            //
+            // Gated on stateChanged (#534 review round 1), and the gate is not
+            // cosmetic. Both aggregate methods bump Version UNCONDITIONALLY by
+            // design (#531, pinned by AccountSlugTests), and Version is the token
+            // UpdateFarmSettingsHandler compares a Farm Settings save against. An
+            // ungated no-op re-run therefore advances it for a command that
+            // reported it changed nothing, and the next save from anyone holding
+            // that form open fails with Account.VersionMismatch. Gating HERE
+            // rather than in the aggregate keeps "every mutation bumps Version"
+            // true: on a no-op there is now no mutation.
+            //
+            // The revoke sweep above is deliberately NOT gated by this: a suspend
+            // re-run still re-revokes, which is the owner decision this slice
+            // shipped, and it touches user and token rows, never the account row.
+            if (stateChanged)
+            {
+                if (suspending)
+                    account.Suspend();
+                else
+                    account.Reactivate();
+            }
 
             if (revokeSessions)
             {
