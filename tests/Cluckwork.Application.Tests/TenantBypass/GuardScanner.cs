@@ -73,6 +73,12 @@ public static class GuardScanner
         ["FromSqlInterpolated"] = BypassKind.RawSql,
         ["ExecuteSqlRaw"] = BypassKind.RawSql,
         ["ExecuteSqlInterpolated"] = BypassKind.RawSql,
+        // The async variants — the current source uses ExecuteSqlInterpolatedAsync
+        // (FirstRunAdminService, IdempotencyMiddleware), and a review found the
+        // sync-only list left them unreported. A new async raw-SQL query —
+        // including a tenant-unsafe lock — must not leave the guard green.
+        ["ExecuteSqlRawAsync"] = BypassKind.RawSql,
+        ["ExecuteSqlInterpolatedAsync"] = BypassKind.RawSql,
         ["SqlQuery"] = BypassKind.RawSql,
         ["FindByEmailAsync"] = BypassKind.IdentityLookup,
         ["FindByNameAsync"] = BypassKind.IdentityLookup,
@@ -124,6 +130,33 @@ public static class GuardScanner
                 parseErrors.Add($"{Relative(repoRoot, file)}:{diag.Location.GetLineSpan().StartLinePosition.Line + 1}: {diag.Id} {diag.GetMessage()}");
             }
 
+            // Wrapper-forwarding detection (review P1-3): a method that
+            // CONTAINS a banned call (e.g. an extension method that forwards
+            // IgnoreQueryFilters()) is a laundering step — callers of that
+            // method are bypasses too, even though the caller's own text has no
+            // banned token. Find the forwarding method names in this file (a
+            // method body that contains a banned invocation) and flag their
+            // call sites. Same-file only: a wrapper defined in one file and
+            // called in another is not resolved by a syntax walk (no symbol
+            // binding) — a stated limitation, named in the ADR. The test's
+            // laundering case (wrapper + caller in the same file) is caught.
+            var forwardingNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var method in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
+            {
+                // A local function or extension method: any method declaration
+                // whose body (block or expression-bodied) directly contains a
+                // banned-call invocation. Both `Body` (block) and
+                // `ExpressionBody` (=> ...) forms are checked.
+                var hasBanned = (method.Body?.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                        .Any(InvokesBanned) is true)
+                    || (method.ExpressionBody?.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                        .Any(InvokesBanned) is true);
+                if (hasBanned)
+                {
+                    forwardingNames.Add(method.Identifier.ValueText);
+                }
+            }
+
             foreach (var invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
                 var name = invocation.Expression;
@@ -146,21 +179,41 @@ public static class GuardScanner
                     continue;
                 }
 
-                // SignInManager: any member invocation on a receiver whose
-                // type text names it.
-                if (receiverText is not null
-                    && receiverText.Contains("SignInManager", StringComparison.Ordinal))
+                // Caller of a forwarding wrapper (review P1-3): the invocation's
+                // method name is not banned, but the method it calls forwards a
+                // banned call (found above in forwardingNames). Flag the CALL
+                // SITE so a wrapper that is allow-listed does not leave its
+                // callers green. Same-file only (see the limitation note above).
+                if (methodName is not null && forwardingNames.Contains(methodName))
+                {
+                    occurrences.Add(MakeOccurrence(BypassKind.IgnoreQueryFilters, repoRoot, file, invocation,
+                        $"forwards-bypass {methodName}({receiverText})"));
+                    continue;
+                }
+
+                // SignInManager: any member invocation on a receiver that is a
+                // SignInManager — either by its generic type text (the current
+                // code's SignInManager<ApplicationUser, T>) or by a conventional
+                // camelCase receiver name (a future signInManager.X would
+                // otherwise be silently ignored by the old case-sensitive text
+                // match). Review P2: the type text alone missed camelCase
+                // receivers; the name set closes that without a full semantic
+                // model (kept a syntax walk for the hook's 2s budget).
+                if (IsIdentityManagerReceiver(receiverText, isSignInManager: true))
                 {
                     var memberName = name is MemberAccessExpressionSyntax m2 ? m2.Name.Identifier.ValueText : "?";
                     occurrences.Add(MakeOccurrence(BypassKind.SignInManager, repoRoot, file, invocation, $"SignInManager.{memberName}"));
                 }
             }
 
-            // UserManager.Users — a member access, not an invocation.
+            // UserManager.Users — a member access, not an invocation. The
+            // receiver is matched by type text OR conventional name (same
+            // review P2 fix as the SignInManager leg above): a camelCase
+            // userManager.Users must be reported, not silently ignored.
             foreach (var access in root.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
             {
                 if (access.Name.Identifier.ValueText == "Users"
-                    && access.Expression.ToString().Contains("UserManager", StringComparison.Ordinal))
+                    && IsIdentityManagerReceiver(access.Expression.ToString(), isSignInManager: false))
                 {
                     occurrences.Add(new BypassOccurrence(
                         BypassKind.UserManagerUsers, Relative(repoRoot, file),
@@ -188,7 +241,8 @@ public static class GuardScanner
                 var name = invocation.Expression;
                 var methodName = name is MemberAccessExpressionSyntax m3 ? m3.Name.Identifier.ValueText
                     : name is IdentifierNameSyntax id3 ? id3.Identifier.ValueText : null;
-                if (methodName is not ("ExecuteSqlRaw" or "FromSqlRaw" or "Sql" or "FromSqlInterpolated" or "ExecuteSqlInterpolated"))
+                if (methodName is not ("ExecuteSqlRaw" or "FromSqlRaw" or "Sql" or "FromSqlInterpolated" or "ExecuteSqlInterpolated"
+                    or "ExecuteSqlRawAsync" or "ExecuteSqlInterpolatedAsync"))
                 {
                     continue;
                 }
@@ -490,6 +544,50 @@ public static class GuardScanner
     // and are excluded by requiring the receiver to be one of these names.
     private static bool IsDbContextReceiver(string name) =>
         name is "db" or "_db" or "context" or "ctx" or "_context";
+
+    // The receiver of a UserManager/SignInManager access, matched either by its
+    // generic TYPE text (UserManager<ApplicationUser>, SignInManager<...> — the
+    // current code) or by a conventional camelCase receiver NAME (a future
+    // userManager.Users / signInManager.PasswordSignInAsync). The old check was
+    // a case-sensitive Contains("UserManager")/Contains("SignInManager") on the
+    // receiver text, which only caught the generic-type form and silently
+    // ignored camelCase variables — review P2. Matching the name set keeps this
+    // a syntax walk (no semantic model, for the hook budget) while closing the
+    // gap. `manager` is included because IdentityProvider's scoped-directory
+    // helper names its UserManager parameter `manager`.
+    // True if an invocation's method name is a banned bypass method — used by
+    // the wrapper-forwarding detection to decide whether a method body forwards
+    // a banned call. Matches the same BannedMethods set as the main walk.
+    private static bool InvokesBanned(InvocationExpressionSyntax invocation)
+    {
+        var name = invocation.Expression;
+        var methodName = name is MemberAccessExpressionSyntax m ? m.Name.Identifier.ValueText
+            : name is IdentifierNameSyntax id ? id.Identifier.ValueText : null;
+        return methodName is not null && BannedMethods.ContainsKey(methodName);
+    }
+
+    private static bool IsIdentityManagerReceiver(string? receiverText, bool isSignInManager)
+    {
+        if (receiverText is null)
+        {
+            return false;
+        }
+
+        // Type-text form: the receiver names the generic manager type.
+        if (receiverText.Contains(isSignInManager ? "SignInManager" : "UserManager", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        // Conventional-name form: a simple identifier with a manager-ish name.
+        var trimmed = receiverText.Trim();
+        if (isSignInManager)
+        {
+            return trimmed is "signInManager" or "_signInManager" or "signIn" or "_signIn";
+        }
+
+        return trimmed is "userManager" or "_userManager" or "manager" or "users" or "_users";
+    }
 
     internal static IReadOnlyList<string> EnumerateSourceFiles(string srcRoot)
     {

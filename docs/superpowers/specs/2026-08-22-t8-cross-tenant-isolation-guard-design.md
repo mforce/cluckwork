@@ -136,6 +136,25 @@ rows of the matrix above. Documented here so the spec and the shipped guard agre
   guard ships with a Roslyn walk + a documented (not yet enforced) graph-completeness
   cross-check placeholder that activates when #583 lands.
 
+### Codex review findings (PR #584, all fixed and re-verified)
+
+Codex (chatgpt-codex-connector) reviewed PR #584 and raised 4 findings (3× P1, 1× P2).
+All were verified real against the code and fixed in the same branch; each fix is
+proven by a mutation that reds on the named assertion (run, red, reverted, rebuilt
+green — full solution 1,936 passed / 0 failed after the fixes).
+
+| # | Sev | Finding | Fix | Mutation proof |
+|---|-----|---------|-----|----------------|
+| P1-1 | P1 | `ExecuteSqlRawAsync`/`ExecuteSqlInterpolatedAsync` omitted from the banned list + raw-SQL predicate walk; 5 current `src/` sites use the async form | Added both async variants to `BannedMethods` and the raw-SQL predicate walk's method set; allow-listed the 3 newly-reported `idempotency_records` `ExecuteSqlInterpolatedAsync` sites (all carry `WHERE "AccountId" = {accountId}`, not row locks) | `ExecuteSqlInterpolatedAsync` with `FOR UPDATE` but no `AccountId` → reds on both the allow-list leg and the raw-SQL predicate walk |
+| P1-2 | P1 | Filter-free sets without `AccountId` (`UserRoles`/`Roles`/`UserClaims`/`UserLogins`/`UserTokens`/`RoleClaims`/`DurableJobs`) excluded from the real-tree leg; a future unscoped `db.UserRoles` query passed silently | The leg now walks **all** filter-free DbSets in two tracks: tenant sets (predicate rule) + non-tenant sets (every `db.<Table>` access is a candidate). Added the 19 non-tenant sites to the TSV with their scoping reason. Note: `AspNetUserRoles` has columns `[UserId, RoleId]` only — **no `AccountId` column** (the earlier "HAS AccountId" was a grep of the mermaid Relations block) — so it is correctly non-tenant, scoped by the join to `db.Users` | A new `db.UserRoles.IgnoreQueryFilters()` query → reds on both the allow-list leg (unexcused) and the non-tenant stability leg (unclassified) |
+| P1-3 | P1 | Wrapper-forwarding test asserted only the wrapper *definition* was reported, not the *caller*; allow-listing the wrapper left callers green (the laundering the test claimed to prevent) | The scanner now does a two-pass walk: find methods whose body contains a banned call (forwarding wrappers), then flag their **call sites** as occurrences. The test now asserts the caller is reported too. This surfaced 8 real forwarding call sites in `src/` (previously invisible), all allow-listed with justifications. Limitation (stated): same-file only — a cross-file wrapper is not resolved by a syntax walk | The updated `WrapperForwarding_Fails` asserts both `Ext.Unfiltered` (wrapper) and `Caller.Use` (caller) are reported; removing either assertion would let the laundering through |
+| P2-4 | P2 | Identity receiver check was case-sensitive text-matching (`Contains("UserManager")`); a camelCase `userManager.Users` / `signInManager.X` was silently ignored | Replaced the text check with `IsIdentityManagerReceiver`, which matches the generic type text **or** a conventional receiver name (`userManager`, `_userManager`, `manager`, `users`, `signInManager`, …). No current `src/` sites use the camelCase form, so this is future-proofing (hence P2) | A camelCase `userManager.Users.Count()` → reported as `[UserManagerUsers]` (previously ignored) |
+
+The P1-2 finding also corrected a misreading: the tenant/non-tenant split is on the
+entity's `AccountId` **property**, which for these Identity types matches the table's
+`AccountId` **column** (verified against the EF model's `GetProperties()`, not the
+grep-prone schema-doc Relations block).
+
 **Mutation results (all run, all red on the named assertion, all reverted):**
 
 | Mutant | Lever | Result |

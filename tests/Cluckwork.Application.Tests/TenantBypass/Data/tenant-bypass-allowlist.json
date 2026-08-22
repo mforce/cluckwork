@@ -123,5 +123,45 @@
     "symbol": "Cluckwork.Infrastructure.Repositories.SalesOrderRepository.GetByIdLockedAsync(Guid accountId, Guid id, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Repositories/SalesOrderRepository.cs",
     "justification": "FOR UPDATE on a sales order; the raw SQL carries WHERE \"Id\" = {id} AND \"AccountId\" = {accountId} so a foreign-tenant id matches no row (#313)."
+  },
+  {
+    "symbol": "Cluckwork.Api.Middleware.IdempotencyMiddleware.InvokeAsync(HttpContext context, AppDbContext db, TenantContext tenant, CurrentUserContext user)",
+    "file": "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs",
+    "justification": "Raw-SQL UPDATE of idempotency_records on successful completion; the statement carries WHERE \"AccountId\" = {accountId} (the claim was scoped to this tenant on insert). Not a row lock, so the predicate walk does not flag it — allow-listed as a raw-SQL occurrence."
+  },
+  {
+    "symbol": "Cluckwork.Api.Middleware.IdempotencyMiddleware.TryClaimOrInspectAsync(AppDbContext db, Guid accountId, string endpointHash, string keyHash, string requestHash, Guid ownerToken, DateTimeOffset leaseExpiresAt, DateTimeOffset now, CancellationToken ct)",
+    "file": "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs",
+    "justification": "Raw-SQL UPDATE that steals an expired idempotency lease; the statement carries WHERE \"AccountId\" = {accountId} AND (EndpointHash, IdempotencyKeyHash) — scoped to this tenant's claim. Not a row lock."
+  },
+  {
+    "symbol": "Cluckwork.Api.Middleware.IdempotencyMiddleware.ReleaseClaimAsync(AppDbContext db, Guid accountId, string endpointHash, string keyHash, Guid ownerToken, CancellationToken ct)",
+    "file": "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs",
+    "justification": "Raw-SQL DELETE of the tenant's own idempotency claim; the statement carries WHERE \"AccountId\" = {accountId} AND (EndpointHash, IdempotencyKeyHash, LeaseOwner) — scoped to this tenant. Not a row lock."
+  },
+  {
+    "symbol": "Cluckwork.Api.Cli.SuspendAccountCliCommand.RunAsync(WebApplication app, string[] args)",
+    "file": "src/Cluckwork.Api/Cli/SuspendAccountCliCommand.cs",
+    "justification": "Caller of AccountSlugLookup.ResolveAsync (a forwarding wrapper that carries the IgnoreQueryFilters). Operator CLI suspends an account by global slug; no tenant is resolved at this point. The caller is flagged by the wrapper-forwarding walk (review P1-3) — the wrapper and its caller both need entries."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Identity.FirstRunAdminService.ProvisionUnderLockAsync(Guid accountId, string email, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Identity/FirstRunAdminService.cs",
+    "justification": "Caller of HoldsProvisioningLockAsync (a forwarding wrapper). First-run admin bootstrap runs at unresolved tenant by design (#283); the provisioning lock is a process-level advisory lock, not tenant-scoped."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedAsync(CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs",
+    "justification": "Caller of MissingBaseDataAsync / ComputeCountsAsync / SeedSecondAccountAsync (forwarding wrappers). Simulation seeder runs at unresolved tenant by design (#279); every wrapped query is scoped to the seeded account via explicit AccountId."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EmitManifestAsync(Guid accountId, DateOnly today, SimulationOptions sim, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs",
+    "justification": "Caller of ComputeCountsAsync (a forwarding wrapper). Simulation seeder manifest counts run at unresolved tenant by design (#279); scoped to the seeded account via explicit AccountId."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.AuditEventRepository.GetProvenanceAsync(string entityType, IReadOnlyCollection<Guid> entityIds, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/AuditEventRepository.cs",
+    "justification": "Caller of GetProvenanceChunkAsync (a forwarding wrapper). Audit provenance reads across the tenant's own entities; the wrapped raw SQL carries WHERE \"AccountId\" = {accountId}. IgnoreQueryFilters because the provenance query joins across entities that the filter would otherwise scope to an unresolved tenant."
   }
 ]

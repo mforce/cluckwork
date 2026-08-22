@@ -70,22 +70,66 @@ public sealed class TenantBypassRealTreeTests
             .Select(e => e.ClrType)
             .ToHashSet();
 
-        var propertyNames = typeof(AppDbContext).GetProperties()
+        // ALL filter-free DbSet properties (tenant + non-tenant). Review P1-2:
+        // restricting this to sets with an AccountId column left the non-tenant
+        // filter-free sets (UserRoles, Roles, UserClaims, UserLogins, UserTokens,
+        // RoleClaims, DurableJobs) invisible to the guard — a future unscoped
+        // db.UserRoles query would pass silently. Walk every filter-free DbSet
+        // and give the two categories separate classification handling below.
+        var allPropertyNames = typeof(AppDbContext).GetProperties()
             .Where(p => p.PropertyType.IsGenericType
                 && p.PropertyType.GetGenericTypeDefinition() == typeof(Microsoft.EntityFrameworkCore.DbSet<>)
-                && filterFreeEntityTypes.Contains(p.PropertyType.GetGenericArguments()[0])
-                && p.PropertyType.GetGenericArguments()[0].GetProperty("AccountId") != null)
+                && filterFreeEntityTypes.Contains(p.PropertyType.GetGenericArguments()[0]))
             .Select(p => p.Name)
             .ToList();
 
-        Assert.True(propertyNames.Count > 0,
-            "expected at least one tenant-table filter-free DbSet property (e.g. Users, RefreshTokens)");
+        // Split into tenant sets (the entity type carries an AccountId property
+        // — Users, RefreshTokens, IdempotencyRecord) and non-tenant sets (no
+        // AccountId column — the Identity claim/login/token/join tables, Roles,
+        // RoleClaims, DurableJob). Note: the split is on the ENTITY's AccountId
+        // property, which matches the table's AccountId column for these types
+        // (verified: AspNetUserRoles has columns [UserId, RoleId] only — no
+        // AccountId — so it is correctly non-tenant; the earlier "HAS AccountId"
+        // reading was a grep of the mermaid Relations block, not the column set).
+        var tenantNames = new List<string>();
+        var nonTenantNames = new List<string>();
+        foreach (var name in allPropertyNames)
+        {
+            var elementType = typeof(AppDbContext).GetProperty(name)!
+                .PropertyType.GetGenericArguments()[0];
+            if (elementType.GetProperty("AccountId") != null)
+            {
+                tenantNames.Add(name);
+            }
+            else
+            {
+                nonTenantNames.Add(name);
+            }
+        }
 
-        // The candidate set: db.<tenant-table> accesses with no AccountId
-        // compare in the enclosing statement.
-        var candidates = GuardScanner.ScanFilterFreeSet(SrcRoot(), propertyNames)
+        Assert.True(tenantNames.Count > 0,
+            "expected at least one tenant-table filter-free DbSet property (e.g. Users, RefreshTokens)");
+        Assert.True(nonTenantNames.Count > 0,
+            "expected at least one non-tenant filter-free DbSet property (e.g. Roles, UserRoles) — " +
+            "the non-tenant track exists to enumerate them, not to skip them");
+
+        // TENANT-track candidates: db.<tenant-table> accesses with no AccountId
+        // compare in the enclosing statement (the predicate rule applies).
+        var tenantCandidates = GuardScanner.ScanFilterFreeSet(SrcRoot(), tenantNames)
             .Where(o => o.PredicateHasAccountId == false)
             .Select(o => $"{o.File}:{o.Line}\t{o.Detail}")
+            .ToList();
+
+        // NON-TENANT-track candidates: EVERY db.<non-tenant-set> access. These
+        // sets have no AccountId column, so the predicate rule cannot apply —
+        // but any query against a filter-free set is a bypass occurrence that
+        // must be classified (scoped-by-join / scoped-by-user-id / global-
+        // reference / non-tenant-sweep). An unclassified site is a red build.
+        var nonTenantCandidates = GuardScanner.ScanFilterFreeSet(SrcRoot(), nonTenantNames)
+            .Select(o => $"{o.File}:{o.Line}\t{o.Detail}")
+            .ToList();
+
+        var candidates = tenantCandidates.Concat(nonTenantCandidates)
             .OrderBy(s => s, StringComparer.Ordinal)
             .ToList();
 
@@ -102,12 +146,14 @@ public sealed class TenantBypassRealTreeTests
 
         var classifiedKeys = classified.Select(c => c.Key).ToHashSet();
 
-        // 1. Every candidate must be classified (no needs-review, no missing).
+        // 1. Every candidate (both tracks) must be classified (no needs-review,
+        // no missing). A new db.<tenant-table> query with no AccountId compare,
+        // OR a new db.<non-tenant-set> query of any shape, appears as red here.
         var unclassified = candidates.Where(c => !classifiedKeys.Contains(c)).ToList();
         Assert.True(unclassified.Count == 0,
             "unclassified filter-free-set candidates (a new db.<tenant-table> query with no " +
-            "AccountId compare, or a line shift). Classify each in Data/filter-free-set-sites.tsv " +
-            "(safe-by-X or needs-review) or fix the query:\n  " +
+            "AccountId compare, a new db.<non-tenant-set> query, or a line shift). Classify each in " +
+            "Data/filter-free-set-sites.tsv (scoped-by-X or needs-review) or fix the query:\n  " +
             string.Join("\n  ", unclassified));
 
         // 2. No classified site may have disappeared (drift).

@@ -1,10 +1,23 @@
-# #536 Part 1 — db.<tenant-filter-free-set> query-site classifications.
+# #536 Part 1 — db.<filter-free-set> query-site classifications (two tracks).
 #
 # This file is the stability baseline for the filter-free-set leg. The leg
-# (GuardScanner.ScanFilterFreeSet) finds every `db.<Table>` access where
-# <Table> is a filter-free entity that carries an AccountId column (i.e. a
-# tenant table the global query filter does NOT scope), and flags the ones
-# whose enclosing statement has no "AccountId" compare.
+# (GuardScanner.ScanFilterFreeSet) walks EVERY db.<Table> access where <Table>
+# is a filter-free entity (no global query filter), in two tracks:
+#
+#   TENANT track — sets whose entity carries an AccountId property (Users,
+#     RefreshTokens, IdempotencyRecord). Candidate = a site whose enclosing
+#     statement has no "AccountId" compare (the predicate rule applies).
+#   NON-TENANT track — sets with no AccountId column (UserRoles, Roles,
+#     UserClaims, UserLogins, UserTokens, RoleClaims, DurableJob). Candidate =
+#     EVERY db.<Table> access. These sets have no AccountId to compare, so the
+#     predicate rule cannot apply; instead any query against them is a bypass
+#     occurrence that must be classified (scoped-by-join / scoped-by-user-id /
+#     global-reference / non-tenant-sweep).
+#
+# Review P1-2: the non-tenant track was added because the original leg walked
+# only the tenant sets, leaving db.UserRoles / db.Roles / db.DurableJobs etc.
+# invisible to the guard — a future unscoped query against them would pass
+# silently. Walking all filter-free DbSets closes that.
 #
 # WHY A CLASSIFICATION FILE RATHER THAN A PURE SHAPE GATE:
 #   The shape check (does the statement name an AccountId compare) cannot
@@ -46,3 +59,24 @@ src/Cluckwork.Infrastructure/Identity/PersistentStepUpGrantRegistry.cs:104	db.Us
 src/Cluckwork.Infrastructure/Jobs/IdempotencyRecordPurgeSweep.cs:111	db.IdempotencyRecords	non-tenant sweep: purges expired records across all tenants (runs under the single-leader gate #271 with no tenant resolved); scoped by expiry, not by account.
 src/Cluckwork.Infrastructure/Jobs/IdempotencyRecordPurgeSweep.cs:130	db.IdempotencyRecords	non-tenant sweep: second purge query in the same sweep; scoped by expiry.
 src/Cluckwork.Infrastructure/Jobs/RefreshTokenPurgeSweep.cs:80	db.RefreshTokens	non-tenant sweep: purges expired refresh tokens across all tenants (single-leader gate #271); scoped by expiry.
+
+# --- NON-TENANT track (no AccountId column; every db.<Table> access is a
+# candidate, classified by its scoping mechanism) ---
+src/Cluckwork.Infrastructure/Identity/AccountUserDirectory.cs:65	db.UserRoles	scoped-by-join: the role query joins db.Users (which carries AccountId) on user.Id, and the WHERE names user.AccountId == accountId; the UserRoles join is therefore tenant-scoped transitively.
+src/Cluckwork.Infrastructure/Identity/AccountUserDirectory.cs:66	db.Roles	global-reference: AspNetRoles has no AccountId column — roles are farm-wide reference data (the four base roles are global); the query is scoped by the join to the tenant's UserRows, not by an account predicate.
+src/Cluckwork.Infrastructure/Identity/FirstRunStatusService.cs:91	db.UserRoles	scoped-by-join: checks the Owner role by joining db.Users (carries AccountId) on user.Id; tenant-scoped transitively through the user row.
+src/Cluckwork.Infrastructure/Identity/FirstRunStatusService.cs:93	db.Roles	global-reference: role lookup by name (AspNetRoles is farm-wide reference data); scoped by the join to the tenant's user rows.
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:741	db.UserRoles	scoped-by-user-id: checks the acting user's Owner role by userRole.UserId == actingUserId (the user id is account-unique); the Role join is to global reference data.
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:742	db.Roles	global-reference: role lookup by name in the Owner check (AspNetRoles is farm-wide reference data).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:756	db.UserRoles	scoped-by-user-id: counts other active Owners by joining UserRoles on the user id (account-unique) and the user's AccountId == accountId.
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:757	db.Roles	global-reference: Owner-role filter by name in the owner-count (AspNetRoles is farm-wide reference data).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:809	db.UserRoles	scoped-by-user-id: DisableUser revokes the user's roles by userRole.UserId == userId (account-unique).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:810	db.Roles	global-reference: role lookup by name in the disable path (AspNetRoles is farm-wide reference data).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1142	db.UserRoles	scoped-by-account: lists the account's users with their roles; the query carries u.AccountId == accountId (the UserRoles join is scoped by the user rows).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1143	db.Roles	global-reference: role name resolution in ListUsers (AspNetRoles is farm-wide reference data).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1187	db.UserRoles	scoped-by-account: GetUser loads the user's roles; the method takes accountId and the user lookup is scoped to it.
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1188	db.Roles	global-reference: role name resolution in GetUser (AspNetRoles is farm-wide reference data).
+src/Cluckwork.Infrastructure/Jobs/DurableJobWorker.cs:149	db.DurableJobs	non-tenant table: DurableJob has no AccountId column by design (#271 at-most-one-leader lease, single-leader gate); the worker runs with no tenant resolved and polls by status/RunAfter.
+src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs:204	db.Roles	global-reference: dev-only seeder ensures the base role rows exist (AspNetRoles is farm-wide reference data); runs at unresolved tenant by design (#280).
+src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs:455	db.Roles	global-reference: simulation seeder ensures base role rows (AspNetRoles is farm-wide reference data); runs at unresolved tenant by design (#279).
+src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs:498	db.Roles	global-reference: simulation seeder finds the Owner by joining global reference roles to the seeded account's users; scoped to the seeded account via the user rows.

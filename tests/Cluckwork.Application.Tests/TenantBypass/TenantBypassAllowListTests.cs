@@ -155,13 +155,13 @@ public sealed class TenantBypassAllowListTests : IDisposable
         var report = Scan(_tempRoot, WriteAllowList());
         var failures = GuardScanner.Evaluate(report);
 
-        // The wrapper's own IgnoreQueryFilters() call is an unexcused
-        // occurrence in Ext.Unfiltered — allow-listing it does NOT excuse the
-        // caller; the caller is reported through the same mechanism (any
-        // bypass in a non-allow-listed method), which is what keeps the
-        // wrapper from being a laundering step: both sites need entries, and
-        // a new caller appears as a new unexcused occurrence the moment it is
-        // written.
+        // BOTH sites must be reported, not just the wrapper definition (review
+        // P1-3: the old test asserted only Ext.Unfiltered was reported, but the
+        // CALLER Use() was not — allow-listing the wrapper left the caller
+        // green, the exact laundering the test claimed to prevent). The scanner
+        // now flags the call site of a forwarding method (forwards-bypass), so
+        // the caller Caller.Use is an unexcused occurrence too.
         Assert.Contains(failures, f => f.Contains("Ext.Unfiltered"));
+        Assert.Contains(failures, f => f.Contains("Caller.Use") || f.Contains("Use()"));
     }
 }
