@@ -359,8 +359,12 @@ public static class GuardScanner
                 var sqlArg = invocation.ArgumentList.Arguments[0].Expression;
                 var sqlText = ReconstructSqlText(sqlArg);
 
-                var hasLock = sqlText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase)
-                              || sqlText.Contains("FOR SHARE", StringComparison.OrdinalIgnoreCase);
+                // Round-4 finding F5: the gate matched only FOR UPDATE / FOR SHARE,
+                // but FOR NO KEY UPDATE and FOR KEY SHARE are row locks too (and
+                // HasAccountIdPredicateInWhereClause's prefix loop already listed all
+                // four — the gate just never reached it). A `FOR NO KEY UPDATE` lock
+                // with the AccountId predicate dropped must red, not pass.
+                var hasLock = HasRowLockKeyword(sqlText);
                 // Review P1-2: the old check was `sqlText.Contains("AccountId")` —
                 // a string-presence test, not a predicate test. `SELECT *,
                 // "AccountId" FROM t WHERE "Id" = {id} FOR UPDATE` names
@@ -402,6 +406,15 @@ public static class GuardScanner
             stale, parseErrors, files.Count, floor, rawSqlViolations);
     }
 
+    // Round-4 finding F5 — all four Postgres row-lock keywords. The predicate
+    // walk's gate and its prefix loop must agree on the set; a lock the gate
+    // misses never reaches the predicate check at all.
+    private static bool HasRowLockKeyword(string sql) =>
+        sql.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase)
+        || sql.Contains("FOR SHARE", StringComparison.OrdinalIgnoreCase)
+        || sql.Contains("FOR NO KEY UPDATE", StringComparison.OrdinalIgnoreCase)
+        || sql.Contains("FOR KEY SHARE", StringComparison.OrdinalIgnoreCase);
+
     // Reconstruct the text of a raw-SQL argument. We only need to know whether
     // the SQL names "AccountId", so the node's full source text is sufficient:
     // a plain string literal, an interpolated string, or a C# 11+ raw string
@@ -440,16 +453,61 @@ public static class GuardScanner
         // FROM and accept if any contains AccountId. The SELECT-list false-green
         // stays closed: the projection sits before the first FROM, so no region
         // after a FROM contains it.
+        //
+        // Round-4 finding F1 (kimi-k3) — the every-FROM fix itself regressed
+        // MULTI-STATEMENT SQL: a batched raw SQL whose FIRST statement is scoped
+        // (`DELETE ... WHERE AccountId = ...;`) and whose SECOND takes an
+        // UNscoped lock (`SELECT ... FOR UPDATE`) passed, because the rule found
+        // AccountId in the first statement's FROM region. Round 3's last-FROM
+        // logic read the LOCK'S OWN statement region and would have caught it.
+        // Cure: split the stripped SQL on `;` and apply the every-FROM rule only
+        // to the STATEMENT that contains the lock keyword. A CTE stays inside one
+        // statement (its `;` is only at the end), so the CTE fix survives; a
+        // previous statement's AccountId can no longer launder the lock. (Npgsql
+        // batches multi-statement text, so this is a real execution shape.)
         var noComments = StripSqlComments(sqlText);
+        var statements = noComments.Split(';', StringSplitOptions.RemoveEmptyEntries);
 
-        // Case-insensitive search for the lock keyword; take the prefix before it.
-        var prefix = noComments;
+        // The statement carrying the lock keyword is the one whose predicate we
+        // must prove. (If the lock keyword appears in more than one statement —
+        // e.g. two locks in one batch — every such statement must be scoped; we
+        // return false if ANY lock statement lacks the predicate.)
+        var sawLockStatement = false;
+        foreach (var statement in statements)
+        {
+            if (!HasRowLockKeyword(statement))
+            {
+                continue; // not a lock statement — no predicate obligation
+            }
+
+            sawLockStatement = true;
+            if (!LockStatementHasAccountIdPredicate(statement))
+            {
+                return false; // a lock statement without an AccountId predicate
+            }
+        }
+
+        // A lock statement was found and every one of them carried the AccountId
+        // predicate — the implication holds. (The hasLock gate already established
+        // there IS a lock, so sawLockStatement is normally true here; if the lock
+        // keyword was only in a comment that StripSqlComments removed, no statement
+        // carries it and we flag (false).)
+        return sawLockStatement;
+    }
+
+    // The every-FROM predicate rule applied to a SINGLE lock statement: take the
+    // text up to the lock keyword within this statement, and accept if the region
+    // after any FROM in that prefix contains AccountId. (Extracted from
+    // HasAccountIdPredicateInWhereClause for the statement-aware F1 fix.)
+    private static bool LockStatementHasAccountIdPredicate(string statement)
+    {
+        var prefix = statement;
         foreach (var kw in new[] { "FOR UPDATE", "FOR SHARE", "FOR NO KEY UPDATE", "FOR KEY SHARE" })
         {
-            var idx = IndexOf(noComments, kw, StringComparison.OrdinalIgnoreCase);
+            var idx = IndexOf(statement, kw, StringComparison.OrdinalIgnoreCase);
             if (idx >= 0)
             {
-                prefix = noComments[..idx];
+                prefix = statement[..idx];
                 break;
             }
         }
@@ -469,8 +527,8 @@ public static class GuardScanner
             fromIdx = nextFrom >= 0 ? regionStart + nextFrom : -1;
         }
 
-        // No FROM at all: a lock on a table must have one; without it there is no
-        // confirmable predicate region, so flag (false).
+        // No FROM at all in the lock statement: a lock on a table must have one;
+        // without it there is no confirmable predicate region, so flag (false).
         return false;
     }
 
@@ -764,15 +822,29 @@ public static class GuardScanner
         return HasAccountIdComparison(StatementCodeOnly(statement));
     }
 
-    // The statement's code, with comment trivia and string-literal text removed.
+    // The statement's code, with comment trivia and string-literal TEXT removed.
     // A node's ToString() includes interior comments (trivia) and the text of
     // string literals; both can name "AccountId" in a way that is not code. A
     // log message `Log($"scoping by AccountId = {x}")` or a `// AccountId == ...`
-    // comment would otherwise read as a predicate. Removing those leaves only the
-    // real code tokens. (Interpolated-string holes are dropped too — they are
-    // string content, and a `{u.AccountId}` inside a log string is not a
-    // predicate. The legitimate code forms — `u.AccountId == x`,
-    // `accountIds.Contains(u.AccountId)` — are all plain tokens and survive.)
+    // comment would otherwise read as a predicate. Removing the comment trivia
+    // and the literal TEXT leaves the code tokens.
+    //
+    // ROUND-4 F6 (kimi-k3) — corrected a FALSE claim in this comment. The
+    // original text said "interpolated-string holes are dropped too — they are
+    // string content." That is wrong: an interpolated hole's contents are
+    // ORDINARY CODE TOKENS (an `InterpolatedStringTextToken` is the literal
+    // text BETWEEN holes; the hole itself is an `InterpolatedStringExpression`)
+    // and they SURVIVE this filter. Consequence: a comparison embedded in a
+    // string hole — e.g. `Select(u => $"match: {u.AccountId == accountId}")` —
+    // still reads as a predicate (a false-green), because the hole's `u.AccountId
+    // == accountId` is real code text. This is a contrived shape (nobody scopes a
+    // query inside a log string), but the comment must not claim the hole is
+    // dropped, or a future reviewer will trust it. The legitimate code forms —
+    // `u.AccountId == x`, `accountIds.Contains(u.AccountId)` — are plain tokens
+    // and survive either way. Closing the hole case requires tracking which tokens
+    // are inside an interpolated string and dropping the hole EXPRESSIONS too, which
+    // is a larger change than this guard's budget warrants; it is recorded here as a
+    // known limitation, not silently claimed closed.
     internal static string StatementCodeOnly(SyntaxNode statement)
     {
         var sb = new System.Text.StringBuilder();

@@ -203,6 +203,27 @@ predicate-walked (two names — `SqlQueryInterpolated`, `FromSqlAsync` — do no
 10; harmless over-inclusion, a false-red only if `src/` ever defines a method by those
 names).
 
+### Round 4 — pi (kimi-k3) re-review: 1 regression + 2 false-greens fixed, 3 documented as limitations
+
+A fourth independent pass — a `pi` agent on `kimi-k3` (opencode-go) in a fresh herdr tab,
+reviewing the three fix commits — re-verified the prior fixes and found **7 new findings
+(F1–F7)**. The three clear ones (F1, F5, F6) are fixed here; the other three (F3, F4, F7)
+are the same "narrower escape hole" family and are **documented as known limitations**
+rather than fixed, because each prior fix in that family has opened another (F1 itself was
+a regression introduced by the round-4 every-FROM fix). Full write-up:
+`scratchpad/t8-round4-review.md`. The reviewer walked all 9 real `src/` lock sites + the
+advisory pair + the CTE + every TSV line and found **no false-red from the round-4
+tightening on the actual codebase**.
+
+| # | Finding | Status | Detail |
+|---|---------|--------|--------|
+| F1 | **REGRESSION introduced by the round-4 every-FROM fix.** A batched raw SQL whose first statement is scoped (`DELETE … WHERE AccountId = …;`) and whose second takes an unscoped lock passed — the every-FROM rule found AccountId in the first statement's FROM region. Round 3's last-FROM logic read the lock's own statement and would have caught it. | **FIXED** — the predicate walk is now statement-aware: split the stripped SQL on `;` and apply the every-FROM rule only to the statement containing the lock keyword. A CTE stays inside one statement, so the CTE fix survives; a previous statement's AccountId can no longer launder the lock. Mutation: 1st stmt scoped + 2nd unscoped lock → now reds (was green); scoped CTE → still passes. |
+| F5 | **FALSE-GREEN.** `FOR NO KEY UPDATE` / `FOR KEY SHARE` never entered the predicate walk — the `hasLock` gate matched only `FOR UPDATE`/`FOR SHARE`, even though the prefix loop already listed all four. | **FIXED** — extracted `HasRowLockKeyword` (all four Postgres row-lock keywords) and used it for both the gate and the prefix loop. Mutation: `FOR NO KEY UPDATE` lock with AccountId dropped → now reds (was green). |
+| F6 | **Code-comment falsehood.** `StatementCodeOnly`'s comment claimed "interpolated-string holes are dropped too — they are string content." That is wrong: a hole's contents are ordinary code tokens and survive, so a comparison embedded in a string hole launders (a contrived false-green). | **FIXED (comment only)** — the comment now states the hole case is a known limitation, not closed. No code change: closing it requires tracking which tokens are inside an interpolated string, a larger change than the guard's budget warrants. |
+| F3 | **FALSE-GREEN (documented).** A `this.`-rooted property-wrapper use site (`this.X.Select(…)`) escapes — the root walk requires `IdentifierNameSyntax`, so `this.X` (rooted at `ThisExpressionSyntax`) is never flagged. Also `var q = X; q.Select(…)` (a bare read is an `IdentifierNameSyntax`, not a member access). | **LIMITATION** — same-file, same family as the wrapper fix. Closing it (accept `ThisExpressionSyntax`, or match the first member name rather than the chain root) risks the same open-another-hole pattern. |
+| F4 | **FALSE-GREEN (documented).** Wrappers forwarding a banned *member access* (`UserManager.Users`) are never registered as forwarding — `RecordForwarding` only matches banned *invocations*. A `private IQueryable<T> AllUsers => _userManager.Users;` property + same-file callers launder. | **LIMITATION** — `RecordForwarding` would also need to treat a body containing a banned member access (the `UserManagerUsers` leg's own predicate) as forwarding. | 
+| F7 | **FALSE-RED (documented).** `--` inside a SQL string literal eats the predicate to end-of-line — `StripSqlComments` is not quote-aware. The code comment already bounds this as false-red-only and no current `src/` site has `--` inside a literal. | **LIMITATION** — fix when it bites by tracking `'…'`/`"…"` quoting in the strip. |
+
 **Mutation results (all run, all red on the named assertion, all reverted):**
 
 | Mutant | Lever | Result |
