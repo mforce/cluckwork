@@ -68,8 +68,9 @@ shipped — the record's narrative names the incident and the review round that
 found it) or an **accepted-risk** record (no incident — the record says `No
 incident` and the rule is load-bearing, e.g. the suspension issuance window
 (#579)). `AGENTS.md` says a bullet is linked by whether it carries one; the
-record's own `Incident` / `No incident` line says which of the two linked kinds
-it is.
+record itself says which of the two linked kinds it is — an accepted-risk record
+carries a `No incident` marker (e.g. #579), and an earned record's narrative
+names the shipped defect and the review round that found it.
 
 The last eight rows were added when `AGENTS.md` was compressed to one paragraph
 per rule: #265, #264, #260, #318 and #267 had kept their rationale inline until

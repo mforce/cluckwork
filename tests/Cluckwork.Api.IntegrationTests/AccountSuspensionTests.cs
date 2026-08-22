@@ -308,7 +308,23 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         // must both sit between BeginAsync and CommitAsync. Verified by
         // mutation on this slice (the two-transaction mutation reddens the
         // sweep-position assertion; the flush-count predecessor let it pass).
-        // Same repo-root walk as ServingGuardCoverageTests.RepositoryRoot et al.
+        //
+        // HONEST LIMITATION (round 9, meta-rule: two misses of the same shape
+        // mean the METHOD is wrong). This is a textual-position guard; it
+        // equates where the call text sits with when it executes. A refactor
+        // that DEFINES each sweep as a local lambda before CommitAsync and
+        // INVOKES it afterward evades it — the receiver and call offsets stay
+        // inside the accepted span while the revocations execute after the
+        // commit. Closing that evasion requires a production test seam (a hook
+        // the service calls so a runtime guard can observe execution order),
+        // which is out of scope for a won't-fix decision record. This guard is
+        // best-effort against the REALISTIC refactor shapes — the ones that
+        // move a statement rather than wrap it in a lambda — each verified by
+        // mutation on this slice (see the mutation matrix in the PR review
+        // thread). If the service is ever refactored to wrap the sweeps in
+        // lambdas, this guard will NOT catch it; the premise-3 invariant then
+        // rests on the runtime half + code review, and this comment must be
+        // revisited. Same repo-root walk as ServingGuardCoverageTests.
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cluckwork.sln")))
             dir = dir.Parent;

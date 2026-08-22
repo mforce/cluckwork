@@ -6,6 +6,7 @@
 
 **Status:** accepted (won't-fix, 2026-08-21, owner decision on #579)
 **Date:** 2026-08-21
+**No incident** — accepted-risk record (no defect shipped; deliberate declination).
 
 ## What happened
 
@@ -71,7 +72,16 @@ one of them must reopen #579 rather than ship:**
    mutation on this slice. The variants that leave `IsActive` false with live
    credentials (a sweep moved to a second transaction, the two revocations split
    across transactions, or the account mutation deferred to a post-commit save)
-   are the ones the static check reddens on.
+   are the ones the static check reddens on. **Honest limitation:** the static
+   check is a *textual-position* guard — it equates where the call text sits
+   with when it executes. A refactor that wraps each sweep in a local lambda
+   defined before the commit and invoked after it evades the check (the offsets
+   stay in-span while the revocations execute post-commit); closing that
+   evasion needs a production test seam so a runtime guard can observe execution
+   order, which is out of scope for a won't-fix record. The guard is therefore
+   best-effort against the realistic refactor shapes (moving a statement, each
+   verified by mutation); a lambda-wrap refactor leaves the premise resting on
+   the runtime half + code review, and the guard's comment must be revisited.
 4. **Reactivation revokes again** — `ReactivationRevokesTheSessionsMintedBetweenSuspendAndReactivate`
    (`tests/Cluckwork.Api.IntegrationTests/AccountSuspensionTests.cs`) inserts
    the window artifact on purpose and proves it is destroyed for good at
