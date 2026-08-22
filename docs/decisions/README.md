@@ -13,6 +13,15 @@ nearly every long bullet encodes a defect that actually shipped plus the reasoni
 that stops it recurring, so the rule is compressed but **nothing is deleted** —
 follow the `→` link from the `AGENTS.md` bullet to get here.
 
+There are two kinds of record, and the `AGENTS.md` bullet's link does not by
+itself say which: an **earned** record was earned by a defect that shipped (the
+narrative names what broke, which review round found it, and the wrong fix), and
+an **accepted-risk** record (e.g. the [suspension issuance window (#579)](579-suspension-issuance-window.md))
+records a deliberate declination — no incident, the record says `No incident`,
+and the rule is load-bearing (break it and the accepted risk returns). Both are
+indexed here; the footer below is what distinguishes them from the plain
+conventions that carry no link at all.
+
 Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 
 ## Index
@@ -52,9 +61,15 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 **Every bullet that cites an issue has a record here; the plain conventions do
 not, and should not.** The Result pattern, handler-per-feature, FluentValidation,
 the endpoint shape, `Version++`, multi-tenancy and nullable-enabled are house
-style — consistency rules with no incident behind them, so there is nothing to
-relocate and no `→` link to follow. `AGENTS.md` says which kind a bullet is by
-whether it carries one.
+style — consistency rules with no incident behind them and no deliberate
+declination to record, so there is nothing to relocate and no `→` link to
+follow. A linked bullet is one of two kinds: an **earned** record (a defect that
+shipped — the record's narrative names the incident and the review round that
+found it) or an **accepted-risk** record (no incident — the record says `No
+incident` and the rule is load-bearing, e.g. the suspension issuance window
+(#579)). `AGENTS.md` says a bullet is linked by whether it carries one; the
+record's own `Incident` / `No incident` line says which of the two linked kinds
+it is.
 
 The last eight rows were added when `AGENTS.md` was compressed to one paragraph
 per rule: #265, #264, #260, #318 and #267 had kept their rationale inline until
