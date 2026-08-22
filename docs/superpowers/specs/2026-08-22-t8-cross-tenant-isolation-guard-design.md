@@ -179,6 +179,30 @@ future-proofing and coverage-scope items, not the false-green P1s above. The 404
 point (P2-3) is the most substantive and is the natural next hardening if the guard's
 defense-in-depth claim is to be enforced rather than manually mutation-verified.
 
+### Claude re-review (PR #584, fixes re-refuted, 3 defects fixed)
+
+A third independent pass — a `claude` agent in a fresh herdr tab, reviewing the *fix
+commits* specifically (not the original code) — re-verified the 4 Codex fixes and 3 pi
+fixes and **refuted 1, partially refuted 2**. The refutations were re-proven by running
+the exact mutations the reviewer described (run, red/green as claimed, reverted, full
+solution 1,936 passed / 0 failed after the fixes). Full write-up:
+`scratchpad/t8-fix-rereview.md`. The root cause of all three is the same:
+**text matching cannot tell code from comment/string trivia.**
+
+| # | Refutation | Defect | Fix | Mutation proof |
+|---|------------|--------|-----|----------------|
+| Codex P1-3 | **REFUTED** — the two-pass wrapper walk collected forwarding names only from `MethodDeclarationSyntax`. An expression-bodied **property** wrapper and a **local-function** wrapper are invisible, so a same-file caller laundered past an allow-listed definition — the fix's own stated scope. | Widen `forwardingNames` collection to methods **plus** `LocalFunctionStatementSyntax` **plus** `PropertyDeclarationSyntax` (both `ExpressionBody` and accessor `ArrowExpressionClause` forms). Flag the property-wrapper use site as a **member access** (not an invocation) — `X.Select(…)` is a member access, so the invocation loop never saw it. | A property wrapper + caller, with the property's definition symbol allow-listed → the caller now reds as `forwards-bypass (property) <name>` (before the fix it was green). |
+| pi P1-2 | **PARTLY REFUTED** — (a) a **`--` SQL comment** in the predicate region naming AccountId laundered a whole-table `FOR UPDATE` (the repo's own house style puts `--` comments inside `FOR UPDATE` WHERE clauses — EggLotRepository.cs:44-48 — so this is the real shape, not a contrived one); (b) a **CTE lock** was falsely rejected because `LastIndexOf("FROM")` landed on the innermost FROM, excluding the CTE's scoping WHERE. | `StripSqlComments` (removes `--…\n` and `/*…*/`) before the region check; test the region after **every** FROM (not just the last) and accept if any contains AccountId. The SELECT-list false-green stays closed (the projection is before the first FROM). | (a) AccountId only in a `--` comment → now reds (was green). (b) a legitimately scoped CTE → now passes (was a false-red). |
+| pi P1-3 | **PARTLY REFUTED** — `HasAccountIdComparison` matched on `statement.ToString()`, which includes comment trivia and string-literal text. A `// scoped by AccountId == tenant.AccountId` comment beside a real cross-tenant `db.Users.Where(Email == x)` laundered the statement. Separately, a false-red: `accountIds.Contains(u.AccountId)` and `u.AccountId.Equals(id)` no longer read as predicates. | Compare on **tokens** (`StatementCodeOnly`): drop `StringLiteralToken` / `InterpolatedStringTextToken` text and comment trivia, keep code + whitespace. Extend the regex for `Contains(…AccountId…)` and `AccountId.Equals(…)`. | (a) real cross-tenant enum with `AccountId ==` only in a comment → now an unclassified candidate (was green). (b) `accountIds.Contains(u.AccountId)` scoping → now passes (was a false-red). |
+
+The 4 **confirmed** fixes (Codex P1-1 async raw-SQL, Codex P1-2 non-tenant track, Codex
+P2-4 camelCase for the named forms, pi P1-1 full EF10 raw-SQL surface) held under the
+re-review. Claude reflected the real `Microsoft.EntityFrameworkCore.Relational` 10.0.11
+API via `MetadataLoadContext` and confirmed all 11 raw-SQL entry points are banned +
+predicate-walked (two names — `SqlQueryInterpolated`, `FromSqlAsync` — do not exist in EF
+10; harmless over-inclusion, a false-red only if `src/` ever defines a method by those
+names).
+
 **Mutation results (all run, all red on the named assertion, all reverted):**
 
 | Mutant | Lever | Result |

@@ -156,20 +156,75 @@ public static class GuardScanner
             // called in another is not resolved by a syntax walk (no symbol
             // binding) — a stated limitation, named in the ADR. The test's
             // laundering case (wrapper + caller in the same file) is caught.
+            // Review (Claude re-review, refuting Codex P1-3): the original pass
+            // collected forwarding names ONLY from MethodDeclarationSyntax. A
+            // local function (LocalFunctionStatementSyntax — NOT a
+            // MethodDeclarationSyntax) and an expression-bodied property
+            // (PropertyDeclarationSyntax / AccessorDeclarationSyntax) were
+            // invisible, so a wrapper in either shape laundered a bypass past an
+            // allow-listed definition, same-file — the fix's own stated scope.
+            // Proven: a `private IQueryable<T> X => db.T.FromSql(...).IgnoreQueryFilters();`
+            // property wrapper + a caller `X.Select(...)` went green once the
+            // property's definition symbol was allow-listed. Collect from all
+            // three shapes and flag the caller as a member-access (property use
+            // is `X.Select(…)`, not an invocation).
             var forwardingNames = new HashSet<string>(StringComparer.Ordinal);
+            var forwardingMemberAccesses = new List<MemberAccessExpressionSyntax>();
+
+            // A declaration (method, local function, property/accessor) whose
+            // body contains a banned call is a forwarding wrapper.
+            void RecordForwarding(SyntaxNode? body, string name)
+            {
+                if (body is null) return;
+                var hasBanned = body.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                    .Any(InvokesBanned);
+                if (hasBanned) forwardingNames.Add(name);
+            }
+
             foreach (var method in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
             {
-                // A local function or extension method: any method declaration
-                // whose body (block or expression-bodied) directly contains a
-                // banned-call invocation. Both `Body` (block) and
-                // `ExpressionBody` (=> ...) forms are checked.
-                var hasBanned = (method.Body?.DescendantNodes().OfType<InvocationExpressionSyntax>()
-                        .Any(InvokesBanned) is true)
-                    || (method.ExpressionBody?.DescendantNodes().OfType<InvocationExpressionSyntax>()
-                        .Any(InvokesBanned) is true);
-                if (hasBanned)
+                RecordForwarding(method.Body, method.Identifier.ValueText);
+                RecordForwarding(method.ExpressionBody, method.Identifier.ValueText);
+            }
+            foreach (var lf in root.DescendantNodes().OfType<LocalFunctionStatementSyntax>())
+            {
+                RecordForwarding(lf.Body, lf.Identifier.ValueText);
+                RecordForwarding(lf.ExpressionBody, lf.Identifier.ValueText);
+            }
+            // Expression-bodied properties (and accessors): the arrow body is
+            // the forwarding site. An expression-BODIED property (`private X Y
+            // => expr;`) carries the body on prop.ExpressionBody directly — it has
+            // NO AccessorList. A get-only accessor property (`private X Y { get
+            // => expr; }`) has the body on the accessor's ArrowExpressionClause.
+            // Check both. Record the property NAME so its member-access use sites
+            // can be flagged below.
+            foreach (var prop in root.DescendantNodes().OfType<PropertyDeclarationSyntax>())
+            {
+                RecordForwarding(prop.ExpressionBody, prop.Identifier.ValueText);
+                RecordForwarding(
+                    prop.AccessorList?.DescendantNodes().OfType<ArrowExpressionClauseSyntax>()
+                        .Select(a => a.Expression).FirstOrDefault(),
+                    prop.Identifier.ValueText);
+            }
+
+            // Property-wrapper use sites: a member access whose ROOT name is a
+            // forwarding property name (e.g. `AllLotsUnfiltered.Select(…)` — the
+            // root `AllLotsUnfiltered` is the forwarding property). Collected
+            // here, flagged in the occurrence walk below.
+            if (forwardingNames.Count > 0)
+            {
+                foreach (var access in root.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
                 {
-                    forwardingNames.Add(method.Identifier.ValueText);
+                    // The root of the member-access chain (leftmost identifier).
+                    var rootExpr = access.Expression;
+                    while (rootExpr is MemberAccessExpressionSyntax mroot)
+                    {
+                        rootExpr = mroot.Expression;
+                    }
+                    if (rootExpr is IdentifierNameSyntax rid && forwardingNames.Contains(rid.Identifier.ValueText))
+                    {
+                        forwardingMemberAccesses.Add(access);
+                    }
                 }
             }
 
@@ -195,11 +250,14 @@ public static class GuardScanner
                     continue;
                 }
 
-                // Caller of a forwarding wrapper (review P1-3): the invocation's
-                // method name is not banned, but the method it calls forwards a
-                // banned call (found above in forwardingNames). Flag the CALL
-                // SITE so a wrapper that is allow-listed does not leave its
-                // callers green. Same-file only (see the limitation note above).
+                // Caller of a forwarding wrapper (review P1-3 + Claude re-review):
+                // the invocation's method name is not banned, but the method it
+                // calls forwards a banned call (found above in forwardingNames).
+                // Flag the CALL SITE so a wrapper that is allow-listed does not
+                // leave its callers green. Same-file only (see the limitation note
+                // above). A property wrapper's use site (`X.Select(…)`) is a
+                // member access, not an invocation, so it is flagged separately
+                // below (forwardingMemberAccesses).
                 if (methodName is not null && forwardingNames.Contains(methodName))
                 {
                     occurrences.Add(MakeOccurrence(BypassKind.IgnoreQueryFilters, repoRoot, file, invocation,
@@ -220,6 +278,25 @@ public static class GuardScanner
                     var memberName = name is MemberAccessExpressionSyntax m2 ? m2.Name.Identifier.ValueText : "?";
                     occurrences.Add(MakeOccurrence(BypassKind.SignInManager, repoRoot, file, invocation, $"SignInManager.{memberName}"));
                 }
+            }
+
+            // Caller of a forwarding PROPERTY wrapper (Claude re-review, refuting
+            // Codex P1-3): the use site `AllLotsUnfiltered.Select(…)` is a member
+            // access, not an invocation, so the invocation loop above never sees
+            // it. Flag the member access whose root names a forwarding property so
+            // allow-listing the property's definition does not leave the caller
+            // green. Same-file only.
+            foreach (var access in forwardingMemberAccesses)
+            {
+                var rootName = access.Expression;
+                while (rootName is MemberAccessExpressionSyntax mr) rootName = mr.Expression;
+                var rootText = (rootName as IdentifierNameSyntax)?.Identifier.ValueText ?? "?";
+                occurrences.Add(new BypassOccurrence(
+                    BypassKind.IgnoreQueryFilters, Relative(repoRoot, file),
+                    access.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
+                    EnclosingSymbolOf(access, file),
+                    $"forwards-bypass (property) {rootText}",
+                    PredicateHasAccountId: PredicateHasAccountId(access)));
             }
 
             // UserManager.Users — a member access, not an invocation. The
@@ -351,24 +428,84 @@ public static class GuardScanner
     // list is correctly flagged.
     private static bool HasAccountIdPredicateInWhereClause(string sqlText)
     {
+        // Claude re-review (refuting pi P1-2): the original check did a
+        // substring test on the region after the LAST FROM, which left two
+        // defects. (a) FALSE-GREEN: a `--` comment in the predicate region that
+        // names AccountId launders the lock — the repo's own house style puts `--`
+        // comments inside FOR UPDATE WHERE clauses (EggLotRepository.cs:44-48), so
+        // this is the real shape, not a contrived one. Strip SQL comments first.
+        // (b) FALSE-RED: a CTE lock (`WITH scoped AS (SELECT ... WHERE AccountId =
+        // ...) SELECT ... FOR UPDATE`) has the scoping WHERE before the innermost
+        // FROM, so the last-FROM region excludes it. Test the region after EVERY
+        // FROM and accept if any contains AccountId. The SELECT-list false-green
+        // stays closed: the projection sits before the first FROM, so no region
+        // after a FROM contains it.
+        var noComments = StripSqlComments(sqlText);
+
         // Case-insensitive search for the lock keyword; take the prefix before it.
-        var prefix = sqlText;
+        var prefix = noComments;
         foreach (var kw in new[] { "FOR UPDATE", "FOR SHARE", "FOR NO KEY UPDATE", "FOR KEY SHARE" })
         {
-            var idx = IndexOf(sqlText, kw, StringComparison.OrdinalIgnoreCase);
+            var idx = IndexOf(noComments, kw, StringComparison.OrdinalIgnoreCase);
             if (idx >= 0)
             {
-                prefix = sqlText[..idx];
+                prefix = noComments[..idx];
                 break;
             }
         }
 
-        // The last FROM in the prefix is the outer table source. AccountId must
-        // appear after it to be a predicate, not in the SELECT list.
-        var fromIdx = LastIndexOf(prefix, "FROM", StringComparison.OrdinalIgnoreCase);
-        var predicateRegion = fromIdx >= 0 ? prefix[(fromIdx + 4)..] : prefix;
+        // For every FROM in the prefix, the region after it (up to the next FROM,
+        // or end) is a predicate region. Accept if any contains AccountId.
+        var fromIdx = IndexOf(prefix, "FROM", StringComparison.OrdinalIgnoreCase);
+        while (fromIdx >= 0)
+        {
+            var regionStart = fromIdx + 4; // after "FROM"
+            var nextFrom = IndexOf(prefix[regionStart..], "FROM", StringComparison.OrdinalIgnoreCase);
+            var region = nextFrom >= 0 ? prefix[regionStart..(regionStart + nextFrom)] : prefix[regionStart..];
+            if (region.Contains("AccountId", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            fromIdx = nextFrom >= 0 ? regionStart + nextFrom : -1;
+        }
 
-        return predicateRegion.Contains("AccountId", StringComparison.OrdinalIgnoreCase);
+        // No FROM at all: a lock on a table must have one; without it there is no
+        // confirmable predicate region, so flag (false).
+        return false;
+    }
+
+    // Strip `-- line` and `/* block */` comments from SQL text. A `--` runs to
+    // end of line; a `/* */` runs to the matching close. Quote-aware enough for
+    // the repo's SQL (double-quoted identifiers, single-quoted literals) — a
+    // `--` inside a literal is not present in the current src/ raw-SQL, and a
+    // mis-strip would only remove text, never add an AccountId, so the risk is a
+    // false-red, not a false-green.
+    private static string StripSqlComments(string sql)
+    {
+        var sb = new System.Text.StringBuilder(sql.Length);
+        var i = 0;
+        while (i < sql.Length)
+        {
+            var c = sql[i];
+            if (c == '-' && i + 1 < sql.Length && sql[i + 1] == '-')
+            {
+                // line comment: skip to end of line (keep the newline)
+                while (i < sql.Length && sql[i] != '\n') i++;
+            }
+            else if (c == '/' && i + 1 < sql.Length && sql[i + 1] == '*')
+            {
+                // block comment: skip to matching */
+                i += 2;
+                while (i + 1 < sql.Length && !(sql[i] == '*' && sql[i + 1] == '/')) i++;
+                i = Math.Min(sql.Length, i + 2);
+            }
+            else
+            {
+                sb.Append(c);
+                i++;
+            }
+        }
+        return sb.ToString();
     }
 
     private static int IndexOf(string haystack, string needle, StringComparison cmp)
@@ -617,19 +754,69 @@ public static class GuardScanner
             return null; // cannot tell — the caller treats null as "flag for review"
         }
 
-        return HasAccountIdComparison(statement.ToString());
+        // Claude re-review (refuting pi P1-3): the original check matched on
+        // statement.ToString(), which INCLUDES interior comment trivia and string
+        // literals. A `// scoped by AccountId == tenant.AccountId` comment beside
+        // a real cross-tenant `db.Users.Where(u => u.Email == email)` therefore
+        // laundered the statement — text matching cannot tell code from trivia.
+        // Compare on TOKENS, excluding string-literal text and comment trivia, so
+        // only actual code counts.
+        return HasAccountIdComparison(StatementCodeOnly(statement));
     }
 
-    // True if the statement text carries AccountId in a comparison shape, not
-    // merely as a projection or member access. Matches AccountId adjacent to a
-    // comparison operator (==, !=, <, >, <=, >=, =, or with == etc. on either
-    // side). A `Select(u => u.AccountId)` projection has no adjacent comparison
-    // operator and is correctly not a predicate.
-    internal static bool HasAccountIdComparison(string text)
+    // The statement's code, with comment trivia and string-literal text removed.
+    // A node's ToString() includes interior comments (trivia) and the text of
+    // string literals; both can name "AccountId" in a way that is not code. A
+    // log message `Log($"scoping by AccountId = {x}")` or a `// AccountId == ...`
+    // comment would otherwise read as a predicate. Removing those leaves only the
+    // real code tokens. (Interpolated-string holes are dropped too — they are
+    // string content, and a `{u.AccountId}` inside a log string is not a
+    // predicate. The legitimate code forms — `u.AccountId == x`,
+    // `accountIds.Contains(u.AccountId)` — are all plain tokens and survive.)
+    internal static string StatementCodeOnly(SyntaxNode statement)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var token in statement.DescendantTokens())
+        {
+            // Drop string-literal and interpolated-string text (string content).
+            // Drop string-literal text and interpolated-string text (string
+            // content). InterpolatedStringLiteralToken is not a token kind — an
+            // interpolated string is a run of InterpolatedStringTextToken / hole
+            // tokens, so dropping the text tokens is what removes the content.
+            if (token.IsKind(SyntaxKind.StringLiteralToken)
+                || token.IsKind(SyntaxKind.InterpolatedStringTextToken))
+            {
+                continue;
+            }
+            // Drop comment trivia (leading/trailing) on the token; keep other
+            // trivia (whitespace) so the code's shape is preserved for the regex.
+            foreach (var trivia in token.LeadingTrivia)
+            {
+                if (trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineCommentTrivia)) continue;
+                sb.Append(trivia.ToString());
+            }
+            sb.Append(token.Text);
+            foreach (var trivia in token.TrailingTrivia)
+            {
+                if (trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineCommentTrivia)) continue;
+                sb.Append(trivia.ToString());
+            }
+        }
+        return sb.ToString();
+    }
+
+    // True if the code carries AccountId in a comparison or set-membership shape,
+    // not merely as a projection or member access. Claude re-review (refuting pi
+    // P1-3): the original regex missed two LEGITIMATE scoping forms —
+    // `accountIds.Contains(u.AccountId)` and `u.AccountId.Equals(id)` — causing a
+    // false-red (a correctly scoped query flagged as a candidate). Both are added
+    // here. A `Select(u => u.AccountId)` projection has no adjacent operator and
+    // is still correctly not a predicate.
+    internal static bool HasAccountIdComparison(string code)
     {
         // AccountId immediately followed by a comparison operator.
         if (System.Text.RegularExpressions.Regex.IsMatch(
-                text, @"AccountId\s*(==|!=|<=|>=|<|>|=)"))
+                code, @"AccountId\s*(==|!=|<=|>=|<|>|=)"))
         {
             return true;
         }
@@ -639,8 +826,23 @@ public static class GuardScanner
         // another identifier — the preceding token is checked to be a
         // non-identifier character so `Foo = AccountId` (a property init, not a
         // predicate) does not match.
+        if (System.Text.RegularExpressions.Regex.IsMatch(
+                code, @"(^|[^A-Za-z0-9_.])\s*(==|!=|<=|>=|<|>)\s*AccountId"))
+        {
+            return true;
+        }
+
+        // Set-membership: accountIds.Contains(u.AccountId) — AccountId inside a
+        // Contains(…). The argument is the compared value.
+        if (System.Text.RegularExpressions.Regex.IsMatch(
+                code, @"Contains\s*\([^)]*AccountId"))
+        {
+            return true;
+        }
+
+        // Equality via the member: u.AccountId.Equals(id).
         return System.Text.RegularExpressions.Regex.IsMatch(
-            text, @"(^|[^A-Za-z0-9_.])\s*(==|!=|<=|>=|<|>)\s*AccountId");
+            code, @"AccountId\s*\.\s*Equals\s*\(");
     }
 
     // The conventional DbContext variable names in this codebase. Every tenant
