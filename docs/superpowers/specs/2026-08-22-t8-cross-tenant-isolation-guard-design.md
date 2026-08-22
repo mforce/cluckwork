@@ -200,6 +200,35 @@ entries. Assert **both**:
   free. Fails → **filed bug, not a skipped test** (and not fixed inside this matrix).
 - **Never** assert that A's probe *does* block — that pins a defect into a spec.
 
+### Part 2 implementation resolution (2026-08-22)
+
+The matrix shipped as a single `[Fact]` (`TwoFarms_FullEggLoop_IsMutuallyInvisible`), not a
+cross-product of methods — the loop is driven once for B, and the visibility + negative-
+isolation assertions cover the surfaces. Provisioning is through
+`AccountProvisioner.ProvisionAsync` (both farms), owners log in with the returned temporary
+passwords, and `change-password` clears `MustChangePassword` (the first-run flow).
+
+**Two-layer defense (the mutation must defeat BOTH).** The negative-isolation 404 for a
+foreign-tenant confirm is upheld by two independent layers:
+1. the global query filter scopes `db.SalesOrders` to A's account, so `GetByIdAsync(B's id)`
+   returns null → 404 `NotFound`;
+2. the confirm handler's post-load `order.AccountId != accountId` check (defense in depth)
+   returns `TenantMismatch` → also surfaced as 404 ("to avoid revealing that the resource
+   exists").
+
+Bypassing only the filter (1) still 404s via the check (2); removing only the check (2) still
+404s via the filter (1). The mutation that reds the matrix is **both**: add
+`IgnoreQueryFilters()` to `SalesOrderRepository.GetByIdAsync` AND delete the
+`order.AccountId != accountId` line in `ConfirmSaleHandler` — then A's confirm of B's order
+proceeds (422 `NotDraft`, already confirmed) and the 404 assertion reds. This was run and
+verified (red), then reverted. The test documents this so a future reader does not mistake a
+single-layer bypass for the leak the matrix guards against.
+
+**change-password revokes the prior token.** The first-run `change-password` bumps the
+credential epoch (#364), revoking every prior session, and returns a FRESH access token in the
+body. The fixture rebuilds the authed client from that response's token; reusing the pre-change
+token 401s on the next call (this is what the fixture hit before the rebuild).
+
 ## Part 1b — Review amendments (invariants reviewer, round 1; all verified against the resolved EF Core 10.0.11 dll)
 
 - **Discovery API:** `IReadOnlyEntityType.GetQueryFilter()` is `[Obsolete(\"…Use GetDeclaredQueryFilters() instead.\")]` in EF 10.0.11 (message string confirmed in the shipped dll; `TreatWarningsAsErrors` makes the old call a build error). Leg 1 uses `GetDeclaredQueryFilters() is null`; equivalence for plain `HasQueryFilter` is proven by a throwaway probe (declared count: `Account`=1, `ApplicationUser`=0) before the floor pins.
