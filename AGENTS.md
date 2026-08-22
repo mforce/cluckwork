@@ -8,12 +8,16 @@ the **canonical rule set** for the repo. Humans usually want the short path firs
 [`docs/`](docs/README.md) (runbooks, decision records, releasing),
 [`SECURITY.md`](SECURITY.md).
 
-**Every rule here is one paragraph.** A rule that carries a `→` link was earned
-by a defect that shipped, and the narrative — what broke, which review round
-found it, what the wrong fix was — is behind that link in
-[`docs/decisions/`](docs/decisions/): **follow it before changing the rule.** A
-rule with no link is a plain convention that has not yet cost anything; it needs
-consistency, not archaeology.
+**Every rule here is one paragraph.** A rule that carries a `→` link records
+what stands behind it, and the narrative is behind that link in
+[`docs/decisions/`](docs/decisions/): **follow it before changing the rule.**
+Two kinds, and the link alone does not say which: an **earned rule** was
+earned by a defect that shipped (what broke, which review round found it, what
+the wrong fix was), and an **accepted-risk rule** records a deliberate
+declination — no incident, the record says `No incident` and the rule is
+*load-bearing* (break it and the accepted risk returns). A rule with no link
+is a plain convention that has not yet cost anything; it needs consistency, not
+archaeology.
 
 - [Communicating](#communicating) · [Layout](#layout) · [Build / test / run](#build--test--run)
 - [Conventions](#conventions-follow-these) — the rules that break things when ignored
@@ -72,6 +76,7 @@ dotnet test  Cluckwork.sln                 # 688 tests as of 2026-07; integratio
 - **Multi-tenancy:** every tenant-owned entity has `AccountId`, enforced by an EF **global query filter** plus a **`TenantStampInterceptor`** (stamps on insert). `TenantContext` resolves per-request from the JWT `account_id` claim; at startup it is unresolved, so seeders use `IgnoreQueryFilters()`.
 - **Transient-DB retry stops at unreplayable work (#269).** `EnableRetryOnFailure` covers self-contained EF units only; an automatic replay above a stateful detector (a counter, a CAS stamp, a single-use claim) cannot tell "this request racing itself" from the signal the detector exists to catch. Two cures, and picking wrong ships the bug: `SingleAttemptExecution` when the replay is itself observable, a durability probe on a self-minted token when the replay writes nothing. → [`269-transient-db-retry-boundary.md`](docs/decisions/269-transient-db-retry-boundary.md)
 - **`AuditEvents` is not time-partitioned, on purpose (#505).** The dominant read filters on `AccountId`+`EntityType`+`EntityId` with no date predicate, so monthly partitions would turn one index lookup into one per partition for no pruning benefit. If it is ever needed, partition by `AccountId`. → [`505-audit-events-no-time-partition.md`](docs/decisions/505-audit-events-no-time-partition.md)
+- **Suspension is immediate for *use*, not for *issuance* (#579).** Login checks `Account.IsActive` and mints in two steps; a suspension committing between them returns 200 with an inert credential, and the `FOR SHARE` lock that would close the window was declined twice on hot-path cost. #530's "race-safe" means use, not issuance — the inertness rests on four named premises (live middleware read, `RefreshAsync`'s suspended check, suspension's same-transaction revocation of credentials existing when the sweep executes, reactivation's revoke), each pinned by a guard that fails when that premise alone breaks; break any one and #579 reopens. → [`579-suspension-issuance-window.md`](docs/decisions/579-suspension-issuance-window.md)
 
 ### Migrations and schema
 

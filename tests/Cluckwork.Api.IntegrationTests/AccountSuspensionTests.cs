@@ -229,6 +229,218 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         Assert.Equal(preRevokedStamp, row.RevokedAt);
     }
 
+    // #579 — premise 3's atomicity guard. The suspension's same-transaction
+    // revocation is one of the four pinned premises of the won't-fix decision
+    // (docs/decisions/579-suspension-issuance-window.md); the existing
+    // SuspendAsync_BumpsEveryEpoch… test only observes the successful final
+    // state, so a refactor that splits the transaction stays green on it.
+    //
+    // A split-FlushChanges (commit the account row first, then the sweep) is
+    // invisible to ANY runtime test: it still commits in one Postgres
+    // transaction, so a fault at the audit write rolls back everything either
+    // way. Verified by mutation on this slice — the mutation stayed green on
+    // the runtime assertions. The guard that catches it is therefore the
+    // static one (below): no SaveChanges of any kind before the final flush.
+    //
+    // The runtime half is still worth keeping, because it pins the ROLLBACK
+    // path the static check cannot see: a fault at the audit write (the last
+    // in-transaction write before the final SaveChanges) must leave the
+    // account active, every epoch/stamp unchanged, the token live, and the
+    // audit row absent.
+    [Fact]
+    public async Task SuspendAsync_SuspendedPremiseIsAtomic_RollbacksWithTheEpochBump()
+    {
+        var email = $"susp-atomic-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        _ = await factory.LoginAsync(email);
+        Assert.Equal(1, await LiveRefreshTokenCountAsync(accountId));
+
+        var before = await ReadUserAsync(email);
+
+        using var scope = factory.Services.CreateScope();
+        var sp = scope.ServiceProvider;
+        var db = sp.GetRequiredService<AppDbContext>();
+
+        // The fault lands on the audit write, the last in-transaction write
+        // before the final SaveChanges. With the user sweep's ExecuteUpdate
+        // already executed (in-flight inside the transaction) and the account
+        // row still unflushed, the rollback below has to undo both an executed
+        // UPDATE and a tracked mutation — and the assertions say what "undone"
+        // means for each.
+        var faultingAudit = new FaultingOnFirstWriteAuditWriter(sp.GetRequiredService<Cluckwork.Application.Common.IAuditWriter>());
+
+        var service = new AccountSuspensionService(
+            db,
+            sp.GetRequiredService<TenantContext>(),
+            sp.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            sp.GetRequiredService<TimeProvider>(),
+            faultingAudit,
+            sp.GetRequiredService<CurrentUserContext>());
+
+        // The service has no catch for an unexpected fault (it returns failure
+        // Results for expected domain errors only), so our fault propagates —
+        // and the rollback below has to run.
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.SuspendAsync(accountId, reason: "atomicity guard"));
+
+        // Nothing of the suspension may have survived the rollback.
+        Assert.True(await IsActiveAsync(accountId));
+        var after = await ReadUserAsync(email);
+        Assert.Equal(before, after);
+        Assert.Equal(1, await LiveRefreshTokenCountAsync(accountId));
+
+        // The audit row itself rolled back with it — the row landed or not at
+        // all, never alone.
+        var auditRows = await factory.WithTenantScopeAsync(accountId, async d =>
+            await d.AuditEvents.AsNoTracking()
+                .CountAsync(e => e.Action == "Account.Suspend"));
+        Assert.Equal(0, auditRows);
+
+        // Static half of the guard: the TRANSACTION BOUNDARY. The regression
+        // it exists to catch is the two-transaction variant — commit the
+        // account row in one transaction, run the epoch/stamp sweep in a
+        // second — which leaves IsActive false with live credentials and is
+        // invisible to the runtime half: a fault at the audit write rolls back
+        // whatever transaction it is in, and the successful-path assertions
+        // observe only the final state. A flush COUNT cannot catch it either
+        // (the file would still carry exactly one SaveChangesAsync) — that is
+        // why this check is positional, not a count: the sweep and the flush
+        // must both sit between BeginAsync and CommitAsync. Verified by
+        // mutation on this slice (the two-transaction mutation reddens the
+        // sweep-position assertion; the flush-count predecessor let it pass).
+        //
+        // HONEST LIMITATION (round 9, meta-rule: two misses of the same shape
+        // mean the METHOD is wrong). This is a textual-position guard; it
+        // equates where the call text sits with when it executes. A refactor
+        // that DEFINES each sweep as a local lambda before CommitAsync and
+        // INVOKES it afterward evades it — the receiver and call offsets stay
+        // inside the accepted span while the revocations execute after the
+        // commit. Closing that evasion requires a production test seam (a hook
+        // the service calls so a runtime guard can observe execution order),
+        // which is out of scope for a won't-fix decision record. This guard is
+        // best-effort against the REALISTIC refactor shapes — the ones that
+        // move a statement rather than wrap it in a lambda — each verified by
+        // mutation on this slice (see the mutation matrix in the PR review
+        // thread). If the service is ever refactored to wrap the sweeps in
+        // lambdas, this guard will NOT catch it; the premise-3 invariant then
+        // rests on the runtime half + code review, and this comment must be
+        // revisited. Same repo-root walk as ServingGuardCoverageTests.
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cluckwork.sln")))
+            dir = dir.Parent;
+        Assert.NotNull(dir);
+        var serviceSource = await File.ReadAllTextAsync(
+            Path.Combine(dir!.FullName, "src", "Cluckwork.Infrastructure", "Identity", "AccountSuspensionService.cs"));
+        // Find every SaveChanges call site. The needle includes the receiver
+        // dot: the file carries "SaveChanges" in a COMMENT (line 193, "before
+        // The comment above ("before SaveChanges, so the row lands") is not a
+        // flush; "SaveChangesAsync(" is the real call shape in this file. If a
+        // future call renames the receiver, widen the needle in the same change.
+        const string flushNeedle = "SaveChangesAsync(";
+        // The premise-3 anchor is each sweep's ExecuteUpdateAsync( CALL, not its
+        // receiver, because a deferred-await refactor could capture the query
+        // root (db.Users … where …) inside the transaction and await the
+        // ExecuteUpdateAsync only after the commit — a receiver-bound guard
+        // stays green while the revocation runs outside the transaction. Each
+        // receiver (db.Users for the user sweep, db.RefreshTokens for the
+        // token sweep) is used to FIND its own call; the call's offset is what
+        // is bounded to the transaction span. The file carries exactly these
+        // two sweeps, so each receiver's call is the first ExecuteUpdateAsync(
+        // after it — the user sweep appears before the refresh sweep, so the
+        // user's call is further constrained to sit before the refresh receiver
+        // (below), which is what defeats a first-match-on-the-wrong-sweep.
+        const string sweepNeedle = "db.Users";
+        const string sweepMethod = "ExecuteUpdateAsync(";
+        // The refresh-token sweep is the SECOND ExecuteUpdateAsync (on
+        // RefreshTokens, revoking every live row). Premise 3 names BOTH
+        // revocations in the same transaction as IsActive, so the guard must
+        // bound this one too — a refactor moving only the token sweep after the
+        // commit leaves the user sweep + flush in-boundary (green on the checks
+        // below) with the token revocation broken.
+        const string tokenSweepNeedle = "db.RefreshTokens";
+        // The boundary is a TRANSACTION, not a flush count. A flush-count check
+        // (its predecessor) is gameable: commit the account in one transaction,
+        // run the sweep in a second, and the file still carries exactly one
+        // SaveChangesAsync — green, while IsActive is false with live
+        // credentials. The check that actually pins the premise is therefore
+        // positional: the sweep must execute AFTER the transaction BEGIN and
+        // BEFORE its COMMIT. A sweep outside that span is, by construction, in
+        // a different transaction than the account row.
+        var begin = serviceSource.IndexOf("AmbientTransaction.RunAsync", StringComparison.Ordinal);
+        var commit = serviceSource.IndexOf("transaction.CommitAsync", StringComparison.Ordinal);
+        var userReceiver = serviceSource.IndexOf(sweepNeedle, StringComparison.Ordinal);
+        var tokenReceiver = serviceSource.IndexOf(tokenSweepNeedle, StringComparison.Ordinal);
+        // The premise-3 anchor is the ExecuteUpdateAsync CALL itself, not its
+        // receiver. A deferred-await refactor could capture the query root
+        // inside the transaction (db.Users … where …) but await the
+        // ExecuteUpdateAsync only after the commit; bounding the receiver
+        // offset would stay green while the revocation runs outside the
+        // transaction. So we locate, after each receiver, its own
+        // ExecuteUpdateAsync( call and bound THAT offset. Each receiver's call
+        // is the first ExecuteUpdateAsync( after it — the user sweep appears
+        // before the refresh sweep, so the two windows do not overlap.
+        const int sweepWindow = 400;
+        var sweep = userReceiver >= 0
+            ? serviceSource.IndexOf(sweepMethod, userReceiver, StringComparison.Ordinal)
+            : -1;
+        var sweepIsUpdate = sweep >= 0 && sweep - userReceiver < sweepWindow;
+        var tokenSweep = tokenReceiver >= 0
+            ? serviceSource.IndexOf(sweepMethod, tokenReceiver, StringComparison.Ordinal)
+            : -1;
+        var tokenSweepIsUpdate = tokenSweep >= 0 && tokenSweep - tokenReceiver < sweepWindow;
+        // The flush the account row rides on is the FIRST SaveChangesAsync, but
+        // a split-transaction refactor could move the tracked account.Suspend()/
+        // Reactivate() mutation to after that save + commit and add a SECOND
+        // save there — committing the revocation sweeps first and IsActive
+        // separately, while every positional check on the first save passes.
+        // Two checks close this: (1) the account mutation itself must sit
+        // BEFORE the flush (so the row is dirty when the in-transaction save
+        // runs), and (2) NO SaveChangesAsync may appear after the commit (the
+        // account row must not be flushed in a second transaction).
+        var accountMutation = serviceSource.IndexOf("account.Suspend()", StringComparison.Ordinal);
+        if (accountMutation < 0)
+            accountMutation = serviceSource.IndexOf("account.Reactivate()", StringComparison.Ordinal);
+        var flush = serviceSource.IndexOf(flushNeedle, StringComparison.Ordinal);
+        var lastFlush = serviceSource.LastIndexOf(flushNeedle, StringComparison.Ordinal);
+        Assert.True(begin >= 0, "#579 premise 3: AmbientTransaction.BeginAsync not found — the guard's anchor moved; update the needle.");
+        Assert.True(commit > begin, "#579 premise 3: CommitAsync before BeginAsync — the guard's anchors moved; update the needles.");
+        Assert.True(sweepIsUpdate, "#579 premise 3: the user epoch/stamp sweep (db.Users … ExecuteUpdateAsync) not found — it moved to a different mechanism; update the guard in the same change.");
+        Assert.True(tokenSweepIsUpdate, "#579 premise 3: the refresh-token sweep (db.RefreshTokens … ExecuteUpdateAsync) not found — it moved to a different mechanism; update the guard in the same change.");
+        Assert.True(flush > 0, "#579 premise 3: SaveChangesAsync not found — the final flush moved; update the guard in the same change.");
+        Assert.True(accountMutation > 0 && accountMutation < flush,
+            "#579 premise 3: the account mutation (account.Suspend()/Reactivate()) is not before the in-transaction flush. " +
+            "The tracked account row must be dirty when the suspension transaction's save runs; " +
+            "if the mutation must move after the flush, the row commits in a different transaction than the sweeps and #579 reopens — do not move the needle to make this green.");
+        Assert.True(lastFlush < commit,
+            "#579 premise 3: a SaveChangesAsync occurs after the commit. " +
+            "The account row must be flushed inside the suspension transaction, not in a second one after it; " +
+            "if a post-commit save is needed, the premise is broken and #579 reopens — do not move the needle to make this green.");
+        Assert.True(sweep > begin && sweep < commit && (tokenReceiver < 0 || sweep < tokenReceiver),
+            "#579 premise 3: the epoch/stamp sweep is outside the suspension transaction (between BeginAsync and CommitAsync). " +
+            "Premise 3 of docs/decisions/579-suspension-issuance-window.md is one Postgres transaction around IsActive and the sweep; " +
+            "if the sweep must leave the transaction, the premise is broken and #579 reopens — do not move the needle to make this green.");
+        Assert.True(tokenSweep > begin && tokenSweep < commit,
+            "#579 premise 3: the refresh-token sweep is outside the suspension transaction (between BeginAsync and CommitAsync). " +
+            "Premise 3 revokes the farm's refresh tokens in the same transaction as IsActive; " +
+            "if the token sweep must leave the transaction, the premise is broken and #579 reopens — do not move the needle to make this green.");
+        Assert.True(flush > begin && flush < commit,
+            "#579 premise 3: the final SaveChangesAsync is outside the suspension transaction. " +
+            "If the account row commits in a different transaction than the sweep, IsActive can be false with live credentials — " +
+            "that is exactly the regression this guard exists to catch.");
+    }
+
+    // #579 — test double for the atomicity guard above: throws on the FIRST
+    // WriteAsync, the last write the suspension performs inside its
+    // transaction.
+    private sealed class FaultingOnFirstWriteAuditWriter(Cluckwork.Application.Common.IAuditWriter inner) : Cluckwork.Application.Common.IAuditWriter
+    {
+        public Task WriteAsync(string action, string entityType, Guid entityId, string? reason = null, object? details = null, CancellationToken ct = default)
+        {
+            _ = inner; // unused: the fault lands before any delegate call
+            throw new InvalidOperationException("#579 atomicity guard: faulting on the audit write.");
+        }
+    }
+
     [Fact]
     public async Task SuspendedFarm_RejectsLogin_WithFarmSuspended()
     {
