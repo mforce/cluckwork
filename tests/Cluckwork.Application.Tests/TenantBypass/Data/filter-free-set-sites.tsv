@@ -1,0 +1,48 @@
+# #536 Part 1 — db.<tenant-filter-free-set> query-site classifications.
+#
+# This file is the stability baseline for the filter-free-set leg. The leg
+# (GuardScanner.ScanFilterFreeSet) finds every `db.<Table>` access where
+# <Table> is a filter-free entity that carries an AccountId column (i.e. a
+# tenant table the global query filter does NOT scope), and flags the ones
+# whose enclosing statement has no "AccountId" compare.
+#
+# WHY A CLASSIFICATION FILE RATHER THAN A PURE SHAPE GATE:
+#   The shape check (does the statement name an AccountId compare) cannot
+#   distinguish a by-id / by-hash / caller-scoped query (safe) from an
+#   unscoped one (a real tenant leak). Reviewer M4/F4 named this: the leg
+#   proves "shape, not provenance." So instead of auto-failing on shape, the
+#   leg records each candidate here with the REASON it is scoped, and the
+#   stability test (TenantBypassRealTreeTests.RealSourceTree_FilterFreeSetStable)
+#   fails only when:
+#     * a NEW candidate site appears (someone added a db.<tenant-table> query
+#       with no AccountId compare) — it is unclassified, so the build goes red
+#       until a human classifies it (safe-by-X or a real leak);
+#     * a classified site disappears (drift — the query moved or was deleted);
+#     * any site has no classification.
+#   Nothing is silently un-banned: a new unscoped query cannot land without a
+#   classification decision.
+#
+# FORMAT: one line per candidate:  file:line <TAB> detail <TAB> reason
+#   The file:line + detail must EXACTLY match what the scanner reports; a line
+#   number shift breaks the match (the test re-derives the scanner's view).
+#
+# The `reason` is a human assertion, not a machine proof. It names the scoping
+# mechanism. `needs-review` is the sentinel: a site marked needs-review fails
+# the stability test until it is classified or the query is fixed.
+
+src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs:443	db.IdempotencyRecords	by-key: unique index (AccountId, EndpointHash, IdempotencyKeyHash) is enforced by the DB; the method carries accountId and the record is written with it. The claim read is by (endpointHash, keyHash) within the caller's resolved account.
+src/Cluckwork.Infrastructure/Identity/AccountScopedUserValidator.cs:59	db.Users	by-id: re-reads the current user by primary key (candidate.Id == user.Id) to compare against the persisted row; the user's account is already resolved by the caller. #529 legacy-import guard.
+src/Cluckwork.Infrastructure/Identity/AdminRecoveryService.cs:136	db.Users	by-id+account: break-glass recovery looks up the user by email within the recovered account; the method takes accountId and the lookup is scoped to it. #265.
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:126	db.RefreshTokens	by-hash: login rotates the user's refresh tokens by user id (account-unique); the token hash embeds the account.
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:176	db.RefreshTokens	by-hash: refresh-token rotation reads by token hash; the hash is account-scoped by construction.
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:299	db.RefreshTokens	by-hash: same rotation path, second read by token hash.
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1107	db.RefreshTokens	by-user: password change revokes the user's tokens by user id (account-unique).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1406	db.RefreshTokens	by-user: revokes all active tokens for a user by user id (account-unique).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1475	db.RefreshTokens	by-hash: revokes by token hash (account-scoped).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1501	db.RefreshTokens	by-hash: checks a minted token's durability by hash (account-scoped).
+src/Cluckwork.Infrastructure/Identity/PersistentStepUpGrantRegistry.cs:53	db.Users	by-id: reads the user's StepUpLogoutEpoch by user id (account-unique) to check the grant is not revoked; #338 shared-state.
+src/Cluckwork.Infrastructure/Identity/PersistentStepUpGrantRegistry.cs:92	db.Users	by-id: records a logout by bumping the user's StepUpLogoutEpoch (account-unique).
+src/Cluckwork.Infrastructure/Identity/PersistentStepUpGrantRegistry.cs:104	db.Users	by-id: checks revocation by the user's StepUpLogoutEpoch (account-unique).
+src/Cluckwork.Infrastructure/Jobs/IdempotencyRecordPurgeSweep.cs:111	db.IdempotencyRecords	non-tenant sweep: purges expired records across all tenants (runs under the single-leader gate #271 with no tenant resolved); scoped by expiry, not by account.
+src/Cluckwork.Infrastructure/Jobs/IdempotencyRecordPurgeSweep.cs:130	db.IdempotencyRecords	non-tenant sweep: second purge query in the same sweep; scoped by expiry.
+src/Cluckwork.Infrastructure/Jobs/RefreshTokenPurgeSweep.cs:80	db.RefreshTokens	non-tenant sweep: purges expired refresh tokens across all tenants (single-leader gate #271); scoped by expiry.

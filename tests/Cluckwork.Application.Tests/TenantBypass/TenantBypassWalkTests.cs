@@ -41,6 +41,49 @@ public sealed class TenantBypassWalkTests
         Assert.Empty(report.ParseErrors);
     }
 
+    // False-green proof for the parse-error guard: a file with a syntax error
+    // MUST surface in report.ParseErrors (and thus fail Evaluate). If the walk
+    // silently skipped an unparseable file, the parse-error guard would be
+    // green and the walk untrustworthy — this mutation proves it reds.
+    [Fact]
+    public void ParseError_IsSurfacedNotSwallowed()
+    {
+        var dir = Directory.CreateTempSubdirectory("t-parse-").FullName;
+        Directory.CreateDirectory(Path.Combine(dir, "src"));
+        // A genuinely unparseable file: an unclosed brace. (Note: `void X( )`
+        // with a space is VALID C# — the parser accepts it, so it would NOT
+        // surface a parse error. The unclosed brace is the real syntax error.)
+        File.WriteAllText(Path.Combine(dir, "src", "Bad.cs"),
+            "namespace Bad;\npublic class Broken { void X() { "); // unclosed brace
+
+        var report = GuardScanner.Scan(Path.Combine(dir, "src"), Path.Combine(dir, "none.json"));
+
+        Assert.NotEmpty(report.ParseErrors);
+        var failures = GuardScanner.Evaluate(report);
+        Assert.Contains(failures, f => f.Contains("parse error"));
+    }
+
+    // False-green proof for the file-count floor: the real-tree floor must be a
+    // STATIC minimum, not a tautology of the scan's own count. If the floor
+    // were files.Count, a walk that silently excluded a subtree would still
+    // pass. This asserts the floor is below the actual count (headroom) and is
+    // a const, so the gate has teeth.
+    [Fact]
+    public void RealTreeFileFloor_IsMeaningfulNotTautological()
+    {
+        var actual = GuardScanner.EnumerateSourceFiles(SrcRoot()).Count;
+
+        // The floor must be a real minimum the tree exceeds, not equal to it.
+        Assert.True(GuardScanner.RealTreeFileFloor < actual,
+            $"RealTreeFileFloor ({GuardScanner.RealTreeFileFloor}) is not below the actual count ({actual}) — " +
+            "the floor has no headroom and cannot catch a walk that excluded a subtree.");
+        // And it must be a substantial fraction of the tree, so a missing
+        // top-level directory (which would drop the count by tens of files) reds.
+        Assert.True(GuardScanner.RealTreeFileFloor >= actual / 2,
+            $"RealTreeFileFloor ({GuardScanner.RealTreeFileFloor}) is less than half the tree ({actual}) — " +
+            "it would not catch a walk that missed a whole project directory.");
+    }
+
     [Fact]
     public void Walk_FindsTheIgnoreQueryFiltersBaseline()
     {

@@ -102,6 +102,54 @@ Practically: the walk treats a forwarding method's call sites as occurrences too
 
 Green baseline is recorded before the matrix runs; rebuild between restore and re-run.
 
+### Implementation resolution (2026-08-22, after driver-direct build)
+
+The build converged on **option 1** for the `db.<FilterFreeSet>` leg, which changes two
+rows of the matrix above. Documented here so the spec and the shipped guard agree:
+
+- **The `db.<tenant-table>` leg is a STABILITY test, not a shape gate** (Part 1, leg 3).
+  The shape check cannot distinguish a by-id / by-hash / caller-scoped query (safe) from an
+  unscoped one (a real leak) — the "shape, not provenance" limit the reviewer named.
+  Instead of auto-failing on shape, the leg records the 16 candidate sites in
+  `Data/filter-free-set-sites.tsv` with the REASON each is scoped, and
+  `RealSourceTree_FilterFreeSetSitesAreStableAndClassified` fails only on DRIFT: a new
+  unclassified candidate, a disappeared site, or a `needs-review` sentinel. Nothing is
+  silently un-banned — a new unscoped `db.<tenant-table>` query cannot land without a
+  classification decision. This replaces the `MissingAccountIdCompare_Fails` auto-gate for
+  the filter-free set (the raw-SQL predicate gate below still auto-fails).
+
+- **A raw-SQL row-lock predicate walk was ADDED** (M3/M4 lever, now real).
+  Every `ExecuteSqlRaw` / `FromSqlRaw` / `ExecuteSqlInterpolated` / `FromSqlInterpolated` /
+  `Sql(...)` statement that carries `FOR UPDATE` or `FOR SHARE` MUST name `AccountId` in
+  its SQL text, checked independently of the allow-list (the allow-list entry's
+  justification *claims* the predicate; this walk *proves* it). All 13 current raw-SQL
+  lock queries carry it — confirming the issue's premise. `db.<tenant-table>` by-id/by-hash
+  scoping is the part the raw-SQL walk does NOT cover (those are EF queries, not raw SQL),
+  which is exactly why they moved to the stability leg.
+
+- **The graphify knowledge graph is NOT the tool for this guard.** Tested: `explain "Users"`
+  resolves to the k6 simulation file, the `AppDbContext` node carries entity-type refs (72)
+  but no `db.<DbSet>` query call-sites, and raw-SQL string literals / `.sql` files are absent
+  (0 nodes). The graph models schema/call relationships, not query call-sites or
+  SQL→table edges. Follow-up **#583** scopes the missing code↔table linkage (fed by the
+  existing `tools/schema-docs` generator, which already has the table/column truth). The
+  guard ships with a Roslyn walk + a documented (not yet enforced) graph-completeness
+  cross-check placeholder that activates when #583 lands.
+
+**Mutation results (all run, all red on the named assertion, all reverted):**
+
+| Mutant | Lever | Result |
+|--------|-------|--------|
+| Unlisted `IgnoreQueryFilters` in a new method | `RealSourceTree_AllBypassesAreAllowListed` | ✅ red — "unexcused bypass … M2MutantUnlisted" |
+| `IgnoreQueryFilters` removed from a listed method (stale entry) | `RealSourceTree_AllBypassesAreAllowListed` | ✅ red — "stale allow-list entry … FindBySlugAsync" |
+| `AccountId` dropped from a `FOR UPDATE` raw SQL | `RealSourceTree_AllBypassesAreAllowListed` | ✅ red — "raw-SQL row lock missing an AccountId predicate (M4)" |
+| Flock query filter removed (filter-free set grows) | `TenantBypassDiscoveryTests` pinned-set `Assert.Equal` | ✅ red — Actual gained `Flock` |
+| Syntax-error file in the walk | `ParseError_IsSurfacedNotSwallowed` | ✅ red — `report.ParseErrors` non-empty, `Evaluate` names it |
+| File-count floor tautology | `RealTreeFileFloor_IsMeaningfulNotTautological` | ✅ guards — floor (400) < actual (420) and ≥ half the tree |
+| Wrapper forwarding `IgnoreQueryFilters` | `WrapperForwarding_Fails` (temp tree) | ✅ red (Task 2) |
+
+Baseline before the matrix: 165 tests green in `Cluckwork.Application.Tests` (149 pre-guard + 16 guard).
+
 ### Known uncovered (stated in test header + ADR, per F1)
 
 `FromSqlRaw`/`FromSqlInterpolated`/`ExecuteSqlRaw`/`ExecuteSqlInterpolated`/`SqlQuery<T>`

@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <None Include="TenantBypass/Data/tenant-bypass-allowlist.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="TenantBypass/Data/filter-free-set-sites.tsv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
