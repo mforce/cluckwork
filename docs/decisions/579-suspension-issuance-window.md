@@ -55,16 +55,19 @@ one of them must reopen #579 rather than ship:**
    inert for the other three reasons (the live account checks) until
    reactivation's sweep destroys it for good (premise 4). Enforced by
    `SuspendAsync_SuspendedPremiseIsAtomic_RollbacksWithTheEpochBump`, whose
-   static half forbids any `SaveChanges` before the final flush and whose
-   runtime half faults the audit write (the last in-transaction write) and
-   asserts the account reverts to active **and** every epoch/stamp reverts and
-   the token stays live. The static check is the load-bearing half for the
-   split-flush regression: a split `SaveChanges` still commits in one Postgres
-   transaction, so a fault at the audit write rolls back everything either way
-   — verified by mutation on this slice. The two-transaction variant (commit
-   the account first, run the sweep in a second transaction) is what leaves
-   `IsActive` false with live credentials, and it is the one the static check
-   reddens on.
+   static half bounds each revocation's `ExecuteUpdateAsync` call — both the
+   user epoch/stamp sweep and the refresh-token sweep — to sit between the
+   suspension transaction's begin and commit, and whose runtime half faults
+   the audit write (the last in-transaction write) and asserts the account
+   reverts to active **and** every epoch/stamp reverts and the token stays
+   live. The static check is the load-bearing half for the split-transaction
+   regression: a split that still commits in one Postgres transaction (an
+   extra `SaveChanges`, a deferred `ExecuteUpdateAsync` awaited after the
+   commit) is invisible to the runtime fault, which rolls back whatever
+   transaction it is in — verified by mutation on this slice. The variants
+   that leave `IsActive` false with live credentials (the sweep moved to a
+   second transaction, or the two revocations split across transactions) are
+   the ones the static check reddens on.
 4. **Reactivation revokes again** — `ReactivationRevokesTheSessionsMintedBetweenSuspendAndReactivate`
    (`tests/Cluckwork.Api.IntegrationTests/AccountSuspensionTests.cs`) inserts
    the window artifact on purpose and proves it is destroyed for good at
@@ -121,9 +124,9 @@ named code path above, each chosen to fail when its premise alone is broken:
 
 | Premise | Guard | Fails when the premise alone breaks |
 |---|---|---|
-| 1 — live middleware read | `SuspendedAccount_MiddlewareRefusesEveryAuthenticatedRequest` (plus the #364 no-cache tests) | middleware stops reading `IsActive` (or caches it) while login still checks |
-| 2 — `RefreshAsync`'s suspended check | `SuspendedAccount_RefreshAsyncRefusesTheWindowMintedToken` | that block is deleted while the middleware stays live |
-| 3 — suspension's same-transaction revocation | `SuspendAsync_SuspendedPremiseIsAtomic_RollbacksWithTheEpochBump` | a split `SaveChanges` commits `IsActive` without the epoch bump |
+| 1 — live middleware read | `ABearerWhoseEpochStillMatches_IsRejected_WhenTheFarmIsInactive` (plus the #364 no-cache tests) | middleware stops reading `IsActive` (or caches it) while login still checks — the epoch still matches, so only the middleware's `AccountIsActive` clause can reject |
+| 2 — `RefreshAsync`'s suspended check | `ARefreshTokenWhoseEpochStillMatches_IsRejected_WhenTheFarmIsInactive` | that block is deleted while the middleware stays live — the epoch still matches, so only the suspended-farm check can refuse the rotation |
+| 3 — suspension's same-transaction revocation | `SuspendAsync_SuspendedPremiseIsAtomic_RollbacksWithTheEpochBump` | either sweep leaves the suspension transaction (a split `SaveChanges`, a deferred `ExecuteUpdateAsync` after the commit, or the two revocations in separate transactions) commits `IsActive` without the revocation |
 | 4 — reactivation's revoke | `ReactivationRevokesTheSessionsMintedBetweenSuspendAndReactivate` | reactivation stops revoking, while a suspend→reactivate cycle still destroys the artifact |
 
 The window *itself* is unguarded by design (that is the declination) — none of

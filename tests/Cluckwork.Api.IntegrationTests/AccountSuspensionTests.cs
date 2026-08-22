@@ -321,22 +321,20 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         // flush; "SaveChangesAsync(" is the real call shape in this file. If a
         // future call renames the receiver, widen the needle in the same change.
         const string flushNeedle = "SaveChangesAsync(";
-        // The epoch/stamp sweep is raw SQL, not a SaveChanges call: it is the
-        // ExecuteUpdateAsync on Users inside the transaction. The file carries
-        // TWO ExecuteUpdateAsync calls (the user sweep and the refresh-token
-        // sweep); the premise-3 anchor is the USER sweep specifically, so the
-        // needle includes the "db.Users" receiver. A generic "ExecuteUpdateAsync"
-        // would match whichever appears first — if the user sweep moves after
-        // the commit while the refresh sweep stays inside, a first-match on the
-        // refresh sweep passes the boundary check with premise 3 broken. If the
-        // user sweep moves to a different mechanism (e.g. a tracked update +
-        // SaveChanges), this needle is stale in the other direction — update it
-        // with the change. Premise 3 revokes BOTH in the same transaction, so a
-        // matching db.RefreshTokens anchor is checked below too (moving only the
-        // token sweep after the commit leaves the user sweep + flush in-boundary
-        // green while token revocation is broken).
+        // The premise-3 anchor is each sweep's ExecuteUpdateAsync( CALL, not its
+        // receiver, because a deferred-await refactor could capture the query
+        // root (db.Users … where …) inside the transaction and await the
+        // ExecuteUpdateAsync only after the commit — a receiver-bound guard
+        // stays green while the revocation runs outside the transaction. Each
+        // receiver (db.Users for the user sweep, db.RefreshTokens for the
+        // token sweep) is used to FIND its own call; the call's offset is what
+        // is bounded to the transaction span. The file carries exactly these
+        // two sweeps, so each receiver's call is the first ExecuteUpdateAsync(
+        // after it — the user sweep appears before the refresh sweep, so the
+        // user's call is further constrained to sit before the refresh receiver
+        // (below), which is what defeats a first-match-on-the-wrong-sweep.
         const string sweepNeedle = "db.Users";
-        const string sweepMethod = "ExecuteUpdateAsync";
+        const string sweepMethod = "ExecuteUpdateAsync(";
         // The refresh-token sweep is the SECOND ExecuteUpdateAsync (on
         // RefreshTokens, revoking every live row). Premise 3 names BOTH
         // revocations in the same transaction as IsActive, so the guard must
@@ -354,26 +352,33 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         // a different transaction than the account row.
         var begin = serviceSource.IndexOf("AmbientTransaction.RunAsync", StringComparison.Ordinal);
         var commit = serviceSource.IndexOf("transaction.CommitAsync", StringComparison.Ordinal);
-        var sweep = serviceSource.IndexOf(sweepNeedle, StringComparison.Ordinal);
-        // Anchor on the user sweep specifically: find the db.Users receiver,
-        // then confirm an ExecuteUpdateAsync follows it within the same
-        // statement. The statement spans multiple lines (Where, ExecuteUpdate,
-        // setters, token) so the window is generous; a bare db.Users elsewhere
-        // (a query, a CountAsync) would not carry an ExecuteUpdateAsync within
-        // this range.
+        var userReceiver = serviceSource.IndexOf(sweepNeedle, StringComparison.Ordinal);
+        var tokenReceiver = serviceSource.IndexOf(tokenSweepNeedle, StringComparison.Ordinal);
+        // The premise-3 anchor is the ExecuteUpdateAsync CALL itself, not its
+        // receiver. A deferred-await refactor could capture the query root
+        // inside the transaction (db.Users … where …) but await the
+        // ExecuteUpdateAsync only after the commit; bounding the receiver
+        // offset would stay green while the revocation runs outside the
+        // transaction. So we locate, after each receiver, its own
+        // ExecuteUpdateAsync( call and bound THAT offset. Each receiver's call
+        // is the first ExecuteUpdateAsync( after it — the user sweep appears
+        // before the refresh sweep, so the two windows do not overlap.
         const int sweepWindow = 400;
-        var sweepIsUpdate = sweep >= 0 &&
-            serviceSource.Substring(sweep, Math.Min(sweepWindow, serviceSource.Length - sweep)).Contains(sweepMethod, StringComparison.Ordinal);
-        var tokenSweep = serviceSource.IndexOf(tokenSweepNeedle, StringComparison.Ordinal);
-        var tokenSweepIsUpdate = tokenSweep >= 0 &&
-            serviceSource.Substring(tokenSweep, Math.Min(sweepWindow, serviceSource.Length - tokenSweep)).Contains(sweepMethod, StringComparison.Ordinal);
+        var sweep = userReceiver >= 0
+            ? serviceSource.IndexOf(sweepMethod, userReceiver, StringComparison.Ordinal)
+            : -1;
+        var sweepIsUpdate = sweep >= 0 && sweep - userReceiver < sweepWindow;
+        var tokenSweep = tokenReceiver >= 0
+            ? serviceSource.IndexOf(sweepMethod, tokenReceiver, StringComparison.Ordinal)
+            : -1;
+        var tokenSweepIsUpdate = tokenSweep >= 0 && tokenSweep - tokenReceiver < sweepWindow;
         var flush = serviceSource.IndexOf(flushNeedle, StringComparison.Ordinal);
         Assert.True(begin >= 0, "#579 premise 3: AmbientTransaction.BeginAsync not found — the guard's anchor moved; update the needle.");
         Assert.True(commit > begin, "#579 premise 3: CommitAsync before BeginAsync — the guard's anchors moved; update the needles.");
         Assert.True(sweepIsUpdate, "#579 premise 3: the user epoch/stamp sweep (db.Users … ExecuteUpdateAsync) not found — it moved to a different mechanism; update the guard in the same change.");
         Assert.True(tokenSweepIsUpdate, "#579 premise 3: the refresh-token sweep (db.RefreshTokens … ExecuteUpdateAsync) not found — it moved to a different mechanism; update the guard in the same change.");
         Assert.True(flush > 0, "#579 premise 3: SaveChangesAsync not found — the final flush moved; update the guard in the same change.");
-        Assert.True(sweep > begin && sweep < commit,
+        Assert.True(sweep > begin && sweep < commit && (tokenReceiver < 0 || sweep < tokenReceiver),
             "#579 premise 3: the epoch/stamp sweep is outside the suspension transaction (between BeginAsync and CommitAsync). " +
             "Premise 3 of docs/decisions/579-suspension-issuance-window.md is one Postgres transaction around IsActive and the sweep; " +
             "if the sweep must leave the transaction, the premise is broken and #579 reopens — do not move the needle to make this green.");
