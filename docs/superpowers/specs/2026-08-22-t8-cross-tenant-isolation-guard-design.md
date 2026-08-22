@@ -263,6 +263,31 @@ frozen `InitialCreate` migration; `docs/schema/` (no schema change).
 
 ## Verification (Definition of Done)
 
+**Results (2026-08-22, driver-direct, all on `feat/t8-isolation-guard`):**
+
+- `dotnet build Cluckwork.sln -c Release` — `Build succeeded` (0 warnings, 0 errors).
+- `dotnet test Cluckwork.sln -c Release --no-build` — **1,936 passed, 0 failed** (Domain 345,
+  Application 165, Integration 1,421, AppHost 5). Task 0 baseline was **1,919**; the +17 delta is
+  exactly the 16 guard tests (Application.Tests) + 1 two-farm matrix (IntegrationTests). No
+  regressions.
+- Mutation matrix (Part 1, all run, all red on the named assertion, all reverted, rebuilt green):
+  unlisted bypass → `RealSourceTree_AllBypassesAreAllowListed`; stale entry → same; dropped
+  AccountId from a FOR UPDATE → raw-SQL predicate walk; removed Flock filter → discovery floor;
+  syntax-error file → `ParseError_IsSurfacedNotSwallowed`; floor tautology →
+  `RealTreeFileFloor_IsMeaningfulNotTautological`; wrapper forwarding → `WrapperForwarding_Fails`.
+- Part 2 mutation (bypass query filter + delete post-load AccountId check) → `TwoFarms_...`
+  negative-isolation 404 assertion reds (422 NotDraft). Run, red, reverted.
+- Pre-commit hook: the guard lives in `Cluckwork.Application.Tests`, which the hook already runs
+  on any `.cs`/`.csproj`/`.sln` staging; a staged file with an unlisted bypass makes the hook exit
+  1 (verified). No hook change needed.
+- CI: `build-and-test` runs `dotnet test Cluckwork.sln`, which includes both
+  `Cluckwork.Application.Tests` (guard) and `Cluckwork.Api.IntegrationTests` (matrix). No CI change
+  needed.
+- Guard wall time: the 16 guard tests run in ~1s (test execution); the full
+  `Cluckwork.Application.Tests` (165 tests) is ~3.3s wall incl. dotnet startup — within the hook's
+  2s tripwire target for test execution. No need to move the guard to its own project (the ⛔
+  hook-budget owner decision is not triggered).
+
 1. `dotnet build Cluckwork.sln -c Release` — `0 Warning(s) 0 Error(s)`.
 2. `dotnet test Cluckwork.sln -c Release --no-build` — full suite green (Docker up).
 3. **Mutation matrix (M8)** run and recorded: each mutant red on its named assertion,
