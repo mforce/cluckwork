@@ -296,16 +296,18 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
                 .CountAsync(e => e.Action == "Account.Suspend"));
         Assert.Equal(0, auditRows);
 
-        // Static half of the guard. The split-FlushChanges mutation (an extra
-        // SaveChanges that commits the account row before the sweep) commits in
-        // one Postgres transaction either way, so NO runtime test can catch it
-        // — verified by mutation on this slice (the mutation stayed green on
-        // every runtime assertion above). The static check is the only thing
-        // that reddens on it, so it lives here rather than relying on review.
-        // Deliberately strict: it forbids ANY SaveChanges before the final
-        // flush, so a future legitimate intermediate flush (e.g. a large staged
-        // entity) must move this assertion with it — the price of a text guard,
-        // paid loudly, not silently.
+        // Static half of the guard: the TRANSACTION BOUNDARY. The regression
+        // it exists to catch is the two-transaction variant — commit the
+        // account row in one transaction, run the epoch/stamp sweep in a
+        // second — which leaves IsActive false with live credentials and is
+        // invisible to the runtime half: a fault at the audit write rolls back
+        // whatever transaction it is in, and the successful-path assertions
+        // observe only the final state. A flush COUNT cannot catch it either
+        // (the file would still carry exactly one SaveChangesAsync) — that is
+        // why this check is positional, not a count: the sweep and the flush
+        // must both sit between BeginAsync and CommitAsync. Verified by
+        // mutation on this slice (the two-transaction mutation reddens the
+        // sweep-position assertion; the flush-count predecessor let it pass).
         // Same repo-root walk as ServingGuardCoverageTests.RepositoryRoot et al.
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cluckwork.sln")))
@@ -315,33 +317,39 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
             Path.Combine(dir!.FullName, "src", "Cluckwork.Infrastructure", "Identity", "AccountSuspensionService.cs"));
         // Find every SaveChanges call site. The needle includes the receiver
         // dot: the file carries "SaveChanges" in a COMMENT (line 193, "before
-        // SaveChanges, so the row lands") which is not a flush, and a bare
-        // "SaveChanges(" would match it. "db.SaveChangesAsync(" is the real
-        // call shape; if a future call uses a differently-named receiver the
-        // needle below must be widened in the same change.
-        const string needle = ".SaveChangesAsync(";
-        var callSites = new List<int>();
-        var searchFrom = 0;
-        while (true)
-        {
-            var found = serviceSource.IndexOf(needle, searchFrom, StringComparison.Ordinal);
-            if (found < 0)
-                break;
-            callSites.Add(found);
-            searchFrom = found + 1;
-        }
-        Assert.NotEmpty(callSites);
-        // Exactly one flush: the final one. A second call site anywhere earlier
-        // in the file is a split-FlushChanges by definition.
-        var last = callSites[^1];
-        foreach (var index in callSites)
-        {
-            if (index < last)
-                throw new Xunit.Sdk.XunitException(
-                    "#579 premise 3: AccountSuspensionService.cs contains a SaveChanges call before its final flush. " +
-                    "Premise 3 of docs/decisions/579-suspension-issuance-window.md is one Postgres transaction; " +
-                    "if a legitimate intermediate flush is needed, move this assertion with it — do not split the suspension.");
-        }
+        // The comment above ("before SaveChanges, so the row lands") is not a
+        // flush; "SaveChangesAsync(" is the real call shape in this file. If a
+        // future call renames the receiver, widen the needle in the same change.
+        const string flushNeedle = "SaveChangesAsync(";
+        // The epoch/stamp sweep is raw SQL, not a SaveChanges call: it is the
+        // ExecuteUpdateAsync on Users inside the transaction. If that moves to
+        // a different mechanism (e.g. a tracked update + SaveChanges), this
+        // needle is stale in the other direction — update it with the change.
+        const string sweepNeedle = "ExecuteUpdateAsync";
+        // The boundary is a TRANSACTION, not a flush count. A flush-count check
+        // (its predecessor) is gameable: commit the account in one transaction,
+        // run the sweep in a second, and the file still carries exactly one
+        // SaveChangesAsync — green, while IsActive is false with live
+        // credentials. The check that actually pins the premise is therefore
+        // positional: the sweep must execute AFTER the transaction BEGIN and
+        // BEFORE its COMMIT. A sweep outside that span is, by construction, in
+        // a different transaction than the account row.
+        var begin = serviceSource.IndexOf("AmbientTransaction.RunAsync", StringComparison.Ordinal);
+        var commit = serviceSource.IndexOf("transaction.CommitAsync", StringComparison.Ordinal);
+        var sweep = serviceSource.IndexOf(sweepNeedle, StringComparison.Ordinal);
+        var flush = serviceSource.IndexOf(flushNeedle, StringComparison.Ordinal);
+        Assert.True(begin >= 0, "#579 premise 3: AmbientTransaction.BeginAsync not found — the guard's anchor moved; update the needle.");
+        Assert.True(commit > begin, "#579 premise 3: CommitAsync before BeginAsync — the guard's anchors moved; update the needles.");
+        Assert.True(sweep > 0, "#579 premise 3: the user epoch/stamp sweep (ExecuteUpdateAsync) not found — it moved to a different mechanism; update the guard in the same change.");
+        Assert.True(flush > 0, "#579 premise 3: SaveChangesAsync not found — the final flush moved; update the guard in the same change.");
+        Assert.True(sweep > begin && sweep < commit,
+            "#579 premise 3: the epoch/stamp sweep is outside the suspension transaction (between BeginAsync and CommitAsync). " +
+            "Premise 3 of docs/decisions/579-suspension-issuance-window.md is one Postgres transaction around IsActive and the sweep; " +
+            "if the sweep must leave the transaction, the premise is broken and #579 reopens — do not move the needle to make this green.");
+        Assert.True(flush > begin && flush < commit,
+            "#579 premise 3: the final SaveChangesAsync is outside the suspension transaction. " +
+            "If the account row commits in a different transaction than the sweep, IsActive can be false with live credentials — " +
+            "that is exactly the regression this guard exists to catch.");
     }
 
     // #579 — test double for the atomicity guard above: throws on the FIRST

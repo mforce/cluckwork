@@ -48,14 +48,23 @@ one of them must reopen #579 rather than ship:**
    window-minted refresh token on its first rotation attempt.
 3. **`AccountSuspensionService` revokes every user's `CredentialEpoch` and
    `SecurityStamp` in the same transaction as `IsActive`** (one
-   `AmbientTransaction`, one `SaveChanges`), so nothing minted before or during
-   the suspension survives it. Enforced by
-   `SuspendAsync_SuspendedPremiseIsAtomic_RollbacksWithTheEpochBump`:
-   it faults the `SaveChanges` *after* the account row and the user rows are
-   both staged, and asserts the account reverts to active **and** every
-   epoch/stamp reverts — the split-`SaveChanges` refactor that would leave
-   `IsActive` committed while the epochs roll back is exactly what it is red
-   on.
+   `AmbientTransaction`, one `SaveChanges`), for every credential that exists
+   **when the sweep executes**. Note the scope: a refresh row minted *after*
+   the sweep — precisely the window artifact this record exists for — is not
+   destroyed by this premise; it survives the suspension transaction and is
+   inert for the other three reasons (the live account checks) until
+   reactivation's sweep destroys it for good (premise 4). Enforced by
+   `SuspendAsync_SuspendedPremiseIsAtomic_RollbacksWithTheEpochBump`, whose
+   static half forbids any `SaveChanges` before the final flush and whose
+   runtime half faults the audit write (the last in-transaction write) and
+   asserts the account reverts to active **and** every epoch/stamp reverts and
+   the token stays live. The static check is the load-bearing half for the
+   split-flush regression: a split `SaveChanges` still commits in one Postgres
+   transaction, so a fault at the audit write rolls back everything either way
+   — verified by mutation on this slice. The two-transaction variant (commit
+   the account first, run the sweep in a second transaction) is what leaves
+   `IsActive` false with live credentials, and it is the one the static check
+   reddens on.
 4. **Reactivation revokes again** — `ReactivationRevokesTheSessionsMintedBetweenSuspendAndReactivate`
    (`tests/Cluckwork.Api.IntegrationTests/AccountSuspensionTests.cs`) inserts
    the window artifact on purpose and proves it is destroyed for good at
