@@ -34,8 +34,9 @@ suspension" — as covering issuance. *Race-safe* means use: a suspended farm's
 existing credentials die on their next presentation.
 
 **The inertness of a window-minted credential rests on exactly four premises,
-each pinned by name. A change that breaks any one of them must reopen #579
-rather than ship:**
+each pinned by name, each enforced by a test that fails when that premise alone
+is broken — not just when the whole service is broken. A change that breaks any
+one of them must reopen #579 rather than ship:**
 
 1. **`CredentialEpochMiddleware` re-reads `Account.IsActive` live on every
    authenticated request** (it already joins user and account in the per-request
@@ -46,8 +47,15 @@ rather than ship:**
    `#532 — a suspended farm cannot rotate a session` block) refuses the
    window-minted refresh token on its first rotation attempt.
 3. **`AccountSuspensionService` revokes every user's `CredentialEpoch` and
-   `SecurityStamp` in the same transaction as `IsActive`**, so nothing minted
-   before or during the suspension survives it.
+   `SecurityStamp` in the same transaction as `IsActive`** (one
+   `AmbientTransaction`, one `SaveChanges`), so nothing minted before or during
+   the suspension survives it. Enforced by
+   `SuspendAsync_SuspendedPremiseIsAtomic_RollbacksWithTheEpochBump`:
+   it faults the `SaveChanges` *after* the account row and the user rows are
+   both staged, and asserts the account reverts to active **and** every
+   epoch/stamp reverts — the split-`SaveChanges` refactor that would leave
+   `IsActive` committed while the epochs roll back is exactly what it is red
+   on.
 4. **Reactivation revokes again** — `ReactivationRevokesTheSessionsMintedBetweenSuspendAndReactivate`
    (`tests/Cluckwork.Api.IntegrationTests/AccountSuspensionTests.cs`) inserts
    the window artifact on purpose and proves it is destroyed for good at
@@ -100,7 +108,15 @@ file as the starting point.
 
 Nothing enforces the *declination* — it is a decision, and it relies on review:
 the four premises are the tripwires, and each is pinned by the named test or
-named code path above. The narrowest guard is
-`AccountSuspensionTests.ReactivationRevokesTheSessionsMintedBetweenSuspendAndReactivate`,
-which at least proves the artifact cannot survive a suspend→reactivate cycle
-even though it cannot prove the window itself is closed.
+named code path above, each chosen to fail when its premise alone is broken:
+
+| Premise | Guard | Fails when the premise alone breaks |
+|---|---|---|
+| 1 — live middleware read | `SuspendedAccount_MiddlewareRefusesEveryAuthenticatedRequest` (plus the #364 no-cache tests) | middleware stops reading `IsActive` (or caches it) while login still checks |
+| 2 — `RefreshAsync`'s suspended check | `SuspendedAccount_RefreshAsyncRefusesTheWindowMintedToken` | that block is deleted while the middleware stays live |
+| 3 — suspension's same-transaction revocation | `SuspendAsync_SuspendedPremiseIsAtomic_RollbacksWithTheEpochBump` | a split `SaveChanges` commits `IsActive` without the epoch bump |
+| 4 — reactivation's revoke | `ReactivationRevokesTheSessionsMintedBetweenSuspendAndReactivate` | reactivation stops revoking, while a suspend→reactivate cycle still destroys the artifact |
+
+The window *itself* is unguarded by design (that is the declination) — none of
+these four tests can reproduce the race on demand; premise 4's test fabricates
+the window artifact on purpose because it cannot drive the real window.

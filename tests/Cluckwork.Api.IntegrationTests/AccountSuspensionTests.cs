@@ -229,6 +229,133 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         Assert.Equal(preRevokedStamp, row.RevokedAt);
     }
 
+    // #579 — premise 3's atomicity guard. The suspension's same-transaction
+    // revocation is one of the four pinned premises of the won't-fix decision
+    // (docs/decisions/579-suspension-issuance-window.md); the existing
+    // SuspendAsync_BumpsEveryEpoch… test only observes the successful final
+    // state, so a refactor that splits the transaction stays green on it.
+    //
+    // A split-FlushChanges (commit the account row first, then the sweep) is
+    // invisible to ANY runtime test: it still commits in one Postgres
+    // transaction, so a fault at the audit write rolls back everything either
+    // way. Verified by mutation on this slice — the mutation stayed green on
+    // the runtime assertions. The guard that catches it is therefore the
+    // static one (below): no SaveChanges of any kind before the final flush.
+    //
+    // The runtime half is still worth keeping, because it pins the ROLLBACK
+    // path the static check cannot see: a fault at the audit write (the last
+    // in-transaction write before the final SaveChanges) must leave the
+    // account active, every epoch/stamp unchanged, the token live, and the
+    // audit row absent.
+    [Fact]
+    public async Task SuspendAsync_SuspendedPremiseIsAtomic_RollbacksWithTheEpochBump()
+    {
+        var email = $"susp-atomic-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        _ = await factory.LoginAsync(email);
+        Assert.Equal(1, await LiveRefreshTokenCountAsync(accountId));
+
+        var before = await ReadUserAsync(email);
+
+        using var scope = factory.Services.CreateScope();
+        var sp = scope.ServiceProvider;
+        var db = sp.GetRequiredService<AppDbContext>();
+
+        // The fault lands on the audit write, the last in-transaction write
+        // before the final SaveChanges. With the user sweep's ExecuteUpdate
+        // already executed (in-flight inside the transaction) and the account
+        // row still unflushed, the rollback below has to undo both an executed
+        // UPDATE and a tracked mutation — and the assertions say what "undone"
+        // means for each.
+        var faultingAudit = new FaultingOnFirstWriteAuditWriter(sp.GetRequiredService<Cluckwork.Application.Common.IAuditWriter>());
+
+        var service = new AccountSuspensionService(
+            db,
+            sp.GetRequiredService<TenantContext>(),
+            sp.GetRequiredService<Cluckwork.Application.Features.Accounts.IAccountRepository>(),
+            sp.GetRequiredService<TimeProvider>(),
+            faultingAudit,
+            sp.GetRequiredService<CurrentUserContext>());
+
+        // The service has no catch for an unexpected fault (it returns failure
+        // Results for expected domain errors only), so our fault propagates —
+        // and the rollback below has to run.
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.SuspendAsync(accountId, reason: "atomicity guard"));
+
+        // Nothing of the suspension may have survived the rollback.
+        Assert.True(await IsActiveAsync(accountId));
+        var after = await ReadUserAsync(email);
+        Assert.Equal(before, after);
+        Assert.Equal(1, await LiveRefreshTokenCountAsync(accountId));
+
+        // The audit row itself rolled back with it — the row landed or not at
+        // all, never alone.
+        var auditRows = await factory.WithTenantScopeAsync(accountId, async d =>
+            await d.AuditEvents.AsNoTracking()
+                .CountAsync(e => e.Action == "Account.Suspend"));
+        Assert.Equal(0, auditRows);
+
+        // Static half of the guard. The split-FlushChanges mutation (an extra
+        // SaveChanges that commits the account row before the sweep) commits in
+        // one Postgres transaction either way, so NO runtime test can catch it
+        // — verified by mutation on this slice (the mutation stayed green on
+        // every runtime assertion above). The static check is the only thing
+        // that reddens on it, so it lives here rather than relying on review.
+        // Deliberately strict: it forbids ANY SaveChanges before the final
+        // flush, so a future legitimate intermediate flush (e.g. a large staged
+        // entity) must move this assertion with it — the price of a text guard,
+        // paid loudly, not silently.
+        // Same repo-root walk as ServingGuardCoverageTests.RepositoryRoot et al.
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cluckwork.sln")))
+            dir = dir.Parent;
+        Assert.NotNull(dir);
+        var serviceSource = await File.ReadAllTextAsync(
+            Path.Combine(dir!.FullName, "src", "Cluckwork.Infrastructure", "Identity", "AccountSuspensionService.cs"));
+        // Find every SaveChanges call site. The needle includes the receiver
+        // dot: the file carries "SaveChanges" in a COMMENT (line 193, "before
+        // SaveChanges, so the row lands") which is not a flush, and a bare
+        // "SaveChanges(" would match it. "db.SaveChangesAsync(" is the real
+        // call shape; if a future call uses a differently-named receiver the
+        // needle below must be widened in the same change.
+        const string needle = ".SaveChangesAsync(";
+        var callSites = new List<int>();
+        var searchFrom = 0;
+        while (true)
+        {
+            var found = serviceSource.IndexOf(needle, searchFrom, StringComparison.Ordinal);
+            if (found < 0)
+                break;
+            callSites.Add(found);
+            searchFrom = found + 1;
+        }
+        Assert.NotEmpty(callSites);
+        // Exactly one flush: the final one. A second call site anywhere earlier
+        // in the file is a split-FlushChanges by definition.
+        var last = callSites[^1];
+        foreach (var index in callSites)
+        {
+            if (index < last)
+                throw new Xunit.Sdk.XunitException(
+                    "#579 premise 3: AccountSuspensionService.cs contains a SaveChanges call before its final flush. " +
+                    "Premise 3 of docs/decisions/579-suspension-issuance-window.md is one Postgres transaction; " +
+                    "if a legitimate intermediate flush is needed, move this assertion with it — do not split the suspension.");
+        }
+    }
+
+    // #579 — test double for the atomicity guard above: throws on the FIRST
+    // WriteAsync, the last write the suspension performs inside its
+    // transaction.
+    private sealed class FaultingOnFirstWriteAuditWriter(Cluckwork.Application.Common.IAuditWriter inner) : Cluckwork.Application.Common.IAuditWriter
+    {
+        public Task WriteAsync(string action, string entityType, Guid entityId, string? reason = null, object? details = null, CancellationToken ct = default)
+        {
+            _ = inner; // unused: the fault lands before any delegate call
+            throw new InvalidOperationException("#579 atomicity guard: faulting on the audit write.");
+        }
+    }
+
     [Fact]
     public async Task SuspendedFarm_RejectsLogin_WithFarmSuspended()
     {
