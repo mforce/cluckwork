@@ -65,17 +65,17 @@ public sealed class ResilientFallbackTests
     private sealed class TimingOutClaimOnceStore : IClaimOnceStore
     {
         public bool TryClaim(string key, TimeSpan ttl) =>
-            throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
+            throw new RedisTimeoutException(CommandFlags.None, "timeout", CommandStatus.Unknown);
     }
 
     private sealed class TimingOutFixedWindowCounter : IFixedWindowCounter
     {
         public long Increment(string key, TimeSpan window) =>
-            throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
+            throw new RedisTimeoutException(CommandFlags.None, "timeout", CommandStatus.Unknown);
 
         public ValueTask<FixedWindowResult> IncrementAsync(
             string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
-            throw new RedisTimeoutException("timeout", CommandStatus.Unknown);
+            throw new RedisTimeoutException(CommandFlags.None, "timeout", CommandStatus.Unknown);
     }
 
     // ── Working stubs (Redis up) ──────────────────────────────────────────

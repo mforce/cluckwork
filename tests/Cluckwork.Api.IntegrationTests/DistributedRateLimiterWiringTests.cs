@@ -129,7 +129,7 @@ public sealed class DistributedRateLimiterWiringTests(DistributedRateLimiterWiri
     }
 
     private static Task<HttpResponseMessage> PostLoginAsync(HttpClient client, string email = "nobody@example.com") =>
-        client.PostAsJsonAsync("/api/v1/auth/login", new { farmCode = TestHarness.DefaultFarmCode, email, password = "WrongPassw0rd!" });
+        client.PostAsJsonAsync("/api/v1/auth/login", new { farmCode = Infrastructure.TestHarness.DefaultFarmCode, email, password = "WrongPassw0rd!" });
 
     // (b) primary down → the WIRED limiter still serves (fallback), still
     // enforces a budget, and the alarm fires.
