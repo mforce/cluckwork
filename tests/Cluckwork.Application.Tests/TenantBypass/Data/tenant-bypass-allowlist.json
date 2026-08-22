@@ -1,0 +1,167 @@
+[
+  {
+    "symbol": "Cluckwork.Api.Cli.ListAccountsCliCommand.RunAsync(WebApplication app, string[] args)",
+    "file": "src/Cluckwork.Api/Cli/ListAccountsCliCommand.cs",
+    "justification": "Operator CLI lists ALL accounts (the whole point of list-accounts); no single tenant is resolved. Annotated in the file header as on #536's justified list."
+  },
+  {
+    "symbol": "Cluckwork.Api.Cli.AccountSlugLookup.ResolveAsync(IServiceProvider services, string slug)",
+    "file": "src/Cluckwork.Api/Cli/SuspendAccountCliCommand.cs",
+    "justification": "Operator CLI resolves an account by its global slug (slugs are unique across farms); no tenant resolved at this point."
+  },
+  {
+    "symbol": "Cluckwork.Api.Middleware.CredentialEpochMiddleware.InvokeAsync(HttpContext context, AppDbContext db)",
+    "file": "src/Cluckwork.Api/Middleware/CredentialEpochMiddleware.cs",
+    "justification": "DEFENSIVE bypass: reads the user's own account to check IsActive. The read is scoped to the JWT's account id; IgnoreQueryFilters makes it work even before TenantContext resolves. #364 fail-closed guarantee."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Identity.AccountProvisioner.ProvisionAsync(string? name, string? slug, string? ownerEmail, string? locale, string? currencyCode, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Identity/AccountProvisioner.cs",
+    "justification": "Provisions a NEW account; checks the global slug for a collision before any tenant exists. Runs at unresolved tenant by design (#533)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Identity.FirstRunAdminService.ProvisionAsync(string? email, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Identity/FirstRunAdminService.cs",
+    "justification": "First-run admin bootstraps the DEFAULT account; checks for an existing Owner at unresolved tenant by design (#283)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Identity.FirstRunAdminService.HoldsProvisioningLockAsync(CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Identity/FirstRunAdminService.cs",
+    "justification": "Raw SQL advisory lock for first-run; not tenant-scoped (it is a process-level boot guard, #283)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Identity.IdentityProvider.RefreshAsync(string refreshToken, CancellationToken ct, Guid? expectedAccountId)",
+    "file": "src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs",
+    "justification": "Refresh-token rotation reads the account to verify it is active; scoped to the token's account id, IgnoreQueryFilters because TenantContext may be unresolved during the auth handshake."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Jobs.DailyEntryLockSweep.RunAsync(CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Jobs/DailyEntryLockSweep.cs",
+    "justification": "Background sweep releases stale locks across ALL tenants (it runs with no tenant resolved, under the single-leader gate #271). Every row it touches is re-checked against its own AccountId."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.SeedAsync(CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs",
+    "justification": "Dev-only seeder runs at unresolved tenant by design (#280); every query carries an explicit AccountId predicate or is a whole-account operation."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.MissingBaseDataAsync(Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs",
+    "justification": "Dev-only seeder runs at unresolved tenant by design (#280); scoped to the seeded account via explicit AccountId."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.CleanupPartialSeedAsync(Guid accountId)",
+    "file": "src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs",
+    "justification": "Dev-only seeder cleanup runs at unresolved tenant by design (#280); every ExecuteDelete is scoped to the seeded account via explicit AccountId."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.MissingBaseDataAsync(Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs",
+    "justification": "Simulation seeder runs at unresolved tenant by design (#279); scoped to the seeded account via explicit AccountId."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedSecondAccountAsync(CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs",
+    "justification": "Simulation seeder creates a second account for the two-tenant simulation; checks the global account existence at unresolved tenant by design (#279)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeCountsAsync(Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs",
+    "justification": "Simulation seeder manifest counts run at unresolved tenant by design (#279); scoped to the seeded account via explicit AccountId."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.AccountRepository.GetCurrentSharedLockedAsync(CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
+    "justification": "FOR SHARE lock on the current tenant's account row; the raw SQL carries WHERE \"Id\" = {tenant.AccountId} (the lock must be inside the raw SQL or it would lock every tenant's row, #162)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.AccountRepository.GetCurrentLockedAsync(CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
+    "justification": "FOR UPDATE lock on the current tenant's account row; the raw SQL carries WHERE \"Id\" = {tenant.AccountId} (#162)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.AccountRepository.FindBySlugAsync(string slug, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/AccountRepository.cs",
+    "justification": "Resolves an account by its global slug (slugs are unique across farms); used by the operator CLI and provisioning where no tenant is resolved."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.AuditEventRepository.GetProvenanceChunkAsync(string entityType, Guid[] ids, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/AuditEventRepository.cs",
+    "justification": "Audit provenance reads across the tenant's own entities; the raw SQL carries WHERE \"AccountId\" = {accountId}. IgnoreQueryFilters because the provenance query joins across entities that the filter would otherwise scope to an unresolved tenant."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.EggLotRepository.GetAvailableFifoLockedAsync(Guid accountId, IReadOnlyList<Guid> eggGradeIds, DateOnly allocationDate, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs",
+    "justification": "FIFO sale-allocation lock; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement so only this tenant's lots are locked (#313)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.EggLotRepository.GetByIdsLockedAsync(Guid accountId, IReadOnlyList<Guid> lotIds, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs",
+    "justification": "Void-restore lock on specific lots; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement (#60, #313)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.EggLotRepository.GetByDailyEntryLockedAsync(Guid accountId, Guid dailyEntryId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs",
+    "justification": "Locks the lots generated by a daily entry; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.InventoryItemRepository.GetByIdLockedAsync(Guid accountId, Guid id, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/InventoryItemRepository.cs",
+    "justification": "FOR UPDATE on an inventory item; the raw SQL carries WHERE \"Id\" = {id} AND \"AccountId\" = {accountId} so a foreign-tenant id matches no row and the lock is never attempted against it (#313)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.InventoryLotRepository.GetAvailableFifoLockedAsync(Guid accountId, Guid inventoryItemId, DateOnly asOfDate, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/InventoryLotRepository.cs",
+    "justification": "FIFO inventory-allocation lock; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.InventoryLotRepository.GetByIdLockedAsync(Guid accountId, Guid lotId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/InventoryLotRepository.cs",
+    "justification": "FOR UPDATE on an inventory lot; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.SalesOrderRepository.GetByIdLockedAsync(Guid accountId, Guid id, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/SalesOrderRepository.cs",
+    "justification": "FOR UPDATE on a sales order; the raw SQL carries WHERE \"Id\" = {id} AND \"AccountId\" = {accountId} so a foreign-tenant id matches no row (#313)."
+  },
+  {
+    "symbol": "Cluckwork.Api.Middleware.IdempotencyMiddleware.InvokeAsync(HttpContext context, AppDbContext db, TenantContext tenant, CurrentUserContext user)",
+    "file": "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs",
+    "justification": "Raw-SQL UPDATE of idempotency_records on successful completion; the statement carries WHERE \"AccountId\" = {accountId} (the claim was scoped to this tenant on insert). Not a row lock, so the predicate walk does not flag it — allow-listed as a raw-SQL occurrence."
+  },
+  {
+    "symbol": "Cluckwork.Api.Middleware.IdempotencyMiddleware.TryClaimOrInspectAsync(AppDbContext db, Guid accountId, string endpointHash, string keyHash, string requestHash, Guid ownerToken, DateTimeOffset leaseExpiresAt, DateTimeOffset now, CancellationToken ct)",
+    "file": "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs",
+    "justification": "Raw-SQL UPDATE that steals an expired idempotency lease; the statement carries WHERE \"AccountId\" = {accountId} AND (EndpointHash, IdempotencyKeyHash) — scoped to this tenant's claim. Not a row lock."
+  },
+  {
+    "symbol": "Cluckwork.Api.Middleware.IdempotencyMiddleware.ReleaseClaimAsync(AppDbContext db, Guid accountId, string endpointHash, string keyHash, Guid ownerToken, CancellationToken ct)",
+    "file": "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs",
+    "justification": "Raw-SQL DELETE of the tenant's own idempotency claim; the statement carries WHERE \"AccountId\" = {accountId} AND (EndpointHash, IdempotencyKeyHash, LeaseOwner) — scoped to this tenant. Not a row lock."
+  },
+  {
+    "symbol": "Cluckwork.Api.Cli.SuspendAccountCliCommand.RunAsync(WebApplication app, string[] args)",
+    "file": "src/Cluckwork.Api/Cli/SuspendAccountCliCommand.cs",
+    "justification": "Caller of AccountSlugLookup.ResolveAsync (a forwarding wrapper that carries the IgnoreQueryFilters). Operator CLI suspends an account by global slug; no tenant is resolved at this point. The caller is flagged by the wrapper-forwarding walk (review P1-3) — the wrapper and its caller both need entries."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Identity.FirstRunAdminService.ProvisionUnderLockAsync(Guid accountId, string email, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Identity/FirstRunAdminService.cs",
+    "justification": "Caller of HoldsProvisioningLockAsync (a forwarding wrapper). First-run admin bootstrap runs at unresolved tenant by design (#283); the provisioning lock is a process-level advisory lock, not tenant-scoped."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedAsync(CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs",
+    "justification": "Caller of MissingBaseDataAsync / ComputeCountsAsync / SeedSecondAccountAsync (forwarding wrappers). Simulation seeder runs at unresolved tenant by design (#279); every wrapped query is scoped to the seeded account via explicit AccountId."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EmitManifestAsync(Guid accountId, DateOnly today, SimulationOptions sim, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs",
+    "justification": "Caller of ComputeCountsAsync (a forwarding wrapper). Simulation seeder manifest counts run at unresolved tenant by design (#279); scoped to the seeded account via explicit AccountId."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Repositories.AuditEventRepository.GetProvenanceAsync(string entityType, IReadOnlyCollection<Guid> entityIds, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/AuditEventRepository.cs",
+    "justification": "Caller of GetProvenanceChunkAsync (a forwarding wrapper). Audit provenance reads across the tenant's own entities; the wrapped raw SQL carries WHERE \"AccountId\" = {accountId}. IgnoreQueryFilters because the provenance query joins across entities that the filter would otherwise scope to an unresolved tenant."
+  }
+]

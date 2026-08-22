@@ -18,8 +18,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="TenantBypass/Data/tenant-bypass-allowlist.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="TenantBypass/Data/filter-free-set-sites.tsv" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Cluckwork.Domain\Cluckwork.Domain.csproj" />
     <ProjectReference Include="..\..\src\Cluckwork.Application\Cluckwork.Application.csproj" />
+    <ProjectReference Include="..\..\src\Cluckwork.Infrastructure\Cluckwork.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
