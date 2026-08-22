@@ -372,12 +372,33 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
             ? serviceSource.IndexOf(sweepMethod, tokenReceiver, StringComparison.Ordinal)
             : -1;
         var tokenSweepIsUpdate = tokenSweep >= 0 && tokenSweep - tokenReceiver < sweepWindow;
+        // The flush the account row rides on is the FIRST SaveChangesAsync, but
+        // a split-transaction refactor could move the tracked account.Suspend()/
+        // Reactivate() mutation to after that save + commit and add a SECOND
+        // save there — committing the revocation sweeps first and IsActive
+        // separately, while every positional check on the first save passes.
+        // Two checks close this: (1) the account mutation itself must sit
+        // BEFORE the flush (so the row is dirty when the in-transaction save
+        // runs), and (2) NO SaveChangesAsync may appear after the commit (the
+        // account row must not be flushed in a second transaction).
+        var accountMutation = serviceSource.IndexOf("account.Suspend()", StringComparison.Ordinal);
+        if (accountMutation < 0)
+            accountMutation = serviceSource.IndexOf("account.Reactivate()", StringComparison.Ordinal);
         var flush = serviceSource.IndexOf(flushNeedle, StringComparison.Ordinal);
+        var lastFlush = serviceSource.LastIndexOf(flushNeedle, StringComparison.Ordinal);
         Assert.True(begin >= 0, "#579 premise 3: AmbientTransaction.BeginAsync not found — the guard's anchor moved; update the needle.");
         Assert.True(commit > begin, "#579 premise 3: CommitAsync before BeginAsync — the guard's anchors moved; update the needles.");
         Assert.True(sweepIsUpdate, "#579 premise 3: the user epoch/stamp sweep (db.Users … ExecuteUpdateAsync) not found — it moved to a different mechanism; update the guard in the same change.");
         Assert.True(tokenSweepIsUpdate, "#579 premise 3: the refresh-token sweep (db.RefreshTokens … ExecuteUpdateAsync) not found — it moved to a different mechanism; update the guard in the same change.");
         Assert.True(flush > 0, "#579 premise 3: SaveChangesAsync not found — the final flush moved; update the guard in the same change.");
+        Assert.True(accountMutation > 0 && accountMutation < flush,
+            "#579 premise 3: the account mutation (account.Suspend()/Reactivate()) is not before the in-transaction flush. " +
+            "The tracked account row must be dirty when the suspension transaction's save runs; " +
+            "if the mutation must move after the flush, the row commits in a different transaction than the sweeps and #579 reopens — do not move the needle to make this green.");
+        Assert.True(lastFlush < commit,
+            "#579 premise 3: a SaveChangesAsync occurs after the commit. " +
+            "The account row must be flushed inside the suspension transaction, not in a second one after it; " +
+            "if a post-commit save is needed, the premise is broken and #579 reopens — do not move the needle to make this green.");
         Assert.True(sweep > begin && sweep < commit && (tokenReceiver < 0 || sweep < tokenReceiver),
             "#579 premise 3: the epoch/stamp sweep is outside the suspension transaction (between BeginAsync and CommitAsync). " +
             "Premise 3 of docs/decisions/579-suspension-issuance-window.md is one Postgres transaction around IsActive and the sweep; " +
