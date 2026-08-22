@@ -322,10 +322,18 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         // future call renames the receiver, widen the needle in the same change.
         const string flushNeedle = "SaveChangesAsync(";
         // The epoch/stamp sweep is raw SQL, not a SaveChanges call: it is the
-        // ExecuteUpdateAsync on Users inside the transaction. If that moves to
-        // a different mechanism (e.g. a tracked update + SaveChanges), this
-        // needle is stale in the other direction — update it with the change.
-        const string sweepNeedle = "ExecuteUpdateAsync";
+        // ExecuteUpdateAsync on Users inside the transaction. The file carries
+        // TWO ExecuteUpdateAsync calls (the user sweep and the refresh-token
+        // sweep); the premise-3 anchor is the USER sweep specifically, so the
+        // needle includes the "db.Users" receiver. A generic "ExecuteUpdateAsync"
+        // would match whichever appears first — if the user sweep moves after
+        // the commit while the refresh sweep stays inside, a first-match on the
+        // refresh sweep passes the boundary check with premise 3 broken. If the
+        // user sweep moves to a different mechanism (e.g. a tracked update +
+        // SaveChanges), this needle is stale in the other direction — update it
+        // with the change.
+        const string sweepNeedle = "db.Users";
+        const string sweepMethod = "ExecuteUpdateAsync";
         // The boundary is a TRANSACTION, not a flush count. A flush-count check
         // (its predecessor) is gameable: commit the account in one transaction,
         // run the sweep in a second, and the file still carries exactly one
@@ -337,10 +345,19 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         var begin = serviceSource.IndexOf("AmbientTransaction.RunAsync", StringComparison.Ordinal);
         var commit = serviceSource.IndexOf("transaction.CommitAsync", StringComparison.Ordinal);
         var sweep = serviceSource.IndexOf(sweepNeedle, StringComparison.Ordinal);
+        // Anchor on the user sweep specifically: find the db.Users receiver,
+        // then confirm an ExecuteUpdateAsync follows it within the same
+        // statement. The statement spans multiple lines (Where, ExecuteUpdate,
+        // setters, token) so the window is generous; a bare db.Users elsewhere
+        // (a query, a CountAsync) would not carry an ExecuteUpdateAsync within
+        // this range.
+        const int sweepWindow = 400;
+        var sweepIsUpdate = sweep >= 0 &&
+            serviceSource.Substring(sweep, Math.Min(sweepWindow, serviceSource.Length - sweep)).Contains(sweepMethod, StringComparison.Ordinal);
         var flush = serviceSource.IndexOf(flushNeedle, StringComparison.Ordinal);
         Assert.True(begin >= 0, "#579 premise 3: AmbientTransaction.BeginAsync not found — the guard's anchor moved; update the needle.");
         Assert.True(commit > begin, "#579 premise 3: CommitAsync before BeginAsync — the guard's anchors moved; update the needles.");
-        Assert.True(sweep > 0, "#579 premise 3: the user epoch/stamp sweep (ExecuteUpdateAsync) not found — it moved to a different mechanism; update the guard in the same change.");
+        Assert.True(sweepIsUpdate, "#579 premise 3: the user epoch/stamp sweep (db.Users … ExecuteUpdateAsync) not found — it moved to a different mechanism; update the guard in the same change.");
         Assert.True(flush > 0, "#579 premise 3: SaveChangesAsync not found — the final flush moved; update the guard in the same change.");
         Assert.True(sweep > begin && sweep < commit,
             "#579 premise 3: the epoch/stamp sweep is outside the suspension transaction (between BeginAsync and CommitAsync). " +
