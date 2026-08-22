@@ -9,8 +9,11 @@
 
 ## What happened
 
-No incident. This is a deliberate declination, recorded so the next reader does
-not re-derive it.
+There was no defect to fix — this is a deliberate declination, recorded so the
+next reader does not re-derive it. It is an accepted-risk decision, not an
+earned rule: the `AGENTS.md` bullet carries the same link shape as the
+incident-earned rules because the decision record is its rationale home, but the
+rule was not earned by a shipped defect.
 
 Login does two things in sequence, in separate steps: `AuthEndpoints` checks
 `Account.IsActive` on a plain read, then `IdentityProvider.LoginAsync` mints the
@@ -61,10 +64,15 @@ Closing the window requires login to take a `FOR SHARE` lock on the account row
 **before** minting, inside its issuance transaction — matching the account-first
 ordering `AccountSuspensionService` and `AdminRecoveryService` already use.
 
-It is a **cost question, not a deadlock question**: every locking path in this
-codebase takes the account row first, so consistent ordering would serialise
-login against suspension, never deadlock it. The cost is a lock plus an extra
-round trip on the login hot path, paid by every farm on every login, in order to
+It is a **cost question, not a deadlock question**. Every *suspension-side*
+locking path takes the account row first (`AccountSuspensionService`,
+`AdminRecoveryService`), so a login lock taken before the mint would serialise
+against them, never deadlock. (Not every locking path in the repo is
+account-first — the currency-lock protocol, e.g. `UpdateInventoryItemHandler`,
+takes the item row first and the account `FOR SHARE` second, on its own
+cycle-freedom argument — but suspension and that protocol never take locks
+concurrently with each other, so the two orderings never meet.) The cost is a
+lock plus an extra round trip on the login hot path, paid by every farm on every login, in order to
 prevent a credential that is inert by the four premises above. #532 weighed
 that and declined on cost, not on difficulty; #579 re-weighed it at Phase 1.6
 scale (a handful of farms) and declined again.
