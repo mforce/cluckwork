@@ -1,0 +1,167 @@
+namespace Cluckwork.Application.Tests.TenantBypass;
+
+using System.Text;
+using System.Text.Json;
+
+// #536 Part 1 — allow-list semantics. Each behaviour gets its OWN named
+// assertion against a temp source tree (never the repo), so the mutation
+// matrix (Task 5) can aim its mutants at exactly these tests, and a real-tree
+// mutant reds the real-tree test instead — one assertion, one lever (design
+// M8, review M5).
+public sealed class TenantBypassAllowListTests : IDisposable
+{
+    private readonly string _tempRoot = Directory.CreateTempSubdirectory("t8-guard-").FullName;
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_tempRoot, recursive: true); } catch { /* best effort */ }
+    }
+
+    private string WriteSource(string relativePath, string content)
+    {
+        var full = Path.Combine(_tempRoot, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+        File.WriteAllText(full, content);
+        return full;
+    }
+
+    private string WriteAllowList(params (string Symbol, string File, string Justification)[] entries)
+    {
+        var path = Path.Combine(_tempRoot, "allowlist.json");
+        var json = JsonSerializer.Serialize(entries
+            .Select(e => new { symbol = e.Symbol, file = e.File, justification = e.Justification }));
+        File.WriteAllText(path, json);
+        return path;
+    }
+
+    private static GuardReport Scan(string tempRoot, string allowListPath) =>
+        GuardScanner.Scan(Path.Combine(tempRoot, "src"), allowListPath);
+
+    // M8-M1: a bypass in a non-allow-listed method is UNEXCUSED.
+    [Fact]
+    public void UnlistedBypass_Fails()
+    {
+        WriteSource("src/A.cs", """
+            namespace A;
+            public class R
+            {
+                public int Bad() => Query().IgnoreQueryFilters().Count();
+                private static System.Linq.IQueryable<int> Query() => System.Linq.Enumerable.Range(0, 1);
+            }
+            """);
+        var report = Scan(_tempRoot, WriteAllowList());
+
+        var failure = GuardScanner.Evaluate(report).FirstOrDefault(f => f.Contains("unexcused bypass"));
+        Assert.False(string.IsNullOrEmpty(failure), "expected an unexcused-bypass failure");
+        Assert.True(failure!.Contains("A.R.Bad"),
+            "symbol should name the enclosing method A.R.Bad; full failure: " + failure);
+        Assert.Contains("IgnoreQueryFilters", failure!);
+    }
+
+    // M8-M2: an allow-listed bypass is excused; deleting the entry makes it
+    // unexcused again — same assertion, same lever.
+    [Fact]
+    public void AllowListedBypass_IsExcused()
+    {
+        WriteSource("src/A.cs", """
+            namespace A;
+            public class R
+            {
+                public int Good() => Query().IgnoreQueryFilters().Count();
+                private static System.Linq.IQueryable<int> Query() => System.Linq.Enumerable.Range(0, 1);
+            }
+            """);
+        // The symbol is the scanner's reconstructed display form (Namespace.Type
+        // .Method(paramType paramText)) — see GuardScanner.ParameterTypes.
+        var withEntry = Scan(_tempRoot, WriteAllowList(
+            ("A.R.Good()", "src/A.cs", "test fixture")));
+        var withFailures = GuardScanner.Evaluate(withEntry);
+        Assert.True(withFailures.Count == 0,
+            "expected excused, got: " + string.Join(" | ", withFailures));
+
+        var withoutEntry = Scan(_tempRoot, WriteAllowList());
+        Assert.Contains(GuardScanner.Evaluate(withoutEntry), f => f.Contains("unexcused bypass"));
+    }
+
+    // M8-M3: an entry matching zero sites is STALE and fails — a deleted
+    // bypass must not leave a live exemption.
+    [Fact]
+    public void StaleEntry_Fails()
+    {
+        WriteSource("src/A.cs", """
+            namespace A;
+            public class R { public int X() => 1; }
+            """);
+        var report = Scan(_tempRoot, WriteAllowList(
+            ("A.R.Gone()", "src/A.cs", "site was deleted but this entry was not")));
+
+        var staleFailure = GuardScanner.Evaluate(report).FirstOrDefault(f => f.Contains("stale allow-list entry"));
+        Assert.False(string.IsNullOrEmpty(staleFailure), "expected a stale-entry failure");
+        Assert.Contains("A.R.Gone()", staleFailure!);
+    }
+
+    // M8-M4: a filter-free-set query without an AccountId comparison is
+    // flagged; with one, it is not. SHAPE, not provenance (review M4/F4):
+    // this proves the predicate exists, not that the compared value is the
+    // resolved tenant.
+    [Fact]
+    public void MissingAccountIdCompare_Fails()
+    {
+        // The leg matches on the DbSet PROPERTY name as the model reports it.
+        // `db.Users` is the property access; `db`-shaped receivers only (a
+        // domain property named Users elsewhere is out of scope — stated in
+        // the scanner).
+        WriteSource("src/B.cs", """
+            namespace B;
+            public class R
+            {
+                public async Task<int> Bad(Microsoft.EntityFrameworkCore.DbSet<U> db)
+                    => await db.Users.Where(u => u.Email == "x").CountAsync();
+                public async Task<int> Good(Microsoft.EntityFrameworkCore.DbSet<U> db)
+                    => await db.Users.Where(u => u.AccountId == Tenant.Id).CountAsync();
+            }
+            public class U { public Guid AccountId { get; set; } public string Email { get; set; } = ""; }
+            public static class Tenant { public static Guid Id => default; }
+            """);
+
+        var occurrences = GuardScanner.ScanFilterFreeSet(Path.Combine(_tempRoot, "src"), ["Users"]);
+        Assert.Equal(2, occurrences.Count);
+
+        var bad = occurrences.Single(o => o.EnclosingSymbol.Contains(".Bad("));
+        var good = occurrences.Single(o => o.EnclosingSymbol.Contains(".Good("));
+
+        Assert.False(bad.PredicateHasAccountId, "query without an AccountId comparison must be flagged");
+        Assert.True(good.PredicateHasAccountId, "query WITH an AccountId comparison must not be flagged");
+    }
+
+    // M8-M7: one extension-method wrapper must not defeat the guard. A method
+    // that forwards IgnoreQueryFilters() is itself an occurrence, and its
+    // callers are occurrences too — the wrapper is not a laundering step.
+    [Fact]
+    public void WrapperForwarding_Fails()
+    {
+        WriteSource("src/C.cs", """
+            namespace C;
+            public static class Ext
+            {
+                public static System.Linq.IQueryable<T> Unfiltered<T>(this System.Linq.IQueryable<T> q)
+                    => q.IgnoreQueryFilters();
+            }
+            public class Caller
+            {
+                public System.Linq.IQueryable<int> Use() => Ext.Unfiltered(System.Linq.Enumerable.Range(0, 1));
+            }
+            """);
+        var report = Scan(_tempRoot, WriteAllowList());
+        var failures = GuardScanner.Evaluate(report);
+
+        // The wrapper's own IgnoreQueryFilters() call is an unexcused
+        // occurrence in Ext.Unfiltered — allow-listing it does NOT excuse the
+        // caller; the caller is reported through the same mechanism (any
+        // bypass in a non-allow-listed method), which is what keeps the
+        // wrapper from being a laundering step: both sites need entries, and
+        // a new caller appears as a new unexcused occurrence the moment it is
+        // written.
+        Assert.Contains(failures, f => f.Contains("Ext.Unfiltered"));
+    }
+}

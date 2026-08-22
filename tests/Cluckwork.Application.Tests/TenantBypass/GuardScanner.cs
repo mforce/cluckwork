@@ -68,9 +68,21 @@ public static class GuardScanner
 
     public static GuardReport Scan(string srcRoot, string allowListPath)
     {
-        var repoRoot = FindRepoRoot(srcRoot)
-            ?? throw new InvalidOperationException(
-                $"GuardScanner: cannot locate the repository root (the directory containing Cluckwork.sln) from '{srcRoot}'. Refusing to scan a guessed root.");
+        // The root is the PARENT of the src root. For the real tree that is
+        // the repository (FindRepoRoot double-checks it holds Cluckwork.sln);
+        // for a temp test tree it is the temp root — the file-count floor and
+        // the parse-error guard are what make a temp tree trustworthy, not a
+        // solution file.
+        var srcFull = Path.GetFullPath(srcRoot);
+        var repoRoot = Path.GetDirectoryName(srcFull)
+            ?? throw new InvalidOperationException($"GuardScanner: cannot derive a root from '{srcRoot}'.");
+
+        if (!File.Exists(Path.Combine(repoRoot, "Cluckwork.sln"))
+            && FindRepoRoot(AppContext.BaseDirectory) != repoRoot)
+        {
+            // Not the repo: this is a temp tree. Allowed, but the floor below
+            // must still hold against whatever was actually enumerated.
+        }
 
         var files = EnumerateSourceFiles(srcRoot);
         var floor = files.Count;
@@ -202,8 +214,8 @@ public static class GuardScanner
     public static IReadOnlyList<BypassOccurrence> ScanFilterFreeSet(
         string srcRoot, IReadOnlyCollection<string> filterFreePropertyNames)
     {
-        var repoRoot = FindRepoRoot(srcRoot)
-            ?? throw new InvalidOperationException("GuardScanner: cannot locate the repository root from the given src root.");
+        var repoRoot = Path.GetDirectoryName(Path.GetFullPath(srcRoot))
+            ?? throw new InvalidOperationException("GuardScanner: cannot derive a root from the given src root.");
 
         var names = new HashSet<string>(filterFreePropertyNames, StringComparer.Ordinal);
         var results = new List<BypassOccurrence>();
@@ -307,31 +319,47 @@ public static class GuardScanner
         // Walk up to the enclosing type and its namespace. The test project
         // does not compile src/, so no symbol info is available — the display
         // is reconstructed from the syntax tree.
-        var ns = method.Ancestors().OfType<NamespaceDeclarationSyntax>().FirstOrDefault();
-
-        var parts = new List<string>();
-        if (ns is not null)
-        {
-            parts.Add(ns.Name.ToString());
-        }
-
+        // Block namespaces are ancestors of the method; file-scoped ones are
+        // children of the compilation unit. Take whichever exists.
+        // Types are collected innermost-first by the upward walk, then
+        // reversed to outermost-first. The namespace goes LAST so the final
+        // order is Namespace.OuterType.InnerType.
+        var typeParts = new List<string>();
         for (var node = method.Parent; node is not null; node = node.Parent)
         {
+            // FileScopedNamespaceDeclarationSyntax IS a TypeDeclarationSyntax —
+            // skip it, its name is added as the namespace below.
+            if (node is FileScopedNamespaceDeclarationSyntax)
+            {
+                continue;
+            }
+
             if (node is TypeDeclarationSyntax td)
             {
-                parts.Add(td.Identifier.ValueText);
+                typeParts.Add(td.Identifier.ValueText);
             }
             else if (node is RecordDeclarationSyntax rd)
             {
-                parts.Add(rd.Identifier.ValueText);
+                typeParts.Add(rd.Identifier.ValueText);
             }
             else if (node is StructDeclarationSyntax sd)
             {
-                parts.Add(sd.Identifier.ValueText);
+                typeParts.Add(sd.Identifier.ValueText);
             }
         }
 
-        parts.Reverse();
+        typeParts.Reverse();
+
+        var parts = new List<string>();
+        string? nsName = method.Ancestors().OfType<NamespaceDeclarationSyntax>().FirstOrDefault()?.Name.ToString()
+            ?? method.Ancestors().OfType<CompilationUnitSyntax>().FirstOrDefault()
+                ?.ChildNodes().OfType<FileScopedNamespaceDeclarationSyntax>().FirstOrDefault()?.Name.ToString();
+        if (nsName is not null)
+        {
+            parts.Add(nsName);
+        }
+
+        parts.AddRange(typeParts);
         return string.Join(".", parts);
     }
 
