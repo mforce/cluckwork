@@ -114,9 +114,15 @@ public sealed class TenantBypassRealTreeTests
             "the non-tenant track exists to enumerate them, not to skip them");
 
         // TENANT-track candidates: db.<tenant-table> accesses with no AccountId
-        // compare in the enclosing statement (the predicate rule applies).
+        // COMPARISON in the enclosing statement (the predicate rule applies).
+        // Review P1-3: the filter is `!= true`, not `== false`, so a site the
+        // scanner cannot classify (PredicateHasAccountId == null, "flag for
+        // review") is a candidate too — it must be classified in the TSV rather
+        // than silently passing. A `Select(u => u.AccountId)` projection no
+        // longer reads as a predicate (HasAccountIdComparison returns false), so
+        // a cross-tenant by-email enumeration is a candidate, not a pass.
         var tenantCandidates = GuardScanner.ScanFilterFreeSet(SrcRoot(), tenantNames)
-            .Where(o => o.PredicateHasAccountId == false)
+            .Where(o => o.PredicateHasAccountId != true)
             .Select(o => $"{o.File}:{o.Line}\t{o.Detail}")
             .ToList();
 

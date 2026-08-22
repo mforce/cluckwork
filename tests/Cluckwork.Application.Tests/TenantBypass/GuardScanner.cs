@@ -80,6 +80,22 @@ public static class GuardScanner
         ["ExecuteSqlRawAsync"] = BypassKind.RawSql,
         ["ExecuteSqlInterpolatedAsync"] = BypassKind.RawSql,
         ["SqlQuery"] = BypassKind.RawSql,
+        // Review P1-1 (deepseek-v4-flash): the EF Core 10 raw-SQL sibling set is
+        // larger than the sync/async pair above. SqlQueryRaw/SqlQueryInterpolated
+        // (typed entity queries from SQL), ExecuteSql/ExecuteSqlAsync (non-
+        // interpolated, non-raw overloads), and FromSql/FromSqlAsync (the
+        // FromSql base forms) all bypass the query filters. A lock query written
+        // through any of these must not leave the guard green. Verified against
+        // the resolved Microsoft.EntityFrameworkCore.Relational.dll (10.0.x) API
+        // surface. None is used in src/ today — this is the escape-hatch surface
+        // the guard must cover so a future raw query cannot pick an unbanned
+        // entry point.
+        ["SqlQueryRaw"] = BypassKind.RawSql,
+        ["SqlQueryInterpolated"] = BypassKind.RawSql,
+        ["ExecuteSql"] = BypassKind.RawSql,
+        ["ExecuteSqlAsync"] = BypassKind.RawSql,
+        ["FromSql"] = BypassKind.RawSql,
+        ["FromSqlAsync"] = BypassKind.RawSql,
         ["FindByEmailAsync"] = BypassKind.IdentityLookup,
         ["FindByNameAsync"] = BypassKind.IdentityLookup,
         ["FindByLoginAsync"] = BypassKind.IdentityLookup,
@@ -241,8 +257,16 @@ public static class GuardScanner
                 var name = invocation.Expression;
                 var methodName = name is MemberAccessExpressionSyntax m3 ? m3.Name.Identifier.ValueText
                     : name is IdentifierNameSyntax id3 ? id3.Identifier.ValueText : null;
-                if (methodName is not ("ExecuteSqlRaw" or "FromSqlRaw" or "Sql" or "FromSqlInterpolated" or "ExecuteSqlInterpolated"
-                    or "ExecuteSqlRawAsync" or "ExecuteSqlInterpolatedAsync"))
+                // Every raw-SQL entry point must be predicate-walked, not just the
+                // ones src/ happens to use today. Review P1-1: the original list
+                // was the sync/async pair + FromSql* and omitted SqlQuery*,
+                // ExecuteSql/ExecuteSqlAsync, and FromSql/FromSqlAsync — a lock
+                // query through any of those would skip this walk and pass.
+                // Keep this in lockstep with BannedMethods' RawSql entries.
+                if (methodName is not ("ExecuteSqlRaw" or "ExecuteSqlInterpolated" or "ExecuteSql"
+                    or "ExecuteSqlRawAsync" or "ExecuteSqlInterpolatedAsync" or "ExecuteSqlAsync"
+                    or "FromSqlRaw" or "FromSqlInterpolated" or "FromSql" or "FromSqlAsync"
+                    or "SqlQuery" or "SqlQueryRaw" or "SqlQueryInterpolated"))
                 {
                     continue;
                 }
@@ -260,11 +284,19 @@ public static class GuardScanner
 
                 var hasLock = sqlText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase)
                               || sqlText.Contains("FOR SHARE", StringComparison.OrdinalIgnoreCase);
-                if (hasLock && !sqlText.Contains("AccountId", StringComparison.OrdinalIgnoreCase))
+                // Review P1-2: the old check was `sqlText.Contains("AccountId")` —
+                // a string-presence test, not a predicate test. `SELECT *,
+                // "AccountId" FROM t WHERE "Id" = {id} FOR UPDATE` names
+                // AccountId in the SELECT list and passes the old check, yet the
+                // lock covers EVERY row of the table for every tenant. The
+                // scoping predicate must live in the WHERE clause, so require
+                // AccountId to appear in the predicate portion (after the last
+                // FROM that precedes the lock), not in the SELECT list.
+                if (hasLock && !HasAccountIdPredicateInWhereClause(sqlText))
                 {
                     var line = invocation.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
                     rawSqlViolations.Add(
-                        $"{Relative(repoRoot, file)}:{line} in {EnclosingSymbolOf(invocation, file)} — raw-SQL row lock without an AccountId predicate: {Truncate(sqlText)}");
+                        $"{Relative(repoRoot, file)}:{line} in {EnclosingSymbolOf(invocation, file)} — raw-SQL row lock without an AccountId predicate in its WHERE clause: {Truncate(sqlText)}");
                 }
             }
         }
@@ -302,6 +334,48 @@ public static class GuardScanner
     // conservatively flagged as a violation for manual review — those are out
     // of scope for the text walk and named as a limitation.
     private static string ReconstructSqlText(ExpressionSyntax expr) => expr.ToString();
+
+    // Review P1-2 — the predicate walk must prove AccountId is in the WHERE
+    // clause of a lock query, not merely present in the SQL text. The SELECT
+    // list (before the first FROM) is not a predicate: `SELECT *, "AccountId"
+    // FROM t WHERE "Id" = {id} FOR UPDATE` names AccountId but locks every row.
+    // Rule: take the SQL up to the lock keyword, find the LAST `FROM` in it (the
+    // table source of the locked statement — subqueries have their own FROM, so
+    // the last one is the outer table), and require AccountId to appear AFTER
+    // that FROM (i.e. in the WHERE clause / JOIN predicates, not the SELECT
+    // list). No FROM ⇒ no confirmable predicate ⇒ false (flag). This is a text
+    // heuristic, not a SQL parser; it is deliberately stricter than the old
+    // string-presence check and still allows the legitimate forms in src/ (a
+    // quoted "AccountId" column or an {accountId} interpolation hole in the
+    // WHERE clause). A lock whose AccountId is only in a comment or the SELECT
+    // list is correctly flagged.
+    private static bool HasAccountIdPredicateInWhereClause(string sqlText)
+    {
+        // Case-insensitive search for the lock keyword; take the prefix before it.
+        var prefix = sqlText;
+        foreach (var kw in new[] { "FOR UPDATE", "FOR SHARE", "FOR NO KEY UPDATE", "FOR KEY SHARE" })
+        {
+            var idx = IndexOf(sqlText, kw, StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+            {
+                prefix = sqlText[..idx];
+                break;
+            }
+        }
+
+        // The last FROM in the prefix is the outer table source. AccountId must
+        // appear after it to be a predicate, not in the SELECT list.
+        var fromIdx = LastIndexOf(prefix, "FROM", StringComparison.OrdinalIgnoreCase);
+        var predicateRegion = fromIdx >= 0 ? prefix[(fromIdx + 4)..] : prefix;
+
+        return predicateRegion.Contains("AccountId", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int IndexOf(string haystack, string needle, StringComparison cmp)
+        => haystack.IndexOf(needle, cmp);
+
+    private static int LastIndexOf(string haystack, string needle, StringComparison cmp)
+        => haystack.LastIndexOf(needle, cmp);
 
     private static string Truncate(string s) =>
         s.Length <= 160 ? s.Replace("\n", " ") : s[..160] + "…";
@@ -521,9 +595,19 @@ public static class GuardScanner
     }
 
     // Predicate shape check (review M4/F4 — shape, not provenance): does the
-    // query chain following this access contain an AccountId comparison?
-    // Looks at the enclosing expression statement / member initializer and
-    // searches for "AccountId" in a comparison or member-access form.
+    // query chain following this access contain an AccountId COMPARISON?
+    // Review P1-3 (deepseek-v4-flash): the old check was
+    // `statement.Contains("AccountId")` — a string-presence test. A projection
+    // like `db.Users.Where(u => u.Email == email).Select(u => u.AccountId)`
+    // names AccountId (in the Select) but does not scope by it — it enumerates
+    // every tenant's users by email. Presence is not a predicate; a comparison
+    // is. This now requires AccountId to appear in a comparison shape (AccountId
+    // on one side of ==, !=, <, >, <=, >=, =, or in a Where-clause lambda that
+    // compares it), not merely anywhere in the statement. A bare Select/OrderBy
+    // projection of AccountId is NOT a predicate and returns false (a candidate
+    // that must be classified or fixed). Provenance (that the compared value is
+    // the resolved tenant, not a literal) is still not proven — that remains the
+    // allow-list justification's job; this closes the presence-vs-predicate gap.
     internal static bool? PredicateHasAccountId(SyntaxNode node)
     {
         var statement = node.AncestorsAndSelf().OfType<StatementSyntax>().FirstOrDefault()
@@ -533,8 +617,30 @@ public static class GuardScanner
             return null; // cannot tell — the caller treats null as "flag for review"
         }
 
-        var text = statement.ToString();
-        return text.Contains("AccountId", StringComparison.Ordinal);
+        return HasAccountIdComparison(statement.ToString());
+    }
+
+    // True if the statement text carries AccountId in a comparison shape, not
+    // merely as a projection or member access. Matches AccountId adjacent to a
+    // comparison operator (==, !=, <, >, <=, >=, =, or with == etc. on either
+    // side). A `Select(u => u.AccountId)` projection has no adjacent comparison
+    // operator and is correctly not a predicate.
+    internal static bool HasAccountIdComparison(string text)
+    {
+        // AccountId immediately followed by a comparison operator.
+        if (System.Text.RegularExpressions.Regex.IsMatch(
+                text, @"AccountId\s*(==|!=|<=|>=|<|>|=)"))
+        {
+            return true;
+        }
+
+        // A comparison operator immediately followed by AccountId (e.g. `x ==
+        // u.AccountId`). The operator must be a comparison, not an assignment to
+        // another identifier — the preceding token is checked to be a
+        // non-identifier character so `Foo = AccountId` (a property init, not a
+        // predicate) does not match.
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            text, @"(^|[^A-Za-z0-9_.])\s*(==|!=|<=|>=|<|>)\s*AccountId");
     }
 
     // The conventional DbContext variable names in this codebase. Every tenant

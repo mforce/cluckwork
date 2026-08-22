@@ -155,6 +155,30 @@ entity's `AccountId` **property**, which for these Identity types matches the ta
 `AccountId` **column** (verified against the EF model's `GetProperties()`, not the
 grep-prone schema-doc Relations block).
 
+### Pi (deepseek-v4-flash) review findings (PR #584, all fixed and re-verified)
+
+A second independent reviewer (a `pi` agent on `deepseek-v4-flash`, run in a `herdr`
+tab) did its own adversarial pass after the Codex fixes landed, re-verified the 4 Codex
+fixes as correct, and found 3 new P1s one layer deeper — all the same
+text-presence-vs-predicate-shape family. Each is proven by a mutation that reds on the
+named assertion (run, red, reverted, rebuilt green — full solution 1,936 passed / 0
+failed after the fixes). The full write-up is `scratchpad/t8-pi-review.md`.
+
+| # | Finding | Fix | Mutation proof |
+|---|---------|-----|----------------|
+| P1-1 | EF Core 10's raw-SQL surface is larger than the sync/async pair: `SqlQueryRaw`, `SqlQueryInterpolated`, `ExecuteSql`, `ExecuteSqlAsync`, `FromSql`, `FromSqlAsync` were not banned, and `SqlQuery`/the siblings were not predicate-walked. A lock query through any unbanned entry point would pass. | Added all six to `BannedMethods` (RawSql) and added the full raw-SQL set (incl. `SqlQuery`, `SqlQueryRaw`, `SqlQueryInterpolated`, `ExecuteSql`, `ExecuteSqlAsync`, `FromSql`, `FromSqlAsync`) to the predicate walk's method set. Verified against the resolved `Microsoft.EntityFrameworkCore.Relational.dll` (10.0.x) API surface. None is used in `src/` today — this closes the escape-hatch surface so a future raw query cannot pick an unbanned entry point. | A new `db.Database.SqlQueryRaw<int>("SELECT ... FROM \"InventoryLots\" WHERE \"Id\" = {0} FOR UPDATE", id)` → reds on both the allow-list leg (unexcused `[RawSql]`) and the predicate walk (M4, no AccountId in the WHERE clause). |
+| P1-2 | The raw-SQL predicate walk was a string-presence check (`sqlText.Contains("AccountId")`), not a predicate check: a lock query with `AccountId` in the **SELECT list** (not the WHERE) passed, even though the lock then covers every row of the table for every tenant. This is the guard's only allow-list-independent gate, and it was a `Contains` on the whole statement. | Replaced the presence check with `HasAccountIdPredicateInWhereClause`: take the SQL up to the lock keyword, find the **last `FROM`** (the outer table source — subqueries have their own FROM), and require `AccountId` to appear **after** that FROM (in the WHERE/JOIN predicates, not the SELECT list). No FROM ⇒ no confirmable predicate ⇒ false. Still a text heuristic (not a SQL parser) but strictly stricter than the old check, and it still allows the legitimate `src/` forms (a quoted `"AccountId"` column or an `{accountId}` interpolation hole in the WHERE). | In `SalesOrderRepository.GetByIdLockedAsync`, changed `WHERE "Id" = {id} AND "AccountId" = {accountId} FOR UPDATE` → `SELECT *, "AccountId" ... WHERE "Id" = {id} FOR UPDATE` → now reds on the predicate walk (before the fix it passed). |
+| P1-3 | The filter-free-set leg's `PredicateHasAccountId` was also a presence check (`statement.Contains("AccountId")`), so a query that **projects** `AccountId` (e.g. `db.Users.Where(u => u.Email == email).Select(u => u.AccountId)`) read as "has a predicate" and was not a candidate — a cross-tenant by-email enumeration passed the stability leg. | Replaced the presence check with `HasAccountIdComparison`: `AccountId` must appear in a **comparison shape** (`AccountId ==` / `== AccountId` / `<`, `>`, `<=`, `>=`, `=`, with the operator on either side and a non-identifier token before a leading operator so a property init doesn't match). A bare `Select`/`OrderBy` projection is not a predicate. Also changed the tenant-track candidate filter from `PredicateHasAccountId == false` to `!= true`, so a site the scanner cannot classify (`null`, "flag for review") is a candidate too rather than silently passing. Provenance (that the compared value is the resolved tenant) is still the allow-list justification's job — this closes the presence-vs-predicate gap only. | A new `db.Users.Where(u => u.Email == email).Select(u => u.AccountId).CountAsync(ct)` → now an **unclassified candidate** (red on the stability leg); before the fix it passed. The tightening also correctly surfaced one legitimate `src/` site (`IdentityProvider.cs:1261 db.RefreshTokens`, a by-token-hash logout attribution where `AccountId` is in the SELECT projection) as a candidate — it is now classified in the TSV as `by-hash`. |
+
+The pi review also raised P2/P3 items (receiver-name whitelist blind spot, cross-file
+wrapper laundering — real and honestly documented but fixable in ~3 lines, the two-farm
+matrix asserting the 404 without proving which layer catches it, the matrix's "full egg
+loop" overstating API coverage, raw SQL in a stored string not flagged). Those are
+recorded in `scratchpad/t8-pi-review.md` and are **not** addressed in this PR — they are
+future-proofing and coverage-scope items, not the false-green P1s above. The 404-vs-layer
+point (P2-3) is the most substantive and is the natural next hardening if the guard's
+defense-in-depth claim is to be enforced rather than manually mutation-verified.
+
 **Mutation results (all run, all red on the named assertion, all reverted):**
 
 | Mutant | Lever | Result |
