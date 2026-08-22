@@ -331,9 +331,19 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         // refresh sweep passes the boundary check with premise 3 broken. If the
         // user sweep moves to a different mechanism (e.g. a tracked update +
         // SaveChanges), this needle is stale in the other direction — update it
-        // with the change.
+        // with the change. Premise 3 revokes BOTH in the same transaction, so a
+        // matching db.RefreshTokens anchor is checked below too (moving only the
+        // token sweep after the commit leaves the user sweep + flush in-boundary
+        // green while token revocation is broken).
         const string sweepNeedle = "db.Users";
         const string sweepMethod = "ExecuteUpdateAsync";
+        // The refresh-token sweep is the SECOND ExecuteUpdateAsync (on
+        // RefreshTokens, revoking every live row). Premise 3 names BOTH
+        // revocations in the same transaction as IsActive, so the guard must
+        // bound this one too — a refactor moving only the token sweep after the
+        // commit leaves the user sweep + flush in-boundary (green on the checks
+        // below) with the token revocation broken.
+        const string tokenSweepNeedle = "db.RefreshTokens";
         // The boundary is a TRANSACTION, not a flush count. A flush-count check
         // (its predecessor) is gameable: commit the account in one transaction,
         // run the sweep in a second, and the file still carries exactly one
@@ -354,15 +364,23 @@ public sealed class AccountSuspensionTests(CluckworkWebApplicationFactory factor
         const int sweepWindow = 400;
         var sweepIsUpdate = sweep >= 0 &&
             serviceSource.Substring(sweep, Math.Min(sweepWindow, serviceSource.Length - sweep)).Contains(sweepMethod, StringComparison.Ordinal);
+        var tokenSweep = serviceSource.IndexOf(tokenSweepNeedle, StringComparison.Ordinal);
+        var tokenSweepIsUpdate = tokenSweep >= 0 &&
+            serviceSource.Substring(tokenSweep, Math.Min(sweepWindow, serviceSource.Length - tokenSweep)).Contains(sweepMethod, StringComparison.Ordinal);
         var flush = serviceSource.IndexOf(flushNeedle, StringComparison.Ordinal);
         Assert.True(begin >= 0, "#579 premise 3: AmbientTransaction.BeginAsync not found — the guard's anchor moved; update the needle.");
         Assert.True(commit > begin, "#579 premise 3: CommitAsync before BeginAsync — the guard's anchors moved; update the needles.");
         Assert.True(sweepIsUpdate, "#579 premise 3: the user epoch/stamp sweep (db.Users … ExecuteUpdateAsync) not found — it moved to a different mechanism; update the guard in the same change.");
+        Assert.True(tokenSweepIsUpdate, "#579 premise 3: the refresh-token sweep (db.RefreshTokens … ExecuteUpdateAsync) not found — it moved to a different mechanism; update the guard in the same change.");
         Assert.True(flush > 0, "#579 premise 3: SaveChangesAsync not found — the final flush moved; update the guard in the same change.");
         Assert.True(sweep > begin && sweep < commit,
             "#579 premise 3: the epoch/stamp sweep is outside the suspension transaction (between BeginAsync and CommitAsync). " +
             "Premise 3 of docs/decisions/579-suspension-issuance-window.md is one Postgres transaction around IsActive and the sweep; " +
             "if the sweep must leave the transaction, the premise is broken and #579 reopens — do not move the needle to make this green.");
+        Assert.True(tokenSweep > begin && tokenSweep < commit,
+            "#579 premise 3: the refresh-token sweep is outside the suspension transaction (between BeginAsync and CommitAsync). " +
+            "Premise 3 revokes the farm's refresh tokens in the same transaction as IsActive; " +
+            "if the token sweep must leave the transaction, the premise is broken and #579 reopens — do not move the needle to make this green.");
         Assert.True(flush > begin && flush < commit,
             "#579 premise 3: the final SaveChangesAsync is outside the suspension transaction. " +
             "If the account row commits in a different transaction than the sweep, IsActive can be false with live credentials — " +
