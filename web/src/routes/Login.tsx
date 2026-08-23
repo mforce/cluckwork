@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
@@ -8,6 +8,7 @@ import { BusyButton } from "../components/BusyButton";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { usePendingAction } from "../components/usePendingAction";
 import i18n from "../i18n";
+import { canonicalFarmCode, readFarmCodes } from "../auth/farmCodeCache";
 
 interface LocationState {
   from?: { pathname: string };
@@ -26,7 +27,7 @@ const ACCOUNT_DISABLED = "Auth.AccountDisabled";
 const UNKNOWN_FARM_CODE = "Auth.UnknownFarmCode";
 const FARM_SUSPENDED = "Auth.FarmSuspended";
 // #532 — several per-farm cookies, no selector: the tab was torn down and the
-// user lands here to pick a farm and sign in (the picker is #535's job).
+// user lands here to pick a farm and sign in (the picker lands below).
 const FARM_SELECTION_REQUIRED = "Auth.FarmSelectionRequired";
 
 // Matched on the code, never on the message: the copy is translated and the
@@ -80,7 +81,24 @@ export function Login() {
     if (!isLoading && isAuthenticated) navigate(from, { replace: true });
   }, [isLoading, isAuthenticated, from, navigate]);
 
-  const [farmCode, setFarmCode] = useState("");
+  const [searchParams] = useSearchParams();
+  // #535 prefill order, first match wins:
+  //   1. ?farm=<slug>, validated. An INVALID value is not a match, so it falls
+  //      through to the cache — and it is never rendered and never truncated. No
+  //      error is shown: an anonymous visitor who mistyped a URL is told nothing
+  //      about which farms exist.
+  //   2. the device's remembered codes — exactly one prefills, several offer a picker.
+  //   3. empty.
+  //
+  // Resolved ONCE in useState initialisers, never in an effect: the field must be
+  // right on first paint, and an effect-based prefill races the user typing.
+  const [urlFarmCode] = useState(() => canonicalFarmCode(searchParams.get("farm")));
+  // Not consulted AT ALL when the query parameter supplied a usable code, which is
+  // what #535 requires — hence a gate here rather than a filter later.
+  const [rememberedCodes] = useState(() => (urlFarmCode === null ? readFarmCodes() : []));
+  const [farmCode, setFarmCode] = useState(
+    () => urlFarmCode ?? (rememberedCodes.length === 1 ? rememberedCodes[0] : ""),
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +181,32 @@ export function Login() {
                 person who can fix it; the exact steps live in the README. */}
             <p>{t("noAdminYet")}</p>
             <p>{t("noAdminYetHint")}</p>
+          </div>
+        )}
+        {urlFarmCode !== null && (
+          // #535 — a same-origin link ?farm=attacker-farm would otherwise silently
+          // replace the operator's own farm code in a field they did not type,
+          // while the password manager autofills for the ORIGIN. Naming the farm
+          // turns a silent substitution into a visible one. NOT a complete fix:
+          // the username is still not farm-qualified (epic #530 requires that;
+          // tracked in its own issue).
+          <p className="auth-farm-source" role="status">
+            {t("farmFromLink", { farmCode: urlFarmCode })}
+          </p>
+        )}
+        {rememberedCodes.length > 1 && (
+          <div className="auth-farm-picker">
+            <p id="farm-picker-label">{t("recentFarms")}</p>
+            <div role="group" aria-labelledby="farm-picker-label">
+              {rememberedCodes.map((code) => (
+                // type="button" so a tap fills the field instead of submitting.
+                // The code is button TEXT: React escapes it, and it has passed the
+                // slug regex, so it carries no markup and no URL-significant char.
+                <button key={code} type="button" onClick={() => setFarmCode(code)}>
+                  {code}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         <label>

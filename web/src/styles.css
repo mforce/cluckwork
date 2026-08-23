@@ -1647,6 +1647,51 @@ label.check {
   margin: 0;
 }
 
+/* #535 — the farm code arrived in the ?farm= link rather than from the operator.
+   Same visual weight as .auth-setup: informational, not an error. */
+.auth .auth-farm-source {
+  margin: 0 0 0.5rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* #535 — farm codes remembered on this device. Chips that FILL the field, so the
+   text input stays the single source of truth. */
+.auth .auth-farm-picker {
+  margin: 0 0 0.5rem;
+}
+
+.auth .auth-farm-picker p {
+  margin: 0 0 0.4rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.auth .auth-farm-picker div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.auth .auth-farm-picker button {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.auth .auth-farm-picker button:hover:not(:disabled) {
+  border-color: var(--brand);
+}
+
 /* No `code` rule here on purpose — the notice publishes no command. See the
    comment in Login.tsx. */
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent, act } from "@testing-library/react";
+import { screen, fireEvent, act, cleanup } from "@testing-library/react";
 import { Routes, Route } from "react-router";
 import { Login } from "./Login";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -348,5 +348,102 @@ describe("Login — first-run setup notice", () => {
     // span, so more than one status element is in the tree.
     const notice = await screen.findByText(i18n.t("auth:noAdminYet"));
     expect(notice.closest("[role='status']")).not.toBeNull();
+  });
+});
+
+// #535 — the farm-code field is prefilled from ?farm=<slug> (validated) or the
+// device's remembered codes, and the picker/URL-source notice describe the source.
+describe("Login — farm-code prefill and picker", () => {
+  const farmField = () => screen.getByLabelText(/Farm code/);
+  // localStorage is cleared by setup.ts after each test; seed it explicitly per case.
+
+  it("prefills a valid ?farm= slug and never consults the farm-code cache", async () => {
+    const getSpy = vi.spyOn(Storage.prototype, "getItem");
+    renderWithProviders(tree(), { route: "/login?farm=sunny-acres", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    expect(farmField()).toHaveValue("sunny-acres");
+    const cacheReads = getSpy.mock.calls.filter(([k]) => k === "cluckwork.farmCodes");
+    expect(cacheReads).toHaveLength(0);
+  });
+
+  it("prefills a case-mangled ?farm= slug normalised to lowercase", async () => {
+    renderWithProviders(tree(), { route: "/login?farm=Sunny-Acres", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    expect(farmField()).toHaveValue("sunny-acres");
+  });
+
+  it.each([
+    ["-bad", "leading hyphen"],
+    ["a".repeat(33), "over-long"],
+    ["a b", "space"],
+  ])("falls through to the cache for an invalid ?farm=%s (%s): empty cache leaves the field empty", async (param) => {
+    renderWithProviders(tree(), { route: `/login?farm=${param}`, token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    expect(farmField()).toHaveValue("");
+  });
+
+  it.each([
+    ["-bad", "leading hyphen"],
+    ["a".repeat(33), "over-long"],
+    ["a b", "space"],
+  ])("prefills the single remembered code when an invalid ?farm=%s (%s) falls through to a one-code cache", async (param) => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["cached-farm"]));
+    renderWithProviders(tree(), { route: `/login?farm=${param}`, token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    expect(farmField()).toHaveValue("cached-farm");
+  });
+
+  it("prefills the single remembered code with no picker rendered", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["cached-farm"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    expect(farmField()).toHaveValue("cached-farm");
+    expect(screen.queryByText(i18n.t("auth:recentFarms"))).not.toBeInTheDocument();
+  });
+
+  it("with several remembered codes leaves the field empty, shows one button per code, and a click fills the field", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-a", "sunny-b"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    expect(farmField()).toHaveValue("");
+    expect(screen.getByText(i18n.t("auth:recentFarms"))).toBeInTheDocument();
+    const buttons = screen.getAllByRole("button", { name: /^sunny-/ });
+    expect(buttons).toHaveLength(2);
+
+    // Click the SECOND button: filling must come from THAT code, not a hard-coded
+    // rememberedCodes[0].
+    fireEvent.click(buttons[1]);
+    expect(farmField()).toHaveValue("sunny-b");
+  });
+
+  it("a malformed value in the cache is neither rendered as a button nor prefilled", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["ab", "sunny-a"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    // "ab" is invalid, so it is dropped; only "sunny-a" remains and prefills.
+    expect(farmField()).toHaveValue("sunny-a");
+    expect(screen.queryByRole("button", { name: "ab" })).not.toBeInTheDocument();
+  });
+
+  it("renders the URL-source notice when the code came from ?farm= and not when it came from the cache", async () => {
+    renderWithProviders(tree(), { route: "/login?farm=link-farm", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    expect(
+      screen.getByText(i18n.t("auth:farmFromLink", { farmCode: "link-farm" })),
+    ).toBeInTheDocument();
+
+    // same assertion on the cache path: no notice. Unmount the ?farm= tree first
+    // — a second render within one it() would otherwise accumulate a second form
+    // in the DOM and break the role query below (the repo pattern for a second
+    // mount mid-test is cleanup(); see useMissedAnnouncement.test.tsx).
+    cleanup();
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["cached-farm"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    expect(screen.queryByText(/Signing in to farm/)).not.toBeInTheDocument();
   });
 });
