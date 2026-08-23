@@ -8,6 +8,8 @@ import { currentUserId, currentUserIsAdmin, currentUserMustChangePassword, curre
 import type { Role } from "./claims";
 import { clearAccessToken, getAccessToken, purgeLegacyTokens } from "./tokenStore";
 import { clearSplashSeenMarker } from "../session/SessionContext";
+import { purgeUnscopedAccountState } from "../lib/accountStorage";
+import { rememberFarmCode } from "./farmCodeCache";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -81,6 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // session in place; failure lands the user cleanly on /login, no error flash.
   useEffect(() => {
     purgeLegacyTokens();
+    // #535 — the pre-namespacing per-account keys. Dropped rather than migrated:
+    // the app cannot attribute them to a farm, so migrating would be a guess.
+    purgeUnscopedAccountState();
     if (getAccessToken() !== null) {
       setIsLoading(false);
       return;
@@ -106,6 +111,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (farmCode: string, email: string, password: string) => {
     await apiLogin({ farmCode, email, password });
+    // #535 — remembered only AFTER apiLogin resolves, so a typo is never stored:
+    // a failed sign-in throws out of apiLogin (client.ts:143 `if (!res.ok) throw`)
+    // and never reaches this line, and neither does the superseded-session path
+    // (client.ts:239 StaleSessionError). The value is normalised inside
+    // rememberFarmCode, mirroring the server's own Trim().ToLowerInvariant()
+    // lookup, so a capitalised code is still remembered.
+    rememberFarmCode(farmCode);
     // #179/codex: a fresh explicit login is a new "per login" for the splash,
     // even in a tab that already dismissed it (or belonged to another user).
     // A silent token refresh never reaches this line, so it's exempt by design.

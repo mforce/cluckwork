@@ -321,3 +321,70 @@ describe("AuthProvider lifecycle", () => {
     expect(mockSetOnUnauthenticated).toHaveBeenCalledWith(null);
   });
 });
+
+// #535 — a SUCCESSFULLY signed-in farm code is remembered on this device so the
+// login screen can offer it later. Remembered only after apiLogin resolves.
+function MixedProbe() {
+  const { login } = useAuth();
+  return <button onClick={() => void login("Sunny-Acres", "a@b.co", "pw")}>mixed login</button>;
+}
+
+// A probe that catches the login rejection the way an application boundary would,
+// so the rejected promise isn't left unhandled in the test run.
+function GuardedLoginProbe() {
+  const { login } = useAuth();
+  return (
+    <button
+      onClick={() => {
+        void login("default-farm", "a@b.co", "pw").catch(() => {});
+      }}
+    >
+      guarded login
+    </button>
+  );
+}
+
+describe("AuthProvider remembers farm codes on successful login", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("appends the code when apiLogin resolves", async () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    mockApiLogin.mockResolvedValue(undefined);
+    renderAuth();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "login" }));
+    });
+
+    const stored = JSON.parse(localStorage.getItem("cluckwork.farmCodes") ?? "[]");
+    expect(stored).toEqual(["default-farm"]);
+  });
+
+  it("writes nothing when apiLogin rejects", async () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    mockApiLogin.mockRejectedValue(new Error("invalid credentials"));
+    render(<AuthProvider><GuardedLoginProbe /></AuthProvider>);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "guarded login" }));
+    });
+
+    // rememberFarmCode sits AFTER the await, so a rejecting apiLogin never stores.
+    expect(localStorage.getItem("cluckwork.farmCodes")).toBeNull();
+  });
+
+  it("stores a mixed-case input normalised", async () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    mockApiLogin.mockResolvedValue(undefined);
+    render(<AuthProvider><MixedProbe /></AuthProvider>);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "mixed login" }));
+    });
+
+    const stored = JSON.parse(localStorage.getItem("cluckwork.farmCodes") ?? "[]");
+    expect(stored).toEqual(["sunny-acres"]);
+  });
+});
