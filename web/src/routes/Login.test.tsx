@@ -444,7 +444,14 @@ describe("Login — farm-code prefill and picker", () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["cached-farm"]));
     renderWithProviders(tree(), { route: "/login", token: null });
     await screen.findByRole("button", { name: "Sign in" });
-    expect(screen.queryByText(i18n.t("auth:farmFromLink", { farmCode: "" }))).not.toBeInTheDocument();
+    // #535 review round 2 — asserted on the NODE, not on the text. Testing Library
+    // normalises (trims) the rendered text but compares a string matcher literally,
+    // so `i18n.t("auth:farmFromLink", { farmCode: "" })` — which ends in a trailing
+    // space, because the interpolated value is empty — can NEVER match anything.
+    // Both the original English literal and its i18n-pinned replacement were
+    // therefore unfalsifiable: removing the `urlFarmCode !== null` gate so the
+    // notice always renders left this test green. Verified by mutation.
+    expect(document.querySelector(".auth-farm-source")).toBeNull();
   });
 
   // #535 review round 1 — the picker's a11y wiring (a role="group" labelled by
