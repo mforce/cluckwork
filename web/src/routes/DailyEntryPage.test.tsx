@@ -1249,6 +1249,11 @@ describe("DailyEntryPage account-scoped flock memory", () => {
   // #535 review round 1 — cross-account isolation was only INFERRED from the
   // key string, never exercised: no test bound one account, seeded a remembered
   // flock, then mounted under a DIFFERENT account and checked it fell back.
+  // This catches "scoped, but scoped to the wrong or any account" (a prefix-scan
+  // fallback in readAccountScoped reddens it), but because it asserts the DEFAULT
+  // selection it stays green whenever the remembered read returns null for any
+  // reason — including a broken prefill. The positive selection test above is
+  // what covers selection; nobody should delete it believing this one covers it.
   it("does not leak farm A's remembered flock into farm B", async () => {
     const GUID_B = "88888888-8888-8888-8888-888888888888";
     bindAccount(GUID);
@@ -1259,8 +1264,7 @@ describe("DailyEntryPage account-scoped flock memory", () => {
     await renderReady();
 
     // farm B has no remembered flock of its own -> falls back to the first
-    // active flock (f1), never "f2".
+    // active flock (f1).
     expect(screen.getByLabelText("Flock")).toHaveValue("f1");
-    expect(screen.getByLabelText("Flock")).not.toHaveValue("f2");
   });
 });

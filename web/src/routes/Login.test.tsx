@@ -446,11 +446,17 @@ describe("Login — farm-code prefill and picker", () => {
     await screen.findByRole("button", { name: "Sign in" });
     // #535 review round 2 — asserted on the NODE, not on the text. Testing Library
     // normalises (trims) the rendered text but compares a string matcher literally,
-    // so `i18n.t("auth:farmFromLink", { farmCode: "" })` — which ends in a trailing
-    // space, because the interpolated value is empty — can NEVER match anything.
-    // Both the original English literal and its i18n-pinned replacement were
-    // therefore unfalsifiable: removing the `urlFarmCode !== null` gate so the
-    // notice always renders left this test green. Verified by mutation.
+    // so a string matcher ending in a trailing space can NEVER match. The original
+    // assertion was a REGEX — screen.queryByText(/Signing in to farm/) (commit
+    // 1e764801) — and a regex is applied to the NORMALISED text, so it matched and
+    // was falsifiable: removing the `urlFarmCode !== null` gate reddened it, finding
+    // "<p class=\"auth-farm-source\" ...> Signing in to farm: </p>". Review round 1's
+    // replacement by i18n.t("auth:farmFromLink", { farmCode: "" }) (commit 7b1c01cc)
+    // INTRODUCED the vacuity — that interpolated string carries a real trailing
+    // space (the value is empty) and so could equal no trimmed DOM text. Commit
+    // 82fbb5b5 then replaced it with the node query that ships today, which is
+    // stronger than either: a string matcher is still literal, but the node now has
+    // the trimmed "farm from link" copy. Verified by mutation.
     expect(document.querySelector(".auth-farm-source")).toBeNull();
   });
 

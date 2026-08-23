@@ -10,10 +10,18 @@ const KEY = "cluckwork.farmCodes";
 
 // An independent COPY of Account.SlugPattern (src/Cluckwork.Domain/Accounts/
 // Account.cs:36) in a different language — nothing here enforces that the two
-// stay in sync. A drift is fail-safe, costing a rejected-at-login code (never an
-// accepted-invalid one). Shape: 3-32 chars, lowercase alnum + hyphen, no leading
-// or trailing hyphen. ANCHORED, so an over-long value FAILS rather than being
-// truncated — #535 requires that an over-long value is ignored, not shortened.
+// stay in sync. Drift is fail-safe in the security sense: neither direction can
+// make an INVALID code acceptable. But the two directions cost very differently.
+// (a) JS looser than the server: an over-permissive cached or URL value reaches
+// apiLogin and the server rejects it — a rejected-at-login code. (b) JS stricter
+// than the server: canonicalFarmCode returns null for a genuinely valid slug
+// that has just signed in successfully, so rememberFarmCode silently declines to
+// store it and prefill/picker drop it permanently. The login itself never fails;
+// the cost is a silently unofferable valid farm code. The strict direction is the
+// one to know about, because it fails SILENTLY. Shape: 3-32 chars, lowercase
+// alnum + hyphen, no leading or trailing hyphen. ANCHORED, so an over-long value
+// FAILS rather than being truncated — #535 requires that an over-long value is
+// ignored, not shortened.
 //
 // Deliberately does NOT mirror Account.ReservedSlugs. That list lives server-side
 // and a copy here would drift; a reserved code is rejected at login with
