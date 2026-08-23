@@ -12,6 +12,7 @@ import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
 import { FarmContext } from "../farm/FarmContext";
 import { account, farmState, NO_RECORD_HISTORY } from "../test/fixtures";
+import { bindAccount, clearBoundAccount } from "../auth/tokenStore";
 import i18n from "../i18n";
 
 // DailyEntry has no auth deps — mock only the API seam it loads from. The
@@ -61,6 +62,9 @@ const CRACKED: EggGrade = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // #535 — boundAccountId is MODULE state read once at import and setup.ts never
+  // resets it, so a bind leaks into later tests. Clear it so each test is unbound.
+  clearBoundAccount();
   localStorage.clear();
   mockListFlocks.mockResolvedValue([FLOCK]);
   mockListEggGrades.mockResolvedValue(GRADES);
@@ -1198,5 +1202,32 @@ describe("DailyEntryPage feed/water day summary (#446)", () => {
     expect(screen.queryByText(/^Feed: /)).not.toBeInTheDocument();
     setNum("Total eggs", 5);
     expect(screen.getByLabelText("Total eggs")).toHaveValue(5);
+  });
+});
+
+// #535 — the remembered flock is namespaced by account so farm A's selection
+// can't bleed into farm B on a shared device. The bare "cluckwork.lastFlockId"
+// key is never read or written once an account is bound.
+describe("DailyEntryPage account-scoped flock memory", () => {
+  const GUID = "99999999-9999-9999-9999-999999999999";
+  const NS_KEY = `cluckwork.lastFlockId:${GUID}`;
+  const FLOCK2: Flock = { ...FLOCK, id: "f2", name: "Rhode Reds", breed: "RIR" };
+
+  it("reads the namespaced key, never the bare key, and writes the namespaced key when a flock is chosen", async () => {
+    bindAccount(GUID);
+    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
+    const getSpy = vi.spyOn(Storage.prototype, "getItem");
+
+    await renderReady();
+    // mount prefill read through accountScopedKey => the namespaced key
+    expect(getSpy).toHaveBeenCalledWith(NS_KEY);
+    // and the bare, pre-namespacing key was NEVER read
+    const bareReads = getSpy.mock.calls.filter(([k]) => k === "cluckwork.lastFlockId");
+    expect(bareReads).toHaveLength(0);
+
+    // selecting a flock writes the NAMESPACED key (not the bare one)
+    fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f2" } });
+    await waitFor(() => expect(localStorage.getItem(NS_KEY)).toBe("f2"));
+    expect(localStorage.getItem("cluckwork.lastFlockId")).toBeNull();
   });
 });
