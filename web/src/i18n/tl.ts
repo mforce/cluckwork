@@ -42,6 +42,8 @@ export const tl = {
     title: "Cluckwork",
     // machine-drafted (#532) — pending native review.
     farmCode: "Code ng bukid",
+    recentFarms: "Mga kamakailang bukid",
+    farmFromLink: "Nagsa-sign in sa bukid: {{farmCode}}",
     unknownFarmCode: "Hindi nakikilala ang code ng bukid na iyon. Suriin ito at subukang muli.",
     farmSuspended: "Suspendido ang bukid na ito. Makipag-ugnayan sa iyong administrator.",
     email: "Email",

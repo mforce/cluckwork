@@ -37,6 +37,8 @@ export const es = {
     title: "Cluckwork",
     // machine-drafted (#532) — pending native review.
     farmCode: "Código de granja",
+    recentFarms: "Granjas recientes",
+    farmFromLink: "Iniciando sesión en la granja: {{farmCode}}",
     unknownFarmCode: "No se reconoce ese código de granja. Verifícalo e inténtalo de nuevo.",
     farmSuspended: "Esta granja está suspendida. Contacta a tu administrador.",
     email: "Correo electrónico",

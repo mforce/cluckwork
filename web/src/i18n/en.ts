@@ -56,6 +56,13 @@ export const en = {
   auth: {
     title: "Cluckwork",
     farmCode: "Farm code",
+    // #535 — the device remembers every farm code that has SUCCESSFULLY signed
+    // in here, so a phone shared between farms offers them instead of retyping.
+    recentFarms: "Recent farms",
+    // #535 — shown ONLY when the code arrived in the ?farm= link rather than
+    // from the operator. A same-origin link would otherwise substitute a farm
+    // code silently while the password manager autofills for the origin.
+    farmFromLink: "Signing in to farm: {{farmCode}}",
     unknownFarmCode: "That farm code is not recognised. Check it and try again.",
     farmSuspended: "This farm is suspended. Contact your administrator.",
     email: "Email",
