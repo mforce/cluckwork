@@ -1770,7 +1770,9 @@ export const es = {
       "Cada granja mantiene su propia sesión segura en este navegador, por lo que las granjas abiertas en "
       + "distintas <strong>pestañas</strong> ya no se reemplazan entre sí. Una pestaña recuerda su granja al "
       + "recargar. Una pestaña sin una granja recordada que encuentre varias sesiones vuelve al inicio de sesión en "
-      + "lugar de adivinar — elija el código de granja e inicie sesión. No se borra la sesión de ninguna otra granja.",
+      + "lugar de adivinar — elija el código de granja e inicie sesión. La página de inicio de sesión también "
+      + "recuerda los códigos de granja con los que ha iniciado sesión en este dispositivo y los ofrece como un "
+      + "selector, y un enlace ?farm= rellena previamente el campo. No se borra la sesión de ninguna otra granja.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada — "

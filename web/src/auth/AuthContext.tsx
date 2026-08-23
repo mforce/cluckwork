@@ -128,10 +128,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshClaims]);
 
   const logout = useCallback(async () => {
-    // The farm palette (cluckwork.brand) is deliberately NOT cleared here: this
-    // is a single-farm deployment, so the login screen should keep showing the
-    // farm's palette rather than reverting to the default (user choice, #149).
-    // The palette is now device-persistent, the same way cluckwork.theme is.
+    // The farm palette (cluckwork.brand) is deliberately NOT cleared here: it
+    // stays device-persistent, the same way cluckwork.theme is (user choice,
+    // #149), so the login screen keeps showing the last palette rather than
+    // reverting to the default. That persistence means a multi-farm device
+    // shows the previous farm's palette on the next login — the "single-farm
+    // deployment" assumption this once leaned on is gone now that accounts
+    // coexist (#530) — and clearing it on session end is tracked in #586.
     await apiLogout();
     setIsAuthenticated(false);
     setIsAdmin(false);

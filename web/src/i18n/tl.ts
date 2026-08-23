@@ -1838,7 +1838,9 @@ export const tl = {
       "May sariling ligtas na session ang bawat bukid sa browser na ito, kaya hindi na pinapalitan ng mga "
       + "bukid na bukas sa magkakaibang <strong>tab</strong> ang session ng isa't isa. Naaalala ng tab ang bukid "
       + "nito kapag nag-reload. Ang tab na walang natatandaang bukid at makakakita ng ilang session ay babalik pa rin "
-      + "sa pag-sign in sa halip na manghula — piliin ang code ng bukid at mag-sign in. Walang session ng ibang bukid na binubura.",
+      + "sa pag-sign in sa halip na manghula — piliin ang code ng bukid at mag-sign in. Naaalala rin ng page ng "
+      + "pag-sign in ang mga code ng bukid na ginamit mo sa device na ito at inaalok ang mga ito bilang isang "
+      + "pumipili, at ang link na ?farm= ay nag-pre-fill sa field. Walang session ng ibang bukid na binubura.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Unang pag-sign in sa isang bagong-bagong farm.</strong> Walang default na password — "

@@ -2219,7 +2219,9 @@ export const en = {
       "Each farm keeps its own secure session in this browser, so farms open in different "
       + "<strong>tabs</strong> no longer replace one another. A tab remembers its farm across reloads. A tab "
       + "with no remembered farm that finds several sessions returns to sign-in rather than guessing — choose "
-      + "the farm code and sign in. No other farm's session is cleared.",
+      + "the farm code and sign in. The sign-in page also remembers farm codes you have signed in with on this "
+      + "device and offers them as a picker, and a ?farm= link prefills the field. No other farm's session is "
+      + "cleared.",
     // #283 — first-run provisioning: no default credential ever ships with
     // the app, so the very first sign-in always starts from a printed
     // one-time password.

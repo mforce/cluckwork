@@ -4,8 +4,10 @@
 //
 // The API is the source of truth. localStorage exists ONLY so the pre-paint
 // script (public/theme-init.js) can apply the palette before first paint; it is
-// cleared on every path that ends a session, so farm A's colour never bleeds
-// into farm B's login screen.
+// device-persistent and NOT cleared on logout — so on a multi-farm device the
+// last farm's palette does paint the next farm's login screen until that farm's
+// own palette arrives. Clearing the palette on every session-ending path so it
+// never leaks between farms is tracked in #586.
 export const BRANDS = ["aubergine", "forest", "slate", "terracotta"] as const;
 export type Brand = (typeof BRANDS)[number];
 
