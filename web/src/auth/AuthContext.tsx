@@ -112,9 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (farmCode: string, email: string, password: string) => {
     await apiLogin({ farmCode, email, password });
     // #535 — remembered only AFTER apiLogin resolves, so a typo is never stored:
-    // a failed sign-in throws out of apiLogin (client.ts:143 `if (!res.ok) throw`)
+    // a failed sign-in throws out of apiLogin (client.ts:144 `if (!res.ok) throw`)
     // and never reaches this line, and neither does the superseded-session path
-    // (client.ts:239 StaleSessionError). The value is normalised inside
+    // (client.ts:242 StaleSessionError). The value is normalised inside
     // rememberFarmCode, mirroring the server's own Trim().ToLowerInvariant()
     // lookup, so a capitalised code is still remembered.
     rememberFarmCode(farmCode);
@@ -133,8 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // #149), so the login screen keeps showing the last palette rather than
     // reverting to the default. That persistence means a multi-farm device
     // shows the previous farm's palette on the next login — the "single-farm
-    // deployment" assumption this once leaned on is gone now that accounts
-    // coexist (#530) — and clearing it on session end is tracked in #586.
+    // deployment assumption this once leaned on is gone now that accounts
+    // coexist (#530) — the per-farm fix for that is tracked in #586.
     await apiLogout();
     setIsAuthenticated(false);
     setIsAdmin(false);

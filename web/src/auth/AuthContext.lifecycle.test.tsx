@@ -388,3 +388,33 @@ describe("AuthProvider remembers farm codes on successful login", () => {
     expect(stored).toEqual(["sunny-acres"]);
   });
 });
+
+// #535 review round 1 — the purge FUNCTION was tested in accountStorage.test.ts,
+// but nothing asserted AuthProvider ever calls it: deleting the call site left the
+// whole suite green. This pins the CALL, which is the part that ships the
+// behaviour. It covers purgeLegacyTokens()'s call site too — the same untested
+// shape, one line above it.
+describe("AuthProvider purges pre-namespacing browser state on mount", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("drops the bare cluckwork.lastFlockId and the legacy token blob, and leaves namespaced state alone", async () => {
+    const NS = "cluckwork.lastFlockId:11111111-1111-1111-1111-111111111111";
+    localStorage.setItem("cluckwork.lastFlockId", "f-from-an-unknown-farm");
+    localStorage.setItem("cluckwork.tokens", "{}");
+    localStorage.setItem(NS, "f-keep");
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("auth")).toHaveTextContent("false"));
+
+    expect(localStorage.getItem("cluckwork.lastFlockId")).toBeNull();
+    expect(localStorage.getItem("cluckwork.tokens")).toBeNull();
+    // A namespaced value belongs to a known farm and must survive the purge.
+    expect(localStorage.getItem(NS)).toBe("f-keep");
+  });
+});

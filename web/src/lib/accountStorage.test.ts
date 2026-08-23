@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   accountScopedKey,
   purgeUnscopedAccountState,
@@ -14,6 +14,15 @@ beforeEach(() => {
   clearBoundAccount();
   localStorage.clear();
   sessionStorage.clear();
+});
+
+// #535 review round 1 — the storage-throws spies below were restored only as
+// the LAST line of each test, so a failing assertion skipped the restore and a
+// throwing spy leaked into every later test (setup.ts has vi.unstubAllGlobals()
+// but NOT restoreAllMocks). Restore after EACH test so a mid-test failure cannot
+// poison the rest of the file.
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("accountStorage", () => {

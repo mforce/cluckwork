@@ -3,14 +3,17 @@
 // Deliberately NOT account-namespaced: this list IS the cross-farm roster, so
 // keying it per account would be circular — you need it before you know the farm.
 //
-// Accepted disclosure (epic #530 decision 9, recorded in #537's ADR): on a shared
-// device this is a durable roster of which farms this browser profile uses.
+// Accepted disclosure (epic #530 decision 9, the ADR for which is pending in
+// #537): on a shared device this is a durable roster of which farms this browser
+// profile uses.
 const KEY = "cluckwork.farmCodes";
 
-// Mirrors Account.SlugPattern (src/Cluckwork.Domain/Accounts/Account.cs:36):
-// 3-32 chars, lowercase alnum + hyphen, no leading or trailing hyphen. ANCHORED,
-// so an over-long value FAILS rather than being truncated — #535 requires that an
-// over-long value is ignored, not shortened.
+// An independent COPY of Account.SlugPattern (src/Cluckwork.Domain/Accounts/
+// Account.cs:36) in a different language — nothing here enforces that the two
+// stay in sync. A drift is fail-safe, costing a rejected-at-login code (never an
+// accepted-invalid one). Shape: 3-32 chars, lowercase alnum + hyphen, no leading
+// or trailing hyphen. ANCHORED, so an over-long value FAILS rather than being
+// truncated — #535 requires that an over-long value is ignored, not shortened.
 //
 // Deliberately does NOT mirror Account.ReservedSlugs. That list lives server-side
 // and a copy here would drift; a reserved code is rejected at login with

@@ -6,8 +6,7 @@
 // script (public/theme-init.js) can apply the palette before first paint; it is
 // device-persistent and NOT cleared on logout — so on a multi-farm device the
 // last farm's palette does paint the next farm's login screen until that farm's
-// own palette arrives. Clearing the palette on every session-ending path so it
-// never leaks between farms is tracked in #586.
+// own palette arrives. The per-farm fix for that is tracked in #586.
 export const BRANDS = ["aubergine", "forest", "slate", "terracotta"] as const;
 export type Brand = (typeof BRANDS)[number];
 

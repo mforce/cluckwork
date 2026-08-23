@@ -33,6 +33,23 @@ describe("farmCodeCache", () => {
     }
   });
 
+  it("a trailing newline fails isFarmCode but canonicalFarmCode strips it first (#535 review round 1)", () => {
+    // REVIEW-CORRECTED fixture. The review note claimed `$` without the `m`
+    // flag matches before a single trailing newline and so `isFarmCode(...)`
+    // returns TRUE for "sunny-acres\n". That is NOT JavaScript semantics: a
+    // non-multiline `$` matches only at the true end of input (the match-before-
+    // trailing-newline behaviour is the `/m` flag's, or Python's `re`). The
+    // executed behaviour against this pattern is FALSE. The note's underlying
+    // concern stands — someone calling isFarmCode directly with a stray newline
+    // — so both halves are pinned here to whatever is true today. Harmless in
+    // practice only because every live caller goes through canonicalFarmCode,
+    // whose .trim() strips a trailing newline first — asserted on the second line.
+    expect(isFarmCode("sunny-acres\n")).toBe(false);
+    // canonicalFarmCode trims before validating, so the padded value is accepted
+    // and returned canonical — the only path live callers ever take.
+    expect(canonicalFarmCode("sunny-acres\n")).toBe("sunny-acres");
+  });
+
   it("canonicalFarmCode accepts case-mangled and space-padded values", () => {
     expect(canonicalFarmCode("Sunny-Acres")).toBe("sunny-acres");
     expect(canonicalFarmCode(" sunny-acres ")).toBe("sunny-acres");

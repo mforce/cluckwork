@@ -444,6 +444,20 @@ describe("Login — farm-code prefill and picker", () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["cached-farm"]));
     renderWithProviders(tree(), { route: "/login", token: null });
     await screen.findByRole("button", { name: "Sign in" });
-    expect(screen.queryByText(/Signing in to farm/)).not.toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:farmFromLink", { farmCode: "" }))).not.toBeInTheDocument();
+  });
+
+  // #535 review round 1 — the picker's a11y wiring (a role="group" labelled by
+  // the "Recent farms" heading) had a justifying comment but no assertion:
+  // deleting both attributes left the suite green. Structural assertion only —
+  // jsdom cannot assert screen-reader announcements.
+  it("labels the recent-farms picker group with its heading", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-a", "sunny-b"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    expect(
+      screen.getByRole("group", { name: i18n.t("auth:recentFarms") }),
+    ).toBeInTheDocument();
   });
 });

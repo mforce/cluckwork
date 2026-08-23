@@ -1230,4 +1230,37 @@ describe("DailyEntryPage account-scoped flock memory", () => {
     await waitFor(() => expect(localStorage.getItem(NS_KEY)).toBe("f2"));
     expect(localStorage.getItem("cluckwork.lastFlockId")).toBeNull();
   });
+
+  // #535 review round 1 — the case above pins the storage KEYS but never
+  // asserts the remembered id actually SELECTS anything. Only with a genuine
+  // selection asserted does deleting the remembered branch go red. FLOCK (f1)
+  // is Active, so the default would prefer it — seed "f2" so this test cannot
+  // pass via the default's first-active-flock fallback.
+  it("actually selects the remembered flock", async () => {
+    bindAccount(GUID);
+    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
+    localStorage.setItem(NS_KEY, "f2");
+
+    await renderReady();
+
+    expect(screen.getByLabelText("Flock")).toHaveValue("f2");
+  });
+
+  // #535 review round 1 — cross-account isolation was only INFERRED from the
+  // key string, never exercised: no test bound one account, seeded a remembered
+  // flock, then mounted under a DIFFERENT account and checked it fell back.
+  it("does not leak farm A's remembered flock into farm B", async () => {
+    const GUID_B = "88888888-8888-8888-8888-888888888888";
+    bindAccount(GUID);
+    localStorage.setItem(`cluckwork.lastFlockId:${GUID}`, "f2");
+    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
+
+    bindAccount(GUID_B);
+    await renderReady();
+
+    // farm B has no remembered flock of its own -> falls back to the first
+    // active flock (f1), never "f2".
+    expect(screen.getByLabelText("Flock")).toHaveValue("f1");
+    expect(screen.getByLabelText("Flock")).not.toHaveValue("f2");
+  });
 });
