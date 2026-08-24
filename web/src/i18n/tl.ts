@@ -1845,7 +1845,8 @@ export const tl = {
     signingInFirstRun:
       "<strong>Unang pag-sign in sa isang bagong-bagong farm.</strong> Walang default na password — "
       + "nagpapatakbo ang isang operator ng isang beses na setup command na naglilimbag ng pansamantalang "
-      + "password. Mag-sign in gamit ito at diretso kang mapupunta sa isang screen ng <strong>Itakda ang iyong "
+      + "password at ang code ng bukid. Mag-sign in gamit ang dalawa at diretso kang mapupunta sa isang screen ng "
+      + "<strong>Itakda ang iyong "
       + "password</strong> sa halip na ang normal na app; wala pang gumagana hangga't hindi ka pumipili ng "
       + "sarili mong password doon. Iba ito sa karaniwang <em>Pagbabago ng password</em>. Hangga't hindi pa "
       + "naisasagawa ang hakbang na iyon sa setup, sinasabi ito sa iyo kapag sinubukan mong mag-sign in at "

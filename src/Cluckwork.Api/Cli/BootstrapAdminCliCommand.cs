@@ -65,10 +65,11 @@ public sealed class BootstrapAdminCliCommand : ICliCommand
             // journald, a platform log pipeline) may still capture it — treat
             // the value as sensitive, same as the recover-admin runbook
             // instructs (#265 review).
-            // #589 — the FARM CODE is named explicitly because it is the one field
-            // the operator must type and has no other way to discover; the account
-            // GUID is diagnostic only. Without this line the command ends with
-            // "log in with this now" and they cannot: #532 changed the login
+            // #589 — the FARM CODE is named explicitly because it is the one field the
+            // operator must type and this command's output is the fastest source of
+            // it (the read-only `list-accounts` verb can recover it later if lost);
+            // the account GUID is diagnostic only. Without this line the command ends
+            // with "log in with this now" and they cannot: #532 changed the login
             // contract (farm code became a required input) and this caller was
             // missed.
             await Console.Out.WriteLineAsync(

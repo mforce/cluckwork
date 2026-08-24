@@ -174,12 +174,16 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
             var second = await RunBootstrapCommandAsync(email);
             Assert.True(0 == second.ExitCode, $"rerun: expected exit 0, got {second.ExitCode}. stderr={second.Stderr}");
             Assert.Contains("already provisioned", second.Stdout, StringComparison.OrdinalIgnoreCase);
-            // #589 — the idempotent path must stay silent about the farm code:
-            // no provisioning happened, so the slug value may not appear at all,
-            // whatever the phrasing. Bans the VARIED value itself, so a mutant
-            // that appends the slug to the already-provisioned message reds.
-            // This is the mutant that keeps the AlreadyProvisioned() branch honest.
+            // #589 — the idempotent path must stay silent about the farm code: no
+            // provisioning happened. TWO bans, because the value ban alone cannot
+            // catch the real mutant. AlreadyProvisioned() returns Slug = null, so a
+            // re-run branch that prints the slug prints an EMPTY string, which the
+            // varied-value ban below can never see; the "on farm" phrase ban is what
+            // catches that one-file mutant, while the value ban catches the stronger
+            // two-file mutant that also populates the slug. (These two are what keep
+            // the AlreadyProvisioned() branch honest.)
             Assert.DoesNotContain(variedSlug, second.Stdout, StringComparison.Ordinal);
+            Assert.DoesNotContain("on farm", second.Stdout, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

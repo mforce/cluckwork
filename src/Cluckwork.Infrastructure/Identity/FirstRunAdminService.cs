@@ -121,20 +121,23 @@ public sealed class FirstRunAdminService(
         // #589 — select the SLUG instead of testing existence. The operator cannot
         // sign in without the farm code (#532 made it a required login input), and
         // this query already runs on this path, so reading the value here costs no
-        // extra round trip. A null result now takes the failure path, so this guard
-        // also FAILS CLOSED on a row whose slug is missing — not just on a missing
-        // row. The NULL-slug case only arises on a hand-rolled/partially-restored
-        // schema, which is precisely this guard's premise: a migrated database marks
-        // Slug .IsRequired() (AccountConfiguration), so it can never be NULL there.
-        // On that hand-rolled schema the diagnostic below ("The default account does
-        // not exist") is slightly imprecise, but failing closed is right — a farm
-        // with no discoverable code cannot be signed into. Deliberately NOT a
-        // "default-farm" literal: that value lives in
-        // 20260818235944_AddAccountSlug.cs and a second copy would drift.
+        // extra round trip. Projecting `(string?)a.Slug` is load-bearing: without it,
+        // EF's shaper throws `InvalidCastException: Column 'Slug' is null.` before
+        // SingleOrDefaultAsync returns, so a NULL slug row would bypass this guard and
+        // surface as a raw cast error from the CLI's catch-all instead. With the cast,
+        // a NULL slug row returns null and falls into the `if (accountSlug is null)`
+        // failure below, giving the operator the intended "The default account does
+        // not exist" message. That NULL-slug case only arises on a
+        // hand-rolled/partially-restored schema, which is precisely this guard's
+        // premise (a migrated database marks Slug .IsRequired() in AccountConfiguration,
+        // so it can never be NULL there). Failing closed is right — a farm with no
+        // discoverable code cannot be signed into. Deliberately NOT a "default-farm"
+        // literal: that value lives in 20260818235944_AddAccountSlug.cs and a second
+        // copy would drift.
         var accountSlug = await db.Accounts
             .IgnoreQueryFilters()
             .Where(a => a.Id == accountId)
-            .Select(a => a.Slug)
+            .Select(a => (string?)a.Slug)
             .SingleOrDefaultAsync(ct);
         if (accountSlug is null)
             return Result.Failure<FirstRunAdminOutcome>(Error.Validation(
