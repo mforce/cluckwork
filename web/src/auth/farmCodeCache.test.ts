@@ -189,24 +189,31 @@ describe("farmCodeCache", () => {
       expect(concurrentFarmSurvived).toBe(true);
     });
 
-    it("with navigator.locks absent, the code is still written and no lock is requested (#535 P2 branch pin)", async () => {
+    // #535 review round 3 — there is NO test here pinning the
+    // `if (locks === undefined) { write(); return; }` branch, and that is
+    // deliberate: the branch is behaviourally REDUNDANT with the catch below it.
+    // With `locks` undefined, the guard writes and returns; delete the guard and
+    // `locks.request` throws a TypeError which the catch answers with the
+    // identical write. Same storage, same call count, no externally observable
+    // difference — so no test can distinguish them, and a mutation deleting the
+    // guard survives the whole suite. Verified by running it.
+    //
+    // The branch stays because it states intent: relying on `undefined.request()`
+    // throwing is accidental control flow, and narrowing the catch later would
+    // silently break browsers without navigator.locks. An earlier draft "pinned"
+    // it with a `vi.fn()` that was never wired to anything and asserted it was
+    // not called — a tautology that read as safety. Do not write that again.
+    //
+    // The degradation OUTCOME is covered: the rejection test below drives the
+    // fallback write, and the two mutations that ARE observable — removing the
+    // lock, and hoisting the re-read out of it — both redden the first test here.
+    it("with navigator.locks absent, the code is still written", async () => {
       localStorage.setItem(KEY, JSON.stringify(["farm-a"]));
-      // Pin the lock-ABSENT branch itself, not merely that a write happened.
-      // jsdom's navigator has no `locks`, so the guard's short-circuit is the
-      // path under test: it writes directly and NEVER reaches `locks.request`.
-      // We keep a request spy ONLY to assert that no request is ever made — the
-      // absent-branch must never touch the lock manager at all. (Deleting the
-      // guard makes `locks.request` throw a TypeError on the undefined locks,
-      // and the catch re-runs the identical write; so an outcome-only assertion
-      // cannot distinguish the guard from the catch-fallback — the never-called
-      // spy is the half that tries.)
-      const request = vi.fn();
       const navigatorStub = { ...globalThis.navigator } as Navigator & { locks?: LockManager };
-      // Deliberately NO .locks — the absent branch requires locks === undefined.
+      // Deliberately NO .locks — this exercises the lock-free degradation path.
       vi.stubGlobal("navigator", navigatorStub);
       await rememberFarmCode("farm-b");
-      await expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-b", "farm-a"]);
-      expect(request).not.toHaveBeenCalled();
+      expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-b", "farm-a"]);
     });
 
     it("when navigator.locks is present, a request IS made and the name is the roster lock", async () => {
