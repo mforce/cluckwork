@@ -4,6 +4,7 @@ import {
   isFarmCode,
   readFarmCodes,
   rememberFarmCode,
+  removeFarmCode,
 } from "./farmCodeCache";
 
 const KEY = "cluckwork.farmCodes";
@@ -135,6 +136,32 @@ describe("farmCodeCache", () => {
     expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-a"]);
   });
 
+  it("removes only the requested canonical farm from raw storage", async () => {
+    localStorage.setItem(KEY, JSON.stringify(["farm-a", "farm-b", "farm-c"]));
+    await removeFarmCode(" Farm-B ");
+    expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-a", "farm-c"]);
+  });
+
+  it("removes the only remembered farm from raw storage", async () => {
+    localStorage.setItem(KEY, JSON.stringify(["farm-a"]));
+    await removeFarmCode("farm-a");
+    expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual([]);
+  });
+
+  it("removeFarmCode is best-effort when storage throws", async () => {
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota exhausted");
+    });
+    await expect(removeFarmCode("farm-a")).resolves.toBeUndefined();
+    spy.mockRestore();
+  });
+
+  it("removeFarmCode with an invalid value resolves and leaves the roster untouched", async () => {
+    localStorage.setItem(KEY, JSON.stringify(["farm-a"]));
+    await expect(removeFarmCode("ab")).resolves.toBeUndefined();
+    expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-a"]);
+  });
+
   // #535 (codex P2) — the true cross-tab lost update is NOT expressible in
   // Vitest: it needs two independent JS contexts sharing one localStorage, and
   // jsdom has a single context where the read-modify-write is synchronous. These
@@ -242,6 +269,67 @@ describe("farmCodeCache", () => {
         },
       });
       await expect(rememberFarmCode("ab")).resolves.toBeUndefined();
+    });
+  });
+
+  // #587 — removeFarmCode reuses the same lock protocol and the same never-
+  // rejects contract as rememberFarmCode. The same caveat applies: the true
+  // cross-tab race is not expressible in a single jsdom context, so these are
+  // structural guards that the removal re-reads INSIDE the lock and that every
+  // degradation path still writes. No cross-tab ordering promise is asserted
+  // for the absent/rejected-lock fallback — it is deliberately best-effort.
+  describe("removeFarmCode under Web Locks (#587)", () => {
+    const LOCK = "cluckwork.farmCodes.write";
+
+    // Rebuilds the same navigator stub shape as the rememberFarmCode suite.
+    function stubLocks(impl: {
+      request?: (name: string, cb: () => void) => Promise<unknown> | unknown;
+    }): void {
+      const navigatorStub = { ...globalThis.navigator } as Navigator & { locks?: LockManager };
+      navigatorStub.locks = { request: (name, cb) => impl.request?.(name, cb as () => void) } as LockManager;
+      vi.stubGlobal("navigator", navigatorStub);
+    }
+
+    it("re-reads INSIDE the lock callback: a roster change that lands while the lock is held is not overwritten", async () => {
+      localStorage.setItem(KEY, JSON.stringify(["farm-a", "farm-b"]));
+      let seenName: string | undefined;
+      let concurrentSurvived = false;
+      stubLocks({
+        request: (name, cb) => {
+          seenName = name;
+          // A concurrent tab completing a login for farm-c after this lock was
+          // acquired. Only a re-read inside the write callback sees it; a
+          // roster read taken before the lock was acquired would clobber it.
+          localStorage.setItem(KEY, JSON.stringify(["farm-a", "farm-b", "farm-c"]));
+          cb();
+          concurrentSurvived = (JSON.parse(localStorage.getItem(KEY) ?? "[]") as string[]).includes("farm-c");
+          return Promise.resolve();
+        },
+      });
+      await removeFarmCode("farm-b");
+      // Asserted after the await, where nothing in the callback can throw into
+      // removeFarmCode's own catch and swallow it.
+      expect(seenName).toBe(LOCK);
+      expect(concurrentSurvived).toBe(true);
+      // farm-b is gone; the concurrently-remembered farm-c survives.
+      expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-a", "farm-c"]);
+    });
+
+    it("with navigator.locks absent, the removal is still written", async () => {
+      localStorage.setItem(KEY, JSON.stringify(["farm-a", "farm-b"]));
+      const navigatorStub = { ...globalThis.navigator } as Navigator & { locks?: LockManager };
+      vi.stubGlobal("navigator", navigatorStub);
+      await removeFarmCode("farm-a");
+      expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-b"]);
+    });
+
+    it("when locks.request rejects, removeFarmCode does NOT reject and the filtered array is still written", async () => {
+      localStorage.setItem(KEY, JSON.stringify(["farm-a", "farm-b"]));
+      stubLocks({
+        request: () => Promise.reject(new Error("lock unavailable")),
+      });
+      await expect(removeFarmCode("farm-b")).resolves.toBeUndefined();
+      expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-a"]);
     });
   });
 });

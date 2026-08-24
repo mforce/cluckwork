@@ -1677,10 +1677,20 @@ label.check {
   gap: 0.4rem;
 }
 
-.auth .auth-farm-picker button {
+/* #587 — each entry is a select chip plus a distinct Forget control. The
+   select chip keeps the #535 pill look; the Forget control is deliberately a
+   different shape and colour (destructive) so a tap is never ambiguous. */
+.auth .auth-farm-picker-entry {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.auth .auth-farm-picker-select {
   padding: 0.35rem 0.7rem;
   border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
+  border-bottom-right-radius: 0;
+  border-top-right-radius: 0;
+  border-radius: var(--r-pill) 0 0 var(--r-pill);
   background: var(--surface-2);
   color: var(--ink);
   font-size: 0.85rem;
@@ -1688,8 +1698,32 @@ label.check {
   cursor: pointer;
 }
 
-.auth .auth-farm-picker button:hover:not(:disabled) {
+.auth .auth-farm-picker-select:hover:not(:disabled) {
   border-color: var(--brand);
+}
+
+.auth .auth-forget-farm {
+  /* 44px minimum touch target — pinned by Login.styles.test.ts. */
+  min-block-size: 44px;
+  min-inline-size: 2.25rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--hairline);
+  border-left: 0;
+  border-bottom-left-radius: 0;
+  border-top-left-radius: 0;
+  border-radius: 0 var(--r-pill) var(--r-pill) 0;
+  background: var(--surface-2);
+  color: var(--danger);
+  font-size: 1rem;
+  line-height: 1;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.auth .auth-forget-farm:hover:not(:disabled) {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-danger, #fff);
 }
 
 /* No `code` rule here on purpose — the notice publishes no command. See the

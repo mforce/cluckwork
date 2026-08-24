@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent, act, cleanup } from "@testing-library/react";
+import { screen, fireEvent, act, cleanup, waitFor } from "@testing-library/react";
 import { Routes, Route } from "react-router";
 import { Login } from "./Login";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -394,13 +394,16 @@ describe("Login — farm-code prefill and picker", () => {
     expect(farmField()).toHaveValue("cached-farm");
   });
 
-  it("prefills the single remembered code with no picker rendered", async () => {
+  // #587 — the picker now renders for ONE or more remembered codes (a single
+  // remembered code is the exact case that previously had no picker entry at
+  // all). Prefill of the single code is unchanged.
+  it("prefills the single remembered code and still offers a picker for it", async () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["cached-farm"]));
     renderWithProviders(tree(), { route: "/login", token: null });
     await screen.findByRole("button", { name: "Sign in" });
 
     expect(farmField()).toHaveValue("cached-farm");
-    expect(screen.queryByText(i18n.t("auth:recentFarms"))).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: i18n.t("auth:recentFarms") })).toBeInTheDocument();
   });
 
   it("with several remembered codes leaves the field empty, shows one button per code, and a click fills the field", async () => {
@@ -410,12 +413,20 @@ describe("Login — farm-code prefill and picker", () => {
 
     expect(farmField()).toHaveValue("");
     expect(screen.getByText(i18n.t("auth:recentFarms"))).toBeInTheDocument();
-    const buttons = screen.getAllByRole("button", { name: /^sunny-/ });
-    expect(buttons).toHaveLength(2);
+    // #587 — the selection button's accessible name is EXACTLY the code, so it
+    // is queried by exact name: a prefix query would also match the new
+    // "Forget …" controls that share the code in their label.
+    // A string name matcher is an EXACT match in Testing Library (a RegExp is
+    // what would match prefixes), so the Forget control's "Forget sunny-a" label
+    // cannot collide here.
+    const selectA = screen.getByRole("button", { name: "sunny-a" });
+    const selectB = screen.getByRole("button", { name: "sunny-b" });
+    expect(selectA).toBeInTheDocument();
+    expect(selectB).toBeInTheDocument();
 
-    // Click the SECOND button: filling must come from THAT code, not a hard-coded
-    // rememberedCodes[0].
-    fireEvent.click(buttons[1]);
+    // Click the SECOND selection button: filling must come from THAT code, not
+    // a hard-coded rememberedCodes[0].
+    fireEvent.click(selectB);
     expect(farmField()).toHaveValue("sunny-b");
   });
 
@@ -472,5 +483,89 @@ describe("Login — farm-code prefill and picker", () => {
     expect(
       screen.getByRole("group", { name: i18n.t("auth:recentFarms") }),
     ).toBeInTheDocument();
+  });
+});
+
+// #587 — each picker entry carries an explicit, accessible Forget control
+// gated behind the shared destructive confirmation dialog.
+describe("Login — forgetting a remembered farm", () => {
+  const farmField = () => screen.getByLabelText(/Farm code/);
+
+  it("does not remove a remembered farm until its confirmation is accepted", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "farm-a" }) }));
+    // The trigger click opens the dialog; nothing is removed while it is up.
+    expect(screen.getByRole("group", { name: i18n.t("auth:recentFarms") })).toBeInTheDocument();
+    expect(farmField()).toHaveValue("farm-a");
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("common:cancel") }));
+    // Wait for the dialog to be gone before asserting the roster: the confirm
+    // promise's continuation (which is exactly where an ungated removal would
+    // run) settles with the dismissal, so by the time the dialog has closed
+    // any such removal would already be committed. This is what makes the
+    // `if (!accepted)` gate falsifiable — verified by mutation M2.
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: i18n.t("common:cancel") })).not.toBeInTheDocument(),
+    );
+    expect(JSON.parse(localStorage.getItem("cluckwork.farmCodes") ?? "[]")).toEqual(["farm-a"]);
+    expect(screen.getByRole("group", { name: i18n.t("auth:recentFarms") })).toBeInTheDocument();
+    expect(farmField()).toHaveValue("farm-a");
+  });
+
+  it("forgets a selected prefilled farm, clears the field, and focuses it", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "farm-a" }) }));
+    // The field still holds the code BEFORE the acceptance click: the clear is
+    // part of the confirmed removal, not of the trigger click. Asserted
+    // synchronously so an unconditional clear on click (the M3 mutation shape)
+    // fails here rather than racing the dialog.
+    expect(farmField()).toHaveValue("farm-a");
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarmConfirm") }));
+    await waitFor(() => expect(farmField()).toHaveValue(""));
+    expect(JSON.parse(localStorage.getItem("cluckwork.farmCodes") ?? "[]")).toEqual([]);
+    expect(screen.queryByRole("group", { name: i18n.t("auth:recentFarms") })).not.toBeInTheDocument();
+    await waitFor(() => expect(farmField()).toHaveFocus());
+  });
+
+  it("forgets one of several farms, leaving the field and the remaining entries alone", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-a", "sunny-b"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    // Fill the field with the code that is NOT being forgotten first, so the
+    // test proves the clear only applies to the forgotten code.
+    fireEvent.click(screen.getByRole("button", { name: "sunny-b" }));
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "sunny-a" }) }));
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarmConfirm") }));
+    await waitFor(() => expect(farmField()).toHaveValue("sunny-b"));
+    expect(JSON.parse(localStorage.getItem("cluckwork.farmCodes") ?? "[]")).toEqual(["sunny-b"]);
+    expect(screen.getByRole("group", { name: i18n.t("auth:recentFarms") })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "sunny-a" }) })).not.toBeInTheDocument();
+  });
+
+  // #587/#585 — the three login controls carry stable HTML identifiers. The
+  // autocomplete tokens are the browser/manager heuristic inputs; their values
+  // are unchanged by this slice and pinned here so a later edit cannot move
+  // them without touching this test.
+  it("gives the farm-code, email and password controls stable id/name pairs", async () => {
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+
+    expect(screen.getByRole("textbox", { name: i18n.t("auth:farmCode") })).toHaveAttribute("id", "farm-code");
+    expect(screen.getByRole("textbox", { name: i18n.t("auth:farmCode") })).toHaveAttribute("name", "farmCode");
+    expect(screen.getByRole("textbox", { name: i18n.t("auth:email") })).toHaveAttribute("id", "email");
+    expect(screen.getByRole("textbox", { name: i18n.t("auth:email") })).toHaveAttribute("name", "email");
+    expect(screen.getByRole("textbox", { name: i18n.t("auth:email") })).toHaveAttribute("autocomplete", "username");
+    // jsdom's accessibility tree gives a masked input no exposed role (the
+    // ARIA "password" role does not exist), and a masked input exposes no
+    // accessible name either — so the control is located by id, which is
+    // exactly what this test exists to pin.
+    const passwordField = document.querySelector('input[type="password"]');
+    expect(passwordField).not.toBeNull();
+    expect(passwordField).toHaveAttribute("id", "current-password");
+    expect(passwordField).toHaveAttribute("name", "password");
+    expect(passwordField).toHaveAttribute("autocomplete", "current-password");
   });
 });

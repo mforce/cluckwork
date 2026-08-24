@@ -132,3 +132,37 @@ export async function rememberFarmCode(value: string): Promise<void> {
     write();
   }
 }
+
+// #587 — the roster's only user-facing exit. Same protocol and the same
+// never-rejects contract as rememberFarmCode: a forgotten local convenience
+// must never surface as an error on the login screen. A successfully acquired
+// Web Lock orders a forget with a concurrent sign-in; the no-lock/rejected-lock
+// fallback is, like rememberFarmCode's, a deliberately unsynchronised
+// best-effort read-modify-write with no cross-tab ordering promise.
+export async function removeFarmCode(value: string): Promise<void> {
+  const code = canonicalFarmCode(value);
+  if (code === null) return;
+  // Re-reads INSIDE the lock on purpose: the same stale-read the lock exists
+  // to prevent on the write path applies to a removal — a sign-in landing
+  // after the lock is acquired must survive a forget issued before it.
+  const write = (): void => {
+    const next = readFarmCodes().filter((candidate) => candidate !== code);
+    try {
+      localStorage.setItem(KEY, JSON.stringify(next));
+    } catch {
+      // A forgotten local convenience must never surface as an auth failure.
+    }
+  };
+  const locks: LockManager | undefined = globalThis.navigator?.locks;
+  if (locks === undefined) {
+    write();
+    return;
+  }
+  try {
+    await locks.request(ROSTER_LOCK, write);
+  } catch {
+    // Same rationale as rememberFarmCode: `write` re-reads before it writes,
+    // so the fallback run is harmless even after a late rejection.
+    write();
+  }
+}

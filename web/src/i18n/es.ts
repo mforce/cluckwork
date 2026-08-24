@@ -38,6 +38,12 @@ export const es = {
     // machine-drafted (#532) — pending native review.
     farmCode: "Código de granja",
     recentFarms: "Granjas recientes",
+    // #587 (machine-drafted, pending native review) — the control per entry and its confirmation dialog.
+    forgetFarm: "Olvidar {{farmCode}}",
+    forgetFarmTitle: "¿Olvidar {{farmCode}}?",
+    forgetFarmBody:
+      "Esto elimina {{farmCode}} de las granjas recientes en este dispositivo. No cambia su cuenta ni otras preferencias del dispositivo.",
+    forgetFarmConfirm: "Olvidar granja",
     farmFromLink: "Iniciando sesión en la granja: {{farmCode}}",
     unknownFarmCode: "No se reconoce ese código de granja. Verifícalo e inténtalo de nuevo.",
     farmSuspended: "Esta granja está suspendida. Contacta a tu administrador.",
@@ -1772,7 +1778,9 @@ export const es = {
       + "recargar. Una pestaña sin una granja recordada que encuentre varias sesiones vuelve al inicio de sesión en "
       + "lugar de adivinar — elija el código de granja e inicie sesión. La página de inicio de sesión también "
       + "recuerda los códigos de granja con los que ha iniciado sesión en este dispositivo y los ofrece como un "
-      + "selector, y un enlace ?farm= rellena previamente el campo. No se borra la sesión de ninguna otra granja.",
+      + "selector, y un enlace ?farm= rellena previamente el campo. Cada granja recordada puede eliminarse de esa "
+      + "lista con su control Olvidar; al hacerlo no se borra la sesión de otra granja ni ninguna otra preferencia "
+      + "del dispositivo. No se borra la sesión de ninguna otra granja.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada — "
@@ -2446,9 +2454,13 @@ export const es = {
       + "varias granjas y solo el código indica a cuál se refiere. Está en minúsculas y no "
       + "cambia. La pantalla de inicio de sesión recuerda las últimas 10 granjas con las que "
       + "ha iniciado sesión en este dispositivo, la más reciente primero, y se las ofrece "
-      + "para que normalmente no tenga que volver a escribir el código. Un enlace como "
-      + "/login?farm=<code> se impone y rellena el código por usted, sin mostrar la lista. "
-      + "Si no sabe el código de su granja, pregunte a su administrador: puede consultarlo.",
+      + "una por una — incluso si solo recuerda una — en un selector, para que normalmente "
+      + "no tenga que volver a escribir el código. Cada entrada puede olvidarse "
+      + "individualmente con su control Olvidar, tras una confirmación; eso elimina solo "
+      + "esa granja de este dispositivo y no borra su idioma, su tema ni ninguna otra "
+      + "preferencia. Un enlace como /login?farm=<code> se impone y rellena el código por "
+      + "usted, sin mostrar la lista. Si no sabe el código de su granja, pregunte a su "
+      + "administrador: puede consultarlo.",
 
     // #533 (machine-drafted, pending native review)
     glossaryFarmProvisioningTerm: "Aprovisionamiento de granja",

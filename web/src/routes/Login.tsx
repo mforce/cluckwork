@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -6,9 +6,10 @@ import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import i18n from "../i18n";
-import { canonicalFarmCode, readFarmCodes } from "../auth/farmCodeCache";
+import { canonicalFarmCode, readFarmCodes, removeFarmCode } from "../auth/farmCodeCache";
 
 interface LocationState {
   from?: { pathname: string };
@@ -95,7 +96,11 @@ export function Login() {
   const [urlFarmCode] = useState(() => canonicalFarmCode(searchParams.get("farm")));
   // Not consulted AT ALL when the query parameter supplied a usable code, which is
   // what #535 requires — hence a gate here rather than a filter later.
-  const [rememberedCodes] = useState(() => (urlFarmCode === null ? readFarmCodes() : []));
+  // Mutable, not re-read: a confirmed Forget removes the code from page state
+  // OPTIMISTICALLY (removeFarmCode is best-effort and must not reject), and the
+  // picker disappears the moment the last entry is forgotten rather than on the
+  // next reload.
+  const [rememberedCodes, setRememberedCodes] = useState(() => (urlFarmCode === null ? readFarmCodes() : []));
   const [farmCode, setFarmCode] = useState(
     () => urlFarmCode ?? (rememberedCodes.length === 1 ? rememberedCodes[0] : ""),
   );
@@ -103,6 +108,33 @@ export function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
+  // #587 — the triggering Forget button is removed when its confirmation
+  // succeeds, and the shared Dialog rightly declines to restore focus to a
+  // disconnected trigger. The farm-code input is the surviving focus target.
+  const farmCodeInputRef = useRef<HTMLInputElement>(null);
+  const { confirm, confirmDialog } = useConfirm();
+
+  // Removal is deliberate: the destructive confirmation dialog must be
+  // accepted before anything changes. Page state updates optimistically and
+  // the roster write is fire-and-forget — removeFarmCode never rejects, so a
+  // device whose storage is unavailable still forgets for this session.
+  async function forgetFarm(code: string) {
+    const accepted = await confirm({
+      title: t("forgetFarmTitle", { farmCode: code }),
+      body: t("forgetFarmBody", { farmCode: code }),
+      confirmLabel: t("forgetFarmConfirm"),
+      destructive: true,
+    });
+    if (!accepted) return;
+    void removeFarmCode(code);
+    setRememberedCodes((current) => current.filter((c) => c !== code));
+    // Clear the field only when it held the forgotten code — the operator may
+    // have switched to another farm's code and must keep it.
+    setFarmCode((current) => (current === code ? "" : current));
+    // Queued, not synchronous: the state commit above re-renders and removes
+    // the trigger before focus can meaningfully move.
+    requestAnimationFrame(() => farmCodeInputRef.current?.focus());
+  }
 
   useEffect(() => {
     if (unauthenticatedReason === CREDENTIALS_SUPERSEDED)
@@ -194,17 +226,34 @@ export function Login() {
             {t("farmFromLink", { farmCode: urlFarmCode })}
           </p>
         )}
-        {rememberedCodes.length > 1 && (
+        {rememberedCodes.length >= 1 && (
+          // #587 — one or more remembered codes. The single-code case previously
+          // had no picker at all, which also meant a single remembered farm could
+          // never be forgotten without clearing the whole origin.
           <div className="auth-farm-picker">
             <p id="farm-picker-label">{t("recentFarms")}</p>
             <div role="group" aria-labelledby="farm-picker-label">
               {rememberedCodes.map((code) => (
-                // type="button" so a tap fills the field instead of submitting.
-                // The code is button TEXT: React escapes it, and it has passed the
-                // slug regex, so it carries no markup and no URL-significant char.
-                <button key={code} type="button" onClick={() => setFarmCode(code)}>
-                  {code}
-                </button>
+                <span key={code} className="auth-farm-picker-entry">
+                  {/* The selection button's accessible name is EXACTLY the code:
+                      tests and password-manager heuristics both key on it, and a
+                      prefix match would collide with the Forget control's label.
+                      The code is button TEXT — React escapes it, and it has passed
+                      the slug regex, so it carries no markup. */}
+                  <button type="button" className="auth-farm-picker-select" onClick={() => setFarmCode(code)}>
+                    {code}
+                  </button>
+                  {/* type="button" so a tap asks rather than submits, and rather
+                      than removing: the destructive confirm dialog is the gate. */}
+                  <button
+                    type="button"
+                    className="auth-forget-farm"
+                    aria-label={t("forgetFarm", { farmCode: code })}
+                    onClick={() => void forgetFarm(code)}
+                  >
+                    ×
+                  </button>
+                </span>
               ))}
             </div>
           </div>
@@ -212,6 +261,13 @@ export function Login() {
         <label>
           {t("farmCode")}
           <input
+            // #587 — stable identifiers for tests and browser heuristics. There
+            // is no standard autocomplete token for a tenant identifier, so the
+            // field declares its name but no token; the existing tokens on the
+            // email and password fields are unchanged.
+            id="farm-code"
+            name="farmCode"
+            ref={farmCodeInputRef}
             type="text"
             value={farmCode}
             onChange={(e) => setFarmCode(e.target.value)}
@@ -229,6 +285,8 @@ export function Login() {
         <label>
           {t("email")}
           <input
+            id="email"
+            name="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -240,6 +298,8 @@ export function Login() {
         <label>
           {t("password")}
           <input
+            id="current-password"
+            name="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -253,6 +313,7 @@ export function Login() {
           {busy ? t("signingIn") : t("signIn")}
         </BusyButton>
       </form>
+      {confirmDialog}
     </main>
   );
 }
