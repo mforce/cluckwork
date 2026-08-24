@@ -21,6 +21,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Microsoft.NET.Sdk has no default item for appsettings.json, unlike the
+         Web SDK, so without this the file never reaches the output directory.
+         Running from source still finds it through the content root, so the
+         copy is what makes it independent of the working directory and present
+         in a published AppHost. AppHostConfigurationTests keeps the item. -->
+    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Cluckwork.Api/Cluckwork.Api.csproj" />
   </ItemGroup>
 

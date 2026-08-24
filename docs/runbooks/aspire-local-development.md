@@ -75,9 +75,12 @@ keeps the dynamic default above:
 | `LocalPorts:Api` | API HTTP endpoint |
 | `LocalPorts:Web` | Vite dev server |
 
-Set them wherever the AppHost's configuration reads from — user-secrets for a
-per-machine choice, environment variables (`LocalPorts__Api=8080`) for a
-per-shell one, or `--LocalPorts:Api=8080` as a run argument:
+`src/Cluckwork.AppHost/appsettings.json` declares all four keys with empty
+values, which is where to look for them; leave them empty there, because that
+file is committed and a host port is a per-machine choice. Set them wherever
+the AppHost's configuration reads from instead — user-secrets for a per-machine
+choice, environment variables (`LocalPorts__Api=8080`) for a per-shell one, or
+`--LocalPorts:Api=8080` as a run argument:
 
 ```bash
 dotnet user-secrets --project src/Cluckwork.AppHost set "LocalPorts:Api" "8080"
