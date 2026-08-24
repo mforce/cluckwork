@@ -105,7 +105,9 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
         }
         finally
         {
-            await SetDefaultAccountSlugAsync(originalSlug);
+            // Restore is asserted (rows affected == 1) so the isolation the
+            // finally provides is actually verified, not just claimed.
+            Assert.Equal(1, await SetDefaultAccountSlugAsync(originalSlug));
         }
 
         using var scope = _factory.Services.CreateScope();
@@ -181,7 +183,9 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
         }
         finally
         {
-            await SetDefaultAccountSlugAsync(originalSlug);
+            // Restore is asserted (rows affected == 1) so the isolation the
+            // finally provides is actually verified, not just claimed.
+            Assert.Equal(1, await SetDefaultAccountSlugAsync(originalSlug));
         }
     }
 
@@ -300,11 +304,11 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
         return original;
     }
 
-    private async Task SetDefaultAccountSlugAsync(string slug)
+    private async Task<int> SetDefaultAccountSlugAsync(string slug)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlInterpolatedAsync(
+        return await db.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE \"Accounts\" SET \"Slug\" = {slug} WHERE \"Id\" = {SeedDefaults.AccountId}");
     }
 

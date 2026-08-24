@@ -92,8 +92,10 @@ Temporary password: <20-char one-time password>
 Log in with this now and change it immediately (Account → change password).
 ```
 
-The **farm code** before the account GUID is the required #532 sign-in input and
-is printed nowhere else, so copy it from stdout along with the password.
+The **farm code** before the account GUID is the required #532 sign-in input, so
+copy it from stdout along with the password. If its output is ever lost, the
+read-only `list-accounts` verb prints every farm's code and is the supported way
+to recover it.
 
 The temporary password is written to **stdout only** (never the logger/OTLP), so
 it does not persist in structured logs. Capture it from the terminal, hand it to

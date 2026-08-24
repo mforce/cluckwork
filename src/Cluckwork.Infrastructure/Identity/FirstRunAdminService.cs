@@ -121,9 +121,15 @@ public sealed class FirstRunAdminService(
         // #589 — select the SLUG instead of testing existence. The operator cannot
         // sign in without the farm code (#532 made it a required login input), and
         // this query already runs on this path, so reading the value here costs no
-        // extra round trip. A null result still means "no such account" and takes
-        // the same failure path as before, so the guard below is unchanged in
-        // meaning. Deliberately NOT a "default-farm" literal: that value lives in
+        // extra round trip. A null result now takes the failure path, so this guard
+        // also FAILS CLOSED on a row whose slug is missing — not just on a missing
+        // row. The NULL-slug case only arises on a hand-rolled/partially-restored
+        // schema, which is precisely this guard's premise: a migrated database marks
+        // Slug .IsRequired() (AccountConfiguration), so it can never be NULL there.
+        // On that hand-rolled schema the diagnostic below ("The default account does
+        // not exist") is slightly imprecise, but failing closed is right — a farm
+        // with no discoverable code cannot be signed into. Deliberately NOT a
+        // "default-farm" literal: that value lives in
         // 20260818235944_AddAccountSlug.cs and a second copy would drift.
         var accountSlug = await db.Accounts
             .IgnoreQueryFilters()

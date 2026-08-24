@@ -27,9 +27,10 @@ All three forms below share the same properties:
   logger or the OTLP pipeline. A host's stdout collector (docker logs, journald, a
   platform log pipeline) may still capture it, so treat that output as sensitive
   while the password is valid;
-- the printed output also carries the **farm code** (`on farm <slug>`) — #532 made
-  it a required sign-in input, and it is printed nowhere else, so copy it from
-  stdout along with the password;
+- a first-run provisioning also prints the **farm code** (`on farm <slug>`) — #532
+  made it a required sign-in input, so copy it from stdout along with the password.
+  A re-run (the no-op bullet below) deliberately does **not** reprint it; to recover
+  a code whose output was lost, run the read-only `list-accounts` verb.
 - first sign-in shows a **Set your password** screen and refuses everything else
   until you pick your own;
 - a re-run against an already-provisioned account is a safe no-op.

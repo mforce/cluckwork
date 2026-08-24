@@ -118,7 +118,9 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         }
         finally
         {
-            await SetAccountSlugAsync(originalSlug);
+            // Restore is asserted (rows affected == 1) so the isolation the
+            // finally provides is actually verified, not just claimed.
+            Assert.Equal(1, await SetAccountSlugAsync(originalSlug));
         }
     }
 
@@ -201,11 +203,11 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         return original;
     }
 
-    private async Task SetAccountSlugAsync(string slug)
+    private async Task<int> SetAccountSlugAsync(string slug)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlInterpolatedAsync(
+        return await db.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE \"Accounts\" SET \"Slug\" = {slug} WHERE \"Id\" = {SeedDefaults.AccountId}");
     }
 
