@@ -156,8 +156,11 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
     [Fact]
     public async Task Rerun_WhenAlreadyProvisioned_DoesNotPrintTheFarmCode()
     {
-        // Reuses the idempotent-rerun setup: first run provisions the Owner,
-        // second run is a no-op where WasAlreadyProvisioned is true.
+        // Reuses the idempotent-rerun setup: this class shares `_factory`'s one
+        // database and xUnit does not order tests, so the first run merely
+        // guarantees an Owner exists — provisioning it if no earlier test in this
+        // class already did — and the second run is a no-op where
+        // WasAlreadyProvisioned is true.
         var email = $"bootstrap-farmcode-{Guid.NewGuid():N}@test.local";
         // #589 (codex P2) — same varied-slug discipline as the first-run test:
         // the re-run bans the account's ACTUAL (varied) slug value, not one

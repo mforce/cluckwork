@@ -121,23 +121,24 @@ public sealed class FirstRunAdminService(
         // #589 — select the SLUG instead of testing existence. The operator cannot
         // sign in without the farm code (#532 made it a required login input), and
         // this query already runs on this path, so reading the value here costs no
-        // extra round trip. Projecting `(string?)a.Slug` is load-bearing: without it,
-        // EF's shaper throws `InvalidCastException: Column 'Slug' is null.` before
-        // SingleOrDefaultAsync returns, so a NULL slug row would bypass this guard and
-        // surface as a raw cast error from the CLI's catch-all instead. With the cast,
-        // a NULL slug row returns null and falls into the `if (accountSlug is null)`
-        // failure below, giving the operator the intended "The default account does
-        // not exist" message. That NULL-slug case only arises on a
-        // hand-rolled/partially-restored schema, which is precisely this guard's
-        // premise (a migrated database marks Slug .IsRequired() in AccountConfiguration,
-        // so it can never be NULL there). Failing closed is right — a farm with no
-        // discoverable code cannot be signed into. Deliberately NOT a "default-farm"
-        // literal: that value lives in 20260818235944_AddAccountSlug.cs and a second
-        // copy would drift.
+        // extra round trip. A MISSING ROW returns null and takes the
+        // Bootstrap.AccountMissing failure path below. A row whose slug is NULL —
+        // only possible on a hand-rolled or partially-restored schema, since
+        // AccountConfiguration marks Slug .IsRequired() — throws
+        // InvalidCastException ("Column 'Slug' is null.") before SingleOrDefaultAsync
+        // returns; the CLI's catch-all turns that into "Bootstrap failed: …" and exit
+        // 1. That is still fail-closed, but via the catch-all, NOT via this guard, so
+        // the operator sees an EF error rather than the friendly message. Recorded
+        // as a known limitation: an earlier attempt to make the null-slug case reach
+        // the friendly path by projecting `(string?)a.Slug` changed nothing — the
+        // cast is an identity conversion whose nullability comes from the model
+        // (a migrated database never has a NULL slug), not from the C# annotation.
+        // Deliberately NOT a "default-farm" literal: that value lives in
+        // 20260818235944_AddAccountSlug.cs and a second copy would drift.
         var accountSlug = await db.Accounts
             .IgnoreQueryFilters()
             .Where(a => a.Id == accountId)
-            .Select(a => (string?)a.Slug)
+            .Select(a => a.Slug)
             .SingleOrDefaultAsync(ct);
         if (accountSlug is null)
             return Result.Failure<FirstRunAdminOutcome>(Error.Validation(
