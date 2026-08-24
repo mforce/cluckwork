@@ -68,12 +68,14 @@ public sealed class BootstrapAdminCliCommand : ICliCommand
             // #589 — the FARM CODE is named explicitly because it is the one of the
             // three login inputs the operator has no other source for: the email and
             // password are the operator's own, while the farm code is furnished by a
-            // command. This command's output is the fastest source of it (the
-            // read-only `list-accounts` verb can recover it later if lost); the
-            // account GUID is diagnostic only. Without this line the command ends
-            // with "log in with this now" and they cannot: #532 changed the login
-            // contract (farm code became a required input) and this caller was
-            // missed.
+            // command. Printing it here removes a recovery step rather than being the
+            // only route — the read-only `list-accounts` verb also prints it, and the
+            // SPA can supply it from a remembered code or a /login?farm= link once
+            // either exists (on a first run, neither does). The account GUID is
+            // diagnostic only. Without this line the command still ends with "log in
+            // with this now" while withholding one of the three things that takes:
+            // #532 changed the login contract (farm code became a required input) and
+            // this caller was missed.
             await Console.Out.WriteLineAsync(
                 $"First-run admin provisioned: {outcome.Email} on farm {outcome.Slug} "
                 + $"(account {outcome.AccountId}).");
