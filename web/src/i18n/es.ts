@@ -37,6 +37,8 @@ export const es = {
     title: "Cluckwork",
     // machine-drafted (#532) — pending native review.
     farmCode: "Código de granja",
+    recentFarms: "Granjas recientes",
+    farmFromLink: "Iniciando sesión en la granja: {{farmCode}}",
     unknownFarmCode: "No se reconoce ese código de granja. Verifícalo e inténtalo de nuevo.",
     farmSuspended: "Esta granja está suspendida. Contacta a tu administrador.",
     email: "Correo electrónico",
@@ -1768,7 +1770,9 @@ export const es = {
       "Cada granja mantiene su propia sesión segura en este navegador, por lo que las granjas abiertas en "
       + "distintas <strong>pestañas</strong> ya no se reemplazan entre sí. Una pestaña recuerda su granja al "
       + "recargar. Una pestaña sin una granja recordada que encuentre varias sesiones vuelve al inicio de sesión en "
-      + "lugar de adivinar — elija el código de granja e inicie sesión. No se borra la sesión de ninguna otra granja.",
+      + "lugar de adivinar — elija el código de granja e inicie sesión. La página de inicio de sesión también "
+      + "recuerda los códigos de granja con los que ha iniciado sesión en este dispositivo y los ofrece como un "
+      + "selector, y un enlace ?farm= rellena previamente el campo. No se borra la sesión de ninguna otra granja.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada — "
@@ -2440,7 +2444,10 @@ export const es = {
       "El código corto que identifica a su granja en la pantalla de inicio de sesión. Lo "
       + "escribe antes que su correo electrónico, porque la misma dirección puede existir en "
       + "varias granjas y solo el código indica a cuál se refiere. Está en minúsculas y no "
-      + "cambia.",
+      + "cambia. La pantalla de inicio de sesión recuerda las últimas 10 granjas con las que "
+      + "ha iniciado sesión en este dispositivo, la más reciente primero, y se las ofrece "
+      + "para que normalmente no tenga que volver a escribir el código. Un enlace como "
+      + "/login?farm=<code> se impone y rellena el código por usted, sin mostrar la lista.",
 
     // #533 (machine-drafted, pending native review)
     glossaryFarmProvisioningTerm: "Aprovisionamiento de granja",

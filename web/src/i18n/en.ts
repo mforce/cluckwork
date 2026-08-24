@@ -56,6 +56,13 @@ export const en = {
   auth: {
     title: "Cluckwork",
     farmCode: "Farm code",
+    // #535 — the device remembers every farm code that has SUCCESSFULLY signed
+    // in here, so a phone shared between farms offers them instead of retyping.
+    recentFarms: "Recent farms",
+    // #535 — shown ONLY when the code arrived in the ?farm= link rather than
+    // from the operator. A same-origin link would otherwise substitute a farm
+    // code silently while the password manager autofills for the origin.
+    farmFromLink: "Signing in to farm: {{farmCode}}",
     unknownFarmCode: "That farm code is not recognised. Check it and try again.",
     farmSuspended: "This farm is suspended. Contact your administrator.",
     email: "Email",
@@ -2212,7 +2219,9 @@ export const en = {
       "Each farm keeps its own secure session in this browser, so farms open in different "
       + "<strong>tabs</strong> no longer replace one another. A tab remembers its farm across reloads. A tab "
       + "with no remembered farm that finds several sessions returns to sign-in rather than guessing — choose "
-      + "the farm code and sign in. No other farm's session is cleared.",
+      + "the farm code and sign in. The sign-in page also remembers farm codes you have signed in with on this "
+      + "device and offers them as a picker, and a ?farm= link prefills the field. No other farm's session is "
+      + "cleared.",
     // #283 — first-run provisioning: no default credential ever ships with
     // the app, so the very first sign-in always starts from a printed
     // one-time password.
@@ -2856,7 +2865,10 @@ export const en = {
     glossaryFarmCodeDef:
       "The short code that names your farm on the sign-in screen. You type it before your "
       + "email, because the same email address can exist in several farms and only the code "
-      + "says which one you mean. It is lowercase and it does not change.",
+      + "says which one you mean. It is lowercase and it does not change. The sign-in screen "
+      + "remembers the last 10 farms you have signed in with on this device, most recent "
+      + "first, and offers them so you usually do not have to retype the code. A link such "
+      + "as /login?farm=<code> takes over and fills the code in for you, without showing the list.",
 
     glossaryFarmProvisioningTerm: "Farm provisioning",
     glossaryFarmProvisioningDef:

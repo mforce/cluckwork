@@ -8,6 +8,7 @@ import {
 } from "../api/cluckwork";
 import type { EggGrade, EggUnitConversion, FeedUsage, Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { readAccountScoped, writeAccountScoped } from "../lib/accountStorage";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -154,7 +155,7 @@ export function DailyEntryPage() {
         if (deepLinked) retarget(() => setDate(wantedDate!));
         else if (wantedFlock || wantedDate)
           setPageError(i18n.t("dailyEntry:deepLinkUnavailable"));
-        const remembered = localStorage.getItem(LAST_FLOCK_KEY);
+        const remembered = readAccountScoped(LAST_FLOCK_KEY);
         // Default prefers an ACTIVE flock — depleted ones are backfill targets
         // you pick deliberately, not a default.
         const firstActive = f.find((x) => x.status === "Active") ?? f[0];
@@ -221,7 +222,7 @@ export function DailyEntryPage() {
   }, [flockId, date, prefillRetry]);
 
   useEffect(() => {
-    if (flockId) localStorage.setItem(LAST_FLOCK_KEY, flockId);
+    if (flockId) writeAccountScoped(LAST_FLOCK_KEY, flockId);
   }, [flockId]);
 
   // #446 — see the daySupport state comment for why this effect is isolated.

@@ -610,6 +610,15 @@ unrecognised one is refused with its own message. (Written earlier, before
 #532 shipped: it was recorded and discoverable but not yet used at sign-in, and
 there was no SPA surface for it.)
 
+On the SPA sign-in page the field is prefilled in two ways. A `?farm=<slug>`
+link prefills the field with a validated slug (an invalid value is ignored, not
+truncated, and no error is shown). And the page remembers farm codes that were
+used to sign in successfully on this device and offers them as a picker: a
+single remembered code prefills the field, several render one button per code.
+Accepted disclosure: on a shared device the cached list is a durable roster of
+which farms that browser profile uses — revocable only by clearing the cache,
+tracked in #587.
+
 **Farm provisioning (#533)** — the offline `provision-account` operator command
 creates a new account, its ten canonical egg grades, its six packed-unit
 conversions, and its first Owner as one transaction. The Owner receives a

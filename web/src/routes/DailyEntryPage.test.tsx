@@ -12,6 +12,7 @@ import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
 import { FarmContext } from "../farm/FarmContext";
 import { account, farmState, NO_RECORD_HISTORY } from "../test/fixtures";
+import { bindAccount, clearBoundAccount } from "../auth/tokenStore";
 import i18n from "../i18n";
 
 // DailyEntry has no auth deps — mock only the API seam it loads from. The
@@ -61,6 +62,9 @@ const CRACKED: EggGrade = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // #535 — boundAccountId is MODULE state read once at import and setup.ts never
+  // resets it, so a bind leaks into later tests. Clear it so each test is unbound.
+  clearBoundAccount();
   localStorage.clear();
   mockListFlocks.mockResolvedValue([FLOCK]);
   mockListEggGrades.mockResolvedValue(GRADES);
@@ -1198,5 +1202,69 @@ describe("DailyEntryPage feed/water day summary (#446)", () => {
     expect(screen.queryByText(/^Feed: /)).not.toBeInTheDocument();
     setNum("Total eggs", 5);
     expect(screen.getByLabelText("Total eggs")).toHaveValue(5);
+  });
+});
+
+// #535 — the remembered flock is namespaced by account so farm A's selection
+// can't bleed into farm B on a shared device. The bare "cluckwork.lastFlockId"
+// key is never read or written once an account is bound.
+describe("DailyEntryPage account-scoped flock memory", () => {
+  const GUID = "99999999-9999-9999-9999-999999999999";
+  const NS_KEY = `cluckwork.lastFlockId:${GUID}`;
+  const FLOCK2: Flock = { ...FLOCK, id: "f2", name: "Rhode Reds", breed: "RIR" };
+
+  it("reads the namespaced key, never the bare key, and writes the namespaced key when a flock is chosen", async () => {
+    bindAccount(GUID);
+    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
+    const getSpy = vi.spyOn(Storage.prototype, "getItem");
+
+    await renderReady();
+    // mount prefill read through accountScopedKey => the namespaced key
+    expect(getSpy).toHaveBeenCalledWith(NS_KEY);
+    // and the bare, pre-namespacing key was NEVER read
+    const bareReads = getSpy.mock.calls.filter(([k]) => k === "cluckwork.lastFlockId");
+    expect(bareReads).toHaveLength(0);
+
+    // selecting a flock writes the NAMESPACED key (not the bare one)
+    fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f2" } });
+    await waitFor(() => expect(localStorage.getItem(NS_KEY)).toBe("f2"));
+    expect(localStorage.getItem("cluckwork.lastFlockId")).toBeNull();
+  });
+
+  // #535 review round 1 — the case above pins the storage KEYS but never
+  // asserts the remembered id actually SELECTS anything. Only with a genuine
+  // selection asserted does deleting the remembered branch go red. FLOCK (f1)
+  // is Active, so the default would prefer it — seed "f2" so this test cannot
+  // pass via the default's first-active-flock fallback.
+  it("actually selects the remembered flock", async () => {
+    bindAccount(GUID);
+    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
+    localStorage.setItem(NS_KEY, "f2");
+
+    await renderReady();
+
+    expect(screen.getByLabelText("Flock")).toHaveValue("f2");
+  });
+
+  // #535 review round 1 — cross-account isolation was only INFERRED from the
+  // key string, never exercised: no test bound one account, seeded a remembered
+  // flock, then mounted under a DIFFERENT account and checked it fell back.
+  // This catches "scoped, but scoped to the wrong or any account" (a prefix-scan
+  // fallback in readAccountScoped reddens it), but because it asserts the DEFAULT
+  // selection it stays green whenever the remembered read returns null for any
+  // reason — including a broken prefill. The positive selection test above is
+  // what covers selection; nobody should delete it believing this one covers it.
+  it("does not leak farm A's remembered flock into farm B", async () => {
+    const GUID_B = "88888888-8888-8888-8888-888888888888";
+    bindAccount(GUID);
+    localStorage.setItem(`cluckwork.lastFlockId:${GUID}`, "f2");
+    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
+
+    bindAccount(GUID_B);
+    await renderReady();
+
+    // farm B has no remembered flock of its own -> falls back to the first
+    // active flock (f1).
+    expect(screen.getByLabelText("Flock")).toHaveValue("f1");
   });
 });
