@@ -65,8 +65,14 @@ public sealed class BootstrapAdminCliCommand : ICliCommand
             // journald, a platform log pipeline) may still capture it — treat
             // the value as sensitive, same as the recover-admin runbook
             // instructs (#265 review).
+            // #589 — the FARM CODE is named explicitly because it is the one field
+            // the operator must type and has no other way to discover; the account
+            // GUID is diagnostic only. Without this line the command ends with
+            // "log in with this now" and they cannot: #532 made the farm code a
+            // required login input and never swept this caller (AGENTS.md #394).
             await Console.Out.WriteLineAsync(
-                $"First-run admin provisioned: {outcome.Email} (account {outcome.AccountId}).");
+                $"First-run admin provisioned: {outcome.Email} on farm {outcome.Slug} "
+                + $"(account {outcome.AccountId}).");
             await Console.Out.WriteLineAsync($"Temporary password: {outcome.TemporaryPassword}");
             await Console.Out.WriteLineAsync(
                 "Log in with this now — the app requires a new password before anything else works.");

@@ -67,6 +67,22 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
         Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
         Assert.Contains(email, stdout);
         Assert.Contains("Temporary password:", stdout);
+        // #589 — assert the FARM CODE is printed, and read the expected value
+        // from the Accounts row rather than a "default-farm" literal: a
+        // hardcoded copy here would pass even if the command printed a
+        // constant instead of the real slug, and would need editing if the
+        // seed value ever changed. #532 made the farm code a required login
+        // input, so without this line the operator cannot sign in.
+        using (var assertScope = _factory.Services.CreateScope())
+        {
+            var defaultAccountSlug = await assertScope.ServiceProvider
+                .GetRequiredService<AppDbContext>()
+                .Accounts.IgnoreQueryFilters()
+                .Where(a => a.Id == SeedDefaults.AccountId)
+                .Select(a => a.Slug)
+                .SingleAsync();
+            Assert.Contains($"on farm {defaultAccountSlug} ", stdout);
+        }
         // The password itself never reaches stderr (nothing does on success).
         Assert.Equal(string.Empty, stderr);
         // #273 — the actual "never the logger" guarantee, asserted directly:
@@ -127,6 +143,25 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var owners = await users.GetUsersInRoleAsync(Roles.Owner);
         Assert.Single(owners, u => u.AccountId == SeedDefaults.AccountId);
+    }
+
+    [Fact]
+    public async Task Rerun_WhenAlreadyProvisioned_DoesNotPrintTheFarmCode()
+    {
+        // Reuses the idempotent-rerun setup: first run provisions the Owner,
+        // second run is a no-op where WasAlreadyProvisioned is true.
+        var email = $"bootstrap-farmcode-{Guid.NewGuid():N}@test.local";
+        var first = await RunBootstrapCommandAsync(email);
+        Assert.True(0 == first.ExitCode, $"first run: expected exit 0, got {first.ExitCode}. stderr={first.Stderr}");
+
+        var second = await RunBootstrapCommandAsync(email);
+        Assert.True(0 == second.ExitCode, $"rerun: expected exit 0, got {second.ExitCode}. stderr={second.Stderr}");
+        Assert.Contains("already provisioned", second.Stdout, StringComparison.OrdinalIgnoreCase);
+        // #589 — the idempotent path must stay silent about the farm code: no
+        // provisioning happened, so no "on farm" line may appear. This is the
+        // mutant that keeps the AlreadyProvisioned() branch honest — if that
+        // branch ever started populating Slug and printing it, this reds.
+        Assert.DoesNotContain(" on farm ", second.Stdout, StringComparison.Ordinal);
     }
 
     [Fact]
