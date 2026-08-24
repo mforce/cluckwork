@@ -136,10 +136,8 @@ export function Login() {
     setFarmCode((current) =>
       canonicalFarmCode(current) === code ? "" : current,
     );
-    // Queued past this commit's paint: the confirm click's task finishes first
-    // (Dialog closes, the trigger unmounts, and the close-time restore is a
-    // no-op on the disconnected trigger — focus is on <body>), and only then
-    // does this frame's callback move focus to the surviving farm-code input.
+    // Queued after the state update so focus ends on the surviving farm-code
+    // input once the Forget control has been removed.
     requestAnimationFrame(() => farmCodeInputRef.current?.focus());
   }
 
