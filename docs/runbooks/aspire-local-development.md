@@ -56,10 +56,41 @@ $aspire describe --apphost "$apphost" --format Json --non-interactive
 ```
 
 Read the advertised `web` HTTP endpoint from the final description rather than
-assuming a port. Aspire assigns host ports dynamically. The Vite app receives
-the API target from Aspire, and binds its supplied port strictly, so calling
-`<web-endpoint>/api/...` exercises the development proxy. The dashboard URL and
+assuming a port. Aspire assigns host ports dynamically by default. The Vite app
+receives the API target from Aspire, and binds its supplied port strictly, so
+calling `<web-endpoint>/api/...` exercises the development proxy. The dashboard URL and
 access mechanism are shown by the CLI; treat any dashboard token as a secret.
+
+### Pinning host ports (optional)
+
+Dynamic ports mean a `psql`, `redis-cli` or browser URL copied from one run is
+stale on the next. Pin any of them per machine with a `LocalPorts:*` value —
+these are a developer convenience, never a deployment input, and an unset key
+keeps the dynamic default above:
+
+| Key | Resource |
+|---|---|
+| `LocalPorts:Postgres` | PostgreSQL host port |
+| `LocalPorts:Redis` | Redis host port |
+| `LocalPorts:Api` | API HTTP endpoint |
+| `LocalPorts:Web` | Vite dev server |
+
+Set them wherever the AppHost's configuration reads from — user-secrets for a
+per-machine choice, environment variables (`LocalPorts__Api=8080`) for a
+per-shell one, or `--LocalPorts:Api=8080` as a run argument:
+
+```bash
+dotnet user-secrets --project src/Cluckwork.AppHost set "LocalPorts:Api" "8080"
+```
+
+Do not reuse `5432` or `6379`: `deploy/docker-compose.dev.yml` publishes those,
+and the two stacks keep separate data volumes, so a collision either fails the
+launch or points you at the other stack's database. A pinned port fails the
+launch on a collision instead of quietly moving, which is the point — an empty
+or unparseable value falls back to the dynamic default rather than throwing.
+
+The dashboard and OTLP endpoints are not covered by these keys and still move
+between runs; take them from the CLI each time.
 
 The CLI's resource display names are not log/telemetry query arguments. Use
 AppHost-targeted, unfiltered queries, then filter by the exact trace ID:

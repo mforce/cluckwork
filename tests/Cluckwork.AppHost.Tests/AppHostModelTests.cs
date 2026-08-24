@@ -112,6 +112,46 @@ public sealed class AppHostModelTests
     }
 
     [Fact]
+    public async Task Local_port_configuration_pins_every_host_port()
+    {
+        await using var builder = await CreateBuilderAsync(
+            "--LocalPorts:Postgres=15432",
+            "--LocalPorts:Redis=16379",
+            "--LocalPorts:Api=18080",
+            "--LocalPorts:Web=15173");
+
+        AssertEndpoints(
+            GetResource(builder.Resources, "postgres"),
+            new EndpointExpectation("tcp", "tcp", 15432, 5432));
+        AssertEndpoints(
+            GetResource(builder.Resources, "redis"),
+            new EndpointExpectation("tcp", "redis", 16379, 6379));
+        AssertEndpoints(
+            GetResource(builder.Resources, "api"),
+            new EndpointExpectation("http", "http", 18080, null));
+        AssertEndpoints(
+            GetResource(builder.Resources, "web"),
+            new EndpointExpectation("http", "http", 15173, null));
+    }
+
+    [Fact]
+    public async Task Unparseable_local_port_configuration_falls_back_to_the_dynamic_default()
+    {
+        await using var builder = await CreateBuilderAsync(
+            "--LocalPorts:Postgres=not-a-port",
+            "--LocalPorts:Redis=",
+            "--LocalPorts:Api=not-a-port",
+            "--LocalPorts:Web=");
+
+        AssertEndpoints(
+            GetResource(builder.Resources, "postgres"),
+            new EndpointExpectation("tcp", "tcp", null, 5432));
+        AssertEndpoints(
+            GetResource(builder.Resources, "api"),
+            new EndpointExpectation("http", "http", null, null));
+    }
+
+    [Fact]
     public async Task Container_images_are_exact_pinned_references_with_split_components()
     {
         await using var builder = await CreateBuilderAsync();
@@ -210,8 +250,21 @@ public sealed class AppHostModelTests
         Assert.Equal("{api.bindings.http.url}", webEnvironment["VITE_API_TARGET"]);
     }
 
-    private static async Task<IDistributedApplicationTestingBuilder> CreateBuilderAsync() =>
-        await DistributedApplicationTestingBuilder.CreateAsync<Projects.Cluckwork_AppHost>();
+    // The AppHost loads its own user-secrets, so a machine that pins a
+    // `LocalPorts:*` value would otherwise change what these tests observe.
+    // Command-line arguments outrank user-secrets, and the AppHost treats an
+    // empty value as unset, so this forces the dynamic default everywhere.
+    private static readonly string[] DynamicPortArguments =
+    [
+        "--LocalPorts:Postgres=",
+        "--LocalPorts:Redis=",
+        "--LocalPorts:Api=",
+        "--LocalPorts:Web=",
+    ];
+
+    private static async Task<IDistributedApplicationTestingBuilder> CreateBuilderAsync(params string[] args) =>
+        await DistributedApplicationTestingBuilder.CreateAsync<Projects.Cluckwork_AppHost>(
+            args.Length == 0 ? DynamicPortArguments : args);
 
     private static IResource GetResource(IEnumerable<IResource> resources, string name) =>
         Assert.Single(resources, resource => resource.Name == name);
