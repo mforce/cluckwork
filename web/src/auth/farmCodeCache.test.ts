@@ -208,6 +208,33 @@ describe("farmCodeCache", () => {
     expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-b"]);
   });
 
+  // #598 review (codex P2) — removeFarmCode must normalise the readable raw
+  // roster EXACTLY like readFarmCodes before removing: canonicalise, dedupe in
+  // first-seen order, cap at 10, then filter. Capping BEFORE deduping (the old
+  // shape) truncates a hand-written roster of ten farm-a variants so farm-b is
+  // dropped by the cap and forgetting farm-a rewrites "[]", erasing farm-b.
+  it("forgetting a duplicated head never erases the codes the read path shows: canonicalise, dedupe first, then cap at 10", async () => {
+    const variants = [
+      "farm-a",
+      "Farm-A",
+      "FARM-A",
+      " farm-a ",
+      "\tfarm-a",
+      "farm-a\n",
+      " farm-a\t",
+      " farm-a\r\n",
+      " farm-A ",
+      "farm-a ",
+    ];
+    localStorage.setItem(KEY, JSON.stringify([...variants, "farm-b"]));
+    // The read path shows BOTH farms: the ten variants collapse to farm-a and
+    // farm-b survives the cap. The removal must agree with what is displayed.
+    expect(readFarmCodes()).toEqual(["farm-a", "farm-b"]);
+    await removeFarmCode("farm-a");
+    expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-b"]);
+    expect(readFarmCodes()).toEqual(["farm-b"]);
+  });
+
   it("removeFarmCode with an invalid value resolves and leaves the roster untouched", async () => {
     localStorage.setItem(KEY, JSON.stringify(["farm-a"]));
     await expect(removeFarmCode("ab")).resolves.toBeUndefined();

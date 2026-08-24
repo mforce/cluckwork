@@ -178,11 +178,25 @@ export async function removeFarmCode(value: string): Promise<void> {
     } catch {
       parsed = null;
     }
+    // Normalise the readable raw roster EXACTLY like readFarmCodes does —
+    // canonicalise, dedupe in first-seen order, cap at 10 — and only THEN
+    // remove. Capping before deduping (the old shape) would let a hand-written
+    // roster of ten farm-a variants push farm-b past the cap, and forgetting
+    // farm-a would then erase farm-b too: the removal would rewrite a roster
+    // the read path does not even show.
     const roster = Array.isArray(parsed)
-      ? (parsed as unknown[])
-          .map((entry) => canonicalFarmCode(entry))
-          .filter((candidate): candidate is string => candidate !== null)
-          .slice(0, MAX_REMEMBERED)
+      ? (() => {
+          const seen = new Set<string>();
+          const codes: string[] = [];
+          for (const entry of parsed as unknown[]) {
+            const code = canonicalFarmCode(entry);
+            if (code === null || seen.has(code)) continue;
+            seen.add(code);
+            codes.push(code);
+            if (codes.length === MAX_REMEMBERED) break;
+          }
+          return codes;
+        })()
       : [];
     const next = roster.filter((candidate) => candidate !== code);
     try {
