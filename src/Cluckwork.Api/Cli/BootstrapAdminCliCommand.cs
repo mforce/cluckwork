@@ -68,8 +68,9 @@ public sealed class BootstrapAdminCliCommand : ICliCommand
             // #589 — the FARM CODE is named explicitly because it is the one field
             // the operator must type and has no other way to discover; the account
             // GUID is diagnostic only. Without this line the command ends with
-            // "log in with this now" and they cannot: #532 made the farm code a
-            // required login input and never swept this caller (AGENTS.md #394).
+            // "log in with this now" and they cannot: #532 changed the login
+            // contract (farm code became a required input) and this caller was
+            // missed.
             await Console.Out.WriteLineAsync(
                 $"First-run admin provisioned: {outcome.Email} on farm {outcome.Slug} "
                 + $"(account {outcome.AccountId}).");

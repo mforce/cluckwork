@@ -151,9 +151,16 @@ public sealed class AdminRecoveryService(
                 return Result.Failure<AdminRecoveryResult>(reset.Error);
 
             await transaction.CommitAsync(token);
-            return Result.Success(new AdminRecoveryResult(target.Email!, target.AccountId, password));
+            return Result.Success(new AdminRecoveryResult(target.Email!, target.AccountId, lockedAccount.Slug, password));
         }, ct);
     }
 }
 
-public sealed record AdminRecoveryResult(string Email, Guid AccountId, string TemporaryPassword);
+// #589 — Slug is a plain NON-NULLABLE string, unlike FirstRunAdminOutcome's
+// nullable one. That record has a no-op path (AlreadyProvisioned returns a
+// value with nothing populated) so every field must be nullable there;
+// AdminRecoveryResult has no no-op path — recovery always ran — so every field
+// is populated and none are nullable. The slug is read off `lockedAccount`
+// (already loaded FOR UPDATE in the transaction, no new query) and printed by
+// recover-admin because #532 made the farm code a required login input.
+public sealed record AdminRecoveryResult(string Email, Guid AccountId, string Slug, string TemporaryPassword);

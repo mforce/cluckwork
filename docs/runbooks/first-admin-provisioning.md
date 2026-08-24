@@ -21,12 +21,15 @@ Base data — the default account, roles, default egg grades, packed-unit
 conversions — ships inside the EF migrations, so it is already there. **No
 credential is ever baked into the repo**, so the admin user is not.
 
-All three forms below share the same three properties:
+All three forms below share the same properties:
 
 - the generated one-time password goes to **stdout only** — never the application
   logger or the OTLP pipeline. A host's stdout collector (docker logs, journald, a
   platform log pipeline) may still capture it, so treat that output as sensitive
   while the password is valid;
+- the printed output also carries the **farm code** (`on farm <slug>`) — #532 made
+  it a required sign-in input, and it is printed nowhere else, so copy it from
+  stdout along with the password;
 - first sign-in shows a **Set your password** screen and refuses everything else
   until you pick your own;
 - a re-run against an already-provisioned account is a safe no-op.
@@ -93,8 +96,8 @@ against a plaintext local Postgres (the #261/#262 TLS floor).
 
 ## Verify
 
-1. Sign in with the printed password. The SPA must show **Set your password** and
-   refuse every other screen.
+1. Sign in with the printed password **and the printed farm code**. The SPA must
+   show **Set your password** and refuse every other screen.
 2. Set a password. The app releases the rest of the UI.
 3. Re-run the same command. Expected: a no-op — no new user, no new password.
 
@@ -113,7 +116,8 @@ Safe on a scratch database only.
 
 1. `docker compose -f deploy/docker-compose.dev.yml down -v && … up -d` — a
    database with no Owner.
-2. Run form 3. Expected: a password on stdout, exit `0`.
-3. Sign in; expect **Set your password**; set one.
+2. Run form 3. Expected: a password and the farm code on stdout, exit `0`.
+3. Sign in with the printed password **and farm code**; expect **Set your
+   password**; set one.
 4. Run form 3 again. Expected: no-op, exit `0`, no second password.
 5. Update **Last drilled** above.
