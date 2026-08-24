@@ -136,8 +136,10 @@ export function Login() {
     setFarmCode((current) =>
       canonicalFarmCode(current) === code ? "" : current,
     );
-    // Queued, not synchronous: the state commit above re-renders and removes
-    // the trigger before focus can meaningfully move.
+    // Queued past this commit's paint: the confirm click's task finishes first
+    // (Dialog closes, the trigger unmounts, and the close-time restore is a
+    // no-op on the disconnected trigger — focus is on <body>), and only then
+    // does this frame's callback move focus to the surviving farm-code input.
     requestAnimationFrame(() => farmCodeInputRef.current?.focus());
   }
 
