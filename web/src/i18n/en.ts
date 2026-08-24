@@ -2865,7 +2865,9 @@ export const en = {
     glossaryFarmCodeDef:
       "The short code that names your farm on the sign-in screen. You type it before your "
       + "email, because the same email address can exist in several farms and only the code "
-      + "says which one you mean. It is lowercase and it does not change.",
+      + "says which one you mean. It is lowercase and it does not change. The sign-in screen "
+      + "remembers each farm you have signed in with on this device and offers them, so you "
+      + "usually do not have to retype it. A link such as /login?farm=<code> fills it in for you.",
 
     glossaryFarmProvisioningTerm: "Farm provisioning",
     glossaryFarmProvisioningDef:

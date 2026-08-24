@@ -2535,7 +2535,9 @@ export const tl = {
       "Ang maikling code na nagpapaalam sa bukid mo sa screen ng sign in. Isinusulat mo ito "
       + "bago ang iyong email, dahil maaaring nasa ilang bukid ang iisang email address at ang "
       + "code lamang ang nagsasabi kung alin ang ibig mo sabihin. Lowercase ito at hindi ito "
-      + "nagbabago.",
+      + "nagbabago. Naaalala ng screen ng sign in ang bawat bukid na naka-sign in ka sa "
+      + "device na ito at inaalok ang mga ito, kaya karaniwan mong hindi na kailangang i-type "
+      + "itong muli. Ang link tulad ng /login?farm=<code> ay awtomatikong pinupuno ito para sa iyo.",
 
     // #533 (machine-drafted, pending native review)
     glossaryFarmProvisioningTerm: "Pag-provision ng bukid",

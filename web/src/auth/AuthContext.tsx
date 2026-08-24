@@ -117,7 +117,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // (client.ts:242 StaleSessionError). The value is normalised inside
     // rememberFarmCode, mirroring the server's own Trim().ToLowerInvariant()
     // lookup, so a capitalised code is still remembered.
-    rememberFarmCode(farmCode);
+    // Awaited rather than fire-and-forget so the roster write is ordered before
+    // login's other side effects, and safe to await because rememberFarmCode
+    // never rejects.
+    await rememberFarmCode(farmCode);
     // #179/codex: a fresh explicit login is a new "per login" for the splash,
     // even in a tab that already dismissed it (or belonged to another user).
     // A silent token refresh never reaches this line, so it's exempt by design.

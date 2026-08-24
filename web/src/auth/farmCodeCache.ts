@@ -84,14 +84,48 @@ export function readFarmCodes(): string[] {
   return codes;
 }
 
-export function rememberFarmCode(value: string): void {
+// #535 (codex P2) — the roster is a read-modify-write across two separate
+// localStorage calls, and multi-farm sessions coexist across tabs BY DESIGN.
+// Two tabs completing logins for different farms concurrently both read the same
+// array and both write their own: the second setItem wins and the first farm's
+// code is silently dropped, on exactly the device this feature exists for.
+//
+// Serialised with the Web Locks API — the same mechanism and the same
+// degradation stance client.ts:402 uses for the refresh cookie. Browsers without
+// navigator.locks (older Safari, insecure origins) fall back to the
+// unsynchronised read-modify-write: no cross-tab guarantee, but never worse than
+// before this change.
+//
+// NEVER REJECTS, deliberately. AuthContext.login awaits it AFTER apiLogin has
+// already succeeded, so a storage or lock failure must not turn a completed
+// sign-in into a thrown login.
+const ROSTER_LOCK = "cluckwork.farmCodes.write";
+
+export async function rememberFarmCode(value: string): Promise<void> {
   const code = canonicalFarmCode(value);
   if (code === null) return;
-  const next = [code, ...readFarmCodes().filter((c) => c !== code)].slice(0, MAX_REMEMBERED);
+  // Re-reads INSIDE the lock on purpose: a roster read taken before the lock was
+  // acquired is exactly the stale value this exists to prevent.
+  const write = (): void => {
+    const next = [code, ...readFarmCodes().filter((c) => c !== code)].slice(0, MAX_REMEMBERED);
+    try {
+      localStorage.setItem(KEY, JSON.stringify(next));
+    } catch {
+      // Unavailable or full. The sign-in already succeeded; the only cost is that
+      // this device does not offer the code next time.
+    }
+  };
+  const locks: LockManager | undefined = globalThis.navigator?.locks;
+  if (locks === undefined) {
+    write();
+    return;
+  }
   try {
-    localStorage.setItem(KEY, JSON.stringify(next));
+    await locks.request(ROSTER_LOCK, write);
   } catch {
-    // Unavailable or full. The sign-in already succeeded; the only cost is that
-    // this device does not offer the code next time.
+    // A lock we cannot acquire must not cost the write outright. `write` is a
+    // re-read-then-rewrite, so running it again here is harmless even in the
+    // narrow case where the rejection arrived after it had already run.
+    write();
   }
 }
