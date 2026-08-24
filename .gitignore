@@ -16,6 +16,12 @@ obj/
 # with version.txt (see release-please-config.json's extra-files).
 !web/.env.production
 appsettings.Development.local.json
+# Local API debug config. AGENTS.md: "Dev secrets live in user-secrets, not
+# files" — but this file is also where a connection string most easily ends up
+# by accident, and it was tracked, so a local edit rode along into every diff.
+# Untracked now; appsettings.Development.example.json carries the shared,
+# non-secret Serilog defaults that used to live here.
+src/Cluckwork.Api/appsettings.Development.json
 
 # OS/editor noise
 .DS_Store

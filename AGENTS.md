@@ -117,6 +117,7 @@ dotnet test  Cluckwork.sln                 # 688 tests as of 2026-07; integratio
 
 - `deploy/.env` is gitignored (real values). `deploy/.env.example` holds placeholders only.
 - Local API debug config uses `dotnet user-secrets` (keyed by `UserSecretsId` in `Cluckwork.Api.csproj`).
+- `src/Cluckwork.Api/appsettings.Development.json` is **gitignored**, not tracked. It was tracked once, and a local connection string edited into it rode along in an unrelated diff — the file is the path of least resistance for exactly the value user-secrets exists to hold. The shared, non-secret Serilog dev defaults live in `appsettings.Development.example.json`; copy it if you want them, and put anything with a credential in user-secrets.
 - No hardcoded passwords/keys in source — GitGuardian scans PRs. Generate test credentials at runtime.
 
 ## Host-agnostic repo (deployment boundary)
