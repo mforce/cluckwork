@@ -135,9 +135,11 @@ public sealed class SchemaDocsTests
             // consume the reviewed tag before the later SHA assignment clears it.
             ["src/Cluckwork.AppHost/Program.cs"] = [(PgWord + GresWord, 1)],
             // The AppHost model asserts Aspire's normalized image component
-            // independently of the production full-reference constant.
+            // independently of the production full-reference constant. Two of
+            // the seven are the resource name passed to GetResource by the
+            // LocalPorts tests (#590), not image references.
             ["tests/Cluckwork.AppHost.Tests/AppHostModelTests.cs"] =
-                [(PgWord + GresWord, 5), ("library/" + PgWord + GresWord, 1)],
+                [(PgWord + GresWord, 7), ("library/" + PgWord + GresWord, 1)],
         };
 
         AssertImagePinIsOneIdenticalStringAcrossEveryTrackedFile(
@@ -154,8 +156,11 @@ public sealed class SchemaDocsTests
         var bareRedisLiteralAllowList = new Dictionary<string, (string Value, int Count)[]>
         {
             ["src/Cluckwork.AppHost/Program.cs"] = [(RedWord + IsWord, 1)],
+            // Two of the nine come from the LocalPorts tests (#590): the
+            // resource name passed to GetResource, and the endpoint's UriScheme
+            // in an expectation record. Neither is an image reference.
             ["tests/Cluckwork.AppHost.Tests/AppHostModelTests.cs"] =
-                [(RedWord + IsWord, 7), ("library/" + RedWord + IsWord, 1)],
+                [(RedWord + IsWord, 9), ("library/" + RedWord + IsWord, 1)],
         };
 
         var runtimeRedisEndpointAllowList = new Dictionary<string, (string Value, int Count)[]>
