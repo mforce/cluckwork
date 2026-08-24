@@ -145,7 +145,7 @@
     "justification": "Caller of AccountSlugLookup.ResolveAsync (a forwarding wrapper that carries the IgnoreQueryFilters). Operator CLI suspends an account by global slug; no tenant is resolved at this point. The caller is flagged by the wrapper-forwarding walk (review P1-3) — the wrapper and its caller both need entries."
   },
   {
-    "symbol": "Cluckwork.Infrastructure.Identity.FirstRunAdminService.ProvisionUnderLockAsync(Guid accountId, string email, CancellationToken ct)",
+    "symbol": "Cluckwork.Infrastructure.Identity.FirstRunAdminService.ProvisionUnderLockAsync(Guid accountId, string accountSlug, string email, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Identity/FirstRunAdminService.cs",
     "justification": "Caller of HoldsProvisioningLockAsync (a forwarding wrapper). First-run admin bootstrap runs at unresolved tenant by design (#283); the provisioning lock is a process-level advisory lock, not tenant-scoped."
   },
