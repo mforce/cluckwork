@@ -2539,7 +2539,8 @@ export const tl = {
       + "nagbabago. Naaalala ng screen ng sign in ang huling 10 bukid na naka-sign in ka sa "
       + "device na ito, pinakabago muna, at inaalok ang mga ito para hindi mo na kailangang "
       + "i-type ang code. Ang link tulad ng /login?farm=<code> ang mananaig at awtomatikong "
-      + "pinupuno ang code para sa iyo, nang hindi ipinapakita ang listahan.",
+      + "pinupuno ang code para sa iyo, nang hindi ipinapakita ang listahan. "
+      + "Kung hindi mo alam ang code ng bukid mo, tanungin ang iyong administrator: matitingnan nila ito.",
 
     // #533 (machine-drafted, pending native review)
     glossaryFarmProvisioningTerm: "Pag-provision ng bukid",

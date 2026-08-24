@@ -2447,7 +2447,8 @@ export const es = {
       + "cambia. La pantalla de inicio de sesión recuerda las últimas 10 granjas con las que "
       + "ha iniciado sesión en este dispositivo, la más reciente primero, y se las ofrece "
       + "para que normalmente no tenga que volver a escribir el código. Un enlace como "
-      + "/login?farm=<code> se impone y rellena el código por usted, sin mostrar la lista.",
+      + "/login?farm=<code> se impone y rellena el código por usted, sin mostrar la lista. "
+      + "Si no sabe el código de su granja, pregunte a su administrador: puede consultarlo.",
 
     // #533 (machine-drafted, pending native review)
     glossaryFarmProvisioningTerm: "Aprovisionamiento de granja",
