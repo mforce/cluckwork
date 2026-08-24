@@ -2444,9 +2444,10 @@ export const es = {
       "El código corto que identifica a su granja en la pantalla de inicio de sesión. Lo "
       + "escribe antes que su correo electrónico, porque la misma dirección puede existir en "
       + "varias granjas y solo el código indica a cuál se refiere. Está en minúsculas y no "
-      + "cambia. La pantalla de inicio de sesión recuerda cada granja con la que ha iniciado "
-      + "sesión en este dispositivo y se las ofrece, por lo que normalmente no tiene que "
-      + "volver a escribirlo. Un enlace como /login?farm=<code> lo rellena por usted.",
+      + "cambia. La pantalla de inicio de sesión recuerda las últimas 10 granjas con las que "
+      + "ha iniciado sesión en este dispositivo, la más reciente primero, y se las ofrece "
+      + "para que normalmente no tenga que volver a escribir el código. Un enlace como "
+      + "/login?farm=<code> se impone y rellena el código por usted, sin mostrar la lista.",
 
     // #533 (machine-drafted, pending native review)
     glossaryFarmProvisioningTerm: "Aprovisionamiento de granja",

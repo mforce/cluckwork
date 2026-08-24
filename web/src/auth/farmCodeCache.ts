@@ -94,7 +94,10 @@ export function readFarmCodes(): string[] {
 // degradation stance client.ts:402 uses for the refresh cookie. Browsers without
 // navigator.locks (older Safari, insecure origins) fall back to the
 // unsynchronised read-modify-write: no cross-tab guarantee, but never worse than
-// before this change.
+// before this change. Unlike client.ts:402 we do NOT pair it with a timeout
+// (REFRESH_TIMEOUT_MS): its critical section awaits fetch (unbounded), whereas
+// ours is two synchronous localStorage calls with no await, so the lock is held
+// for a single task and a tab cannot be suspended mid-hold.
 //
 // NEVER REJECTS, deliberately. AuthContext.login awaits it AFTER apiLogin has
 // already succeeded, so a storage or lock failure must not turn a completed

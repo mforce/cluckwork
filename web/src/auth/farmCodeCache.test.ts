@@ -163,9 +163,10 @@ describe("farmCodeCache", () => {
       localStorage.setItem(KEY, JSON.stringify(["farm-a"]));
       let callbackSawConcurrentWrite = false;
       let concurrentFarmSurvived = false;
+      let seenName: string | undefined;
       stubLocks({
         request: (name, cb) => {
-          expect(name).toBe(LOCK);
+          seenName = name;
           // Simulate a concurrent tab that completes its login AFTER this lock
           // was acquired but BEFORE this callback runs. Only a re-read inside
           // write() — i.e. after the lock — sees it. A roster read taken before
@@ -181,14 +182,41 @@ describe("farmCodeCache", () => {
         },
       });
       await rememberFarmCode("farm-b");
+      // The lock name is asserted HERE, after the await, where nothing in the
+      // callback can throw into rememberFarmCode's own catch and swallow it.
+      expect(seenName).toBe(LOCK);
       expect(callbackSawConcurrentWrite).toBe(true);
       expect(concurrentFarmSurvived).toBe(true);
     });
 
-    it("with navigator.locks undefined, the code is still written (degradation path)", async () => {
+    it("with navigator.locks absent, the code is still written and no lock is requested (#535 P2 branch pin)", async () => {
       localStorage.setItem(KEY, JSON.stringify(["farm-a"]));
+      // Pin the lock-ABSENT branch itself, not merely that a write happened.
+      // jsdom's navigator has no `locks`, so the guard's short-circuit is the
+      // path under test: it writes directly and NEVER reaches `locks.request`.
+      // We keep a request spy ONLY to assert that no request is ever made — the
+      // absent-branch must never touch the lock manager at all. (Deleting the
+      // guard makes `locks.request` throw a TypeError on the undefined locks,
+      // and the catch re-runs the identical write; so an outcome-only assertion
+      // cannot distinguish the guard from the catch-fallback — the never-called
+      // spy is the half that tries.)
+      const request = vi.fn();
+      const navigatorStub = { ...globalThis.navigator } as Navigator & { locks?: LockManager };
+      // Deliberately NO .locks — the absent branch requires locks === undefined.
+      vi.stubGlobal("navigator", navigatorStub);
       await rememberFarmCode("farm-b");
       await expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-b", "farm-a"]);
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    it("when navigator.locks is present, a request IS made and the name is the roster lock", async () => {
+      const request = vi.fn((_name: string) => Promise.resolve());
+      const navigatorStub = { ...globalThis.navigator } as Navigator & { locks?: LockManager };
+      navigatorStub.locks = { request: request as unknown as LockManager["request"] } as LockManager;
+      vi.stubGlobal("navigator", navigatorStub);
+      await rememberFarmCode("farm-b");
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(request.mock.calls[0][0]).toBe(LOCK);
     });
 
     it("when locks.request rejects, rememberFarmCode does NOT reject and the code is still written", async () => {
