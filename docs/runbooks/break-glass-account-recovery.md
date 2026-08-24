@@ -87,10 +87,15 @@ docker compose -f deploy/docker-compose.yml exec app \
 ### Expected output (exit code `0`)
 
 ```
-Break-glass reset complete for owner@thefarm.example (account 0000000a-...). All existing sessions were revoked.
+Break-glass reset complete for owner@thefarm.example on farm <slug> (account 0000000a-...). All existing sessions were revoked.
 Temporary password: <20-char one-time password>
 Log in with this now and change it immediately (Account → change password).
 ```
+
+The **farm code** before the account GUID is the required #532 sign-in input, so
+copy it from stdout along with the password. If its output is ever lost, the
+read-only `list-accounts` verb prints every farm's code and is the supported way
+to recover it.
 
 The temporary password is written to **stdout only** (never the logger/OTLP), so
 it does not persist in structured logs. Capture it from the terminal, hand it to
@@ -169,7 +174,7 @@ Nothing is changed on a failure.
 
 ## Post-recovery verification (drill this on staging before you need it)
 
-1. The user logs in with the temporary password → **succeeds**.
+1. The user logs in with the temporary password **and the printed farm code** → **succeeds**.
 2. The **old** password → **rejected**.
 3. Any previously open session (a still-loaded browser tab) can no longer refresh → signed out.
 4. `SELECT action, actor_email, reason, occurred_at_utc FROM audit_events WHERE action = 'User.BreakGlassReset' ORDER BY occurred_at_utc DESC LIMIT 1;` shows the row with your reason.

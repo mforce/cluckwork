@@ -2227,7 +2227,8 @@ export const en = {
     // one-time password.
     signingInFirstRun:
       "<strong>First sign-in on a brand-new farm.</strong> There is no default password — an operator runs a "
-      + "one-time setup command that prints a temporary one. Sign in with it and you'll immediately land on a "
+      + "one-time setup command that prints a temporary password and the farm code. Sign in with both and "
+      + "you'll immediately land on a "
       + "<strong>Set your password</strong> screen instead of the normal app; nothing else works until you pick "
       + "your own password there. This is separate from an ordinary <em>Change password</em>. Until that setup "
       + "step has been run, trying to sign in tells you so and points you at whoever administers the server, "
@@ -2868,7 +2869,8 @@ export const en = {
       + "says which one you mean. It is lowercase and it does not change. The sign-in screen "
       + "remembers the last 10 farms you have signed in with on this device, most recent "
       + "first, and offers them so you usually do not have to retype the code. A link such "
-      + "as /login?farm=<code> takes over and fills the code in for you, without showing the list.",
+      + "as /login?farm=<code> takes over and fills the code in for you, without showing the list. "
+      + "If you do not know your farm's code, ask your administrator — they can look it up.",
 
     glossaryFarmProvisioningTerm: "Farm provisioning",
     glossaryFarmProvisioningDef:

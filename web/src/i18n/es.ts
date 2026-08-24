@@ -1776,12 +1776,12 @@ export const es = {
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Primer inicio de sesión en una granja nueva.</strong> No hay una contraseña predeterminada — "
-      + "un operador ejecuta un comando de configuración único que imprime una contraseña temporal. Inicie "
-      + "sesión con ella y llegará de inmediato a una pantalla de <strong>Establecer su contraseña</strong> en "
-      + "lugar de la aplicación normal; nada más funciona hasta que elija su propia contraseña allí. Esto es "
-      + "distinto de un <em>Cambio de contraseña</em> ordinario. Hasta que se realice ese paso de "
-      + "configuración, al intentar iniciar sesión se le indica esto y se le remite a quien administra el "
-      + "servidor, en lugar de afirmar que sus datos eran incorrectos.",
+      + "un operador ejecuta un comando de configuración único que imprime una contraseña temporal y el código "
+      + "de la granja. Inicie sesión con ambos y llegará de inmediato a una pantalla de <strong>Establecer su "
+      + "contraseña</strong> en lugar de la aplicación normal; nada más funciona hasta que elija su propia "
+      + "contraseña allí. Esto es distinto de un <em>Cambio de contraseña</em> ordinario. Hasta que se realice "
+      + "ese paso de configuración, al intentar iniciar sesión se le indica esto y se le remite a quien "
+      + "administra el servidor, en lugar de afirmar que sus datos eran incorrectos.",
     // #308 (machine-drafted, pending native review)
     // #308/#356 (machine-drafted, pending native review)
     signingInStepUp:
@@ -2447,7 +2447,8 @@ export const es = {
       + "cambia. La pantalla de inicio de sesión recuerda las últimas 10 granjas con las que "
       + "ha iniciado sesión en este dispositivo, la más reciente primero, y se las ofrece "
       + "para que normalmente no tenga que volver a escribir el código. Un enlace como "
-      + "/login?farm=<code> se impone y rellena el código por usted, sin mostrar la lista.",
+      + "/login?farm=<code> se impone y rellena el código por usted, sin mostrar la lista. "
+      + "Si no sabe el código de su granja, pregunte a su administrador: puede consultarlo.",
 
     // #533 (machine-drafted, pending native review)
     glossaryFarmProvisioningTerm: "Aprovisionamiento de granja",

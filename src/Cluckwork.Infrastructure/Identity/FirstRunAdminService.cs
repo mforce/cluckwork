@@ -118,10 +118,29 @@ public sealed class FirstRunAdminService(
         // the schema is current (MigrateAsync above already ran) — this is
         // defense-in-depth against a hand-rolled/partially-restored schema,
         // not the expected path. Read-only, so it stays outside the lock.
-        var accountExists = await db.Accounts
+        // #589 — select the SLUG instead of testing existence. The operator cannot
+        // sign in without the farm code (#532 made it a required login input), and
+        // this query already runs on this path, so reading the value here costs no
+        // extra round trip. A MISSING ROW returns null and takes the
+        // Bootstrap.AccountMissing failure path below. A row whose slug is NULL —
+        // only possible on a hand-rolled or partially-restored schema, since
+        // AccountConfiguration marks Slug .IsRequired() — throws
+        // InvalidCastException ("Column 'Slug' is null.") before SingleOrDefaultAsync
+        // returns; the CLI's catch-all turns that into "Bootstrap failed: …" and exit
+        // 1. That is still fail-closed, but via the catch-all, NOT via this guard, so
+        // the operator sees an EF error rather than the friendly message. Recorded
+        // as a known limitation: an earlier attempt to make the null-slug case reach
+        // the friendly path by projecting `(string?)a.Slug` changed nothing — the
+        // cast is an identity conversion whose nullability comes from the model
+        // (a migrated database never has a NULL slug), not from the C# annotation.
+        // Deliberately NOT a "default-farm" literal: that value lives in
+        // 20260818235944_AddAccountSlug.cs and a second copy would drift.
+        var accountSlug = await db.Accounts
             .IgnoreQueryFilters()
-            .AnyAsync(a => a.Id == accountId, ct);
-        if (!accountExists)
+            .Where(a => a.Id == accountId)
+            .Select(a => a.Slug)
+            .SingleOrDefaultAsync(ct);
+        if (accountSlug is null)
             return Result.Failure<FirstRunAdminOutcome>(Error.Validation(
                 "Bootstrap.AccountMissing",
                 "The default account does not exist. This should never happen against a schema this " +
@@ -149,7 +168,7 @@ public sealed class FirstRunAdminService(
                     $"SELECT pg_advisory_lock({AdvisoryLockClassId}, {AdvisoryLockObjectId})", ct);
                 try
                 {
-                    return await ProvisionUnderLockAsync(accountId, email.Trim(), ct);
+                    return await ProvisionUnderLockAsync(accountId, accountSlug, email.Trim(), ct);
                 }
                 finally
                 {
@@ -211,7 +230,7 @@ public sealed class FirstRunAdminService(
     }
 
     private async Task<Result<FirstRunAdminOutcome>> ProvisionUnderLockAsync(
-        Guid accountId, string email, CancellationToken ct)
+        Guid accountId, string accountSlug, string email, CancellationToken ct)
     {
         // Idempotency: an Owner already existing in the default account means
         // first-run provisioning already happened. Re-checked HERE (not just
@@ -332,7 +351,8 @@ public sealed class FirstRunAdminService(
             }
 
             await transaction.CommitAsync(token);
-            return Result.Success(FirstRunAdminOutcome.Provisioned(email, accountId, password));
+            return Result.Success(
+                FirstRunAdminOutcome.Provisioned(email, accountId, accountSlug, password));
         }, ct);
     }
 
@@ -366,11 +386,21 @@ public sealed class FirstRunAdminService(
              """).SingleAsync(ct);
 }
 
+// #589 — Slug is NULLABLE and sits beside the other nullable fields deliberately.
+// This record is not a mirror of AccountProvisionOutcome: that one has no no-op
+// path, so all its fields are non-null, whereas AlreadyProvisioned() here returns
+// a value with nothing populated. Copying its non-nullable `string Slug` across
+// would make the idempotent branch unrepresentable.
 public sealed record FirstRunAdminOutcome(
-    bool WasAlreadyProvisioned, string? Email, Guid? AccountId, string? TemporaryPassword)
+    bool WasAlreadyProvisioned,
+    string? Email,
+    Guid? AccountId,
+    string? Slug,
+    string? TemporaryPassword)
 {
-    public static FirstRunAdminOutcome AlreadyProvisioned() => new(true, null, null, null);
+    public static FirstRunAdminOutcome AlreadyProvisioned() => new(true, null, null, null, null);
 
-    public static FirstRunAdminOutcome Provisioned(string email, Guid accountId, string password) =>
-        new(false, email, accountId, password);
+    public static FirstRunAdminOutcome Provisioned(
+        string email, Guid accountId, string slug, string password) =>
+        new(false, email, accountId, slug, password);
 }

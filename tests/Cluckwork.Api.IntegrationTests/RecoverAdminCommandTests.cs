@@ -5,6 +5,8 @@ using Cluckwork.Domain.Accounts;
 using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 // #265 — the `recover-admin` break-glass command is a real CLI dispatch branch
@@ -95,6 +97,33 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
             "the old seeded password must be rejected after recovery");
     }
 
+    // #589 — recover-admin must print the farm code (a required #532 login
+    // input) the same way bootstrap-admin does. Same varied-slug discipline as
+    // the bootstrap tests: the expected value is NOT the migration-seeded
+    // "default-farm" constant, so a regression that printed a literal would red
+    // here. recover-admin reads the slug off the account row inside its own
+    // transaction (AdminRecoveryService, no new query). Restored in `finally`
+    // because the tests in this class share the fixture's one database.
+    [Fact]
+    public async Task RecoverAdmin_PrintsTheFarmCodeFromTheAccountRow()
+    {
+        var variedSlug = "varied-farm-x7q2";
+        var originalSlug = await OverrideAccountSlugAsync(variedSlug);
+        try
+        {
+            var (exitCode, stdout, stderr) = await RunAsync(
+                $"--email {_factory.AdminEmail} --reason integration-drill");
+            Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
+            Assert.Contains($"on farm {variedSlug} ", stdout);
+        }
+        finally
+        {
+            // Restore is asserted (rows affected == 1) so the isolation the
+            // finally provides is actually verified, not just claimed.
+            Assert.Equal(1, await SetAccountSlugAsync(originalSlug));
+        }
+    }
+
     // #316 review — the OTLP guard validates during service registration, which
     // runs BEFORE CliDispatcher. Enforcing it for a one-off verb meant a
     // plaintext Otlp:Endpoint aborted recover-admin with an unhandled exception
@@ -155,6 +184,31 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
 
         Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
         Assert.Contains("Temporary password:", stdout);
+    }
+
+    // #589 — vary the fixture's account Slug (the admin lives on
+    // SeedDefaults.AccountId) and restore it, same raw-SQL rationale as the
+    // BootstrapAdminCommandTests helpers. Slug is immutable in the domain, so
+    // only a raw UPDATE can fabricate a distinct farm code.
+    private async Task<string> OverrideAccountSlugAsync(string newSlug)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var original = await db.Accounts.IgnoreQueryFilters()
+            .Where(a => a.Id == SeedDefaults.AccountId)
+            .Select(a => a.Slug)
+            .SingleAsync();
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"Accounts\" SET \"Slug\" = {newSlug} WHERE \"Id\" = {SeedDefaults.AccountId}");
+        return original;
+    }
+
+    private async Task<int> SetAccountSlugAsync(string slug)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"Accounts\" SET \"Slug\" = {slug} WHERE \"Id\" = {SeedDefaults.AccountId}");
     }
 
     private static string ExtractTemporaryPassword(string stdout)

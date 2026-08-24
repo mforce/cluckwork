@@ -65,8 +65,8 @@ public sealed class RecoverAdminCliCommand : ICliCommand
             // rotate it on first login, as the runbook instructs (#265 review).
             var outcome = recovered.Value;
             await Console.Out.WriteLineAsync(
-                $"Break-glass reset complete for {outcome.Email} (account {outcome.AccountId}). " +
-                "All existing sessions were revoked.");
+                $"Break-glass reset complete for {outcome.Email} on farm {outcome.Slug} " +
+                $"(account {outcome.AccountId}). All existing sessions were revoked.");
             await Console.Out.WriteLineAsync($"Temporary password: {outcome.TemporaryPassword}");
             await Console.Out.WriteLineAsync(
                 "Log in with this now and change it immediately (Account → change password).");

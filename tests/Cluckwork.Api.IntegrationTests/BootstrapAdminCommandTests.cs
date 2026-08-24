@@ -62,29 +62,53 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
     {
         var email = $"bootstrap-{Guid.NewGuid():N}@test.local";
 
-        var (exitCode, stdout, stderr) = await RunBootstrapCommandAsync(email);
+        // #589 (codex P2) — the account slug is VARIED before the command runs
+        // so the farm-code assertion discriminates. Every bootstrap test
+        // database carries the same migration-seeded "default-farm", so reading
+        // the slug back from the DB and asserting THAT constant would still pass
+        // a regression that printed the literal "default-farm". Pinning the
+        // varied value forces the command to actually read the account row.
+        // Restored in `finally` because the tests in this class share `_factory`'s
+        // one database.
+        var variedSlug = "varied-farm-x7q2";
+        var originalSlug = await OverrideDefaultAccountSlugAsync(variedSlug);
+        try
+        {
+            var (exitCode, stdout, stderr) = await RunBootstrapCommandAsync(email);
 
-        Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
-        Assert.Contains(email, stdout);
-        Assert.Contains("Temporary password:", stdout);
-        // The password itself never reaches stderr (nothing does on success).
-        Assert.Equal(string.Empty, stderr);
-        // #273 — the actual "never the logger" guarantee, asserted directly:
-        // Serilog's own Console sink ALSO writes to this process's stdout (the
-        // "Console" WriteTo in appsettings.json), so a stray structured log
-        // line would land in this SAME captured stream, not go missing — this
-        // is precisely how a regression here would be observable. NOT "exactly
-        // 3 lines": a legitimate operational Serilog line (e.g. the connection-
-        // string warning RecoverAdminCommandTests hits in Production) can
-        // legally appear here too, so the invariant is narrower and precise —
-        // the password appears EXACTLY ONCE in the whole capture (the one
-        // explicit Console.Out line), and never inside a Serilog line (which
-        // always opens with its outputTemplate's "[HH:mm:ss LVL]" bracket).
-        var tempPassword = ExtractTemporaryPassword(stdout);
-        Assert.Equal(1, CountOccurrences(stdout, tempPassword));
-        Assert.DoesNotContain(
-            stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries),
-            line => line.TrimStart().StartsWith('[') && line.Contains(tempPassword));
+            Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
+            Assert.Contains(email, stdout);
+            Assert.Contains("Temporary password:", stdout);
+            // #589 — assert the FARM CODE is printed AND that it is the VARIED
+            // value set above, not the seed "default-farm" (see the method
+            // comment). #532 made the farm code a required login input, so
+            // without this line the operator cannot sign in.
+            Assert.Contains($"on farm {variedSlug} ", stdout);
+            // The password itself never reaches stderr (nothing does on success).
+            Assert.Equal(string.Empty, stderr);
+            // #273 — the actual "never the logger" guarantee, asserted directly:
+            // Serilog's own Console sink ALSO writes to this process's stdout (the
+            // "Console" WriteTo in appsettings.json), so a stray structured log
+            // line would land in this SAME captured stream, not go missing — this
+            // is precisely how a regression here would be observable. NOT "exactly
+            // 3 lines": a legitimate operational Serilog line (e.g. the connection-
+            // string warning RecoverAdminCommandTests hits in Production) can
+            // legally appear here too, so the invariant is narrower and precise —
+            // the password appears EXACTLY ONCE in the whole capture (the one
+            // explicit Console.Out line), and never inside a Serilog line (which
+            // always opens with its outputTemplate's "[HH:mm:ss LVL]" bracket).
+            var tempPassword = ExtractTemporaryPassword(stdout);
+            Assert.Equal(1, CountOccurrences(stdout, tempPassword));
+            Assert.DoesNotContain(
+                stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries),
+                line => line.TrimStart().StartsWith('[') && line.Contains(tempPassword));
+        }
+        finally
+        {
+            // Restore is asserted (rows affected == 1) so the isolation the
+            // finally provides is actually verified, not just claimed.
+            Assert.Equal(1, await SetDefaultAccountSlugAsync(originalSlug));
+        }
 
         using var scope = _factory.Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -127,6 +151,49 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var owners = await users.GetUsersInRoleAsync(Roles.Owner);
         Assert.Single(owners, u => u.AccountId == SeedDefaults.AccountId);
+    }
+
+    [Fact]
+    public async Task Rerun_WhenAlreadyProvisioned_DoesNotPrintTheFarmCode()
+    {
+        // Reuses the idempotent-rerun setup: this class shares `_factory`'s one
+        // database and xUnit does not order tests, so the first run merely
+        // guarantees an Owner exists — provisioning it if no earlier test in this
+        // class already did — and the second run is a no-op where
+        // WasAlreadyProvisioned is true.
+        var email = $"bootstrap-farmcode-{Guid.NewGuid():N}@test.local";
+        // #589 (codex P2) — same varied-slug discipline as the first-run test:
+        // the re-run bans the account's ACTUAL (varied) slug value, not one
+        // phrasing of an "on farm" line and not the seed constant — a broken
+        // re-run that emitted "Farm code: <slug>" under any label must red.
+        // Restored in `finally` because the tests share `_factory`'s database.
+        var variedSlug = "varied-farm-x7q2";
+        var originalSlug = await OverrideDefaultAccountSlugAsync(variedSlug);
+        try
+        {
+            var first = await RunBootstrapCommandAsync(email);
+            Assert.True(0 == first.ExitCode, $"first run: expected exit 0, got {first.ExitCode}. stderr={first.Stderr}");
+
+            var second = await RunBootstrapCommandAsync(email);
+            Assert.True(0 == second.ExitCode, $"rerun: expected exit 0, got {second.ExitCode}. stderr={second.Stderr}");
+            Assert.Contains("already provisioned", second.Stdout, StringComparison.OrdinalIgnoreCase);
+            // #589 — the idempotent path must stay silent about the farm code: no
+            // provisioning happened. TWO bans, because the value ban alone cannot
+            // catch the real mutant. AlreadyProvisioned() returns Slug = null, so a
+            // re-run branch that prints the slug prints an EMPTY string, which the
+            // varied-value ban below can never see; the "on farm" phrase ban is what
+            // catches that one-file mutant, while the value ban catches the stronger
+            // two-file mutant that also populates the slug. (These two are what keep
+            // the AlreadyProvisioned() branch honest.)
+            Assert.DoesNotContain(variedSlug, second.Stdout, StringComparison.Ordinal);
+            Assert.DoesNotContain("on farm", second.Stdout, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            // Restore is asserted (rows affected == 1) so the isolation the
+            // finally provides is actually verified, not just claimed.
+            Assert.Equal(1, await SetDefaultAccountSlugAsync(originalSlug));
+        }
     }
 
     [Fact]
@@ -223,6 +290,33 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
             .ToListAsync();
         var owner = Assert.Single(owners);
         Assert.Contains(owner.Email, new[] { emailA, emailB });
+    }
+
+    // #589 — set the default account's Slug to a value that is NOT the
+    // migration-seeded "default-farm", and restore it. Raw SQL (not EF
+    // SaveChanges) is deliberate: Slug is immutable in the domain (#531,
+    // "no ChangeSlug"), and a raw UPDATE bypasses both the domain guard and any
+    // interceptor — exactly what a test that fabricates a distinct farm code
+    // needs. `Override` returns the original so a `finally` can restore it.
+    private async Task<string> OverrideDefaultAccountSlugAsync(string newSlug)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var original = await db.Accounts.IgnoreQueryFilters()
+            .Where(a => a.Id == SeedDefaults.AccountId)
+            .Select(a => a.Slug)
+            .SingleAsync();
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"Accounts\" SET \"Slug\" = {newSlug} WHERE \"Id\" = {SeedDefaults.AccountId}");
+        return original;
+    }
+
+    private async Task<int> SetDefaultAccountSlugAsync(string slug)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"Accounts\" SET \"Slug\" = {slug} WHERE \"Id\" = {SeedDefaults.AccountId}");
     }
 
     private static string ExtractTemporaryPassword(string stdout)
