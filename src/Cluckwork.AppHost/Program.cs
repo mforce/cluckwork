@@ -1,16 +1,15 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Local host ports are opt-in and per-machine. Aspire assigns a random free
-// host port per run when a port is not stated, which is the default here and
-// what docs/runbooks/aspire-local-development.md describes; set a `LocalPorts:*`
-// value (user-secrets, an environment variable, or a `--LocalPorts:Api=8080`
-// argument) to pin one so copied psql/redis-cli/browser URLs survive a restart.
+// Local host ports come from `LocalPorts:*`. appsettings.json pins the
+// defaults every clone gets so copied psql/redis-cli/browser URLs survive a
+// restart; override per machine with user-secrets, per shell with an
+// environment variable, or per run with a `--LocalPorts:Api=8080` argument.
 //
-// Absent, empty and unparseable all resolve to null — the dynamic default —
-// rather than throwing, so a stray value cannot fail the launch, and a caller
-// can force the dynamic case by passing an empty value regardless of what the
-// machine's user-secrets hold. AppHostModelTests relies on that to stay
-// machine-independent.
+// Absent, empty and unparseable all resolve to null, which is Aspire's own
+// behaviour of assigning a random free host port. That is the escape hatch for
+// a machine where a pinned port is taken — pass an empty value — and it means a
+// stray value degrades instead of failing the launch. AppHostModelTests relies
+// on it to stay machine-independent.
 int? LocalPort(string name) =>
     int.TryParse(builder.Configuration[$"LocalPorts:{name}"], out var port) ? port : null;
 

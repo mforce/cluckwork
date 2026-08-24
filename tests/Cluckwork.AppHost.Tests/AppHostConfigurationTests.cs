@@ -6,17 +6,17 @@ using Xunit;
 namespace Cluckwork.AppHost.Tests;
 
 /// <summary>
-/// Guards the committed AppHost <c>appsettings.json</c>. The file exists to
-/// declare the <c>LocalPorts</c> keys where a developer will look for them; it
-/// deliberately carries no values, because a host port is a per-machine choice
-/// and this file is committed.
+/// Guards the committed AppHost <c>appsettings.json</c>. It pins the
+/// <c>LocalPorts</c> defaults every clone gets, so the values have to stay
+/// parseable, mutually distinct, and clear of the ports
+/// <c>deploy/docker-compose.dev.yml</c> already publishes.
 /// </summary>
 public sealed class AppHostConfigurationTests
 {
     private static readonly string[] LocalPortKeys = ["Postgres", "Redis", "Api", "Web"];
 
     [Fact]
-    public void Committed_appsettings_declares_every_local_port_key_with_no_value()
+    public void Committed_appsettings_pins_every_local_port_to_a_usable_value()
     {
         using var document = JsonDocument.Parse(
             File.ReadAllText(AppSettingsPath()),
@@ -31,14 +31,31 @@ public sealed class AppHostConfigurationTests
             LocalPortKeys.OrderBy(key => key, StringComparer.Ordinal),
             localPorts.EnumerateObject().Select(property => property.Name).OrderBy(key => key, StringComparer.Ordinal));
 
+        var assigned = new Dictionary<int, string>();
         foreach (var property in localPorts.EnumerateObject())
         {
-            // A committed value would pin a port for everyone who clones the
-            // repo, and would collide on whichever machine already uses it.
             Assert.Equal(JsonValueKind.String, property.Value.ValueKind);
-            Assert.Equal(
-                string.Empty,
-                property.Value.GetString());
+
+            var raw = property.Value.GetString();
+            Assert.True(
+                int.TryParse(raw, out var port),
+                $"LocalPorts:{property.Name} must be a port number, but was '{raw}'. An unparseable value silently falls back to a random port.");
+
+            // Above the privileged range, below the ephemeral range Aspire and
+            // Docker draw random host ports from.
+            Assert.InRange(port, 1024, 32767);
+
+            // Both of these belong to deploy/docker-compose.dev.yml, which
+            // keeps its own data volume. Reusing one points this stack at the
+            // other stack's database, or fails the launch outright.
+            Assert.False(
+                port is 5432 or 6379,
+                $"LocalPorts:{property.Name} is {port}, which collides with deploy/docker-compose.dev.yml.");
+
+            Assert.False(
+                assigned.TryGetValue(port, out var owner),
+                $"LocalPorts:{property.Name} reuses port {port}, already taken by LocalPorts:{owner}.");
+            assigned[port] = property.Name;
         }
     }
 

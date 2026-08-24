@@ -56,41 +56,49 @@ $aspire describe --apphost "$apphost" --format Json --non-interactive
 ```
 
 Read the advertised `web` HTTP endpoint from the final description rather than
-assuming a port. Aspire assigns host ports dynamically by default. The Vite app
-receives the API target from Aspire, and binds its supplied port strictly, so
-calling `<web-endpoint>/api/...` exercises the development proxy. The dashboard URL and
+assuming a port. The repository pins the four host ports below, but any of them
+can be overridden or returned to Aspire's random assignment, so the description
+is the authority for what this run is actually using. The Vite app receives the
+API target from Aspire, and binds its supplied port strictly, so calling
+`<web-endpoint>/api/...` exercises the development proxy. The dashboard URL and
 access mechanism are shown by the CLI; treat any dashboard token as a secret.
 
-### Pinning host ports (optional)
+### Host ports
 
-Dynamic ports mean a `psql`, `redis-cli` or browser URL copied from one run is
-stale on the next. Pin any of them per machine with a `LocalPorts:*` value —
-these are a developer convenience, never a deployment input, and an unset key
-keeps the dynamic default above:
+`src/Cluckwork.AppHost/appsettings.json` pins the host ports, so a `psql`,
+`redis-cli` or browser URL stays valid across restarts:
 
-| Key | Resource |
-|---|---|
-| `LocalPorts:Postgres` | PostgreSQL host port |
-| `LocalPorts:Redis` | Redis host port |
-| `LocalPorts:Api` | API HTTP endpoint |
-| `LocalPorts:Web` | Vite dev server |
+| Key | Resource | Default |
+|---|---|---|
+| `LocalPorts:Postgres` | PostgreSQL host port | `5433` |
+| `LocalPorts:Redis` | Redis host port | `6380` |
+| `LocalPorts:Api` | API HTTP endpoint | `8080` |
+| `LocalPorts:Web` | Vite dev server | `5173` |
 
-`src/Cluckwork.AppHost/appsettings.json` declares all four keys with empty
-values, which is where to look for them; leave them empty there, because that
-file is committed and a host port is a per-machine choice. Set them wherever
-the AppHost's configuration reads from instead — user-secrets for a per-machine
-choice, environment variables (`LocalPorts__Api=8080`) for a per-shell one, or
-`--LocalPorts:Api=8080` as a run argument:
+`5432` and `6379` are deliberately avoided: `deploy/docker-compose.dev.yml`
+publishes those and keeps a separate data volume, so reusing one would either
+fail the launch or point this stack at the other stack's database.
+
+A pinned port fails the launch when something else already holds it. Override
+per machine with user-secrets, per shell with an environment variable, or per
+run with an argument:
 
 ```bash
-dotnet user-secrets --project src/Cluckwork.AppHost set "LocalPorts:Api" "8080"
+dotnet user-secrets --project src/Cluckwork.AppHost set "LocalPorts:Api" "8081"
+LocalPorts__Api=8081 aspire run --apphost "$apphost"
+dotnet run --project src/Cluckwork.AppHost -- --LocalPorts:Api=8081
 ```
 
-Do not reuse `5432` or `6379`: `deploy/docker-compose.dev.yml` publishes those,
-and the two stacks keep separate data volumes, so a collision either fails the
-launch or points you at the other stack's database. A pinned port fails the
-launch on a collision instead of quietly moving, which is the point — an empty
-or unparseable value falls back to the dynamic default rather than throwing.
+An empty value restores Aspire's original behaviour of assigning a random free
+port, which is also what an unparseable value falls back to rather than
+throwing:
+
+```bash
+dotnet run --project src/Cluckwork.AppHost -- --LocalPorts:Api=
+```
+
+Redis is served over TLS on its advertised endpoint, so a plaintext `redis-cli`
+against the pinned port gets no reply; use the TLS options as below.
 
 The dashboard and OTLP endpoints are not covered by these keys and still move
 between runs; take them from the CLI each time.
