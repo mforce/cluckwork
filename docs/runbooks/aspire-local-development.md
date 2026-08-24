@@ -56,10 +56,52 @@ $aspire describe --apphost "$apphost" --format Json --non-interactive
 ```
 
 Read the advertised `web` HTTP endpoint from the final description rather than
-assuming a port. Aspire assigns host ports dynamically. The Vite app receives
-the API target from Aspire, and binds its supplied port strictly, so calling
+assuming a port. The repository pins the four host ports below, but any of them
+can be overridden or returned to Aspire's random assignment, so the description
+is the authority for what this run is actually using. The Vite app receives the
+API target from Aspire, and binds its supplied port strictly, so calling
 `<web-endpoint>/api/...` exercises the development proxy. The dashboard URL and
 access mechanism are shown by the CLI; treat any dashboard token as a secret.
+
+### Host ports
+
+`src/Cluckwork.AppHost/appsettings.json` pins the host ports, so a `psql`,
+`redis-cli` or browser URL stays valid across restarts:
+
+| Key | Resource | Default |
+|---|---|---|
+| `LocalPorts:Postgres` | PostgreSQL host port | `5433` |
+| `LocalPorts:Redis` | Redis host port | `6380` |
+| `LocalPorts:Api` | API HTTP endpoint | `8080` |
+| `LocalPorts:Web` | Vite dev server | `5173` |
+
+`5432` and `6379` are deliberately avoided: `deploy/docker-compose.dev.yml`
+publishes those and keeps a separate data volume, so reusing one would either
+fail the launch or point this stack at the other stack's database.
+
+A pinned port fails the launch when something else already holds it. Override
+per machine with user-secrets, per shell with an environment variable, or per
+run with an argument:
+
+```bash
+dotnet user-secrets --project src/Cluckwork.AppHost set "LocalPorts:Api" "8081"
+LocalPorts__Api=8081 aspire run --apphost "$apphost"
+dotnet run --project src/Cluckwork.AppHost -- --LocalPorts:Api=8081
+```
+
+An empty value restores Aspire's original behaviour of assigning a random free
+port, which is also what an unparseable value falls back to rather than
+throwing:
+
+```bash
+dotnet run --project src/Cluckwork.AppHost -- --LocalPorts:Api=
+```
+
+Redis is served over TLS on its advertised endpoint, so a plaintext `redis-cli`
+against the pinned port gets no reply; use the TLS options as below.
+
+The dashboard and OTLP endpoints are not covered by these keys and still move
+between runs; take them from the CLI each time.
 
 The CLI's resource display names are not log/telemetry query arguments. Use
 AppHost-targeted, unfiltered queries, then filter by the exact trace ID:
