@@ -133,12 +133,31 @@ export async function rememberFarmCode(value: string): Promise<void> {
   }
 }
 
+// Reads the raw roster, distinguishing "storage is unreadable" (null) from
+// "stored but malformed" ("" — JSON.parse of that fails and the roster is
+// empty). removeFarmCode must tell the two apart: a removal that cannot READ
+// the roster must be a no-op, because an empty-array write on a read failure
+// would erase codes it never saw.
+function readRawRoster(): string | null {
+  try {
+    return localStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+}
+
 // #587 — the roster's only user-facing exit. Same protocol and the same
 // never-rejects contract as rememberFarmCode: a forgotten local convenience
 // must never surface as an error on the login screen. A successfully acquired
 // Web Lock orders a forget with a concurrent sign-in; the no-lock/rejected-lock
 // fallback is, like rememberFarmCode's, a deliberately unsynchronised
 // best-effort read-modify-write with no cross-tab ordering promise.
+//
+// A failed READ is a no-op, not an empty-array write: getItem can throw while
+// setItem would still succeed (a quota-limited or partially-broken storage),
+// and writing "[]" in that case would destroy every remembered code this call
+// never saw. Malformed stored JSON still behaves as an empty roster — only a
+// storage-read FAILURE changes the outcome.
 export async function removeFarmCode(value: string): Promise<void> {
   const code = canonicalFarmCode(value);
   if (code === null) return;
@@ -146,7 +165,26 @@ export async function removeFarmCode(value: string): Promise<void> {
   // to prevent on the write path applies to a removal — a sign-in landing
   // after the lock is acquired must survive a forget issued before it.
   const write = (): void => {
-    const next = readFarmCodes().filter((candidate) => candidate !== code);
+    const raw = readRawRoster();
+    if (raw === null) return;
+    // Readable-but-malformed stored JSON and non-array JSON parse to an EMPTY
+    // roster (mirrors readFarmCodes), and the removal then writes "[]" — the
+    // same immediate normalisation readFarmCodes's write path (rememberFarmCode)
+    // produces. Only a storage-read FAILURE (readRawRoster === null) is a
+    // no-op; a readable value is never left corrupt.
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = null;
+    }
+    const roster = Array.isArray(parsed)
+      ? (parsed as unknown[])
+          .map((entry) => canonicalFarmCode(entry))
+          .filter((candidate): candidate is string => candidate !== null)
+          .slice(0, MAX_REMEMBERED)
+      : [];
+    const next = roster.filter((candidate) => candidate !== code);
     try {
       localStorage.setItem(KEY, JSON.stringify(next));
     } catch {

@@ -545,6 +545,41 @@ describe("Login — forgetting a remembered farm", () => {
     expect(screen.queryByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "sunny-a" }) })).not.toBeInTheDocument();
   });
 
+  // The clear is a CANONICAL comparison, not a raw string match: the roster
+  // holds canonical (trimmed, lowercase) codes while the field holds the
+  // operator's raw typing. A raw `current === code` test would leave "Farm-A"
+  // sitting in the field after farm-a was forgotten — a stale code that signs
+  // in to the farm the operator just removed from the list.
+  it("clears the field when it holds a case-mangled or padded form of the forgotten code", async () => {
+    for (const raw of ["Farm-A", " farm-a "]) {
+      localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+      renderWithProviders(tree(), { route: "/login", token: null });
+      await screen.findByRole("button", { name: "Sign in" });
+      // Overwrite the prefill with the raw variant — exactly the typing the
+      // guard must absorb.
+      fireEvent.change(farmField(), { target: { value: raw } });
+      fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "farm-a" }) }));
+      fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarmConfirm") }));
+      await waitFor(() => expect(farmField()).toHaveValue(""));
+      cleanup();
+    }
+  });
+
+  // The other side of the same comparison: a DIFFERENT canonical code must
+  // survive, even when its raw form is merely a case/padding variant of
+  // another. (The raw form is always canonicalised on read, so a truly
+  // different code is what the field can hold.)
+  it("keeps a different canonical code in the field when its raw form differs only in case", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    fireEvent.change(farmField(), { target: { value: "Farm-B" } });
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "farm-a" }) }));
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarmConfirm") }));
+    await waitFor(() => expect(farmField()).toHaveValue("Farm-B"));
+    expect(JSON.parse(localStorage.getItem("cluckwork.farmCodes") ?? "[]")).toEqual(["farm-b"]);
+  });
+
   // #587/#585 — the three login controls carry stable HTML identifiers. The
   // autocomplete tokens are the browser/manager heuristic inputs; their values
   // are unchanged by this slice and pinned here so a later edit cannot move

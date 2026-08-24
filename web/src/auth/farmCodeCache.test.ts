@@ -156,6 +156,58 @@ describe("farmCodeCache", () => {
     spy.mockRestore();
   });
 
+  // A read FAILURE is not an empty roster: getItem can throw while setItem
+  // would still succeed (a quota-limited or partially-broken storage). Writing
+  // "[]" in that case would destroy every remembered code this call never saw
+  // — the removal must be a no-op, not a wipe.
+  it("a throwing getItem makes the removal a no-op: it never writes an empty array over an unreadable roster", async () => {
+    localStorage.setItem(KEY, JSON.stringify(["farm-a", "farm-b"]));
+    const getSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage unavailable");
+    });
+    const setSpy = vi.spyOn(Storage.prototype, "setItem"); // real implementation — would succeed
+    await expect(removeFarmCode("farm-a")).resolves.toBeUndefined();
+    expect(setSpy).not.toHaveBeenCalled();
+    setSpy.mockRestore();
+    getSpy.mockRestore();
+    // The roster the storage actually holds is untouched.
+    expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-a", "farm-b"]);
+  });
+
+  // The read-failure no-op must NOT swallow the malformed-storage behaviour:
+  // READABLE malformed or non-array JSON is an EMPTY roster (mirrors
+  // readFarmCodes), not a failed read — so the removal writes the raw "[]"
+  // immediately, normalising the stored value in the same call. The raw
+  // stored text is asserted DIRECTLY, not through a follow-up rememberFarmCode
+  // (which would normalise the same storage and mask a no-op removal).
+  it("unparseable stored JSON: the removal writes raw [] immediately (readable malformed is an empty roster, not a read failure)", async () => {
+    localStorage.setItem(KEY, "{not json");
+    await removeFarmCode("farm-a");
+    // The stored value is now the empty JSON array, verbatim — a no-op
+    // removal (or one that left the corrupt value) leaves "{not json" here.
+    expect(localStorage.getItem(KEY)).toBe("[]");
+  });
+
+  it("non-array stored JSON: the removal writes raw [] immediately (readable non-array is an empty roster, not a read failure)", async () => {
+    localStorage.setItem(KEY, JSON.stringify({ farm: "farm-a" }));
+    await removeFarmCode("farm-a");
+    // The object is not an array, so the roster is empty and the stored value
+    // is replaced by the empty JSON array in the same call. A no-op removal
+    // would leave the object here.
+    expect(localStorage.getItem(KEY)).toBe("[]");
+  });
+
+  // The rewrite goes through the same canonicalisation as the read path: an
+  // operator-typed, case-mangled or padded code that a hand-written array
+  // carries is removed by its canonical form, and malformed entries are
+  // dropped rather than propagated into the rewritten roster. Asserted on the
+  // raw stored text so the normalisation is proven by the REMOVAL itself.
+  it("a removal rewrites the roster through canonicalisation: drops invalid entries and matches case-mangled forms", async () => {
+    localStorage.setItem(KEY, JSON.stringify(["ab", "Farm-A", "farm-b"]));
+    await removeFarmCode(" farm-A ");
+    expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-b"]);
+  });
+
   it("removeFarmCode with an invalid value resolves and leaves the roster untouched", async () => {
     localStorage.setItem(KEY, JSON.stringify(["farm-a"]));
     await expect(removeFarmCode("ab")).resolves.toBeUndefined();

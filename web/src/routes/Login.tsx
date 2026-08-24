@@ -129,8 +129,13 @@ export function Login() {
     void removeFarmCode(code);
     setRememberedCodes((current) => current.filter((c) => c !== code));
     // Clear the field only when it held the forgotten code — the operator may
-    // have switched to another farm's code and must keep it.
-    setFarmCode((current) => (current === code ? "" : current));
+    // have switched to another farm's code and must keep it. Compared
+    // CANONICALLY, not by raw string: the roster holds canonical (trimmed,
+    // lowercase) codes, but the field holds the operator's raw typing, which
+    // may be case-mangled or padded — "Farm-A" IS farm-a.
+    setFarmCode((current) =>
+      canonicalFarmCode(current) === code ? "" : current,
+    );
     // Queued, not synchronous: the state commit above re-renders and removes
     // the trigger before focus can meaningfully move.
     requestAnimationFrame(() => farmCodeInputRef.current?.focus());

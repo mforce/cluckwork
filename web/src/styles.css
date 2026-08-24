@@ -1703,9 +1703,9 @@ label.check {
 }
 
 .auth .auth-forget-farm {
-  /* 44px minimum touch target — pinned by Login.styles.test.ts. */
+  /* 44px minimum touch target in BOTH axes — pinned by Login.styles.test.ts. */
   min-block-size: 44px;
-  min-inline-size: 2.25rem;
+  min-inline-size: 44px;
   padding: 0.35rem 0.6rem;
   border: 1px solid var(--hairline);
   border-left: 0;
@@ -1713,7 +1713,13 @@ label.check {
   border-top-left-radius: 0;
   border-radius: 0 var(--r-pill) var(--r-pill) 0;
   background: var(--surface-2);
-  color: var(--danger);
+  /* --error, not --danger: the destructive FILL token fails the 4.5:1 AA
+     floor for the glyph at rest (2.76:1 in the dark theme over --surface-2),
+     while --error clears it in every theme and palette (4.99 light aubergine,
+     6.44 dark aubergine) — the same token the rest of the app uses for
+     error-coloured text. The pair is pinned in styles.test.ts. The hover fill
+     keeps --danger, whose white label clears 4.5:1 (6.71 / 5.53). */
+  color: var(--error);
   font-size: 1rem;
   line-height: 1;
   font-family: inherit;

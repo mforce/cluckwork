@@ -1847,7 +1847,7 @@ export const tl = {
       + "sa pag-sign in sa halip na manghula — piliin ang code ng bukid at mag-sign in. Naaalala rin ng page ng "
       + "pag-sign in ang mga code ng bukid na ginamit mo sa device na ito at inaalok ang mga ito bilang isang "
       + "pumipili, at ang link na ?farm= ay nag-pre-fill sa field. Ang bawat natatandaang bukid ay maaaring "
-      + "alisin sa listahan gamit ang kanyang Forget control; sa paggawa nitong hindi binubura ang session ng "
+      + "alisin sa listahan gamit ang kanyang kontrol na Kalimutan; sa paggawa nitong hindi binubura ang session ng "
       + "ibang bukid o iba pang setting ng device. Walang session ng ibang bukid na binubura.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
