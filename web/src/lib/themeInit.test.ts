@@ -20,14 +20,27 @@ import { fileURLToPath } from "node:url";
 // and the real WHATWG URL resolution (against the real file:// module URL)
 // runs instead. Same fix as src/test/cssTokens.ts.
 const THEME_INIT_REL = "../../public/theme-init.js";
+
+// Same variable-not-literal trick as THEME_INIT_REL above — Vite's
+// import-analysis plugin rewrites a literal first argument to new URL().
+const FARM_CODE_CACHE_REL = "../auth/farmCodeCache.ts";
+
 const SRC = readFileSync(fileURLToPath(new URL(THEME_INIT_REL, import.meta.url)), "utf8");
 
 const run = () => new Function(SRC)();
+
+// jsdom updates location.search from replaceState without attempting a real
+// navigation, which is the only reliable way to drive the pre-paint script's
+// ?farm= branch under this harness.
+const setSearch = (search: string) => {
+  window.history.replaceState({}, "", search === "" ? "/" : "/" + search);
+};
 
 beforeEach(() => {
   document.documentElement.removeAttribute("data-theme");
   document.documentElement.removeAttribute("data-brand");
   localStorage.clear();
+  setSearch("");
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -109,5 +122,114 @@ describe("theme-init pre-paint script", () => {
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(calls).toBeGreaterThan(0);
     spy.mockRestore();
+  });
+
+  // --- #586: which FARM's palette (the theme axis above is unchanged) ---
+
+  it("branch 1: ?farm= paints that farm's palette", () => {
+    setSearch("?farm=sunny-acres");
+    localStorage.setItem("cluckwork.brand:sunny-acres", "forest");
+    run();
+    expect(document.documentElement.dataset.brand).toBe("forest");
+  });
+
+  it("branch 1 has NO legacy fallback: an unknown ?farm= takes the default", () => {
+    // A URL naming a farm this device has no record of must not inherit
+    // whichever farm last painted here.
+    setSearch("?farm=other-farm");
+    localStorage.setItem("cluckwork.brand", "terracotta");
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "forest");
+    run();
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+  });
+
+  it("an INVALID ?farm= falls through to the roster, exactly like the login prefill", () => {
+    // Mirrors Login.tsx:96-105, which documents this precedence.
+    for (const bad of ["?farm=-leading", "?farm=" + "a".repeat(33), "?farm=", "?farm=Has%20Space"]) {
+      document.documentElement.removeAttribute("data-brand");
+      setSearch(bad);
+      localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+      localStorage.setItem("cluckwork.brand:sunny-acres", "forest");
+      run();
+      expect(document.documentElement.dataset.brand).toBe("forest");
+    }
+  });
+
+  it("branch 2: exactly one remembered farm paints its palette", () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "slate");
+    run();
+    expect(document.documentElement.dataset.brand).toBe("slate");
+  });
+
+  it("branch 2 falls back to the legacy key on a miss — the upgrade-day path", () => {
+    // No build before #586 wrote a per-slug key, so on the first cold start
+    // after upgrade this is the ONLY source. Without it the whole device
+    // flashes the default, which is the #149 regression this issue avoids.
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+    localStorage.setItem("cluckwork.brand", "terracotta");
+    run();
+    expect(document.documentElement.dataset.brand).toBe("terracotta");
+  });
+
+  it("branch 4: two remembered farms and no ?farm= assert NOTHING", () => {
+    // At /login the app does not know which farm, so it must not claim one.
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres", "other-farm"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "forest");
+    localStorage.setItem("cluckwork.brand", "terracotta");
+    run();
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+  });
+
+  it("an EMPTIED roster never reaches the legacy key", () => {
+    // THE leak test. removeFarmCode writes "[]" (farmCodeCache.ts:201-203), so
+    // "Forget every farm" on a multi-farm device leaves an empty roster beside
+    // a legacy key holding the LAST farm's colour. Absent means "no login since
+    // #535"; "[]" means "this device curated its list" and proves nothing.
+    localStorage.setItem("cluckwork.farmCodes", "[]");
+    localStorage.setItem("cluckwork.brand", "terracotta");
+    run();
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+  });
+
+  it("a MALFORMED roster never reaches the legacy key either", () => {
+    // A mangled roster could be a mangled MULTI-farm roster.
+    // "" is load-bearing: it is FALSY but not null, and it is the ONLY input that
+    // separates `rawRoster === null` from a truthy test. Without it that guard
+    // can be weakened with the whole suite still green.
+    for (const raw of ["", "not json", JSON.stringify({ codes: ["sunny-acres"] }), '"sunny-acres"']) {
+      document.documentElement.removeAttribute("data-brand");
+      localStorage.clear();
+      localStorage.setItem("cluckwork.farmCodes", raw);
+      localStorage.setItem("cluckwork.brand", "terracotta");
+      run();
+      expect(document.documentElement.dataset.brand).toBeUndefined();
+    }
+  });
+
+  it("a roster of one UNPARSEABLE entry asserts nothing", () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify([""]));
+    localStorage.setItem("cluckwork.brand", "terracotta");
+    run();
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+  });
+
+  it("the slug pattern is IDENTICAL to farmCodeCache's, character for character", () => {
+    // An independent copy in a different file that cannot import. This is a
+    // DRIFT ALARM, not a guard: it cannot fail closed, so it must fail loudly.
+    const cacheSrc = readFileSync(
+      fileURLToPath(new URL(FARM_CODE_CACHE_REL, import.meta.url)),
+      "utf8",
+    );
+    const extract = (src: string) => {
+      const m = src.match(/\/\^\[a-z0-9\]\[a-z0-9-\]\{1,30\}\[a-z0-9\]\$\//);
+      return m === null ? null : m[0];
+    };
+    const inCache = extract(cacheSrc);
+    const inScript = extract(SRC);
+    expect(inCache).not.toBeNull();
+    expect(inScript).not.toBeNull();
+    expect(inScript).toBe(inCache);
   });
 });
