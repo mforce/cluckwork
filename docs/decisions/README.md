@@ -57,10 +57,11 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Design-time migration connection, fail-closed (#318)](318-design-time-migration-connection.md) | AGENTS · Conventions |
 | [Container image hardening (#267)](267-container-hardening.md) | AGENTS · Conventions |
 | [Exactly one serving API instance (#271, #338)](271-single-serving-instance.md) | AGENTS · Host-agnostic repo |
+| [Multi-farm tenancy — several farms on one deployment: shared-DB row-level isolation, farm-code sign-in, per-account email identity, the at-most-one-leader contract, and why an unattributable value cannot be rescued by any rule about when to read it (#530, #586)](530-multi-farm-tenancy.md) | AGENTS · Conventions |
 
 **Every bullet that cites an issue has a record here; the plain conventions do
 not, and should not.** The Result pattern, handler-per-feature, FluentValidation,
-the endpoint shape, `Version++`, multi-tenancy and nullable-enabled are house
+the endpoint shape, `Version++` and nullable-enabled are house
 style — consistency rules with no incident behind them and no deliberate
 declination to record, so there is nothing to relocate and no `→` link to
 follow. A linked bullet is one of two kinds: an **earned** record (a defect that
