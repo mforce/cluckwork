@@ -7,6 +7,8 @@
 // device-persistent and NOT cleared on logout — so on a multi-farm device the
 // last farm's palette does paint the next farm's login screen until that farm's
 // own palette arrives. The per-farm fix for that is tracked in #586.
+import { getBoundFarmCode } from "../auth/tokenStore";
+
 export const BRANDS = ["aubergine", "forest", "slate", "terracotta"] as const;
 export type Brand = (typeof BRANDS)[number];
 
@@ -14,7 +16,18 @@ export type Brand = (typeof BRANDS)[number];
 // makes an unknown id degrade to it with no validation on the CSS side.
 export const DEFAULT_BRAND: Brand = "aubergine";
 
-const KEY = "cluckwork.brand";
+// Pre-#586: one un-namespaced key for the whole device. Still READ at pre-paint
+// as a fallback for a farm the device can name, and deleted the moment that farm
+// has a key of its own.
+const LEGACY_KEY = "cluckwork.brand";
+
+// #586 — one key per farm. The prefix lives here because this module owns the
+// brand namespace; farmCodeCache imports brandKeyFor rather than rebuilding it.
+const KEY_PREFIX = "cluckwork.brand:";
+
+export function brandKeyFor(slug: string): string {
+  return KEY_PREFIX + slug;
+}
 
 export function isBrand(value: string): value is Brand {
   return (BRANDS as readonly string[]).includes(value);
@@ -30,17 +43,35 @@ export function applyBrand(brand: string): void {
   } else {
     document.documentElement.dataset.brand = brand;
   }
+  // #586 — cache ONLY under a slug this session's login typed, and only while
+  // that login's account is still the tab's bound account. A fresh tab restored
+  // from the refresh cookie has no such binding: it paints, and caches nothing.
+  // The cost is a stale pre-paint until this device's next explicit login; the
+  // thing it buys is that another farm's colour can never reach this key.
+  const slug = getBoundFarmCode();
+  if (slug === null) return;
+  const key = brandKeyFor(slug);
   try {
-    localStorage.setItem(KEY, brand);
+    localStorage.setItem(key, brand);
   } catch {
     // Writes can fail while reads still succeed (quota exhaustion), leaving the
-    // PREVIOUS palette cached — which would pre-paint the wrong farm colour on
-    // the next load. Dropping the key falls back to the default instead.
+    // PREVIOUS palette cached — which would pre-paint the wrong colour on the
+    // next load. Dropping the key falls back to the default instead.
     try {
-      localStorage.removeItem(KEY);
+      localStorage.removeItem(key);
     } catch {
       // storage fully unavailable; the attribute above is all we can do
     }
+    return;
+  }
+  // Its own try, and only after a SUCCESSFUL write: this farm now has a real
+  // key, so the un-namespaced fallback is superseded for this device. A failure
+  // here must not undo the write above.
+  try {
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    // storage unavailable — the stale legacy key costs one wrong pre-paint at
+    // most, and only on a device that cannot write anyway.
   }
 }
 
