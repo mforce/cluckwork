@@ -751,7 +751,11 @@ more than one farm; an account can be suspended, and suspension takes effect on 
 next authenticated request. Farms are created by an operator (`provision-account`),
 not by public signup. All four single-instance scaling blockers are closed, and the
 background-work contract is **at most one active leader** with at-least-once,
-idempotent handlers — never "exactly once".
+idempotent handlers — never "exactly once". That guarantee holds on a
+**session-pinned** Postgres endpoint; under a transaction-pooling proxy the
+advisory lock can migrate across backends and single-leader is *not* guaranteed
+(#556 is open), so that topology relies on the at-least-once + idempotent
+contract.
 
 Decisions, rejected alternatives and accepted costs:
 [`docs/decisions/530-multi-farm-tenancy.md`](../../docs/decisions/530-multi-farm-tenancy.md).

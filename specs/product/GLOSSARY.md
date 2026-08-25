@@ -655,8 +655,11 @@ as "a farm".
 This reliably confuses readers, so state it plainly: **`FarmId` and `HouseId`
 are per-account stand-ins for a sub-entity that does not exist yet, and they are
 NOT the tenant.** The tenant is `AccountId`. Multi-farm tenancy (#530) added
-*accounts*, not Farm/House management: every unique index is already
-`(AccountId, FarmId, …)`-prefixed, so the stand-ins stay correct as they are.
+*accounts*, not Farm/House management. Every unique index **that is scoped to a
+farm** is already `(AccountId, FarmId, …)`-prefixed, so the stand-ins stay
+correct as they are. Not every unique index is — the account slug is globally
+unique by design, and several others are keyed by their own parent rather than
+by farm.
 
 **Farm settings (#123, spec §4.5)** — the farm's own name plus the four things
 that decide how it reads: **timezone**, **locale**, **currency**, and **unit

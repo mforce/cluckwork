@@ -235,8 +235,15 @@ discards first. It is the same shape as `CredentialEpoch` (#364), so it lives be
 `src/Cluckwork.Infrastructure/Identity/ApplicationUser.cs:48`, compared at
 `src/Cluckwork.Infrastructure/Identity/PersistentStepUpGrantRegistry.cs:53-61`.
 
-That is what makes Redis-only safe: **nothing left in the volatile store causes a security
-failure if it disappears.**
+That is what makes Redis-only *mostly* safe, stated at the strength the code supports rather than the
+strength the epic body claimed: losing the limiter counters or the report-cap leases is a degradation,
+never a security failure. **Step-up replay is the exception.** `RedisClaimOnceStore.TryClaim` is a bare
+`SET NX` with a TTL (`src/Cluckwork.Infrastructure/SharedState/RedisClaimOnceStore.cs:25`), so if Redis
+restarts or evicts a consumed claim while its step-up JWT is still inside its five-minute lifetime, the
+same JTI is claimable again and the grant can be replayed. The window is bounded by that lifetime and
+requires the operator to have lost Redis state, but it is a real replay window and it is **not** closed
+by anything in this repo. Closing it needs a durable claim (the same shape as the logout epoch) rather
+than a cache entry.
 
 **Recorded dissent.** Both reviewers of the epic design recommended dropping Redis
 entirely, on the grounds that Postgres is already mandatory and the volumes here — logins,
@@ -272,8 +279,14 @@ protects is *never boot-invoked* — not *never at runtime*. Reading it as the l
 company" operation. MFA, passkeys and SSO would be per farm. There is no supported way to
 correlate one human across farms. And separate rows stop cross-farm *mutation*, not
 cross-farm credential *reuse*: a malicious farm owner can set a known password and try it
-elsewhere. Mitigated, not eliminated, by every administrator-set credential being
-generated, temporary and `MustChangePassword` — cleared only by a self-change.
+elsewhere. The mitigation the epic body claimed here — that every administrator-set credential is generated,
+temporary and `MustChangePassword` — **is true only of the CLI provisioning paths**
+(`bootstrap-admin`, `provision-account`, `recover-admin`). It is **not** true of the normal HTTP API a
+farm Owner actually uses: `CreateUserHandler` deliberately leaves `mustChangePassword` false
+(`src/Cluckwork.Application/Features/Users/CreateUser/CreateUserHandler.cs:29`, per #339) and the
+admin reset path clears it (`src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1024,1098`). So
+an Owner CAN set a known, durable password on a user in their own farm and try it elsewhere. Recorded
+here because the epic body asserted the opposite and this record would otherwise carry it forward.
 Cross-account password-history comparison is explicitly **not** attempted; it would
 recreate the shared-person coupling the design exists to avoid.
 
