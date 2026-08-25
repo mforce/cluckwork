@@ -32,6 +32,29 @@ export function brandKeyFor(slug: string): string {
   return KEY_PREFIX + slug;
 }
 
+// #586 — everything this device remembers about ONE farm's palette. Used by
+// "Forget this farm" (#587): the roster entry is what the login screen SHOWS,
+// these keys are what it PAINTS.
+//
+// LEGACY_KEY goes too, and that half is the load-bearing one. Its value cannot
+// be attributed to any farm — it predates per-farm keys — and the pre-paint
+// script dares read it only because a roster of exactly one, or no roster at
+// all, is taken to name this device's single farm. A Forget is precisely the
+// event that destroys that reasoning, because it SHRINKS the roster: forget
+// farm-Y and a later single-entry roster would inherit farm-Y's colour for
+// farm-X. Dropping it here is ONE enforcement site, in place of a fourth
+// condition on the read side.
+export function forgetBrandFor(slug: string): void {
+  for (const key of [brandKeyFor(slug), LEGACY_KEY]) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // storage unavailable — a stale palette on a device that cannot write
+      // costs one wrong pre-paint at most.
+    }
+  }
+}
+
 export function isBrand(value: string): value is Brand {
   return (BRANDS as readonly string[]).includes(value);
 }

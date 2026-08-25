@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { BRANDS, DEFAULT_BRAND, applyBrand, brandKeyFor, initialBrand, isBrand } from "./brand";
+import { BRANDS, DEFAULT_BRAND, applyBrand, brandKeyFor, forgetBrandFor, initialBrand, isBrand } from "./brand";
 import { bindAccount, bindFarm, clearBoundAccount } from "../auth/tokenStore";
 
 beforeEach(() => {
@@ -154,5 +154,28 @@ describe("brand", () => {
     remove.mockRestore();
     // The slug key still landed — the legacy removal is hygiene, not the write.
     expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("forest");
+  });
+
+  it("forgetBrandFor removes that farm's palette AND the unattributable legacy key", () => {
+    localStorage.setItem("cluckwork.brand:farm-b", "slate");
+    localStorage.setItem("cluckwork.brand:farm-a", "forest");
+    localStorage.setItem("cluckwork.brand", "terracotta");
+
+    forgetBrandFor("farm-b");
+
+    expect(localStorage.getItem("cluckwork.brand:farm-b")).toBeNull();
+    // The legacy value belongs to no farm we can name, and a Forget is what
+    // makes the roster stop being able to name one. It goes with it.
+    expect(localStorage.getItem("cluckwork.brand")).toBeNull();
+    // Another farm's own key is untouched: this is a removal, not a purge.
+    expect(localStorage.getItem("cluckwork.brand:farm-a")).toBe("forest");
+  });
+
+  it("forgetBrandFor never throws when storage is unavailable", () => {
+    const remove = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("storage denied");
+    });
+    expect(() => forgetBrandFor("farm-b")).not.toThrow();
+    remove.mockRestore();
   });
 });
