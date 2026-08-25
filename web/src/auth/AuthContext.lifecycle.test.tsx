@@ -149,7 +149,10 @@ describe("AuthProvider lifecycle", () => {
   it("drops authentication when onUnauthenticated fires (refresh exhausted)", async () => {
     setStoredToken({ sub: "u1", role: "Admin" });
     document.documentElement.dataset.brand = "forest";
-    localStorage.setItem("cluckwork.brand", "forest");
+        // Per-farm since #586: the palette survives teardown under the farm's OWN
+    // key. The un-namespaced key is purged at startup and is not this guarantee.
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "forest");
     renderAuth();
     expect(screen.getByTestId("auth")).toHaveTextContent("true");
 
@@ -163,20 +166,23 @@ describe("AuthProvider lifecycle", () => {
     // (#149). Per-farm since #586: this device's own farm keeps its colour, and
     // the pre-paint script only reads a palette for a farm the device can name.
     expect(document.documentElement.dataset.brand).toBe("forest");
-    expect(localStorage.getItem("cluckwork.brand")).toBe("forest");
+    expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("forest");
   });
 
   it("keeps the farm palette when a load-time session restore fails", async () => {
     // Lands on /login, and the palette stays so login keeps the farm's colour.
     document.documentElement.dataset.brand = "slate";
-    localStorage.setItem("cluckwork.brand", "slate");
+    // Per-farm since #586: the palette survives teardown under the farm's OWN
+    // key. The un-namespaced key is purged at startup and is not this guarantee.
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "slate");
     mockRestoreSession.mockResolvedValue(false);
 
     renderAuth();
     await waitFor(() => expect(screen.getByTestId("auth")).toHaveTextContent("false"));
 
     expect(document.documentElement.dataset.brand).toBe("slate");
-    expect(localStorage.getItem("cluckwork.brand")).toBe("slate");
+    expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("slate");
   });
 
   it("keeps the farm palette when a load-time restore SUCCEEDS", async () => {
@@ -192,7 +198,10 @@ describe("AuthProvider lifecycle", () => {
   it("keeps the farm palette on logout", async () => {
     setStoredToken({ sub: "u1", role: "Admin" });
     document.documentElement.dataset.brand = "terracotta";
-    localStorage.setItem("cluckwork.brand", "terracotta");
+    // Per-farm since #586: the palette survives teardown under the farm's OWN
+    // key. The un-namespaced key is purged at startup and is not this guarantee.
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "terracotta");
     renderAuth();
 
     await act(async () => {
@@ -203,7 +212,7 @@ describe("AuthProvider lifecycle", () => {
     // default. Per-farm since #586, so it is this device's farm, not "whichever
     // farm was last here".
     expect(document.documentElement.dataset.brand).toBe("terracotta");
-    expect(localStorage.getItem("cluckwork.brand")).toBe("terracotta");
+    expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("terracotta");
   });
 
   it("leaves the user's light/night choice alone on logout", async () => {
