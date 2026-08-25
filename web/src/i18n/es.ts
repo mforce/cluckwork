@@ -2284,7 +2284,12 @@ export const es = {
     farmPaletteIntro:
       "La configuración de la granja permite a un administrador elegir el color de acento usado en toda "
       + "la aplicación para todos en la granja: Berenjena, Bosque, Pizarra o Terracota. La elección se "
-      + "aplica al guardar, y todos la ven la próxima vez que carga su aplicación.",
+      + "aplica al guardar, y todos la ven la próxima vez que carga su aplicación."
+      + " Cada dispositivo también recuerda la paleta de cada granja, por lo que el color propio de una "
+      + "granja puede aparecer en la pantalla de inicio de sesión antes de que alguien inicie sesión: al "
+      + "abrir el enlace de esa granja, o cuando el dispositivo recuerda exactamente una granja. Un "
+      + "dispositivo que recuerda varias granjas muestra el color predeterminado hasta que inicies sesión, "
+      + "y Olvidar esta granja elimina el color recordado de esa granja junto con su código.",
     farmPaletteLightNight:
       "El modo claro y nocturno son independientes y personales. Cada persona elige el suyo con el "
       + "interruptor en la barra lateral, en cada dispositivo, y la paleta de la granja nunca lo anula — "
@@ -2667,7 +2672,10 @@ export const es = {
     glossaryFarmPaletteTerm: "Paleta de la granja",
     glossaryFarmPaletteDef:
       "El color de acento de toda la granja, elegido por un admin en Configuración de la granja. "
-      + "Independiente de la configuración de modo claro/nocturno de cada persona.",
+      + "Independiente de la configuración de modo claro/nocturno de cada persona."
+      + " Se recuerda por granja en cada dispositivo, por lo que puede aparecer en la pantalla de inicio "
+      + "de sesión antes de que alguien inicie sesión; un dispositivo que recuerda varias granjas muestra "
+      + "el predeterminado hasta iniciar sesión.",
 
     glossaryUiLanguageTerm: "Idioma de la interfaz",
     glossaryUiLanguageDef:
