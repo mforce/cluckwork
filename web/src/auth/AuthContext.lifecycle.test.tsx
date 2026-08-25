@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act, waitFor } from "@testing-library/react"
 import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
 import { setStoredToken } from "../test/jwt";
-import { clearAccessToken } from "./tokenStore";
+import { bindAccount, clearAccessToken, clearBoundAccount, getBoundFarmCode } from "./tokenStore";
 import { login as apiLogin, logout as apiLogout, restoreSession, setOnTokensChanged, setOnUnauthenticated } from "../api/client";
 
 // Mock the transport: AuthProvider drives session STATE, the client drives the
@@ -159,9 +159,9 @@ describe("AuthProvider lifecycle", () => {
     await act(async () => onUnauth!());
 
     expect(screen.getByTestId("auth")).toHaveTextContent("false");
-    // The farm palette is deliberately KEPT across session teardown (#149,
-    // single-farm): the login screen should go on showing the farm's colour,
-    // not revert to the default. It behaves like cluckwork.theme now.
+    // The farm palette is deliberately KEPT across session teardown
+    // (#149). Per-farm since #586: this device's own farm keeps its colour, and
+    // the pre-paint script only reads a palette for a farm the device can name.
     expect(document.documentElement.dataset.brand).toBe("forest");
     expect(localStorage.getItem("cluckwork.brand")).toBe("forest");
   });
@@ -199,8 +199,9 @@ describe("AuthProvider lifecycle", () => {
       fireEvent.click(screen.getByRole("button", { name: "logout" }));
     });
 
-    // Single-farm: the login screen keeps the farm palette rather than
-    // reverting to the default. The API re-applies it on the next login anyway.
+    // The login screen keeps this farm's palette rather than reverting to the
+    // default. Per-farm since #586, so it is this device's farm, not "whichever
+    // farm was last here".
     expect(document.documentElement.dataset.brand).toBe("terracotta");
     expect(localStorage.getItem("cluckwork.brand")).toBe("terracotta");
   });
@@ -319,6 +320,23 @@ describe("AuthProvider lifecycle", () => {
 
     expect(mockSetOnTokensChanged).toHaveBeenCalledWith(null);
     expect(mockSetOnUnauthenticated).toHaveBeenCalledWith(null);
+  });
+
+  it("binds the typed farm code to the tab at login (#586)", async () => {
+    // The client module is mocked in this file, so bindAccount never runs —
+    // stand in for it, because bindFarm stores nothing without an account to
+    // pin the slug to, and that is the behaviour under test, not an artefact.
+    clearBoundAccount();
+    bindAccount("acct-A");
+    setStoredToken({ sub: "u1", role: "Admin" });
+    renderAuth();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("login"));
+    });
+
+    // The harness button logs in as "default-farm" (line 36).
+    expect(getBoundFarmCode()).toBe("default-farm");
   });
 });
 

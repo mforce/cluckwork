@@ -6,10 +6,10 @@ import {
 } from "../api/client";
 import { currentUserId, currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
 import type { Role } from "./claims";
-import { clearAccessToken, getAccessToken, purgeLegacyTokens } from "./tokenStore";
+import { bindFarm, clearAccessToken, getAccessToken, purgeLegacyTokens } from "./tokenStore";
 import { clearSplashSeenMarker } from "../session/SessionContext";
 import { purgeUnscopedAccountState } from "../lib/accountStorage";
-import { rememberFarmCode } from "./farmCodeCache";
+import { canonicalFarmCode, rememberFarmCode } from "./farmCodeCache";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -111,6 +111,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (farmCode: string, email: string, password: string) => {
     await apiLogin({ farmCode, email, password });
+    // #586 — bound BEFORE the rememberFarmCode await below, which acquires a
+    // cross-tab Web Lock (farmCodeCache.ts:105) and can block behind another
+    // tab's login. Nothing should sit between apiLogin's bindAccount
+    // (client.ts:250) and the farm binding that must pair with it. bindFarm
+    // reads the account binding itself and stores both together, so a slug can
+    // never outlive the account it was proven against.
+    //
+    // A code the server accepted but whose SHAPE this regex rejects
+    // (farmCodeCache.ts:16-20 documents that strict direction as the silent
+    // one) canonicalises to null and leaves the tab unbound — the same outcome
+    // as a cold restore, and never a wrong key.
+    bindFarm(canonicalFarmCode(farmCode));
     // #535 — remembered only AFTER apiLogin resolves, so a typo is never stored:
     // a failed sign-in throws out of apiLogin (client.ts:144 `if (!res.ok) throw`)
     // and never reaches this line, and neither does the superseded-session path
@@ -131,13 +143,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshClaims]);
 
   const logout = useCallback(async () => {
-    // The farm palette (cluckwork.brand) is deliberately NOT cleared here: it
-    // stays device-persistent, the same way cluckwork.theme is (user choice,
-    // #149), so the login screen keeps showing the last palette rather than
-    // reverting to the default. That persistence means a multi-farm device
-    // shows the previous farm's palette on the next login — the "single-farm
-    // deployment assumption this once leaned on is gone now that accounts
-    // coexist (#530) — the per-farm fix for that is tracked in #586.
+    // The farm palettes (cluckwork.brand:<slug>) are deliberately NOT cleared
+    // here: they are per-farm and device-persistent, the same way
+    // cluckwork.theme is (user choice, #149), so this farm's login screen keeps
+    // its own colour instead of reverting to the default. Since #586 that is no
+    // longer a cross-farm hazard — the pre-paint script reads a palette only
+    // for a farm this device can NAME (?farm=, or exactly one remembered code),
+    // and "Forget this farm" (#587) removes that farm's palette along with its
+    // roster entry.
     await apiLogout();
     setIsAuthenticated(false);
     setIsAdmin(false);

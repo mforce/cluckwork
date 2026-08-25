@@ -1,12 +1,15 @@
-// Per-farm accent palette (#149). The SECOND theming axis: `data-brand` is the
-// farm's accent, chosen by an admin, while `data-theme` stays the user's own
-// light/night choice. Neither forces the other.
+// Per-farm accent palette (#149, per-farm since #586). The SECOND theming axis:
+// `data-brand` is the farm's accent, chosen by an admin, while `data-theme`
+// stays the user's own light/night choice. Neither forces the other.
 //
 // The API is the source of truth. localStorage exists ONLY so the pre-paint
-// script (public/theme-init.js) can apply the palette before first paint; it is
-// device-persistent and NOT cleared on logout — so on a multi-farm device the
-// last farm's palette does paint the next farm's login screen until that farm's
-// own palette arrives. The per-farm fix for that is tracked in #586.
+// script (public/theme-init.js) can apply the palette before first paint, and
+// it is keyed PER FARM: `cluckwork.brand:<slug>`. A key is written only under a
+// slug the current session's login typed, and only while that login's account
+// is still the tab's bound account — enforced by the comparison in
+// getBoundFarmCode(), not by this comment. A tab with no such binding (a fresh
+// tab restored from the refresh cookie) applies the palette and caches nothing,
+// so its cache can be STALE, but it can never hold another farm's colour.
 import { getBoundFarmCode } from "../auth/tokenStore";
 
 export const BRANDS = ["aubergine", "forest", "slate", "terracotta"] as const;
