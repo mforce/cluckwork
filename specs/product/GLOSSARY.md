@@ -647,9 +647,16 @@ deployment. Each writes an audit row **when it actually changes the farm's
 state**, so re-running either is safe and leaves one row per real transition.
 
 **Farm / House** — physical hierarchy. Present as ids from day one, but real
-Farm/House management arrives with later phases; the MVP runs on one seeded
-farm and house. The farm's *settings* are already real (see below) — they live
-on the account row while there is exactly one farm.
+Farm/House management arrives with later phases; each account runs on one
+seeded farm and house. The farm's *settings* are already real (see below) —
+they live on the **account** row, which is why an account is presented to users
+as "a farm".
+
+This reliably confuses readers, so state it plainly: **`FarmId` and `HouseId`
+are per-account stand-ins for a sub-entity that does not exist yet, and they are
+NOT the tenant.** The tenant is `AccountId`. Multi-farm tenancy (#530) added
+*accounts*, not Farm/House management: every unique index is already
+`(AccountId, FarmId, …)`-prefixed, so the stand-ins stay correct as they are.
 
 **Farm settings (#123, spec §4.5)** — the farm's own name plus the four things
 that decide how it reads: **timezone**, **locale**, **currency**, and **unit
