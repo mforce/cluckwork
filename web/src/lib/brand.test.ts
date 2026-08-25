@@ -208,8 +208,15 @@ describe("applyDeviceBrand", () => {
   });
 
   it("applyDeviceBrand never writes storage", () => {
+    // Asserted on the CALL, not on localStorage.length: a write to a key that
+    // is already present leaves the length unchanged, so the count could not
+    // detect the write it claims to forbid. This function decides what is on
+    // screen; persisting is applyBrand's job alone.
     localStorage.setItem("cluckwork.brand:sunny-acres", "forest");
+    const set = vi.spyOn(Storage.prototype, "setItem");
     applyDeviceBrand(["sunny-acres"]);
-    expect(localStorage.length).toBe(1);
+    expect(set).not.toHaveBeenCalled();
+    set.mockRestore();
+    expect(document.documentElement.dataset.brand).toBe("forest");
   });
 });
