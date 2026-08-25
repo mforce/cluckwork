@@ -199,9 +199,19 @@ change the only login identifier and end the session in the same request. Same
 guard family as self-disable.
 
 The conflict response mirrors what `CreateUser` already does, which deliberately
-does not reveal whether a colliding address belongs to another tenant — email
-uniqueness is global because login has no account discriminator, and a bare
-"address already taken" would be a cross-tenant oracle the existing code is
+does not reveal whether a colliding address belongs to another tenant.
+
+> **Superseded in part (#530, 2026-08-25).** The reasoning below was written when
+> email uniqueness was global, because login had no account discriminator. That is
+> no longer true: login takes a farm code and the Identity indexes are
+> account-scoped (`(AccountId, NormalizedUserName)` and `(AccountId,
+> NormalizedEmail)`), so one address can legitimately belong to users in several
+> farms. The CONCLUSION still holds and is now load-bearing rather than
+> incidental — a bare "address already taken" would be a cross-tenant oracle.
+> See [`530-multi-farm-tenancy.md`](../../decisions/530-multi-farm-tenancy.md).
+
+Originally: uniqueness was global because login had no account discriminator, and
+a bare "address already taken" would be a cross-tenant oracle the existing code is
 careful to avoid.
 
 ### There is no email verification, and the UI says so
