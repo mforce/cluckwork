@@ -10,7 +10,7 @@
 // getBoundFarmCode(), not by this comment. A tab with no such binding (a fresh
 // tab restored from the refresh cookie) applies the palette and caches nothing,
 // so its cache may be absent or stale, but it can never hold another farm's colour.
-import { getBoundFarmCode } from "../auth/tokenStore";
+import { farmBindingToken, getBoundFarmCode } from "../auth/tokenStore";
 
 export const BRANDS = ["aubergine", "forest", "slate", "terracotta"] as const;
 export type Brand = (typeof BRANDS)[number];
@@ -48,15 +48,20 @@ export function isBrand(value: string): value is Brand {
   return (BRANDS as readonly string[]).includes(value);
 }
 
-// `boundAt` is the farm this value was FETCHED for — captured by the caller
-// before its await. Required, not optional: every caller is post-await or
-// could become so, and an optional guard is one a future caller forgets.
+// `tokenAt` is the `farmBindingToken()` captured by the caller before its
+// await. Required, not optional: every caller is post-await or could become
+// so, and an optional guard is one a future caller forgets.
+// It is a token, not a slug, because a slug cannot close the hole: a tab can
+// be unbound, bind to a farm, and unbind again while one request is in flight,
+// and two nulls compare equal — so a response that outlived a whole
+// bind-then-unbind cycle would read as current. The generation counter makes
+// every binding change observable, whatever the slug happens to be.
 // A response that outlived its own session applies NOTHING: farm A's colour
 // must not paint farm B's screen, and must certainly not be cached under
-// farm B's key. Synchronous callers pass getBoundFarmCode() and the check is
+// farm B's key. Synchronous callers pass farmBindingToken() and the check is
 // a no-op by construction.
-export function applyBrand(brand: string, boundAt: string | null): void {
-  if (boundAt !== getBoundFarmCode()) return;
+export function applyBrand(brand: string, tokenAt: string): void {
+  if (tokenAt !== farmBindingToken()) return;
   // Attribute first: the palette must apply even if nothing persists.
   if (brand === DEFAULT_BRAND || !isBrand(brand)) {
     // An unknown id is treated as the default rather than written through: the
@@ -92,4 +97,30 @@ export function applyBrand(brand: string, boundAt: string | null): void {
 export function initialBrand(): Brand {
   const set = document.documentElement.dataset.brand;
   return set !== undefined && isBrand(set) ? set : DEFAULT_BRAND;
+}
+
+// #586 — the palette this DEVICE can justify showing with no session: its farm's
+// own colour when it remembers exactly one farm, the default otherwise. This is
+// the pre-paint script's rule, applied in-session at the moments attribution is
+// LOST without a reload — logout, and forgetting a farm.
+//
+// It never WRITES: it only decides what is on screen right now. The roster is
+// passed in rather than read here, because farmCodeCache imports this module and
+// reading it here would make that a cycle.
+export function applyDeviceBrand(rememberedCodes: string[]): void {
+  if (rememberedCodes.length !== 1) {
+    delete document.documentElement.dataset.brand;
+    return;
+  }
+  let cached: string | null = null;
+  try {
+    cached = localStorage.getItem(brandKeyFor(rememberedCodes[0]));
+  } catch {
+    // storage unavailable — the default is the honest answer
+  }
+  if (cached === null || cached === DEFAULT_BRAND || !isBrand(cached)) {
+    delete document.documentElement.dataset.brand;
+    return;
+  }
+  document.documentElement.dataset.brand = cached;
 }

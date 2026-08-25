@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { BRANDS, DEFAULT_BRAND, applyBrand, brandKeyFor, forgetBrandFor, initialBrand, isBrand } from "./brand";
-import { bindAccount, bindFarm, clearBoundAccount, getBoundFarmCode } from "../auth/tokenStore";
+import { BRANDS, DEFAULT_BRAND, applyBrand, applyDeviceBrand, brandKeyFor, forgetBrandFor, initialBrand, isBrand } from "./brand";
+import { bindAccount, bindFarm, clearBoundAccount, farmBindingToken } from "../auth/tokenStore";
 
 beforeEach(() => {
   document.documentElement.removeAttribute("data-brand");
@@ -28,7 +28,7 @@ describe("brand", () => {
   });
 
   it("applyBrand sets the attribute for a non-default palette and caches it", () => {
-    applyBrand("forest", getBoundFarmCode());
+    applyBrand("forest", farmBindingToken());
     expect(document.documentElement.dataset.brand).toBe("forest");
     expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("forest");
   });
@@ -36,15 +36,15 @@ describe("brand", () => {
   it("applyBrand REMOVES the attribute for the default palette", () => {
     // The default carries no attribute at all — CSS falls back to :root, which
     // is what makes an unknown id degrade to aubergine with no CSS-side check.
-    applyBrand("forest", getBoundFarmCode());
-    applyBrand("aubergine", getBoundFarmCode());
+    applyBrand("forest", farmBindingToken());
+    applyBrand("aubergine", farmBindingToken());
     expect(document.documentElement.dataset.brand).toBeUndefined();
     expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("aubergine");
   });
 
   it("applyBrand treats an unknown id as the default", () => {
-    applyBrand("forest", getBoundFarmCode());
-    applyBrand("chartreuse", getBoundFarmCode());
+    applyBrand("forest", farmBindingToken());
+    applyBrand("chartreuse", farmBindingToken());
     expect(document.documentElement.dataset.brand).toBeUndefined();
   });
 
@@ -52,17 +52,17 @@ describe("brand", () => {
     const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("storage denied");
     });
-    expect(() => applyBrand("slate", getBoundFarmCode())).not.toThrow();
+    expect(() => applyBrand("slate", farmBindingToken())).not.toThrow();
     expect(document.documentElement.dataset.brand).toBe("slate"); // cache is only a pre-paint hint
     spy.mockRestore();
   });
 
   it("applyBrand drops a stale cache when the write fails but reads still work", () => {
-    applyBrand("forest", getBoundFarmCode());
+    applyBrand("forest", farmBindingToken());
     const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("quota exceeded");
     });
-    applyBrand("slate", getBoundFarmCode());
+    applyBrand("slate", farmBindingToken());
     spy.mockRestore();
     // A stale "forest" would pre-paint the WRONG farm colour on next load.
     expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBeNull();
@@ -76,7 +76,7 @@ describe("brand", () => {
     const remove = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
       throw new Error("storage denied");
     });
-    expect(() => applyBrand("slate", getBoundFarmCode())).not.toThrow();
+    expect(() => applyBrand("slate", farmBindingToken())).not.toThrow();
     set.mockRestore();
     remove.mockRestore();
   });
@@ -98,7 +98,7 @@ describe("brand", () => {
     // — the palette must show — but caching here is the only way farm A's
     // colour could ever reach farm B's key.
     clearBoundAccount();
-    applyBrand("forest", getBoundFarmCode());
+    applyBrand("forest", farmBindingToken());
     expect(document.documentElement.dataset.brand).toBe("forest");
     expect(localStorage.length).toBe(0);
   });
@@ -107,7 +107,7 @@ describe("brand", () => {
     // The leak test. Farm A's login proved "sunny-acres"; the tab is now bound
     // to farm B, so B's palette must not land under A's key.
     bindAccount("acct-B");
-    applyBrand("forest", getBoundFarmCode());
+    applyBrand("forest", farmBindingToken());
     expect(document.documentElement.dataset.brand).toBe("forest");
     expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBeNull();
     expect(localStorage.length).toBe(0);
@@ -117,7 +117,7 @@ describe("brand", () => {
     // Ownership: accountStorage's purge deletes it once at startup. applyBrand
     // must not resurrect it, and must not depend on it being gone either.
     localStorage.setItem("cluckwork.brand", "terracotta");
-    applyBrand("forest", getBoundFarmCode());
+    applyBrand("forest", farmBindingToken());
     expect(localStorage.getItem("cluckwork.brand")).toBe("terracotta");
     expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("forest");
   });
@@ -129,7 +129,7 @@ describe("brand", () => {
     // job (lib/accountStorage.ts), not applyBrand's.
     clearBoundAccount();
     localStorage.setItem("cluckwork.brand", "terracotta");
-    applyBrand("forest", getBoundFarmCode());
+    applyBrand("forest", farmBindingToken());
     expect(document.documentElement.dataset.brand).toBe("forest");
     expect(localStorage.getItem("cluckwork.brand")).toBe("terracotta");
   });
@@ -160,7 +160,7 @@ describe("applyBrand superseded-response guard", () => {
   it("a response that outlived its farm applies NOTHING", () => {
     // Farm A's /account resolves after the operator has signed into farm B.
     // Neither the attribute nor the cache may take farm A's colour.
-    const boundAt = getBoundFarmCode();          // "sunny-acres", from beforeEach
+    const boundAt = farmBindingToken();          // captured from beforeEach's binding
     bindAccount("acct-B");
     bindFarm("other-farm");
     applyBrand("forest", boundAt);
@@ -172,7 +172,44 @@ describe("applyBrand superseded-response guard", () => {
   it("an unbound tab still applies, because capture and check agree", () => {
     // Both null: nothing was superseded, so a cold restore still paints.
     clearBoundAccount();
-    applyBrand("forest", null);
+    applyBrand("forest", farmBindingToken());
     expect(document.documentElement.dataset.brand).toBe("forest");
+  });
+});
+
+describe("applyDeviceBrand", () => {
+  it("a response that outlived a whole bind-then-unbind cycle applies nothing", () => {
+    // The hole a slug could not close: unbound at request time, bound to a farm
+    // and unbound again before the response lands. Two nulls compare equal, so
+    // only a generation counter catches this.
+    clearBoundAccount();
+    const tokenAt = farmBindingToken();
+    bindAccount("acct-B");
+    bindFarm("other-farm");
+    clearBoundAccount();
+    applyBrand("forest", tokenAt);
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+  });
+
+  it("applyDeviceBrand shows the farm's colour when exactly one is remembered", () => {
+    localStorage.setItem("cluckwork.brand:sunny-acres", "forest");
+    applyDeviceBrand(["sunny-acres"]);
+    expect(document.documentElement.dataset.brand).toBe("forest");
+  });
+
+  it("applyDeviceBrand falls back to the default for zero or several farms", () => {
+    localStorage.setItem("cluckwork.brand:sunny-acres", "forest");
+    document.documentElement.dataset.brand = "forest";
+    applyDeviceBrand(["sunny-acres", "other-farm"]);
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+    document.documentElement.dataset.brand = "forest";
+    applyDeviceBrand([]);
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+  });
+
+  it("applyDeviceBrand never writes storage", () => {
+    localStorage.setItem("cluckwork.brand:sunny-acres", "forest");
+    applyDeviceBrand(["sunny-acres"]);
+    expect(localStorage.length).toBe(1);
   });
 });

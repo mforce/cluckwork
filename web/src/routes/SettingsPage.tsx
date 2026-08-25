@@ -13,7 +13,7 @@ import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarm } from "../farm/useFarm";
 import { useBannerObjectUrl, useLogoObjectUrl } from "../farm/useLogoObjectUrl";
-import { getBoundFarmCode } from "../auth/tokenStore";
+import { farmBindingToken } from "../auth/tokenStore";
 import { BRANDS, DEFAULT_BRAND, applyBrand, isBrand } from "../lib/brand";
 import type { Brand } from "../lib/brand";
 import { isKnownTimeZone } from "../lib/dates";
@@ -352,7 +352,7 @@ export function SettingsPage() {
       try {
         // Captured BEFORE the await: the response may land after a farm switch
         // in the same tab, in which case it is farm A's value, not this farm's.
-        const boundAt = getBoundFarmCode();
+        const boundAt = farmBindingToken();
         const fresh = await load();
         // Applied from THIS response rather than waiting on refresh() below:
         // refresh() cannot throw (the provider has to survive a failed read), so

@@ -230,6 +230,24 @@ describe("AuthProvider lifecycle", () => {
     expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("terracotta");
   });
 
+  it("drops the palette on logout when the device remembers SEVERAL farms", async () => {
+    // Two farms: after logout the app cannot say which farm the login screen
+    // belongs to, so it must not keep wearing one of them.
+    setStoredToken({ sub: "u1", role: "Admin" });
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    document.documentElement.dataset.brand = "terracotta";
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres", "other-farm"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "terracotta");
+    renderAuth();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "logout" }));
+    });
+
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+  });
+
   it("leaves the user's light/night choice alone on logout", async () => {
     // data-theme is a per-user device preference, not farm data.
     setStoredToken({ sub: "u1", role: "Admin" });

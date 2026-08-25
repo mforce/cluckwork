@@ -565,6 +565,25 @@ describe("Login — forgetting a remembered farm", () => {
     }
   });
 
+  it("drops the on-screen palette when the only remembered farm is forgotten", async () => {
+    // The forgotten farm's colour is what the pre-paint script (or a prior
+    // single-farm logout) put on the document; once the device remembers NO
+    // farm, nothing can justify it, so it must come off without a reload.
+    document.documentElement.dataset.brand = "forest";
+    localStorage.setItem("cluckwork.brand:farm-a", "forest");
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: "Sign in" });
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "farm-a" }) }));
+    // The attribute must survive the trigger click — only the CONFIRMED
+    // removal resets it, the same gating the roster write has.
+    expect(document.documentElement.dataset.brand).toBe("forest");
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarmConfirm") }));
+    await waitFor(() => expect(farmField()).toHaveValue(""));
+    expect(JSON.parse(localStorage.getItem("cluckwork.farmCodes") ?? "[]")).toEqual([]);
+    expect(document.documentElement.dataset.brand).toBeUndefined();
+  });
+
   // The other side of the same comparison: a DIFFERENT canonical code must
   // survive, even when its raw form is merely a case/padding variant of
   // another. (The raw form is always canonicalised on read, so a truly

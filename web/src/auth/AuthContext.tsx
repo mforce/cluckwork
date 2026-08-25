@@ -9,7 +9,8 @@ import type { Role } from "./claims";
 import { bindFarm, clearAccessToken, getAccessToken, purgeLegacyTokens } from "./tokenStore";
 import { clearSplashSeenMarker } from "../session/SessionContext";
 import { purgeUnscopedAccountState } from "../lib/accountStorage";
-import { canonicalFarmCode, rememberFarmCode } from "./farmCodeCache";
+import { canonicalFarmCode, readFarmCodes, rememberFarmCode } from "./farmCodeCache";
+import { applyDeviceBrand } from "../lib/brand";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -158,6 +159,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMustChangePassword(false);
     setUserId(null);
     setUnauthenticatedReason(null);
+    // #586 — attribution is gone, so the palette becomes what the DEVICE can
+    // justify: this farm's colour if it is the only one remembered (#149's
+    // deliberate choice, preserved), the default when several farms are.
+    applyDeviceBrand(readFarmCodes());
   }, []);
 
   const value = useMemo(

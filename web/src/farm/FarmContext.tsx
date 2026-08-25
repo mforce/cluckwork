@@ -4,7 +4,7 @@ import { getAccount } from "../api/cluckwork";
 import type { Account } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
 import { applyBrand } from "../lib/brand";
-import { getBoundFarmCode } from "../auth/tokenStore";
+import { farmBindingToken } from "../auth/tokenStore";
 
 export interface FarmState {
   // Null until /account answers, and after a read that failed.
@@ -75,7 +75,7 @@ export function FarmProvider({
     // Captured BEFORE the await: if the operator signs into another farm while
     // this request is in flight, the response belongs to the previous farm and
     // must not be applied to, or cached for, the new one.
-    const boundAt = getBoundFarmCode();
+    const boundAt = farmBindingToken();
     try {
       const account = await getAccount();
       setFarm(account);
@@ -111,7 +111,7 @@ export function FarmProvider({
       // Synchronous with mount, so the capture and the check are the same
       // instant — passed anyway because the parameter is required, which is
       // what stops a future caller from skipping the guard by accident.
-      if (initialAccount) applyBrand(initialAccount.brand, getBoundFarmCode());
+      if (initialAccount) applyBrand(initialAccount.brand, farmBindingToken());
       return; // seeded: no mount fetch
     }
     void refresh();

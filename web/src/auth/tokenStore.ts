@@ -121,10 +121,23 @@ function readBoundFarm(): BoundFarm | null {
   return { accountId, slug };
 }
 
+// #586 — an opaque identity for "which farm this tab is bound to, and which
+// binding generation this is". A slug alone cannot express it: a tab can be
+// unbound, bind to a farm, and unbind again while one request is in flight,
+// and two nulls compare equal — so a response that outlived a whole
+// bind-then-unbind cycle would read as current. The counter makes every
+// binding change observable, whatever the slug happens to be.
+let bindingGeneration = 0;
+
+export function farmBindingToken(): string {
+  return bindingGeneration + ":" + (getBoundFarmCode() ?? "");
+}
+
 // Pass null to clear. A slug with no account to pin it to is exactly the desync
 // this record exists to prevent, so that case clears rather than storing half a
 // pair — an unattributable token makes client.ts:250 bind a null account.
 export function bindFarm(slug: string | null): void {
+  bindingGeneration += 1;
   const accountId = getBoundAccountId();
   if (slug === null || accountId === null) {
     try {

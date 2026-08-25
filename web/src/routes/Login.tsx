@@ -10,6 +10,7 @@ import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
 import i18n from "../i18n";
 import { canonicalFarmCode, readFarmCodes, removeFarmCode } from "../auth/farmCodeCache";
+import { applyDeviceBrand } from "../lib/brand";
 
 interface LocationState {
   from?: { pathname: string };
@@ -127,7 +128,11 @@ export function Login() {
     });
     if (!accepted) return;
     void removeFarmCode(code);
-    setRememberedCodes((current) => current.filter((c) => c !== code));
+    const next = rememberedCodes.filter((c) => c !== code);
+    setRememberedCodes(next);
+    // The forgotten farm may be the one whose colour is on screen; after a
+    // forget the device may no longer be able to name any farm at all.
+    applyDeviceBrand(next);
     // Clear the field only when it held the forgotten code — the operator may
     // have switched to another farm's code and must keep it. Compared
     // CANONICALLY, not by raw string: the roster holds canonical (trimmed,
