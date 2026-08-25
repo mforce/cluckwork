@@ -63,7 +63,7 @@ dotnet Cluckwork.Api.dll recover-admin \
   --email owner@thefarm.example \
   --reason "sole-owner lockout, ticket OPS-1234"
 
-# If an email ever resolves to more than one account (dormant multi-tenant future):
+# If an email resolves to more than one account (expected since #530 — see the note below):
 dotnet Cluckwork.Api.dll recover-admin --email owner@thefarm.example --account <account-guid> --reason "..."
 ```
 

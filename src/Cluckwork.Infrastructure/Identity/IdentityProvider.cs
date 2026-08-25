@@ -1118,7 +1118,8 @@ public sealed class IdentityProvider(
     // Identity's duplicate-email wording is only surfaced when the email
     // already belongs to THIS account. A duplicate in another tenant gets a
     // generic message so the endpoint is not a cross-tenant registration
-    // oracle (single-farm today, multi-tenant infrastructure dormant).
+    // oracle — which is load-bearing since #530, because one address can
+    // legitimately belong to users in several farms.
     private async Task<Error> CreateFailureAsync(
         IdentityResult result, string email, Guid accountId, CancellationToken ct)
     {

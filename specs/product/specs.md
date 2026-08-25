@@ -46,6 +46,7 @@ terms this document uses without re-introducing them.
   - [Phase 1.0 — MVP (shippable egg loop) — ✅ SHIPPED (2026-07-16, epic #13)](#phase-10--mvp-shippable-egg-loop---shipped-2026-07-16-epic-13)
   - [Phase 1.1 — Egg loop hardening (formerly Phase 1 remainder)](#phase-11--egg-loop-hardening-formerly-phase-1-remainder)
   - [Phase 1.5 — Egg product hardening](#phase-15--egg-product-hardening)
+  - [Phase 1.6 — Multi-farm tenancy](#phase-16--multi-farm-tenancy)
   - [Phase 2 — Pullet / chicken raising](#phase-2--pullet--chicken-raising)
   - [Phase 3 — Broilers / meat birds](#phase-3--broilers--meat-birds)
   - [Phase 4 — Meat processing](#phase-4--meat-processing)
@@ -742,6 +743,23 @@ Includes:
 12. CSV export / manual backup
 13. i18n infrastructure (§4.5): externalized UI strings in the SPA, machine-readable API validation/error codes, `users.language` with farm-locale fallback. Ships English-only — no translations yet.
 
+## Phase 1.6 — Multi-farm tenancy
+
+Several independent farms on one deployment, on one shared database with row-level
+isolation. Sign-in takes a **farm code**; one email address can belong to a user in
+more than one farm; an account can be suspended, and suspension takes effect on the
+next authenticated request. Farms are created by an operator (`provision-account`),
+not by public signup. All four single-instance scaling blockers are closed, and the
+background-work contract is **at most one active leader** with at-least-once,
+idempotent handlers — never "exactly once". That guarantee holds on a
+**session-pinned** Postgres endpoint; under a transaction-pooling proxy the
+advisory lock can migrate across backends and single-leader is *not* guaranteed
+(#556 is open), so that topology relies on the at-least-once + idempotent
+contract.
+
+Decisions, rejected alternatives and accepted costs:
+[`docs/decisions/530-multi-farm-tenancy.md`](../../docs/decisions/530-multi-farm-tenancy.md).
+
 ## Phase 1.5 — Egg product hardening
 
 Goal: make the egg product safer and more operationally complete.
@@ -821,7 +839,7 @@ Sprints A–D delivered **Phase 1.0 (MVP)** — shipped 2026-07-16 (epic #13; pe
 ## Sprint A — Foundation (MVP) — mostly built
 
 - Single-farm login / JWT / refresh tokens — **built**
-- Multi-tenant infrastructure (tenant stamp, isolation) — **built, kept dormant behind one default farm**
+- Multi-tenant infrastructure (tenant stamp, isolation) — **built**; dormant behind one default farm until Phase 1.6 (#530) activated it
 - Seed default farm/house; flock CRUD — flock aggregate built; **seed + CRUD endpoints missing**
 - Idempotency middleware — **built**
 
