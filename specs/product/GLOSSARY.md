@@ -733,6 +733,12 @@ light/night preference. The set is curated rather than free-form because every
 palette ships a contrast-checked light and dark pair; an arbitrary colour
 cannot be held to that bar.
 
+Since #586 the palette is remembered per farm on each device, so a farm's own colour can appear on the
+sign-in screen before anyone signs in — when the sign-in link names that farm (`?farm=<code>`), or when
+the device remembers exactly one farm. A device that remembers several farms shows the default until
+sign-in, because at that point the app does not yet know which farm it is signing in to. Forgetting a
+farm removes its remembered colour along with its code.
+
 **Farm locale** — the farm-wide setting (part of **farm settings**, spec §4.5)
 controlling how numbers, dates, and currency are formatted and displayed. Must
 name a real region code (e.g. `en-US`, not `en`) because regions carry number

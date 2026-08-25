@@ -26,16 +26,54 @@ if (t !== "light" && t !== "dark") {
 }
 document.documentElement.dataset.theme = t;
 
-// Second axis (#149): the farm's accent palette. Separate try — a failure
-// reading the brand must not cost the theme resolved above.
+// Second axis (#149), per farm since #586. Separate try — a failure reading the
+// brand must not cost the theme resolved above.
 //
-// Deliberately NO allowlist here. An unknown or future id matches no CSS rule
-// and renders the default, exactly as no cache would; duplicating the list into
-// this file would instead mean a newly added palette silently loses its
-// pre-paint cache and flashes aubergine. The one literal is the default itself,
-// which carries no attribute — matching what applyBrand() does.
+//   1. ?farm=<slug>          the branded-URL case.
+//   2. exactly one remembered  this device's only farm.
+//   3. otherwise             assert nothing, take the default.
+//
+// The pre-#586 un-namespaced `cluckwork.brand` is NEVER read here, deliberately.
+// Its value cannot be attributed to any farm, and every rule tried for
+// attributing it failed: a roster of one does not prove the value belongs to
+// that farm, because the roster SHRINKS — including via a forget performed by a
+// build that predates this file. It is purged at startup instead
+// (lib/accountStorage.ts). The cost is a default-palette cold start on an
+// upgraded device until its next login; the alternative was painting one farm's
+// colour on another's login screen, which is the bug this file exists to fix.
+//
+// Deliberately NO brand allowlist (unchanged): an unknown or future id matches
+// no CSS rule and renders the default, exactly as no cache would. Duplicating
+// the palette list here would instead mean a newly added palette silently loses
+// its pre-paint cache and flashes aubergine.
+//
+// The slug pattern is an independent COPY of FARM_CODE_PATTERN in
+// src/auth/farmCodeCache.ts — this file cannot import. Kept honest by the parity
+// test in src/lib/themeInit.test.ts, which reads both files and compares them.
 try {
-  var b = localStorage.getItem("cluckwork.brand");
+  var slugPattern = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
+  var canon = function (value) {
+    if (typeof value !== "string") return null;
+    var normalized = value.trim().toLowerCase();
+    return slugPattern.test(normalized) ? normalized : null;
+  };
+  var b = null;
+  var urlSlug = canon(new URLSearchParams(location.search).get("farm"));
+  if (urlSlug !== null) {
+    b = localStorage.getItem("cluckwork.brand:" + urlSlug);
+  } else {
+    var rawRoster = localStorage.getItem("cluckwork.farmCodes");
+    var roster = null;
+    if (rawRoster !== null) {
+      try {
+        roster = JSON.parse(rawRoster);
+      } catch (e) {
+        roster = null;
+      }
+    }
+    var single = Array.isArray(roster) && roster.length === 1 ? canon(roster[0]) : null;
+    if (single !== null) b = localStorage.getItem("cluckwork.brand:" + single);
+  }
   if (b && b !== "aubergine") document.documentElement.dataset.brand = b;
 } catch (e) {
   // storage unavailable — the API applies the brand after /account loads

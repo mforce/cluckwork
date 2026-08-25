@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act, waitFor } from "@testing-library/react"
 import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
 import { setStoredToken } from "../test/jwt";
-import { clearAccessToken } from "./tokenStore";
+import { bindAccount, bindFarm, clearAccessToken, clearBoundAccount, getBoundFarmCode } from "./tokenStore";
 import { login as apiLogin, logout as apiLogout, restoreSession, setOnTokensChanged, setOnUnauthenticated } from "../api/client";
 
 // Mock the transport: AuthProvider drives session STATE, the client drives the
@@ -149,7 +149,15 @@ describe("AuthProvider lifecycle", () => {
   it("drops authentication when onUnauthenticated fires (refresh exhausted)", async () => {
     setStoredToken({ sub: "u1", role: "Admin" });
     document.documentElement.dataset.brand = "forest";
-    localStorage.setItem("cluckwork.brand", "forest");
+        // Per-farm since #586: the palette survives teardown under the farm's OWN
+    // key. The un-namespaced key is purged at startup and is not this guarantee.
+    // The key must be the one the FLOW derives, not a string we happen to have
+    // typed: without a bound tab getBoundFarmCode() is null all through the
+    // test, and a teardown path that deleted the real key would go unnoticed.
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "forest");
     renderAuth();
     expect(screen.getByTestId("auth")).toHaveTextContent("true");
 
@@ -159,24 +167,32 @@ describe("AuthProvider lifecycle", () => {
     await act(async () => onUnauth!());
 
     expect(screen.getByTestId("auth")).toHaveTextContent("false");
-    // The farm palette is deliberately KEPT across session teardown (#149,
-    // single-farm): the login screen should go on showing the farm's colour,
-    // not revert to the default. It behaves like cluckwork.theme now.
+    // The farm palette is deliberately KEPT across session teardown
+    // (#149). Per-farm since #586: this device's own farm keeps its colour, and
+    // the pre-paint script only reads a palette for a farm the device can name.
     expect(document.documentElement.dataset.brand).toBe("forest");
-    expect(localStorage.getItem("cluckwork.brand")).toBe("forest");
+    expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("forest");
   });
 
   it("keeps the farm palette when a load-time session restore fails", async () => {
     // Lands on /login, and the palette stays so login keeps the farm's colour.
     document.documentElement.dataset.brand = "slate";
-    localStorage.setItem("cluckwork.brand", "slate");
+    // Per-farm since #586: the palette survives teardown under the farm's OWN
+    // key. The un-namespaced key is purged at startup and is not this guarantee.
+    // The key must be the one the FLOW derives, not a string we happen to have
+    // typed: without a bound tab getBoundFarmCode() is null all through the
+    // test, and a teardown path that deleted the real key would go unnoticed.
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "slate");
     mockRestoreSession.mockResolvedValue(false);
 
     renderAuth();
     await waitFor(() => expect(screen.getByTestId("auth")).toHaveTextContent("false"));
 
     expect(document.documentElement.dataset.brand).toBe("slate");
-    expect(localStorage.getItem("cluckwork.brand")).toBe("slate");
+    expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("slate");
   });
 
   it("keeps the farm palette when a load-time restore SUCCEEDS", async () => {
@@ -192,17 +208,44 @@ describe("AuthProvider lifecycle", () => {
   it("keeps the farm palette on logout", async () => {
     setStoredToken({ sub: "u1", role: "Admin" });
     document.documentElement.dataset.brand = "terracotta";
-    localStorage.setItem("cluckwork.brand", "terracotta");
+    // Per-farm since #586: the palette survives teardown under the farm's OWN
+    // key. The un-namespaced key is purged at startup and is not this guarantee.
+    // The key must be the one the FLOW derives, not a string we happen to have
+    // typed: without a bound tab getBoundFarmCode() is null all through the
+    // test, and a teardown path that deleted the real key would go unnoticed.
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "terracotta");
     renderAuth();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "logout" }));
     });
 
-    // Single-farm: the login screen keeps the farm palette rather than
-    // reverting to the default. The API re-applies it on the next login anyway.
+    // The login screen keeps this farm's palette rather than reverting to the
+    // default. Per-farm since #586, so it is this device's farm, not "whichever
+    // farm was last here".
     expect(document.documentElement.dataset.brand).toBe("terracotta");
-    expect(localStorage.getItem("cluckwork.brand")).toBe("terracotta");
+    expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("terracotta");
+  });
+
+  it("drops the palette on logout when the device remembers SEVERAL farms", async () => {
+    // Two farms: after logout the app cannot say which farm the login screen
+    // belongs to, so it must not keep wearing one of them.
+    setStoredToken({ sub: "u1", role: "Admin" });
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    document.documentElement.dataset.brand = "terracotta";
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres", "other-farm"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "terracotta");
+    renderAuth();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "logout" }));
+    });
+
+    expect(document.documentElement.dataset.brand).toBeUndefined();
   });
 
   it("leaves the user's light/night choice alone on logout", async () => {
@@ -319,6 +362,23 @@ describe("AuthProvider lifecycle", () => {
 
     expect(mockSetOnTokensChanged).toHaveBeenCalledWith(null);
     expect(mockSetOnUnauthenticated).toHaveBeenCalledWith(null);
+  });
+
+  it("binds the typed farm code to the tab at login (#586)", async () => {
+    // The client module is mocked in this file, so bindAccount never runs —
+    // stand in for it, because bindFarm stores nothing without an account to
+    // pin the slug to, and that is the behaviour under test, not an artefact.
+    clearBoundAccount();
+    bindAccount("acct-A");
+    setStoredToken({ sub: "u1", role: "Admin" });
+    renderAuth();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("login"));
+    });
+
+    // The harness button logs in as "default-farm" (line 36).
+    expect(getBoundFarmCode()).toBe("default-farm");
   });
 });
 

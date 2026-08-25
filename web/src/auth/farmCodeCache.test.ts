@@ -411,4 +411,67 @@ describe("farmCodeCache", () => {
       expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-a"]);
     });
   });
+
+  it("forgetting a farm removes its palette too (#586)", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
+    localStorage.setItem("cluckwork.brand:farm-a", "forest");
+    localStorage.setItem("cluckwork.brand:farm-b", "slate");
+
+    await removeFarmCode("farm-b");
+
+    expect(localStorage.getItem("cluckwork.brand:farm-b")).toBeNull();
+    expect(localStorage.getItem("cluckwork.brand:farm-a")).toBe("forest");
+  });
+
+  it("matches the palette key canonically, like the roster entry", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-b"]));
+    localStorage.setItem("cluckwork.brand:farm-b", "slate");
+
+    await removeFarmCode("  Farm-B  ");
+
+    expect(localStorage.getItem("cluckwork.brand:farm-b")).toBeNull();
+  });
+
+  it("removes the palette even when the roster itself cannot be read", async () => {
+    // The roster write is a deliberate no-op on a read failure (it must never
+    // write [] over codes it never saw). The PALETTE removal must not inherit
+    // that early return: "forget this farm" still has to leave no colour behind.
+    localStorage.setItem("cluckwork.brand:farm-b", "slate");
+    const real = Storage.prototype.getItem;
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(function (
+      this: Storage,
+      key: string,
+    ) {
+      if (key === "cluckwork.farmCodes") throw new Error("storage denied");
+      return real.call(this, key);
+    });
+
+    try {
+      await expect(removeFarmCode("farm-b")).resolves.toBeUndefined();
+    } finally {
+      get.mockRestore();
+    }
+
+    expect(localStorage.getItem("cluckwork.brand:farm-b")).toBeNull();
+  });
+
+  it("a palette removal that throws still leaves the roster written", async () => {
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
+    const real = Storage.prototype.removeItem;
+    const remove = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(function (
+      this: Storage,
+      key: string,
+    ) {
+      if (key.startsWith("cluckwork.brand")) throw new Error("storage denied");
+      return real.call(this, key);
+    });
+
+    try {
+      await expect(removeFarmCode("farm-b")).resolves.toBeUndefined();
+    } finally {
+      remove.mockRestore();
+    }
+
+    expect(JSON.parse(localStorage.getItem("cluckwork.farmCodes")!)).toEqual(["farm-a"]);
+  });
 });

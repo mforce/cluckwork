@@ -2372,7 +2372,12 @@ export const tl = {
     farmPaletteIntro:
       "Ang mga setting ng bukid ay nagpapahintulot sa isang admin na pumili ng accent color na ginagamit "
       + "sa buong app para sa lahat sa bukid: Talong, Kagubatan, Slate, o Terracotta. Naaaplay ang pinili "
-      + "kapag nag-save ka, at nakikita ito ng lahat sa susunod na pag-load ng app nila.",
+      + "kapag nag-save ka, at nakikita ito ng lahat sa susunod na pag-load ng app nila."
+      + " Naaalala rin ng bawat device ang paleta para sa bawat bukid, kaya maaaring lumabas ang sariling "
+      + "kulay ng isang bukid sa sign-in screen bago pa mag-sign in ang sinuman: kapag binuksan mo ang link "
+      + "ng bukid na iyon, o kapag iisang bukid lang ang naaalala ng device. Ang device na nakakaalala ng "
+      + "ilang bukid ay nagpapakita ng default na kulay hangga't hindi ka nag-sign in, at inaalis ng "
+      + "Kalimutan ang bukid na ito ang naaalalang kulay ng bukid na iyon kasama ang code nito.",
     farmPaletteLightNight:
       "Magkahiwalay at personal ang light mode at night mode. Pumipili ang bawat tao ng sarili nila gamit "
       + "ang toggle sa sidebar, sa bawat device, at hindi kailanman ino-override ito ng paleta ng bukid — "
@@ -2760,7 +2765,10 @@ export const tl = {
     glossaryFarmPaletteTerm: "Paleta ng Bukid",
     glossaryFarmPaletteDef:
       "Ang accent color para sa buong bukid, pinipili ng isang admin sa Mga Setting ng Bukid. Hiwalay ito "
-      + "sa sariling setting ng light/night mode ng bawat tao.",
+      + "sa sariling setting ng light/night mode ng bawat tao."
+      + " Naaalala ito bawat bukid sa bawat device, kaya maaari itong lumabas sa sign-in screen bago "
+      + "mag-sign in ang sinuman; ang device na nakakaalala ng ilang bukid ay nagpapakita ng default "
+      + "hanggang sa mag-sign in.",
 
     glossaryUiLanguageTerm: "Wika ng UI",
     glossaryUiLanguageDef:

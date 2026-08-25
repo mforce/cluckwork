@@ -1,3 +1,5 @@
+import { forgetBrandFor } from "../lib/brand";
+
 // #535 — the farm codes that have SUCCESSFULLY signed in on this device.
 //
 // Deliberately NOT account-namespaced: this list IS the cross-farm roster, so
@@ -165,6 +167,13 @@ export async function removeFarmCode(value: string): Promise<void> {
   // to prevent on the write path applies to a removal — a sign-in landing
   // after the lock is acquired must survive a forget issued before it.
   const write = (): void => {
+    // #586 — FIRST, and deliberately outside the roster's read-failure guard
+    // below. That guard makes the ROSTER write a no-op when storage cannot be
+    // read (it must never write [] over codes it never saw), and the palette
+    // removal must not inherit that early return: "forget this farm" still has
+    // to leave no colour behind. forgetBrandFor never throws, so ordering it
+    // first cannot cost the roster write either.
+    forgetBrandFor(code);
     const raw = readRawRoster();
     if (raw === null) return;
     // Readable-but-malformed stored JSON and non-array JSON parse to an EMPTY
