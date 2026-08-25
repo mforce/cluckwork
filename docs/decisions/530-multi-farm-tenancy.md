@@ -58,7 +58,8 @@ than sampling a list.
 
 **The rule.** Per-farm email identity comes from account-scoping the Identity indexes —
 `(AccountId, NormalizedUserName)` and `(AccountId, NormalizedEmail)`, both unique
-(`src/Cluckwork.Infrastructure/Persistence/Migrations/20260819142300_AccountScopedIdentityIndexes.cs:21-31`).
+(`src/Cluckwork.Infrastructure/Persistence/Migrations/20260819142300_AccountScopedIdentityIndexes.cs:13-31`
+— the `DropIndex` calls at `:13-19` are the half that makes it a *swap* rather than an addition).
 The username stays the plain email.
 
 **Why not a composite `{accountId}.{email}` username.** It was considered and rejected: it
@@ -250,7 +251,7 @@ entirely, on the grounds that Postgres is already mandatory and the volumes here
 step-ups and report starts — do not justify a second dependency. The owner weighed that
 against the native primitives and the absence of any expiry-cleanup work, and chose Redis.
 
-**Atomicity consequence.** `TryConsumeIfNotLoggedOut` once checked the logout epoch and
+**Atomicity consequence.** `TryConsumeIfNotLoggedOutAsync` (`src/Cluckwork.Infrastructure/Identity/IStepUpGrantRegistry.cs:46`) once checked the logout epoch and
 consumed the grant id under **one** lock. With the epoch in Postgres and the grant id in
 Redis, no single lock spans both stores, so the order is load-bearing: **consume in Redis
 first, then read the epoch, and refuse on mismatch.** A logout landing between the two is
@@ -284,7 +285,9 @@ temporary and `MustChangePassword` — **is true only of the CLI provisioning pa
 (`bootstrap-admin`, `provision-account`, `recover-admin`). It is **not** true of the normal HTTP API a
 farm Owner actually uses: `CreateUserHandler` deliberately leaves `mustChangePassword` false
 (`src/Cluckwork.Application/Features/Users/CreateUser/CreateUserHandler.cs:29`, per #339) and the
-admin reset path clears it (`src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1024,1098`). So
+admin reset path clears it (`src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1024`, inside
+`ResetPasswordAndRevokeAsync`; the other clear at `:1098` is `ChangeOwnPasswordAsync`, a *self-service*
+change and correctly not an admin action). So
 an Owner CAN set a known, durable password on a user in their own farm and try it elsewhere. Recorded
 here because the epic body asserted the opposite and this record would otherwise carry it forward.
 Cross-account password-history comparison is explicitly **not** attempted; it would
@@ -310,8 +313,11 @@ Reproduced against the shipped script: roster `["farm-b"]` plus the old key hold
 farm-A's colour painted **farm-A's colour on farm-B's login screen**.
 
 **The rule.** When successive fixes all constrain *when* a value may be trusted, the value
-is unattributable and the answer is to **delete it**, not to add another condition. #586
-purges the key and never reads it. Each earlier fix was correct where it looked and missed
+is unattributable and the answer is to **delete it**, not to add another condition. #586 purges the key
+(`web/src/lib/accountStorage.ts:53`, where it joins `UNSCOPED_KEYS`) and never reads it: the pre-paint
+script resolves a farm only from `?farm=` or a single-entry roster
+(`web/public/theme-init.js:63,75`), and the write side caches only under a slug the session's login
+proved, pinned by a binding token (`web/src/lib/brand.ts:13,51`). Each earlier fix was correct where it looked and missed
 a case elsewhere, which is the signature of an invariant with no owner.
 
 **The generalisable half.** Anything written before a tenant discriminator existed cannot be
@@ -332,9 +338,10 @@ a farm the device still **remembers**.
 
 ## Accepted disclosures, collected
 
-Two, both deliberate and both bounded above:
+Three, all deliberate and all bounded above:
 
 - the **distinct unknown-farm response** (§4) confirms whether a farm code exists;
+- the **suspended-farm response** — `Auth.FarmSuspended` (`src/Cluckwork.Api/Endpoints/Auth/AuthEndpoints.cs:167`, returned at `:208-217`) — additionally confirms that an existing farm is *suspended*, to an anonymous caller. It is deliberately returned **before** the credential check, so a suspended farm answers identically whether or not the password was right; the alternative leaked more, by falling through to a branch that discloses provisioning state. The cost is that farm status is observable without credentials;
 - the **device-local farm-code cache** is a durable roster of which farms a browser profile
   uses, which matters on a shared device.
 
