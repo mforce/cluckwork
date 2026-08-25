@@ -14,6 +14,14 @@ public sealed class TenancyDocsFreshnessTests
         @"|dormant[^.\n]{0,40}?multi-?tenant" +
         @"|kept\s+dormant\s+behind\s+one\s+default\s+farm" +
         @"|email\s+uniqueness\s+is\s+global" +
+        // Added after review round 1 found specs/technical/tech_spec.md, whose
+        // stale claims said 'single-tenant today' rather than 'dormant' — the
+        // same concept in different words, which is why the guard now matches
+        // several phrasings of it.
+        @"|single-?tenant\s+(deploy|mode|today|now)" +
+        @"|runs?\s+exactly\s+one\s+account" +
+        @"|deployment\s+runs\s+exactly\s+one\s+farm" +
+        @"|invisible\s+in\s+single-?tenant" +
         @"|globally\s+unique\s+email)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
