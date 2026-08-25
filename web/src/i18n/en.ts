@@ -59,6 +59,12 @@ export const en = {
     // #535 — the device remembers every farm code that has SUCCESSFULLY signed
     // in here, so a phone shared between farms offers them instead of retyping.
     recentFarms: "Recent farms",
+    // #587 — the per-entry destructive control and its confirmation dialog.
+    forgetFarm: "Forget {{farmCode}}",
+    forgetFarmTitle: "Forget {{farmCode}}?",
+    forgetFarmBody:
+      "This removes {{farmCode}} from Recent farms on this device. It does not change your account or other device preferences.",
+    forgetFarmConfirm: "Forget farm",
     // #535 — shown ONLY when the code arrived in the ?farm= link rather than
     // from the operator. A same-origin link would otherwise substitute a farm
     // code silently while the password manager autofills for the origin.
@@ -2220,8 +2226,9 @@ export const en = {
       + "<strong>tabs</strong> no longer replace one another. A tab remembers its farm across reloads. A tab "
       + "with no remembered farm that finds several sessions returns to sign-in rather than guessing — choose "
       + "the farm code and sign in. The sign-in page also remembers farm codes you have signed in with on this "
-      + "device and offers them as a picker, and a ?farm= link prefills the field. No other farm's session is "
-      + "cleared.",
+      + "device and offers them as a picker, and a ?farm= link prefills the field. Each remembered farm can be "
+      + "removed from that list with its Forget control; doing so does not clear another farm's session or any "
+      + "other preference on this device. No other farm's session is cleared.",
     // #283 — first-run provisioning: no default credential ever ships with
     // the app, so the very first sign-in always starts from a printed
     // one-time password.
@@ -2868,9 +2875,13 @@ export const en = {
       + "email, because the same email address can exist in several farms and only the code "
       + "says which one you mean. It is lowercase and it does not change. The sign-in screen "
       + "remembers the last 10 farms you have signed in with on this device, most recent "
-      + "first, and offers them so you usually do not have to retype the code. A link such "
-      + "as /login?farm=<code> takes over and fills the code in for you, without showing the list. "
-      + "If you do not know your farm's code, ask your administrator — they can look it up.",
+      + "first, and offers each one — even when there is only a single remembered farm — "
+      + "in a picker so you usually do not have to retype the code. Each entry can be "
+      + "forgotten individually with its Forget control, after a confirmation; that removes "
+      + "only that farm from this device and does not clear your language or theme or any "
+      + "other preference. A link such as /login?farm=<code> takes over and fills the code "
+      + "in for you, without showing the list. If you do not know your farm's code, ask "
+      + "your administrator — they can look it up.",
 
     glossaryFarmProvisioningTerm: "Farm provisioning",
     glossaryFarmProvisioningDef:

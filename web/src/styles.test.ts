@@ -88,6 +88,20 @@ describe.each(BRANDS)("palette: %s", (brand) => {
     for (const bg of ["--surface", "--surface-2", "--canvas"])
       expect(contrast(at("--focus"), at(bg))).toBeGreaterThanOrEqual(4.5);
   });
+
+  it.each(MODES)("%s: the login Forget glyph clears WCAG AA on its rest fill", (mode) => {
+    // #587 — .auth-forget-farm draws its × over --surface-2 at rest. The
+    // destructive FILL token (--danger) does not clear 4.5:1 for that glyph in
+    // the dark theme (2.76:1 over aubergine's dark --surface-2), so the at-rest
+    // colour is the TEXT token --error, which clears in every theme and
+    // palette. The hover state fills with --danger and its white label is
+    // checked here too, so a hover edit that darkened the fill cannot
+    // silently break the pair.
+    const t = resolveTokens(attrFor(brand), mode);
+    const at = (k: string) => t.get(k)!;
+    expect(contrast(at("--error"), at("--surface-2"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(at("--on-danger"), at("--danger"))).toBeGreaterThanOrEqual(4.5);
+  });
 });
 
 // Key presence and contrast are both satisfied by a palette that declares the

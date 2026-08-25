@@ -1677,10 +1677,20 @@ label.check {
   gap: 0.4rem;
 }
 
-.auth .auth-farm-picker button {
+/* #587 — each entry is a select chip plus a distinct Forget control. The
+   select chip keeps the #535 pill look; the Forget control is deliberately a
+   different shape and colour (destructive) so a tap is never ambiguous. */
+.auth .auth-farm-picker-entry {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.auth .auth-farm-picker-select {
   padding: 0.35rem 0.7rem;
   border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
+  border-bottom-right-radius: 0;
+  border-top-right-radius: 0;
+  border-radius: var(--r-pill) 0 0 var(--r-pill);
   background: var(--surface-2);
   color: var(--ink);
   font-size: 0.85rem;
@@ -1688,8 +1698,36 @@ label.check {
   cursor: pointer;
 }
 
-.auth .auth-farm-picker button:hover:not(:disabled) {
+.auth .auth-farm-picker-select:hover:not(:disabled) {
   border-color: var(--brand);
+}
+
+.auth .auth-forget-farm {
+  /* 44px minimum touch target in BOTH axes — pinned by Login.styles.test.ts. */
+  min-block-size: 44px;
+  min-inline-size: 44px;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--hairline);
+  border-left: 0;
+  border-radius: 0 var(--r-pill) var(--r-pill) 0;
+  background: var(--surface-2);
+  /* --error, not --danger: the destructive FILL token fails the 4.5:1 AA
+     floor for the glyph at rest (2.76:1 in the dark theme over --surface-2),
+     while --error clears it in every theme and palette (4.99 light aubergine,
+     6.44 dark aubergine) — the same token the rest of the app uses for
+     error-coloured text. The pair is pinned in styles.test.ts. The hover fill
+     keeps --danger, whose white label clears 4.5:1 (6.71 / 5.53). */
+  color: var(--error);
+  font-size: 1rem;
+  line-height: 1;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.auth .auth-forget-farm:hover:not(:disabled) {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-danger);
 }
 
 /* No `code` rule here on purpose — the notice publishes no command. See the

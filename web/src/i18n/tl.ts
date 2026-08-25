@@ -43,6 +43,12 @@ export const tl = {
     // machine-drafted (#532) — pending native review.
     farmCode: "Code ng bukid",
     recentFarms: "Mga kamakailang bukid",
+    // #587 (machine-drafted, pending native review) — the per-entry destructive control and its confirmation dialog.
+    forgetFarm: "Kalimutan ang {{farmCode}}",
+    forgetFarmTitle: "Gusto mong kalimutan ang {{farmCode}}?",
+    forgetFarmBody:
+      "Aalis nito ang {{farmCode}} sa mga kamakailang bukid sa device na ito. Hindi binabago nito ang iyong account o ibang setting ng device.",
+    forgetFarmConfirm: "Kalimutan ang bukid",
     farmFromLink: "Nagsa-sign in sa bukid: {{farmCode}}",
     unknownFarmCode: "Hindi nakikilala ang code ng bukid na iyon. Suriin ito at subukang muli.",
     farmSuspended: "Suspendido ang bukid na ito. Makipag-ugnayan sa iyong administrator.",
@@ -1840,7 +1846,9 @@ export const tl = {
       + "nito kapag nag-reload. Ang tab na walang natatandaang bukid at makakakita ng ilang session ay babalik pa rin "
       + "sa pag-sign in sa halip na manghula — piliin ang code ng bukid at mag-sign in. Naaalala rin ng page ng "
       + "pag-sign in ang mga code ng bukid na ginamit mo sa device na ito at inaalok ang mga ito bilang isang "
-      + "pumipili, at ang link na ?farm= ay nag-pre-fill sa field. Walang session ng ibang bukid na binubura.",
+      + "pumipili, at ang link na ?farm= ay nag-pre-fill sa field. Ang bawat natatandaang bukid ay maaaring "
+      + "alisin sa listahan gamit ang kanyang kontrol na Kalimutan; sa paggawa nitong hindi binubura ang session ng "
+      + "ibang bukid o iba pang setting ng device. Walang session ng ibang bukid na binubura.",
     // machine-drafted (#283) — pending native review.
     signingInFirstRun:
       "<strong>Unang pag-sign in sa isang bagong-bagong farm.</strong> Walang default na password — "
@@ -2537,10 +2545,14 @@ export const tl = {
       + "bago ang iyong email, dahil maaaring nasa ilang bukid ang iisang email address at ang "
       + "code lamang ang nagsasabi kung alin ang ibig mo sabihin. Lowercase ito at hindi ito "
       + "nagbabago. Naaalala ng screen ng sign in ang huling 10 bukid na naka-sign in ka sa "
-      + "device na ito, pinakabago muna, at inaalok ang mga ito para hindi mo na kailangang "
-      + "i-type ang code. Ang link tulad ng /login?farm=<code> ang mananaig at awtomatikong "
-      + "pinupuno ang code para sa iyo, nang hindi ipinapakita ang listahan. "
-      + "Kung hindi mo alam ang code ng bukid mo, tanungin ang iyong administrator: matitingnan nila ito.",
+      + "device na ito, pinakabago muna, at inaalok ang bawat isa — kahit isang natatandaan "
+      + "lang — sa isang pumipili para hindi mo na kailangang i-type ang code. Ang bawat "
+      + "entry ay maaaring kalimutan nang hiwalay gamit ang kanyang kontrol na Kalimutan, pagkatapos "
+      + "ng isang kumpirmasyon; ang aalis ay ang bukid na iyon lamang sa device na ito at "
+      + "hindi binubura nito ang iyong wika o theme o ibang preference. Ang link tulad ng "
+      + "/login?farm=<code> ang mananaig at awtomatikong pinupuno ang code para sa iyo, nang "
+      + "hindi ipinapakita ang listahan. Kung hindi mo alam ang code ng bukid mo, tanungin "
+      + "ang iyong administrator: matitingnan nila ito.",
 
     // #533 (machine-drafted, pending native review)
     glossaryFarmProvisioningTerm: "Pag-provision ng bukid",
