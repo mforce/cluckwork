@@ -6,8 +6,12 @@ using System.Text.RegularExpressions;
 public sealed class TenancyDocsFreshnessTests
 {
     private static readonly Regex Stale = new(
-        @"(multi-?tenant\w*\s+(infrastructure\s+)?(is\s+)?dormant" +
-        @"|dormant\s+multi-?tenant" +
+        // Any short run of words between the two, so 'multi-tenant infrastructure
+        // dormant', 'multi-tenant infra present but dormant' and 'multi-tenant
+        // infrastructure is dormant' all match. [^.\n] keeps it inside one
+        // sentence so it cannot span unrelated prose.
+        @"(multi-?tenant[^.\n]{0,40}?dormant" +
+        @"|dormant[^.\n]{0,40}?multi-?tenant" +
         @"|kept\s+dormant\s+behind\s+one\s+default\s+farm" +
         @"|email\s+uniqueness\s+is\s+global" +
         @"|globally\s+unique\s+email)",
@@ -20,6 +24,12 @@ public sealed class TenancyDocsFreshnessTests
         var offenders = new List<string>();
         foreach (var relative in TrackedFiles(root))
         {
+            // The dated graphify-out/ snapshots DO match this pattern (10 of them
+            // carry 'multi-tenant infra present but dormant' in a graph node's
+            // rationale). They are generated, point-in-time records: they must not
+            // be rewritten, and they cannot be kept fresh, so they are excluded by
+            // path. Mutation K3 (delete this line) proves the exclusion is
+            // load-bearing — without it the test is red against those snapshots.
             if (relative.StartsWith("graphify-out/", StringComparison.Ordinal)) continue;
             if (relative.EndsWith("TenancyDocsFreshnessTests.cs", StringComparison.Ordinal)) continue;
             var full = Path.Combine(root, relative);
