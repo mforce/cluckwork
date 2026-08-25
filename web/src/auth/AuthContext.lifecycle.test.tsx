@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act, waitFor } from "@testing-library/react"
 import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
 import { setStoredToken } from "../test/jwt";
-import { bindAccount, clearAccessToken, clearBoundAccount, getBoundFarmCode } from "./tokenStore";
+import { bindAccount, bindFarm, clearAccessToken, clearBoundAccount, getBoundFarmCode } from "./tokenStore";
 import { login as apiLogin, logout as apiLogout, restoreSession, setOnTokensChanged, setOnUnauthenticated } from "../api/client";
 
 // Mock the transport: AuthProvider drives session STATE, the client drives the
@@ -151,6 +151,11 @@ describe("AuthProvider lifecycle", () => {
     document.documentElement.dataset.brand = "forest";
         // Per-farm since #586: the palette survives teardown under the farm's OWN
     // key. The un-namespaced key is purged at startup and is not this guarantee.
+    // The key must be the one the FLOW derives, not a string we happen to have
+    // typed: without a bound tab getBoundFarmCode() is null all through the
+    // test, and a teardown path that deleted the real key would go unnoticed.
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
     localStorage.setItem("cluckwork.brand:sunny-acres", "forest");
     renderAuth();
@@ -174,6 +179,11 @@ describe("AuthProvider lifecycle", () => {
     document.documentElement.dataset.brand = "slate";
     // Per-farm since #586: the palette survives teardown under the farm's OWN
     // key. The un-namespaced key is purged at startup and is not this guarantee.
+    // The key must be the one the FLOW derives, not a string we happen to have
+    // typed: without a bound tab getBoundFarmCode() is null all through the
+    // test, and a teardown path that deleted the real key would go unnoticed.
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
     localStorage.setItem("cluckwork.brand:sunny-acres", "slate");
     mockRestoreSession.mockResolvedValue(false);
@@ -200,6 +210,11 @@ describe("AuthProvider lifecycle", () => {
     document.documentElement.dataset.brand = "terracotta";
     // Per-farm since #586: the palette survives teardown under the farm's OWN
     // key. The un-namespaced key is purged at startup and is not this guarantee.
+    // The key must be the one the FLOW derives, not a string we happen to have
+    // typed: without a bound tab getBoundFarmCode() is null all through the
+    // test, and a teardown path that deleted the real key would go unnoticed.
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
     localStorage.setItem("cluckwork.brand:sunny-acres", "terracotta");
     renderAuth();

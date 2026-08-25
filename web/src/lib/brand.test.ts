@@ -122,6 +122,18 @@ describe("brand", () => {
     expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("forest");
   });
 
+  it("an UNBOUND tab leaves the pre-#586 un-namespaced key untouched", () => {
+    // The bound case is covered above. This is the branch that had no coverage:
+    // applyBrand returns early when no farm is proven, and must not take the
+    // un-namespaced key with it on the way out — purging that key is startup's
+    // job (lib/accountStorage.ts), not applyBrand's.
+    clearBoundAccount();
+    localStorage.setItem("cluckwork.brand", "terracotta");
+    applyBrand("forest");
+    expect(document.documentElement.dataset.brand).toBe("forest");
+    expect(localStorage.getItem("cluckwork.brand")).toBe("terracotta");
+  });
+
   it("forgetBrandFor removes only that farm's palette", () => {
     localStorage.setItem("cluckwork.brand:farm-b", "slate");
     localStorage.setItem("cluckwork.brand:farm-a", "forest");
