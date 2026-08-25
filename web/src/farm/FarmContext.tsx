@@ -4,6 +4,7 @@ import { getAccount } from "../api/cluckwork";
 import type { Account } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
 import { applyBrand } from "../lib/brand";
+import { getBoundFarmCode } from "../auth/tokenStore";
 
 export interface FarmState {
   // Null until /account answers, and after a read that failed.
@@ -71,6 +72,10 @@ export function FarmProvider({
   const [loadFailed, setLoadFailed] = useState(seeded && initialAccount === null);
 
   const refresh = useCallback(async () => {
+    // Captured BEFORE the await: if the operator signs into another farm while
+    // this request is in flight, the response belongs to the previous farm and
+    // must not be applied to, or cached for, the new one.
+    const boundAt = getBoundFarmCode();
     try {
       const account = await getAccount();
       setFarm(account);
@@ -79,7 +84,7 @@ export function FarmProvider({
       // Only on success: a failed read leaves whatever was pre-painted, since
       // clearing would turn a network blip into a colour change on a farm that
       // never changed palette.
-      applyBrand(account.brand);
+      applyBrand(account.brand, boundAt);
       setLoadFailed(false);
       // Marked settled on BOTH paths rather than in a `finally`: nothing can
       // escape the catch, so the finally's exceptional path was a branch no
@@ -103,7 +108,10 @@ export function FarmProvider({
       // #182 — already applied once by the bootstrap read that produced this
       // value; re-applying here on every mount (StrictMode double-invoke,
       // remount) is a harmless no-op, so no ref/guard is needed.
-      if (initialAccount) applyBrand(initialAccount.brand);
+      // Synchronous with mount, so the capture and the check are the same
+      // instant — passed anyway because the parameter is required, which is
+      // what stops a future caller from skipping the guard by accident.
+      if (initialAccount) applyBrand(initialAccount.brand, getBoundFarmCode());
       return; // seeded: no mount fetch
     }
     void refresh();

@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { FarmProvider } from "./FarmContext";
 import { useFarm, useFarmToday } from "./useFarm";
 import { getAccount } from "../api/cluckwork";
+import { bindAccount, bindFarm, clearBoundAccount } from "../auth/tokenStore";
 import { account } from "../test/fixtures";
 
 vi.mock("../api/cluckwork", async () => {
@@ -34,6 +35,8 @@ beforeEach(() => {
   vi.useRealTimers();
   document.documentElement.removeAttribute("data-brand");
   document.documentElement.removeAttribute("data-theme");
+  localStorage.clear();
+  clearBoundAccount();
 });
 
 // Restored here as well as in each body: a failing assertion between
@@ -121,6 +124,29 @@ describe("FarmProvider", () => {
     await screen.findByTestId("name");
 
     expect(document.documentElement.dataset.brand).toBe("forest");
+  });
+
+  it("does not cache a superseded response under the new farm's key", async () => {
+    // The race: farm A's /account is in flight when the operator signs into
+    // farm B in this same tab. The capture must happen BEFORE the await, so the
+    // late response belongs to farm A and applies nothing — its colour must not
+    // paint farm B's screen, and must certainly not land under farm B's key.
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    let resolve: ((value: ReturnType<typeof account>) => void) | undefined;
+    mockGetAccount.mockReturnValue(new Promise((r) => { resolve = r; }));
+
+    render(<FarmProvider><Probe /></FarmProvider>);
+
+    // WHILE the request is pending, the operator signs into farm B.
+    bindAccount("acct-B");
+    bindFarm("other-farm");
+
+    act(() => { resolve!(account({ name: "Farm A", brand: "forest" })); });
+    await waitFor(() => expect(mockGetAccount).toHaveBeenCalledTimes(1));
+
+    // Farm B's key must be untouched; farm A's is not this test's to own.
+    expect(localStorage.getItem("cluckwork.brand:other-farm")).toBeNull();
   });
 
   it("removes the attribute for the default palette", async () => {

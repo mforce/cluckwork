@@ -48,7 +48,15 @@ export function isBrand(value: string): value is Brand {
   return (BRANDS as readonly string[]).includes(value);
 }
 
-export function applyBrand(brand: string): void {
+// `boundAt` is the farm this value was FETCHED for — captured by the caller
+// before its await. Required, not optional: every caller is post-await or
+// could become so, and an optional guard is one a future caller forgets.
+// A response that outlived its own session applies NOTHING: farm A's colour
+// must not paint farm B's screen, and must certainly not be cached under
+// farm B's key. Synchronous callers pass getBoundFarmCode() and the check is
+// a no-op by construction.
+export function applyBrand(brand: string, boundAt: string | null): void {
+  if (boundAt !== getBoundFarmCode()) return;
   // Attribute first: the palette must apply even if nothing persists.
   if (brand === DEFAULT_BRAND || !isBrand(brand)) {
     // An unknown id is treated as the default rather than written through: the
