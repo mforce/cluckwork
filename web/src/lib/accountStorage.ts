@@ -45,7 +45,12 @@ export function writeAccountScoped(base: string, value: string): void {
 // to a farm (the app did not know which farm wrote them), so migrating them would
 // be a guess; they are dropped instead. Same shape as purgeLegacyTokens(). Costs a
 // one-time loss of a remembered flock, re-established on the next Daily Entry visit.
-const UNSCOPED_KEYS = ["cluckwork.lastFlockId"] as const;
+// #586 adds the farm palette. Before per-farm keys existed this held ONE colour
+// for the whole device, and which farm it belonged to is unknowable — the device
+// may have used several. Read by anything, it paints one farm's colour on
+// another's login screen, so it is dropped rather than migrated. Costs a
+// default-palette cold start until the next login, which rewrites it per farm.
+const UNSCOPED_KEYS = ["cluckwork.lastFlockId", "cluckwork.brand"] as const;
 
 export function purgeUnscopedAccountState(): void {
   for (const key of UNSCOPED_KEYS) {

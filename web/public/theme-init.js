@@ -29,22 +29,18 @@ document.documentElement.dataset.theme = t;
 // Second axis (#149), per farm since #586. Separate try — a failure reading the
 // brand must not cost the theme resolved above.
 //
-// Four sources, first match wins. The farm is resolved from what exists BEFORE
-// any token does: the URL, then the device's remembered codes (#535).
-//   1. ?farm=<slug>          the branded-URL case. NO legacy fallback: a farm
-//                            this device has no record of must not inherit
-//                            whichever farm last painted here.
-//   2. exactly one remembered  this device's farm. Falls back to the legacy
-//                            un-namespaced key on a miss, which is what makes
-//                            upgrade day flash-free — no build before #586 ever
-//                            wrote a per-slug key.
-//   3. NO roster key at all   no successful login since #535, so the legacy
-//                            value belongs to this device's one farm. "[]" is
-//                            NOT this case: removeFarmCode (#587) writes it, so
-//                            an emptied roster on a multi-farm device would
-//                            paint the wrong farm.
-//   4. otherwise             several farms and none named. At /login the app
-//                            does not know which farm, so it asserts none.
+//   1. ?farm=<slug>          the branded-URL case.
+//   2. exactly one remembered  this device's only farm.
+//   3. otherwise             assert nothing, take the default.
+//
+// The pre-#586 un-namespaced `cluckwork.brand` is NEVER read here, deliberately.
+// Its value cannot be attributed to any farm, and every rule tried for
+// attributing it failed: a roster of one does not prove the value belongs to
+// that farm, because the roster SHRINKS — including via a forget performed by a
+// build that predates this file. It is purged at startup instead
+// (lib/accountStorage.ts). The cost is a default-palette cold start on an
+// upgraded device until its next login; the alternative was painting one farm's
+// colour on another's login screen, which is the bug this file exists to fix.
 //
 // Deliberately NO brand allowlist (unchanged): an unknown or future id matches
 // no CSS rule and renders the default, exactly as no cache would. Duplicating
@@ -76,12 +72,7 @@ try {
       }
     }
     var single = Array.isArray(roster) && roster.length === 1 ? canon(roster[0]) : null;
-    if (single !== null) {
-      b = localStorage.getItem("cluckwork.brand:" + single);
-      if (b === null) b = localStorage.getItem("cluckwork.brand");
-    } else if (rawRoster === null) {
-      b = localStorage.getItem("cluckwork.brand");
-    }
+    if (single !== null) b = localStorage.getItem("cluckwork.brand:" + single);
   }
   if (b && b !== "aubergine") document.documentElement.dataset.brand = b;
 } catch (e) {

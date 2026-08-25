@@ -9,7 +9,7 @@
 // is still the tab's bound account — enforced by the comparison in
 // getBoundFarmCode(), not by this comment. A tab with no such binding (a fresh
 // tab restored from the refresh cookie) applies the palette and caches nothing,
-// so its cache can be STALE, but it can never hold another farm's colour.
+// so its cache may be absent or stale, but it can never hold another farm's colour.
 import { getBoundFarmCode } from "../auth/tokenStore";
 
 export const BRANDS = ["aubergine", "forest", "slate", "terracotta"] as const;
@@ -18,11 +18,6 @@ export type Brand = (typeof BRANDS)[number];
 // Aubergine is the default AND carries no data-brand attribute, which is what
 // makes an unknown id degrade to it with no validation on the CSS side.
 export const DEFAULT_BRAND: Brand = "aubergine";
-
-// Pre-#586: one un-namespaced key for the whole device. Still READ at pre-paint
-// as a fallback for a farm the device can name, and deleted the moment that farm
-// has a key of its own.
-const LEGACY_KEY = "cluckwork.brand";
 
 // #586 — one key per farm. The prefix lives here because this module owns the
 // brand namespace; farmCodeCache imports brandKeyFor rather than rebuilding it.
@@ -36,16 +31,10 @@ export function brandKeyFor(slug: string): string {
 // "Forget this farm" (#587): the roster entry is what the login screen SHOWS,
 // these keys are what it PAINTS.
 //
-// LEGACY_KEY goes too, and that half is the load-bearing one. Its value cannot
-// be attributed to any farm — it predates per-farm keys — and the pre-paint
-// script dares read it only because a roster of exactly one, or no roster at
-// all, is taken to name this device's single farm. A Forget is precisely the
-// event that destroys that reasoning, because it SHRINKS the roster: forget
-// farm-Y and a later single-entry roster would inherit farm-Y's colour for
-// farm-X. Dropping it here is ONE enforcement site, in place of a fourth
-// condition on the read side.
+// The un-namespaced pre-#586 key is NOT touched here: it is purged once at
+// startup by purgeUnscopedAccountState(), and nothing reads it in between.
 export function forgetBrandFor(slug: string): void {
-  for (const key of [brandKeyFor(slug), LEGACY_KEY]) {
+  for (const key of [brandKeyFor(slug)]) {
     try {
       localStorage.removeItem(key);
     } catch {
@@ -89,15 +78,6 @@ export function applyBrand(brand: string): void {
       // storage fully unavailable; the attribute above is all we can do
     }
     return;
-  }
-  // Its own try, and only after a SUCCESSFUL write: this farm now has a real
-  // key, so the un-namespaced fallback is superseded for this device. A failure
-  // here must not undo the write above.
-  try {
-    localStorage.removeItem(LEGACY_KEY);
-  } catch {
-    // storage unavailable — the stale legacy key costs one wrong pre-paint at
-    // most, and only on a device that cannot write anyway.
   }
 }
 

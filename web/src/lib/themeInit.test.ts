@@ -86,13 +86,15 @@ describe("theme-init pre-paint script", () => {
   });
 
   it("applies a cached non-default brand", () => {
-    localStorage.setItem("cluckwork.brand", "forest");
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "forest");
     run();
     expect(document.documentElement.dataset.brand).toBe("forest");
   });
 
   it("leaves data-brand off for the default palette", () => {
-    localStorage.setItem("cluckwork.brand", "aubergine");
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "aubergine");
     run();
     expect(document.documentElement.dataset.brand).toBeUndefined();
   });
@@ -106,7 +108,8 @@ describe("theme-init pre-paint script", () => {
     // Deliberate: no allowlist here. An unknown id matches no CSS rule and
     // renders aubergine anyway, whereas a duplicated list would mean a newly
     // added palette silently loses its pre-paint cache and flashes the default.
-    localStorage.setItem("cluckwork.brand", "chartreuse");
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+    localStorage.setItem("cluckwork.brand:sunny-acres", "chartreuse");
     run();
     expect(document.documentElement.dataset.brand).toBe("chartreuse");
   });
@@ -115,7 +118,7 @@ describe("theme-init pre-paint script", () => {
     let calls = 0;
     const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation((k) => {
       calls += 1;
-      if (k === "cluckwork.brand") throw new Error("storage denied");
+      if (k === "cluckwork.brand:sunny-acres") throw new Error("storage denied");
       return null;
     });
     expect(() => run()).not.toThrow();
@@ -163,14 +166,15 @@ describe("theme-init pre-paint script", () => {
     expect(document.documentElement.dataset.brand).toBe("slate");
   });
 
-  it("branch 2 falls back to the legacy key on a miss — the upgrade-day path", () => {
-    // No build before #586 wrote a per-slug key, so on the first cold start
-    // after upgrade this is the ONLY source. Without it the whole device
-    // flashes the default, which is the #149 regression this issue avoids.
-    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["sunny-acres"]));
+  it("NEVER reads the pre-#586 un-namespaced key, even for a device with one farm", () => {
+    // The confirmed cross-farm paint, reproduced. A forget performed by a build
+    // older than this file shrank the roster to one entry WITHOUT clearing the
+    // un-namespaced key, so that key holds the FORGOTTEN farm's colour. Reading
+    // it here paints farm-A's palette on farm-B's login screen.
+    localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-b"]));
     localStorage.setItem("cluckwork.brand", "terracotta");
     run();
-    expect(document.documentElement.dataset.brand).toBe("terracotta");
+    expect(document.documentElement.dataset.brand).toBeUndefined();
   });
 
   it("branch 4: two remembered farms and no ?farm= assert NOTHING", () => {
@@ -216,18 +220,21 @@ describe("theme-init pre-paint script", () => {
   });
 
   it("the slug pattern is IDENTICAL to farmCodeCache's, character for character", () => {
-    // An independent copy in a different file that cannot import. This is a
-    // DRIFT ALARM, not a guard: it cannot fail closed, so it must fail loudly.
+    // Captures the WHOLE regex literal, flags included, by the name it is bound
+    // to — so a divergence in flags or in the body fails this test. The previous
+    // version matched a literal copy of the expected pattern, which meant both
+    // sides could only ever be that exact string or null: the comparison could
+    // not fail on its own, and an /i added to one file slipped straight past it.
     const cacheSrc = readFileSync(
       fileURLToPath(new URL(FARM_CODE_CACHE_REL, import.meta.url)),
       "utf8",
     );
-    const extract = (src: string) => {
-      const m = src.match(/\/\^\[a-z0-9\]\[a-z0-9-\]\{1,30\}\[a-z0-9\]\$\//);
-      return m === null ? null : m[0];
+    const extract = (src: string, binding: string) => {
+      const m = src.match(new RegExp(binding + "\\s*=\\s*(/.*?/[a-z]*);"));
+      return m === null ? null : m[1];
     };
-    const inCache = extract(cacheSrc);
-    const inScript = extract(SRC);
+    const inCache = extract(cacheSrc, "FARM_CODE_PATTERN");
+    const inScript = extract(SRC, "slugPattern");
     expect(inCache).not.toBeNull();
     expect(inScript).not.toBeNull();
     expect(inScript).toBe(inCache);

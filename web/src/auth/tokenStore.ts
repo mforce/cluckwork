@@ -149,7 +149,7 @@ export function getBoundFarmCode(): string | null {
   // ONE comparison, deliberately, not two. `record.accountId` is already proven
   // to be a STRING by readBoundFarm, and a string is never `=== null` — so this
   // same line is what rejects an unbound tab. An extra `accountId === null ||`
-  // clause would be unreachable code that READS as safety, which is the defect
+  // clause would be a redundant clause that READS as an extra guarantee, which is the defect
   // class this whole issue exists to remove. It was in the first draft; two
   // reviewers independently proved no mutation could redden it.
   if (record.accountId !== accountId) return null;

@@ -88,6 +88,14 @@ describe("accountStorage", () => {
     spy.mockRestore();
   });
 
+  it("purges the pre-#586 un-namespaced farm palette", () => {
+    // Unattributable: it predates per-farm keys, so which farm it belongs to is
+    // unknowable. Dropped rather than migrated.
+    localStorage.setItem("cluckwork.brand", "terracotta");
+    purgeUnscopedAccountState();
+    expect(localStorage.getItem("cluckwork.brand")).toBeNull();
+  });
+
   it("purge removes the bare key and leaves a namespaced key intact", () => {
     bindAccount(GUID);
     localStorage.setItem(BASE, "flock-1");

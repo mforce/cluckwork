@@ -113,50 +113,16 @@ describe("brand", () => {
     expect(localStorage.length).toBe(0);
   });
 
-  it("deletes the pre-#586 un-namespaced key once a farm has its own", () => {
-    // The legacy key is read at pre-paint only as a fallback for a farm the
-    // device can name. Once that farm has a real key, the fallback is stale.
-    localStorage.setItem("cluckwork.brand", "terracotta");
-    applyBrand("forest");
-    expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("forest");
-    expect(localStorage.getItem("cluckwork.brand")).toBeNull();
-  });
-
-  it("keeps the legacy key when there is no proven farm to supersede it", () => {
-    // Deleting it on an unbound tab would strand a single-farm device with no
-    // pre-paint source at all until its next explicit login.
-    clearBoundAccount();
+  it("never reads or writes the pre-#586 un-namespaced key", () => {
+    // Ownership: accountStorage's purge deletes it once at startup. applyBrand
+    // must not resurrect it, and must not depend on it being gone either.
     localStorage.setItem("cluckwork.brand", "terracotta");
     applyBrand("forest");
     expect(localStorage.getItem("cluckwork.brand")).toBe("terracotta");
-  });
-
-  it("a failed slug write leaves the legacy fallback intact", () => {
-    // Ordering, pinned. If the legacy removal ran BEFORE the slug write, a
-    // failing write would leave the device with no pre-paint source at all:
-    // fallback destroyed, replacement never written.
-    localStorage.setItem("cluckwork.brand", "terracotta");
-    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new Error("quota exceeded");
-    });
-    applyBrand("forest");
-    set.mockRestore();
-    expect(localStorage.getItem("cluckwork.brand")).toBe("terracotta");
-    expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBeNull();
-  });
-
-  it("survives the legacy removal throwing after a successful write", () => {
-    localStorage.setItem("cluckwork.brand", "terracotta");
-    const remove = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
-      throw new Error("storage denied");
-    });
-    expect(() => applyBrand("forest")).not.toThrow();
-    remove.mockRestore();
-    // The slug key still landed — the legacy removal is hygiene, not the write.
     expect(localStorage.getItem("cluckwork.brand:sunny-acres")).toBe("forest");
   });
 
-  it("forgetBrandFor removes that farm's palette AND the unattributable legacy key", () => {
+  it("forgetBrandFor removes only that farm's palette", () => {
     localStorage.setItem("cluckwork.brand:farm-b", "slate");
     localStorage.setItem("cluckwork.brand:farm-a", "forest");
     localStorage.setItem("cluckwork.brand", "terracotta");
@@ -164,11 +130,9 @@ describe("brand", () => {
     forgetBrandFor("farm-b");
 
     expect(localStorage.getItem("cluckwork.brand:farm-b")).toBeNull();
-    // The legacy value belongs to no farm we can name, and a Forget is what
-    // makes the roster stop being able to name one. It goes with it.
-    expect(localStorage.getItem("cluckwork.brand")).toBeNull();
-    // Another farm's own key is untouched: this is a removal, not a purge.
     expect(localStorage.getItem("cluckwork.brand:farm-a")).toBe("forest");
+    // The un-namespaced key is the startup purge's business, not forget's.
+    expect(localStorage.getItem("cluckwork.brand")).toBe("terracotta");
   });
 
   it("forgetBrandFor never throws when storage is unavailable", () => {
