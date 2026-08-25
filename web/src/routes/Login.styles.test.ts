@@ -30,6 +30,35 @@ const root = postcss.parse(css);
 // they are stripped rather than turned into whitespace.
 const cleanSelector = (selector: string) => selector.replace(/\/\*[\s\S]*?\*\//g, "").trim();
 
+// jsdom's Element.matches cannot see interaction pseudo-classes — `:hover`,
+// `:focus`, `:focus-visible`, `:focus-within`, `:active` all report false on a
+// static tree — so a floor spelled on such a selector would be silently
+// dropped by a raw `el.matches`. This guard is a static floor sweep ("any
+// matching rule must not floor below 44px"), and an interaction state can
+// still shrink the touch target the instant the pointer arrives, so those
+// pseudo-classes are treated as APPLICABLE: the selector is re-checked
+// without them. Deliberately not a selector engine — only the listed
+// interaction pseudo-classes are rewritten, and only as a whole
+// `:pseudo` or `:pseudo(...)` piece (a class name merely containing `hover`
+// is untouched).
+// Longest names FIRST in the alternation: `focus` would otherwise consume
+// the prefix of `:focus-visible`/`:focus-within` and leave a dangling
+// `-visible`/`-within` in the normalised selector, which then matches nothing.
+const INTERACTION_PSEUDOS = /:(focus-visible|focus-within|hover|focus|active)(\([^)]*\))?/g;
+const applicableSelector = (selector: string) =>
+  selector.replace(INTERACTION_PSEUDOS, "").trim();
+
+/** The matching half of the size guard, shared by every size evaluator. */
+function selectorMatches(el: Element, selector: string): boolean {
+  const cleaned = cleanSelector(selector);
+  try {
+    return el.matches(cleaned) || el.matches(applicableSelector(cleaned));
+  } catch {
+    // A selector this DOM cannot parse cannot match our element either.
+    return false;
+  }
+}
+
 // The physical properties and their logical twins: the app is horizontal
 // writing-mode throughout, so `min-height` floors the block axis exactly as
 // `min-block-size` does, and `min-width` the inline axis as `min-inline-size`.
@@ -71,14 +100,7 @@ function buildForgetControl() {
 
 /** Does this rule match the Forget control and declare a size floor? */
 function floorDecls(rule: Rule, el: Element) {
-  const matched = rule.selectors.some((selector) => {
-    try {
-      return el.matches(cleanSelector(selector));
-    } catch {
-      // A selector this DOM cannot parse cannot match our element either.
-      return false;
-    }
-  });
+  const matched = rule.selectors.some((selector) => selectorMatches(el, selector));
   if (!matched) return [];
   return rule.nodes.filter(
     (n) => n.type === "decl" && FLOORS.includes(n.prop),
@@ -180,13 +202,7 @@ describe("login Forget control touch target (#587)", () => {
     const { main, el } = buildForgetControl();
     const found: { value: string; selector: string }[] = [];
     root.walkRules((rule) => {
-      const matched = rule.selectors.some((selector) => {
-        try {
-          return el.matches(cleanSelector(selector));
-        } catch {
-          return false;
-        }
-      });
+      const matched = rule.selectors.some((selector) => selectorMatches(el, selector));
       if (!matched) return;
       for (const node of rule.nodes) {
         if (node.type === "decl" && props.includes(node.prop))
@@ -218,13 +234,7 @@ describe("login Forget control touch target (#587)", () => {
       if (override === undefined) throw new Error("probe CSS parsed to no rule");
       const matched: { selector: string; hit: boolean }[] = [];
       for (const s of rules.flatMap((rule) => rule.selectors)) {
-        let hit = false;
-        try {
-          hit = el.matches(s);
-        } catch {
-          hit = false;
-        }
-        matched.push({ selector: s, hit });
+        matched.push({ selector: s, hit: selectorMatches(el, s) });
       }
       // The probe must have actually parsed to both override selectors — a
       // silent parse-to-empty would make every assertion below pass vacuously.
@@ -235,6 +245,86 @@ describe("login Forget control touch target (#587)", () => {
       // And the recognition has teeth: if the stylesheet carried that 30px
       // override, the guard's own evaluator would surface it as a floor.
       expect(floorDecls(override, el).length).toBe(1);
+    } finally {
+      main.remove();
+    }
+  });
+
+  // Interaction-state floors are the P2 gap in this guard: jsdom's
+  // Element.matches reports :hover/:focus/:focus-visible/:focus-within/
+  // :active as false on a static tree, so a floor spelled on one of those
+  // selectors used to be silently skipped by floorDecls/collectAxisFloors —
+  // a 30px floor riding on :hover would keep every other case green. The
+  // static sweep treats those pseudo-classes as applicable (the pointer
+  // arriving IS an interaction state), and the rewrite must be conservative:
+  // only a whole :pseudo piece is removed, never a class that merely
+  // contains the word, and the raw-selector path is kept as the primary
+  // check.
+  it("treats interaction-state selectors as applicable, so a :hover floor cannot evade the sweep", () => {
+    const probe = postcss.parse(
+      ".auth .card .auth-forget-farm:hover { min-inline-size: 30px; }\n"
+      + ".auth .auth-forget-farm:focus-visible { min-block-size: 30px; }\n"
+      + ".auth .auth-forget-farm:hover:not(:disabled) { min-width: 30px; }",
+    );
+    const rules: Rule[] = [];
+    probe.walkRules((rule) => {
+      rules.push(rule);
+    });
+    expect(rules, "probe CSS parsed to no rules").toHaveLength(3);
+
+    const { main, el } = buildForgetControl();
+    try {
+      // The raw DOM does not see interaction pseudo-classes — the premise the
+      // guard's normalization exists to override. Without this, a future
+      // jsdom that DOES report :hover would change the guard's behaviour
+      // silently.
+      expect(el.matches(".auth .card .auth-forget-farm:hover")).toBe(false);
+
+      const [hoverRule, focusVisibleRule, hoverNotDisabledRule] = rules;
+      expect(hoverRule).toBeDefined();
+      expect(focusVisibleRule).toBeDefined();
+      expect(hoverNotDisabledRule).toBeDefined();
+
+      // Each probe variant is asserted directly through the guard's own
+      // matching: floorDecls must surface the sub-44px floor on every one of
+      // them, not just the plain :hover case. The :focus-visible variant is
+      // the one that pins the alternation order — a `focus`-before-`focus-`
+      // `visible` regex leaves a dangling "-visible" that matches nothing.
+      expect(floorDecls(hoverRule as Rule, el).map((d) => [d.prop, d.value])).toEqual([
+        ["min-inline-size", "30px"],
+      ]);
+      expect(floorDecls(focusVisibleRule as Rule, el).map((d) => [d.prop, d.value])).toEqual([
+        ["min-block-size", "30px"],
+      ]);
+      expect(
+        floorDecls(hoverNotDisabledRule as Rule, el).map((d) => [d.prop, d.value]),
+      ).toEqual([
+        ["min-width", "30px"],
+      ]);
+
+      // Conservatism of the rewrite: it removes whole :pseudo pieces only,
+      // leaving everything else — including a class that merely contains a
+      // pseudo's name — token-for-token intact.
+      expect(applicableSelector(".auth .hover .auth-forget-farm")).toBe(
+        ".auth .hover .auth-forget-farm",
+      );
+      expect(applicableSelector(".auth .auth-forget-farm:hover:not(:disabled)"))
+        .toBe(".auth .auth-forget-farm:not(:disabled)");
+      // Longest-first: the hyphenated twins must normalise to nothing, not
+      // to a dangling "-visible"/"-within" suffix.
+      expect(applicableSelector(".auth .auth-forget-farm:focus-visible")).toBe(
+        ".auth .auth-forget-farm",
+      );
+      expect(applicableSelector(".auth .auth-forget-farm:focus-within")).toBe(
+        ".auth .auth-forget-farm",
+      );
+      // Plain :focus and :active are treated the same as the rest.
+      expect(applicableSelector(".auth .auth-forget-farm:focus")).toBe(
+        ".auth .auth-forget-farm",
+      );
+      expect(applicableSelector(".auth .auth-forget-farm:active")).toBe(
+        ".auth .auth-forget-farm",
+      );
     } finally {
       main.remove();
     }
