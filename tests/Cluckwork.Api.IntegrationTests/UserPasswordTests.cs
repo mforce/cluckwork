@@ -41,6 +41,28 @@ public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
         return (email, (await FindUserAsync(admin, email)).Id);
     }
 
+    private sealed record StepUpDto(string Token, DateTimeOffset ExpiresAt);
+
+    private static async Task<string> StepUpAsync(HttpClient client)
+    {
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/auth/step-up", new { password = TestHarness.Password });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<StepUpDto>())!.Token;
+    }
+
+    private static Task<HttpResponseMessage> SetPasswordWithStepUpAsync(
+        HttpClient client, Guid userId, string newPassword, string stepUpToken)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/users/{userId}/password")
+        {
+            Content = JsonContent.Create(new { newPassword })
+        };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        request.Headers.Add(AuthEndpoints.StepUpHeaderName, stepUpToken);
+        return client.SendAsync(request);
+    }
+
     // ---------- Admin sets another user's password ----------
 
     [Fact]
@@ -50,8 +72,8 @@ public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
         var (email, id) = await SeedWorkerAsync(admin, accountId);
         var newPassword = FreshPassword();
 
-        var set = await admin.PutWithKeyAsync($"/api/v1/users/{id}/password",
-            Guid.NewGuid().ToString(), new { newPassword });
+        // #360 — every administrative reset requires a fresh step-up grant.
+        var set = await SetPasswordWithStepUpAsync(admin, id, newPassword, await StepUpAsync(admin));
         Assert.Equal(HttpStatusCode.NoContent, set.StatusCode);
 
         // The new password signs in; the seeded one no longer does.
@@ -79,8 +101,8 @@ public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
         // false green — #165 review).
         var live = await TestHarness.ReadTokensAsync(refreshed);
 
-        var reset = await admin.PutWithKeyAsync($"/api/v1/users/{id}/password",
-            Guid.NewGuid().ToString(), new { newPassword = FreshPassword() });
+        // #360 — every administrative reset requires a fresh step-up grant.
+        var reset = await SetPasswordWithStepUpAsync(admin, id, FreshPassword(), await StepUpAsync(admin));
         Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
         Assert.Equal(epochBeforeReset + 1, await factory.WithTenantScopeAsync(accountId, async db =>
             await db.Users.Where(user => user.Id == id).Select(user => user.CredentialEpoch).SingleAsync()));
@@ -147,8 +169,10 @@ public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
     public async Task AdminSet_UnknownUser_Is404()
     {
         var (admin, _) = await AdminAsync();
-        var response = await admin.PutWithKeyAsync($"/api/v1/users/{Guid.NewGuid()}/password",
-            Guid.NewGuid().ToString(), new { newPassword = FreshPassword() });
+        // #360 — the 404 is reached only after proof validation, so the request
+        // carries a fresh grant.
+        var response = await SetPasswordWithStepUpAsync(
+            admin, Guid.NewGuid(), FreshPassword(), await StepUpAsync(admin));
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -161,8 +185,10 @@ public sealed class UserPasswordTests(CluckworkWebApplicationFactory factory)
         var foreignUser = await FindUserAsync(foreignAdmin, foreignEmail);
 
         var (admin, _) = await AdminAsync();
-        var response = await admin.PutWithKeyAsync($"/api/v1/users/{foreignUser.Id}/password",
-            Guid.NewGuid().ToString(), new { newPassword = FreshPassword() });
+        // #360 — the 404 is reached only after proof validation, so the request
+        // carries a fresh grant.
+        var response = await SetPasswordWithStepUpAsync(
+            admin, foreignUser.Id, FreshPassword(), await StepUpAsync(admin));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         // Untouched: the foreign user still signs in with their original password.

@@ -4,7 +4,6 @@ namespace Cluckwork.Application.Features.Users.SetUserPassword;
 // (the forgot-password path; there is no email reset). Account-scoped in the
 // provider, and it revokes the target's sessions.
 //
-// #308 — StepUpToken is the caller's proof-of-recent-auth grant, required
-// only when the TARGET currently holds the Owner role (see
-// SetUserPasswordHandler).
+// #308/#360 — StepUpToken is the caller's proof-of-recent-auth grant, required
+// for every administrative reset regardless of the target's current role.
 public sealed record SetUserPasswordCommand(Guid UserId, string NewPassword, string? StepUpToken = null);

@@ -241,8 +241,10 @@ public static class UserEndpoints
 
         var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (result.IsSuccess) return Results.NoContent();
-        // #308 — a missing/invalid step-up grant is a 403, checked before the
-        // generic NotFound/422 mapping below.
+        // #308/#360 — every administrative reset requires a step-up grant
+        // regardless of the target's role. A missing/invalid grant is a 403,
+        // checked before the generic NotFound/422 mapping below, so a
+        // proof-less caller cannot distinguish user ids.
         if (result.Error.Code == Cluckwork.Application.Common.StepUpErrorCodes.Required)
             return Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code);
         if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))

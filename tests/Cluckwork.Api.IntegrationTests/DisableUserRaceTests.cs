@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using System.Net.Http.Json;
+using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users.DisableUser;
@@ -598,9 +599,10 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
         // The endpoint half of the finding above (codex, #492 round 2): the
         // direct-DI test pins the ERROR CODE, but SetUserPassword's endpoint
         // mapping had no ".Conflict" branch, so over HTTP the same loss
-        // surfaced as a 422 the SPA reads as "password rejected". Target is a
-        // Manager, so no step-up header is involved and the 409 is purely the
-        // concurrency mapping.
+        // surfaced as a 422 the SPA reads as "password rejected". #360 —
+        // every administrative reset now requires a step-up grant, so the
+        // request carries a fresh Owner grant to reach the concurrency seam;
+        // the 409 is still purely the concurrency mapping.
         var owner = Unique("owner");
         var target = Unique("target");
         var accountId = await SeedOwnerFarmAsync(owner);
@@ -622,6 +624,7 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
             Content = JsonContent.Create(new { newPassword = $"Aa1!{Guid.NewGuid():N}" }),
         };
         request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        request.Headers.Add(AuthEndpoints.StepUpHeaderName, await StepUpAsync(owner));
         var reset = Task.Run(() => client.SendAsync(request));
         Assert.True(await factory.WaitUntilDoneOrBlockedAsync(reset, fencePid),
             "the reset's UPDATE must park behind the user-row fence");

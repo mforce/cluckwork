@@ -750,8 +750,9 @@ export const updateUser = (id: string, body: { name: string | null }, key?: stri
 // #165 — an Owner sets a user's password without knowing the current one. The
 // server signs that user out of every device.
 //
-// #308 — stepUpToken is required by the server only when the TARGET user
-// currently holds the Owner role; resetting any other role is unchanged.
+// #308/#360 — stepUpToken is required by the server UNCONDITIONALLY: every
+// administrative reset replaces an authenticator, regardless of the target's
+// current role.
 export const setUserPassword = (
   id: string, body: { newPassword: string }, key?: string, stepUpToken?: string,
 ) => apiPut<void>(
