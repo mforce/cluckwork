@@ -526,7 +526,7 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
       target: { value: "dismissed@farm.test" },
     });
     fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0], {
-      target: { value: `pw-${crypto.randomUUID()}` },
+      target: { value: crypto.randomUUID() },
     });
     fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
       target: { value: OWNER_STEP_UP_PASSWORD },
@@ -537,11 +537,12 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
     openCreate();
+    const reopenedPassword = crypto.randomUUID();
     fireEvent.change(within(dialog()).getByLabelText("Email *"), {
       target: { value: "current@farm.test" },
     });
     fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0], {
-      target: { value: "current form value" },
+      target: { value: reopenedPassword },
     });
 
     await act(async () => {
@@ -550,7 +551,7 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
 
     expect(mockCreateUser).not.toHaveBeenCalled();
     expect(within(dialog()).getByLabelText("Email *")).toHaveValue("current@farm.test");
-    expect(within(dialog()).getAllByLabelText(/Password/)[0]).toHaveValue("current form value");
+    expect(within(dialog()).getAllByLabelText(/Password/)[0]).toHaveValue(reopenedPassword);
   });
 
   it("does not let a dismissed password-reset continuation write", async () => {
@@ -561,7 +562,7 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
 
     fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
       .getByRole("button", { name: "password" }));
-    const newPassword = `Aa1!${crypto.randomUUID()}`;
+    const newPassword = crypto.randomUUID();
     fireEvent.change(within(dialog()).getByLabelText(/New password/), {
       target: { value: newPassword },
     });
@@ -578,7 +579,7 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
     fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
       .getByRole("button", { name: "password" }));
-    const reopenedPassword = `Aa1!${crypto.randomUUID()}`;
+    const reopenedPassword = crypto.randomUUID();
     const reopenedProof = crypto.randomUUID();
     fireEvent.change(within(dialog()).getByLabelText(/New password/), {
       target: { value: reopenedPassword },
@@ -644,7 +645,7 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
       target: { value: "pending-create@farm.test" },
     });
     fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0], {
-      target: { value: `pw-${crypto.randomUUID()}` },
+      target: { value: crypto.randomUUID() },
     });
     fireEvent.change(within(dialog()).getByLabelText("Name"), {
       target: { value: "Pending Create" },
@@ -660,7 +661,7 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
     openCreate();
-    const reopenedPassword = `pw-${crypto.randomUUID()}`;
+    const reopenedPassword = crypto.randomUUID();
     const reopenedProof = crypto.randomUUID();
     fireEvent.change(within(dialog()).getByLabelText("Email *"), {
       target: { value: "reopened-create@farm.test" },
@@ -698,7 +699,7 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
         .getByRole("button", { name: "password" }),
     );
     openPassword();
-    const pendingPassword = `Aa1!${crypto.randomUUID()}`;
+    const pendingPassword = crypto.randomUUID();
     fireEvent.change(within(dialog()).getByLabelText(/New password/), {
       target: { value: pendingPassword },
     });
@@ -715,7 +716,7 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
     openPassword();
-    const reopenedPassword = `Aa1!${crypto.randomUUID()}`;
+    const reopenedPassword = crypto.randomUUID();
     const reopenedProof = crypto.randomUUID();
     fireEvent.change(within(dialog()).getByLabelText(/New password/), {
       target: { value: reopenedPassword },
