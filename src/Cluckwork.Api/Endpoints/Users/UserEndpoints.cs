@@ -6,6 +6,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users;
 using Cluckwork.Application.Features.Users.AssignFlock;
 using Cluckwork.Application.Features.Users.ChangeUserRole;
+using Cluckwork.Application.Features.Users.ChangeUserEmail;
 using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Application.Features.Users.DisableUser;
 using Cluckwork.Application.Features.Users.EnableUser;
@@ -64,6 +65,11 @@ public static class UserEndpoints
             .WithMaxRequestBodyBytes(512)
             .WithName("ChangeUserRole")
             .WithSummary("Change a user's role (promote/demote) and revoke their sessions.");
+
+        group.MapPut("/{id:guid}/email", ChangeUserEmail)
+            .WithMaxRequestBodyBytes(2048)
+            .WithName("ChangeUserEmail")
+            .WithSummary("Change a user's login email and revoke their sessions.");
 
         // #356 — disable / re-enable. Separate verbs (following
         // POST /products/{id}/deactivate) rather than a PUT carrying a boolean:
@@ -290,6 +296,39 @@ public static class UserEndpoints
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
     }
 
+    private static async Task<IResult> ChangeUserEmail(
+        Guid id,
+        ChangeUserEmailRequest request,
+        [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
+        ChangeUserEmailHandler handler,
+        IValidator<ChangeUserEmailCommand> validator,
+        TenantContext tenant,
+        ICurrentUser currentUser,
+        CancellationToken ct)
+    {
+        if (!tenant.IsResolved || !currentUser.IsResolved) return Results.Unauthorized();
+
+        var command = new ChangeUserEmailCommand(id, request.Email, stepUpToken);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
+        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        if (result.IsSuccess) return Results.NoContent();
+        if (result.Error.Code is Cluckwork.Application.Common.StepUpErrorCodes.Required or "Auth.Forbidden")
+            return Results.Problem(result.Error.Description,
+                statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code);
+        if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
+            return Results.NotFound();
+        if (result.Error.Code == "Users.DuplicateEmail")
+            return Results.Problem(result.Error.Description,
+                statusCode: StatusCodes.Status409Conflict, title: result.Error.Code);
+        return result.Error.Code.EndsWith(".Conflict", StringComparison.Ordinal)
+            ? Results.Problem(result.Error.Description,
+                statusCode: StatusCodes.Status409Conflict, title: result.Error.Code)
+            : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
+    }
+
     private static async Task<IResult> DisableUser(
         Guid id,
         DisableUserRequest? request,
@@ -380,6 +419,8 @@ public sealed record UpdateUserRequest(string? Name);
 public sealed record SetUserPasswordRequest(string NewPassword);
 
 public sealed record ChangeUserRoleRequest(string Role);
+
+public sealed record ChangeUserEmailRequest(string Email);
 
 // #356 — the body is optional: an EMPTY application/json body binds null and
 // means "no reason given" (pinned by Disable_WithNoBodyAtAll_Is204). Sending

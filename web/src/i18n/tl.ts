@@ -1699,6 +1699,7 @@ export const tl = {
     "auditAction.User.PasswordChanged": "Napalitan ang password",
     "auditAction.User.BreakGlassReset": "Emergency na pag-reset ng password",
     "auditAction.User.RoleChanged": "Binago ang tungkulin",
+    "auditAction.User.EmailChanged": "Binago ang email sa pag-sign in",
     "auditAction.User.Disabled": "Na-disable ang user",
     "auditAction.User.Enabled": "Na-enable ang user",
     "auditAction.User.FlockAssign": "Na-assign ang kawan sa user",

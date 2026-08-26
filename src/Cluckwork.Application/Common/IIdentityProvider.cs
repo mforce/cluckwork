@@ -88,6 +88,10 @@ public interface IIdentityProvider
     Task<Result> ChangeUserRoleAsync(
         Guid accountId, Guid userId, string? role, Guid actingUserId, CancellationToken ct = default);
 
+    Task<Result> ChangeUserEmailAsync(
+        Guid accountId, Guid userId, string email, Guid actingUserId, CancellationToken ct = default) =>
+        throw new NotSupportedException("This identity provider does not support changing user email addresses.");
+
     // #356 — disable a user, account-scoped (foreign id -> NotFound). The
     // DisabledAt flag is only half of it: CredentialEpochMiddleware (#364)
     // already refuses a disabled user, but a flag ALONE means re-enabling

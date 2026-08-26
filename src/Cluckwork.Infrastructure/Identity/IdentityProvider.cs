@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 public sealed class IdentityProvider(
     UserManager<ApplicationUser> userManager,
@@ -677,6 +678,177 @@ public sealed class IdentityProvider(
             await transaction.CommitAsync(token);
             return Result.Success();
         }, ct);
+
+    public Task<Result> ChangeUserEmailAsync(
+        Guid accountId, Guid userId, string email, Guid actingUserId, CancellationToken ct = default) =>
+        AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+        {
+            var lockedAccount = await accounts.GetCurrentLockedAsync(token);
+            if (lockedAccount is null || lockedAccount.Id != accountId)
+                return Result.Failure(Error.NotFound("Accounts", accountId));
+
+            var user = await db.Users.FirstOrDefaultAsync(
+                u => u.Id == userId && u.AccountId == accountId, token);
+            if (user is null)
+                return Result.Failure(Error.NotFound("Users", userId));
+
+            var actor = await RequireActiveOwnerAsync(accountId, actingUserId, token);
+            if (actor.IsFailure)
+                return actor;
+
+            if (string.Equals(user.Email, email, StringComparison.Ordinal))
+                return Result.Success();
+
+            if (userId == actingUserId
+                && await CountOtherActiveOwnersAsync(accountId, userId, token) == 0)
+            {
+                return Result.Failure(Error.Validation(
+                    "Users.LastOwner",
+                    "To change the last active Owner's email, add a second Owner first."));
+            }
+
+            var entry = db.Entry(user);
+            var priorState = entry.State;
+            var priorModified = entry.Properties.ToDictionary(
+                property => property.Metadata.Name,
+                property => property.IsModified,
+                StringComparer.Ordinal);
+            var priorValues = new UserEmailMutationSnapshot(
+                user.Email,
+                user.NormalizedEmail,
+                user.UserName,
+                user.NormalizedUserName,
+                user.SecurityStamp,
+                user.ConcurrencyStamp,
+                user.CredentialEpoch,
+                entry.Property(nameof(ApplicationUser.Email)).OriginalValue,
+                entry.Property(nameof(ApplicationUser.NormalizedEmail)).OriginalValue,
+                entry.Property(nameof(ApplicationUser.UserName)).OriginalValue,
+                entry.Property(nameof(ApplicationUser.NormalizedUserName)).OriginalValue,
+                entry.Property(nameof(ApplicationUser.SecurityStamp)).OriginalValue,
+                entry.Property(nameof(ApplicationUser.ConcurrencyStamp)).OriginalValue,
+                entry.Property(nameof(ApplicationUser.CredentialEpoch)).OriginalValue);
+            var priorAudits = db.ChangeTracker.Entries<Cluckwork.Domain.Auditing.AuditEvent>()
+                .Select(auditEntry => auditEntry.Entity)
+                .ToHashSet(ReferenceEqualityComparer.Instance);
+
+            void RestoreTracker()
+            {
+                user.Email = priorValues.Email;
+                user.NormalizedEmail = priorValues.NormalizedEmail;
+                user.UserName = priorValues.UserName;
+                user.NormalizedUserName = priorValues.NormalizedUserName;
+                user.SecurityStamp = priorValues.SecurityStamp;
+                user.ConcurrencyStamp = priorValues.ConcurrencyStamp;
+                user.CredentialEpoch = priorValues.CredentialEpoch;
+
+                entry.State = priorState;
+                entry.Property(nameof(ApplicationUser.Email)).OriginalValue = priorValues.OriginalEmail;
+                entry.Property(nameof(ApplicationUser.NormalizedEmail)).OriginalValue = priorValues.OriginalNormalizedEmail;
+                entry.Property(nameof(ApplicationUser.UserName)).OriginalValue = priorValues.OriginalUserName;
+                entry.Property(nameof(ApplicationUser.NormalizedUserName)).OriginalValue = priorValues.OriginalNormalizedUserName;
+                entry.Property(nameof(ApplicationUser.SecurityStamp)).OriginalValue = priorValues.OriginalSecurityStamp;
+                entry.Property(nameof(ApplicationUser.ConcurrencyStamp)).OriginalValue = priorValues.OriginalConcurrencyStamp;
+                entry.Property(nameof(ApplicationUser.CredentialEpoch)).OriginalValue = priorValues.OriginalCredentialEpoch;
+                foreach (var property in entry.Properties)
+                    property.IsModified = priorModified[property.Metadata.Name];
+
+                foreach (var auditEntry in db.ChangeTracker.Entries<Cluckwork.Domain.Auditing.AuditEvent>()
+                             .Where(candidate => candidate.State == EntityState.Added
+                                 && candidate.Entity.Action == AuditActions.UserEmailChanged
+                                 && candidate.Entity.EntityId == userId
+                                 && !priorAudits.Contains(candidate.Entity)))
+                {
+                    auditEntry.State = EntityState.Detached;
+                }
+            }
+
+            try
+            {
+                var oldEmail = user.Email;
+                user.Email = email;
+                user.NormalizedEmail = userManager.NormalizeEmail(email);
+                user.UserName = email;
+                user.NormalizedUserName = userManager.NormalizeName(email);
+
+                var stampRotated = await userManager.UpdateSecurityStampAsync(user);
+                if (!stampRotated.Succeeded)
+                {
+                    RestoreTracker();
+                    if (IsConcurrencyFailure(stampRotated))
+                        return Result.Failure(Error.Conflict(
+                            "Users.Conflict", "The user was modified by another request. Reload and retry."));
+                    if (stampRotated.Errors.Any(error =>
+                            error.Code is "DuplicateEmail" or "DuplicateUserName"))
+                    {
+                        return Result.Failure(DuplicateEmailConflict());
+                    }
+
+                    return Result.Failure(Error.Validation(
+                        "Users.EmailChangeFailed", Describe(stampRotated)));
+                }
+
+                user.CredentialEpoch++;
+                await RevokeAllActiveForUserAsync(user.Id, timeProvider.GetUtcNow(), token);
+                await audit.WriteAsync(AuditActions.UserEmailChanged, "User", user.Id,
+                    reason: null, details: new { oldEmail, newEmail = email }, ct: token);
+
+                try
+                {
+                    await db.SaveChangesAsync(token);
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    RestoreTracker();
+                    return Result.Failure(Error.Conflict(
+                        "Users.Conflict", "The user was modified by another request. Reload and retry."));
+                }
+                catch (DbUpdateException exception) when (IsUserEmailConflict(exception))
+                {
+                    RestoreTracker();
+                    return Result.Failure(DuplicateEmailConflict());
+                }
+
+                await transaction.CommitAsync(token);
+                return Result.Success();
+            }
+            catch (DbUpdateException exception) when (IsUserEmailConflict(exception))
+            {
+                RestoreTracker();
+                return Result.Failure(DuplicateEmailConflict());
+            }
+            catch
+            {
+                RestoreTracker();
+                throw;
+            }
+        }, ct);
+
+    private static Error DuplicateEmailConflict() =>
+        Error.Conflict("Users.DuplicateEmail", "A user with this email already exists.");
+
+    internal static bool IsUserEmailConflict(DbUpdateException exception) =>
+        exception.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: "EmailIndex" or "UserNameIndex"
+        };
+
+    private sealed record UserEmailMutationSnapshot(
+        string? Email,
+        string? NormalizedEmail,
+        string? UserName,
+        string? NormalizedUserName,
+        string? SecurityStamp,
+        string? ConcurrencyStamp,
+        int CredentialEpoch,
+        object? OriginalEmail,
+        object? OriginalNormalizedEmail,
+        object? OriginalUserName,
+        object? OriginalNormalizedUserName,
+        object? OriginalSecurityStamp,
+        object? OriginalConcurrencyStamp,
+        object? OriginalCredentialEpoch);
 
     private static bool IsConcurrencyFailure(IdentityResult result) =>
         result.Errors.Any(e => e.Code == "ConcurrencyFailure");

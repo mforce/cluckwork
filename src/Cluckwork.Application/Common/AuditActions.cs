@@ -39,6 +39,7 @@ public static class AuditActions
     public const string UserPasswordSet = "User.PasswordSet";
     public const string UserPasswordChanged = "User.PasswordChanged";
     public const string UserRoleChanged = "User.RoleChanged";
+    public const string UserEmailChanged = "User.EmailChanged";
     public const string UserDisabled = "User.Disabled";
     public const string UserEnabled = "User.Enabled";
     public const string UserBreakGlassReset = "User.BreakGlassReset";

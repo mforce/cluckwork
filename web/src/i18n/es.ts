@@ -1635,6 +1635,7 @@ export const es = {
     "auditAction.User.PasswordChanged": "Contraseña cambiada",
     "auditAction.User.BreakGlassReset": "Restablecimiento de emergencia",
     "auditAction.User.RoleChanged": "Rol cambiado",
+    "auditAction.User.EmailChanged": "Correo de inicio de sesión cambiado",
     "auditAction.User.Disabled": "Usuario deshabilitado",
     "auditAction.User.Enabled": "Usuario habilitado",
     "auditAction.User.FlockAssign": "Lote asignado al usuario",
