@@ -945,9 +945,10 @@ knowing the current one (#165) — the forgot-password path, since there is no
 email reset. The row's **role** action changes an existing user's role —
 promote or demote among the five roles (#355). It **refuses self-targeting**
 (ask another Owner) and refuses demoting the account's **last Owner** (a farm
-cannot lock itself out of user administration). Promoting to Owner requires a
-**step-up grant** (see below); every other target role is ungated. Any actual
-change is audited (`User.RoleChanged`, old to new) and, like a password reset,
+cannot lock itself out of user administration). Every role change requires a
+**step-up grant** (see below), whether it promotes, demotes, or apparently
+resubmits the current role. Any actual change is audited (`User.RoleChanged`,
+old to new) and, like a password reset,
 bumps the target's **credential epoch** and revokes their sessions — a demoted
 user's already-issued access token stops working on its very next request, not
 merely once its ~15-minute lifetime runs out.
@@ -959,9 +960,8 @@ current one. The Owner path **refuses self-targeting**: skipping the
 current-password proof for your own account would turn a stolen access token
 into a permanent takeover, so an Owner changes their own password like everyone
 else. One Owner *can* reset a co-Owner's password (all Owners are equivalent);
-it is audited (`User.PasswordSet`) and, since #308, requires a **step-up
-grant** because the target holds Owner (see below) — resetting any other
-role's password is unchanged and stays ungated.
+every administrative reset requires a **step-up grant** (see below), regardless
+of the target's role. It is audited (`User.PasswordSet`).
 Both revoke every refresh token for that user, so other devices are signed out
 — the self-service path hands the device that made the change a fresh pair so it
 stays signed in. Since #364, both paths also bump the user's **credential

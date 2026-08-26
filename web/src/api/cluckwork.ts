@@ -778,21 +778,19 @@ export const changeUserEmail = (
   stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined,
 );
 
-// #356 — disable a user: revokes every session and refuses further sign-in.
-// Unlike setUserPassword/changeUserRole, whose step-up is gated only when the
-// TARGET holds Owner, stepUpToken is required UNCONDITIONALLY here — a disable
-// revokes access outright regardless of the target's role. Server also refuses
-// self-targeting (400 Users.CannotDisableSelf), surfaced as an ordinary
+// #356/#360 — disable a user: revokes every session and refuses further
+// sign-in. Its step-up proof is unconditional like create/reset/role: every
+// disable requires stepUpToken regardless of the target's role. Server also
+// refuses self-targeting (400 Users.CannotDisableSelf), surfaced as an ordinary
 // ApiError like every other domain refusal.
 export const disableUser = (
   id: string, body: { reason: string | null }, key?: string, stepUpToken?: string,
 ) => apiPost<void>(
   `/users/${id}/disable`, body, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
 
-// #356 — re-enable a disabled user. No body: there is no free-text field, only
-// the route id and the step-up header (required unconditionally, same as
-// disable — re-enabling an Owner restores exactly the access a disable took
-// away).
+// #356/#360 — re-enable a disabled user. No body: there is no free-text field,
+// only the route id and the step-up header, required unconditionally like
+// create/reset/role and disable.
 export const enableUser = (
   id: string, key?: string, stepUpToken?: string,
 ) => apiPost<void>(

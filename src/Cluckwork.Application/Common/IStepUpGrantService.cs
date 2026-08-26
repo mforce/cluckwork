@@ -2,10 +2,10 @@ namespace Cluckwork.Application.Common;
 
 using Cluckwork.Domain.Common;
 
-// #308 — recent-authentication proof for security-sensitive user
-// administration (creating another Owner; resetting an Owner's password;
-// changing a user's role to Owner, #355). A grant is minted by re-confirming
-// the CALLER's current password
+// #308/#360 — recent-authentication proof required for every interactive user
+// creation, administrative password reset, and role change (#355), and also
+// used by the other named step-up-gated user actions. A grant is minted by
+// re-confirming the CALLER's current password
 // (IssueAsync) and is a short-lived, single-use, audience-limited credential
 // distinct from the normal access token. See the threat-model comment on
 // Cluckwork.Infrastructure.Identity.StepUpGrantService for the full design.

@@ -53,11 +53,10 @@ export function UsersPage() {
   const [role, setRole] = useState("Worker");
   const [name, setName] = useState(""); // #163 optional display name at creation
 
-  // #308 — the caller's OWN current password, entered only when the operation
-  // needs a step-up grant (creating an Owner; resetting an Owner's password).
-  // Transient: read into a local const and cleared from state the instant it
-  // is sent to /auth/step-up (onCreate/onSetPassword below), never held for
-  // the write that follows. See the logout-clearing effect further down.
+  // #308/#360 — the caller's OWN current password. All three local password
+  // states serve every create/reset/role operation. Each is transient: read
+  // into a local const and cleared from state before awaiting /auth/step-up,
+  // never held for the write that follows. See the logout-clearing effect below.
   const [createStepUpPassword, setCreateStepUpPassword] = useState("");
   const [pwStepUpPassword, setPwStepUpPassword] = useState("");
   const [roleStepUpPassword, setRoleStepUpPassword] = useState("");

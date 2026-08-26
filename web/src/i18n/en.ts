@@ -1465,8 +1465,8 @@ export const en = {
     lastOwnerEmailMessage: "Add a second Owner before changing your own login email.",
 
     // #356 — the single disable/enable dialog: it IS the confirmation, shared
-    // by both modes (unconditional step-up proof, unlike the conditional
-    // Owner-only prompts above). {{email}} is DATA.
+    // by both modes (unconditional step-up proof, matching the other durable
+    // user-access prompts). {{email}} is DATA.
     disableStepUpTitle: "Disable — {{email}}",
     enableStepUpTitle: "Enable — {{email}}",
     disableSubmitButton: "Disable",
@@ -2302,9 +2302,9 @@ export const en = {
       + "action, and the <strong>password</strong> action sets a forgotten password without needing the old "
       + "one. The <strong>role</strong> action promotes or demotes an existing user among the five roles — it "
       + "refuses targeting your own sign-in, and refuses demoting the account's last Admin (owner), so the farm "
-      + "can never lock itself out of user administration. Promoting someone to Admin (owner) asks for the same "
-      + "re-confirmation as resetting an Admin's password (see below); every other role change needs no "
-      + "re-confirmation. A role change signs the affected sign-in out everywhere on its next request, the same "
+      + "can never lock itself out of user administration. Creating any sign-in, resetting any user's password, "
+      + "and changing any user's role asks the signed-in Admin (owner) to re-enter their current password. A role "
+      + "change signs the affected sign-in out everywhere on its next request, the same "
       + "way a password reset does. Controls you can't use are hidden, "
       + "and the server refuses them regardless.",
     // #356 — disable/re-enable a colleague's sign-in.

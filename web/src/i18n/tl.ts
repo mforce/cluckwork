@@ -1929,9 +1929,9 @@ export const tl = {
       + "password nang hindi kailangan ang luma. Ang aksyong <strong>tungkulin</strong> ay nag-a-promote o "
       + "nag-de-demote ng isang existing na user sa isa sa limang tungkulin — tinatanggihan ang pagtarget "
       + "sa sarili mong sign-in, at tinatanggihan ang pag-demote sa huling Admin (may-ari) ng account, para "
-      + "hindi kailanman maiwan ang farm na walang pamamahala ng user. Ang pag-promote ng isang tao maging "
-      + "Admin (may-ari) ay humihiling ng parehong reconfirmation gaya ng pag-reset ng password ng Admin "
-      + "(tingnan sa ibaba); hindi na kailangan ng reconfirmation ang ibang pagbabago ng tungkulin. Ang "
+      + "hindi kailanman maiwan ang farm na walang pamamahala ng user. Ang paggawa ng kahit anong sign-in, "
+      + "pag-reset ng password ng kahit sinong user, at pagpapalit ng tungkulin ng kahit sinong user ay "
+      + "humihiling sa naka-sign-in na Admin (may-ari) na muling ilagay ang kasalukuyan niyang password. Ang "
       + "pagbabago ng tungkulin ay nag-si-sign out sa apektadong sign-in kahit saan sa susunod nitong "
       + "request, gaya ng pag-reset ng password. Nakatago ang mga control na hindi mo puwedeng gamitin, at "
       + "tinatanggihan pa rin ito ng server.",

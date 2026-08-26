@@ -317,6 +317,19 @@ describe("HelpPage", () => {
     expect(paragraph).toHaveTextContent(/disabling a user/i);
     expect(paragraph).toHaveTextContent(/re-enabling a user/i);
     expect(paragraph).toHaveTextContent(/Display-name and flock-assignment changes do not ask again/i);
+
+    expect(en.help.rolesAdmin).toContain(
+      "Creating any sign-in, resetting any user's password, and changing any user's role asks the signed-in Admin (owner) to re-enter their current password.",
+    );
+    expect(en.help.rolesAdmin).not.toContain("every other role change needs no re-confirmation");
+    expect(es.help.rolesAdmin).toContain(
+      "Crear cualquier inicio de sesión, restablecer la contraseña de cualquier usuario y cambiar el rol de cualquier usuario pide al Administrador (propietario) que ha iniciado sesión que vuelva a ingresar su contraseña actual.",
+    );
+    expect(es.help.rolesAdmin).not.toContain("cualquier otro cambio de rol no necesita reconfirmación");
+    expect(tl.help.rolesAdmin).toContain(
+      "Ang paggawa ng kahit anong sign-in, pag-reset ng password ng kahit sinong user, at pagpapalit ng tungkulin ng kahit sinong user ay humihiling sa naka-sign-in na Admin (may-ari) na muling ilagay ang kasalukuyan niyang password.",
+    );
+    expect(tl.help.rolesAdmin).not.toContain("hindi na kailangan ng reconfirmation ang ibang pagbabago ng tungkulin");
   });
 
   it("documents the Disabled user term in the in-app glossary (#356)", () => {

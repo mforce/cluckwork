@@ -1856,10 +1856,10 @@ export const es = {
       + "<strong>contraseña</strong> establece una contraseña olvidada sin necesitar la anterior. La acción "
       + "<strong>rol</strong> asciende o desciende a un usuario existente entre los cinco roles — rechaza "
       + "dirigirse a su propio inicio de sesión, y rechaza degradar al último Administrador (propietario) "
-      + "de la cuenta, para que la granja nunca pueda quedarse sin administración de usuarios. Ascender a "
-      + "alguien a Administrador (propietario) pide la misma reconfirmación que restablecer la contraseña "
-      + "de un Administrador (vea abajo); cualquier otro cambio de rol no necesita reconfirmación. Un "
-      + "cambio de rol cierra la sesión afectada en todas partes en su siguiente solicitud, igual que un "
+      + "de la cuenta, para que la granja nunca pueda quedarse sin administración de usuarios. Crear cualquier "
+      + "inicio de sesión, restablecer la contraseña de cualquier usuario y cambiar el rol de cualquier usuario "
+      + "pide al Administrador (propietario) que ha iniciado sesión que vuelva a ingresar su contraseña actual. "
+      + "Un cambio de rol cierra la sesión afectada en todas partes en su siguiente solicitud, igual que un "
       + "restablecimiento de contraseña. Los controles que no puede usar "
       + "están ocultos, y el servidor los rechaza de todos modos.",
     // #356 (machine-drafted, pending native review)

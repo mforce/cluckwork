@@ -314,9 +314,10 @@ export async function changePassword(
   onTokensChanged?.();
 }
 
-// #308 — re-confirms the CURRENT password to mint a short-lived step-up grant
-// for one sensitive user-administration call (creating another Owner;
-// resetting an Owner's password). The grant is returned to the caller and
+// #308/#360 — re-confirms the CURRENT password to mint a short-lived step-up
+// grant for one durable user-access mutation: creating any user, resetting any
+// user's password, changing any user's role, changing a login email, disabling
+// a user, or re-enabling a user. The grant is returned to the caller and
 // used EXACTLY ONCE, immediately, as the X-Cluckwork-Step-Up header on that
 // one follow-up request (see UsersPage.tsx) — this function itself never
 // stores the token or the password anywhere longer-lived than its own return
