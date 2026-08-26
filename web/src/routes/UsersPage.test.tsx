@@ -585,7 +585,7 @@ describe("UsersPage change email (#357)", () => {
   it.each([
     ["same", /worker@farm\.test/, "worker@farm.test"],
     ["different", /boss@farm\.test/, "boss@farm.test"],
-  ])("cancel/reopen for the %s target ignores an email mutation that later succeeds",
+  ])("after a PUT is sent, cancel/reopen for the %s target ignores its late success in the reopened dialog",
     async (_, reopenedRow, reopenedEmail) => {
       const late = deferred<void>();
       mockStepUp.mockResolvedValue({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" });
@@ -595,6 +595,8 @@ describe("UsersPage change email (#357)", () => {
       fireEvent.change(emailInput(), { target: { value: "abandoned@farm.test" } });
       fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
       await act(async () => { fireEvent.click(submit()); });
+      // Cancel abandons this dialog instance's UI ownership; it cannot abort
+      // the PUT that changeUserEmail has already sent to the server.
       fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
       openEmail(reopenedRow);
 
@@ -608,7 +610,7 @@ describe("UsersPage change email (#357)", () => {
   it.each([
     ["same", /worker@farm\.test/, "worker@farm.test"],
     ["different", /boss@farm\.test/, "boss@farm.test"],
-  ])("cancel/reopen for the %s target ignores an email mutation that later fails",
+  ])("after a PUT is sent, cancel/reopen for the %s target ignores its late failure in the reopened dialog",
     async (_, reopenedRow, reopenedEmail) => {
     const late = deferred<void>();
     mockStepUp.mockResolvedValue({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" });
@@ -618,6 +620,8 @@ describe("UsersPage change email (#357)", () => {
     fireEvent.change(emailInput(), { target: { value: "taken@farm.test" } });
     fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(submit()); });
+    // Cancel abandons this dialog instance's UI ownership; it cannot abort
+    // the PUT that changeUserEmail has already sent to the server.
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
     openEmail(reopenedRow);
 

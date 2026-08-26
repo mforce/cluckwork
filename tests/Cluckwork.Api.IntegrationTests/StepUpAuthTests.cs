@@ -903,6 +903,28 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             spy.Calls);
     }
 
+    [Fact]
+    public async Task ValidateAsync_ReadOnlySecurityStampLookup_DoesNotTrackTheUser()
+    {
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var userId = await factory.WithTenantScopeAsync(accountId,
+            db => db.Users.Where(user => user.Email == email).Select(user => user.Id).SingleAsync());
+        using var scope = factory.Services.CreateScope();
+        scope.ResolveTenantAndActor(accountId, userId);
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stepUp = scope.ServiceProvider.GetRequiredService<IStepUpGrantService>();
+        var issued = await stepUp.IssueAsync(accountId, userId, TestHarness.Password);
+        Assert.True(issued.IsSuccess);
+        db.ChangeTracker.Clear();
+
+        var validated = await stepUp.ValidateAsync(accountId, userId, issued.Value.Token);
+
+        Assert.True(validated.IsSuccess);
+        Assert.DoesNotContain(db.ChangeTracker.Entries<ApplicationUser>(),
+            entry => entry.Entity.Id == userId);
+    }
+
     // A SEPARATE defect, found while writing the test above and fixed in the
     // same change because it was masking that test's replay assertion.
     //

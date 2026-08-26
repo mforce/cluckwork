@@ -741,8 +741,6 @@ public sealed class IdentityProvider(
                 .Where(candidate => candidate.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
                 .Select(TrackedEntrySnapshot.Capture)
                 .ToArray();
-            foreach (var dirtyEntry in priorDirtyEntries)
-                dirtyEntry.Suspend(ReferenceEquals(dirtyEntry.Entry.Entity, user));
 
             void RestoreTrackerAfterFailure()
             {
@@ -795,6 +793,13 @@ public sealed class IdentityProvider(
 
             try
             {
+                // Suspension mutates tracker state, so it belongs inside the
+                // same restore boundary as both saves. If a later snapshot
+                // throws while being suppressed, the earlier ones are still
+                // restored exactly by the catch below.
+                foreach (var dirtyEntry in priorDirtyEntries)
+                    dirtyEntry.Suspend(ReferenceEquals(dirtyEntry.Entry.Entity, user));
+
                 var oldEmail = user.Email;
                 user.Email = email;
                 user.NormalizedEmail = userManager.NormalizeEmail(email);

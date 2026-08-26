@@ -219,6 +219,49 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
     }
 
     [Fact]
+    public async Task QueuedSelfChange_UsesPostLockEmail_AndCannotReturnFalseNoOp()
+    {
+        var (accountId, owner, ownerId) = await SeedFarmAsync();
+        await factory.SeedUserAsync(accountId, Unique("co-owner"), Roles.Owner);
+        var firstEmail = Unique("first");
+        var firstProof = await StepUpAsync(owner);
+        var secondProof = await StepUpAsync(owner);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(owner));
+        var (db, tx, pid) = await FenceAccountAsync(accountId);
+        await using var _ = db;
+        await using var __ = tx;
+
+        // Both HTTP requests validate and consume their distinct one-use grants
+        // before queueing on the account row. The second asks for the email that
+        // was current before the first request. Once the first commits, the
+        // second must observe that post-lock row and apply its requested last
+        // value (or report an explicit conflict), never identity-resolve its
+        // stale step-up instance into a false no-op 204.
+        var first = Task.Run(() => InvokeHttpAsync(client, ownerId, firstEmail, firstProof));
+        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(first, pid));
+        var second = Task.Run(() => InvokeHttpAsync(client, ownerId, owner, secondProof));
+        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(second, pid, minBlockedCount: 2));
+
+        await tx.RollbackAsync();
+        var firstResponse = await first;
+        var secondResponse = await second;
+
+        Assert.Equal(HttpStatusCode.NoContent, firstResponse.StatusCode);
+        if (secondResponse.StatusCode == HttpStatusCode.NoContent)
+        {
+            Assert.Equal(owner, await factory.WithTenantScopeAsync(accountId,
+                scoped => scoped.Users.Where(user => user.Id == ownerId)
+                    .Select(user => user.Email).SingleAsync()));
+        }
+        else
+        {
+            Assert.Equal(HttpStatusCode.Conflict, secondResponse.StatusCode);
+            Assert.Equal("Users.Conflict",
+                (await secondResponse.Content.ReadFromJsonAsync<ProblemDetails>())!.Title);
+        }
+    }
+
+    [Fact]
     public async Task ConcurrentStampChange_DuringEmailMutation_Is409()
     {
         var (accountId, owner, ownerId) = await SeedFarmAsync();
