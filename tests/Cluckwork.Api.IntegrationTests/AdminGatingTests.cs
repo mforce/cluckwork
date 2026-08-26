@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using System.Text.Json;
+using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Identity;
@@ -44,6 +45,26 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         if (body is not null) request.Content = JsonContent.Create(body);
         return client.SendAsync(request);
+    }
+
+    private static async Task<string> StepUpAsync(HttpClient client)
+    {
+        var proof = await client.PostAsJsonAsync(
+            "/api/v1/auth/step-up", new { password = TestHarness.Password });
+        proof.EnsureSuccessStatusCode();
+        return (await proof.Content.ReadFromJsonAsync<StepUpDto>())!.Token;
+    }
+
+    private static async Task<HttpResponseMessage> CreateUserWithStepUpAsync(
+        HttpClient client, object body, string? idempotencyKey = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/users")
+        {
+            Content = JsonContent.Create(body)
+        };
+        request.Headers.Add("Idempotency-Key", idempotencyKey ?? Guid.NewGuid().ToString());
+        request.Headers.Add(AuthEndpoints.StepUpHeaderName, await StepUpAsync(client));
+        return await client.SendAsync(request);
     }
 
     [Fact]
@@ -239,8 +260,13 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         var (admin, worker, _, _, _) = await SetupAsync();
         var key = Guid.NewGuid().ToString();
 
-        var created = await admin.PostWithKeyAsync("/api/v1/users", key,
-            new { email = $"replay-{Guid.NewGuid():N}@test.local", password = TestHarness.Password, role = "Worker" });
+        // #360 — every interactive creation now requires a step-up grant; the
+        // first (admin) request carries one so it reaches the handler and the
+        // cached 201 exists. The Worker replay below stays proof-less on
+        // purpose: authorization must refuse it before any cached response.
+        var created = await CreateUserWithStepUpAsync(
+            admin, new { email = $"replay-{Guid.NewGuid():N}@test.local", password = TestHarness.Password, role = "Worker" },
+            key);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
 
         var replayed = await worker.PostWithKeyAsync("/api/v1/users", key,
@@ -262,8 +288,8 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         await factory.SeedAccountWithUserAsync(foreignEmail);
 
         var (admin, _, accountId, _, _) = await SetupAsync();
-        var response = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
-            new { email = foreignEmail, password = TestHarness.Password, role = "Worker" });
+        var response = await CreateUserWithStepUpAsync(
+            admin, new { email = foreignEmail, password = TestHarness.Password, role = "Worker" });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
@@ -286,8 +312,8 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         var (admin, _, _, _, flockId) = await SetupAsync();
         var newWorkerEmail = $"hand-{Guid.NewGuid():N}@test.local";
 
-        var created = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
-            new { email = newWorkerEmail, password = TestHarness.Password, role = "Worker" });
+        var created = await CreateUserWithStepUpAsync(
+            admin, new { email = newWorkerEmail, password = TestHarness.Password, role = "Worker" });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
 
         // The created worker can log in and record, but not correct.
@@ -298,21 +324,12 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         var gated = await SendWithKeyAsync(hand, HttpMethod.Post, $"/api/v1/flocks/{flockId}/deplete");
         Assert.Equal(HttpStatusCode.Forbidden, gated.StatusCode);
 
-        // An admin-created ADMIN gets the role and passes the gate. #308 —
-        // creating another Owner is step-up-gated, so re-confirm the current
-        // password first and attach the grant.
+        // An admin-created ADMIN gets the role and passes the gate. #308/#360 —
+        // every interactive creation is step-up-gated; the helper mints a fresh
+        // grant for this call, distinct from the Worker creation above.
         var newAdminEmail = $"boss-{Guid.NewGuid():N}@test.local";
-        var grant = await admin.PostAsJsonAsync(
-            "/api/v1/auth/step-up", new { password = TestHarness.Password });
-        Assert.Equal(HttpStatusCode.OK, grant.StatusCode);
-        var stepUpToken = (await grant.Content.ReadFromJsonAsync<StepUpDto>())!.Token;
-        var createAdminRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/users")
-        {
-            Content = JsonContent.Create(new { email = newAdminEmail, password = TestHarness.Password, role = "Admin" }),
-        };
-        createAdminRequest.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
-        createAdminRequest.Headers.Add("X-Cluckwork-Step-Up", stepUpToken);
-        var createdAdmin = await admin.SendAsync(createAdminRequest);
+        var createdAdmin = await CreateUserWithStepUpAsync(
+            admin, new { email = newAdminEmail, password = TestHarness.Password, role = "Admin" });
         Assert.Equal(HttpStatusCode.Created, createdAdmin.StatusCode);
         var boss = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(newAdminEmail));
         var bossGated = await boss.GetAsync("/api/v1/users");
@@ -322,8 +339,11 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         var badRole = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
             new { email = $"x-{Guid.NewGuid():N}@test.local", password = TestHarness.Password, role = "Boss" });
         Assert.Equal(HttpStatusCode.BadRequest, badRole.StatusCode);
-        var duplicate = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
-            new { email = newWorkerEmail, password = TestHarness.Password, role = "Worker" });
+        // #360 — the duplicate 422 is expected to REACH the handler, so it
+        // carries its own fresh grant; a successful grant is single-use even
+        // when the later mutation fails.
+        var duplicate = await CreateUserWithStepUpAsync(
+            admin, new { email = newWorkerEmail, password = TestHarness.Password, role = "Worker" });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, duplicate.StatusCode);
         Assert.Contains("already exists", await duplicate.Content.ReadAsStringAsync());
 

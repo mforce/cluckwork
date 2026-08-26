@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using System.Net.Http.Json;
+using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // #163 — a user's display name can be set at creation and edited afterwards.
@@ -25,13 +26,31 @@ public sealed class UserNameTests(CluckworkWebApplicationFactory factory)
         return users!.Single(u => u.Email == email);
     }
 
+    private sealed record StepUpDto(string Token, DateTimeOffset ExpiresAt);
+
+    private static async Task<HttpResponseMessage> CreateUserAsync(HttpClient client, object body)
+    {
+        var proof = await client.PostAsJsonAsync(
+            "/api/v1/auth/step-up", new { password = TestHarness.Password });
+        proof.EnsureSuccessStatusCode();
+        var token = (await proof.Content.ReadFromJsonAsync<StepUpDto>())!.Token;
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/users")
+        {
+            Content = JsonContent.Create(body)
+        };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        request.Headers.Add(AuthEndpoints.StepUpHeaderName, token);
+        return await client.SendAsync(request);
+    }
+
     [Fact]
     public async Task Create_WithName_PersistsTheDisplayName()
     {
         var (admin, _) = await AdminAsync();
         var email = $"hand-{Guid.NewGuid():N}@test.local";
 
-        var created = await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
+        var created = await CreateUserAsync(admin,
             new { email, password = TestHarness.Password, role = "Worker", name = "  Ada Lovelace  " });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
 
@@ -45,7 +64,7 @@ public sealed class UserNameTests(CluckworkWebApplicationFactory factory)
         var (admin, _) = await AdminAsync();
         var email = $"hand-{Guid.NewGuid():N}@test.local";
 
-        await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
+        await CreateUserAsync(admin,
             new { email, password = TestHarness.Password, role = "Worker" });
 
         Assert.Null((await FindUserAsync(admin, email)).DisplayName);
@@ -56,7 +75,7 @@ public sealed class UserNameTests(CluckworkWebApplicationFactory factory)
     {
         var (admin, _) = await AdminAsync();
         var email = $"hand-{Guid.NewGuid():N}@test.local";
-        await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
+        await CreateUserAsync(admin,
             new { email, password = TestHarness.Password, role = "Worker" });
         var user = await FindUserAsync(admin, email);
 
@@ -106,7 +125,7 @@ public sealed class UserNameTests(CluckworkWebApplicationFactory factory)
     {
         var (admin, _) = await AdminAsync();
         var email = $"hand-{Guid.NewGuid():N}@test.local";
-        await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
+        await CreateUserAsync(admin,
             new { email, password = TestHarness.Password, role = "Worker" });
         var user = await FindUserAsync(admin, email);
 
@@ -148,7 +167,7 @@ public sealed class UserNameTests(CluckworkWebApplicationFactory factory)
     {
         var (admin, _) = await AdminAsync();
         var email = $"hand-{Guid.NewGuid():N}@test.local";
-        await admin.PostWithKeyAsync("/api/v1/users", Guid.NewGuid().ToString(),
+        await CreateUserAsync(admin,
             new { email, password = TestHarness.Password, role = "Worker" });
         var user = await FindUserAsync(admin, email);
 

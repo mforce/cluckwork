@@ -945,9 +945,10 @@ knowing the current one (#165) — the forgot-password path, since there is no
 email reset. The row's **role** action changes an existing user's role —
 promote or demote among the five roles (#355). It **refuses self-targeting**
 (ask another Owner) and refuses demoting the account's **last Owner** (a farm
-cannot lock itself out of user administration). Promoting to Owner requires a
-**step-up grant** (see below); every other target role is ungated. Any actual
-change is audited (`User.RoleChanged`, old to new) and, like a password reset,
+cannot lock itself out of user administration). Every role change requires a
+**step-up grant** (see below), whether it promotes, demotes, or apparently
+resubmits the current role. Any actual change is audited (`User.RoleChanged`,
+old to new) and, like a password reset,
 bumps the target's **credential epoch** and revokes their sessions — a demoted
 user's already-issued access token stops working on its very next request, not
 merely once its ~15-minute lifetime runs out.
@@ -959,9 +960,8 @@ current one. The Owner path **refuses self-targeting**: skipping the
 current-password proof for your own account would turn a stolen access token
 into a permanent takeover, so an Owner changes their own password like everyone
 else. One Owner *can* reset a co-Owner's password (all Owners are equivalent);
-it is audited (`User.PasswordSet`) and, since #308, requires a **step-up
-grant** because the target holds Owner (see below) — resetting any other
-role's password is unchanged and stays ungated.
+every administrative reset requires a **step-up grant** (see below), regardless
+of the target's role. It is audited (`User.PasswordSet`).
 Both revoke every refresh token for that user, so other devices are signed out
 — the self-service path hands the device that made the change a fresh pair so it
 stays signed in. Since #364, both paths also bump the user's **credential
@@ -969,40 +969,35 @@ epoch** (see above) in that same transaction, and every authenticated request
 is checked against it — so an already-issued access token is rejected on its
 very next request, not merely bounded by the ~15-min access-token lifetime.
 
-**Step-up authentication (#308)** — a fresh proof of identity required, on top
-of a normal valid Owner access token, before five specific actions:
-**creating another Owner**, **resetting an existing Owner's password**, and
-**changing a user's role to Owner** (#355) — plus, since #356, **disabling**
-or **re-enabling** a user, gated UNCONDITIONALLY rather than only when the
-target holds Owner. The first three close one threat: a stolen-but-still-valid
-Owner access token (good for ~15 min — merely holding it bumps no credential
-epoch, see **Credential epoch** above) is otherwise enough on its own to mint
-a second, independent Owner or take over an existing one, turning short-lived
-token theft into durable account control. Disable/enable close a related one
-that isn't Owner-scoped: any disable revokes real access outright, and
-re-enabling an Owner would otherwise hand back exactly what a stolen token's
-disable took away — so, unlike the role-change gating above, there is no
-"ordinary farm administration" case here left ungated. Every other action on
-the Users screen — creating a Worker/Manager/Sales/Read-only user, resetting
-one of their passwords, editing a display name, flock assignment, changing a
-role to anything OTHER than Owner — is **unchanged and ungated**; the point is
-to gate exactly the operations that can multiply, hand over, or cut off
-account control, not to add a blanket prompt to ordinary farm administration.
+**Step-up authentication (#308, #360)** — a fresh proof of identity required,
+on top of a normal valid Owner access token, before six categories of action:
+**creating any user**, **resetting any user's password**, **changing any user's
+role** (#355), **changing a login email**, **disabling a user**, or
+**re-enabling a user** (#356). The first three are unconditional: roles grant
+different, non-ordered capabilities, and every new or replaced authenticator
+can outlive a stolen-but-still-valid Owner access token (good for ~15 min —
+merely holding it bumps no credential epoch, see **Credential epoch** above).
+Disable/enable and login-email changes likewise alter durable access. Editing
+a display name and assigning or unassigning flocks remain **ungated**. Flock
+scope can narrow or widen a Worker's durable authorization — including
+restoring farm-wide Worker scope when the last assignment is removed — and is
+an explicit follow-up boundary rather than being declared safe by this change.
 The mechanism is **current-password re-confirmation**: the Users screen shows
-an inline "your current password" field only when the action needs it (never
-a separate popup), which the SPA exchanges for a short-lived (5 minutes by
+an inline "your current password" field in each gated action's dialog (never a
+separate popup), which the SPA exchanges for a short-lived (5 minutes by
 default), single-use, account-and-user-bound **step-up grant** via
 `POST /auth/step-up` and attaches to the one follow-up request. The grant is a
 JWT carrying a DIFFERENT audience than the normal access token, so it cannot
 be used as a Bearer token anywhere else; it is invalidated by a security-stamp
 change (any password change/reset for that user) and by that user logging out,
 and a used or expired grant is refused. Every rejection reason (missing,
-expired, replayed, wrong account, revoked) returns the identical
-non-enumerating denial, so a caller cannot tell which one applies. The
-entered password itself is never stored — held only in the dialog's own field
-and cleared the instant it is sent. TOTP/WebAuthn step-up is a deferred
-follow-up (#320); the offline `recover-admin` break-glass command (see below)
-is a separate CLI verb and never touches this browser flow.
+expired, replayed, wrong actor, wrong account, stamp-revoked, or
+logout-revoked) returns the identical non-enumerating denial, so a caller
+cannot tell which one applies. The entered password itself is never stored —
+held only in the dialog's own field and cleared the instant it is sent.
+Trusted offline provisioning, seeding, and `recover-admin` commands use their
+separate one-shot trust boundary and never select a browser-visible bypass.
+TOTP/WebAuthn step-up is a deferred follow-up (#320).
 
 **First-run admin provisioning (#283)** — how a fresh deploy gets its first
 Owner without ever shipping a repo-known credential. The default account, the

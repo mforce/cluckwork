@@ -1393,13 +1393,12 @@ export const en = {
     adminRoleOption: "{{label}} (owner)",
     createUserButton: "Create user",
 
-    // #308 — step-up re-confirmation, shown only for the two sensitive cases
-    // (creating another Owner; resetting an existing Owner's password).
-    // Shared field label; distinct hints explain WHY it appeared for each.
+    // #308/#360 — step-up re-confirmation for every durable user-access
+    // mutation. Shared field label; distinct hints explain each action.
     stepUpFieldLabel: "Your current password *",
-    stepUpCreateHint: "Creating another Owner needs your current password again.",
-    stepUpResetHint: "Resetting an Owner's password needs your current password again.",
-    stepUpRoleHint: "Promoting someone to Owner needs your current password again.",
+    stepUpCreateHint: "Creating any user needs your current password again.",
+    stepUpResetHint: "Resetting any user's password needs your current password again.",
+    stepUpRoleHint: "Changing any user's role needs your current password again.",
     stepUpEmailHint: "Changing a login email needs your current password again.",
     // #356 — disable/enable's step-up is UNCONDITIONAL (every disable/enable
     // needs it, not just an Owner target), so these hints are shown every time
@@ -1466,8 +1465,8 @@ export const en = {
     lastOwnerEmailMessage: "Add a second Owner before changing your own login email.",
 
     // #356 — the single disable/enable dialog: it IS the confirmation, shared
-    // by both modes (unconditional step-up proof, unlike the conditional
-    // Owner-only prompts above). {{email}} is DATA.
+    // by both modes (unconditional step-up proof, matching the other durable
+    // user-access prompts). {{email}} is DATA.
     disableStepUpTitle: "Disable — {{email}}",
     enableStepUpTitle: "Enable — {{email}}",
     disableSubmitButton: "Disable",
@@ -2253,16 +2252,13 @@ export const en = {
       + "your own password there. This is separate from an ordinary <em>Change password</em>. Until that setup "
       + "step has been run, trying to sign in tells you so and points you at whoever administers the server, "
       + "rather than claiming your details were wrong.",
-    // #308 — step-up re-confirmation for the two sensitive user-administration
-    // actions. Deliberately does NOT mention "grant"/"token" — that's internal
-    // mechanism, not user-facing language.
+    // #308/#356/#360 — deliberately does NOT mention "grant"/"token" —
+    // that's internal mechanism, not user-facing language.
     signingInStepUp:
       "Six actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
-      + "right there in the dialog: creating another Owner, resetting an existing Owner's password, promoting "
-      + "someone to Owner, changing a login email, and — whatever the target's role — disabling or re-enabling a user. This confirms it's "
-      + "really you before handing out that much access or cutting someone else's off; every other action on that "
-      + "screen (creating a Worker/Manager/Sales/Read-only user, resetting one of their passwords, changing "
-      + "someone's role to anything other than Owner) does not ask again.",
+      + "right there in the dialog: creating any user, resetting any user's password, changing any user's role, "
+      + "changing a login email, disabling a user, and re-enabling a user. This confirms it's really you before "
+      + "handing out access or cutting someone else's off. Display-name and flock-assignment changes do not ask again.",
     signingInCredentialEpoch:
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
       + "see a message that your credentials changed, sign in again with your current password.",
@@ -2306,9 +2302,9 @@ export const en = {
       + "action, and the <strong>password</strong> action sets a forgotten password without needing the old "
       + "one. The <strong>role</strong> action promotes or demotes an existing user among the five roles — it "
       + "refuses targeting your own sign-in, and refuses demoting the account's last Admin (owner), so the farm "
-      + "can never lock itself out of user administration. Promoting someone to Admin (owner) asks for the same "
-      + "re-confirmation as resetting an Admin's password (see below); every other role change needs no "
-      + "re-confirmation. A role change signs the affected sign-in out everywhere on its next request, the same "
+      + "can never lock itself out of user administration. Creating any sign-in, resetting any user's password, "
+      + "and changing any user's role asks the signed-in Admin (owner) to re-enter their current password. A role "
+      + "change signs the affected sign-in out everywhere on its next request, the same "
       + "way a password reset does. Controls you can't use are hidden, "
       + "and the server refuses them regardless.",
     // #356 — disable/re-enable a colleague's sign-in.
@@ -2936,14 +2932,13 @@ export const en = {
       + "line. Nothing is recorded or lost — press retry on the Reports screen a moment later; it "
       + "re-runs with the same dates you picked. Each farm has its own allowance, so "
       + "another farm's reports never use up yours.",
-    // #308
+    // #308/#356/#360
     glossaryStepUpAuthTerm: "Step-up authentication",
     glossaryStepUpAuthDef:
-      "An extra check on top of being signed in: before creating another Owner, resetting an existing "
-      + "Owner's password, promoting someone to Owner, or disabling or re-enabling any user, the Users "
-      + "screen asks you to re-enter your current password right there in the dialog. It confirms it's "
-      + "really you before handing out — or taking away — that much access. Disabling and re-enabling ask "
-      + "every time, regardless of the target's role; the other three ask only when Owner access is involved.",
+      "An extra check on top of being signed in: before creating any user, resetting any user's password, "
+      + "changing any user's role, changing a login email, disabling a user, or re-enabling a user, the Users "
+      + "screen asks you to re-enter your current password right there in the dialog. It confirms it's really "
+      + "you before handing out — or taking away — access. Display-name and flock-assignment changes do not ask again.",
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:
       "What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything "

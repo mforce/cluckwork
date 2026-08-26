@@ -735,9 +735,9 @@ export const assignFlock = (userId: string, flockId: string, key?: string) =>
 export const unassignFlock = (userId: string, assignmentId: string, key?: string) =>
   apiDelete<void>(`/users/${userId}/flock-assignments/${assignmentId}`, key);
 
-// #308 — stepUpToken is required by the server only when body.role is
-// "Admin" (Owner); every other role is created exactly as before. Callers get
-// it from api/client.ts's stepUp().
+// #308/#360 — stepUpToken is required by the server UNCONDITIONALLY: every
+// interactive user creation establishes a durable login, regardless of the
+// created role. Callers get it from api/client.ts's stepUp().
 export const createUser = (body: {
   email: string; password: string; role: string; name?: string;
 }, key?: string, stepUpToken?: string) => apiPost<Created>(
@@ -750,8 +750,9 @@ export const updateUser = (id: string, body: { name: string | null }, key?: stri
 // #165 — an Owner sets a user's password without knowing the current one. The
 // server signs that user out of every device.
 //
-// #308 — stepUpToken is required by the server only when the TARGET user
-// currently holds the Owner role; resetting any other role is unchanged.
+// #308/#360 — stepUpToken is required by the server UNCONDITIONALLY: every
+// administrative reset replaces an authenticator, regardless of the target's
+// current role.
 export const setUserPassword = (
   id: string, body: { newPassword: string }, key?: string, stepUpToken?: string,
 ) => apiPut<void>(
@@ -760,10 +761,11 @@ export const setUserPassword = (
 // #355 — promote/demote an existing user's role. The server signs that user
 // out of every device.
 //
-// #308 — stepUpToken is required only when the REQUESTED role is Owner
-// ("Admin"); every other target role is unchanged. Server also refuses
-// self-targeting (400 Users.CannotChangeOwnRole) — surfaced as an ordinary
-// ApiError, not special-cased client-side.
+// #308/#360 — stepUpToken is required by the server UNCONDITIONALLY: every
+// role change mutates a durable authorization set, including no-ops and
+// apparent demotions. Server also refuses self-targeting (400
+// Users.CannotChangeOwnRole) — surfaced as an ordinary ApiError, not
+// special-cased client-side.
 export const changeUserRole = (
   id: string, body: { role: string }, key?: string, stepUpToken?: string,
 ) => apiPut<void>(
@@ -776,21 +778,19 @@ export const changeUserEmail = (
   stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined,
 );
 
-// #356 — disable a user: revokes every session and refuses further sign-in.
-// Unlike setUserPassword/changeUserRole, whose step-up is gated only when the
-// TARGET holds Owner, stepUpToken is required UNCONDITIONALLY here — a disable
-// revokes access outright regardless of the target's role. Server also refuses
-// self-targeting (400 Users.CannotDisableSelf), surfaced as an ordinary
+// #356/#360 — disable a user: revokes every session and refuses further
+// sign-in. Its step-up proof is unconditional like create/reset/role: every
+// disable requires stepUpToken regardless of the target's role. Server also
+// refuses self-targeting (400 Users.CannotDisableSelf), surfaced as an ordinary
 // ApiError like every other domain refusal.
 export const disableUser = (
   id: string, body: { reason: string | null }, key?: string, stepUpToken?: string,
 ) => apiPost<void>(
   `/users/${id}/disable`, body, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
 
-// #356 — re-enable a disabled user. No body: there is no free-text field, only
-// the route id and the step-up header (required unconditionally, same as
-// disable — re-enabling an Owner restores exactly the access a disable took
-// away).
+// #356/#360 — re-enable a disabled user. No body: there is no free-text field,
+// only the route id and the step-up header, required unconditionally like
+// create/reset/role and disable.
 export const enableUser = (
   id: string, key?: string, stepUpToken?: string,
 ) => apiPost<void>(

@@ -70,18 +70,37 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         return (await response.Content.ReadFromJsonAsync<StepUpDto>())!.Token;
     }
 
+    // Resolves IIdentityProvider from a FRESH DI scope and calls the locked
+    // provider method directly — the boundary these boundary/race tests name.
+    // #360 — the handler now unconditionally consumes a step-up grant first, so
+    // a provider-level test must not route through it: the guard under test
+    // would be masked by the handler's proof gate.
+    private async Task<Result> InvokeProviderAsync(
+        Guid accountId, Guid targetUserId, string role, Guid actingUserId)
+    {
+        using var scope = factory.Services.CreateScope();
+        scope.ResolveTenantAndActor(accountId, actingUserId);
+        var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
+        var storedRole = role == Cluckwork.Application.Features.Users.CreateUser.CreateUserValidator.WorkerRole
+            ? null
+            : role;
+        return await identity.ChangeUserRoleAsync(
+            accountId, targetUserId, storedRole, actingUserId, CancellationToken.None);
+    }
+
     // Resolves ChangeUserRoleHandler from a FRESH DI scope (its own AppDbContext,
     // its own EnableRetryOnFailure execution strategy) and calls it directly —
     // the same "real handler, no HTTP" shape CurrencyLockRaceTests uses for its
-    // racing tasks.
-    private async Task<Result> InvokeAsync(
-        Guid accountId, Guid targetUserId, string role, Guid actingUserId, string? stepUpToken = null)
+    // racing tasks. The caller mints the grant these promotion paths consume.
+    private async Task<Result> InvokeHandlerAsync(
+        Guid accountId, Guid targetUserId, string role, Guid actingUserId, string stepUpToken)
     {
         using var scope = factory.Services.CreateScope();
         scope.ResolveTenantAndActor(accountId, actingUserId);
         var handler = scope.ServiceProvider.GetRequiredService<ChangeUserRoleHandler>();
         return await handler.HandleAsync(
-            new ChangeUserRoleCommand(targetUserId, role, stepUpToken), accountId, actingUserId, CancellationToken.None);
+            new ChangeUserRoleCommand(targetUserId, role, stepUpToken),
+            accountId, actingUserId, CancellationToken.None);
     }
 
     // ---------- Direct-provider guard boundary (unreachable via legitimate HTTP) ----------
@@ -93,7 +112,7 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         var accountId = await SeedOwnerFarmAsync(sole);
         var ownerId = await UserIdAsync(accountId, sole);
 
-        var result = await InvokeAsync(accountId, ownerId, "Manager", actingUserId: ownerId);
+        var result = await InvokeProviderAsync(accountId, ownerId, "Manager", actingUserId: ownerId);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Users.LastOwner", result.Error.Code);
@@ -112,7 +131,7 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         // Demoting the ACTIVE owner, acting as themselves (bypassing the
         // endpoint's self-block) — the disabled co-owner must not count as a
         // survivor.
-        var result = await InvokeAsync(accountId, activeId, "Manager", actingUserId: activeId);
+        var result = await InvokeProviderAsync(accountId, activeId, "Manager", actingUserId: activeId);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Users.LastOwner", result.Error.Code);
@@ -131,7 +150,7 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         var disabledActorId = await UserIdAsync(accountId, disabledActor);
         await DisableAsync(accountId, disabledActorId);
 
-        var result = await InvokeAsync(accountId, activeId, "Manager", actingUserId: disabledActorId);
+        var result = await InvokeProviderAsync(accountId, activeId, "Manager", actingUserId: disabledActorId);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Auth.Forbidden", result.Error.Code);
@@ -172,12 +191,12 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         await using var __ = tx;
 
         // A demotes B — launched first, so it heads the FIFO queue.
-        var request1 = Task.Run(() => InvokeAsync(accountId, bId, "Manager", actingUserId: aId));
+        var request1 = Task.Run(() => InvokeProviderAsync(accountId, bId, "Manager", actingUserId: aId));
         Assert.True(await factory.WaitUntilDoneOrBlockedAsync(request1, pid),
             "the first demotion must park on the account lock");
 
         // B demotes A — launched second, queues behind request1.
-        var request2 = Task.Run(() => InvokeAsync(accountId, aId, "Manager", actingUserId: bId));
+        var request2 = Task.Run(() => InvokeProviderAsync(accountId, aId, "Manager", actingUserId: bId));
         Assert.True(await factory.WaitUntilDoneOrBlockedAsync(request2, pid, minBlockedCount: 2),
             "the second demotion must also queue up behind the same fence");
 
@@ -216,10 +235,10 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         await using var _ = db;
         await using var __ = tx;
 
-        var demoteB = Task.Run(() => InvokeAsync(accountId, bId, "Manager", actingUserId: aId));
+        var demoteB = Task.Run(() => InvokeProviderAsync(accountId, bId, "Manager", actingUserId: aId));
         Assert.True(await factory.WaitUntilDoneOrBlockedAsync(demoteB, pid));
 
-        var promoteC = Task.Run(() => InvokeAsync(accountId, cId, "Admin", actingUserId: aId, stepUp));
+        var promoteC = Task.Run(() => InvokeHandlerAsync(accountId, cId, "Admin", actingUserId: aId, stepUp));
         Assert.True(await factory.WaitUntilDoneOrBlockedAsync(promoteC, pid, minBlockedCount: 2));
 
         await tx.RollbackAsync();
@@ -249,11 +268,11 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         await using var __ = tx;
 
         // A demotes B — launched first, heads the queue.
-        var demoteB = Task.Run(() => InvokeAsync(accountId, bId, "Manager", actingUserId: aId));
+        var demoteB = Task.Run(() => InvokeProviderAsync(accountId, bId, "Manager", actingUserId: aId));
         Assert.True(await factory.WaitUntilDoneOrBlockedAsync(demoteB, pid));
 
         // B, still believing themselves Owner, tries to promote C.
-        var promoteC = Task.Run(() => InvokeAsync(accountId, cId, "Admin", actingUserId: bId, stepUpForB));
+        var promoteC = Task.Run(() => InvokeHandlerAsync(accountId, cId, "Admin", actingUserId: bId, stepUpForB));
         Assert.True(await factory.WaitUntilDoneOrBlockedAsync(promoteC, pid, minBlockedCount: 2));
 
         await tx.RollbackAsync();
@@ -302,7 +321,7 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         // their ApplicationUser row on the handler's DbContext), THEN blocks
         // on the fenced account lock.
         var promote = Task.Run(() =>
-            InvokeAsync(accountId, targetId, "Admin", actingUserId: promoterId, stepUpForPromoter));
+            InvokeHandlerAsync(accountId, targetId, "Admin", actingUserId: promoterId, stepUpForPromoter));
         Assert.True(await factory.WaitUntilDoneOrBlockedAsync(promote, pid),
             "the promotion must park on the account lock after consuming the step-up grant");
 
@@ -364,7 +383,7 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         // row via a plain SELECT (unaffected by the fence's row lock), then
         // its internal AddToRoleAsync/RemoveFromRoleAsync UPDATE parks behind
         // the fence.
-        var demoteB = Task.Run(() => InvokeAsync(accountId, bId, "Manager", actingUserId: aId));
+        var demoteB = Task.Run(() => InvokeProviderAsync(accountId, bId, "Manager", actingUserId: aId));
         Assert.True(await factory.WaitUntilDoneOrBlockedAsync(demoteB, fencePid),
             "the role mutation's own UPDATE must park behind the user-row fence");
 

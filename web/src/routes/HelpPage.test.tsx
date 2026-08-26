@@ -305,15 +305,31 @@ describe("HelpPage", () => {
     expect(tl.help.glossaryFarmProvisioningDef).toContain("Settings");
   });
 
-  it("counts disable/enable among the step-up-gated actions, alongside the three Owner-scoped ones (#356)", () => {
-    // #356 added two more step-up-gated actions to the Users screen. The old
-    // "Three actions ... every other action ... does not ask again" copy
-    // would otherwise misstate disable/enable as ungated the moment this
-    // feature shipped — this pins the corrected count and wording.
+  it("enumerates every step-up-gated category and the explicit ungated boundary (#356, #360)", () => {
+    // Pin the semantics, not merely the count: a stale Owner-only description
+    // can still say "Six" while omitting one of the widened categories.
     render(<HelpPage />);
-    expect(screen.getByText(/Six actions on the/i)).toBeInTheDocument();
-    expect(screen.getByText(/disabling or re-enabling a user/i)).toBeInTheDocument();
-    expect(screen.queryByText(/Three actions on the/i)).not.toBeInTheDocument();
+    const paragraph = screen.getByText(/Six actions on the/i).closest("li")!;
+    expect(paragraph).toHaveTextContent(/creating any user/i);
+    expect(paragraph).toHaveTextContent(/resetting any user's password/i);
+    expect(paragraph).toHaveTextContent(/changing any user's role/i);
+    expect(paragraph).toHaveTextContent(/changing a login email/i);
+    expect(paragraph).toHaveTextContent(/disabling a user/i);
+    expect(paragraph).toHaveTextContent(/re-enabling a user/i);
+    expect(paragraph).toHaveTextContent(/Display-name and flock-assignment changes do not ask again/i);
+
+    expect(en.help.rolesAdmin).toContain(
+      "Creating any sign-in, resetting any user's password, and changing any user's role asks the signed-in Admin (owner) to re-enter their current password.",
+    );
+    expect(en.help.rolesAdmin).not.toContain("every other role change needs no re-confirmation");
+    expect(es.help.rolesAdmin).toContain(
+      "Crear cualquier inicio de sesión, restablecer la contraseña de cualquier usuario y cambiar el rol de cualquier usuario pide al Administrador (propietario) que ha iniciado sesión que vuelva a ingresar su contraseña actual.",
+    );
+    expect(es.help.rolesAdmin).not.toContain("cualquier otro cambio de rol no necesita reconfirmación");
+    expect(tl.help.rolesAdmin).toContain(
+      "Ang paggawa ng kahit anong sign-in, pag-reset ng password ng kahit sinong user, at pagpapalit ng tungkulin ng kahit sinong user ay humihiling sa naka-sign-in na Admin (may-ari) na muling ilagay ang kasalukuyan niyang password.",
+    );
+    expect(tl.help.rolesAdmin).not.toContain("hindi na kailangan ng reconfirmation ang ibang pagbabago ng tungkulin");
   });
 
   it("documents the Disabled user term in the in-app glossary (#356)", () => {

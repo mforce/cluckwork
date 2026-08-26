@@ -18,16 +18,12 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-// #308 — step-up authentication for privileged user administration. A stolen
-// but still-valid Owner access token must not be enough, on its own, to (a)
-// create another Owner or (b) reset an EXISTING Owner's password: both need a
-// fresh step-up grant obtained by re-confirming the CURRENT password
-// (POST /auth/step-up). Every other role/target combination (Worker,
-// Manager, Sales, ReadOnly — both as the created role and as the reset
-// target) stays exactly as #165/#103 left it: UserPasswordTests and
-// AdminGatingTests already cover that path working WITHOUT a grant, and
-// nothing here changes it — that is the "no blanket prompt" half of the
-// acceptance criteria. See StepUpGrantService for the full threat model.
+// #308/#360 — step-up authentication for durable user access. A stolen but
+// still-valid Owner access token must not be enough, on its own, to create any
+// interactive user, reset any user's password, or change any user's role.
+// Every role and target needs a fresh step-up grant obtained by re-confirming
+// the CURRENT password (POST /auth/step-up). See StepUpGrantService for the
+// full threat model.
 [Collection(IntegrationCollection.Name)]
 public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
 {
@@ -161,14 +157,30 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task CreateWorker_NeedsNoStepUp_OrdinaryAdministrationStaysUngated()
+    public async Task CreateWorker_MissingStepUp_Is403_AndNoUserCreated()
     {
         var (owner, _) = await AdminAsync();
         var email = $"hand-{Guid.NewGuid():N}@test.local";
 
         var response = await CreateUserWithStepUpAsync(owner, email, "Worker", stepUpToken: null);
 
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        Assert.DoesNotContain(users!, u => u.Email == email);
+    }
+
+    [Fact]
+    public async Task CreateWorker_WithValidStepUp_Succeeds()
+    {
+        var (owner, _) = await AdminAsync();
+        var grant = await StepUpAsync(owner, TestHarness.Password);
+        var email = $"hand-{Guid.NewGuid():N}@test.local";
+
+        var response = await CreateUserWithStepUpAsync(owner, email, "Worker", grant.Token);
+
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        Assert.Contains(users!, u => u.Email == email && u.Role == "Worker");
     }
 
     // ---------- Reject path: missing / expired / replayed / wrong-account / revoked ----------
@@ -1182,16 +1194,64 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task ResetWorkersPassword_NeedsNoStepUp_OrdinaryAdministrationStaysUngated()
+    public async Task ResetWorkersPassword_MissingStepUp_Is403_AndPasswordUnchanged()
     {
         var (owner, accountId) = await AdminAsync();
         var workerEmail = $"hand-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, workerEmail, asAdmin: false);
         var workerId = (await FindUserAsync(owner, workerEmail)).Id;
+        var rejectedPassword = FreshPassword();
 
-        var response = await SetPasswordWithStepUpAsync(owner, workerId, FreshPassword(), stepUpToken: null);
+        var response = await SetPasswordWithStepUpAsync(
+            owner, workerId, rejectedPassword, stepUpToken: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await factory.TryLoginAsync(workerEmail, TestHarness.Password)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await factory.TryLoginAsync(workerEmail, rejectedPassword)).StatusCode);
+    }
+
+    [Fact]
+    public async Task ResetWorkersPassword_WithValidStepUp_Succeeds()
+    {
+        var (owner, accountId) = await AdminAsync();
+        var workerEmail = $"hand-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, workerEmail, asAdmin: false);
+        var workerId = (await FindUserAsync(owner, workerEmail)).Id;
+        var grant = await StepUpAsync(owner, TestHarness.Password);
+        var newPassword = FreshPassword();
+
+        var response = await SetPasswordWithStepUpAsync(owner, workerId, newPassword, grant.Token);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await factory.TryLoginAsync(workerEmail, newPassword)).StatusCode);
+    }
+
+    [Fact]
+    public async Task ResetPassword_MissingStepUp_IsNonEnumerating_ForKnownAndUnknownTargets()
+    {
+        var (owner, accountId) = await AdminAsync();
+        var workerEmail = $"hand-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, workerEmail, asAdmin: false);
+        var workerId = (await FindUserAsync(owner, workerEmail)).Id;
+        var rejectedPassword = FreshPassword();
+
+        var known = await SetPasswordWithStepUpAsync(
+            owner, workerId, rejectedPassword, stepUpToken: null);
+        var unknown = await SetPasswordWithStepUpAsync(
+            owner, Guid.NewGuid(), rejectedPassword, stepUpToken: null);
+        var knownBody = await known.Content.ReadAsStringAsync();
+        var unknownBody = await unknown.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.Forbidden, known.StatusCode);
+        Assert.Equal(known.StatusCode, unknown.StatusCode);
+        Assert.Equal(knownBody, unknownBody);
+        Assert.Equal(HttpStatusCode.OK,
+            (await factory.TryLoginAsync(workerEmail, TestHarness.Password)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await factory.TryLoginAsync(workerEmail, rejectedPassword)).StatusCode);
     }
 
     // #336 review — /auth/step-up is a SECOND password-verification oracle, and

@@ -718,7 +718,7 @@ public sealed class SimulationPromotedWorkerTests(SimulationMutableClockFactory 
     : IClassFixture<SimulationMutableClockFactory>
 {
     // The worker persona holds NO assignable role by construction ("Worker" is a
-    // pseudo-role CreateUserHandler maps to null). The role check used to skip
+    // pseudo-role the seeder's storedRole conversion maps to null). The role check used to skip
     // workers entirely rather than assert that emptiness, so a worker promoted
     // through the Users UI passed straight through.
     //

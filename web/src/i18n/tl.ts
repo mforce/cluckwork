@@ -1181,11 +1181,11 @@ export const tl = {
     adminRoleOption: "{{label}} (may-ari)",
     createUserButton: "Gumawa ng user",
 
-    // #308 — muling pagkumpirma ng password (machine-drafted, pending native review)
+    // #308/#360 — muling pagkumpirma ng password (machine-drafted, pending native review)
     stepUpFieldLabel: "Ang kasalukuyan mong password *",
-    stepUpCreateHint: "Ang paggawa ng isa pang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    stepUpResetHint: "Ang pag-reset ng password ng isang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    stepUpRoleHint: "Ang pag-promote ng isang tao bilang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpCreateHint: "Ang paggawa ng kahit anong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpResetHint: "Ang pag-reset ng password ng kahit sinong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpRoleHint: "Ang pagpapalit ng tungkulin ng kahit sinong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpEmailHint: "Ang pagpapalit ng email sa pag-sign in ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     // #356 — walang kondisyong muling pagkumpirma (machine-drafted, pending native review)
     stepUpDisableHint: "Ang pag-disable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
@@ -1872,16 +1872,14 @@ export const tl = {
       + "sarili mong password doon. Iba ito sa karaniwang <em>Pagbabago ng password</em>. Hangga't hindi pa "
       + "naisasagawa ang hakbang na iyon sa setup, sinasabi ito sa iyo kapag sinubukan mong mag-sign in at "
       + "itinuturo ka sa kung sino ang nangangasiwa ng server, sa halip na sabihing mali ang iyong mga detalye.",
-    // #308 (machine-drafted, pending native review)
-    // #308/#356 (machine-drafted, pending native review)
+    // #308/#356/#360 (machine-drafted, pending native review)
     signingInStepUp:
       "May anim na aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
-      + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng isa pang Owner, ang pag-reset "
-      + "ng password ng isang umiiral na Owner, ang pag-promote ng isang tao maging Owner, ang pagpapalit ng email sa pag-sign in, at — anuman ang "
-      + "tungkulin ng target — ang pag-disable o muling pag-enable ng isang user. Kinukumpirma nito na ikaw "
-      + "talaga bago bigyan ng ganoong kalaking access o bago alisin ito sa iba — walang ibang aksyon sa "
-      + "screen na iyon (paggawa ng Worker/Manager/Sales/Read-only user, pag-reset ng password nila, "
-      + "pagbabago ng tungkulin ng iba tungo sa hindi Owner) ang muling nagtatanong.",
+      + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng kahit anong user, ang pag-reset ng "
+      + "password ng kahit sinong user, ang pagpapalit ng tungkulin ng kahit sinong user, ang pagpapalit ng email "
+      + "sa pag-sign in, ang pag-disable ng user, at ang muling pag-enable ng user. Kinukumpirma nito na ikaw "
+      + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name "
+      + "at flock assignment.",
     signingInCredentialEpoch:
       "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
       + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
@@ -1931,9 +1929,9 @@ export const tl = {
       + "password nang hindi kailangan ang luma. Ang aksyong <strong>tungkulin</strong> ay nag-a-promote o "
       + "nag-de-demote ng isang existing na user sa isa sa limang tungkulin — tinatanggihan ang pagtarget "
       + "sa sarili mong sign-in, at tinatanggihan ang pag-demote sa huling Admin (may-ari) ng account, para "
-      + "hindi kailanman maiwan ang farm na walang pamamahala ng user. Ang pag-promote ng isang tao maging "
-      + "Admin (may-ari) ay humihiling ng parehong reconfirmation gaya ng pag-reset ng password ng Admin "
-      + "(tingnan sa ibaba); hindi na kailangan ng reconfirmation ang ibang pagbabago ng tungkulin. Ang "
+      + "hindi kailanman maiwan ang farm na walang pamamahala ng user. Ang paggawa ng kahit anong sign-in, "
+      + "pag-reset ng password ng kahit sinong user, at pagpapalit ng tungkulin ng kahit sinong user ay "
+      + "humihiling sa naka-sign-in na Admin (may-ari) na muling ilagay ang kasalukuyan niyang password. Ang "
       + "pagbabago ng tungkulin ay nag-si-sign out sa apektadong sign-in kahit saan sa susunod nitong "
       + "request, gaya ng pag-reset ng password. Nakatago ang mga control na hindi mo puwedeng gamitin, at "
       + "tinatanggihan pa rin ito ng server.",
@@ -2607,15 +2605,14 @@ export const tl = {
       + "tab na walang natatandaang bukid ng ilang session, babalik ito sa pag-sign in sa halip na "
       + "manghula; piliin ang code ng bukid na gusto mo.",
 
-    // #308 (machine-drafted, pending native review)
+    // #308/#356/#360 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:
-      "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng isa pang Owner, mag-reset ng "
-      + "password ng umiiral na Owner, mag-promote ng isang tao maging Owner, o mag-disable o mag-enable "
-      + "ulit ng kahit sinong user, hinihiling ng Users screen na muling ilagay ang kasalukuyan mong "
-      + "password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago bigyan — o bawiin — ang ganoong "
-      + "kalaking access. Palaging nagtatanong ang disable at enable, kahit anong role ng user; ang tatlong "
-      + "iba pa ay nagtatanong lang kapag may kinalaman sa access ng Owner.",
+      "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng kahit anong user, mag-reset ng "
+      + "password ng kahit sinong user, magpalit ng tungkulin ng kahit sinong user, magpalit ng email sa pag-sign in, "
+      + "mag-disable ng user, o muling mag-enable ng user, hinihiling ng Users screen na muling ilagay ang kasalukuyan "
+      + "mong password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago magbigay — o mag-alis — ng access. "
+      + "Hindi muling hinihingi ito sa mga pagbabago ng display name at flock assignment.",
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
       "Ipinapakita ito ng isang screen kapag may error, sa halip na maging blangko. Ligtas ang naka-save "

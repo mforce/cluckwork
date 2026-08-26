@@ -12,24 +12,27 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-// #308 — THREAT MODEL + MECHANISM (owner-decided; see issue #308).
+// #308/#360 — THREAT MODEL + MECHANISM (owner-decided; see issues #308 and
+// #360).
 //
 // Threat: a stolen-but-still-valid Owner ACCESS TOKEN (bearer, ~15 min TTL by
-// default — JwtOptions.AccessTokenMinutes — with no server-side denylist) is
-// enough today to (a) create ANOTHER Owner, multiplying durable account
-// control past the token's own lifetime, or (b) reset an EXISTING Owner's
-// password, taking that account over outright. Neither needs the attacker to
-// know any password. #283's first-run provisioning and #265's break-glass
-// `recover-admin` CLI verb solve different problems (initial setup; a locked-
-// out sole Owner with server access) and are untouched by this — break-glass
-// in particular stays a CLI verb, never reachable from this browser flow.
+// default — JwtOptions.AccessTokenMinutes — with no server-side denylist) is,
+// on its own, enough to create ANY user with an attacker-chosen password,
+// reset ANY user's password, or change ANY user's role — each of which mints
+// or widens a durable credential whose lifetime exceeds the token's own.
+// Neither the created role nor the target's role excuses the proof. #283's
+// first-run provisioning and #265's break-glass `recover-admin` CLI verb solve
+// different problems (initial setup; a locked-out sole Owner with server
+// access) and are untouched by this — break-glass in particular stays a CLI
+// verb, never reachable from this browser flow.
 //
 // Mechanism: current-password re-confirmation. POST /auth/step-up mints a
 // SEPARATE, short-lived JWT — the "step-up grant" — that the caller presents
 // (as the X-Cluckwork-Step-Up header, never the request body) alongside the
-// normal Bearer access token on the three gated calls (CreateUser with
-// Role=Owner; SetUserPassword targeting a user who currently holds Owner;
-// ChangeUserRole, #355, whenever the REQUESTED role is Owner).
+// normal Bearer access token on the three gated calls — every CreateUser
+// regardless of the created role, every SetUserPassword regardless of the
+// target's role, and every ChangeUserRole (#355) regardless of the requested
+// role.
 // Properties, and how each failure mode is produced:
 //
 //   - Lifetime: JwtOptions.StepUpGrantMinutes (default 5) from issuance —
