@@ -1358,7 +1358,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     //
     // Stated per action rather than as one "holds the role the action implies"
     // rule, because that rule is unsatisfiable: workers deliberately carry NO
-    // role row ("Worker" is a pseudo-role CreateUserHandler maps to null), and
+    // role row ("Worker" is a pseudo-role the seeder's storedRole conversion maps to null), and
     // DailyEntry.Submit is either a role-less worker or a Manager.
     [Fact]
     public async Task SimulationSeed_EachActionsActorHoldsTheExpectedRoles()

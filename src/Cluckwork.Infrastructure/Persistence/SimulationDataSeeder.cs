@@ -90,7 +90,7 @@ public sealed class SimulationDataSeeder(
     CurrentUserContext currentUser,
     UserManager<ApplicationUser> users,
     IAccountUserDirectory directory,
-    CreateUserHandler createUser,
+    IIdentityProvider identity,
     CreateFlockHandler createFlock,
     AssignFlockHandler assignFlock,
     IUserRoleAssignmentRepository assignments,
@@ -590,8 +590,9 @@ public sealed class SimulationDataSeeder(
                 accountId, $"sim-readonly-{i}@{sim.EmailDomain}", Roles.ReadOnly,
                 $"Sim ReadOnly {i}", sim.CastPassword, ct);
 
-        // Workers deliberately carry no role row (Roles.cs) — CreateUserHandler
-        // maps CreateUserValidator.WorkerRole to a null role.
+        // Workers deliberately carry no role row (Roles.cs) — the seeder's own
+        // storedRole conversion below maps CreateUserValidator.WorkerRole to a
+        // null role.
         var workers = new List<SimActor>();
         for (var i = 1; i <= sim.Workers; i++)
             workers.Add(await EnsureUserAsync(
@@ -650,11 +651,15 @@ public sealed class SimulationDataSeeder(
         var existing = await directory.FindByAccountEmailAsync(accountId, email, ct);
         if (existing is null)
         {
-            // #308 — actingUserId only matters for the Role==Owner step-up gate,
-            // and this seeder never creates one (see the "Cast" comment above:
-            // Managers, Sales, ReadOnly, Workers only) — Guid.Empty is inert here.
-            var result = await createUser.HandleAsync(
-                new CreateUserCommand(email, password, role, name), accountId, Guid.Empty, ct);
+            // #360 — the simulation command is a trusted, non-HTTP one-shot
+            // caller. Interactive creation is fail-closed in CreateUserHandler;
+            // this seeder uses the lower-level identity port explicitly while
+            // acting as the real Owner resolved by SeedAsync. There is no flag,
+            // magic actor id, environment branch, or request-selectable bypass.
+            var storedRole = role == CreateUserValidator.WorkerRole ? null : role;
+            var result = await identity.CreateUserAsync(
+                accountId, email.Trim(), password, storedRole,
+                name: UserName.Normalize(name), ct: ct);
             Require(result, $"create cast user {email}");
 
             existing = await directory.FindByAccountEmailAsync(accountId, email, ct)
@@ -697,7 +702,7 @@ public sealed class SimulationDataSeeder(
         // Fail here instead, naming both roles.
         //
         // #500 (codex round 4) — the Worker case is checked, not EXEMPT. "Worker"
-        // is a pseudo-role CreateUserHandler maps to null, so a worker holds no
+        // is a pseudo-role the seeder's storedRole conversion maps to null, so a worker holds no
         // assignable role — which means the correct assertion for a worker is
         // `roles is empty`, not "skip the check". Exempting it let a sim-worker
         // promoted to Manager through the Users UI pass as a worker, and that is

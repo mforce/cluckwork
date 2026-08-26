@@ -735,9 +735,9 @@ export const assignFlock = (userId: string, flockId: string, key?: string) =>
 export const unassignFlock = (userId: string, assignmentId: string, key?: string) =>
   apiDelete<void>(`/users/${userId}/flock-assignments/${assignmentId}`, key);
 
-// #308 — stepUpToken is required by the server only when body.role is
-// "Admin" (Owner); every other role is created exactly as before. Callers get
-// it from api/client.ts's stepUp().
+// #308/#360 — stepUpToken is required by the server UNCONDITIONALLY: every
+// interactive user creation establishes a durable login, regardless of the
+// created role. Callers get it from api/client.ts's stepUp().
 export const createUser = (body: {
   email: string; password: string; role: string; name?: string;
 }, key?: string, stepUpToken?: string) => apiPost<Created>(

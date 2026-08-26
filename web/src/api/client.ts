@@ -20,8 +20,9 @@ const BASE = "/api/v1";
 // alongside the cookie's SameSite=Strict. Mirrors AuthCookies.CsrfHeaderName.
 const CSRF_HEADER = "X-Cluckwork-Auth";
 
-// #308 — carries a short-lived step-up grant (see stepUp() below) on the two
-// sensitive user-administration calls that need one. Mirrors
+// #308/#360 — carries a short-lived step-up grant (see stepUp() below) on the
+// user-administration calls that require recent proof (every user creation,
+// every administrative password reset, and every role change). Mirrors
 // AuthEndpoints.StepUpHeaderName.
 export const STEP_UP_HEADER = "X-Cluckwork-Step-Up";
 

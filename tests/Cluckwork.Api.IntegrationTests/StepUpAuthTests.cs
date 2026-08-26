@@ -161,14 +161,30 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task CreateWorker_NeedsNoStepUp_OrdinaryAdministrationStaysUngated()
+    public async Task CreateWorker_MissingStepUp_Is403_AndNoUserCreated()
     {
         var (owner, _) = await AdminAsync();
         var email = $"hand-{Guid.NewGuid():N}@test.local";
 
         var response = await CreateUserWithStepUpAsync(owner, email, "Worker", stepUpToken: null);
 
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        Assert.DoesNotContain(users!, u => u.Email == email);
+    }
+
+    [Fact]
+    public async Task CreateWorker_WithValidStepUp_Succeeds()
+    {
+        var (owner, _) = await AdminAsync();
+        var grant = await StepUpAsync(owner, TestHarness.Password);
+        var email = $"hand-{Guid.NewGuid():N}@test.local";
+
+        var response = await CreateUserWithStepUpAsync(owner, email, "Worker", grant.Token);
+
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var users = await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users");
+        Assert.Contains(users!, u => u.Email == email && u.Role == "Worker");
     }
 
     // ---------- Reject path: missing / expired / replayed / wrong-account / revoked ----------

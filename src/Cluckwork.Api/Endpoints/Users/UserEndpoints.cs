@@ -176,9 +176,11 @@ public static class UserEndpoints
         var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (result.IsSuccess)
             return Results.Created("/api/v1/users", new { Id = result.Value });
-        // #308 — a missing/invalid step-up grant is a 403 (authenticated, but
-        // lacking a required additional proof), distinct from the 422s below
-        // used for ordinary validation/domain failures.
+        // #308/#360 — every interactive creation requires a step-up grant
+        // regardless of the created user's role. A missing/invalid grant is a
+        // 403 (authenticated, but lacking the required additional proof),
+        // distinct from the 422s below used for ordinary validation/domain
+        // failures.
         return result.Error.Code == Cluckwork.Application.Common.StepUpErrorCodes.Required
             ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code)
             : Results.Problem(result.Error.Description, statusCode: 422, title: result.Error.Code);
