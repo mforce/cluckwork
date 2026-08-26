@@ -13,6 +13,7 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -285,6 +286,105 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
         Assert.Equal(oldConcurrency, check.ConcurrencyStamp);
     }
 
+    [Fact]
+    public async Task SuccessfulChange_PreservesCallerOwnedDirtyEntriesUntilTheirLaterSave()
+    {
+        var (accountId, _, ownerId) = await SeedFarmAsync();
+        var targetEmail = Unique("target");
+        var unrelatedEmail = Unique("unrelated");
+        await factory.SeedUserAsync(accountId, targetEmail, "Manager");
+        await factory.SeedUserAsync(accountId, unrelatedEmail, "Manager");
+        var targetId = await UserIdAsync(accountId, targetEmail);
+        var unrelatedId = await UserIdAsync(accountId, unrelatedEmail);
+        var deletedClaimType = $"pending-delete-{Guid.NewGuid():N}";
+        var deletedClaimId = await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var claim = new IdentityUserClaim<Guid>
+            {
+                UserId = unrelatedId,
+                ClaimType = deletedClaimType,
+                ClaimValue = "still-present-until-caller-save"
+            };
+            db.UserClaims.Add(claim);
+            await db.SaveChangesAsync();
+            return claim.Id;
+        });
+
+        using var scope = factory.Services.CreateScope();
+        scope.ResolveTenantAndActor(accountId, ownerId);
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var target = await db.Users.SingleAsync(user => user.Id == targetId);
+        var oldTargetDisplayName = target.DisplayName;
+        target.DisplayName = "Pending target display name";
+        var targetEntry = db.Entry(target);
+        var unrelated = await db.Users.SingleAsync(user => user.Id == unrelatedId);
+        unrelated.DisplayName = "Pending unrelated display name";
+        var unrelatedEntry = db.Entry(unrelated);
+        var expectedUnrelatedState = Capture(unrelatedEntry);
+        var addedClaimType = $"pending-add-{Guid.NewGuid():N}";
+        var addedClaim = new IdentityUserClaim<Guid>
+        {
+            UserId = unrelatedId,
+            ClaimType = addedClaimType,
+            ClaimValue = "inserted-by-caller-save"
+        };
+        db.UserClaims.Add(addedClaim);
+        var addedClaimEntry = db.Entry(addedClaim);
+        var temporaryAddedClaimId = addedClaim.Id;
+        Assert.True(addedClaimEntry.Property(claim => claim.Id).IsTemporary);
+        var expectedAddedClaimState = Capture(addedClaimEntry);
+        var deletedClaim = await db.UserClaims.SingleAsync(claim => claim.Id == deletedClaimId);
+        db.UserClaims.Remove(deletedClaim);
+        var deletedClaimEntry = db.Entry(deletedClaim);
+        var expectedDeletedClaimState = Capture(deletedClaimEntry);
+        var changedEmail = Unique("changed");
+        var oldUnrelatedDisplayName = unrelatedEntry.Property(user => user.DisplayName).OriginalValue;
+
+        var result = await scope.ServiceProvider.GetRequiredService<IIdentityProvider>()
+            .ChangeUserEmailAsync(accountId, targetId, changedEmail, ownerId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(EntityState.Modified, targetEntry.State);
+        Assert.Equal("Pending target display name", target.DisplayName);
+        Assert.Equal(oldTargetDisplayName,
+            targetEntry.Property(user => user.DisplayName).OriginalValue);
+        Assert.True(targetEntry.Property(user => user.DisplayName).IsModified);
+        Assert.Equal(changedEmail, target.Email);
+        Assert.Equal(changedEmail, targetEntry.Property(user => user.Email).OriginalValue);
+        Assert.False(targetEntry.Property(user => user.Email).IsModified);
+        AssertTrackedEntryState(expectedUnrelatedState, unrelatedEntry);
+        AssertTrackedEntryState(expectedAddedClaimState, addedClaimEntry);
+        Assert.True(addedClaimEntry.Property(claim => claim.Id).IsTemporary);
+        Assert.Equal(temporaryAddedClaimId, addedClaim.Id);
+        AssertTrackedEntryState(expectedDeletedClaimState, deletedClaimEntry);
+
+        using (var beforeCallerSave = factory.Services.CreateScope())
+        {
+            beforeCallerSave.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+            var freshDb = beforeCallerSave.ServiceProvider.GetRequiredService<AppDbContext>();
+            var persistedTarget = await freshDb.Users.AsNoTracking().SingleAsync(user => user.Id == targetId);
+            Assert.Equal(changedEmail, persistedTarget.Email);
+            Assert.Equal(oldTargetDisplayName, persistedTarget.DisplayName);
+            Assert.Equal(oldUnrelatedDisplayName,
+                await freshDb.Users.Where(user => user.Id == unrelatedId)
+                    .Select(user => user.DisplayName).SingleAsync());
+            Assert.False(await freshDb.UserClaims.AnyAsync(claim => claim.ClaimType == addedClaimType));
+            Assert.True(await freshDb.UserClaims.AnyAsync(claim => claim.Id == deletedClaimId));
+        }
+
+        await db.SaveChangesAsync();
+
+        using var afterCallerSave = factory.Services.CreateScope();
+        afterCallerSave.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+        var afterDb = afterCallerSave.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal("Pending target display name",
+            await afterDb.Users.Where(user => user.Id == targetId).Select(user => user.DisplayName).SingleAsync());
+        Assert.Equal("Pending unrelated display name",
+            await afterDb.Users.Where(user => user.Id == unrelatedId).Select(user => user.DisplayName).SingleAsync());
+        Assert.True(await afterDb.UserClaims.AnyAsync(claim => claim.ClaimType == addedClaimType));
+        Assert.False(await afterDb.UserClaims.AnyAsync(claim => claim.Id == deletedClaimId));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -308,6 +408,19 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
         await injected.SeedUserAsync(accountId, laterEmail, "Manager");
         var laterId = await injected.WithTenantScopeAsync(accountId,
             db => db.Users.Where(u => u.Email == laterEmail).Select(u => u.Id).SingleAsync());
+        var deletedClaimType = $"pending-delete-{Guid.NewGuid():N}";
+        var deletedClaimId = await injected.WithTenantScopeAsync(accountId, async db =>
+        {
+            var claim = new IdentityUserClaim<Guid>
+            {
+                UserId = preexistingId,
+                ClaimType = deletedClaimType,
+                ClaimValue = "still-present-until-caller-save"
+            };
+            db.UserClaims.Add(claim);
+            await db.SaveChangesAsync();
+            return claim.Id;
+        });
 
         using var scope = injected.Services.CreateScope();
         scope.ResolveTenantAndActor(accountId, ownerId);
@@ -327,6 +440,22 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
         preexisting.DisplayName = "Pending before email change";
         var preexistingEntry = db.Entry(preexisting);
         var expectedPreexistingState = Capture(preexistingEntry);
+        var addedClaimType = $"pending-add-{Guid.NewGuid():N}";
+        var addedClaim = new IdentityUserClaim<Guid>
+        {
+            UserId = preexistingId,
+            ClaimType = addedClaimType,
+            ClaimValue = "inserted-by-caller-save"
+        };
+        db.UserClaims.Add(addedClaim);
+        var addedClaimEntry = db.Entry(addedClaim);
+        var temporaryAddedClaimId = addedClaim.Id;
+        Assert.True(addedClaimEntry.Property(claim => claim.Id).IsTemporary);
+        var expectedAddedClaimState = Capture(addedClaimEntry);
+        var deletedClaim = await db.UserClaims.SingleAsync(claim => claim.Id == deletedClaimId);
+        db.UserClaims.Remove(deletedClaim);
+        var deletedClaimEntry = db.Entry(deletedClaim);
+        var expectedDeletedClaimState = Capture(deletedClaimEntry);
         injected.Interceptor.Arm();
 
         var result = await scope.ServiceProvider.GetRequiredService<IIdentityProvider>()
@@ -339,6 +468,10 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
         Assert.DoesNotContain(db.ChangeTracker.Entries<AuditEvent>(),
             entry => entry.State == EntityState.Added && entry.Entity.Action == "User.EmailChanged");
         AssertTrackedEntryState(expectedPreexistingState, preexistingEntry);
+        AssertTrackedEntryState(expectedAddedClaimState, addedClaimEntry);
+        Assert.True(addedClaimEntry.Property(claim => claim.Id).IsTemporary);
+        Assert.Equal(temporaryAddedClaimId, addedClaim.Id);
+        AssertTrackedEntryState(expectedDeletedClaimState, deletedClaimEntry);
 
         // The failed operation must leave this SAME context usable. A save on
         // a second unrelated tracked row is the adversarial check: the caller's
@@ -362,6 +495,8 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
             await freshDb.Users.Where(u => u.Id == preexistingId).Select(u => u.DisplayName).SingleAsync());
         Assert.Equal("Saved after final concurrency failure",
             await freshDb.Users.Where(u => u.Id == laterId).Select(u => u.DisplayName).SingleAsync());
+        Assert.True(await freshDb.UserClaims.AnyAsync(claim => claim.ClaimType == addedClaimType));
+        Assert.False(await freshDb.UserClaims.AnyAsync(claim => claim.Id == deletedClaimId));
         Assert.DoesNotContain(await freshDb.AuditEvents.AsNoTracking()
                 .Where(audit => audit.EntityId == targetId).ToListAsync(),
             audit => audit.Action == "User.EmailChanged");

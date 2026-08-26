@@ -538,7 +538,78 @@ describe("UsersPage change email (#357)", () => {
     expect(emailInput()).toHaveAttribute("aria-invalid", "false");
   });
 
-  it("does not attach a late duplicate response to a reopened dialog", async () => {
+  it.each([
+    ["same", /worker@farm\.test/, "worker@farm.test"],
+    ["different", /boss@farm\.test/, "boss@farm.test"],
+  ])("cancel/reopen for the %s target invalidates a step-up continuation that later succeeds",
+    async (_, reopenedRow, reopenedEmail) => {
+      const late = deferred<{ token: string; expiresAt: string }>();
+      mockStepUp.mockReturnValue(late.promise);
+      mockChangeUserEmail.mockResolvedValue(undefined);
+      await renderReady(ADMIN);
+      openEmail(/worker@farm.test/);
+      fireEvent.change(emailInput(), { target: { value: "abandoned@farm.test" } });
+      fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
+      await act(async () => { fireEvent.click(submit()); });
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+      openEmail(reopenedRow);
+
+      await act(async () => late.resolve({ token: "abandoned-grant", expiresAt: "2026-01-01T00:05:00Z" }));
+
+      expect(mockChangeUserEmail).not.toHaveBeenCalled();
+      expect(emailInput()).toHaveValue(reopenedEmail);
+    });
+
+  it.each([
+    ["same", /worker@farm\.test/, "worker@farm.test"],
+    ["different", /boss@farm\.test/, "boss@farm.test"],
+  ])("cancel/reopen for the %s target ignores a step-up continuation that later fails",
+    async (_, reopenedRow, reopenedEmail) => {
+      const late = deferred<{ token: string; expiresAt: string }>();
+      mockStepUp.mockReturnValue(late.promise);
+      await renderReady(ADMIN);
+      openEmail(/worker@farm.test/);
+      fireEvent.change(emailInput(), { target: { value: "abandoned@farm.test" } });
+      fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
+      await act(async () => { fireEvent.click(submit()); });
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+      openEmail(reopenedRow);
+
+      await act(async () => late.reject(
+        new ApiError(403, "StepUp.Invalid", "The abandoned password proof failed.")));
+
+      expect(emailInput()).toHaveValue(reopenedEmail);
+      expect(within(dialog()).queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+  it.each([
+    ["same", /worker@farm\.test/, "worker@farm.test"],
+    ["different", /boss@farm\.test/, "boss@farm.test"],
+  ])("cancel/reopen for the %s target ignores an email mutation that later succeeds",
+    async (_, reopenedRow, reopenedEmail) => {
+      const late = deferred<void>();
+      mockStepUp.mockResolvedValue({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" });
+      mockChangeUserEmail.mockReturnValue(late.promise);
+      await renderReady(ADMIN);
+      openEmail(/worker@farm.test/);
+      fireEvent.change(emailInput(), { target: { value: "abandoned@farm.test" } });
+      fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
+      await act(async () => { fireEvent.click(submit()); });
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+      openEmail(reopenedRow);
+
+      await act(async () => late.resolve(undefined));
+
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(emailInput()).toHaveValue(reopenedEmail);
+      expect(screen.queryByText(/Login email changed to abandoned@farm\.test/)).not.toBeInTheDocument();
+    });
+
+  it.each([
+    ["same", /worker@farm\.test/, "worker@farm.test"],
+    ["different", /boss@farm\.test/, "boss@farm.test"],
+  ])("cancel/reopen for the %s target ignores an email mutation that later fails",
+    async (_, reopenedRow, reopenedEmail) => {
     const late = deferred<void>();
     mockStepUp.mockResolvedValue({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" });
     mockChangeUserEmail.mockReturnValue(late.promise);
@@ -548,12 +619,12 @@ describe("UsersPage change email (#357)", () => {
     fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(submit()); });
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
-    openEmail(/boss@farm.test/);
+    openEmail(reopenedRow);
 
     await act(async () => late.reject(
       new ApiError(409, "Users.DuplicateEmail", "A user with this email already exists.")));
 
-    expect(emailInput()).toHaveValue("boss@farm.test");
+    expect(emailInput()).toHaveValue(reopenedEmail);
     expect(emailInput()).toHaveAttribute("aria-invalid", "false");
     expect(within(dialog()).queryByText("A user with this email already exists.")).not.toBeInTheDocument();
   });

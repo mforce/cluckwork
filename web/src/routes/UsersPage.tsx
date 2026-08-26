@@ -116,7 +116,8 @@ export function UsersPage() {
   const [emailValue, setEmailValue] = useState("");
   const [emailStepUpPassword, setEmailStepUpPassword] = useState("");
   const [emailFieldError, setEmailFieldError] = useState<string | null>(null);
-  const activeEmail = useRef<string | null>(null);
+  const emailDialogGeneration = useRef(0);
+  const activeEmail = useRef<{ targetId: string; generation: number } | null>(null);
   const emailHintId = useId();
   const emailErrorId = useId();
 
@@ -172,8 +173,8 @@ export function UsersPage() {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      const targetId = activeEmail.current;
-      if (targetId !== null) keys.current.delete(`change-email:${targetId}`);
+      const active = activeEmail.current;
+      if (active !== null) keys.current.delete(`change-email:${active.targetId}`);
       activeEmail.current = null;
       setEmailStepUpPassword("");
       setEmailFieldError(null);
@@ -469,14 +470,17 @@ export function UsersPage() {
     setEmailValue(u.email);
     setEmailStepUpPassword("");
     setEmailFieldError(null);
-    activeEmail.current = u.id;
+    activeEmail.current = {
+      targetId: u.id,
+      generation: ++emailDialogGeneration.current,
+    };
     setEmailUser(u);
   }
 
   function closeEmail() {
-    const targetId = activeEmail.current;
+    const active = activeEmail.current;
     activeEmail.current = null;
-    if (targetId !== null) clearKey(`change-email:${targetId}`);
+    if (active !== null) clearKey(`change-email:${active.targetId}`);
     setEmailValue("");
     setEmailStepUpPassword("");
     setEmailFieldError(null);
@@ -490,6 +494,9 @@ export function UsersPage() {
     if (!target || busy) return;
     const targetId = target.id;
     const scope = `change-email:${targetId}`;
+    const dialog = activeEmail.current;
+    if (dialog === null || dialog.targetId !== targetId) return;
+    const isCurrentDialog = () => activeEmail.current?.generation === dialog.generation;
     errors.beginAttempt("change-email");
     setEmailFieldError(null);
     setMessage(null);
@@ -498,18 +505,18 @@ export function UsersPage() {
         const password = emailStepUpPassword;
         setEmailStepUpPassword("");
         const grant = await stepUp(password);
-        if (activeEmail.current !== targetId) return;
+        if (!isCurrentDialog()) return;
         const trimmedEmail = emailValue.trim();
         await changeUserEmail(targetId, { email: trimmedEmail }, keyFor(scope), grant.token);
-        if (activeEmail.current !== targetId) return;
+        if (!isCurrentDialog()) return;
         clearKey(scope);
         const fresh = await listUsers();
-        if (activeEmail.current !== targetId) return;
+        if (!isCurrentDialog()) return;
         setUsers(fresh);
         setMessage(i18n.t("users:emailChangedMessage", { email: trimmedEmail }));
         closeEmail();
       } catch (err) {
-        if (activeEmail.current !== targetId) return;
+        if (!isCurrentDialog()) return;
         if (targetId === myId && err instanceof ApiError
           && err.status === 401 && err.title === "Auth.CredentialsSuperseded") {
           return;

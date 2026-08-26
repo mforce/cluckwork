@@ -731,17 +731,20 @@ public sealed class IdentityProvider(
             var priorAudits = db.ChangeTracker.Entries<Cluckwork.Domain.Auditing.AuditEvent>()
                 .Select(auditEntry => auditEntry.Entity)
                 .ToHashSet(ReferenceEqualityComparer.Instance);
-            // UserManager.UpdateSecurityStampAsync calls SaveChanges on this
-            // shared scoped context. Snapshot every caller-owned dirty entry
-            // before that nested save accepts it: if the later audit/epoch save
-            // fails and the transaction rolls back, their exact pending state
-            // must remain available to the caller's next SaveChanges.
+            // Both UserManager.UpdateSecurityStampAsync and the final save use
+            // this shared scoped context. Suspend every caller-owned dirty
+            // entry before either can flush it, then restore the exact pending
+            // state after our save. Temporary generated keys are deliberately
+            // never sent to PostgreSQL, so restoration never has to replace a
+            // real generated key with its old temporary value.
             var priorDirtyEntries = db.ChangeTracker.Entries()
                 .Where(candidate => candidate.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
                 .Select(TrackedEntrySnapshot.Capture)
                 .ToArray();
+            foreach (var dirtyEntry in priorDirtyEntries)
+                dirtyEntry.Suspend(ReferenceEquals(dirtyEntry.Entry.Entity, user));
 
-            void RestoreTracker()
+            void RestoreTrackerAfterFailure()
             {
                 user.Email = priorValues.Email;
                 user.NormalizedEmail = priorValues.NormalizedEmail;
@@ -762,7 +765,12 @@ public sealed class IdentityProvider(
                     property.IsModified = priorModified[property.Metadata.Name];
 
                 foreach (var dirtyEntry in priorDirtyEntries)
-                    dirtyEntry.Restore();
+                {
+                    if (ReferenceEquals(dirtyEntry.Entry.Entity, user))
+                        dirtyEntry.RestoreTargetAfterFailure();
+                    else
+                        dirtyEntry.RestoreExact();
+                }
 
                 foreach (var auditEntry in db.ChangeTracker.Entries<Cluckwork.Domain.Auditing.AuditEvent>()
                              .Where(candidate => candidate.State == EntityState.Added
@@ -771,6 +779,17 @@ public sealed class IdentityProvider(
                                  && !priorAudits.Contains(candidate.Entity)))
                 {
                     auditEntry.State = EntityState.Detached;
+                }
+            }
+
+            void RestoreCallerEntriesAfterSuccess()
+            {
+                foreach (var dirtyEntry in priorDirtyEntries)
+                {
+                    if (ReferenceEquals(dirtyEntry.Entry.Entity, user))
+                        dirtyEntry.RestoreTargetAfterSuccessfulSave();
+                    else
+                        dirtyEntry.RestoreExact();
                 }
             }
 
@@ -785,7 +804,7 @@ public sealed class IdentityProvider(
                 var stampRotated = await userManager.UpdateSecurityStampAsync(user);
                 if (!stampRotated.Succeeded)
                 {
-                    RestoreTracker();
+                    RestoreTrackerAfterFailure();
                     if (IsConcurrencyFailure(stampRotated))
                         return Result.Failure(Error.Conflict(
                             "Users.Conflict", "The user was modified by another request. Reload and retry."));
@@ -810,27 +829,28 @@ public sealed class IdentityProvider(
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    RestoreTracker();
+                    RestoreTrackerAfterFailure();
                     return Result.Failure(Error.Conflict(
                         "Users.Conflict", "The user was modified by another request. Reload and retry."));
                 }
                 catch (DbUpdateException exception) when (IsUserEmailConflict(exception))
                 {
-                    RestoreTracker();
+                    RestoreTrackerAfterFailure();
                     return Result.Failure(DuplicateEmailConflict());
                 }
 
+                RestoreCallerEntriesAfterSuccess();
                 await transaction.CommitAsync(token);
                 return Result.Success();
             }
             catch (DbUpdateException exception) when (IsUserEmailConflict(exception))
             {
-                RestoreTracker();
+                RestoreTrackerAfterFailure();
                 return Result.Failure(DuplicateEmailConflict());
             }
             catch
             {
-                RestoreTracker();
+                RestoreTrackerAfterFailure();
                 throw;
             }
         }, ct);
@@ -871,7 +891,9 @@ public sealed class IdentityProvider(
         EntityState State,
         PropertyValues CurrentValues,
         PropertyValues OriginalValues,
-        IReadOnlyDictionary<string, bool> ModifiedFlags)
+        IReadOnlyDictionary<string, bool> ModifiedFlags,
+        IReadOnlySet<string> TemporaryProperties,
+        IReadOnlyDictionary<string, object?> TemporaryClrValues)
     {
         public static TrackedEntrySnapshot Capture(EntityEntry entry) => new(
             entry,
@@ -881,17 +903,74 @@ public sealed class IdentityProvider(
             entry.Properties.ToDictionary(
                 property => property.Metadata.Name,
                 property => property.IsModified,
-                StringComparer.Ordinal));
+                StringComparer.Ordinal),
+            entry.Properties
+                .Where(property => property.IsTemporary)
+                .Select(property => property.Metadata.Name)
+                .ToHashSet(StringComparer.Ordinal),
+            entry.Properties
+                .Where(property => property.IsTemporary && property.Metadata.PropertyInfo is not null)
+                .ToDictionary(
+                    property => property.Metadata.Name,
+                    property => property.Metadata.PropertyInfo!.GetValue(entry.Entity),
+                    StringComparer.Ordinal));
 
-        public void Restore()
+        public void Suspend(bool isTarget)
         {
-            if (Entry.State == EntityState.Detached)
-                Entry.State = EntityState.Unchanged;
-            Entry.CurrentValues.SetValues(CurrentValues);
-            Entry.OriginalValues.SetValues(OriginalValues);
+            foreach (var propertyName in TemporaryProperties)
+                Entry.Property(propertyName).IsTemporary = false;
+            Entry.State = EntityState.Unchanged;
+            if (isTarget)
+                return;
+            // The state transition reverts Modified current values in EF Core
+            // 10. Put the caller's values back before either save, then make
+            // the suppression originals match so DetectChanges stays silent.
+            // This happens before any store-generated key can be accepted;
+            // restoration after the save never writes current values.
+            foreach (var property in Entry.Properties
+                         .Where(property => !TemporaryProperties.Contains(property.Metadata.Name)))
+            {
+                property.CurrentValue = CurrentValues[property.Metadata.Name];
+            }
+            Entry.OriginalValues.SetValues(CurrentValues);
+            Entry.State = EntityState.Unchanged;
+        }
+
+        public void RestoreExact()
+        {
             Entry.State = State;
+            Entry.OriginalValues.SetValues(OriginalValues);
             foreach (var property in Entry.Properties)
                 property.IsModified = ModifiedFlags[property.Metadata.Name];
+            foreach (var propertyName in TemporaryProperties)
+                Entry.Property(propertyName).IsTemporary = true;
+            foreach (var (propertyName, clrValue) in TemporaryClrValues)
+                Entry.Property(propertyName).Metadata.PropertyInfo!.SetValue(Entry.Entity, clrValue);
+        }
+
+        public void RestoreTargetAfterFailure()
+        {
+            Entry.CurrentValues.SetValues(CurrentValues);
+            RestoreExact();
+        }
+
+        public void RestoreTargetAfterSuccessfulSave()
+        {
+            if (State == EntityState.Modified)
+            {
+                foreach (var property in Entry.Properties.Where(property => ModifiedFlags[property.Metadata.Name]))
+                {
+                    property.CurrentValue = CurrentValues[property.Metadata.Name];
+                    property.OriginalValue = OriginalValues[property.Metadata.Name];
+                    property.IsModified = true;
+                }
+                return;
+            }
+
+            // A queried target cannot be Added. Preserve a pre-existing delete
+            // against the successfully updated row using the new accepted
+            // concurrency originals rather than the stale pre-update ones.
+            Entry.State = State;
         }
     }
 
