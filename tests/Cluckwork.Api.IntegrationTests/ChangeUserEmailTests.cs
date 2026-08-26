@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Users.ChangeUserEmail;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -116,6 +117,38 @@ public sealed class ChangeUserEmailTests(CluckworkWebApplicationFactory factory)
     private Task<HttpResponseMessage> TryLoginAsync(string farmCode, string email) =>
         factory.CreateClient().PostAsJsonAsync(
             "/api/v1/auth/login", new { farmCode, email, password = TestHarness.Password });
+
+    [Fact]
+    public async Task Validator_AppliesFormatToTheEffectiveTrimmedEmail()
+    {
+        var validator = new ChangeUserEmailValidator();
+
+        var valid = await validator.ValidateAsync(
+            new ChangeUserEmailCommand(Guid.NewGuid(), "  valid@farm.test  ", null));
+        var invalid = await validator.ValidateAsync(
+            new ChangeUserEmailCommand(Guid.NewGuid(), "  @  ", null));
+
+        Assert.True(valid.IsValid);
+        Assert.Contains(invalid.Errors, failure => failure.ErrorCode == "User.Email.Format");
+    }
+
+    [Fact]
+    public async Task Validator_AppliesMaximumLengthToTheEffectiveTrimmedEmail()
+    {
+        var validator = new ChangeUserEmailValidator();
+        var atLimit = $"{new string('a', 245)}@test.local";
+        var overLimit = $"{new string('a', 246)}@test.local";
+
+        var valid = await validator.ValidateAsync(
+            new ChangeUserEmailCommand(Guid.NewGuid(), $"  {atLimit}  ", null));
+        var invalid = await validator.ValidateAsync(
+            new ChangeUserEmailCommand(Guid.NewGuid(), $"  {overLimit}  ", null));
+
+        Assert.Equal(256, atLimit.Length);
+        Assert.Equal(257, overLimit.Length);
+        Assert.True(valid.IsValid);
+        Assert.Contains(invalid.Errors, failure => failure.ErrorCode == "User.Email.MaxLength");
+    }
 
     [Fact]
     public async Task Change_WritesAllFourColumnsThroughTheConfiguredNormalizer()

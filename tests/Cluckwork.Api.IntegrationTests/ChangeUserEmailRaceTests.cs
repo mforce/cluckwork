@@ -2,6 +2,8 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Data.Common;
 using System.Net;
+using System.Net.Http.Json;
+using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Users.ChangeUserEmail;
@@ -12,7 +14,9 @@ using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -63,8 +67,31 @@ public sealed class ChangeUserEmailFinalSaveInterceptor : DbCommandInterceptor
 public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record StepUpDto(string Token, DateTimeOffset ExpiresAt);
+    private sealed record TrackedEntryState(
+        EntityState State,
+        IReadOnlyDictionary<string, object?> CurrentValues,
+        IReadOnlyDictionary<string, object?> OriginalValues,
+        IReadOnlyDictionary<string, bool> ModifiedFlags);
 
     private static string Unique(string label) => $"{label}-{Guid.NewGuid():N}@test.local";
+
+    private static TrackedEntryState Capture(EntityEntry entry) => new(
+        entry.State,
+        entry.Properties.ToDictionary(property => property.Metadata.Name, property => property.CurrentValue),
+        entry.Properties.ToDictionary(property => property.Metadata.Name, property => property.OriginalValue),
+        entry.Properties.ToDictionary(property => property.Metadata.Name, property => property.IsModified));
+
+    private static void AssertTrackedEntryState(TrackedEntryState expected, EntityEntry actual)
+    {
+        Assert.Equal(expected.State, actual.State);
+        foreach (var property in actual.Properties)
+        {
+            var name = property.Metadata.Name;
+            Assert.Equal(expected.CurrentValues[name], property.CurrentValue);
+            Assert.Equal(expected.OriginalValues[name], property.OriginalValue);
+            Assert.Equal(expected.ModifiedFlags[name], property.IsModified);
+        }
+    }
 
     private async Task<(Guid AccountId, string Owner, Guid OwnerId)> SeedFarmAsync()
     {
@@ -96,6 +123,18 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
         return await scope.ServiceProvider.GetRequiredService<ChangeUserEmailHandler>().HandleAsync(
             new ChangeUserEmailCommand(userId, email, proof),
             accountId, actingUserId, CancellationToken.None);
+    }
+
+    private static Task<HttpResponseMessage> InvokeHttpAsync(
+        HttpClient client, Guid userId, string email, string proof)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/users/{userId}/email")
+        {
+            Content = JsonContent.Create(new { email })
+        };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        request.Headers.Add(AuthEndpoints.StepUpHeaderName, proof);
+        return client.SendAsync(request);
     }
 
     private async Task<(AppDbContext Db, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction Tx, int Pid)>
@@ -142,7 +181,7 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
     }
 
     [Fact]
-    public async Task ConcurrentSameFarmClaims_OneWins_AndLoserIsDuplicateEmail()
+    public async Task ConcurrentEmailChanges_AccountLockSerializes_AndFriendlyValidatorRejectsLoser()
     {
         var (accountId, owner, ownerId) = await SeedFarmAsync();
         var first = Unique("first");
@@ -158,6 +197,11 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
         await using var _ = db;
         await using var __ = tx;
 
+        // Both email-change operations take the same account lock before their
+        // Identity validator runs. The second request therefore cannot race
+        // the first to PostgreSQL's unique constraint: it resumes after the
+        // winner commits and the account-scoped validator reports the friendly
+        // duplicate result from the now-persisted row.
         var firstClaim = Task.Run(() => InvokeAsync(accountId, firstId, claimed, ownerId, firstProof));
         Assert.True(await factory.WaitUntilDoneOrBlockedAsync(firstClaim, pid));
         var secondClaim = Task.Run(() => InvokeAsync(accountId, secondId, claimed, ownerId, secondProof));
@@ -241,8 +285,10 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
         Assert.Equal(oldConcurrency, check.ConcurrencyStamp);
     }
 
-    [Fact]
-    public async Task FinalConcurrencyFailure_RemovesEpochAndPendingAuditFromTracker()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FinalConcurrencyFailure_RemovesEpochAndPendingAuditFromTracker(bool targetWasModified)
     {
         await using var injected = new ChangeUserEmailFinalSaveFactory();
         await injected.InitializeAsync();
@@ -254,12 +300,33 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
         await injected.SeedUserAsync(accountId, target, "Manager");
         var targetId = await injected.WithTenantScopeAsync(accountId,
             db => db.Users.Where(u => u.Email == target).Select(u => u.Id).SingleAsync());
+        var preexistingEmail = Unique("preexisting");
+        await injected.SeedUserAsync(accountId, preexistingEmail, "Manager");
+        var preexistingId = await injected.WithTenantScopeAsync(accountId,
+            db => db.Users.Where(u => u.Email == preexistingEmail).Select(u => u.Id).SingleAsync());
+        var laterEmail = Unique("later");
+        await injected.SeedUserAsync(accountId, laterEmail, "Manager");
+        var laterId = await injected.WithTenantScopeAsync(accountId,
+            db => db.Users.Where(u => u.Email == laterEmail).Select(u => u.Id).SingleAsync());
 
         using var scope = injected.Services.CreateScope();
         scope.ResolveTenantAndActor(accountId, ownerId);
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var tracked = await db.Users.SingleAsync(u => u.Id == targetId);
+        var pendingDisplayName = targetWasModified ? "Pending before email change" : tracked.DisplayName;
+        if (targetWasModified)
+            tracked.DisplayName = pendingDisplayName;
+        var targetEntry = db.Entry(tracked);
+        var expectedTargetState = Capture(targetEntry);
+        var oldEmail = tracked.Email;
+        var oldUserName = tracked.UserName;
+        var oldSecurityStamp = tracked.SecurityStamp;
+        var oldConcurrencyStamp = tracked.ConcurrencyStamp;
         var oldEpoch = tracked.CredentialEpoch;
+        var preexisting = await db.Users.SingleAsync(u => u.Id == preexistingId);
+        preexisting.DisplayName = "Pending before email change";
+        var preexistingEntry = db.Entry(preexisting);
+        var expectedPreexistingState = Capture(preexistingEntry);
         injected.Interceptor.Arm();
 
         var result = await scope.ServiceProvider.GetRequiredService<IIdentityProvider>()
@@ -268,8 +335,36 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
         Assert.True(result.IsFailure);
         Assert.Equal("Users.Conflict", result.Error.Code);
         Assert.Equal(oldEpoch, tracked.CredentialEpoch);
+        AssertTrackedEntryState(expectedTargetState, targetEntry);
         Assert.DoesNotContain(db.ChangeTracker.Entries<AuditEvent>(),
             entry => entry.State == EntityState.Added && entry.Entity.Action == "User.EmailChanged");
+        AssertTrackedEntryState(expectedPreexistingState, preexistingEntry);
+
+        // The failed operation must leave this SAME context usable. A save on
+        // a second unrelated tracked row is the adversarial check: the caller's
+        // pre-existing edit must persist with it, while stale target values or
+        // a leaked Added audit must not be flushed.
+        var later = await db.Users.SingleAsync(u => u.Id == laterId);
+        later.DisplayName = "Saved after final concurrency failure";
+        await db.SaveChangesAsync();
+
+        using var fresh = injected.Services.CreateScope();
+        fresh.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+        var freshDb = fresh.ServiceProvider.GetRequiredService<AppDbContext>();
+        var persisted = await freshDb.Users.AsNoTracking().SingleAsync(u => u.Id == targetId);
+        Assert.Equal(oldEmail, persisted.Email);
+        Assert.Equal(oldUserName, persisted.UserName);
+        Assert.Equal(oldSecurityStamp, persisted.SecurityStamp);
+        Assert.Equal(oldConcurrencyStamp, persisted.ConcurrencyStamp);
+        Assert.Equal(oldEpoch, persisted.CredentialEpoch);
+        Assert.Equal(pendingDisplayName, persisted.DisplayName);
+        Assert.Equal("Pending before email change",
+            await freshDb.Users.Where(u => u.Id == preexistingId).Select(u => u.DisplayName).SingleAsync());
+        Assert.Equal("Saved after final concurrency failure",
+            await freshDb.Users.Where(u => u.Id == laterId).Select(u => u.DisplayName).SingleAsync());
+        Assert.DoesNotContain(await freshDb.AuditEvents.AsNoTracking()
+                .Where(audit => audit.EntityId == targetId).ToListAsync(),
+            audit => audit.Action == "User.EmailChanged");
     }
 
     [Fact]
@@ -322,8 +417,50 @@ public sealed class ChangeUserEmailRaceTests(CluckworkWebApplicationFactory fact
     }
 
     [Fact]
+    public async Task ActorDemotedWhileHttpRequestIsQueued_Is403AuthForbidden_AndTargetIsUnchanged()
+    {
+        var (accountId, actor, actorId) = await SeedFarmAsync();
+        await factory.SeedUserAsync(accountId, Unique("co-owner"), Roles.Owner);
+        var target = Unique("target");
+        await factory.SeedUserAsync(accountId, target, "Manager");
+        var targetId = await UserIdAsync(accountId, target);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(actor));
+        var proof = await StepUpAsync(actor);
+        var changed = Unique("changed");
+        var (db, tx, pid) = await FenceAccountAsync(accountId);
+        await using var _ = db;
+        await using var __ = tx;
+
+        // The HTTP request validates and consumes its one-use proof before it
+        // parks on the account fence. Demote the actor while it is queued so
+        // only the transaction-local authorization re-read can reject it.
+        var change = Task.Run(() => InvokeHttpAsync(client, targetId, changed, proof));
+        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(change, pid));
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            DELETE FROM "AspNetUserRoles"
+            WHERE "UserId" = {actorId}
+              AND "RoleId" IN (SELECT "Id" FROM "AspNetRoles" WHERE "Name" = {Roles.Owner})
+            """);
+        await tx.CommitAsync();
+
+        var response = await change;
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal("Auth.Forbidden",
+            (await response.Content.ReadFromJsonAsync<ProblemDetails>())!.Title);
+        Assert.Equal(target, await factory.WithTenantScopeAsync(accountId,
+            scoped => scoped.Users.Where(u => u.Id == targetId).Select(u => u.Email).SingleAsync()));
+    }
+
+    [Fact]
     public void IsUserEmailConflict_AcceptsOnlyTheTwoNamedUniqueConstraints()
     {
+        // The email-change/account-lock race above intentionally exercises the
+        // friendly validator layer. A create-vs-change race could reach this
+        // database layer, but there is no deterministic fence that makes the
+        // 23505 occur specifically inside UpdateSecurityStampAsync without
+        // depending on PostgreSQL scheduling. This direct discriminator test
+        // therefore pins the exact SQLSTATE/constraint mapping instead of a
+        // false-green race whose asserted layer is accidental.
         static DbUpdateException Failure(string sqlState, string constraint) => new(
             "failed",
             new PostgresException(

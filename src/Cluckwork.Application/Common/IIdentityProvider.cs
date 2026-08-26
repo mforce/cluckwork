@@ -88,9 +88,19 @@ public interface IIdentityProvider
     Task<Result> ChangeUserRoleAsync(
         Guid accountId, Guid userId, string? role, Guid actingUserId, CancellationToken ct = default);
 
+    // #357 — change an existing user's login email, account-scoped (foreign
+    // id -> NotFound). `actingUserId` is re-verified INSIDE the locked
+    // transaction to still be an active, non-disabled Owner because their
+    // role can change while this operation waits on the account-wide lock.
+    // A trimmed ordinal no-op has no side effects. A real change updates all
+    // four email/user-name columns through the configured normalizers, rotates
+    // both Identity stamps, bumps CredentialEpoch exactly once, revokes every
+    // refresh token, and writes User.EmailChanged in the same transaction.
+    // Changing the last active Owner's own email fails with Users.LastOwner;
+    // same-account duplicates fail with Users.DuplicateEmail; concurrent
+    // Identity writes fail with Users.Conflict.
     Task<Result> ChangeUserEmailAsync(
-        Guid accountId, Guid userId, string email, Guid actingUserId, CancellationToken ct = default) =>
-        throw new NotSupportedException("This identity provider does not support changing user email addresses.");
+        Guid accountId, Guid userId, string email, Guid actingUserId, CancellationToken ct = default);
 
     // #356 — disable a user, account-scoped (foreign id -> NotFound). The
     // DisabledAt flag is only half of it: CredentialEpochMiddleware (#364)

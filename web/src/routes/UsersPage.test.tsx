@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, render } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { UsersPage } from "./UsersPage";
+import { Login } from "./Login";
+import { ProtectedRoute } from "./ProtectedRoute";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { farmState, NO_RECORD_HISTORY } from "../test/fixtures";
 import { AuthContext } from "../auth/AuthContext";
@@ -15,7 +18,8 @@ import {
   listUsers, setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
-import { ApiError, stepUp } from "../api/client";
+import { apiGet, ApiError, stepUp } from "../api/client";
+import { getAccessToken } from "../auth/tokenStore";
 import i18n from "../i18n";
 
 // Runtime-generated, with NO static substring — GitGuardian's scanner
@@ -552,6 +556,94 @@ describe("UsersPage change email (#357)", () => {
     expect(emailInput()).toHaveValue("boss@farm.test");
     expect(emailInput()).toHaveAttribute("aria-invalid", "false");
     expect(within(dialog()).queryByText("A user with this email already exists.")).not.toBeInTheDocument();
+  });
+
+  it("freezes the submitted email while a late duplicate response is pending for the same target", async () => {
+    const user = userEvent.setup();
+    const late = deferred<void>();
+    mockStepUp.mockResolvedValue({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" });
+    mockChangeUserEmail.mockReturnValue(late.promise);
+    await renderReady(ADMIN);
+    openEmail(/worker@farm.test/);
+    fireEvent.change(emailInput(), { target: { value: "taken@farm.test" } });
+    fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
+
+    await act(async () => { fireEvent.click(submit()); });
+
+    expect(emailInput()).toBeDisabled();
+    expect(passwordInput()).toBeDisabled();
+    await user.type(emailInput(), "different@farm.test");
+    expect(emailInput()).toHaveValue("taken@farm.test");
+
+    await act(async () => late.reject(
+      new ApiError(409, "Users.DuplicateEmail", "A user with this email already exists.")));
+
+    expect(emailInput()).toHaveValue("taken@farm.test");
+    expect(emailInput()).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("does not render a generic dialog failure when a self-change refresh reports credentials superseded", async () => {
+    mockListUsers.mockReset()
+      .mockResolvedValueOnce([WORKER_USER, ADMIN_USER, SELF_USER])
+      .mockRejectedValueOnce(new ApiError(
+        401, "Auth.CredentialsSuperseded", "Your credentials changed."));
+    mockStepUp.mockResolvedValue({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" });
+    mockChangeUserEmail.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+    openEmail(/self@farm.test/);
+    fireEvent.change(emailInput(), { target: { value: "new-self@farm.test" } });
+    fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
+
+    await act(async () => { fireEvent.click(submit()); });
+
+    expect(mockListUsers).toHaveBeenCalledTimes(2);
+    expect(within(dialog()).queryByText("Your credentials changed.")).not.toBeInTheDocument();
+  });
+
+  it("self-change lets the next authenticated request enter the credentials-superseded sign-in path", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        title: "Auth.CredentialsSuperseded",
+        detail: "Your credentials changed.",
+      }), { status: 401, headers: { "Content-Type": "application/problem+json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        title: "Identity.InvalidRefreshToken",
+        detail: "The refresh token is invalid.",
+      }), { status: 401, headers: { "Content-Type": "application/problem+json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    mockListUsers.mockReset()
+      .mockResolvedValueOnce([WORKER_USER, ADMIN_USER, SELF_USER])
+      .mockImplementationOnce(() => apiGet<User[]>("/users"));
+    mockStepUp.mockResolvedValue({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" });
+    mockChangeUserEmail.mockResolvedValue(undefined);
+    renderWithProviders(
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/users" element={<UsersPage />} />
+        </Route>
+      </Routes>,
+      {
+        route: "/users",
+        token: { sub: "u1", role: "Admin", account_id: "account-1" },
+        me: {
+          id: SELF_USER.id, email: SELF_USER.email, name: null, role: SELF_USER.role,
+          language: null, preferredStepperUnit: null,
+        },
+      },
+    );
+    await screen.findByText("worker@farm.test");
+    openEmail(/self@farm.test/);
+    fireEvent.change(emailInput(), { target: { value: "new-self@farm.test" } });
+    fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
+
+    await act(async () => { fireEvent.click(submit()); });
+
+    expect(await screen.findByText(i18n.t("auth:credentialsSuperseded"))).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockListUsers).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getAccessToken()).toBeNull();
   });
 
   it("a successful non-self change refreshes the row and reports the new email", async () => {

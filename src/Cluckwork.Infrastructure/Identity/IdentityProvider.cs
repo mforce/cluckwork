@@ -9,6 +9,7 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -708,7 +709,6 @@ public sealed class IdentityProvider(
             }
 
             var entry = db.Entry(user);
-            var priorState = entry.State;
             var priorModified = entry.Properties.ToDictionary(
                 property => property.Metadata.Name,
                 property => property.IsModified,
@@ -721,16 +721,25 @@ public sealed class IdentityProvider(
                 user.SecurityStamp,
                 user.ConcurrencyStamp,
                 user.CredentialEpoch,
-                entry.Property(nameof(ApplicationUser.Email)).OriginalValue,
-                entry.Property(nameof(ApplicationUser.NormalizedEmail)).OriginalValue,
-                entry.Property(nameof(ApplicationUser.UserName)).OriginalValue,
-                entry.Property(nameof(ApplicationUser.NormalizedUserName)).OriginalValue,
-                entry.Property(nameof(ApplicationUser.SecurityStamp)).OriginalValue,
-                entry.Property(nameof(ApplicationUser.ConcurrencyStamp)).OriginalValue,
-                entry.Property(nameof(ApplicationUser.CredentialEpoch)).OriginalValue);
+                entry.Property(candidate => candidate.Email).OriginalValue,
+                entry.Property(candidate => candidate.NormalizedEmail).OriginalValue,
+                entry.Property(candidate => candidate.UserName).OriginalValue,
+                entry.Property(candidate => candidate.NormalizedUserName).OriginalValue,
+                entry.Property(candidate => candidate.SecurityStamp).OriginalValue,
+                entry.Property(candidate => candidate.ConcurrencyStamp).OriginalValue,
+                entry.Property(candidate => candidate.CredentialEpoch).OriginalValue);
             var priorAudits = db.ChangeTracker.Entries<Cluckwork.Domain.Auditing.AuditEvent>()
                 .Select(auditEntry => auditEntry.Entity)
                 .ToHashSet(ReferenceEqualityComparer.Instance);
+            // UserManager.UpdateSecurityStampAsync calls SaveChanges on this
+            // shared scoped context. Snapshot every caller-owned dirty entry
+            // before that nested save accepts it: if the later audit/epoch save
+            // fails and the transaction rolls back, their exact pending state
+            // must remain available to the caller's next SaveChanges.
+            var priorDirtyEntries = db.ChangeTracker.Entries()
+                .Where(candidate => candidate.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+                .Select(TrackedEntrySnapshot.Capture)
+                .ToArray();
 
             void RestoreTracker()
             {
@@ -742,16 +751,18 @@ public sealed class IdentityProvider(
                 user.ConcurrencyStamp = priorValues.ConcurrencyStamp;
                 user.CredentialEpoch = priorValues.CredentialEpoch;
 
-                entry.State = priorState;
-                entry.Property(nameof(ApplicationUser.Email)).OriginalValue = priorValues.OriginalEmail;
-                entry.Property(nameof(ApplicationUser.NormalizedEmail)).OriginalValue = priorValues.OriginalNormalizedEmail;
-                entry.Property(nameof(ApplicationUser.UserName)).OriginalValue = priorValues.OriginalUserName;
-                entry.Property(nameof(ApplicationUser.NormalizedUserName)).OriginalValue = priorValues.OriginalNormalizedUserName;
-                entry.Property(nameof(ApplicationUser.SecurityStamp)).OriginalValue = priorValues.OriginalSecurityStamp;
-                entry.Property(nameof(ApplicationUser.ConcurrencyStamp)).OriginalValue = priorValues.OriginalConcurrencyStamp;
-                entry.Property(nameof(ApplicationUser.CredentialEpoch)).OriginalValue = priorValues.OriginalCredentialEpoch;
+                entry.Property(candidate => candidate.Email).OriginalValue = priorValues.OriginalEmail;
+                entry.Property(candidate => candidate.NormalizedEmail).OriginalValue = priorValues.OriginalNormalizedEmail;
+                entry.Property(candidate => candidate.UserName).OriginalValue = priorValues.OriginalUserName;
+                entry.Property(candidate => candidate.NormalizedUserName).OriginalValue = priorValues.OriginalNormalizedUserName;
+                entry.Property(candidate => candidate.SecurityStamp).OriginalValue = priorValues.OriginalSecurityStamp;
+                entry.Property(candidate => candidate.ConcurrencyStamp).OriginalValue = priorValues.OriginalConcurrencyStamp;
+                entry.Property(candidate => candidate.CredentialEpoch).OriginalValue = priorValues.OriginalCredentialEpoch;
                 foreach (var property in entry.Properties)
                     property.IsModified = priorModified[property.Metadata.Name];
+
+                foreach (var dirtyEntry in priorDirtyEntries)
+                    dirtyEntry.Restore();
 
                 foreach (var auditEntry in db.ChangeTracker.Entries<Cluckwork.Domain.Auditing.AuditEvent>()
                              .Where(candidate => candidate.State == EntityState.Added
@@ -835,6 +846,11 @@ public sealed class IdentityProvider(
         };
 
     private sealed record UserEmailMutationSnapshot(
+        // IdentityUser declares these as nullable even though this app's EF
+        // model requires all four login columns. Keep the compiler-truthful
+        // nullable types here; the strongly typed EF property access below
+        // avoids the former object? originals without asserting a narrower
+        // C# invariant than ApplicationUser actually declares.
         string? Email,
         string? NormalizedEmail,
         string? UserName,
@@ -842,13 +858,42 @@ public sealed class IdentityProvider(
         string? SecurityStamp,
         string? ConcurrencyStamp,
         int CredentialEpoch,
-        object? OriginalEmail,
-        object? OriginalNormalizedEmail,
-        object? OriginalUserName,
-        object? OriginalNormalizedUserName,
-        object? OriginalSecurityStamp,
-        object? OriginalConcurrencyStamp,
-        object? OriginalCredentialEpoch);
+        string? OriginalEmail,
+        string? OriginalNormalizedEmail,
+        string? OriginalUserName,
+        string? OriginalNormalizedUserName,
+        string? OriginalSecurityStamp,
+        string? OriginalConcurrencyStamp,
+        int OriginalCredentialEpoch);
+
+    private sealed record TrackedEntrySnapshot(
+        EntityEntry Entry,
+        EntityState State,
+        PropertyValues CurrentValues,
+        PropertyValues OriginalValues,
+        IReadOnlyDictionary<string, bool> ModifiedFlags)
+    {
+        public static TrackedEntrySnapshot Capture(EntityEntry entry) => new(
+            entry,
+            entry.State,
+            entry.CurrentValues.Clone(),
+            entry.OriginalValues.Clone(),
+            entry.Properties.ToDictionary(
+                property => property.Metadata.Name,
+                property => property.IsModified,
+                StringComparer.Ordinal));
+
+        public void Restore()
+        {
+            if (Entry.State == EntityState.Detached)
+                Entry.State = EntityState.Unchanged;
+            Entry.CurrentValues.SetValues(CurrentValues);
+            Entry.OriginalValues.SetValues(OriginalValues);
+            Entry.State = State;
+            foreach (var property in Entry.Properties)
+                property.IsModified = ModifiedFlags[property.Metadata.Name];
+        }
+    }
 
     private static bool IsConcurrencyFailure(IdentityResult result) =>
         result.Errors.Any(e => e.Code == "ConcurrencyFailure");

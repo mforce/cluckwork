@@ -511,6 +511,10 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             Guid accountId, Guid userId, string? role, Guid actingUserId, CancellationToken ct = default) =>
             inner.ChangeUserRoleAsync(accountId, userId, role, actingUserId, ct);
 
+        public Task<Result> ChangeUserEmailAsync(
+            Guid accountId, Guid userId, string email, Guid actingUserId, CancellationToken ct = default) =>
+            inner.ChangeUserEmailAsync(accountId, userId, email, actingUserId, ct);
+
         public Task<Result> DisableUserAsync(
             Guid accountId, Guid userId, Guid actingUserId, string? reason, CancellationToken ct = default) =>
             inner.DisableUserAsync(accountId, userId, actingUserId, reason, ct);

@@ -510,7 +510,10 @@ export function UsersPage() {
         closeEmail();
       } catch (err) {
         if (activeEmail.current !== targetId) return;
-        if (err instanceof ApiError && err.status === 409 && err.title === "Users.DuplicateEmail") {
+        if (targetId === myId && err instanceof ApiError
+          && err.status === 401 && err.title === "Auth.CredentialsSuperseded") {
+          return;
+        } else if (err instanceof ApiError && err.status === 409 && err.title === "Users.DuplicateEmail") {
           setEmailFieldError(i18n.t("users:duplicateEmailMessage"));
         } else if (err instanceof ApiError && err.title === "Users.LastOwner") {
           errors.report("change-email", i18n.t("users:lastOwnerEmailMessage"));
@@ -907,6 +910,7 @@ export function UsersPage() {
           <label>{t("loginEmailFieldLabel")}
             <input type="email" value={emailValue} required maxLength={256}
               autoComplete="off"
+              disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)}
               aria-invalid={emailFieldError !== null}
               aria-describedby={emailFieldError ? emailErrorId : emailHintId}
               onChange={(e) => {
@@ -922,6 +926,7 @@ export function UsersPage() {
           <label>{t("stepUpFieldLabel")}
             <input type="password" value={emailStepUpPassword} required maxLength={256}
               autoComplete="current-password"
+              disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)}
               onChange={(e) => setEmailStepUpPassword(e.target.value)} />
           </label>
           <DialogError errors={errors} scope="change-email" />
