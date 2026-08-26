@@ -761,10 +761,11 @@ export const setUserPassword = (
 // #355 — promote/demote an existing user's role. The server signs that user
 // out of every device.
 //
-// #308 — stepUpToken is required only when the REQUESTED role is Owner
-// ("Admin"); every other target role is unchanged. Server also refuses
-// self-targeting (400 Users.CannotChangeOwnRole) — surfaced as an ordinary
-// ApiError, not special-cased client-side.
+// #308/#360 — stepUpToken is required by the server UNCONDITIONALLY: every
+// role change mutates a durable authorization set, including no-ops and
+// apparent demotions. Server also refuses self-targeting (400
+// Users.CannotChangeOwnRole) — surfaced as an ordinary ApiError, not
+// special-cased client-side.
 export const changeUserRole = (
   id: string, body: { role: string }, key?: string, stepUpToken?: string,
 ) => apiPut<void>(

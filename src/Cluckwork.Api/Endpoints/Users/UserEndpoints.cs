@@ -54,9 +54,10 @@ public static class UserEndpoints
 
         // #103 — flock scoping for workers (spec §5.3). Owner-only like the
         // rest of the group.
-        // #355 — promote/demote an existing user. Owner-only like the whole
-        // group. Self-role-change is blocked before validation (see below);
-        // granting Owner requires step-up (#308), same gating as CreateUser.
+        // #355/#360 — promote/demote an existing user. Owner-only like the
+        // whole group. Self-role-change is blocked before validation (see
+        // below); EVERY role change requires a step-up grant (#308/#360), the
+        // same unconditional gating as CreateUser.
         group.MapPut("/{id:guid}/role", ChangeUserRole)
             // A single short role name (max "ReadOnly" = 8 chars) plus JSON
             // envelope overhead — two orders of magnitude smaller than
@@ -288,9 +289,11 @@ public static class UserEndpoints
 
         var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (result.IsSuccess) return Results.NoContent();
-        // #308 — a missing/invalid step-up grant, or a stale actor no longer
-        // Owner, is a 403 (authenticated, but lacking a required proof of
-        // current authorization) — distinct from the 404/409/422s below.
+        // #308/#360 — every role change requires a step-up grant regardless of
+        // the requested role, and the actor is re-checked inside the provider's
+        // locked transaction. A missing/invalid grant, or a stale actor no
+        // longer Owner, is a 403 (authenticated, but lacking a required proof
+        // of current authorization) — distinct from the 404/409/422s below.
         if (result.Error.Code is Cluckwork.Application.Common.StepUpErrorCodes.Required or "Auth.Forbidden")
             return Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code);
         if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))

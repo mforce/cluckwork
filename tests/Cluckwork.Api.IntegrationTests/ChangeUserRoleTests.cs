@@ -69,6 +69,13 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         return client.SendAsync(request);
     }
 
+    private static async Task<HttpResponseMessage> ChangeRoleWithStepUpAsync(
+        HttpClient client, Guid userId, string role, string? idempotencyKey = null)
+    {
+        var token = await StepUpAsync(client, TestHarness.Password);
+        return await ChangeRoleAsync(client, userId, role, token, idempotencyKey);
+    }
+
     // ---------- Ordinary promote/demote ----------
 
     [Fact]
@@ -77,7 +84,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         var (owner, accountId, _) = await OwnerAsync();
         var (email, id) = await SeedUserAsync(accountId, "Manager");
 
-        var response = await ChangeRoleAsync(owner, id, "ReadOnly");
+        var response = await ChangeRoleWithStepUpAsync(owner, id, "ReadOnly");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal("ReadOnly", (await FindUserAsync(owner, email)).Role);
@@ -89,7 +96,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         var (owner, accountId, _) = await OwnerAsync();
         var (email, id) = await SeedUserAsync(accountId, role: null);
 
-        var response = await ChangeRoleAsync(owner, id, "Manager");
+        var response = await ChangeRoleWithStepUpAsync(owner, id, "Manager");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal("Manager", (await FindUserAsync(owner, email)).Role);
@@ -101,7 +108,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         var (owner, accountId, _) = await OwnerAsync();
         var (email, id) = await SeedUserAsync(accountId, "Manager");
 
-        var response = await ChangeRoleAsync(owner, id, "Worker");
+        var response = await ChangeRoleWithStepUpAsync(owner, id, "Worker");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal("Worker", (await FindUserAsync(owner, email)).Role);
@@ -122,7 +129,8 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         Assert.Equal("Admin", (await FindUserAsync(owner, email)).Role);
     }
 
-    // ---------- Step-up gating (#308) — only when the REQUESTED role is Owner ----------
+    // ---------- Step-up gating (#308/#360) — every role change, including
+    // no-ops and apparent demotions, requires a fresh grant ----------
 
     [Fact]
     public async Task Promote_ToOwner_WithoutStepUp_Is403_AndLeavesTheRoleUnchanged()
@@ -150,12 +158,25 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task Demote_AnOwner_ToManager_NeedsNoStepUp()
+    public async Task Demote_AnOwner_ToManager_WithoutStepUp_Is403_AndLeavesTheRoleUnchanged()
     {
         var (owner, accountId, _) = await OwnerAsync();
         var (email, id) = await SeedUserAsync(accountId, "Admin");
 
         var response = await ChangeRoleAsync(owner, id, "Manager");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal("Admin", (await FindUserAsync(owner, email)).Role);
+    }
+
+    [Fact]
+    public async Task Demote_AnOwner_ToManager_WithStepUp_Succeeds()
+    {
+        var (owner, accountId, _) = await OwnerAsync();
+        var (email, id) = await SeedUserAsync(accountId, "Admin");
+        var token = await StepUpAsync(owner, TestHarness.Password);
+
+        var response = await ChangeRoleAsync(owner, id, "Manager", token);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal("Manager", (await FindUserAsync(owner, email)).Role);
@@ -183,7 +204,9 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
     {
         var (owner, _, _) = await OwnerAsync();
 
-        var response = await ChangeRoleAsync(owner, Guid.NewGuid(), "Manager");
+        // #360 — the 404 is reached only after proof validation, so the
+        // request carries a fresh grant.
+        var response = await ChangeRoleWithStepUpAsync(owner, Guid.NewGuid(), "Manager");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -197,7 +220,9 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         var (targetEmail, id) = await SeedUserAsync(foreignAccount, "Manager");
 
         var (owner, _, _) = await OwnerAsync();
-        var response = await ChangeRoleAsync(owner, id, "ReadOnly");
+        // #360 — the 404 is reached only after proof validation, so the
+        // request carries a fresh grant.
+        var response = await ChangeRoleWithStepUpAsync(owner, id, "ReadOnly");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Equal("Manager", (await FindUserAsync(foreignOwner, targetEmail)).Role);
@@ -226,7 +251,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         var (email, id) = await SeedUserAsync(accountId, "Manager");
         var target = await factory.LoginAsync(email); // a live session the no-op must not touch
 
-        var response = await ChangeRoleAsync(owner, id, "Manager");
+        var response = await ChangeRoleWithStepUpAsync(owner, id, "Manager");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(HttpStatusCode.OK,
@@ -242,7 +267,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         var (owner, accountId, _) = await OwnerAsync();
         var (email, id) = await SeedUserAsync(accountId, role: null);
 
-        var response = await ChangeRoleAsync(owner, id, "Worker");
+        var response = await ChangeRoleWithStepUpAsync(owner, id, "Worker");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal("Worker", (await FindUserAsync(owner, email)).Role);
@@ -256,7 +281,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         var before = await factory.WithTenantScopeAsync(accountId,
             async db => await db.AuditEvents.CountAsync(e => e.EntityId == id));
 
-        var response = await ChangeRoleAsync(owner, id, "Manager");
+        var response = await ChangeRoleWithStepUpAsync(owner, id, "Manager");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(before, await factory.WithTenantScopeAsync(accountId,
@@ -274,7 +299,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         var epochBefore = await factory.WithTenantScopeAsync(accountId, async db =>
             await db.Users.Where(u => u.Id == id).Select(u => u.CredentialEpoch).SingleAsync());
 
-        var response = await ChangeRoleAsync(owner, id, "ReadOnly");
+        var response = await ChangeRoleWithStepUpAsync(owner, id, "ReadOnly");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(epochBefore + 1, await factory.WithTenantScopeAsync(accountId, async db =>
@@ -290,7 +315,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         var (email, id) = await SeedUserAsync(accountId, "Manager");
         var target = await factory.LoginAsync(email);
 
-        var response = await ChangeRoleAsync(owner, id, "ReadOnly");
+        var response = await ChangeRoleWithStepUpAsync(owner, id, "ReadOnly");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         // Direct assertion, not the indirect "does the access token 401" proof
@@ -316,7 +341,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         // is reachable).
         await factory.AddRoleAsync(email, "Manager");
 
-        var response = await ChangeRoleAsync(owner, id, "ReadOnly");
+        var response = await ChangeRoleWithStepUpAsync(owner, id, "ReadOnly");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal("ReadOnly", (await FindUserAsync(owner, email)).Role);
@@ -343,9 +368,9 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         // step-up gate is concerned (a pure function of the REQUESTED role,
         // decided before IdentityProvider ever sees that this is really a
         // cleanup) — the accepted friction from #355's design grill.
-        var token = await StepUpAsync(owner, TestHarness.Password);
+        // #360 — the helper below mints a fresh grant for this change.
 
-        var response = await ChangeRoleAsync(owner, id, "Admin", token);
+        var response = await ChangeRoleWithStepUpAsync(owner, id, "Admin");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(epochBefore + 1, await factory.WithTenantScopeAsync(accountId, async db =>
@@ -366,7 +391,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         var (owner, accountId, ownerEmail) = await OwnerAsync();
         var (_, id) = await SeedUserAsync(accountId, "Manager");
 
-        var response = await ChangeRoleAsync(owner, id, "ReadOnly");
+        var response = await ChangeRoleWithStepUpAsync(owner, id, "ReadOnly");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var audit = await factory.WithTenantScopeAsync(accountId, async db =>
@@ -414,7 +439,7 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         var targetClient = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(targetEmail));
         var targetGrant = await StepUpAsync(targetClient, TestHarness.Password);
 
-        var response = await ChangeRoleAsync(owner, targetId, "Sales");
+        var response = await ChangeRoleWithStepUpAsync(owner, targetId, "Sales");
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
         using var scope = factory.Services.CreateScope();
