@@ -576,11 +576,28 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
     });
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
+      .getByRole("button", { name: "password" }));
+    const reopenedPassword = `Aa1!${crypto.randomUUID()}`;
+    const reopenedProof = crypto.randomUUID();
+    fireEvent.change(within(dialog()).getByLabelText(/New password/), {
+      target: { value: reopenedPassword },
+    });
+    fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), {
+      target: { value: reopenedPassword },
+    });
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
+      target: { value: reopenedProof },
+    });
     await act(async () => {
       grant.resolve({ token: "late-grant", expiresAt: "2026-01-01T00:05:00Z" });
     });
 
     expect(mockSetUserPassword).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: /Set password — worker@farm\.test/ })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText(/New password/)).toHaveValue(reopenedPassword);
+    expect(within(dialog()).getByLabelText(/Confirm new password/)).toHaveValue(reopenedPassword);
+    expect(within(dialog()).getByLabelText(/Your current password/)).toHaveValue(reopenedProof);
   });
 
   it("does not let a dismissed role-change continuation write", async () => {
@@ -600,11 +617,21 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
     });
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
+      .getByRole("button", { name: "role" }));
+    const reopenedProof = crypto.randomUUID();
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "ReadOnly" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
+      target: { value: reopenedProof },
+    });
     await act(async () => {
       grant.resolve({ token: "late-grant", expiresAt: "2026-01-01T00:05:00Z" });
     });
 
     expect(mockChangeUserRole).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: /Change role — worker@farm\.test/ })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Role")).toHaveValue("ReadOnly");
+    expect(within(dialog()).getByLabelText(/Your current password/)).toHaveValue(reopenedProof);
   });
 
   it("keeps a reopened create dialog unchanged when its prior write later succeeds", async () => {
