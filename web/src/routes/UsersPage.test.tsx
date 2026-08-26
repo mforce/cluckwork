@@ -606,6 +606,145 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
 
     expect(mockChangeUserRole).not.toHaveBeenCalled();
   });
+
+  it("keeps a reopened create dialog unchanged when its prior write later succeeds", async () => {
+    const write = deferred<{ id: string }>();
+    mockCreateUser.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), {
+      target: { value: "pending-create@farm.test" },
+    });
+    fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0], {
+      target: { value: `pw-${crypto.randomUUID()}` },
+    });
+    fireEvent.change(within(dialog()).getByLabelText("Name"), {
+      target: { value: "Pending Create" },
+    });
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Manager" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" }));
+    });
+    expect(mockCreateUser).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    openCreate();
+    const reopenedPassword = `pw-${crypto.randomUUID()}`;
+    const reopenedProof = crypto.randomUUID();
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), {
+      target: { value: "reopened-create@farm.test" },
+    });
+    fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0], {
+      target: { value: reopenedPassword },
+    });
+    fireEvent.change(within(dialog()).getByLabelText("Name"), {
+      target: { value: "Reopened Create" },
+    });
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "ReadOnly" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
+      target: { value: reopenedProof },
+    });
+
+    await act(async () => { write.resolve({ id: "u-new" }); });
+
+    expect(mockListUsers).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("dialog", { name: "New user" })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Email *")).toHaveValue("reopened-create@farm.test");
+    expect(within(dialog()).getAllByLabelText(/Password/)[0]).toHaveValue(reopenedPassword);
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Reopened Create");
+    expect(within(dialog()).getByLabelText("Role")).toHaveValue("ReadOnly");
+    expect(within(dialog()).getByLabelText(/Your current password/)).toHaveValue(reopenedProof);
+    expect(screen.queryByText("Manager account created for pending-create@farm.test.")).not.toBeInTheDocument();
+  });
+
+  it("keeps a reopened password dialog unchanged when its prior write later succeeds", async () => {
+    const write = deferred<void>();
+    mockSetUserPassword.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+
+    const openPassword = () => fireEvent.click(
+      within(screen.getByRole("row", { name: /worker@farm.test/ }))
+        .getByRole("button", { name: "password" }),
+    );
+    openPassword();
+    const pendingPassword = `Aa1!${crypto.randomUUID()}`;
+    fireEvent.change(within(dialog()).getByLabelText(/New password/), {
+      target: { value: pendingPassword },
+    });
+    fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), {
+      target: { value: pendingPassword },
+    });
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" }));
+    });
+    expect(mockSetUserPassword).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    openPassword();
+    const reopenedPassword = `Aa1!${crypto.randomUUID()}`;
+    const reopenedProof = crypto.randomUUID();
+    fireEvent.change(within(dialog()).getByLabelText(/New password/), {
+      target: { value: reopenedPassword },
+    });
+    fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), {
+      target: { value: reopenedPassword },
+    });
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
+      target: { value: reopenedProof },
+    });
+
+    await act(async () => { write.resolve(); });
+
+    expect(screen.getByRole("dialog", { name: /Set password — worker@farm\.test/ })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText(/New password/)).toHaveValue(reopenedPassword);
+    expect(within(dialog()).getByLabelText(/Confirm new password/)).toHaveValue(reopenedPassword);
+    expect(within(dialog()).getByLabelText(/Your current password/)).toHaveValue(reopenedProof);
+    expect(screen.queryByText("Password set for worker@farm.test. They have been signed out everywhere."))
+      .not.toBeInTheDocument();
+  });
+
+  it("keeps a reopened role dialog unchanged when its prior write later succeeds", async () => {
+    const write = deferred<void>();
+    mockChangeUserRole.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+
+    const openRole = () => fireEvent.click(
+      within(screen.getByRole("row", { name: /worker@farm.test/ }))
+        .getByRole("button", { name: "role" }),
+    );
+    openRole();
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Manager" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
+    });
+    expect(mockChangeUserRole).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    openRole();
+    const reopenedProof = crypto.randomUUID();
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "ReadOnly" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
+      target: { value: reopenedProof },
+    });
+
+    await act(async () => { write.resolve(); });
+
+    expect(mockListUsers).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("dialog", { name: /Change role — worker@farm\.test/ })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Role")).toHaveValue("ReadOnly");
+    expect(within(dialog()).getByLabelText(/Your current password/)).toHaveValue(reopenedProof);
+    expect(screen.queryByText("worker@farm.test is now Manager.")).not.toBeInTheDocument();
+  });
 });
 
 describe("UsersPage change email (#357)", () => {
