@@ -52,6 +52,8 @@ export function UsersPage() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Worker");
   const [name, setName] = useState(""); // #163 optional display name at creation
+  const createDialogGeneration = useRef(0);
+  const activeCreate = useRef<{ generation: number } | null>(null);
 
   // #308/#360 — the caller's OWN current password. All three local password
   // states serve every create/reset/role operation. Each is transient: read
@@ -99,14 +101,16 @@ export function UsersPage() {
   const [pwUser, setPwUser] = useState<User | null>(null);
   const [pwValue, setPwValue] = useState("");
   const [pwConfirm, setPwConfirm] = useState("");
-  const activePw = useRef<string | null>(null);
+  const pwDialogGeneration = useRef(0);
+  const activePw = useRef<{ targetId: string; generation: number } | null>(null);
 
   // #355 — promote/demote an existing user's role, own dialog for the same
   // reason as password reset above: a higher-consequence action than a name
   // edit, not one stray keystroke away from a typo.
   const [roleUser, setRoleUser] = useState<User | null>(null);
   const [roleValue, setRoleValue] = useState("Worker");
-  const activeRole = useRef<string | null>(null);
+  const roleDialogGeneration = useRef(0);
+  const activeRole = useRef<{ targetId: string; generation: number } | null>(null);
 
   const [emailUser, setEmailUser] = useState<User | null>(null);
   const [emailValue, setEmailValue] = useState("");
@@ -275,6 +279,9 @@ export function UsersPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
+    const dialog = activeCreate.current;
+    if (dialog === null) return;
+    const isCurrentDialog = () => activeCreate.current?.generation === dialog.generation;
     await run("create", async () => {
       errors.beginAttempt("create");
       setMessage(null);
@@ -285,6 +292,7 @@ export function UsersPage() {
         const enteredPassword = createStepUpPassword;
         setCreateStepUpPassword("");
         const stepUpToken = (await stepUp(enteredPassword)).token;
+        if (!isCurrentDialog()) return;
 
         const scope = `create:${email.trim().toLowerCase()}`;
         await createUser(
@@ -295,6 +303,7 @@ export function UsersPage() {
         // this cached response if the refresh below fails (#163 review).
         clearKey(scope);
         setUsers(await listUsers());
+        if (!isCurrentDialog()) return;
         setMessage(i18n.t("users:createSuccessMessage", { role: roleLabel(role), email: email.trim() }));
         // #336 review — close through closeCreate() rather than repeating the
         // field resets here. The duplicated list had already drifted: it never
@@ -304,9 +313,15 @@ export function UsersPage() {
         // place, not two — the #314 lesson, relearned.
         closeCreate();
       } catch (err) {
-        errors.report("create", errText(err));
+        if (isCurrentDialog()) errors.report("create", errText(err));
       }
     });
+  }
+
+  function openCreate() {
+    setMessage(null);
+    activeCreate.current = { generation: ++createDialogGeneration.current };
+    setCreating(true);
   }
 
   // #314 — close the create dialog from any path (Cancel, X, Escape, overlay).
@@ -316,6 +331,7 @@ export function UsersPage() {
   // selected on reopen, so an operator who thinks they're starting fresh can
   // grant admin by accident. Matches the full reset onCreate does on success.
   function closeCreate() {
+    activeCreate.current = null;
     setCreating(false);
     setEmail("");
     setPassword("");
@@ -353,7 +369,10 @@ export function UsersPage() {
     setPwValue("");
     setPwConfirm("");
     setPwStepUpPassword("");
-    activePw.current = u.id;
+    activePw.current = {
+      targetId: u.id,
+      generation: ++pwDialogGeneration.current,
+    };
     setPwUser(u);
   }
 
@@ -371,9 +390,11 @@ export function UsersPage() {
   async function onSetPassword(e: FormEvent) {
     e.preventDefault();
     const target = pwUser;
+    const dialog = activePw.current;
     // The mismatch check stays OUTSIDE the flight (it is validation, not
     // work), so it keeps the old busy guard alongside the hook's.
-    if (!target || busy) return;
+    if (!target || busy || dialog === null || dialog.targetId !== target.id) return;
+    const isCurrentDialog = () => activePw.current?.generation === dialog.generation;
     // Before the validation below, not only inside run(): a mismatch never
     // reaches run(), so without this the slot would still hold the previous
     // attempt's verdict — and a mute left by a dismissal would swallow this.
@@ -391,14 +412,15 @@ export function UsersPage() {
         const enteredPassword = pwStepUpPassword;
         setPwStepUpPassword("");
         const stepUpToken = (await stepUp(enteredPassword)).token;
+        if (!isCurrentDialog()) return;
 
         await setUserPassword(target.id, { newPassword: pwValue }, keyFor(keyScope), stepUpToken);
         clearKey(keyScope); // write confirmed before any refresh (#163 review)
-        if (activePw.current !== target.id) return; // dialog moved on
+        if (!isCurrentDialog()) return;
         setMessage(i18n.t("users:passwordSetMessage", { email: target.email }));
         closePassword();
       } catch (err) {
-        if (activePw.current === target.id) errors.report("set-password", errText(err));
+        if (isCurrentDialog()) errors.report("set-password", errText(err));
       }
     });
   }
@@ -409,7 +431,10 @@ export function UsersPage() {
     setMessage(null);
     setRoleValue(u.role);
     setRoleStepUpPassword("");
-    activeRole.current = u.id;
+    activeRole.current = {
+      targetId: u.id,
+      generation: ++roleDialogGeneration.current,
+    };
     setRoleUser(u);
   }
 
@@ -423,7 +448,9 @@ export function UsersPage() {
   async function onChangeRole(e: FormEvent) {
     e.preventDefault();
     const target = roleUser;
-    if (!target || busy) return;
+    const dialog = activeRole.current;
+    if (!target || busy || dialog === null || dialog.targetId !== target.id) return;
+    const isCurrentDialog = () => activeRole.current?.generation === dialog.generation;
     errors.beginAttempt("change-role");
     setMessage(null);
     const keyScope = `role:${target.id}`;
@@ -434,15 +461,16 @@ export function UsersPage() {
         const enteredPassword = roleStepUpPassword;
         setRoleStepUpPassword("");
         const stepUpToken = (await stepUp(enteredPassword)).token;
+        if (!isCurrentDialog()) return;
 
         await changeUserRole(target.id, { role: roleValue }, keyFor(keyScope), stepUpToken);
         clearKey(keyScope); // write confirmed before any refresh (#163 review)
         setUsers(await listUsers());
-        if (activeRole.current !== target.id) return; // dialog moved on
+        if (!isCurrentDialog()) return;
         setMessage(i18n.t("users:roleChangedMessage", { email: target.email, role: roleLabel(roleValue) }));
         closeRole();
       } catch (err) {
-        if (activeRole.current === target.id) errors.report("change-role", errText(err));
+        if (isCurrentDialog()) errors.report("change-role", errText(err));
       }
     });
   }
@@ -632,7 +660,7 @@ export function UsersPage() {
     <section>
       <div className="page-head">
         <h2>{t("heading")}</h2>
-        <button type="button" onClick={() => { setMessage(null); setCreating(true); }}>
+        <button type="button" onClick={openCreate}>
           <Plus size={16} aria-hidden /> {t("newUserButton")}
         </button>
       </div>

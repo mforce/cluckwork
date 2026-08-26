@@ -508,6 +508,106 @@ describe("UsersPage change role (#355)", () => {
   });
 });
 
+describe("UsersPage dismissed step-up continuations (#360)", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((ok) => { resolve = ok; });
+    return { promise, resolve };
+  }
+
+  it("does not let a dismissed create continuation write or clear a reopened form", async () => {
+    const grant = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(grant.promise);
+    mockCreateUser.mockResolvedValue({ id: "u-new" });
+    await renderReady(ADMIN);
+
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), {
+      target: { value: "dismissed@farm.test" },
+    });
+    fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0], {
+      target: { value: `pw-${crypto.randomUUID()}` },
+    });
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" }));
+    });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), {
+      target: { value: "current@farm.test" },
+    });
+    fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0], {
+      target: { value: "current form value" },
+    });
+
+    await act(async () => {
+      grant.resolve({ token: "late-grant", expiresAt: "2026-01-01T00:05:00Z" });
+    });
+
+    expect(mockCreateUser).not.toHaveBeenCalled();
+    expect(within(dialog()).getByLabelText("Email *")).toHaveValue("current@farm.test");
+    expect(within(dialog()).getAllByLabelText(/Password/)[0]).toHaveValue("current form value");
+  });
+
+  it("does not let a dismissed password-reset continuation write", async () => {
+    const grant = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(grant.promise);
+    mockSetUserPassword.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
+      .getByRole("button", { name: "password" }));
+    const newPassword = `Aa1!${crypto.randomUUID()}`;
+    fireEvent.change(within(dialog()).getByLabelText(/New password/), {
+      target: { value: newPassword },
+    });
+    fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), {
+      target: { value: newPassword },
+    });
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" }));
+    });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => {
+      grant.resolve({ token: "late-grant", expiresAt: "2026-01-01T00:05:00Z" });
+    });
+
+    expect(mockSetUserPassword).not.toHaveBeenCalled();
+  });
+
+  it("does not let a dismissed role-change continuation write", async () => {
+    const grant = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(grant.promise);
+    mockChangeUserRole.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
+      .getByRole("button", { name: "role" }));
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Manager" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
+      target: { value: OWNER_STEP_UP_PASSWORD },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
+    });
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => {
+      grant.resolve({ token: "late-grant", expiresAt: "2026-01-01T00:05:00Z" });
+    });
+
+    expect(mockChangeUserRole).not.toHaveBeenCalled();
+  });
+});
+
 describe("UsersPage change email (#357)", () => {
   const openEmail = (rowName: RegExp) =>
     fireEvent.click(within(screen.getByRole("row", { name: rowName }))
