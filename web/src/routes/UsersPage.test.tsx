@@ -11,7 +11,7 @@ import { FarmContext } from "../farm/FarmContext";
 import { MeContext } from "../session/SessionContext";
 import type { Me } from "../api/cluckwork";
 import {
-  assignFlock, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments, listFlocks,
+  assignFlock, changeUserEmail, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments, listFlocks,
   listUsers, setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
@@ -33,6 +33,7 @@ vi.mock("../api/cluckwork", () => ({
   updateUser: vi.fn(),
   setUserPassword: vi.fn(),
   changeUserRole: vi.fn(),
+  changeUserEmail: vi.fn(),
   disableUser: vi.fn(),
   enableUser: vi.fn(),
   listFlockAssignments: vi.fn(),
@@ -54,6 +55,7 @@ const mockCreateUser = vi.mocked(createUser);
 const mockUpdateUser = vi.mocked(updateUser);
 const mockSetUserPassword = vi.mocked(setUserPassword);
 const mockChangeUserRole = vi.mocked(changeUserRole);
+const mockChangeUserEmail = vi.mocked(changeUserEmail);
 const mockDisableUser = vi.mocked(disableUser);
 const mockEnableUser = vi.mocked(enableUser);
 const mockListAssignments = vi.mocked(listFlockAssignments);
@@ -446,6 +448,136 @@ describe("UsersPage change role (#355)", () => {
     openRole(/boss@farm.test/);
     fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Admin" } });
     expect(within(dialog()).getByLabelText(/Your current password/)).toHaveValue("");
+  });
+});
+
+describe("UsersPage change email (#357)", () => {
+  const openEmail = (rowName: RegExp) =>
+    fireEvent.click(within(screen.getByRole("row", { name: rowName }))
+      .getByRole("button", { name: /change email/i }));
+  const emailInput = () => within(dialog()).getByLabelText("Login email");
+  const passwordInput = () => within(dialog()).getByLabelText(/Your current password/);
+  const submit = () => within(dialog()).getByRole("button", { name: "Change email" });
+
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((ok, fail) => { resolve = ok; reject = fail; });
+    return { promise, resolve, reject };
+  }
+
+  it("opens a dedicated Change email dialog for the selected row", async () => {
+    await renderReady(ADMIN);
+
+    openEmail(/worker@farm.test/);
+
+    expect(screen.getByRole("dialog", { name: /Change email — worker@farm\.test/ })).toBeInTheDocument();
+    expect(emailInput()).toHaveValue("worker@farm.test");
+    expect(passwordInput()).toHaveAttribute("autocomplete", "current-password");
+  });
+
+  it("requires step-up, clears the password, and sends trimmed email with one idempotency key", async () => {
+    const grant = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(grant.promise);
+    mockChangeUserEmail.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+    openEmail(/worker@farm.test/);
+    fireEvent.change(emailInput(), { target: { value: "  corrected@farm.test  " } });
+    fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
+
+    await act(async () => { fireEvent.click(submit()); });
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(passwordInput()).toHaveValue("");
+
+    await act(async () => grant.resolve({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" }));
+    expect(mockChangeUserEmail).toHaveBeenCalledWith(
+      "u-w", { email: "corrected@farm.test" }, expect.any(String), "email-grant");
+    expect(mockChangeUserEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders Users.DuplicateEmail beside the email input with aria-invalid", async () => {
+    mockStepUp.mockResolvedValue({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" });
+    mockChangeUserEmail.mockRejectedValue(
+      new ApiError(409, "Users.DuplicateEmail", "A user with this email already exists."));
+    await renderReady(ADMIN);
+    openEmail(/worker@farm.test/);
+    fireEvent.change(emailInput(), { target: { value: "taken@farm.test" } });
+    fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
+
+    await act(async () => { fireEvent.click(submit()); });
+
+    const fieldError = within(dialog()).getByText("A user with this email already exists.");
+    expect(fieldError).toHaveAttribute("role", "alert");
+    expect(emailInput()).toHaveAttribute("aria-invalid", "true");
+    expect(emailInput()).toHaveAttribute("aria-describedby", fieldError.id);
+    expect(within(dialog()).getAllByRole("alert")).toEqual([fieldError]);
+  });
+
+  it("clears the field error on edit, close, and target change", async () => {
+    mockStepUp.mockResolvedValue({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" });
+    mockChangeUserEmail.mockRejectedValue(
+      new ApiError(409, "Users.DuplicateEmail", "A user with this email already exists."));
+    await renderReady(ADMIN);
+    openEmail(/worker@farm.test/);
+    fireEvent.change(emailInput(), { target: { value: "taken@farm.test" } });
+    fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
+    await act(async () => { fireEvent.click(submit()); });
+    expect(emailInput()).toHaveAttribute("aria-invalid", "true");
+
+    fireEvent.change(emailInput(), { target: { value: "fixed@farm.test" } });
+    expect(emailInput()).toHaveAttribute("aria-invalid", "false");
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    openEmail(/worker@farm.test/);
+    expect(emailInput()).toHaveAttribute("aria-invalid", "false");
+    openEmail(/boss@farm.test/);
+    expect(emailInput()).toHaveValue("boss@farm.test");
+    expect(emailInput()).toHaveAttribute("aria-invalid", "false");
+  });
+
+  it("does not attach a late duplicate response to a reopened dialog", async () => {
+    const late = deferred<void>();
+    mockStepUp.mockResolvedValue({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" });
+    mockChangeUserEmail.mockReturnValue(late.promise);
+    await renderReady(ADMIN);
+    openEmail(/worker@farm.test/);
+    fireEvent.change(emailInput(), { target: { value: "taken@farm.test" } });
+    fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
+    await act(async () => { fireEvent.click(submit()); });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    openEmail(/boss@farm.test/);
+
+    await act(async () => late.reject(
+      new ApiError(409, "Users.DuplicateEmail", "A user with this email already exists.")));
+
+    expect(emailInput()).toHaveValue("boss@farm.test");
+    expect(emailInput()).toHaveAttribute("aria-invalid", "false");
+    expect(within(dialog()).queryByText("A user with this email already exists.")).not.toBeInTheDocument();
+  });
+
+  it("a successful non-self change refreshes the row and reports the new email", async () => {
+    mockStepUp.mockResolvedValue({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" });
+    mockChangeUserEmail.mockResolvedValue(undefined);
+    mockListUsers
+      .mockResolvedValueOnce([WORKER_USER, ADMIN_USER])
+      .mockResolvedValueOnce([{ ...WORKER_USER, email: "corrected@farm.test" }, ADMIN_USER]);
+    await renderReady(ADMIN);
+    openEmail(/worker@farm.test/);
+    fireEvent.change(emailInput(), { target: { value: "corrected@farm.test" } });
+    fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
+
+    await act(async () => { fireEvent.click(submit()); });
+
+    expect(await screen.findByText("corrected@farm.test")).toBeInTheDocument();
+    expect(screen.getByText(/Login email changed to corrected@farm\.test/)).toBeInTheDocument();
+    expect(mockListUsers).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not claim that a confirmation email will be sent", async () => {
+    await renderReady(ADMIN);
+    openEmail(/worker@farm.test/);
+
+    expect(within(dialog()).getByText(/no confirmation email is sent/i)).toBeInTheDocument();
+    expect(within(dialog()).queryByText(/confirmation email will be sent/i)).not.toBeInTheDocument();
   });
 });
 

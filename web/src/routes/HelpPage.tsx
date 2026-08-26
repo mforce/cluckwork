@@ -173,6 +173,9 @@ export function HelpPage() {
           {/* #356 — disable/re-enable a colleague's sign-in. */}
           <Trans ns="help" i18nKey="rolesDisableUser" components={{ strong: <strong /> }} />
         </li>
+        <li>
+          <Trans ns="help" i18nKey="rolesChangeEmail" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <p>
@@ -548,6 +551,8 @@ export function HelpPage() {
           {/* #532 — the login screen now asks for it before the email. */}
           <tr><th scope="row">{t("glossaryFarmCodeTerm")}</th>
             <td><Trans ns="help" i18nKey="glossaryFarmCodeDef" components={{ strong: <strong /> }} /></td></tr>
+          <tr><th scope="row">{t("glossaryLoginEmailTerm")}</th>
+            <td>{t("glossaryLoginEmailDef")}</td></tr>
           <tr><th scope="row">{t("glossaryFarmProvisioningTerm")}</th>
             <td>{t("glossaryFarmProvisioningDef")}</td></tr>
           <tr><th scope="row">{t("glossaryTooManySignInAttemptsTerm")}</th>

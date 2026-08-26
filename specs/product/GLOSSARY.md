@@ -623,6 +623,12 @@ Accepted disclosure: on a shared device the cached list is a durable roster of
 which farms that browser profile uses — now revocable entry by entry, tracked
 in #587, with the ADR revision owned by #537.
 
+**Login email (#357)** — the address used with a farm code to sign in. An Owner
+can replace it immediately from the Users screen; the new address becomes the
+next login, the old address stops working, the user's open sessions end, and no
+confirmation email is sent. Changing an Owner's own address is allowed only
+while another active Owner remains on the farm.
+
 **Farm provisioning (#533)** — the offline `provision-account` operator command
 creates a new account, its ten canonical egg grades, its six packed-unit
 conversions, and its first Owner as one transaction. The Owner receives a

@@ -1144,6 +1144,7 @@ export const es = {
     stepUpCreateHint: "Crear otro propietario requiere volver a ingresar tu contraseña actual.",
     stepUpResetHint: "Restablecer la contraseña de un propietario requiere volver a ingresar tu contraseña actual.",
     stepUpRoleHint: "Ascender a alguien a propietario requiere volver a ingresar tu contraseña actual.",
+    stepUpEmailHint: "Cambiar un correo de inicio de sesión requiere volver a ingresar tu contraseña actual.",
     // #356 — re-confirmación incondicional (machine-drafted, pending native review)
     stepUpDisableHint: "Deshabilitar a un usuario requiere volver a ingresar tu contraseña actual.",
     stepUpEnableHint: "Volver a habilitar a un usuario requiere volver a ingresar tu contraseña actual.",
@@ -1157,6 +1158,8 @@ export const es = {
     resetPasswordButton: "contraseña",
     changeRoleButton: "rol",
     changeRoleSubmitButton: "Cambiar rol",
+    changeEmailButton: "cambiar correo",
+    changeEmailSubmitButton: "Cambiar correo",
     flocksButton: "lotes",
     disabledBadge: "Deshabilitado",
     disableButton: "deshabilitar",
@@ -1193,6 +1196,14 @@ export const es = {
       + "dispositivos. No se puede degradar al último propietario de la "
       + "cuenta, y no puedes cambiar tu propio rol — pide a otro propietario.",
 
+    changeEmailTitle: "Cambiar correo — {{email}}",
+    changeEmailHint:
+      "Esta dirección se convierte de inmediato en el próximo inicio de sesión del usuario y sus sesiones abiertas terminan. "
+      + "No se envía ningún correo de confirmación.",
+    loginEmailFieldLabel: "Correo de inicio de sesión",
+    duplicateEmailMessage: "Ya existe un usuario con este correo electrónico.",
+    lastOwnerEmailMessage: "Agregue un segundo propietario antes de cambiar su propio correo de inicio de sesión.",
+
     // #356 — el diálogo único de deshabilitar/habilitar (machine-drafted,
     // pending native review): el diálogo mismo ES la confirmación.
     disableStepUpTitle: "Deshabilitar — {{email}}",
@@ -1210,6 +1221,7 @@ export const es = {
     passwordSetMessage: "Contraseña establecida para {{email}}. Se cerró la sesión en todos los dispositivos.",
     updatedMessage: "Se actualizó {{email}}.",
     roleChangedMessage: "{{email}} ahora es {{role}}.",
+    emailChangedMessage: "El correo de inicio de sesión cambió a {{email}}.",
     userDisabledMessage: "{{email}} ha sido deshabilitado.",
     userEnabledMessage: "{{email}} ha sido vuelto a habilitar.",
   },
@@ -1794,9 +1806,9 @@ export const es = {
     // #308 (machine-drafted, pending native review)
     // #308/#356 (machine-drafted, pending native review)
     signingInStepUp:
-      "Cinco acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
+      "Seis acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
       + "actual</strong> directamente en el diálogo: crear otro propietario, restablecer la contraseña de un "
-      + "propietario existente, ascender a alguien a propietario, y — sin importar el rol del destinatario — "
+      + "propietario existente, ascender a alguien a propietario, cambiar un correo de inicio de sesión y — sin importar el rol del destinatario — "
       + "deshabilitar o volver a habilitar un usuario. Esto confirma que realmente es usted antes de otorgar "
       + "tanto acceso o de retirárselo a otra persona — ninguna otra acción en esa pantalla (crear un usuario "
       + "Worker/Manager/Sales/Read-only, restablecer su contraseña, cambiar el rol de alguien a algo distinto "
@@ -1862,6 +1874,11 @@ export const es = {
       + "su capacidad de iniciar sesión, pero nunca revive las sesiones que terminó la deshabilitación — "
       + "inician sesión de nuevo con su contraseña actual. No puede deshabilitar su propio inicio de sesión, "
       + "ni puede deshabilitar al último Administrador (propietario) de la cuenta.",
+    rolesChangeEmail:
+      "Los propietarios pueden reemplazar de inmediato el <strong>correo de inicio de sesión</strong> de un "
+      + "usuario desde la pantalla Usuarios. La nueva dirección se usa en el siguiente inicio de sesión, todas "
+      + "las sesiones abiertas terminan y no se envía ningún correo de confirmación. Para cambiar su propia "
+      + "dirección debe haber otro propietario activo.",
     ownPassword:
       "<strong>Su propia contraseña.</strong> Cualquiera, en cualquier rol, puede cambiar su propia "
       + "contraseña en la pantalla <strong>Cuenta</strong> ingresando la actual y una nueva (al menos 12 "
@@ -2467,6 +2484,12 @@ export const es = {
       + "preferencia. Un enlace como /login?farm=<code> se impone y rellena el código por "
       + "usted, sin mostrar la lista. Si no sabe el código de su granja, pregunte a su "
       + "administrador: puede consultarlo.",
+
+    glossaryLoginEmailTerm: "Correo de inicio de sesión",
+    glossaryLoginEmailDef:
+      "La dirección que se usa con un código de granja para iniciar sesión. Un propietario puede reemplazarla "
+      + "de inmediato en la pantalla Usuarios; la dirección anterior deja de funcionar, terminan las sesiones "
+      + "abiertas y no se envía ningún correo de confirmación.",
 
     // #533 (machine-drafted, pending native review)
     glossaryFarmProvisioningTerm: "Aprovisionamiento de granja",
