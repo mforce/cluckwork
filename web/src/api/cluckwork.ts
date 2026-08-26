@@ -769,6 +769,13 @@ export const changeUserRole = (
 ) => apiPut<void>(
   `/users/${id}/role`, body, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
 
+export const changeUserEmail = (
+  id: string, body: { email: string }, key?: string, stepUpToken?: string,
+) => apiPut<void>(
+  `/users/${id}/email`, body, key,
+  stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined,
+);
+
 // #356 — disable a user: revokes every session and refuses further sign-in.
 // Unlike setUserPassword/changeUserRole, whose step-up is gated only when the
 // TARGET holds Owner, stepUpToken is required UNCONDITIONALLY here — a disable

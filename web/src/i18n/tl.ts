@@ -1186,6 +1186,7 @@ export const tl = {
     stepUpCreateHint: "Ang paggawa ng isa pang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpResetHint: "Ang pag-reset ng password ng isang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpRoleHint: "Ang pag-promote ng isang tao bilang Owner ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpEmailHint: "Ang pagpapalit ng email sa pag-sign in ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     // #356 — walang kondisyong muling pagkumpirma (machine-drafted, pending native review)
     stepUpDisableHint: "Ang pag-disable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpEnableHint: "Ang muling pag-enable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
@@ -1199,6 +1200,8 @@ export const tl = {
     resetPasswordButton: "password",
     changeRoleButton: "tungkulin",
     changeRoleSubmitButton: "Palitan ang tungkulin",
+    changeEmailButton: "palitan ang email",
+    changeEmailSubmitButton: "Palitan ang email",
     flocksButton: "mga kawan",
     disabledBadge: "Naka-disable",
     disableButton: "i-disable",
@@ -1237,6 +1240,14 @@ export const tl = {
       + "Owner ng account, at hindi mo mapapalitan ang sarili mong "
       + "tungkulin — humingi ng tulong sa ibang Owner.",
 
+    changeEmailTitle: "Palitan ang email — {{email}}",
+    changeEmailHint:
+      "Ang address na ito agad ang gagamitin ng user sa susunod na pag-sign in at matatapos ang mga bukas nilang session. "
+      + "Walang ipinapadalang confirmation email.",
+    loginEmailFieldLabel: "Email sa pag-sign in",
+    duplicateEmailMessage: "May user nang gumagamit ng email na ito.",
+    lastOwnerEmailMessage: "Magdagdag muna ng pangalawang Owner bago palitan ang sarili mong email sa pag-sign in.",
+
     // #356 — ang iisang disable/enable dialog (machine-drafted, pending
     // native review): ang dialog mismo ANG kumpirmasyon.
     disableStepUpTitle: "I-disable — {{email}}",
@@ -1254,6 +1265,7 @@ export const tl = {
     passwordSetMessage: "Naitakda ang password para sa {{email}}. Na-sign out na sila sa lahat ng lugar.",
     updatedMessage: "Na-update ang {{email}}.",
     roleChangedMessage: "Si {{email}} ay {{role}} na ngayon.",
+    emailChangedMessage: "Napalitan ang email sa pag-sign in at naging {{email}}.",
     userDisabledMessage: "Na-disable si {{email}}.",
     userEnabledMessage: "Na-enable ulit si {{email}}.",
   },
@@ -1699,6 +1711,7 @@ export const tl = {
     "auditAction.User.PasswordChanged": "Napalitan ang password",
     "auditAction.User.BreakGlassReset": "Emergency na pag-reset ng password",
     "auditAction.User.RoleChanged": "Binago ang tungkulin",
+    "auditAction.User.EmailChanged": "Binago ang email sa pag-sign in",
     "auditAction.User.Disabled": "Na-disable ang user",
     "auditAction.User.Enabled": "Na-enable ang user",
     "auditAction.User.FlockAssign": "Na-assign ang kawan sa user",
@@ -1862,9 +1875,9 @@ export const tl = {
     // #308 (machine-drafted, pending native review)
     // #308/#356 (machine-drafted, pending native review)
     signingInStepUp:
-      "May limang aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
+      "May anim na aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
       + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng isa pang Owner, ang pag-reset "
-      + "ng password ng isang umiiral na Owner, ang pag-promote ng isang tao maging Owner, at — anuman ang "
+      + "ng password ng isang umiiral na Owner, ang pag-promote ng isang tao maging Owner, ang pagpapalit ng email sa pag-sign in, at — anuman ang "
       + "tungkulin ng target — ang pag-disable o muling pag-enable ng isang user. Kinukumpirma nito na ikaw "
       + "talaga bago bigyan ng ganoong kalaking access o bago alisin ito sa iba — walang ibang aksyon sa "
       + "screen na iyon (paggawa ng Worker/Manager/Sales/Read-only user, pag-reset ng password nila, "
@@ -1933,6 +1946,11 @@ export const tl = {
       + "in, pero hindi na buhayin pa ang mga session na natapos ng pag-disable — mag-si-sign in sila ulit "
       + "gamit ang kasalukuyan nilang password. Hindi mo puwedeng i-disable ang sarili mong sign-in, at "
       + "hindi mo puwedeng i-disable ang huling Admin (may-ari) ng account.",
+    rolesChangeEmail:
+      "Maaaring agad palitan ng mga Owner ang <strong>email sa pag-sign in</strong> ng isang user sa Users "
+      + "screen. Ang bagong address ang gagamitin sa susunod na pag-sign in, matatapos ang lahat ng bukas na "
+      + "session, at walang ipinapadalang confirmation email. Kailangan ng isa pang aktibong Owner para palitan "
+      + "ang sarili mong address.",
     ownPassword:
       "<strong>Ang sarili mong password.</strong> Kahit sino, sa kahit anong tungkulin, ay puwedeng "
       + "magpalit ng sariling password sa screen na <strong>Account</strong> sa pamamagitan ng pag-enter ng "
@@ -2558,6 +2576,12 @@ export const tl = {
       + "/login?farm=<code> ang mananaig at awtomatikong pinupuno ang code para sa iyo, nang "
       + "hindi ipinapakita ang listahan. Kung hindi mo alam ang code ng bukid mo, tanungin "
       + "ang iyong administrator: matitingnan nila ito.",
+
+    glossaryLoginEmailTerm: "Email sa pag-sign in",
+    glossaryLoginEmailDef:
+      "Ang address na ginagamit kasama ng code ng bukid para mag-sign in. Maaari itong palitan agad ng Owner "
+      + "sa Users screen; hindi na gagana ang lumang address, matatapos ang mga bukas na session, at walang "
+      + "ipinapadalang confirmation email.",
 
     // #533 (machine-drafted, pending native review)
     glossaryFarmProvisioningTerm: "Pag-provision ng bukid",

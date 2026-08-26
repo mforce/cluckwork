@@ -311,7 +311,7 @@ describe("HelpPage", () => {
     // would otherwise misstate disable/enable as ungated the moment this
     // feature shipped — this pins the corrected count and wording.
     render(<HelpPage />);
-    expect(screen.getByText(/Five actions on the/i)).toBeInTheDocument();
+    expect(screen.getByText(/Six actions on the/i)).toBeInTheDocument();
     expect(screen.getByText(/disabling or re-enabling a user/i)).toBeInTheDocument();
     expect(screen.queryByText(/Three actions on the/i)).not.toBeInTheDocument();
   });
@@ -609,5 +609,36 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     // acceptable input for a quantity.
     expect(screen.queryByText(/Prices and fractional amounts are still typed/i))
       .not.toBeInTheDocument();
+  });
+
+  it("documents login-email replacement through the localized glossary row (#357)", () => {
+    const originalTerm = i18n.getResource("en", "help", "glossaryLoginEmailTerm") as string;
+    const originalDef = i18n.getResource("en", "help", "glossaryLoginEmailDef") as string;
+    i18n.addResource("en", "help", "glossaryLoginEmailTerm", "LOGIN-EMAIL-TERM-MARKER");
+    i18n.addResource("en", "help", "glossaryLoginEmailDef", "LOGIN-EMAIL-DEF-MARKER");
+    try {
+      render(<HelpPage />);
+      expect(screen.getByRole("rowheader", { name: "LOGIN-EMAIL-TERM-MARKER" })).toBeInTheDocument();
+      expect(screen.getByText("LOGIN-EMAIL-DEF-MARKER")).toBeInTheDocument();
+    } finally {
+      i18n.addResource("en", "help", "glossaryLoginEmailTerm", originalTerm);
+      i18n.addResource("en", "help", "glossaryLoginEmailDef", originalDef);
+    }
+
+    expect(en.help.glossaryLoginEmailDef).toMatch(/no confirmation email/i);
+    expect(es.help.glossaryLoginEmailDef).toMatch(/no se envía.*confirmación/i);
+    expect(tl.help.glossaryLoginEmailDef).toMatch(/walang.*confirmation email/i);
+    for (const catalog of [es, tl]) {
+      expect(catalog.help.glossaryLoginEmailTerm).not.toBe(en.help.glossaryLoginEmailTerm);
+      expect(catalog.help.glossaryLoginEmailDef).not.toBe(en.help.glossaryLoginEmailDef);
+    }
+  });
+
+  it("explains the Owner change-email flow in Who can do what (#357)", () => {
+    render(<HelpPage />);
+    const guidance = screen.getByText((_, element) =>
+      element?.tagName === "LI"
+      && /Owners can replace a user's login email immediately/i.test(element.textContent ?? ""));
+    expect(guidance).toHaveTextContent(/no confirmation email is sent/i);
   });
 });

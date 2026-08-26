@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Ban, KeyRound, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
+import { Ban, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
 import {
-  assignFlock, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments, listFlocks,
+  assignFlock, changeUserEmail, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments, listFlocks,
   listUsers, setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
@@ -112,6 +112,15 @@ export function UsersPage() {
   const [roleValue, setRoleValue] = useState("Worker");
   const activeRole = useRef<string | null>(null);
 
+  const [emailUser, setEmailUser] = useState<User | null>(null);
+  const [emailValue, setEmailValue] = useState("");
+  const [emailStepUpPassword, setEmailStepUpPassword] = useState("");
+  const [emailFieldError, setEmailFieldError] = useState<string | null>(null);
+  const emailDialogGeneration = useRef(0);
+  const activeEmail = useRef<{ targetId: string; generation: number } | null>(null);
+  const emailHintId = useId();
+  const emailErrorId = useId();
+
   // #356 — disable/enable a user, both behind ONE dialog that is itself the
   // confirmation: a destructive warning body, an OPTIONAL reason (disable
   // only — the API's DisableUserCommand.Reason is nullable, capped at 200
@@ -161,6 +170,18 @@ export function UsersPage() {
     return fresh;
   };
   const clearKey = (scope: string) => keys.current.delete(scope);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      const active = activeEmail.current;
+      if (active !== null) keys.current.delete(`change-email:${active.targetId}`);
+      activeEmail.current = null;
+      setEmailStepUpPassword("");
+      setEmailFieldError(null);
+      setEmailUser(null);
+      errors.abandon("change-email");
+    }
+  }, [isAuthenticated, errors]);
 
   useEffect(() => {
     Promise.all([listUsers(), listFlocks()])
@@ -440,6 +461,76 @@ export function UsersPage() {
     });
   }
 
+  function openEmail(u: User) {
+    if (emailUser !== null && emailUser.id !== u.id) {
+      clearKey(`change-email:${emailUser.id}`);
+      errors.abandon("change-email");
+    }
+    setMessage(null);
+    setEmailValue(u.email);
+    setEmailStepUpPassword("");
+    setEmailFieldError(null);
+    activeEmail.current = {
+      targetId: u.id,
+      generation: ++emailDialogGeneration.current,
+    };
+    setEmailUser(u);
+  }
+
+  function closeEmail() {
+    const active = activeEmail.current;
+    activeEmail.current = null;
+    if (active !== null) clearKey(`change-email:${active.targetId}`);
+    setEmailValue("");
+    setEmailStepUpPassword("");
+    setEmailFieldError(null);
+    setEmailUser(null);
+    errors.abandon("change-email");
+  }
+
+  async function onChangeEmail(e: FormEvent) {
+    e.preventDefault();
+    const target = emailUser;
+    if (!target || busy) return;
+    const targetId = target.id;
+    const scope = `change-email:${targetId}`;
+    const dialog = activeEmail.current;
+    if (dialog === null || dialog.targetId !== targetId) return;
+    const isCurrentDialog = () => activeEmail.current?.generation === dialog.generation;
+    errors.beginAttempt("change-email");
+    setEmailFieldError(null);
+    setMessage(null);
+    await run(scope, async () => {
+      try {
+        const password = emailStepUpPassword;
+        setEmailStepUpPassword("");
+        const grant = await stepUp(password);
+        if (!isCurrentDialog()) return;
+        const trimmedEmail = emailValue.trim();
+        await changeUserEmail(targetId, { email: trimmedEmail }, keyFor(scope), grant.token);
+        if (!isCurrentDialog()) return;
+        clearKey(scope);
+        const fresh = await listUsers();
+        if (!isCurrentDialog()) return;
+        setUsers(fresh);
+        setMessage(i18n.t("users:emailChangedMessage", { email: trimmedEmail }));
+        closeEmail();
+      } catch (err) {
+        if (!isCurrentDialog()) return;
+        if (targetId === myId && err instanceof ApiError
+          && err.status === 401 && err.title === "Auth.CredentialsSuperseded") {
+          return;
+        } else if (err instanceof ApiError && err.status === 409 && err.title === "Users.DuplicateEmail") {
+          setEmailFieldError(i18n.t("users:duplicateEmailMessage"));
+        } else if (err instanceof ApiError && err.title === "Users.LastOwner") {
+          errors.report("change-email", i18n.t("users:lastOwnerEmailMessage"));
+        } else {
+          errors.report("change-email", errText(err));
+        }
+      }
+    });
+  }
+
   // #356 — open/close the shared disable/enable dialog. The Disable and Enable
   // row buttons call this identically; "mode" is the only difference. The
   // reason is not a parameter: the dialog collects it itself, seeded blank,
@@ -647,6 +738,9 @@ export function UsersPage() {
                 <button className="link" onClick={() => openRole(u)}>
                   <ShieldCheck size={14} aria-hidden /> {t("changeRoleButton")}
                 </button>
+                <button className="link" onClick={() => openEmail(u)}>
+                  <Mail size={14} aria-hidden /> {t("changeEmailButton")}
+                </button>
                 {u.role === "Worker" && (
                   <button className="link" onClick={() => void openAssignments(u.id)}>
                     {t("flocksButton")}
@@ -809,6 +903,46 @@ export function UsersPage() {
             <button type="button" className="link" onClick={closeRole}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
               busy={roleUser !== null && isPending(`change-role:${roleUser.id}`)}>{t("changeRoleSubmitButton")}</BusyButton>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={emailUser !== null}
+        title={t("changeEmailTitle", { email: emailUser?.email ?? "" })}
+        onClose={closeEmail}
+      >
+        <form className="inline-form" onSubmit={onChangeEmail}>
+          <p className="muted" id={emailHintId}>{t("changeEmailHint")}</p>
+          <label>{t("loginEmailFieldLabel")}
+            <input type="email" value={emailValue} required maxLength={256}
+              autoComplete="off"
+              disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)}
+              aria-invalid={emailFieldError !== null}
+              aria-describedby={emailFieldError ? emailErrorId : emailHintId}
+              onChange={(e) => {
+                setEmailValue(e.target.value);
+                setEmailFieldError(null);
+                if (emailUser !== null) clearKey(`change-email:${emailUser.id}`);
+              }} />
+          </label>
+          {emailFieldError && (
+            <p className="error" role="alert" id={emailErrorId}>{emailFieldError}</p>
+          )}
+          <p className="muted">{t("stepUpEmailHint")}</p>
+          <label>{t("stepUpFieldLabel")}
+            <input type="password" value={emailStepUpPassword} required maxLength={256}
+              autoComplete="current-password"
+              disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)}
+              onChange={(e) => setEmailStepUpPassword(e.target.value)} />
+          </label>
+          <DialogError errors={errors} scope="change-email" />
+          <div className="dialog-foot">
+            <button type="button" className="link" onClick={closeEmail}>{tc("cancel")}</button>
+            <BusyButton type="submit" disabled={busy}
+              busy={emailUser !== null && isPending(`change-email:${emailUser.id}`)}>
+              {t("changeEmailSubmitButton")}
+            </BusyButton>
           </div>
         </form>
       </Dialog>

@@ -511,6 +511,10 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             Guid accountId, Guid userId, string? role, Guid actingUserId, CancellationToken ct = default) =>
             inner.ChangeUserRoleAsync(accountId, userId, role, actingUserId, ct);
 
+        public Task<Result> ChangeUserEmailAsync(
+            Guid accountId, Guid userId, string email, Guid actingUserId, CancellationToken ct = default) =>
+            inner.ChangeUserEmailAsync(accountId, userId, email, actingUserId, ct);
+
         public Task<Result> DisableUserAsync(
             Guid accountId, Guid userId, Guid actingUserId, string? reason, CancellationToken ct = default) =>
             inner.DisableUserAsync(accountId, userId, actingUserId, reason, ct);
@@ -897,6 +901,28 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
                 nameof(IStepUpGrantRegistry.TryConsumeIfNotLoggedOutAsync),
             },
             spy.Calls);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_ReadOnlySecurityStampLookup_DoesNotTrackTheUser()
+    {
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var userId = await factory.WithTenantScopeAsync(accountId,
+            db => db.Users.Where(user => user.Email == email).Select(user => user.Id).SingleAsync());
+        using var scope = factory.Services.CreateScope();
+        scope.ResolveTenantAndActor(accountId, userId);
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stepUp = scope.ServiceProvider.GetRequiredService<IStepUpGrantService>();
+        var issued = await stepUp.IssueAsync(accountId, userId, TestHarness.Password);
+        Assert.True(issued.IsSuccess);
+        db.ChangeTracker.Clear();
+
+        var validated = await stepUp.ValidateAsync(accountId, userId, issued.Value.Token);
+
+        Assert.True(validated.IsSuccess);
+        Assert.DoesNotContain(db.ChangeTracker.Entries<ApplicationUser>(),
+            entry => entry.Entity.Id == userId);
     }
 
     // A SEPARATE defect, found while writing the test above and fixed in the

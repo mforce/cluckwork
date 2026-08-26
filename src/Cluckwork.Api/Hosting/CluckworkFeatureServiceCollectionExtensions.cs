@@ -235,6 +235,9 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<
             IValidator<Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleCommand>,
             Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleValidator>();
+        services.AddScoped<
+            IValidator<Cluckwork.Application.Features.Users.ChangeUserEmail.ChangeUserEmailCommand>,
+            Cluckwork.Application.Features.Users.ChangeUserEmail.ChangeUserEmailValidator>();
         // #356 — disable carries an optional reason; enable carries no body at
         // all and therefore has no validator.
         services.AddScoped<
@@ -315,6 +318,8 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             Cluckwork.Application.Features.Users.ChangeOwnPassword.ChangeOwnPasswordHandler>();
         services.AddScoped<
             Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Features.Users.ChangeUserEmail.ChangeUserEmailHandler>();
         services.AddScoped<
             Cluckwork.Application.Features.Users.DisableUser.DisableUserHandler>();
         services.AddScoped<

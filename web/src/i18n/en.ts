@@ -1400,6 +1400,7 @@ export const en = {
     stepUpCreateHint: "Creating another Owner needs your current password again.",
     stepUpResetHint: "Resetting an Owner's password needs your current password again.",
     stepUpRoleHint: "Promoting someone to Owner needs your current password again.",
+    stepUpEmailHint: "Changing a login email needs your current password again.",
     // #356 — disable/enable's step-up is UNCONDITIONAL (every disable/enable
     // needs it, not just an Owner target), so these hints are shown every time
     // rather than only once a sensitive role is picked.
@@ -1415,6 +1416,8 @@ export const en = {
     resetPasswordButton: "password",
     changeRoleButton: "role",
     changeRoleSubmitButton: "Change role",
+    changeEmailButton: "change email",
+    changeEmailSubmitButton: "Change email",
     flocksButton: "flocks",
     // #356 — row actions and their badge. Disabled rows render muted with this
     // badge (StatusBadge tinted via the "Inactive" status, labelled distinctly
@@ -1454,6 +1457,14 @@ export const en = {
       + "account's last Owner cannot be demoted, and you cannot change "
       + "your own role — ask another Owner.",
 
+    changeEmailTitle: "Change email — {{email}}",
+    changeEmailHint:
+      "This address becomes the user's next login immediately and their open sessions end. "
+      + "No confirmation email is sent.",
+    loginEmailFieldLabel: "Login email",
+    duplicateEmailMessage: "A user with this email already exists.",
+    lastOwnerEmailMessage: "Add a second Owner before changing your own login email.",
+
     // #356 — the single disable/enable dialog: it IS the confirmation, shared
     // by both modes (unconditional step-up proof, unlike the conditional
     // Owner-only prompts above). {{email}} is DATA.
@@ -1480,6 +1491,7 @@ export const en = {
       "Password set for {{email}}. They have been signed out everywhere.",
     updatedMessage: "Updated {{email}}.",
     roleChangedMessage: "{{email}} is now {{role}}.",
+    emailChangedMessage: "Login email changed to {{email}}.",
     userDisabledMessage: "{{email}} has been disabled.",
     userEnabledMessage: "{{email}} has been re-enabled.",
   },
@@ -2085,6 +2097,7 @@ export const en = {
     "auditAction.User.PasswordChanged": "Password changed",
     "auditAction.User.BreakGlassReset": "Break-glass reset",
     "auditAction.User.RoleChanged": "Role changed",
+    "auditAction.User.EmailChanged": "Login email changed",
     "auditAction.User.Disabled": "User disabled",
     "auditAction.User.Enabled": "User enabled",
     "auditAction.User.FlockAssign": "Flock assigned to user",
@@ -2244,9 +2257,9 @@ export const en = {
     // actions. Deliberately does NOT mention "grant"/"token" — that's internal
     // mechanism, not user-facing language.
     signingInStepUp:
-      "Five actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
+      "Six actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
       + "right there in the dialog: creating another Owner, resetting an existing Owner's password, promoting "
-      + "someone to Owner, and — whatever the target's role — disabling or re-enabling a user. This confirms it's "
+      + "someone to Owner, changing a login email, and — whatever the target's role — disabling or re-enabling a user. This confirms it's "
       + "really you before handing out that much access or cutting someone else's off; every other action on that "
       + "screen (creating a Worker/Manager/Sales/Read-only user, resetting one of their passwords, changing "
       + "someone's role to anything other than Owner) does not ask again.",
@@ -2306,6 +2319,10 @@ export const en = {
       + "<strong>Re-enable</strong> restores their ability to sign in, but never revives the sessions the "
       + "disable ended — they sign in fresh with their existing password. You can't disable your own sign-in, "
       + "and you can't disable the account's last Admin (owner).",
+    rolesChangeEmail:
+      "Owners can replace a user's <strong>login email</strong> immediately from the Users screen. The new "
+      + "address is used at the next sign-in, every open session ends, and no confirmation email is sent. "
+      + "Changing your own address requires another active Owner so the farm cannot lose its last working Owner.",
     ownPassword:
       "<strong>Your own password.</strong> Anyone, in any role, can change their own password on the "
       + "<strong>Account</strong> screen by entering the current one and a new one (at least 12 characters). "
@@ -2886,6 +2903,11 @@ export const en = {
       + "other preference. A link such as /login?farm=<code> takes over and fills the code "
       + "in for you, without showing the list. If you do not know your farm's code, ask "
       + "your administrator — they can look it up.",
+
+    glossaryLoginEmailTerm: "Login email",
+    glossaryLoginEmailDef:
+      "The address used with a farm code to sign in. An Owner can replace it immediately on the Users "
+      + "screen; the old address stops working, open sessions end, and no confirmation email is sent.",
 
     glossaryFarmProvisioningTerm: "Farm provisioning",
     glossaryFarmProvisioningDef:

@@ -8,6 +8,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -355,7 +356,12 @@ public sealed class StepUpGrantService(
             || !int.TryParse(epochClaim, NumberStyles.None, CultureInfo.InvariantCulture, out var grantEpoch))
             return Result.Failure(DeniedError); // wrong-account / wrong-user / malformed claims
 
-        var user = await userManager.FindByIdAsync(userId.ToString());
+        // Validation only compares persisted grant-binding fields. Keep this
+        // read out of the shared scoped context's identity map: a privileged
+        // handler may wait on an account lock after validation and must not
+        // identity-resolve this pre-lock row as its mutation target.
+        var user = await db.Users.AsNoTracking()
+            .SingleOrDefaultAsync(candidate => candidate.Id == userId, ct);
         if (user is null || user.AccountId != accountId || user.SecurityStamp != stamp)
             return Result.Failure(DeniedError); // revoked by a security-stamp change
 
