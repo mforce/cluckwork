@@ -21,11 +21,11 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 //
 //   * IdempotencyMiddleware's request-wide transaction, which by design (#307)
 //     covers `next(context)` — the entire downstream HTTP pipeline. Replaying
-//     it re-runs single-use, non-database side effects (the #308 step-up grant
-//     is consumed in memory by CreateUserHandler / SetUserPasswordHandler and
-//     can never be consumed twice) and re-runs a domain state transition
-//     against state a prior attempt may already have committed (the handler
-//     then answers 422 for a request that in fact succeeded).
+//     it re-runs single-use, non-database claim state (the #308/#360 step-up
+//     grant is consumed by CreateUserHandler, SetUserPasswordHandler, or
+//     ChangeUserRoleHandler and can never be consumed twice) and re-runs a
+//     domain state transition against state a prior attempt may already have
+//     committed (the handler then answers 422 for a request that succeeded).
 //   * An "owned" AmbientTransaction unit (AmbientTransaction.RunAsync), which
 //     can leave the failed attempt's entities tracked as Added on the SAME
 //     scoped AppDbContext — EF does not detach them, and a retry would flush

@@ -238,10 +238,10 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IOptions<Idempot
         // — the whole downstream pipeline — is not replayable, and no amount
         // of database-state re-checking makes it so:
         //
-        //   * it consumes single-use, NON-database state: the #308 step-up
-        //     grant is consumed in memory by CreateUserHandler /
-        //     SetUserPasswordHandler, so a second pass over POST /users is
-        //     denied outright;
+        //   * it consumes single-use, non-database claim state: the #308/#360
+        //     step-up grant is consumed by CreateUserHandler,
+        //     SetUserPasswordHandler, or ChangeUserRoleHandler, so a second
+        //     pass over the user mutation is denied outright;
         //   * for a state transition (daily-entry submit, order confirm) a
         //     second pass observes the FIRST pass's committed transition and
         //     answers 422 — a 4xx saying the request was invalid, for a

@@ -19,10 +19,10 @@ using Npgsql;
 // correct when the unit is REPLAYABLE. Two things in this codebase are not:
 //
 //   1. `next(context)` — the whole downstream HTTP pipeline. Re-running it
-//      re-runs single-use, non-database side effects (the #308 step-up grant
-//      is consumed in memory by CreateUserHandler/SetUserPasswordHandler) and
-//      re-runs a domain state transition against state a prior attempt may
-//      already have committed.
+//      re-runs single-use, non-database claim state (the #308/#360 step-up
+//      grant is consumed by CreateUserHandler, SetUserPasswordHandler, or
+//      ChangeUserRoleHandler) and re-runs a domain state transition against
+//      state a prior attempt may already have committed.
 //   2. An "owned" AmbientTransaction unit — it can leave the failed attempt's
 //      entities tracked as Added on the SAME AppDbContext (EF does not detach
 //      them), and it can span a SESSION-scoped pg_advisory_lock that a

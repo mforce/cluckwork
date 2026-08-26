@@ -18,16 +18,12 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-// #308 — step-up authentication for privileged user administration. A stolen
-// but still-valid Owner access token must not be enough, on its own, to (a)
-// create another Owner or (b) reset an EXISTING Owner's password: both need a
-// fresh step-up grant obtained by re-confirming the CURRENT password
-// (POST /auth/step-up). Every other role/target combination (Worker,
-// Manager, Sales, ReadOnly — both as the created role and as the reset
-// target) stays exactly as #165/#103 left it: UserPasswordTests and
-// AdminGatingTests already cover that path working WITHOUT a grant, and
-// nothing here changes it — that is the "no blanket prompt" half of the
-// acceptance criteria. See StepUpGrantService for the full threat model.
+// #308/#360 — step-up authentication for durable user access. A stolen but
+// still-valid Owner access token must not be enough, on its own, to create any
+// interactive user, reset any user's password, or change any user's role.
+// Every role and target needs a fresh step-up grant obtained by re-confirming
+// the CURRENT password (POST /auth/step-up). See StepUpGrantService for the
+// full threat model.
 [Collection(IntegrationCollection.Name)]
 public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
 {

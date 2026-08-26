@@ -1139,11 +1139,11 @@ export const es = {
     adminRoleOption: "{{label}} (propietario)",
     createUserButton: "Crear usuario",
 
-    // #308 — re-confirmación de contraseña (machine-drafted, pending native review)
+    // #308/#360 — re-confirmación de contraseña (machine-drafted, pending native review)
     stepUpFieldLabel: "Tu contraseña actual *",
-    stepUpCreateHint: "Crear otro propietario requiere volver a ingresar tu contraseña actual.",
-    stepUpResetHint: "Restablecer la contraseña de un propietario requiere volver a ingresar tu contraseña actual.",
-    stepUpRoleHint: "Ascender a alguien a propietario requiere volver a ingresar tu contraseña actual.",
+    stepUpCreateHint: "Crear cualquier usuario requiere volver a ingresar tu contraseña actual.",
+    stepUpResetHint: "Restablecer la contraseña de cualquier usuario requiere volver a ingresar tu contraseña actual.",
+    stepUpRoleHint: "Cambiar el rol de cualquier usuario requiere volver a ingresar tu contraseña actual.",
     stepUpEmailHint: "Cambiar un correo de inicio de sesión requiere volver a ingresar tu contraseña actual.",
     // #356 — re-confirmación incondicional (machine-drafted, pending native review)
     stepUpDisableHint: "Deshabilitar a un usuario requiere volver a ingresar tu contraseña actual.",
@@ -1803,16 +1803,13 @@ export const es = {
       + "contraseña allí. Esto es distinto de un <em>Cambio de contraseña</em> ordinario. Hasta que se realice "
       + "ese paso de configuración, al intentar iniciar sesión se le indica esto y se le remite a quien "
       + "administra el servidor, en lugar de afirmar que sus datos eran incorrectos.",
-    // #308 (machine-drafted, pending native review)
-    // #308/#356 (machine-drafted, pending native review)
+    // #308/#356/#360 (machine-drafted, pending native review)
     signingInStepUp:
       "Seis acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
-      + "actual</strong> directamente en el diálogo: crear otro propietario, restablecer la contraseña de un "
-      + "propietario existente, ascender a alguien a propietario, cambiar un correo de inicio de sesión y — sin importar el rol del destinatario — "
-      + "deshabilitar o volver a habilitar un usuario. Esto confirma que realmente es usted antes de otorgar "
-      + "tanto acceso o de retirárselo a otra persona — ninguna otra acción en esa pantalla (crear un usuario "
-      + "Worker/Manager/Sales/Read-only, restablecer su contraseña, cambiar el rol de alguien a algo distinto "
-      + "de propietario) vuelve a preguntar.",
+      + "actual</strong> directamente en el diálogo: crear cualquier usuario, restablecer la contraseña de cualquier "
+      + "usuario, cambiar el rol de cualquier usuario, cambiar un correo de inicio de sesión, deshabilitar un usuario "
+      + "y volver a habilitar un usuario. Esto confirma que realmente es usted antes de otorgar acceso o retirárselo "
+      + "a otra persona. Los cambios de nombre para mostrar y de asignación de lotes no vuelven a pedirla.",
     signingInCredentialEpoch:
       "Cuando un administrador restablece una contraseña, su sesión actual puede invalidarse inmediatamente. Si "
       + "ve un mensaje indicando que sus credenciales cambiaron, inicie sesión de nuevo con su contraseña actual.",
@@ -2514,16 +2511,14 @@ export const es = {
       + "granja recordada encuentra varias sesiones, vuelve al inicio de sesión en lugar de adivinar; elija "
       + "el código de la granja que desea.",
 
-    // #308 (machine-drafted, pending native review)
+    // #308/#356/#360 (machine-drafted, pending native review)
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
     glossaryStepUpAuthDef:
-      "Una comprobación adicional además de haber iniciado sesión: antes de crear otro propietario, "
-      + "restablecer la contraseña de un propietario existente, ascender a alguien a propietario, o "
-      + "deshabilitar o volver a habilitar a cualquier usuario, la pantalla Usuarios le pide volver a "
-      + "ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted "
-      + "antes de otorgar — o retirar — tanto acceso. Deshabilitar y volver a habilitar preguntan siempre, "
-      + "sin importar el rol del usuario; las otras tres solo preguntan cuando está en juego el acceso de "
-      + "propietario.",
+      "Una comprobación adicional además de haber iniciado sesión: antes de crear cualquier usuario, "
+      + "restablecer la contraseña de cualquier usuario, cambiar el rol de cualquier usuario, cambiar un correo "
+      + "de inicio de sesión, deshabilitar un usuario o volver a habilitarlo, la pantalla Usuarios le pide volver "
+      + "a ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted antes "
+      + "de otorgar — o retirar — acceso. Los cambios de nombre para mostrar y de asignación de lotes no vuelven a pedirla.",
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:
       "Lo que muestra una pantalla cuando encuentra un error, en lugar de quedar en blanco. Los datos "

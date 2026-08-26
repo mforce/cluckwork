@@ -364,11 +364,9 @@ public sealed class ChangeUserRoleTests(CluckworkWebApplicationFactory factory)
         await factory.AddRoleAsync(email, "Manager");
         var epochBefore = await factory.WithTenantScopeAsync(accountId, async db =>
             await db.Users.Where(u => u.Id == id).Select(u => u.CredentialEpoch).SingleAsync());
-        // Requesting "Admin" is still a promotion-to-Owner as far as the
-        // step-up gate is concerned (a pure function of the REQUESTED role,
-        // decided before IdentityProvider ever sees that this is really a
-        // cleanup) — the accepted friction from #355's design grill.
-        // #360 — the helper below mints a fresh grant for this change.
+        // #360 — every requested role change requires step-up, including this
+        // effective-role no-op whose cleanup still mutates the stored role set.
+        // The helper below mints a fresh grant for this change.
 
         var response = await ChangeRoleWithStepUpAsync(owner, id, "Admin");
 
