@@ -19,9 +19,6 @@ import i18n from "../i18n";
 import { ROLE_VALUES, roleLabel } from "../i18n/enums";
 import { useAuth } from "../auth/useAuth";
 
-// #308 — the one Owner-level role name gated by step-up, shared by the create
-// and reset-password flows below. Matches Cluckwork.Domain.Accounts.Roles.Owner.
-const OWNER_ROLE = "Admin";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -283,15 +280,12 @@ export function UsersPage() {
       errors.beginAttempt("create");
       setMessage(null);
       try {
-        // #308 — creating another Owner needs a fresh step-up grant. Read the
-        // entered password into a local const and clear it from state BEFORE
-        // the network call, so it never sits in React state across the await.
-        let stepUpToken: string | undefined;
-        if (role === OWNER_ROLE) {
-          const enteredPassword = createStepUpPassword;
-          setCreateStepUpPassword("");
-          stepUpToken = (await stepUp(enteredPassword)).token;
-        }
+        // #308/#360 — every interactive creation establishes a durable login,
+        // regardless of role. Read then clear the Owner's current password
+        // before awaiting issuance; the grant is spent on this write only.
+        const enteredPassword = createStepUpPassword;
+        setCreateStepUpPassword("");
+        const stepUpToken = (await stepUp(enteredPassword)).token;
 
         const scope = `create:${email.trim().toLowerCase()}`;
         await createUser(
@@ -305,11 +299,10 @@ export function UsersPage() {
         setMessage(i18n.t("users:createSuccessMessage", { role: roleLabel(role), email: email.trim() }));
         // #336 review — close through closeCreate() rather than repeating the
         // field resets here. The duplicated list had already drifted: it never
-        // cleared createStepUpPassword, so switching Owner -> Worker after
-        // typing the proof password (the Owner branch above then never runs)
-        // left the operator's own account password in state, visible on the
-        // next reopen. One reset path means new dialog state can only be
-        // forgotten in one place, not two — the #314 lesson, relearned.
+        // cleared createStepUpPassword, so a successful create could leave the
+        // operator's own account password in state, visible on the next reopen.
+        // One reset path means new dialog state can only be forgotten in one
+        // place, not two — the #314 lesson, relearned.
         closeCreate();
       } catch (err) {
         errors.report("create", errText(err));
@@ -394,14 +387,11 @@ export function UsersPage() {
     const keyScope = `password:${target.id}`;
     await run(`set-password:${target.id}`, async () => {
       try {
-        // #308 — resetting an OWNER's password needs a fresh step-up grant.
-        // Same read-then-clear-before-await pattern as onCreate above.
-        let stepUpToken: string | undefined;
-        if (target.role === OWNER_ROLE) {
-          const enteredPassword = pwStepUpPassword;
-          setPwStepUpPassword("");
-          stepUpToken = (await stepUp(enteredPassword)).token;
-        }
+        // #308/#360 — every administrative reset replaces an authenticator,
+        // regardless of target role. Read then clear before awaiting issuance.
+        const enteredPassword = pwStepUpPassword;
+        setPwStepUpPassword("");
+        const stepUpToken = (await stepUp(enteredPassword)).token;
 
         await setUserPassword(target.id, { newPassword: pwValue }, keyFor(keyScope), stepUpToken);
         clearKey(keyScope); // write confirmed before any refresh (#163 review)
@@ -440,14 +430,11 @@ export function UsersPage() {
     const keyScope = `role:${target.id}`;
     await run(`change-role:${target.id}`, async () => {
       try {
-        // #308 — promoting to OWNER needs a fresh step-up grant. Same
-        // read-then-clear-before-await pattern as onCreate/onSetPassword.
-        let stepUpToken: string | undefined;
-        if (roleValue === OWNER_ROLE) {
-          const enteredPassword = roleStepUpPassword;
-          setRoleStepUpPassword("");
-          stepUpToken = (await stepUp(enteredPassword)).token;
-        }
+        // #355/#360 — every role mutation changes durable authorization. Read
+        // then clear before awaiting issuance; the grant is spent once below.
+        const enteredPassword = roleStepUpPassword;
+        setRoleStepUpPassword("");
+        const stepUpToken = (await stepUp(enteredPassword)).token;
 
         await changeUserRole(target.id, { role: roleValue }, keyFor(keyScope), stepUpToken);
         clearKey(keyScope); // write confirmed before any refresh (#163 review)
@@ -679,18 +666,12 @@ export function UsersPage() {
               ))}
             </select>
           </label>
-          {/* #308 — prompts ONLY for the sensitive case (creating another
-              Owner); every other role stays exactly as it was. */}
-          {role === OWNER_ROLE && (
-            <>
-              <p className="muted">{t("stepUpCreateHint")}</p>
-              <label>{t("stepUpFieldLabel")}
-                <input type="password" value={createStepUpPassword} required maxLength={256}
-                  autoComplete="current-password"
-                  onChange={(e) => setCreateStepUpPassword(e.target.value)} />
-              </label>
-            </>
-          )}
+          <p className="muted">{t("stepUpCreateHint")}</p>
+          <label>{t("stepUpFieldLabel")}
+            <input type="password" value={createStepUpPassword} required maxLength={256}
+              autoComplete="current-password"
+              onChange={(e) => setCreateStepUpPassword(e.target.value)} />
+          </label>
           <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
@@ -847,18 +828,12 @@ export function UsersPage() {
               autoComplete="new-password"
               onChange={(e) => setPwConfirm(e.target.value)} />
           </label>
-          {/* #308 — prompts ONLY when the TARGET currently holds Owner; every
-              other role's reset stays exactly as it was (#165). */}
-          {pwUser?.role === OWNER_ROLE && (
-            <>
-              <p className="muted">{t("stepUpResetHint")}</p>
-              <label>{t("stepUpFieldLabel")}
-                <input type="password" value={pwStepUpPassword} required maxLength={256}
-                  autoComplete="current-password"
-                  onChange={(e) => setPwStepUpPassword(e.target.value)} />
-              </label>
-            </>
-          )}
+          <p className="muted">{t("stepUpResetHint")}</p>
+          <label>{t("stepUpFieldLabel")}
+            <input type="password" value={pwStepUpPassword} required maxLength={256}
+              autoComplete="current-password"
+              onChange={(e) => setPwStepUpPassword(e.target.value)} />
+          </label>
           <DialogError errors={errors} scope="set-password" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closePassword}>{tc("cancel")}</button>
@@ -886,18 +861,12 @@ export function UsersPage() {
               ))}
             </select>
           </label>
-          {/* #308 — prompts ONLY when the REQUESTED role is Owner; every
-              other target role stays exactly as it was. */}
-          {roleValue === OWNER_ROLE && (
-            <>
-              <p className="muted">{t("stepUpRoleHint")}</p>
-              <label>{t("stepUpFieldLabel")}
-                <input type="password" value={roleStepUpPassword} required maxLength={256}
-                  autoComplete="current-password"
-                  onChange={(e) => setRoleStepUpPassword(e.target.value)} />
-              </label>
-            </>
-          )}
+          <p className="muted">{t("stepUpRoleHint")}</p>
+          <label>{t("stepUpFieldLabel")}
+            <input type="password" value={roleStepUpPassword} required maxLength={256}
+              autoComplete="current-password"
+              onChange={(e) => setRoleStepUpPassword(e.target.value)} />
+          </label>
           <DialogError errors={errors} scope="change-role" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeRole}>{tc("cancel")}</button>
