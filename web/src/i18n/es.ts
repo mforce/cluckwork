@@ -1148,6 +1148,7 @@ export const es = {
     // #356 — re-confirmación incondicional (machine-drafted, pending native review)
     stepUpDisableHint: "Deshabilitar a un usuario requiere volver a ingresar tu contraseña actual.",
     stepUpEnableHint: "Volver a habilitar a un usuario requiere volver a ingresar tu contraseña actual.",
+    stepUpFlockHint: "Asignar o quitar un lote requiere volver a ingresar tu contraseña actual.",
 
     // Users table
     emailColumnHeader: "Correo electrónico",

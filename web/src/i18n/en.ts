@@ -1405,6 +1405,9 @@ export const en = {
     // rather than only once a sensitive role is picked.
     stepUpDisableHint: "Disabling a user needs your current password again.",
     stepUpEnableHint: "Re-enabling a user needs your current password again.",
+    // #606 — assigning or removing a flock changes durable account access,
+    // same as the other step-up sites above.
+    stepUpFlockHint: "Assigning or removing a flock needs your current password again.",
 
     // Users table
     emailColumnHeader: "Email",

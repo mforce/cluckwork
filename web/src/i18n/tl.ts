@@ -1190,6 +1190,7 @@ export const tl = {
     // #356 — walang kondisyong muling pagkumpirma (machine-drafted, pending native review)
     stepUpDisableHint: "Ang pag-disable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpEnableHint: "Ang muling pag-enable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpFlockHint: "Ang pag-assign o pag-alis ng kawan ay nangangailangan muling ilagay ang kasalukuyan mong password.",
 
     // Users table
     emailColumnHeader: "Email",

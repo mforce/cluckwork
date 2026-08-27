@@ -729,11 +729,18 @@ export interface FlockAssignment {
 export const listFlockAssignments = (userId: string) =>
   apiGet<FlockAssignment[]>(`/users/${userId}/flock-assignments`);
 
-export const assignFlock = (userId: string, flockId: string, key?: string) =>
-  apiPost<Created>(`/users/${userId}/flock-assignments`, { flockId }, key);
+// #606 — stepUpToken is required by the server UNCONDITIONALLY: every
+// interactive assignment or removal changes durable account access,
+// regardless of the target's role.
+export const assignFlock = (userId: string, flockId: string, key?: string, stepUpToken?: string) =>
+  apiPost<Created>(
+    `/users/${userId}/flock-assignments`, { flockId }, key,
+    stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
 
-export const unassignFlock = (userId: string, assignmentId: string, key?: string) =>
-  apiDelete<void>(`/users/${userId}/flock-assignments/${assignmentId}`, key);
+export const unassignFlock = (userId: string, assignmentId: string, key?: string, stepUpToken?: string) =>
+  apiDelete<void>(
+    `/users/${userId}/flock-assignments/${assignmentId}`, key,
+    stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
 
 // #308/#360 — stepUpToken is required by the server UNCONDITIONALLY: every
 // interactive user creation establishes a durable login, regardless of the

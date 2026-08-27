@@ -719,10 +719,16 @@ export function apiPutBytes<T>(
   });
 }
 
-export function apiDelete<T>(path: string, idempotencyKey?: string): Promise<T> {
+// #606 — extraHeaders is how UnassignFlock attaches the X-Cluckwork-Step-Up
+// header, same shape as apiPost/apiPut above; every other caller omits it.
+export function apiDelete<T>(
+  path: string,
+  idempotencyKey?: string,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   return apiFetch<T>(path, {
     method: "DELETE",
-    headers: { "Idempotency-Key": idempotencyKey ?? newId() },
+    headers: { "Idempotency-Key": idempotencyKey ?? newId(), ...extraHeaders },
   });
 }
 
