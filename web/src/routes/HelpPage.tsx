@@ -616,6 +616,10 @@ export function HelpPage() {
             <td>{t("glossaryAdjustmentDiscardDef")}</td></tr>
           <tr><th scope="row">{t("glossaryRolesTerm")}</th>
             <td>{t("glossaryRolesDef")}</td></tr>
+          <tr>
+            <th scope="row">{t("glossaryFlockScopingTerm")}</th>
+            <td>{t("glossaryFlockScopingDef")}</td>
+          </tr>
           <tr><th scope="row">{t("glossaryLockedEntryTerm")}</th>
             <td>{t("glossaryLockedEntryDef")}</td></tr>
           <tr><th scope="row">{t("glossaryAdjustEntryTerm")}</th>

@@ -936,6 +936,16 @@ house-level scoping until houses are real entities. The SPA hides gated
 controls; the API returns 403 with a problem body regardless. The role travels as a `role` claim in the
 access token and is re-read at every token refresh.
 
+### Flock scoping
+
+A Worker's reads are limited to their assigned flocks plus farm-wide rows
+(rows with no flock, e.g. farm-wide expenses). Owner and Manager are
+unrestricted. A Worker with no assignment rows, or with a farm-wide
+(no-flock) assignment row, is unrestricted too. An unassigned flock's
+detail returns 404 — symmetric with the list, which simply does not show
+it (not 403). Writes were already scoped by the flock-assignment guard;
+this extends the same boundary to reads.
+
 **Users screen** — Owner-only user management (#103): create a user with
 email, password, an optional **display name**, and one of the five roles, and
 manage worker flock assignments (spec §5.3). A user's name can be set at

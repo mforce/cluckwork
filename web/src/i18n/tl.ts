@@ -2738,6 +2738,13 @@ export const tl = {
       + "ano\". Nagtatala ang mga manggagawa; nagtatama at nagko-configure rin ang mga manager; "
       + "hinahawakan ng benta ang mga order at bayad; nanonood lang ang read-only.",
 
+    glossaryFlockScopingTerm: "Saklaw ng Kawan",
+    glossaryFlockScopingDef:
+      "Ang mga nababasa ng isang Manggagawa ay limitado sa mga itinalagang kawan nila at sa mga row ng "
+      + "buong bukid. Walang limitasyon ang May-ari at Manager. Ang mga manggagawang walang row ng "
+      + "pagtatalaga, o may row ng buong bukid, ay walang limitasyon rin. Ang detalye ng hindi itinalagang "
+      + "kawan ay nagbabalik ng 404.",
+
     glossaryLockedEntryTerm: "Naka-lock (entry)",
     glossaryLockedEntryDef:
       "Isang naisumiteng entry na mas matanda sa 7 araw — sarado sa mga karaniwang edit; gumagana pa rin "

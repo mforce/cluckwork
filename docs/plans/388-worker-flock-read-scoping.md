@@ -1,0 +1,516 @@
+# #388 Worker Flock Read-Scoping — Implementation Plan
+
+> **For agentic workers:** Execute this plan task-by-task. Steps use checkbox (`- [ ]`) syntax. Each task ends with an independently testable deliverable. **Transcribe code blocks verbatim.** Do not reformat, rename, or "improve" them.
+
+**Goal:** Close the gap where a Worker scoped to one flock can enumerate and read unassigned flocks. Add an EF global query filter (parallel to the 27 tenancy filters) that scopes a Worker's reads to their assigned flocks + farm-wide rows.
+
+**Architecture:** A new `FlockScope` scoped service (tri-state: `Unrestricted` / `RestrictedTo(Guid[])`) is resolved per-request by a new middleware from `UserRoleAssignment` rows. `FlockScope` is a constructor parameter of `AppDbContext` (like `TenantContext`), and 8 new query filters close over it. Raw-SQL call sites that bypass the filter get explicit flock-scope predicates where a flock column exists on the queried rows.
+
+**Tech Stack:** .NET 10, EF Core 10, PostgreSQL, xUnit, Testcontainers.
+
+**Design:** `docs/designs/388-worker-flock-read-scoping.md` (approved 2026-08-25). Invariant IDs INV-1..INV-4 are stable — never renumber.
+
+## Global Constraints
+
+- **No domain changes.** The filter is a query-time concern, not a domain invariant. `src/Cluckwork.Domain/**` is do-not-touch.
+- **`FlockScope` is a constructor parameter of `AppDbContext`** (not a lazy scoped service). The filter lambda closes over the constructor field, the same way the 27 tenancy filters close over `TenantContext`.
+- **`AssignedFlockIds` is `IReadOnlyCollection<Guid>`** (immutable defensive copy). Single-assignment: a differing re-resolve throws.
+- **Tri-state:** `IsUnrestricted: bool` + `AssignedFlockIds: IReadOnlyCollection<Guid>`. Unrestricted when: Owner/Manager role, 0 assignment rows, OR any farm-wide row (`FlockId = null`). This matches `FlockScopeGuard` lines 80 and 84.
+- **`Flock` filter is `e.Id ∈ scope`** (self-reference — `Flock` has no `FlockId` column). The other 7 entities use `e.FlockId ∈ scope` (nullable `FlockId` on `InventoryMovement`/`Expense` passes `null` — farm-wide).
+- **No migration.** Query filters are runtime metadata, not in the model snapshot. No `docs/schema/` regeneration. `InitialCreate` untouched (#407).
+- **No new dependency.** No package add → no lock-file churn (#146).
+- **The pre-commit hook does NOT build this tree.** `.githooks/pre-commit` runs only `Domain.Tests` + `Application.Tests` (when `.cs` staged) and `npm run typecheck` (when `web/` staged). `Infrastructure`/`Api` compile only in the `dotnet build` step of each task. Build before every commit.
+- **Full suite in the foreground.** Report the final summary line verbatim.
+- **CI gates** (from `.github/workflows/ci.yml`): `dotnet build Cluckwork.sln --configuration Release --no-restore`, `dotnet test Cluckwork.sln --configuration Release --no-build --verbosity normal`, `tools/schema-docs/generate.sh --check`, `npm run test:coverage`, `npm run build`, `npm run verify:sw`.
+
+**Read-only surfaces a scoped Worker gets 403 on (AdminOnly — no filter needed there, documented for the review loop):** Sales/Profit/Expense reports (`ReportEndpoints.cs:28,33,38`), **Expenses + ExpenseCategories** (`Program.cs:359-367`, both groups AdminOnly — money is admin end to end, #87), Stock (`StockEndpoints.cs:33`), Inventory (`InventoryEndpoints.cs:34,39,44,49,74`), Catalog, EggGrades, Flocks create/deactivate/archive, DailyEntry adjust/void, WaterUsage update, Sales confirm/void, Payment records, Audit, Users, **Export** (`Program.cs:445-448`, AdminOnly group). The Worker's reachable READ surface — and the only surface the filters must protect for a Worker — is: Flocks list/detail (`/api/v1/flocks`, default policy), DailyEntries list/get, BirdMovements list (`/api/v1/flocks/{id}/movements`), WaterUsage list, FeedUsage list, Sales/Payment *view* endpoints (SalesFlow/SalesAccess). The Expense filter still ships (INV-1 says every scoped entity is filtered — it protects the Manager-less read paths and is the row the mutation table needs); there is simply no Worker-reachable HTTP surface to exercise it, so its test goes through the repository layer, not an endpoint.
+
+---
+
+### Task 1: `FlockScope` service + middleware (no filters yet)
+
+**Files:**
+- Create: `src/Cluckwork.Infrastructure/Persistence/FlockScope.cs`
+- Create: `src/Cluckwork.Api/Middleware/FlockScopeResolutionMiddleware.cs`
+- Modify: `src/Cluckwork.Api/Program.cs` (add middleware after `TenantResolutionMiddleware`)
+- Modify: `src/Cluckwork.Api/Hosting/CluckworkFeatureServiceCollectionExtensions.cs` (register `FlockScope` as scoped)
+- Modify: `tests/Cluckwork.Api.IntegrationTests/CredentialEpochMiddlewareOrderTests.cs` (pinned middleware sequence)
+- Test: `tests/Cluckwork.Api.IntegrationTests/FlockScopeMiddlewareTests.cs` (new — middleware unit behavior only; **no scoping assertions — those need Task 2's filters and live in Task 2**)
+
+**Interfaces:**
+- Consumes: `ICurrentUser` (role + resolved state), `AppDbContext` (`UserRoleAssignment` rows)
+- Produces: `FlockScope` with `bool IsUnrestricted`, `IReadOnlyCollection<Guid> AssignedFlockIds`, `bool IsResolved`, and `void Resolve(bool unrestricted, IReadOnlyCollection<Guid> flockIds)`. Single-assignment: a differing re-resolve throws `FlockScopeReassignmentException`.
+
+**Independence note:** Task 1 ships NO scoping. Every test in this task asserts middleware behavior only (resolve outcomes via a probe endpoint-free path), so the task is independently green. The scoping tests (flock list/detail) are written in Task 2 together with the filters that make them pass — an increment that ships a failing suite is a red tree, and the pre-commit hook will not catch it (it does not build `Infrastructure`/`Api`).
+
+- [ ] **Step 1: Write `FlockScope.cs`**
+
+Create `src/Cluckwork.Infrastructure/Persistence/FlockScope.cs`:
+
+```csharp
+namespace Cluckwork.Infrastructure.Persistence;
+
+using System.Collections.Generic;
+
+// Per-request flock-scope resolution (#388). Parallel to TenantContext (#546).
+// Tri-state: Unrestricted (Owner/Manager, 0 assignment rows, or any farm-wide row)
+// or RestrictedTo(assigned flock ids). Single-assignment: a differing re-resolve
+// throws FlockScopeReassignmentException.
+//
+// Resolved by FlockScopeResolutionMiddleware from UserRoleAssignment rows (a DB
+// read), NOT from a JWT claim. This is a different resolution contract than
+// TenantContext (which resolves from a claim, no I/O).
+//
+// The query filter reads this (a constructor field of AppDbContext), not a
+// service resolved at query time. The middleware populates it once per request;
+// the filter reads the populated value on every query (no per-query DB read).
+public sealed class FlockScope
+{
+    // Unresolved contexts (design-time, seeders, one-shot verbs, hand-built
+    // tests) retain the existing account-wide read behavior. HTTP middleware
+    // explicitly resolves every request. Matches FlockScopeGuard line 70.
+    public bool IsUnrestricted { get; private set; } = true;
+    public IReadOnlyCollection<Guid> AssignedFlockIds { get; private set; } = [];
+    public bool IsResolved { get; private set; }
+
+    public void Resolve(bool unrestricted, IReadOnlyCollection<Guid> flockIds)
+    {
+        if (IsResolved)
+        {
+            // Same scope: a deliberate no-op, NOT an error (mirrors TenantContext).
+            // (IReadOnlyCollection<Guid> has no SetEquals — compare as sets manually.)
+            if (IsUnrestricted == unrestricted &&
+                flockIds.Count == AssignedFlockIds.Count &&
+                !flockIds.Except(AssignedFlockIds).Any())
+                return;
+            throw new FlockScopeReassignmentException(IsUnrestricted, AssignedFlockIds, unrestricted, flockIds);
+        }
+
+        IsUnrestricted = unrestricted;
+        AssignedFlockIds = flockIds.ToList().AsReadOnly(); // defensive copy
+        IsResolved = true;
+    }
+}
+
+public sealed class FlockScopeReassignmentException(
+    bool oldUnrestricted, IReadOnlyCollection<Guid> oldIds,
+    bool newUnrestricted, IReadOnlyCollection<Guid> newIds)
+    : Exception($"FlockScope reassignment: ({oldUnrestricted}, {oldIds.Count} ids) -> ({newUnrestricted}, {newIds.Count} ids)");
+```
+
+- [ ] **Step 2: Write `FlockScopeResolutionMiddleware.cs`**
+
+Create `src/Cluckwork.Api/Middleware/FlockScopeResolutionMiddleware.cs`. Mirror the shape of `src/Cluckwork.Api/Middleware/TenantResolutionMiddleware.cs`:
+
+```csharp
+namespace Cluckwork.Api.Middleware;
+
+using System.Security.Claims;
+using Cluckwork.Application.Common;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+// #388 — resolves FlockScope per request from UserRoleAssignment rows.
+// Runs AFTER TenantResolutionMiddleware (which resolves AccountId from the JWT)
+// and BEFORE CredentialEpochMiddleware — it touches no credential state, so its
+// position is pinned by CredentialEpochMiddlewareOrderTests.
+// Skips the DB read for Owner/Manager (role check from ICurrentUser, no I/O).
+// An unresolved user (seeders, one-shot verbs, background jobs) is Unrestricted
+// (matches FlockScopeGuard line 70 fail-open behavior).
+public sealed class FlockScopeResolutionMiddleware(RequestDelegate next)
+{
+    public async Task InvokeAsync(HttpContext context, FlockScope scope, ICurrentUser user, AppDbContext db)
+    {
+        if (!user.IsResolved)
+        {
+            // Unresolved user (seeders, one-shot verbs, background jobs): Unrestricted.
+            // Matches FlockScopeGuard line 70 fail-open behavior.
+            scope.Resolve(true, []);
+            await next(context);
+            return;
+        }
+
+        if (user.Roles.Contains(Roles.Owner) || user.Roles.Contains(Roles.Manager))
+        {
+            // Owner/Manager: Unrestricted, no DB read.
+            scope.Resolve(true, []);
+            await next(context);
+            return;
+        }
+
+        var assignments = await db.UserRoleAssignments.AsNoTracking()
+            .Where(a => a.UserId == user.UserId)
+            .ToListAsync(context.RequestAborted);
+
+        if (assignments.Count == 0)
+        {
+            // 0 rows: unscoped worker (grandfathered #73). Unrestricted.
+            scope.Resolve(true, []);
+            await next(context);
+            return;
+        }
+
+        if (assignments.Any(a => a.FlockId == null))
+        {
+            // Farm-wide row: grants everything (matches FlockScopeGuard line 84). Unrestricted.
+            scope.Resolve(true, []);
+            await next(context);
+            return;
+        }
+
+        var flockIds = assignments.Where(a => a.FlockId != null).Select(a => a.FlockId!.Value).ToList();
+        scope.Resolve(false, flockIds);
+        await next(context);
+    }
+}
+```
+
+- [ ] **Step 3: Register the service and the middleware**
+
+In `CluckworkFeatureServiceCollectionExtensions.cs`, add `services.AddScoped<FlockScope>();` (parallel to `services.AddScoped<TenantContext>()` in `CluckworkPersistenceServiceCollectionExtensions.cs`).
+
+In `Program.cs`, add `app.UseMiddleware<FlockScopeResolutionMiddleware>();` on the line immediately AFTER `app.UseMiddleware<TenantResolutionMiddleware>();` (before `CredentialEpochMiddleware`).
+
+In `CredentialEpochMiddlewareOrderTests.cs`, the pinned `expectedOrder` array asserts the COMPLETE contiguous sequence from `UseAuthentication()` to `IdempotencyMiddleware` — insert `"app.UseMiddleware<FlockScopeResolutionMiddleware>();",` between the `TenantResolutionMiddleware` and `CredentialEpochMiddleware` entries or that test fails. This is the registry-reader rule: the fence test walks the sequence, so a new middleware in the window must be added to it.
+
+- [ ] **Step 4: Write the middleware behavior tests**
+
+Create `tests/Cluckwork.Api.IntegrationTests/FlockScopeMiddlewareTests.cs`. Mirror the shape of `RoleMatrixTests.cs` (same `CluckworkWebApplicationFactory`, same `[Collection(IntegrationCollection.Name)]`). These assert the RESOLUTION OUTCOME, not scoping — the factory's DI exposes the scoped `FlockScope`, so a request by a given persona, followed by a `scope.IsResolved/IsUnrestricted/AssignedFlockIds` check on that request's scope instance, is the assertion path (resolve the scope from the factory's `Services` after the request — or use a probe endpoint if the factory's scope instance is not request-scoped; pick the mechanism that works against the existing factory and note it in the test's comment).
+
+```csharp
+[Collection(IntegrationCollection.Name)]
+public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory factory)
+{
+    // Fixture: one farm, two flocks (A, B), an Owner, a Manager, a Worker with
+    // 0 assignments, a Worker with one flock-A assignment row, a Worker with a
+    // farm-wide (FlockId=null) row, and an unresolved (no-auth) request.
+
+    [Fact]
+    public async Task Owner_Resolved_Unrestricted() { /* assert scope.Unrestricted, no flock ids */ }
+
+    [Fact]
+    public async Task Manager_Resolved_Unrestricted() { /* INV-2 */ }
+
+    [Fact]
+    public async Task Worker_ZeroAssignments_Resolved_Unrestricted() { /* INV-3 */ }
+
+    [Fact]
+    public async Task Worker_FarmWideRow_Resolved_Unrestricted() { /* INV-3 */ }
+
+    [Fact]
+    public async Task Worker_SingleFlockRow_Resolved_RestrictedToThatFlock() { /* RestrictedTo([A]) */ }
+
+    [Fact]
+    public async Task UnauthenticatedRequest_Resolved_Unrestricted() { /* unresolved user fail-open, INV-4 */ }
+
+    [Fact]
+    public void Resolve_SameScopeTwice_IsNoOp() { /* new FlockScope(); Resolve(true, []); Resolve(true, []); assert no throw */ }
+
+    [Fact]
+    public void Resolve_DifferingScope_ThrowsReassignmentException() { /* Resolve(false, [A]); Resolve(false, [B]) → FlockScopeReassignmentException */ }
+}
+```
+
+- [ ] **Step 5: Build and run tests**
+
+Run: `dotnet build Cluckwork.sln --configuration Release --no-restore`
+Expected: clean (0 errors, 0 warnings).
+
+Run: `dotnet test Cluckwork.sln --configuration Release --no-build --filter "FullyQualifiedName~FlockScopeMiddlewareTests|FullyQualifiedName~CredentialEpochMiddlewareOrderTests" --verbosity normal`
+Expected: PASS (resolution works; the middleware order fence includes the new middleware).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/Cluckwork.Infrastructure/Persistence/FlockScope.cs \
+        src/Cluckwork.Api/Middleware/FlockScopeResolutionMiddleware.cs \
+        src/Cluckwork.Api/Program.cs \
+        src/Cluckwork.Api/Hosting/CluckworkFeatureServiceCollectionExtensions.cs \
+        tests/Cluckwork.Api.IntegrationTests/CredentialEpochMiddlewareOrderTests.cs \
+        tests/Cluckwork.Api.IntegrationTests/FlockScopeMiddlewareTests.cs
+git commit -m "feat: add FlockScope service and resolution middleware (#388)"
+```
+
+---
+
+### Task 2: 8 query filters on `AppDbContext`
+
+**Files:**
+- Modify: `src/Cluckwork.Infrastructure/Persistence/AppDbContext.cs` (add `FlockScope` constructor parameter + 8 query filters)
+- Modify: `src/Cluckwork.Infrastructure/Persistence/AppDbContextDesignTimeFactory.cs` (line 85)
+- Modify: `src/Cluckwork.Infrastructure/Repositories/ExportQueries.cs` (line 76 — manual `new AppDbContext(` with the request-scoped `tenant`; pass the request-scoped `FlockScope`, NOT a fresh one)
+- Modify: the enumerated `new AppDbContext(` sites in `tests/` (Step 4 list)
+- Test: `tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs` (new — the scoping tests; written here, not in Task 1, because they require the filters to pass)
+
+**Interfaces:**
+- Consumes: `FlockScope` (Task 1)
+- Produces: 8 query filters on `Flock`, `DailyEntry`, `EggLot`, `BirdMovement`, `InventoryMovement`, `FeedUsage`, `WaterUsage`, `Expense`.
+
+- [ ] **Step 1: Add `FlockScope` to the `AppDbContext` constructor**
+
+In `AppDbContext.cs`, change the constructor from:
+```csharp
+public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext tenant)
+    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
+```
+to:
+```csharp
+public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext tenant, FlockScope flockScope)
+    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
+```
+(Primary-constructor parameter; the filters below close over `flockScope` exactly as the tenancy filters close over `tenant`.)
+
+- [ ] **Step 2: Combine flock scope into 8 existing tenancy filters**
+
+Do **not** append a second unnamed `HasQueryFilter`: EF documents that a simple second call overwrites the first, which would delete tenant isolation on all 8 tables. Replace each entity's existing one-line tenancy filter with ONE combined predicate: `e.AccountId == tenant.AccountId && (flockScope.IsUnrestricted || assigned-match)`. For `Flock`, assigned-match uses `e.Id`; for the other entities it uses `e.FlockId`; `InventoryMovement`/`Expense` also pass `e.FlockId == null` (farm-wide). The correctness-critical exact blocks live in `docs/plans/388-runbook.md` Increment 2b. Afterward there remains exactly one `HasQueryFilter` call per entity and every one retains `AccountId` as its first conjunct.
+
+- [ ] **Step 3: Update every manual `new AppDbContext(` site**
+
+`AppDbContext`'s constructor is now 3-arg. Every manual construction must pass a `FlockScope`:
+
+- `src/Cluckwork.Infrastructure/Persistence/AppDbContextDesignTimeFactory.cs:85` — `new AppDbContext(options.Options, new TenantContext(), new FlockScope())` (fresh, unresolved → Unrestricted; design-time reads are unrestricted, matching how `new TenantContext()` behaves there).
+- `src/Cluckwork.Infrastructure/Repositories/ExportQueries.cs:76` — `BeginConsistentReadAsync` builds a SEPARATE snapshot context. It must take the request-scoped `FlockScope` as a constructor parameter (add `FlockScope flockScope` to `ExportQueries(AppDbContext db, TenantContext tenant, FlockScope flockScope)` and pass it to the snapshot `new AppDbContext(..., flockScope)`) so an export run by a scoped caller is scoped the same as any other read. The DI registration in `CluckworkFeatureServiceCollectionExtensions.cs:100-101` resolves it from the request scope automatically — no registration change, constructor only. (Export endpoints are AdminOnly, so this is defense-in-depth, but the snapshot must not silently be UNRESTRICTED for a scoped caller — an unrestricted snapshot context is a wider read than the request-scoped `db` the same class uses elsewhere.)
+- Test sites — add `new FlockScope()` as the third argument (fresh → Unrestricted; test contexts today assume an unrestricted tenant, and `FlockScope` must not change what they see):
+  - `tests/Cluckwork.Application.Tests/TenantBypass/TenantBypassRealTreeTests.cs:62`
+  - `tests/Cluckwork.Application.Tests/TenantBypass/TenantBypassDiscoveryTests.cs:36,96`
+  - `tests/Cluckwork.Api.IntegrationTests/StepUpAuthTests.cs:832,965`
+  - `tests/Cluckwork.Api.IntegrationTests/DisableUserRaceTests.cs:114,439,484,568,615`
+  - `tests/Cluckwork.Api.IntegrationTests/ChangeUserRoleRaceTests.cs:172,375`
+  - `tests/Cluckwork.Api.IntegrationTests/ChangeUserEmailRaceTests.cs:146,274`
+  - `tests/Cluckwork.Api.IntegrationTests/SchemaDocsTests.cs:65`
+  - `tests/Cluckwork.Api.IntegrationTests/BootstrapAdminCommandTests.cs:256,287`
+  - `tests/Cluckwork.Api.IntegrationTests/BaseReferenceDataMigrationTests.cs:50`
+  - `tests/Cluckwork.Api.IntegrationTests/SecurityEventLoggingTests.cs:309,368`
+  - `tests/Cluckwork.Api.IntegrationTests/FirstRunLoginNoticeTests.cs:241`
+  - `tests/Cluckwork.Api.IntegrationTests/ApplicationUserIndexModelTests.cs:28`
+  - `tests/Cluckwork.Api.IntegrationTests/AdminRecoveryServiceTests.cs:210,228,243`
+  - `tests/Cluckwork.Api.IntegrationTests/AccountScopedIdentityMigrationTests.cs:40`
+  - `tests/Cluckwork.Api.IntegrationTests/IdempotencyRecordPurgeSweepTests.cs:140`
+  - `tests/Cluckwork.Api.IntegrationTests/ReportQueryBoundingTests.cs:34`
+  - `tests/Cluckwork.Api.IntegrationTests/CurrencyLockSerializationTests.cs:83,99,170`
+  - `tests/Cluckwork.Api.IntegrationTests/CurrencyLockRaceTests.cs:86,156,230`
+  - `tests/Cluckwork.Api.IntegrationTests/AccountSlugMigrationTests.cs:40`
+  - `tests/Cluckwork.Api.IntegrationTests/StepUpGrantRegistryTests.cs:72,102`
+  - `tests/Cluckwork.Api.IntegrationTests/StepUpGrantRegistrySharedStoreTests.cs:73,162`
+  - `tests/Cluckwork.Api.IntegrationTests/FarmBannerMigrationDowngradeTests.cs:34`
+  - `tests/Cluckwork.Api.IntegrationTests/TenantScopedLockTests.cs:47,92`
+
+  (Line numbers are as of base commit `170e9d52`; if any is off by a few lines, the grep pattern `new AppDbContext(` in `tests/` is the authority — every hit must become 3-arg.)
+
+- [ ] **Step 4: Write the scoping tests**
+
+Create `tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs`. Mirror the shape of `RoleMatrixTests.cs` (same `CluckworkWebApplicationFactory`, same `[Collection(IntegrationCollection.Name)]`). Fixture: one farm, two flocks (A, B) each with a daily entry + an egg lot, a farm-wide expense and a flock-A expense, an Owner, a Manager, and a Worker assigned to flock A only.
+
+```csharp
+[Collection(IntegrationCollection.Name)]
+public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
+{
+    // INV-1 — the core bug from #388's title.
+    [Fact]
+    public async Task ScopedWorker_FlocksList_SeesOnlyAssignedFlock()
+    {
+        // Worker (flock A) GET /api/v1/flocks → 200, body contains flock A only.
+    }
+
+    // Symmetric filtering: unassigned flock detail = 404, not 403 (settled decision 2).
+    [Fact]
+    public async Task ScopedWorker_UnassignedFlockDetail_Returns404()
+    {
+        // Worker (flock A) GET /api/v1/flocks/{flockB} → 404.
+    }
+
+    // Positive control (INV-1 inverse): the assigned flock is still readable.
+    [Fact]
+    public async Task ScopedWorker_AssignedFlockDetail_Returns200()
+    {
+        // Worker (flock A) GET /api/v1/flocks/{flockA} → 200.
+    }
+
+    // INV-2 — elevated roles are unrestricted (list shows both flocks).
+    [Fact]
+    public async Task Owner_FlocksList_SeesAllFlocks()
+    {
+        // Owner GET /api/v1/flocks → 200, both A and B.
+    }
+
+    [Fact]
+    public async Task Manager_FlocksList_SeesAllFlocks()
+    {
+        // Manager GET /api/v1/flocks → 200, both A and B.
+    }
+
+    // Child-row scoping (DailyEntry/BirdMovement/WaterUsage filters) through
+    // Worker-reachable reads.
+    [Fact]
+    public async Task ScopedWorker_ChildRows_AreScoped()
+    {
+        // Worker (flock A):
+        //   GET /api/v1/daily-entries          → only flock A's entries
+        //   GET /api/v1/flocks/{flockA}/movements → flock A's movements (200)
+        //   GET /api/v1/flocks/{flockB}/movements → 404 (flock B not visible)
+        //   GET /api/v1/water-usage            → only flock A's water rows
+    }
+
+    // The Expense filter (INV-1 covers every scoped entity) has no Worker-reachable
+    // HTTP surface — /api/v1/expenses is AdminOnly (#87, money admin end to end) —
+    // so it is exercised at the repository layer: resolve the scoped service
+    // provider the same way the middleware does (scoped FlockScope + a db
+    // constructed with it) and assert db.Expenses returns the FlockId=null row
+    // (farm-wide, settled decision 1) but NOT the flock-B row.
+    [Fact]
+    public async Task ExpenseFilter_FarmWideVisible_UnassignedExcluded()
+    {
+        // Restricted scope (flock A): the farm-wide expense IS present,
+        // the flock-B expense is NOT, the flock-A expense IS present.
+    }
+}
+```
+
+(Do NOT assert expense reads through an HTTP endpoint for a Worker — the group is AdminOnly and a Worker gets 403 before any filter runs. The repository-layer assertion above is the mechanism; the mutation row M2 names it.)
+
+- [ ] **Step 5: Build and run tests**
+
+Run: `dotnet build Cluckwork.sln --configuration Release --no-restore`
+Expected: clean.
+
+Run: `dotnet test Cluckwork.sln --configuration Release --no-build --filter "FullyQualifiedName~FlockScopeTests" --verbosity normal`
+Expected: PASS (filters are in place — the scoping tests now pass).
+
+- [ ] **Step 6: Run the full suite**
+
+Run: `dotnet test Cluckwork.sln --configuration Release --no-build --verbosity normal`
+Expected: clean (or the same failures as the baseline — block on anything new or changed).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/Cluckwork.Infrastructure/Persistence/AppDbContext.cs \
+        src/Cluckwork.Infrastructure/Persistence/AppDbContextDesignTimeFactory.cs \
+        src/Cluckwork.Infrastructure/Repositories/ExportQueries.cs \
+        tests/
+git commit -m "feat: add 8 flock-scope query filters to AppDbContext (#388)"
+```
+
+---
+
+### Task 3: Raw-SQL flock-scope predicates
+
+**Files:**
+- Modify: `src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs` (3 raw-SQL sites)
+- Test: `tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs` (raw-SQL path test)
+- DO-NOT-TOUCH: `InventoryLotRepository.cs`, `SalesOrderRepository.cs`, `AccountRepository.cs`, `AuditEventRepository.cs`, `InventoryItemRepository.cs` (documented below)
+
+**Interfaces:**
+- Consumes: `FlockScope` (Task 1, via the `AppDbContext` constructor parameter — the repositories already hold `db`)
+- Produces: raw-SQL queries with flock-scope `WHERE` predicates where the queried table has a flock column.
+
+**Scope walk (why the file list is exactly this):** every `IgnoreQueryFilters`/`FromSqlInterpolated` site in `src/Cluckwork.Infrastructure` was walked; the ones over the 8 filtered entities are:
+
+| Site | Table | Flock column? | Action |
+|---|---|---|---|
+| `EggLotRepository.cs:38` `GetAvailableFifoLockedAsync` | `"EggLots"` | `"FlockId"` (NOT NULL) | add predicate (this task) |
+| `EggLotRepository.cs:66` `GetByIdsLockedAsync` | `"EggLots"` | `"FlockId"` (NOT NULL) | add predicate (this task) — needs no JOIN: the table itself carries the column |
+| `EggLotRepository.cs:85` `GetByDailyEntryLockedAsync` | `"EggLots"` | `"FlockId"` (NOT NULL) | add predicate (this task) |
+| `InventoryLotRepository.cs:19,39` | `"InventoryLots"` | **no `FlockId` column** — feed stock is farm-wide | NO predicate possible; see below |
+| `SalesOrderRepository.cs:30` | `"SalesOrders"` | **no `FlockId` column** | NO predicate possible; Sales writes are SalesFlow-gated and confirm/void are AdminOnly — documented no-op |
+| `AccountRepository` / `AuditEventRepository` / `InventoryItemRepository` | Account / AuditEvent / InventoryItem | not in the 8-entity filter set | untouched by design |
+
+**`InventoryLot` / `InventoryItem` (no flock column):** feed stock is farm-wide by model (an `InventoryLot` has no `FlockId`); the consumption write path (`RecordFeedUsage`) is already `FlockScopeGuard`-checked on the target flock, and the read surfaces a Worker can reach (`InventoryEndpoints` list/stock) are AdminOnly → 403 before any read. There is no scoped read to protect; a predicate is impossible (no column) and a JOIN would invent a relationship the model does not have. This is the documented, deliberate exclusion — do not "fix" it by adding a column or a JOIN.
+
+- [ ] **Step 1: Add the flock predicate to the 3 `EggLotRepository` raw-SQL sites**
+
+Each of the three `FromSqlInterpolated` queries gets one fixed predicate: `AND ({scope.IsUnrestricted} OR "FlockId" = ANY({scope.AssignedFlockIds.ToArray()}))`. `EggLots.FlockId` is NOT NULL, so no `IS NULL` branch; `= ANY(...)` is the existing Npgsql array-parameter pattern. Do **not** interpolate a prebuilt SQL-clause string — EF would parameterize the whole clause as a value rather than splice SQL syntax. The exact protected edit lives in `docs/plans/388-runbook.md` Increment 3a. Apply it to all three sites consistently. Unrestricted passes by the boolean parameter; restricted-empty yields zero rows (fail-closed).
+
+- [ ] **Step 2: Add a raw-SQL-path integration test**
+
+In `FlockScopeTests.cs`:
+
+```csharp
+[Fact]
+public async Task ScopedWorker_EggLotRawSqlPath_IsScoped()
+{
+    // Worker (flock A) exercises a Worker-reachable path that reaches the raw-SQL
+    // egg-lot query (confirm/void are AdminOnly — so this test drives the
+    // repository-level port directly through the factory's service provider,
+    // or asserts through the same surface the mutation row M3 names).
+    // Expect: flock A's lots visible/lockable, flock B's lots NOT returned.
+}
+```
+
+Pick the mechanism at implementation time that actually reaches `GetAvailableFifoLockedAsync`/`GetByIdsLockedAsync`/`GetByDailyEntryLockedAsync` as a scoped caller; the mutation row below names the test that must go RED, so whatever the mechanism, it must observe a scoped caller's result.
+
+- [ ] **Step 3: Build and run tests**
+
+Run: `dotnet build Cluckwork.sln --configuration Release --no-restore`
+Expected: clean.
+
+Run: `dotnet test Cluckwork.sln --configuration Release --no-build --filter "FullyQualifiedName~FlockScopeTests" --verbosity normal`
+Expected: PASS.
+
+- [ ] **Step 4: Run the full suite**
+
+Run: `dotnet test Cluckwork.sln --configuration Release --no-build --verbosity normal`
+Expected: clean.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs \
+        tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs
+git commit -m "feat: add flock-scope predicates to raw-SQL egg-lot lock paths (#388)"
+```
+
+---
+
+### Task 4: Docs + E2E
+
+**Files:**
+- Modify: `specs/product/GLOSSARY.md` (add "flock scoping" definition)
+- Modify: `web/src/i18n/en.ts`, `web/src/i18n/es.ts`, `web/src/i18n/tl.ts` (SPA Help glossary entries — every locale, same key names; `i18n.test.ts` / `translations-status.ts` enforce parity)
+- Modify: `web/src/routes/HelpPage.tsx` (the glossary table enumerates rows explicitly; add the new rendered row)
+- Modify: `tools/simulation/ui/specs/worker.spec.ts` (#277 Playwright E2E — Worker persona read assertions + preserve server write-guard coverage via captured-id DOM option injection, because the restricted picker now hides the unassigned flock)
+
+**Interfaces:**
+- Consumes: Tasks 1-3 (the feature is complete)
+- Produces: documentation surfaces rendered at runtime, in all three locales.
+
+- [ ] **Step 1: GLOSSARY.md**
+
+Add a "flock scoping" entry to `specs/product/GLOSSARY.md`: "A Worker's reads are limited to their assigned flocks + farm-wide rows. Owner/Manager unrestricted. Workers with 0 assignment rows or a farm-wide row unrestricted. Unassigned flocks return 404 (not 403)."
+
+- [ ] **Step 2: SPA Help glossary (all three locales)**
+
+Add a `glossaryFlockScopingTerm` / `glossaryFlockScopingDef` pair (naming follows the existing `glossary*Term`/`glossary*Def` convention in `web/src/i18n/en.ts`) to **all three** locale files — `en.ts`, `es.ts`, `tl.ts` — with native-language definitions. `web/src/i18n/i18n.test.ts` and `translations-status.ts` enforce key parity across locales; a missing key in any locale fails `npm run test:coverage`. Add the corresponding explicit `<tr>` to `web/src/routes/HelpPage.tsx`; the page does not auto-list keys.
+
+- [ ] **Step 3: #277 Playwright E2E spec**
+
+Update `tools/simulation/ui/specs/worker.spec.ts` to assert read scoping for the scoped Worker persona: the flock picker shows the assigned flock and hides the unassigned flock; the API integration test pins unassigned detail = 404 (assert the SPA not-found state too if a detail route exists). Preserve the server-side 422 write-guard coverage: the current test selects the unassigned flock from the picker, which will no longer work. First sign in as the unrestricted worker to capture that option's real id, sign out, sign in restricted, inject one temporary option with that captured id into the real select, then submit through the normal SPA path and retain the distinctive `FlockScope.NotAssigned` assertion. Do not use `page.request.post` (it lacks the SPA's module-held access token) and never hardcode the id or credentials. Full exact procedure: runbook Increment 4c.
+
+- [ ] **Step 4: Build web and run web tests**
+
+Run: `cd web && npm run build && npm run test:coverage`
+Expected: clean.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add specs/product/GLOSSARY.md web/src/i18n/ web/src/routes/HelpPage.tsx tools/simulation/ui/specs/worker.spec.ts
+git commit -m "docs: add flock scoping to glossary, help, and E2E (#388)"
+```
+
+---
+
+### Mutation checks (run after all tasks, on the final commit)
+
+Each row: the mutation is causal to the named test — removing the code the row names is the thing that test exists to catch.
+
+| # | Kind | Mutate | Expected test | Expected result |
+|---|---|---|---|---|
+| M0 | control | `FlockScope.cs`: change a comment string (no test reads it) | *(none)* | GREEN (control — proves the harness itself is sound) |
+| M1 | guard | `AppDbContext.cs`: remove the `Flock` query filter | `ScopedWorker_FlocksList_SeesOnlyAssignedFlock` | RED (sees unassigned flocks) |
+| M2 | guard | `AppDbContext.cs`: remove the `Expense` query filter | `ExpenseFilter_FarmWideVisible_UnassignedExcluded` (the flock-B expense must stay ABSENT) | RED (flock B's expense appears) |
+| M3 | guard | `EggLotRepository.cs:66` `GetByIdsLockedAsync`: remove the flock predicate | `ScopedWorker_EggLotRawSqlPath_IsScoped` | RED (flock B's lots are returned to the scoped caller) |
+| M4 | guard | `FlockScopeResolutionMiddleware.cs`: make the 0-assignment branch resolve `Restricted` (empty) instead of `Unrestricted` | `Worker_ZeroAssignments_Resolved_Unrestricted` | RED |
+| M5 | guard | `FlockScopeResolutionMiddleware.cs`: delete the farm-wide-row early return (the `assignments.Any(a => a.FlockId == null)` branch) so a farm-wide row falls through to `Resolve(false, [])` | `Worker_FarmWideRow_Resolved_Unrestricted` | RED |
+
+For each: apply → run the named test → confirm RED → restore → **rebuild** → confirm the full `FlockScopeTests` + `FlockScopeMiddlewareTests` are green again. Mark each mutant with `// MUTANT M<n>: <what this breaks>` and delete the marker on restore. `grep -rn MUTANT src/ tests/` must return nothing at the end.

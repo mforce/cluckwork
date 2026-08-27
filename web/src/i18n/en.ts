@@ -3048,6 +3048,12 @@ export const en = {
       "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "
       + "managers also correct and configure; sales handles orders and payments; read-only just views.",
 
+    glossaryFlockScopingTerm: "Flock scoping",
+    glossaryFlockScopingDef:
+      "A Worker's reads are limited to their assigned flocks plus farm-wide rows. Owner and Manager "
+      + "are unrestricted. Workers with no assignment rows, or a farm-wide row, are unrestricted too. "
+      + "An unassigned flock's detail returns 404.",
+
     glossaryLockedEntryTerm: "Locked (entry)",
     glossaryLockedEntryDef:
       "A submitted entry older than 7 days — closed to routine edits; admin adjust/void still works.",

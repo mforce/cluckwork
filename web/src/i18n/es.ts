@@ -2644,6 +2644,12 @@ export const es = {
       + "trabajadores registran; los gerentes también corrigen y configuran; ventas gestiona pedidos y "
       + "pagos; solo lectura únicamente visualiza.",
 
+    glossaryFlockScopingTerm: "Alcance por lote",
+    glossaryFlockScopingDef:
+      "Las lecturas de un Trabajador se limitan a sus lotes asignados más las filas de la granja completa. "
+      + "Propietario y Gerente no tienen restricción. Los Trabajadores sin filas de asignación, o con una "
+      + "fila de granja completa, tampoco tienen restricción. El detalle de un lote no asignado devuelve 404.",
+
     glossaryLockedEntryTerm: "Bloqueada (entrada)",
     glossaryLockedEntryDef:
       "Una entrada enviada de más de 7 días — cerrada a ediciones rutinarias; el ajuste/anulación de admin "
