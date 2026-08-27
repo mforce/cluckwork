@@ -1148,6 +1148,7 @@ export const es = {
     // #356 — re-confirmación incondicional (machine-drafted, pending native review)
     stepUpDisableHint: "Deshabilitar a un usuario requiere volver a ingresar tu contraseña actual.",
     stepUpEnableHint: "Volver a habilitar a un usuario requiere volver a ingresar tu contraseña actual.",
+    stepUpFlockHint: "Asignar o quitar un lote requiere volver a ingresar tu contraseña actual.",
 
     // Users table
     emailColumnHeader: "Correo electrónico",
@@ -1805,11 +1806,12 @@ export const es = {
       + "administra el servidor, en lugar de afirmar que sus datos eran incorrectos.",
     // #308/#356/#360 (machine-drafted, pending native review)
     signingInStepUp:
-      "Seis acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
+      "Ocho acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
       + "actual</strong> directamente en el diálogo: crear cualquier usuario, restablecer la contraseña de cualquier "
-      + "usuario, cambiar el rol de cualquier usuario, cambiar un correo de inicio de sesión, deshabilitar un usuario "
-      + "y volver a habilitar un usuario. Esto confirma que realmente es usted antes de otorgar acceso o retirárselo "
-      + "a otra persona. Los cambios de nombre para mostrar y de asignación de lotes no vuelven a pedirla.",
+      + "usuario, cambiar el rol de cualquier usuario, cambiar un correo de inicio de sesión, deshabilitar un usuario, "
+      + "volver a habilitar un usuario, asignar un trabajador a un lote, y quitarle a un trabajador la asignación "
+      + "de un lote. Esto confirma que realmente es usted antes de otorgar acceso o retirárselo "
+      + "a otra persona. Los cambios de nombre para mostrar no vuelven a pedirla.",
     signingInCredentialEpoch:
       "Cuando un administrador restablece una contraseña, su sesión actual puede invalidarse inmediatamente. Si "
       + "ve un mensaje indicando que sus credenciales cambiaron, inicie sesión de nuevo con su contraseña actual.",
@@ -2516,9 +2518,10 @@ export const es = {
     glossaryStepUpAuthDef:
       "Una comprobación adicional además de haber iniciado sesión: antes de crear cualquier usuario, "
       + "restablecer la contraseña de cualquier usuario, cambiar el rol de cualquier usuario, cambiar un correo "
-      + "de inicio de sesión, deshabilitar un usuario o volver a habilitarlo, la pantalla Usuarios le pide volver "
+      + "de inicio de sesión, deshabilitar un usuario, volver a habilitarlo, asignar un trabajador a un lote, o "
+      + "quitarle a un trabajador la asignación de un lote, la pantalla Usuarios le pide volver "
       + "a ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted antes "
-      + "de otorgar — o retirar — acceso. Los cambios de nombre para mostrar y de asignación de lotes no vuelven a pedirla.",
+      + "de otorgar — o retirar — acceso. Los cambios de nombre para mostrar no vuelven a pedirla.",
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:
       "Lo que muestra una pantalla cuando encuentra un error, en lugar de quedar en blanco. Los datos "

@@ -138,6 +138,12 @@ function flockSelect(): HTMLElement {
   return within(row as HTMLElement).getByRole("combobox");
 }
 
+// #606 — the flock dialog's shared current-password field, required before
+// either an assign or a remove.
+const flockPasswordInput = () => within(dialog()).getByLabelText(/Your current password/);
+const fillFlockPassword = (value = OWNER_STEP_UP_PASSWORD) =>
+  fireEvent.change(flockPasswordInput(), { target: { value } });
+
 describe("UsersPage load", () => {
   it("shows a loading state, then the user list once the load resolves", async () => {
     let resolveUsers!: (u: User[]) => void;
@@ -1739,13 +1745,49 @@ describe("UsersPage flock scoping", () => {
 
     // Default assign selection is the first active flock (fl1); choose fl2.
     fireEvent.change(flockSelect(), { target: { value: "fl2" } });
+    fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
     });
 
-    expect(mockAssignFlock).toHaveBeenCalledWith("u-w", "fl2", expect.any(String));
+    // #606 — the typed proof goes to stepUp(), and the returned grant rides
+    // the write as its fourth argument.
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockAssignFlock).toHaveBeenCalledWith("u-w", "fl2", expect.any(String), "grant-default");
     // Refreshes the assignment list for the same worker afterwards.
     expect(mockListAssignments).toHaveBeenLastCalledWith("u-w");
+    // Cleared synchronously, so re-entry is required for the next action.
+    expect(flockPasswordInput()).toHaveValue("");
+  });
+
+  it("requests a fresh step-up token for a second assign, never reusing the first grant", async () => {
+    mockListAssignments.mockResolvedValue([]);
+    mockAssignFlock.mockResolvedValue({ id: "as-new" });
+    mockStepUp
+      .mockResolvedValueOnce({ token: "grant-1", expiresAt: "2026-01-01T00:05:00Z" })
+      .mockResolvedValueOnce({ token: "grant-2", expiresAt: "2026-01-01T00:05:00Z" });
+    await renderReady(ADMIN);
+
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => {
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    });
+    await screen.findByText(/account-wide access/);
+
+    fillFlockPassword();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+    expect(mockAssignFlock).toHaveBeenNthCalledWith(1, "u-w", "fl1", expect.any(String), "grant-1");
+
+    fireEvent.change(flockSelect(), { target: { value: "fl2" } });
+    fillFlockPassword();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+
+    expect(mockStepUp).toHaveBeenCalledTimes(2);
+    expect(mockAssignFlock).toHaveBeenNthCalledWith(2, "u-w", "fl2", expect.any(String), "grant-2");
   });
 
   it("replays the SAME assign key after a failure, and rotates it after success", async () => {
@@ -1765,13 +1807,17 @@ describe("UsersPage flock scoping", () => {
     const assign = () => screen.getByRole("button", { name: "Assign flock" });
 
     // Attempt 1 — fails, so the key is kept.
+    fillFlockPassword();
     await act(async () => { fireEvent.click(assign()); });
     expect(await screen.findByText(/Server error|boom/)).toBeInTheDocument();
 
     // Attempt 2 — resubmit the same selection → replay of the kept key.
+    // Fresh re-entry is required for every action, success or failure alike.
+    fillFlockPassword();
     await act(async () => { fireEvent.click(assign()); });
 
     // Attempt 3 — the prior success cleared the key → a fresh one on the next write.
+    fillFlockPassword();
     await act(async () => { fireEvent.click(assign()); });
 
     const k1 = mockAssignFlock.mock.calls[0][2];
@@ -1791,11 +1837,13 @@ describe("UsersPage flock scoping", () => {
       fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
     const item = await screen.findByRole("listitem");
+    fillFlockPassword();
     await act(async () => {
       fireEvent.click(within(item).getByRole("button", { name: "remove" }));
     });
 
-    expect(mockUnassignFlock).toHaveBeenCalledWith("u-w", "as1", expect.any(String));
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockUnassignFlock).toHaveBeenCalledWith("u-w", "as1", expect.any(String), "grant-default");
     expect(await screen.findByText(/No assignments — account-wide access/)).toBeInTheDocument();
   });
 
@@ -1859,6 +1907,7 @@ describe("UsersPage flock scoping", () => {
       fireEvent.click(within(rowA).getByRole("button", { name: "flocks" }));
     });
     const panelA = await screen.findByRole("dialog", { name: /Flock access — worker@farm\.test/ });
+    fillFlockPassword();
     await act(async () => {
       fireEvent.click(within(panelA).getByRole("button", { name: "remove" }));
     });
@@ -1888,12 +1937,231 @@ describe("UsersPage flock scoping", () => {
       fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByText(/account-wide access/);
+    fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
     });
 
     expect(await screen.findByText(/already assigned|Conflict/)).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument(); // dialog stayed open
+  });
+
+  // #606 — step-up for flock scoping. Same read-then-clear-before-issuance
+  // and stale-continuation contract as every other step-up site on this page.
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((ok, fail) => { resolve = ok; reject = fail; });
+    return { promise, resolve, reject };
+  }
+
+  it("clears the password before awaiting step-up issuance (assign)", async () => {
+    const grant = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(grant.promise);
+    mockAssignFlock.mockResolvedValue({ id: "as-new" });
+    await renderReady(ADMIN);
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => {
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    });
+    await screen.findByText(/account-wide access/);
+    fillFlockPassword();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    // Erased synchronously — before the deferred grant even resolves.
+    expect(flockPasswordInput()).toHaveValue("");
+    expect(mockAssignFlock).not.toHaveBeenCalled();
+
+    await act(async () => grant.resolve({ token: "assign-grant", expiresAt: "2026-01-01T00:05:00Z" }));
+    expect(mockAssignFlock).toHaveBeenCalledWith("u-w", "fl1", expect.any(String), "assign-grant");
+  });
+
+  it("clears the password before awaiting step-up issuance (remove)", async () => {
+    const grant = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(grant.promise);
+    mockListAssignments.mockResolvedValue([ASSIGN_1]);
+    mockUnassignFlock.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => {
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    });
+    const item = await screen.findByRole("listitem");
+    fillFlockPassword();
+
+    await act(async () => {
+      fireEvent.click(within(item).getByRole("button", { name: "remove" }));
+    });
+    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(flockPasswordInput()).toHaveValue("");
+    expect(mockUnassignFlock).not.toHaveBeenCalled();
+
+    await act(async () => grant.resolve({ token: "unassign-grant", expiresAt: "2026-01-01T00:05:00Z" }));
+    expect(mockUnassignFlock).toHaveBeenCalledWith("u-w", "as1", expect.any(String), "unassign-grant");
+  });
+
+  it("does not let a stale assign continuation write, refresh, or report into a reopened SAME worker's dialog", async () => {
+    const grant = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(grant.promise);
+    mockAssignFlock.mockResolvedValue({ id: "as-new" });
+    await renderReady(ADMIN);
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+
+    await act(async () => { open(); });
+    await screen.findByText(/account-wide access/);
+    fillFlockPassword();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+
+    // Close and reopen the SAME worker — a target-ID-only guard would treat
+    // this as still-current, since the target never changed.
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await act(async () => { open(); });
+    await screen.findByText(/account-wide access/);
+    const listCallsBeforeLateGrant = mockListAssignments.mock.calls.length;
+
+    await act(async () => grant.resolve({ token: "stale-grant", expiresAt: "2026-01-01T00:05:00Z" }));
+
+    expect(mockAssignFlock).not.toHaveBeenCalled();
+    // No extra refresh triggered by the stale continuation.
+    expect(mockListAssignments.mock.calls.length).toBe(listCallsBeforeLateGrant);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).queryByText(/Server error|Conflict/)).not.toBeInTheDocument();
+  });
+
+  it("does not let a stale remove continuation write, refresh, or report into a reopened SAME worker's dialog", async () => {
+    const grant = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(grant.promise);
+    mockListAssignments.mockResolvedValue([ASSIGN_1]);
+    mockUnassignFlock.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+
+    await act(async () => { open(); });
+    const item = await screen.findByRole("listitem");
+    fillFlockPassword();
+    await act(async () => {
+      fireEvent.click(within(item).getByRole("button", { name: "remove" }));
+    });
+
+    // Close and reopen the SAME worker — a target-ID-only guard would treat
+    // this as still-current, since the target never changed.
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await act(async () => { open(); });
+    await screen.findByRole("listitem");
+    const listCallsBeforeLateGrant = mockListAssignments.mock.calls.length;
+
+    await act(async () => grant.resolve({ token: "stale-grant", expiresAt: "2026-01-01T00:05:00Z" }));
+
+    expect(mockUnassignFlock).not.toHaveBeenCalled();
+    expect(mockListAssignments.mock.calls.length).toBe(listCallsBeforeLateGrant);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  // #609 review — the stale-continuation tests above close+reopen mid
+  // STEP-UP-ISSUANCE (safe: nothing has been written yet). This is the
+  // window they deliberately don't cover: once the actual assign/unassign
+  // request has started, closing and reopening the SAME worker loads data
+  // that predates the write, and the write's own eventual completion is
+  // correctly discarded by the bumped generation — leaving the reopened
+  // dialog stale until closed and reopened again post-settle. Every
+  // dismissal path (Done, the close button, Escape, a backdrop click) must
+  // be blocked for that window, proving no such close+reopen is reachable.
+  it("blocks every dismissal path while an assign write is in flight, and allows closing once it settles", async () => {
+    const write = deferred<{ id: string }>();
+    mockListAssignments.mockResolvedValue([]);
+    mockAssignFlock.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => {
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    });
+    await screen.findByText(/account-wide access/);
+    fillFlockPassword();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+
+    // Step-up already resolved (the default mock is immediate); assignFlock
+    // itself is the one still pending.
+    expect(mockAssignFlock).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+
+    fireEvent.click(document.querySelector(".dialog-backdrop")!);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await act(async () => { write.resolve({ id: "as-new" }); });
+
+    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("blocks every dismissal path while an unassign write is in flight, and allows closing once it settles", async () => {
+    const write = deferred<void>();
+    mockListAssignments.mockResolvedValue([ASSIGN_1]);
+    mockUnassignFlock.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => {
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    });
+    const item = await screen.findByRole("listitem");
+    fillFlockPassword();
+    await act(async () => {
+      fireEvent.click(within(item).getByRole("button", { name: "remove" }));
+    });
+
+    expect(mockUnassignFlock).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+
+    fireEvent.click(document.querySelector(".dialog-backdrop")!);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await act(async () => { write.resolve(); });
+
+    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("does not let a stale open-load failure surface a page error into a reopened SAME worker's dialog", async () => {
+    const staleLoad = deferred<FlockAssignment[]>();
+    mockListAssignments
+      .mockImplementationOnce(() => staleLoad.promise)
+      .mockResolvedValueOnce([]);
+    await renderReady(ADMIN);
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+
+    // First open's load hangs — no dialog yet, so there's nothing to close;
+    // a second click on the SAME row's button re-invokes openAssignments and
+    // bumps the generation while the first load is still in flight.
+    await act(async () => { open(); });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await act(async () => { open(); });
+    await screen.findByText(/account-wide access/);
+
+    // The stale first load now fails — it must not blow away the fresh
+    // dialog with a page-level error.
+    await act(async () => { staleLoad.promise.catch(() => {}); staleLoad.reject(new Error("boom")); });
+
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /Flock access — worker@farm.test/ })).toBeInTheDocument();
   });
 });
 
@@ -1947,6 +2215,7 @@ describe("UsersPage pending states (#236)", () => {
       fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
     const items = await screen.findAllByRole("listitem");
+    fillFlockPassword();
     await act(async () => {
       fireEvent.click(within(items[0]).getByRole("button", { name: "remove" }));
     });
@@ -1968,6 +2237,12 @@ describe("UsersPage pending states (#236)", () => {
 
     await act(async () => { gate.resolve(); });
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    // #606 — the flight clearing is not enough on its own: Assign stays
+    // disabled until a fresh password is re-entered (spent by the remove
+    // above), same "require re-entry for the next action" contract as every
+    // other step-up site.
+    expect(screen.getByRole("button", { name: "Assign flock" })).toBeDisabled();
+    fillFlockPassword();
     expect(screen.getByRole("button", { name: "Assign flock" })).toBeEnabled();
     expect(screen.getByRole("combobox")).toBeEnabled();
   });
@@ -2061,6 +2336,17 @@ describe("UsersPage i18n wiring (#182, Task 22)", () => {
       expect(
         await screen.findByRole("dialog", { name: "FLOCK-MARKER worker@farm.test MARKER-END" }),
       ).toBeInTheDocument();
+    });
+  });
+
+  it("reads the flock step-up hint from the catalog, not a hardcoded literal", async () => {
+    await withOverride("users", "stepUpFlockHint", "FLOCK-STEPUP-MARKER", async () => {
+      await renderReady(ADMIN);
+      const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+      await act(async () => {
+        fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      });
+      expect(await screen.findByText("FLOCK-STEPUP-MARKER")).toBeInTheDocument();
     });
   });
 
@@ -2523,6 +2809,7 @@ describe("UsersPage error placement (#479)", () => {
     await act(async () => {
       openRowDialog("worker@farm.test", "flocks");
     });
+    fillFlockPassword();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
@@ -2598,6 +2885,7 @@ describe("UsersPage error placement (#479)", () => {
     await act(async () => {
       openRowDialog("worker@farm.test", "flocks");
     });
+    fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
     });
@@ -2623,6 +2911,7 @@ describe("UsersPage error placement (#479)", () => {
     await act(async () => {
       openRowDialog("worker@farm.test", "flocks");
     });
+    fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
     });

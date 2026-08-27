@@ -20,10 +20,11 @@ const BASE = "/api/v1";
 // alongside the cookie's SameSite=Strict. Mirrors AuthCookies.CsrfHeaderName.
 const CSRF_HEADER = "X-Cluckwork-Auth";
 
-// #308/#360 — carries a short-lived step-up grant (see stepUp() below) on the
-// user-administration calls that require recent proof (every user creation,
-// every administrative password reset, and every role change). Mirrors
-// AuthEndpoints.StepUpHeaderName.
+// #308/#360/#606 — carries a short-lived step-up grant (see stepUp() below)
+// on the user-administration calls that require recent proof (every user
+// creation, every administrative password reset, every role change,
+// login-email change, disable/re-enable, and every flock assign/unassign).
+// Mirrors AuthEndpoints.StepUpHeaderName.
 export const STEP_UP_HEADER = "X-Cluckwork-Step-Up";
 
 // #547 — the tab tells /auth/refresh which farm it expects; the server compares
@@ -314,10 +315,11 @@ export async function changePassword(
   onTokensChanged?.();
 }
 
-// #308/#360 — re-confirms the CURRENT password to mint a short-lived step-up
-// grant for one durable user-access mutation: creating any user, resetting any
-// user's password, changing any user's role, changing a login email, disabling
-// a user, or re-enabling a user. The grant is returned to the caller and
+// #308/#360/#606 — re-confirms the CURRENT password to mint a short-lived
+// step-up grant for one durable user-access mutation: creating any user,
+// resetting any user's password, changing any user's role, changing a login
+// email, disabling a user, re-enabling a user, assigning a worker to a flock,
+// or removing a worker's flock assignment. The grant is returned to the caller and
 // used EXACTLY ONCE, immediately, as the X-Cluckwork-Step-Up header on that
 // one follow-up request (see UsersPage.tsx) — this function itself never
 // stores the token or the password anywhere longer-lived than its own return
@@ -719,10 +721,16 @@ export function apiPutBytes<T>(
   });
 }
 
-export function apiDelete<T>(path: string, idempotencyKey?: string): Promise<T> {
+// #606 — extraHeaders is how UnassignFlock attaches the X-Cluckwork-Step-Up
+// header, same shape as apiPost/apiPut above; every other caller omits it.
+export function apiDelete<T>(
+  path: string,
+  idempotencyKey?: string,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   return apiFetch<T>(path, {
     method: "DELETE",
-    headers: { "Idempotency-Key": idempotencyKey ?? newId() },
+    headers: { "Idempotency-Key": idempotencyKey ?? newId(), ...extraHeaders },
   });
 }
 

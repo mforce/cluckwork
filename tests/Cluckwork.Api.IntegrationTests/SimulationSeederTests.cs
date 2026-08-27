@@ -1255,6 +1255,66 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         Assert.All(byRestrictedWorker, e => Assert.Equal(restrictedFlockId, flockOfEntry[e.EntityId]));
     }
 
+    // #606 — trusted simulation provisioning (RestrictOneWorkerAsync) must
+    // preserve the SAME audit shape the interactive AssignFlockHandler wrote:
+    // Owner actor, the worker's real email, and the assigned flock's real
+    // NAME (never an id or a hardcoded literal). Actor-only coverage above
+    // (SimulationSeed_AttributesEachAuditedActionToItsPersona /
+    // SimulationSeed_EachActionsActorHoldsTheExpectedRoles) is insufficient —
+    // only deserializing Details catches a corrupted or ID-based value.
+    [Fact]
+    public async Task SimulationSeed_RestrictedWorkerAssignment_PreservesActorAndAuditDetails()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var assignment = await db.UserRoleAssignments.IgnoreQueryFilters()
+            .Where(a => a.AccountId == SeedDefaults.AccountId && a.FlockId != null)
+            .SingleAsync();
+        var flock = await db.Flocks.IgnoreQueryFilters()
+            .SingleAsync(f => f.Id == assignment.FlockId);
+        var worker = await db.Users.IgnoreQueryFilters()
+            .SingleAsync(u => u.Id == assignment.UserId);
+
+        // The established fixture topology (SimulationDataSeeder's Task-2
+        // flock list): the restricted worker's flock is always the
+        // first-created one, "Sim House A" — pinned separately from the
+        // "compare against the actual entity" assertions below so a seeder
+        // that assigned the WRONG flock (but still reported its real name)
+        // cannot pass by comparing a value against itself.
+        Assert.Equal("Sim House A", flock.Name);
+
+        var flockAssignRows = await db.AuditEvents.IgnoreQueryFilters()
+            .Where(e => e.AccountId == SeedDefaults.AccountId
+                        && e.Action == AuditActions.UserFlockAssign
+                        && e.EntityId == worker.Id)
+            .ToListAsync();
+        var row = Assert.Single(flockAssignRows);
+        Assert.Equal(factory.AdminEmail, row.ActorEmail);
+
+        // AuditWriter serializes details with JsonSerializerDefaults.Web —
+        // camelCase property names.
+        using var details = JsonDocument.Parse(row.DetailsJson!);
+        Assert.Equal(worker.Email, details.RootElement.GetProperty("email").GetString());
+        Assert.Equal(flock.Name, details.RootElement.GetProperty("flock").GetString());
+
+        // Rerunning the seeder remains convergent: no duplicate assignment
+        // row or audit event for the same restricted pair.
+        var rerun = await scope.ServiceProvider.GetRequiredService<SimulationDataSeeder>().SeedAsync();
+        Assert.Equal(SeedStatus.AlreadySeeded, rerun.Status);
+
+        var assignmentsAfter = await db.UserRoleAssignments.IgnoreQueryFilters()
+            .Where(a => a.AccountId == SeedDefaults.AccountId && a.FlockId != null)
+            .CountAsync();
+        Assert.Equal(1, assignmentsAfter);
+        var eventsAfter = await db.AuditEvents.IgnoreQueryFilters()
+            .Where(e => e.AccountId == SeedDefaults.AccountId
+                        && e.Action == AuditActions.UserFlockAssign
+                        && e.EntityId == worker.Id)
+            .CountAsync();
+        Assert.Equal(1, eventsAfter);
+    }
+
     // --- #500 slice 4: both provenance shapes ----------------------------
 
     // Per ENTRY, which the persona map above cannot express: it checks the

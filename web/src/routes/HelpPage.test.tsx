@@ -309,14 +309,19 @@ describe("HelpPage", () => {
     // Pin the semantics, not merely the count: a stale Owner-only description
     // can still say "Six" while omitting one of the widened categories.
     render(<HelpPage />);
-    const paragraph = screen.getByText(/Six actions on the/i).closest("li")!;
+    const paragraph = screen.getByText(/Eight actions on the/i).closest("li")!;
     expect(paragraph).toHaveTextContent(/creating any user/i);
     expect(paragraph).toHaveTextContent(/resetting any user's password/i);
     expect(paragraph).toHaveTextContent(/changing any user's role/i);
     expect(paragraph).toHaveTextContent(/changing a login email/i);
     expect(paragraph).toHaveTextContent(/disabling a user/i);
     expect(paragraph).toHaveTextContent(/re-enabling a user/i);
-    expect(paragraph).toHaveTextContent(/Display-name and flock-assignment changes do not ask again/i);
+    expect(paragraph).toHaveTextContent(/assigning a worker to a flock/i);
+    expect(paragraph).toHaveTextContent(/removing a worker's flock assignment/i);
+    // #606 — flock-assignment changes are no longer ungated; only display
+    // name is left as the explicit contrast.
+    expect(paragraph).toHaveTextContent(/Display-name changes do not ask again/i);
+    expect(paragraph).not.toHaveTextContent(/flock-assignment changes do not ask again/i);
 
     expect(en.help.rolesAdmin).toContain(
       "Creating any sign-in, resetting any user's password, and changing any user's role asks the signed-in Admin (owner) to re-enter their current password.",

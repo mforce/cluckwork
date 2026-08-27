@@ -29,10 +29,12 @@ using Microsoft.IdentityModel.Tokens;
 // Mechanism: current-password re-confirmation. POST /auth/step-up mints a
 // SEPARATE, short-lived JWT — the "step-up grant" — that the caller presents
 // (as the X-Cluckwork-Step-Up header, never the request body) alongside the
-// normal Bearer access token on the three gated calls — every CreateUser
+// normal Bearer access token on every gated call — every CreateUser
 // regardless of the created role, every SetUserPassword regardless of the
-// target's role, and every ChangeUserRole (#355) regardless of the requested
-// role.
+// target's role, every ChangeUserRole (#355) regardless of the requested
+// role, every login-email change and disable/re-enable (#356), and every
+// AssignFlock/UnassignFlock (#606) — flock scope narrows or widens a
+// Worker's durable authorization the same way the others do.
 // Properties, and how each failure mode is produced:
 //
 //   - Lifetime: JwtOptions.StepUpGrantMinutes (default 5) from issuance —

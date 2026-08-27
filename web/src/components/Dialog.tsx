@@ -41,6 +41,16 @@ interface DialogProps {
   /** Called for Escape, the close button, and a backdrop click. */
   onClose: () => void;
   /**
+   * Suppresses every dismissal path — Escape, the close button (rendered
+   * disabled), and a backdrop click — while an in-flight write owns the
+   * dialog's contents. Without this, closing and reopening the SAME record
+   * mid-write loads data that predates the write, and the write's own
+   * completion is discarded by the (correctly) bumped generation, leaving the
+   * reopened dialog showing stale data no amount of retrying fixes until it
+   * is closed and reopened again post-settle (#609 review).
+   */
+  closeDisabled?: boolean;
+  /**
    * Identifies WHAT the dialog is editing. When it changes while the dialog
    * stays open — a 409 rebind swaps in the server's newer record — focus moves
    * back to the first field, because the form under the user's cursor is not
@@ -162,19 +172,23 @@ function popModal(backdrop: HTMLElement) {
 //
 // Portalled to <body> so the backdrop covers the whole viewport regardless of
 // where it is mounted in the shell grid.
-export function Dialog({ open, title, onClose, focusKey, describedBy, wide, children }: DialogProps) {
+export function Dialog({
+  open, title, onClose, focusKey, describedBy, wide, closeDisabled, children,
+}: DialogProps) {
   const { t } = useTranslation("common");
   const panelRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const returnFocusTo = useRef<Element | null>(null);
 
-  // Escape/backdrop handlers read the LATEST onClose through a ref, so the
-  // keydown listener is bound once per open instead of being torn down and
-  // re-added on every parent render (callers pass inline lambdas, and the
-  // screens re-render on every keystroke).
+  // Escape/backdrop handlers read the LATEST onClose (and closeDisabled)
+  // through a ref, so the keydown listener is bound once per open instead of
+  // being torn down and re-added on every parent render (callers pass inline
+  // lambdas, and the screens re-render on every keystroke).
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; });
+  const closeDisabledRef = useRef(closeDisabled);
+  useEffect(() => { closeDisabledRef.current = closeDisabled; });
 
   // Remember where focus came from, and hand this dialog to the page-level
   // bookkeeping above (scroll lock + inertness). Keyed on `open` alone: a
@@ -258,7 +272,7 @@ export function Dialog({ open, title, onClose, focusKey, describedBy, wide, chil
       if (backdrop !== null && openStack[openStack.length - 1] !== backdrop) return;
 
       if (e.key === "Escape") {
-        onCloseRef.current();
+        if (!closeDisabledRef.current) onCloseRef.current();
         return;
       }
       if (e.key !== "Tab") return;
@@ -298,7 +312,7 @@ export function Dialog({ open, title, onClose, focusKey, describedBy, wide, chil
       ref={backdropRef}
       // Only a click on the backdrop itself dismisses — a click that lands on
       // the panel bubbles up here too.
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget && !closeDisabled) onClose(); }}
     >
       <div
         className={wide ? "dialog wide" : "dialog"}
@@ -311,7 +325,8 @@ export function Dialog({ open, title, onClose, focusKey, describedBy, wide, chil
       >
         <div className="dialog-head">
           <h3 id={titleId}>{title}</h3>
-          <button type="button" className="link dialog-close" aria-label={t("close")} onClick={onClose}>
+          <button type="button" className="link dialog-close" aria-label={t("close")}
+            disabled={closeDisabled} onClick={onClose}>
             <X size={18} aria-hidden />
           </button>
         </div>

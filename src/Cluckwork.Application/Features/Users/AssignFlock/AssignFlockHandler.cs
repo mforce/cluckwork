@@ -7,16 +7,28 @@ using Cluckwork.Domain.Common;
 
 // #103 (spec §5.2/§5.3) — narrow a worker to assigned flocks. The FIRST
 // assignment flips the user from account-wide (grandfathered) to scoped.
+// #606 — every interactive assignment requires a fresh step-up grant, the
+// same unconditional gating as the other durable user-access actions
+// (#308/#360). Proof is validated FIRST, before any target/flock/duplicate
+// lookup, so a missing/invalid grant discloses nothing about which targets
+// exist.
 public sealed class AssignFlockHandler(
     IUserRoleAssignmentRepository assignments,
     IFlockRepository flocks,
     IIdentityProvider identity,
     IUnitOfWork unitOfWork,
-    IAuditWriter audit)
+    IAuditWriter audit,
+    IStepUpGrantService stepUp)
 {
     public async Task<Result<Guid>> HandleAsync(
-        Guid userId, Guid flockId, Guid accountId, CancellationToken ct)
+        AssignFlockCommand command, Guid accountId, Guid actingUserId, CancellationToken ct)
     {
+        var proof = await stepUp.ValidateAsync(accountId, actingUserId, command.StepUpToken, ct);
+        if (!proof.IsSuccess) return Result.Failure<Guid>(proof.Error);
+
+        var userId = command.UserId;
+        var flockId = command.FlockId;
+
         // The target must be this account's user (no cross-tenant probing).
         var users = await identity.ListUsersAsync(accountId, ct);
         var target = users.FirstOrDefault(u => u.Id == userId);
@@ -43,13 +55,23 @@ public sealed class AssignFlockHandler(
     }
 }
 
+// #606 — unconditional step-up, same as AssignFlockHandler above. The
+// endpoint is the ONLY caller: there is no trusted non-HTTP unassignment path.
 public sealed class UnassignFlockHandler(
     IUserRoleAssignmentRepository assignments,
     IUnitOfWork unitOfWork,
-    IAuditWriter audit)
+    IAuditWriter audit,
+    IStepUpGrantService stepUp)
 {
-    public async Task<Result> HandleAsync(Guid userId, Guid assignmentId, CancellationToken ct)
+    public async Task<Result> HandleAsync(
+        UnassignFlockCommand command, Guid accountId, Guid actingUserId, CancellationToken ct)
     {
+        var proof = await stepUp.ValidateAsync(accountId, actingUserId, command.StepUpToken, ct);
+        if (!proof.IsSuccess) return proof;
+
+        var userId = command.UserId;
+        var assignmentId = command.AssignmentId;
+
         var assignment = await assignments.GetByIdAsync(assignmentId, ct);
         // The assignment must belong to the ROUTE's user — a mismatched pair
         // must not delete another worker's assignment (and thereby widen them

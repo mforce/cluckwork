@@ -64,9 +64,11 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     }
 
     private static Task<HttpResponseMessage> SendWithStepUpAsync(
-        HttpClient client, HttpMethod method, string url, object body, string? stepUpToken)
+        HttpClient client, HttpMethod method, string url, object? body, string? stepUpToken)
     {
-        var request = new HttpRequestMessage(method, url) { Content = JsonContent.Create(body) };
+        var request = new HttpRequestMessage(method, url);
+        if (body is not null)
+            request.Content = JsonContent.Create(body);
         request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         if (stepUpToken is not null)
             request.Headers.Add(AuthEndpoints.StepUpHeaderName, stepUpToken);
@@ -82,6 +84,155 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         HttpClient client, Guid userId, string newPassword, string? stepUpToken) =>
         SendWithStepUpAsync(client, HttpMethod.Put, $"/api/v1/users/{userId}/password",
             new { newPassword }, stepUpToken);
+
+    // ---------- flock scope (#606) ----------
+
+    private sealed record FlockAssignmentRow(Guid Id, Guid? FlockId);
+    private sealed record AuditRow(Guid Id, string Action, string? DetailsJson);
+
+    private static Task<HttpResponseMessage> AssignFlockWithStepUpAsync(
+        HttpClient client, Guid userId, Guid flockId, string? stepUpToken) =>
+        SendWithStepUpAsync(client, HttpMethod.Post, $"/api/v1/users/{userId}/flock-assignments",
+            new { flockId }, stepUpToken);
+
+    private static Task<HttpResponseMessage> UnassignFlockWithStepUpAsync(
+        HttpClient client, Guid userId, Guid assignmentId, string? stepUpToken) =>
+        SendWithStepUpAsync(client, HttpMethod.Delete,
+            $"/api/v1/users/{userId}/flock-assignments/{assignmentId}", body: null, stepUpToken);
+
+    private static async Task<List<FlockAssignmentRow>> AssignmentsAsync(HttpClient owner, Guid userId) =>
+        (await owner.GetFromJsonAsync<List<FlockAssignmentRow>>(
+            $"/api/v1/users/{userId}/flock-assignments"))!;
+
+    private static async Task<int> AuditCountAsync(HttpClient owner, string action, Guid entityId) =>
+        (await owner.GetFromJsonAsync<List<AuditRow>>(
+            $"/api/v1/audit?action={action}&entityId={entityId}"))!.Count;
+
+    // Runtime Worker/flock fixture: an Owner, an unassigned Worker, and two
+    // real flocks in the account, so assignment/unassignment tests exercise a
+    // known duplicate pair, a known-but-unassigned pair, and unknown targets.
+    private async Task<(HttpClient Owner, Guid WorkerId, Guid FlockA, Guid FlockB)> FlockScopeFixtureAsync()
+    {
+        var (owner, accountId) = await AdminAsync();
+        var farmId = Guid.NewGuid();
+        var flockA = await factory.SeedFlockAsync(accountId, farmId);
+        var flockB = await factory.SeedFlockAsync(accountId, farmId);
+        var workerEmail = $"fw-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, workerEmail, (string?)null);
+        var workerId = (await FindUserAsync(owner, workerEmail)).Id;
+        return (owner, workerId, flockA, flockB);
+    }
+
+    [Fact]
+    public async Task AssignFlock_MissingProof_KnownAndUnknownTargetsAreUniformAndWriteNothing()
+    {
+        var (owner, workerId, flockA, flockB) = await FlockScopeFixtureAsync();
+
+        // Baseline: one real assignment made with its OWN dedicated setup grant.
+        var setupGrant = await StepUpAsync(owner, TestHarness.Password);
+        var baseline = await AssignFlockWithStepUpAsync(owner, workerId, flockA, setupGrant.Token);
+        Assert.Equal(HttpStatusCode.Created, baseline.StatusCode);
+        var baselineRows = (await AssignmentsAsync(owner, workerId)).Count;
+        var baselineAudits = await AuditCountAsync(owner, AuditActions.UserFlockAssign, workerId);
+
+        // (a) known duplicate pair, missing proof.
+        var duplicate = await AssignFlockWithStepUpAsync(owner, workerId, flockA, stepUpToken: null);
+        Assert.Equal(HttpStatusCode.Forbidden, duplicate.StatusCode);
+
+        // (b) known Worker, known-but-unassigned flock, missing proof.
+        var unassigned = await AssignFlockWithStepUpAsync(owner, workerId, flockB, stepUpToken: null);
+        Assert.Equal(HttpStatusCode.Forbidden, unassigned.StatusCode);
+
+        // (c) unknown target ids entirely, missing proof.
+        var unknown = await AssignFlockWithStepUpAsync(
+            owner, Guid.NewGuid(), Guid.NewGuid(), stepUpToken: null);
+        Assert.Equal(HttpStatusCode.Forbidden, unknown.StatusCode);
+
+        // No lookup, no row, no audit event beyond the baseline for any of them.
+        Assert.Equal(baselineRows, (await AssignmentsAsync(owner, workerId)).Count);
+        Assert.Equal(baselineAudits, await AuditCountAsync(owner, AuditActions.UserFlockAssign, workerId));
+    }
+
+    [Fact]
+    public async Task UnassignFlock_MissingProof_KnownAndUnknownTargetsAreUniformAndPreserveLastAssignment()
+    {
+        var (owner, workerId, flockA, _) = await FlockScopeFixtureAsync();
+
+        // One valid fixture assignment, made with its own dedicated setup grant
+        // — never reused for the denial attempts below.
+        var setupGrant = await StepUpAsync(owner, TestHarness.Password);
+        var assign = await AssignFlockWithStepUpAsync(owner, workerId, flockA, setupGrant.Token);
+        Assert.Equal(HttpStatusCode.Created, assign.StatusCode);
+        var assignmentId = Assert.Single(await AssignmentsAsync(owner, workerId)).Id;
+
+        // Real route pair, missing proof.
+        var real = await UnassignFlockWithStepUpAsync(owner, workerId, assignmentId, stepUpToken: null);
+        Assert.Equal(HttpStatusCode.Forbidden, real.StatusCode);
+
+        // Unknown assignment id under the same worker, missing proof.
+        var unknown = await UnassignFlockWithStepUpAsync(
+            owner, workerId, Guid.NewGuid(), stepUpToken: null);
+        Assert.Equal(HttpStatusCode.Forbidden, unknown.StatusCode);
+
+        // The only assignment row remains, and no unassignment audit was written.
+        Assert.Single(await AssignmentsAsync(owner, workerId));
+        Assert.Equal(0, await AuditCountAsync(owner, AuditActions.UserFlockUnassign, workerId));
+    }
+
+    [Fact]
+    public async Task FlockScope_FreshProofPerMutation_AssignsThenRemovesLastAssignment()
+    {
+        var (owner, workerId, flockA, _) = await FlockScopeFixtureAsync();
+        Assert.Empty(await AssignmentsAsync(owner, workerId));
+
+        var assignGrant = await StepUpAsync(owner, TestHarness.Password);
+        var assign = await AssignFlockWithStepUpAsync(owner, workerId, flockA, assignGrant.Token);
+        Assert.Equal(HttpStatusCode.Created, assign.StatusCode);
+        var assignmentId = Assert.Single(await AssignmentsAsync(owner, workerId)).Id;
+
+        var removeGrant = await StepUpAsync(owner, TestHarness.Password);
+        var remove = await UnassignFlockWithStepUpAsync(owner, workerId, assignmentId, removeGrant.Token);
+        Assert.Equal(HttpStatusCode.NoContent, remove.StatusCode);
+        Assert.Empty(await AssignmentsAsync(owner, workerId));
+    }
+
+    [Fact]
+    public async Task FlockScope_OneGrantCannotAuthorizeAssignmentThenUnassignment()
+    {
+        var (owner, workerId, flockA, _) = await FlockScopeFixtureAsync();
+
+        var grant = await StepUpAsync(owner, TestHarness.Password);
+        var assign = await AssignFlockWithStepUpAsync(owner, workerId, flockA, grant.Token);
+        Assert.Equal(HttpStatusCode.Created, assign.StatusCode);
+        var assignmentId = Assert.Single(await AssignmentsAsync(owner, workerId)).Id;
+
+        // Reusing the SAME (already-consumed) grant for the unassignment.
+        var reuse = await UnassignFlockWithStepUpAsync(owner, workerId, assignmentId, grant.Token);
+        Assert.Equal(HttpStatusCode.Forbidden, reuse.StatusCode);
+        Assert.Single(await AssignmentsAsync(owner, workerId));
+    }
+
+    [Fact]
+    public async Task AssignFlock_ValidProofConflictConsumesGrant()
+    {
+        var (owner, workerId, flockA, flockB) = await FlockScopeFixtureAsync();
+        var setupGrant = await StepUpAsync(owner, TestHarness.Password);
+        var baseline = await AssignFlockWithStepUpAsync(owner, workerId, flockA, setupGrant.Token);
+        Assert.Equal(HttpStatusCode.Created, baseline.StatusCode);
+
+        // A fresh proof on a DUPLICATE assignment: 409, and the proof is spent.
+        var grant = await StepUpAsync(owner, TestHarness.Password);
+        var duplicate = await AssignFlockWithStepUpAsync(owner, workerId, flockA, grant.Token);
+        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+
+        // Reusing that same (spent) proof on an otherwise-valid assignment: 403.
+        var reused = await AssignFlockWithStepUpAsync(owner, workerId, flockB, grant.Token);
+        Assert.Equal(HttpStatusCode.Forbidden, reused.StatusCode);
+
+        // Neither the duplicate nor the reused attempt produced a row or audit event.
+        Assert.Single(await AssignmentsAsync(owner, workerId));
+        Assert.Equal(1, await AuditCountAsync(owner, AuditActions.UserFlockAssign, workerId));
+    }
 
     private sealed class ManualTimeProvider(DateTimeOffset start) : TimeProvider
     {

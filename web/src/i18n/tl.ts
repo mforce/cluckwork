@@ -1190,6 +1190,7 @@ export const tl = {
     // #356 — walang kondisyong muling pagkumpirma (machine-drafted, pending native review)
     stepUpDisableHint: "Ang pag-disable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpEnableHint: "Ang muling pag-enable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    stepUpFlockHint: "Ang pag-assign o pag-alis ng kawan ay nangangailangan muling ilagay ang kasalukuyan mong password.",
 
     // Users table
     emailColumnHeader: "Email",
@@ -1874,12 +1875,12 @@ export const tl = {
       + "itinuturo ka sa kung sino ang nangangasiwa ng server, sa halip na sabihing mali ang iyong mga detalye.",
     // #308/#356/#360 (machine-drafted, pending native review)
     signingInStepUp:
-      "May anim na aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
+      "May walong aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
       + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng kahit anong user, ang pag-reset ng "
       + "password ng kahit sinong user, ang pagpapalit ng tungkulin ng kahit sinong user, ang pagpapalit ng email "
-      + "sa pag-sign in, ang pag-disable ng user, at ang muling pag-enable ng user. Kinukumpirma nito na ikaw "
-      + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name "
-      + "at flock assignment.",
+      + "sa pag-sign in, ang pag-disable ng user, ang muling pag-enable ng user, ang pag-assign ng manggagawa sa "
+      + "isang kawan, at ang pag-alis ng assignment ng manggagawa sa isang kawan. Kinukumpirma nito na ikaw "
+      + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name.",
     signingInCredentialEpoch:
       "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
       + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
@@ -2610,9 +2611,10 @@ export const tl = {
     glossaryStepUpAuthDef:
       "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng kahit anong user, mag-reset ng "
       + "password ng kahit sinong user, magpalit ng tungkulin ng kahit sinong user, magpalit ng email sa pag-sign in, "
-      + "mag-disable ng user, o muling mag-enable ng user, hinihiling ng Users screen na muling ilagay ang kasalukuyan "
+      + "mag-disable ng user, muling mag-enable ng user, mag-assign ng manggagawa sa isang kawan, o mag-alis ng "
+      + "assignment ng manggagawa sa isang kawan, hinihiling ng Users screen na muling ilagay ang kasalukuyan "
       + "mong password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago magbigay — o mag-alis — ng access. "
-      + "Hindi muling hinihingi ito sa mga pagbabago ng display name at flock assignment.",
+      + "Hindi muling hinihingi ito sa mga pagbabago ng display name.",
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
       "Ipinapakita ito ng isang screen kapag may error, sa halip na maging blangko. Ligtas ang naka-save "

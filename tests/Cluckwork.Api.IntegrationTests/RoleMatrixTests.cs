@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
+using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
 
@@ -277,13 +278,10 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             EntryBody(farmId, flockB, gradeId))).StatusCode);
 
         // Owner assigns flock A → audit row; duplicate 409; worker narrowed.
-        var assign = await owner.PostWithKeyAsync(
-            $"/api/v1/users/{workerId}/flock-assignments", Guid.NewGuid().ToString(),
-            new { flockId = flockA });
+        var assign = await AssignFlockAsync(owner, workerId, flockA);
         Assert.Equal(HttpStatusCode.Created, assign.StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await owner.PostWithKeyAsync(
-            $"/api/v1/users/{workerId}/flock-assignments", Guid.NewGuid().ToString(),
-            new { flockId = flockA })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await AssignFlockAsync(owner, workerId, flockA)).StatusCode);
         var audits = await owner.GetFromJsonAsync<List<AuditRow>>(
             $"/api/v1/audit?action=User.FlockAssign&entityId={workerId}");
         Assert.Single(audits!);
@@ -311,9 +309,8 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
         var assignments = await owner.GetFromJsonAsync<List<AssignmentRow>>(
             $"/api/v1/users/{workerId}/flock-assignments");
         var assignmentId = Assert.Single(assignments!).Id;
-        Assert.Equal(HttpStatusCode.NoContent, (await owner.SendAsync(
-            WithKey(new HttpRequestMessage(HttpMethod.Delete,
-                $"/api/v1/users/{workerId}/flock-assignments/{assignmentId}")))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await UnassignFlockAsync(owner, workerId, assignmentId)).StatusCode);
         Assert.Equal(HttpStatusCode.Created, (await worker.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(),
             EntryBody(farmId, flockB, gradeId, eggs: 20))).StatusCode);
@@ -429,8 +426,7 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
         var draft = await worker.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(),
             EntryBody(farmId, flockB, gradeId));
         var draftId = (await draft.Content.ReadFromJsonAsync<Created>())!.Id;
-        await owner.PostWithKeyAsync($"/api/v1/users/{workerId}/flock-assignments",
-            Guid.NewGuid().ToString(), new { flockId = flockA });
+        await AssignFlockAsync(owner, workerId, flockA);
 
         // Submitting the now-out-of-scope draft is refused; the owner can.
         var submit = await worker.PostWithKeyAsync(
@@ -458,10 +454,8 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
         var assignments = await owner.GetFromJsonAsync<List<AssignmentRow>>(
             $"/api/v1/users/{workerId}/flock-assignments");
         var assignmentId = Assert.Single(assignments!).Id;
-        var mismatched = new HttpRequestMessage(HttpMethod.Delete,
-            $"/api/v1/users/{otherId}/flock-assignments/{assignmentId}");
-        mismatched.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
-        Assert.Equal(HttpStatusCode.NotFound, (await owner.SendAsync(mismatched)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await UnassignFlockAsync(owner, otherId, assignmentId)).StatusCode);
         Assert.Single((await owner.GetFromJsonAsync<List<AssignmentRow>>(
             $"/api/v1/users/{workerId}/flock-assignments"))!);
     }
@@ -484,18 +478,53 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             .Single(u => u.Email == workerB).Id;
 
         // A's owner cannot assign to B's user; B's owner cannot use A's flock.
-        Assert.Equal(HttpStatusCode.NotFound, (await ownerA.PostWithKeyAsync(
-            $"/api/v1/users/{workerBId}/flock-assignments", Guid.NewGuid().ToString(),
-            new { flockId = flockA })).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await ownerB.PostWithKeyAsync(
-            $"/api/v1/users/{workerBId}/flock-assignments", Guid.NewGuid().ToString(),
-            new { flockId = flockA })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await AssignFlockAsync(ownerA, workerBId, flockA)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await AssignFlockAsync(ownerB, workerBId, flockA)).StatusCode);
     }
 
     private static HttpRequestMessage WithKey(HttpRequestMessage request)
     {
         request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         return request;
+    }
+
+    // #606 — every flock-assignment/unassignment write now requires a fresh
+    // step-up grant. These helpers mint a SEPARATE grant for each handler-
+    // reaching call so this file's writes keep proving role/tenant/scope
+    // behavior rather than the (separately covered) step-up denial paths.
+    private sealed record StepUpDto(string Token, DateTimeOffset ExpiresAt);
+
+    private static async Task<string> StepUpAsync(HttpClient client)
+    {
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/auth/step-up", new { password = TestHarness.Password });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<StepUpDto>())!.Token;
+    }
+
+    private static async Task<HttpResponseMessage> AssignFlockAsync(
+        HttpClient client, Guid userId, Guid flockId)
+    {
+        var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/api/v1/users/{userId}/flock-assignments")
+        {
+            Content = JsonContent.Create(new { flockId }),
+        };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        request.Headers.Add(AuthEndpoints.StepUpHeaderName, await StepUpAsync(client));
+        return await client.SendAsync(request);
+    }
+
+    private static async Task<HttpResponseMessage> UnassignFlockAsync(
+        HttpClient client, Guid userId, Guid assignmentId)
+    {
+        var request = new HttpRequestMessage(
+            HttpMethod.Delete, $"/api/v1/users/{userId}/flock-assignments/{assignmentId}");
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        request.Headers.Add(AuthEndpoints.StepUpHeaderName, await StepUpAsync(client));
+        return await client.SendAsync(request);
     }
 
     private sealed record UserRow(Guid Id, string Email, string? DisplayName, string Role);

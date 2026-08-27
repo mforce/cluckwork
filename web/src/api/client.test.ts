@@ -892,6 +892,26 @@ describe("write idempotency", () => {
     expect(init.method).toBe("DELETE");
     expect(headerOf(fetchMock.mock.calls[0] as Call, "Idempotency-Key")).toBe("del-key");
   });
+
+  // #606 — apiDelete's optional 3rd param is how UnassignFlock attaches the
+  // step-up grant, same shape as apiPost/apiPut's extraHeaders. Both an
+  // explicit idempotency key and the step-up header must survive together,
+  // and no body may be introduced by carrying extra headers.
+  it("apiDelete attaches an extra header (e.g. the step-up grant) alongside an explicit Idempotency-Key", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await apiDelete("/users/1/flock-assignments/2", "del-key", { [STEP_UP_HEADER]: "grant-ghi" });
+    const [, init] = fetchMock.mock.calls[0] as Call;
+    expect(init.method).toBe("DELETE");
+    expect(headerOf(fetchMock.mock.calls[0] as Call, "Idempotency-Key")).toBe("del-key");
+    expect(headerOf(fetchMock.mock.calls[0] as Call, STEP_UP_HEADER)).toBe("grant-ghi");
+    expect(init.body).toBeUndefined();
+  });
+
+  it("apiDelete carries no step-up header when none is given (every ordinary delete)", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await apiDelete("/sales/1/items/2", "del-key");
+    expect(headerOf(fetchMock.mock.calls[0] as Call, STEP_UP_HEADER)).toBeNull();
+  });
 });
 
 describe("apiGetBlob — file download", () => {
