@@ -829,7 +829,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             .UseNpgsql(factory.ConnectionString)
             .AddInterceptors(interceptor)
             .Options;
-        await using var db = new AppDbContext(options, tenant);
+        await using var db = new AppDbContext(options, tenant, new FlockScope());
 
         // A registry we hold a direct reference to — not the host's DI registration
         // — so the assertion below reads the exact call this provider made,
@@ -964,7 +964,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         tenant.Resolve(accountId);
         var db = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            tenant);
+            tenant, new FlockScope());
 
         var stepUp = new StepUpGrantService(
             userManager,

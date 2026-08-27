@@ -82,7 +82,7 @@ public sealed class AppDbContextDesignTimeFactory : IDesignTimeDbContextFactory<
         new PostgresDbContextConfigurator().Configure(options, normalized, new DatabaseResilienceOptions());
         options.AddInterceptors(new TenantStampInterceptor(new TenantContext()));
 
-        return new AppDbContext(options.Options, new TenantContext());
+        return new AppDbContext(options.Options, new TenantContext(), new FlockScope());
     }
 
     private static bool IsEnvFlagSet(string variable) =>

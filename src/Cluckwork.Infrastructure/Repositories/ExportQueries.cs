@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 // the global tenant query filters, so an export only ever contains the calling
 // account's data. Money is exported as raw minor units + currency columns —
 // never converted to decimals (AGENTS.md money rule).
-public sealed class ExportQueries(AppDbContext db, TenantContext tenant) : IExportQueries
+public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockScope flockScope) : IExportQueries
 {
     // Ordered as packed into the full backup. Infra tables (idempotency,
     // durable jobs, refresh tokens) are deliberately absent: they are not
@@ -77,7 +77,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant) : IExpo
             new DbContextOptionsBuilder<AppDbContext>()
                 .UseNpgsql(requestDb.Database.GetConnectionString())
                 .Options,
-            tenant);
+            tenant, flockScope);
         IDbContextTransaction transaction;
         try
         {

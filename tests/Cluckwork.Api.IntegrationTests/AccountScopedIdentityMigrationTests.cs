@@ -37,7 +37,7 @@ public sealed class AccountScopedIdentityMigrationTests
         var options = new DbContextOptionsBuilder<AppDbContext>();
         new PostgresDbContextConfigurator().Configure(options, connectionString, new DatabaseResilienceOptions());
         options.AddInterceptors(new TenantStampInterceptor(new TenantContext()));
-        return new AppDbContext(options.Options, new TenantContext());
+        return new AppDbContext(options.Options, new TenantContext(), new FlockScope());
     }
 
     // Test-controlled literal ids/emails, not input.

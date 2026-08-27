@@ -62,7 +62,7 @@ public sealed class SchemaDocsTests
         var options = new DbContextOptionsBuilder<AppDbContext>();
         new PostgresDbContextConfigurator().Configure(options, connectionString, new DatabaseResilienceOptions());
         options.AddInterceptors(new TenantStampInterceptor(new TenantContext()));
-        return new AppDbContext(options.Options, new TenantContext());
+        return new AppDbContext(options.Options, new TenantContext(), new FlockScope());
     }
 
     // Marks lines that are the BODY of a YAML block scalar (|/> values, e.g.

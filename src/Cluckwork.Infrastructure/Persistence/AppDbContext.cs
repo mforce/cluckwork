@@ -14,9 +14,13 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext tenant)
+public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext tenant, FlockScope flockScope)
     : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
 {
+    // #388 — exposed for the raw-SQL sites that bypass the query filters
+    // (EggLotRepository's FOR UPDATE paths read the scope from here).
+    public FlockScope FlockScope => flockScope;
+
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Flock> Flocks => Set<Flock>();
     public DbSet<BirdMovement> BirdMovements => Set<BirdMovement>();
@@ -60,12 +64,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         // A missing WHERE can never leak cross-tenant data.
         // Account.AccountId == Account.Id (self-reference), so the filter returns only the owning account.
         builder.Entity<Account>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
-        builder.Entity<Flock>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
-        builder.Entity<BirdMovement>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
-        builder.Entity<DailyEntry>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        // #388 — flock-scope read filtering (INV-1). Combined with the tenancy
+        // filter per the guidance: a second HasQueryFilter call would OVERWRITE
+        // (not combine with) the first, silently deleting tenant isolation.
+        // Flock: AccountId tenant isolation AND (unrestricted OR self id assigned).
+        builder.Entity<Flock>().HasQueryFilter(e =>
+            e.AccountId == tenant.AccountId
+            && (flockScope.IsUnrestricted || flockScope.AssignedFlockIds.Contains(e.Id)));
+        builder.Entity<BirdMovement>().HasQueryFilter(e =>
+            e.AccountId == tenant.AccountId
+            && (flockScope.IsUnrestricted || flockScope.AssignedFlockIds.Contains(e.FlockId)));
+        builder.Entity<DailyEntry>().HasQueryFilter(e =>
+            e.AccountId == tenant.AccountId
+            && (flockScope.IsUnrestricted || flockScope.AssignedFlockIds.Contains(e.FlockId)));
         builder.Entity<DailyEntryGrade>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<EggGrade>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
-        builder.Entity<EggLot>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        builder.Entity<EggLot>().HasQueryFilter(e =>
+            e.AccountId == tenant.AccountId
+            && (flockScope.IsUnrestricted || flockScope.AssignedFlockIds.Contains(e.FlockId)));
         builder.Entity<EggInventoryMovement>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<Customer>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<SalesOrder>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
@@ -74,11 +90,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         builder.Entity<Payment>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<InventoryItem>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<InventoryLot>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
-        builder.Entity<InventoryMovement>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
-        builder.Entity<FeedUsage>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
-        builder.Entity<WaterUsage>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        builder.Entity<InventoryMovement>().HasQueryFilter(e =>
+            e.AccountId == tenant.AccountId
+            && (flockScope.IsUnrestricted || e.FlockId == null
+                || flockScope.AssignedFlockIds.Contains(e.FlockId.Value)));
+        builder.Entity<FeedUsage>().HasQueryFilter(e =>
+            e.AccountId == tenant.AccountId
+            && (flockScope.IsUnrestricted || flockScope.AssignedFlockIds.Contains(e.FlockId)));
+        builder.Entity<WaterUsage>().HasQueryFilter(e =>
+            e.AccountId == tenant.AccountId
+            && (flockScope.IsUnrestricted || flockScope.AssignedFlockIds.Contains(e.FlockId)));
         builder.Entity<ExpenseCategory>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
-        builder.Entity<Expense>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
+        builder.Entity<Expense>().HasQueryFilter(e =>
+            e.AccountId == tenant.AccountId
+            && (flockScope.IsUnrestricted || e.FlockId == null
+                || flockScope.AssignedFlockIds.Contains(e.FlockId.Value)));
         builder.Entity<AuditEvent>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<Product>().HasQueryFilter(e => e.AccountId == tenant.AccountId);
         builder.Entity<ProductEggGradeMapping>().HasQueryFilter(e => e.AccountId == tenant.AccountId);

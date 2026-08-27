@@ -238,7 +238,7 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
         var unreachable = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql("Host=127.0.0.1;Port=1;Database=none;Username=none;Password=none;Timeout=1")
             .Options;
-        await using var unusableDb = new AppDbContext(unreachable, new TenantContext());
+        await using var unusableDb = new AppDbContext(unreachable, new TenantContext(), new FlockScope());
 
         using var scope = factory.Services.CreateScope();
         var normalizer = scope.ServiceProvider.GetRequiredService<ILookupNormalizer>();

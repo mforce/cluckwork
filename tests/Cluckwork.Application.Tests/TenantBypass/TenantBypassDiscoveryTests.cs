@@ -33,7 +33,7 @@ public sealed class TenantBypassDiscoveryTests
     public void DiscoveredSurface_Floor()
     {
         // Model-only construction: no connection is opened by building the model.
-        using var db = new AppDbContext(BuildOptions(), new TenantContext());
+        using var db = new AppDbContext(BuildOptions(), new TenantContext(), new FlockScope());
         var model = db.Model;
 
         // Deliberate exclusion of a known non-tenant table (see policy above);
@@ -93,7 +93,7 @@ public sealed class TenantBypassDiscoveryTests
     [Fact]
     public void DeclaredQueryFilter_Probe_FiltersAreDeclared()
     {
-        using var db = new AppDbContext(BuildOptions(), new TenantContext());
+        using var db = new AppDbContext(BuildOptions(), new TenantContext(), new FlockScope());
         var model = db.Model;
 
         var account = model.FindEntityType(typeof(Account));

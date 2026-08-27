@@ -85,7 +85,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         tenantA.Resolve(accountId);
         await using var dbA = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            tenantA);
+            tenantA, new FlockScope());
         await using var transactionA = await dbA.Database.BeginTransactionAsync();
         await dbA.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "Accounts" WHERE "Id" = {accountId} FOR SHARE""");
@@ -155,7 +155,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         tenantA.Resolve(accountId);
         await using var dbA = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            tenantA);
+            tenantA, new FlockScope());
         await using var transactionA = await dbA.Database.BeginTransactionAsync();
         await dbA.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "Accounts" WHERE "Id" = {accountId} FOR UPDATE""");
@@ -229,7 +229,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
         tenantA.Resolve(accountId);
         await using var dbA = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            tenantA);
+            tenantA, new FlockScope());
         await using var transactionA = await dbA.Database.BeginTransactionAsync();
         await dbA.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "Accounts" WHERE "Id" = {accountId} FOR UPDATE""");

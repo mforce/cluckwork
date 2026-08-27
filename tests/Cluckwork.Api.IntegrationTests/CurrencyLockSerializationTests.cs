@@ -82,7 +82,7 @@ public sealed class CurrencyLockSerializationTests(CluckworkWebApplicationFactor
         tenantA.Resolve(accountId);
         await using var dbA = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            tenantA);
+            tenantA, new FlockScope());
 
         await using var transactionA = await dbA.Database.BeginTransactionAsync(isolationLevel);
         Assert.False(await ProbeAsync(dbA), "the farm must start with no money rows for the race to mean anything");
@@ -98,7 +98,7 @@ public sealed class CurrencyLockSerializationTests(CluckworkWebApplicationFactor
             tenantB.Resolve(accountId);
             await using var db = new AppDbContext(
                 new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-                tenantB);
+                tenantB, new FlockScope());
             await using var transactionB = await db.Database.BeginTransactionAsync();
             await db.Accounts.AsNoTracking().SingleAsync();
             await InsertAnExpenseAsync(db, accountId);
@@ -169,7 +169,7 @@ public sealed class CurrencyLockSerializationTests(CluckworkWebApplicationFactor
         tenant.Resolve(accountId);
         await using var db = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            tenant);
+            tenant, new FlockScope());
 
         await using var transaction = await db.Database.BeginTransactionAsync();
         Assert.False(await ProbeAsync(db));

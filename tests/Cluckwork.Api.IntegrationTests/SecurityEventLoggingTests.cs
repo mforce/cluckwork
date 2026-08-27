@@ -306,7 +306,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             .UseNpgsql(factory.ConnectionString)
             .AddInterceptors(interceptor)
             .Options;
-        await using var db = new AppDbContext(options, new TenantContext());
+        await using var db = new AppDbContext(options, new TenantContext(), new FlockScope());
 
         var provider = new IdentityProvider(
             userManager,
@@ -365,7 +365,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             .UseNpgsql(factory.ConnectionString)
             .AddInterceptors(interceptor)
             .Options;
-        await using var db = new AppDbContext(options, new TenantContext());
+        await using var db = new AppDbContext(options, new TenantContext(), new FlockScope());
 
         var provider = new IdentityProvider(
             userManager,
@@ -471,7 +471,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
                 .UseNpgsql(factory.ConnectionString)
                 .AddInterceptors(interceptor)
                 .Options,
-            new TenantContext());
+            new TenantContext(), new FlockScope());
 
     private static IdentityProvider IdentityProviderOn(AppDbContext db, IServiceProvider services) =>
         new(services.GetRequiredService<UserManager<ApplicationUser>>(),

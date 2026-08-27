@@ -139,7 +139,7 @@ public sealed class IdempotencyRecordPurgeSweepTests(CluckworkWebApplicationFact
         stealTenant.Resolve(Guid.NewGuid());
         await using var stealDb = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            stealTenant);
+            stealTenant, new FlockScope());
         await using var stealTx = await stealDb.Database.BeginTransactionAsync();
         await stealDb.Database.ExecuteSqlInterpolatedAsync(
             $"""UPDATE idempotency_records SET "LeaseExpiresAt" = {now.AddMinutes(5)} WHERE "Id" = {stolen.Id}""");
