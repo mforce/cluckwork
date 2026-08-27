@@ -25,6 +25,7 @@ public sealed class CredentialEpochMiddlewareOrderTests
             // BEFORE authentication it would have no principal to blank.
             "app.UseMiddleware<AmbientPrincipalMiddleware>();",
             "app.UseMiddleware<TenantResolutionMiddleware>();",
+            "app.UseMiddleware<FlockScopeResolutionMiddleware>();",
             "app.UseMiddleware<CredentialEpochMiddleware>();",
             "app.UseMiddleware<MustChangePasswordMiddleware>();",
             "app.UseAuthorization();",

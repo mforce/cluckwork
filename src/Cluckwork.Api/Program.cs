@@ -315,6 +315,10 @@ app.UseAuthentication();
 // login bypasses the #128 account lockout entirely — see the middleware.
 app.UseMiddleware<AmbientPrincipalMiddleware>();
 app.UseMiddleware<TenantResolutionMiddleware>();
+// #388 — flock-scope resolution, after tenant/user resolution and before the
+// credential gate. Touches no credential state; position pinned by
+// CredentialEpochMiddlewareOrderTests.
+app.UseMiddleware<FlockScopeResolutionMiddleware>();
 app.UseMiddleware<CredentialEpochMiddleware>();
 // #283 — the first-run "you must set a new password" gate. BEFORE
 // UseAuthorization (deliberately) so it applies uniformly regardless of which
