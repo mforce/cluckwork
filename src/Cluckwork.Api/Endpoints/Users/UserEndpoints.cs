@@ -109,11 +109,11 @@ public static class UserEndpoints
 
         group.MapPost("/{id:guid}/flock-assignments", AssignFlock)
             .WithName("AssignFlock")
-            .WithSummary("Assign a flock to a worker. The first assignment narrows them to assigned flocks only.");
+            .WithSummary("Assign a flock to a worker (requires recent password confirmation). The first assignment narrows them to assigned flocks only.");
 
         group.MapDelete("/{id:guid}/flock-assignments/{assignmentId:guid}", UnassignFlock)
             .WithName("UnassignFlock")
-            .WithSummary("Remove a flock assignment. Removing the last one restores account-wide access.");
+            .WithSummary("Remove a flock assignment (requires recent password confirmation). Removing the last one restores account-wide access.");
 
         return group;
     }
@@ -127,18 +127,26 @@ public static class UserEndpoints
     }
 
     private static async Task<IResult> AssignFlock(
-        Guid id, AssignFlockRequest request, AssignFlockHandler handler,
-        TenantContext tenant, CancellationToken ct)
+        Guid id, AssignFlockRequest request,
+        [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
+        AssignFlockHandler handler,
+        TenantContext tenant, ICurrentUser currentUser, CancellationToken ct)
     {
-        if (!tenant.IsResolved) return Results.Unauthorized();
+        if (!tenant.IsResolved || !currentUser.IsResolved) return Results.Unauthorized();
         if (request.FlockId == Guid.Empty)
             return ValidationResponse.Problem(new Dictionary<string, string[]>
             {
                 ["flockId"] = ["A flock id is required."],
             });
-        var result = await handler.HandleAsync(id, request.FlockId, tenant.AccountId, ct);
+        var command = new AssignFlockCommand(id, request.FlockId, stepUpToken);
+        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (result.IsSuccess)
             return Results.Created($"/api/v1/users/{id}/flock-assignments", new { Id = result.Value });
+        // #606 — a missing/invalid step-up grant is a 403, checked before the
+        // NotFound/409/422 mapping below, so a proof-less caller cannot
+        // distinguish user/flock existence (INV-3).
+        if (result.Error.Code == StepUpErrorCodes.Required)
+            return Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code);
         if (result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
             return Results.NotFound();
         return result.Error.Code == "Users.AlreadyAssigned"
@@ -147,13 +155,18 @@ public static class UserEndpoints
     }
 
     private static async Task<IResult> UnassignFlock(
-        Guid id, Guid assignmentId, UnassignFlockHandler handler,
-        TenantContext tenant, CancellationToken ct)
+        Guid id, Guid assignmentId,
+        [FromHeader(Name = Cluckwork.Api.Endpoints.Auth.AuthEndpoints.StepUpHeaderName)] string? stepUpToken,
+        UnassignFlockHandler handler,
+        TenantContext tenant, ICurrentUser currentUser, CancellationToken ct)
     {
-        if (!tenant.IsResolved) return Results.Unauthorized();
-        var result = await handler.HandleAsync(id, assignmentId, ct);
-        return result.IsSuccess
-            ? Results.NoContent()
+        if (!tenant.IsResolved || !currentUser.IsResolved) return Results.Unauthorized();
+        var command = new UnassignFlockCommand(id, assignmentId, stepUpToken);
+        var result = await handler.HandleAsync(command, tenant.AccountId, currentUser.UserId, ct);
+        if (result.IsSuccess) return Results.NoContent();
+        // #606 — same uniform-403-before-NotFound mapping as AssignFlock above.
+        return result.Error.Code == StepUpErrorCodes.Required
+            ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code)
             : Results.NotFound();
     }
 

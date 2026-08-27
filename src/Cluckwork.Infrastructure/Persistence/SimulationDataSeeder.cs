@@ -14,6 +14,7 @@ using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
+using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Application.Features.Inventory.CreateInventoryItem;
@@ -92,7 +93,8 @@ public sealed class SimulationDataSeeder(
     IAccountUserDirectory directory,
     IIdentityProvider identity,
     CreateFlockHandler createFlock,
-    AssignFlockHandler assignFlock,
+    IFlockRepository flocks,
+    IAuditWriter audit,
     IUserRoleAssignmentRepository assignments,
     IAccountRepository accounts,
     UpdateFarmSettingsHandler updateFarmSettings,
@@ -804,7 +806,10 @@ public sealed class SimulationDataSeeder(
         Guid accountId, SimCast cast, IReadOnlyList<Guid> flockIds, CancellationToken ct)
     {
         // Granting a flock assignment is account administration — the Owner does
-        // it (#500). User.FlockAssign is audited.
+        // it (#500). User.FlockAssign is audited. This phase runs directly after
+        // another Owner-authored one (SeedPrimaryTimeZoneAsync), so this ActAs is
+        // currently a no-op under today's ordering — kept for the same reason as
+        // that phase's own comment: order-independence, not decoration.
         ActAs(cast.Owner);
 
         if (cast.Workers.Count == 0)
@@ -819,16 +824,36 @@ public sealed class SimulationDataSeeder(
                 "Simulation seed needs at least 2 flocks so the restricted worker is genuinely " +
                 "narrowed (one assigned, one left out).");
 
-        var workerId = cast.Workers[0].UserId;
+        var worker = cast.Workers[0];
         var flockId = flockIds[0];
 
-        var existingAssignments = await assignments.ListByUserAsync(workerId, ct);
+        var existingAssignments = await assignments.ListByUserAsync(worker.UserId, ct);
         // Idempotent re-run — the pair, not Empty. See the header.
-        if (existingAssignments.Any(a => a.FlockId == flockId)) return (workerId, flockId);
+        if (existingAssignments.Any(a => a.FlockId == flockId)) return (worker.UserId, flockId);
 
-        var result = await assignFlock.HandleAsync(workerId, flockId, accountId, ct);
-        Require(result, $"restrict worker {workerId} to flock {flockId}");
-        return (workerId, flockId);
+        // #606 — the interactive AssignFlockHandler now requires an
+        // interactive step-up grant this trusted, non-HTTP caller cannot
+        // hold. Provision the assignment directly at the repository/audit
+        // layer instead of routing through the (now-gated) handler, writing
+        // the SAME audit shape (actor, target email, flock NAME) the
+        // handler would have written — pinned by
+        // SimulationSeed_RestrictedWorkerAssignment_PreservesActorAndAuditDetails.
+        var flock = await flocks.GetByIdAsync(flockId, ct)
+            ?? throw new InvalidOperationException($"Simulation flock {flockId} does not exist.");
+
+        var assignment = UserRoleAssignment.Create(
+            Guid.NewGuid(), accountId, worker.UserId, farmId: null, houseId: null, flockId);
+        await assignments.AddAsync(assignment, ct);
+
+        await audit.WriteAsync(
+            AuditActions.UserFlockAssign,
+            "User",
+            worker.UserId,
+            details: new { worker.Email, Flock = flock.Name },
+            ct: ct);
+
+        await db.SaveChangesAsync(ct);
+        return (worker.UserId, flockId);
     }
 
     // --- Primary account timezone (BEFORE any dated data exists) -------
