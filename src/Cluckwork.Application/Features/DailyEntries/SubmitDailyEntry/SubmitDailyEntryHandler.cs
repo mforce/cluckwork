@@ -33,8 +33,13 @@ public sealed class SubmitDailyEntryHandler(
     public async Task<Result<SubmitDailyEntryResponse>> HandleAsync(
         Guid dailyEntryId, Guid accountId, CancellationToken ct)
     {
-        // Tenant query filter scopes the lookup — a foreign entry reads as null.
-        var entry = await entries.GetByIdAsync(dailyEntryId, ct);
+        // #388 — this WRITE preserves the existing 422 scope-guard contract.
+        // The repository bypasses the combined query filter but explicitly
+        // reinstates AccountId, so an own-account unassigned draft reaches
+        // FlockScopeGuard below while a foreign-account id still reads as null.
+        // Ordinary GET reads use GetReadOnlyAsync and remain symmetric 404.
+        var entry = await entries.GetByIdForFlockScopedWriteAsync(
+            dailyEntryId, accountId, ct);
         if (entry is null)
             return Result.Failure<SubmitDailyEntryResponse>(
                 Error.NotFound(nameof(DailyEntry), dailyEntryId)).LogFailure(logger, "SubmitDailyEntry");

@@ -14,6 +14,14 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
             .Include(e => e.Grades)
             .FirstOrDefaultAsync(e => e.Id == id, ct);
 
+    public Task<DailyEntry?> GetByIdForFlockScopedWriteAsync(
+        Guid id, Guid accountId, CancellationToken ct = default) =>
+        db.DailyEntries
+            .IgnoreQueryFilters()
+            .Where(e => e.AccountId == accountId)
+            .Include(e => e.Grades)
+            .FirstOrDefaultAsync(e => e.Id == id, ct);
+
     // Voided entries are excluded: voiding vacates the natural key (#82), so
     // the day can be re-recorded as a fresh entry. The partial unique index
     // (IX_DailyEntries_NaturalKey) guarantees at most one live match.
