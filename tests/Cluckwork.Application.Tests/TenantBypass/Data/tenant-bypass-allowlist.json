@@ -90,6 +90,11 @@
     "justification": "Audit provenance reads across the tenant's own entities; the raw SQL carries WHERE \"AccountId\" = {accountId}. IgnoreQueryFilters because the provenance query joins across entities that the filter would otherwise scope to an unresolved tenant."
   },
   {
+    "symbol": "Cluckwork.Infrastructure.Repositories.DailyEntryRepository.GetByIdForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/DailyEntryRepository.cs",
+    "justification": "#388 write-side authorization lookup: bypasses the combined tenant+flock query filter so an OWN-account unassigned draft reaches FlockScopeGuard (preserving the 422 contract), then reinstates tenant isolation explicitly with e.AccountId == accountId so a foreign-account id still reads as null. READ endpoints never call this method and stay symmetric 404."
+  },
+  {
     "symbol": "Cluckwork.Infrastructure.Repositories.EggLotRepository.GetAvailableFifoLockedAsync(Guid accountId, IReadOnlyList<Guid> eggGradeIds, DateOnly allocationDate, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs",
     "justification": "FIFO sale-allocation lock; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement so only this tenant's lots are locked (#313)."

@@ -4,7 +4,9 @@ using System.Net;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Persistence;
+using Cluckwork.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 // #388 — the read scoping itself (INV-1): a Worker scoped to one flock sees
@@ -197,6 +199,51 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
         Assert.Contains(expenses, e => e.FlockId is null);      // farm-wide visible
         Assert.Contains(expenses, e => e.FlockId == fix.FlockA); // assigned flock visible
         Assert.DoesNotContain(expenses, e => e.FlockId == fix.FlockB); // unassigned excluded
+    }
+
+    // The raw-SQL FOR UPDATE paths bypass the query filter; the explicit
+    // predicate must scope them the same way. All three callers are AdminOnly
+    // paths, so drive the repository with a HAND-BUILT restricted context —
+    // the same mechanism as ExpenseFilter_FarmWideVisible_UnassignedExcluded.
+    [Fact]
+    public async Task EggLotRawSqlPath_IsScoped()
+    {
+        var fix = await SeedAsync();
+
+        // Seed one egg lot on flock A and one on flock B (owner scope) with
+        // the REAL flock ids — EggLot.Create(id, accountId, flockId, date,
+        // gradeId, qty), plus the Production EggInventoryMovement row that
+        // keeps the #101 ledger invariant, mirroring TestHarness.SeedEggLotAsync.
+        var lotAId = Guid.NewGuid();
+        var lotBId = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(fix.AccountId, async db =>
+        {
+            db.EggLots.Add(EggLot.Create(lotAId, fix.AccountId, fix.FlockA, Today, fix.GradeId, 25));
+            db.EggInventoryMovements.Add(EggInventoryMovement.Create(
+                Guid.NewGuid(), fix.AccountId, lotAId, EggMovementType.Production,
+                25, "DailyEntry", Guid.NewGuid(), DateTimeOffset.UtcNow));
+            db.EggLots.Add(EggLot.Create(lotBId, fix.AccountId, fix.FlockB, Today, fix.GradeId, 30));
+            db.EggInventoryMovements.Add(EggInventoryMovement.Create(
+                Guid.NewGuid(), fix.AccountId, lotBId, EggMovementType.Production,
+                30, "DailyEntry", Guid.NewGuid(), DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        });
+
+        // Restricted context: scope driven to flock A only.
+        var scope = new FlockScope();
+        scope.Resolve(false, [fix.FlockA]);
+        var tenant = new TenantContext();
+        tenant.Resolve(fix.AccountId);
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(factory.ConnectionString)
+            .Options;
+        await using var restrictedDb = new AppDbContext(options, tenant, scope);
+
+        var repo = new EggLotRepository(restrictedDb);
+        var lots = await repo.GetByIdsLockedAsync(fix.AccountId, [lotAId, lotBId], CancellationToken.None);
+
+        Assert.Contains(lots, l => l.Id == lotAId);
+        Assert.DoesNotContain(lots, l => l.Id == lotBId);
     }
 
     private sealed record Fixture(

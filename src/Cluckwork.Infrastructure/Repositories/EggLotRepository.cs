@@ -35,6 +35,7 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
     {
         if (eggGradeIds.Count == 0) return [];
 
+        var scope = db.FlockScope;
         return await db.EggLots.FromSqlInterpolated($"""
             SELECT *
             FROM "EggLots"
@@ -48,6 +49,7 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
               -- this change is exactly what let an entry be dated tomorrow.
               AND "ProductionDate" <= {allocationDate}
               AND ("RestrictedUntil" IS NULL OR "RestrictedUntil" < {allocationDate})
+              AND ({scope.IsUnrestricted} OR "FlockId" = ANY({scope.AssignedFlockIds.ToArray()}))
             ORDER BY "ProductionDate", "Id"
             FOR UPDATE
             """)
@@ -63,11 +65,13 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
     {
         if (lotIds.Count == 0) return [];
 
+        var scope = db.FlockScope;
         return await db.EggLots.FromSqlInterpolated($"""
             SELECT *
             FROM "EggLots"
             WHERE "AccountId" = {accountId}
               AND "Id" = ANY({lotIds.ToArray()})
+              AND ({scope.IsUnrestricted} OR "FlockId" = ANY({scope.AssignedFlockIds.ToArray()}))
             ORDER BY "ProductionDate", "Id"
             FOR UPDATE
             """)
@@ -82,11 +86,13 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
     public async Task<IReadOnlyList<EggLot>> GetByDailyEntryLockedAsync(
         Guid accountId, Guid dailyEntryId, CancellationToken ct = default)
     {
+        var scope = db.FlockScope;
         return await db.EggLots.FromSqlInterpolated($"""
             SELECT *
             FROM "EggLots"
             WHERE "AccountId" = {accountId}
               AND "DailyEntryId" = {dailyEntryId}
+              AND ({scope.IsUnrestricted} OR "FlockId" = ANY({scope.AssignedFlockIds.ToArray()}))
             ORDER BY "ProductionDate", "Id"
             FOR UPDATE
             """)
