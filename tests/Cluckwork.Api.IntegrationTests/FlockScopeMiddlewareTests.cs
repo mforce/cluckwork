@@ -46,8 +46,20 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
     public async Task Worker_ZeroAssignments_Request_Succeeds()
     {
         var (accountId, farmId, flockA, _) = await SeedFarmAsync();
+        var flockB = await factory.SeedFlockAsync(accountId, farmId);
         var worker = await ClientAsync(accountId, (string?)null);
         Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync("/api/v1/flocks")).StatusCode);
+
+        // M4 strengthen (mutation-check record): a 0-assignment worker is
+        // UNRESTRICTED (grandfathered #73, matches FlockScopeGuard line 80), so
+        // BOTH seeded flocks must be visible in its list — not an empty
+        // restricted scope. Guards a Resolve(false, []) in the 0-assignment
+        // branch (which would empty every read).
+        var flocks = await (await worker.GetAsync("/api/v1/flocks"))
+            .Content.ReadFromJsonAsync<List<FlockRow>>();
+        Assert.NotNull(flocks);
+        Assert.Contains(flocks, f => f.Id == flockA);
+        Assert.Contains(flocks, f => f.Id == flockB);
     }
 
     [Fact]
@@ -73,6 +85,7 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
     public async Task Worker_FarmWideRow_Request_Succeeds()
     {
         var (accountId, farmId, flockA, _) = await SeedFarmAsync();
+        var flockB = await factory.SeedFlockAsync(accountId, farmId);
         var ownerEmail = $"o-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, ownerEmail, Roles.Owner);
         var owner = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(ownerEmail));
@@ -94,7 +107,18 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
             await db.SaveChangesAsync();
         });
 
-        Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync("/api/v1/flocks")).StatusCode);
+        var response = await worker.GetAsync("/api/v1/flocks");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // M5 strengthen (mutation-check record): a farm-wide (FlockId=null) row
+        // grants everything (matches FlockScopeGuard line 84), so BOTH flocks
+        // must be visible — not an empty restricted scope. Guards removing the
+        // farm-wide branch entirely (which would fall through to Resolve(false,
+        // []) and empty every read).
+        var flocks = await response.Content.ReadFromJsonAsync<List<FlockRow>>();
+        Assert.NotNull(flocks);
+        Assert.Contains(flocks, f => f.Id == flockA);
+        Assert.Contains(flocks, f => f.Id == flockB);
     }
 
     [Fact]
@@ -189,4 +213,5 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
     }
 
     private sealed record UserRow(Guid Id, string Email, string? DisplayName, string Role);
+    private sealed record FlockRow(Guid Id, Guid FarmId, Guid HouseId, string Name, string Breed);
 }
