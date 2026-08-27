@@ -148,6 +148,13 @@ export function UsersPage() {
   const [openUser, setOpenUser] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<FlockAssignment[]>([]);
   const [flockStepUpPassword, setFlockStepUpPassword] = useState("");
+  // #609 review — narrower than `busy`: true only while the actual
+  // assign/unassign request and its post-write refresh are in flight, NOT
+  // during the earlier step-up issuance wait (closing/reopening THEN is
+  // already safe — see the stale-continuation tests below, which close mid
+  // step-up on purpose). Gates the dialog's own closability so a write in
+  // this window cannot be orphaned by a close+reopen of the SAME worker.
+  const [flockWriteInFlight, setFlockWriteInFlight] = useState(false);
   const flockDialogGeneration = useRef(0);
   // The dialog the CURRENT instance is for, tracked synchronously (before
   // state commits) as { targetId, generation } — generation increments on
@@ -266,10 +273,15 @@ export function UsersPage() {
         const stepUpToken = (await stepUp(enteredPassword)).token;
         if (!isCurrentDialog()) return;
 
-        await assignFlock(target, assignFlockId, keyFor(scope), stepUpToken);
-        const fresh = await listFlockAssignments(target);
-        clearKey(scope);
-        if (isCurrentDialog()) setAssignments(fresh);
+        setFlockWriteInFlight(true);
+        try {
+          await assignFlock(target, assignFlockId, keyFor(scope), stepUpToken);
+          const fresh = await listFlockAssignments(target);
+          clearKey(scope);
+          if (isCurrentDialog()) setAssignments(fresh);
+        } finally {
+          setFlockWriteInFlight(false);
+        }
       } catch (err) {
         if (isCurrentDialog()) errors.report("flock-access", errText(err));
       }
@@ -293,10 +305,15 @@ export function UsersPage() {
         const stepUpToken = (await stepUp(enteredPassword)).token;
         if (!isCurrentDialog()) return;
 
-        await unassignFlock(target, a.id, keyFor(keyScope), stepUpToken);
-        const fresh = await listFlockAssignments(target);
-        clearKey(keyScope);
-        if (isCurrentDialog()) setAssignments(fresh);
+        setFlockWriteInFlight(true);
+        try {
+          await unassignFlock(target, a.id, keyFor(keyScope), stepUpToken);
+          const fresh = await listFlockAssignments(target);
+          clearKey(keyScope);
+          if (isCurrentDialog()) setAssignments(fresh);
+        } finally {
+          setFlockWriteInFlight(false);
+        }
       } catch (err) {
         if (isCurrentDialog()) errors.report("flock-access", errText(err));
       }
@@ -804,6 +821,13 @@ export function UsersPage() {
         open={openUser !== null}
         title={t("flockAccessTitle", { email: users.find((u) => u.id === openUser)?.email ?? "" })}
         onClose={closeAssignments}
+        // #609 review — an in-flight assign/unassign for the open worker must
+        // finish before this dialog can be closed/reopened: escaping mid-write
+        // is exactly the close/reopen race that leaves the reopened dialog
+        // showing data the write's own completion can no longer reach (the
+        // {targetId, generation} guard correctly discards a write that no
+        // longer belongs to the current dialog instance).
+        closeDisabled={flockWriteInFlight}
       >
         <p className="muted">
           {t("flockAccessHint")}
@@ -847,7 +871,7 @@ export function UsersPage() {
         </label>
         <DialogError errors={errors} scope="flock-access" />
         <div className="dialog-foot">
-          <button type="button" className="link" onClick={closeAssignments}>{t("doneButton")}</button>
+          <button type="button" className="link" disabled={flockWriteInFlight} onClick={closeAssignments}>{t("doneButton")}</button>
         </div>
       </Dialog>
 

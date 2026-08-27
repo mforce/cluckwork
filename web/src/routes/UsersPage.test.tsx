@@ -2064,6 +2064,81 @@ describe("UsersPage flock scoping", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  // #609 review — the stale-continuation tests above close+reopen mid
+  // STEP-UP-ISSUANCE (safe: nothing has been written yet). This is the
+  // window they deliberately don't cover: once the actual assign/unassign
+  // request has started, closing and reopening the SAME worker loads data
+  // that predates the write, and the write's own eventual completion is
+  // correctly discarded by the bumped generation — leaving the reopened
+  // dialog stale until closed and reopened again post-settle. Every
+  // dismissal path (Done, the close button, Escape, a backdrop click) must
+  // be blocked for that window, proving no such close+reopen is reachable.
+  it("blocks every dismissal path while an assign write is in flight, and allows closing once it settles", async () => {
+    const write = deferred<{ id: string }>();
+    mockListAssignments.mockResolvedValue([]);
+    mockAssignFlock.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => {
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    });
+    await screen.findByText(/account-wide access/);
+    fillFlockPassword();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+
+    // Step-up already resolved (the default mock is immediate); assignFlock
+    // itself is the one still pending.
+    expect(mockAssignFlock).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+
+    fireEvent.click(document.querySelector(".dialog-backdrop")!);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await act(async () => { write.resolve({ id: "as-new" }); });
+
+    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("blocks every dismissal path while an unassign write is in flight, and allows closing once it settles", async () => {
+    const write = deferred<void>();
+    mockListAssignments.mockResolvedValue([ASSIGN_1]);
+    mockUnassignFlock.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => {
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    });
+    const item = await screen.findByRole("listitem");
+    fillFlockPassword();
+    await act(async () => {
+      fireEvent.click(within(item).getByRole("button", { name: "remove" }));
+    });
+
+    expect(mockUnassignFlock).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+
+    fireEvent.click(document.querySelector(".dialog-backdrop")!);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await act(async () => { write.resolve(); });
+
+    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("does not let a stale open-load failure surface a page error into a reopened SAME worker's dialog", async () => {
     const staleLoad = deferred<FlockAssignment[]>();
     mockListAssignments

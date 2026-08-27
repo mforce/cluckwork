@@ -17,7 +17,7 @@ function Body() {
 
 // A realistic host: a trigger button that opens the dialog, so focus return has
 // somewhere to go back to.
-function Host({ onClose }: { onClose?: () => void } = {}) {
+function Host({ onClose, closeDisabled }: { onClose?: () => void; closeDisabled?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -26,6 +26,7 @@ function Host({ onClose }: { onClose?: () => void } = {}) {
         open={open}
         title="New grade"
         onClose={() => { setOpen(false); onClose?.(); }}
+        closeDisabled={closeDisabled}
       >
         <Body />
       </Dialog>
@@ -89,6 +90,47 @@ describe("Dialog", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     await user.click(document.querySelector(".dialog-backdrop")!);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // #609 review — a caller with a write in flight (UsersPage's flock dialog)
+  // needs every dismissal path suppressed, not just one; a close/reopen mid
+  // write orphans the write's own eventual completion.
+  it("closeDisabled suppresses Escape, the close button, and a backdrop click", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<Host onClose={onClose} closeDisabled />);
+    await user.click(screen.getByRole("button", { name: "New grade" }));
+
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await user.click(document.querySelector(".dialog-backdrop")!);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("re-enables every dismissal path once closeDisabled clears", async () => {
+    const user = userEvent.setup();
+    function ToggleHost() {
+      const [locked, setLocked] = useState(true);
+      return (
+        <>
+          <button onClick={() => setLocked(false)}>unlock</button>
+          <Host closeDisabled={locked} />
+        </>
+      );
+    }
+    render(<ToggleHost />);
+    await user.click(screen.getByRole("button", { name: "New grade" }));
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "unlock" }));
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
+
+    await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
