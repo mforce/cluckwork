@@ -2258,10 +2258,11 @@ export const en = {
     // #308/#356/#360 — deliberately does NOT mention "grant"/"token" —
     // that's internal mechanism, not user-facing language.
     signingInStepUp:
-      "Six actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
+      "Eight actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
       + "right there in the dialog: creating any user, resetting any user's password, changing any user's role, "
-      + "changing a login email, disabling a user, and re-enabling a user. This confirms it's really you before "
-      + "handing out access or cutting someone else's off. Display-name and flock-assignment changes do not ask again.",
+      + "changing a login email, disabling a user, re-enabling a user, assigning a worker to a flock, and "
+      + "removing a worker's flock assignment. This confirms it's really you before "
+      + "handing out access or cutting someone else's off. Display-name changes do not ask again.",
     signingInCredentialEpoch:
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
       + "see a message that your credentials changed, sign in again with your current password.",
@@ -2939,9 +2940,10 @@ export const en = {
     glossaryStepUpAuthTerm: "Step-up authentication",
     glossaryStepUpAuthDef:
       "An extra check on top of being signed in: before creating any user, resetting any user's password, "
-      + "changing any user's role, changing a login email, disabling a user, or re-enabling a user, the Users "
+      + "changing any user's role, changing a login email, disabling a user, re-enabling a user, assigning a "
+      + "worker to a flock, or removing a worker's flock assignment, the Users "
       + "screen asks you to re-enter your current password right there in the dialog. It confirms it's really "
-      + "you before handing out — or taking away — access. Display-name and flock-assignment changes do not ask again.",
+      + "you before handing out — or taking away — access. Display-name changes do not ask again.",
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:
       "What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything "

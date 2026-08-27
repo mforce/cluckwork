@@ -969,19 +969,21 @@ epoch** (see above) in that same transaction, and every authenticated request
 is checked against it — so an already-issued access token is rejected on its
 very next request, not merely bounded by the ~15-min access-token lifetime.
 
-**Step-up authentication (#308, #360)** — a fresh proof of identity required,
-on top of a normal valid Owner access token, before six categories of action:
-**creating any user**, **resetting any user's password**, **changing any user's
-role** (#355), **changing a login email**, **disabling a user**, or
-**re-enabling a user** (#356). The first three are unconditional: roles grant
-different, non-ordered capabilities, and every new or replaced authenticator
-can outlive a stolen-but-still-valid Owner access token (good for ~15 min —
-merely holding it bumps no credential epoch, see **Credential epoch** above).
-Disable/enable and login-email changes likewise alter durable access. Editing
-a display name and assigning or unassigning flocks remain **ungated**. Flock
-scope can narrow or widen a Worker's durable authorization — including
-restoring farm-wide Worker scope when the last assignment is removed — and is
-an explicit follow-up boundary rather than being declared safe by this change.
+**Step-up authentication (#308, #360, #606)** — a fresh proof of identity
+required, on top of a normal valid Owner access token, before eight categories
+of action: **creating any user**, **resetting any user's password**,
+**changing any user's role** (#355), **changing a login email**, **disabling a
+user**, **re-enabling a user** (#356), **assigning a worker to a flock**, or
+**removing a worker's flock assignment** (#606). The first three are
+unconditional: roles grant different, non-ordered capabilities, and every new
+or replaced authenticator can outlive a stolen-but-still-valid Owner access
+token (good for ~15 min — merely holding it bumps no credential epoch, see
+**Credential epoch** above). Disable/enable and login-email changes likewise
+alter durable access. Flock scope can narrow or widen a Worker's durable
+authorization — including restoring farm-wide Worker scope when the last
+assignment is removed — which is exactly the durable-access shape the other
+seven categories are already gated for, so #606 closed it rather than leaving
+it as a declared-safe exception. Editing a display name remains **ungated**.
 The mechanism is **current-password re-confirmation**: the Users screen shows
 an inline "your current password" field in each gated action's dialog (never a
 separate popup), which the SPA exchanges for a short-lived (5 minutes by
