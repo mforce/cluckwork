@@ -95,59 +95,55 @@ test.describe("Worker", () => {
   }) => {
     const today = farmToday(farm.timeZoneId);
 
-    // #388 read scoping hides the unassigned flock from the restricted picker,
-    // so this test can no longer select it directly. Capture its REAL id (the
-    // flock id) as the unrestricted worker first, then sign out/in as the
-    // restricted worker and inject ONE temporary <option> carrying that id —
-    // this does NOT bypass the SPA's authenticated write path (the page still
-    // sends the normal request with the module-held access token) and does NOT
-    // hardcode a credential or a flock id (fixtures.ts refuses out-of-band
-    // session injection; we never use page.request.post).
+    // Read scoping removes the unassigned flock from the restricted picker.
+    // Capture its real id under the unrestricted persona, then use the real
+    // assigned option under the restricted persona. The route below rewrites
+    // only the authenticated POST body, preserving the SPA's module-held token
+    // and reaching the server guard without inventing an out-of-band session.
     await signIn(unrestrictedWorker());
     await page.goto("/daily-entry");
-    const unassignedFlockId = await selectOptionContaining(
-      page.getByLabel(tEn("dailyEntry:flockLabel")), UNASSIGNED_FLOCK);
+    const unrestrictedSelect = page.getByLabel(tEn("dailyEntry:flockLabel"));
+    const assignedFlockId = await selectOptionContaining(unrestrictedSelect, ASSIGNED_FLOCK);
+    const unassignedFlockId = await selectOptionContaining(unrestrictedSelect, UNASSIGNED_FLOCK);
+    expect(assignedFlockId).not.toBe("");
     expect(unassignedFlockId).not.toBe("");
 
     await nav.signOut.click();
     await expect(page).toHaveURL(/\/login/);
 
     await signIn(restrictedWorker());
-    await page.goto("/daily-entry");
-    const select = page.getByLabel(tEn("dailyEntry:flockLabel"));
-
-    // #388 read boundary: the restricted picker offers the assigned flock and
-    // hides the unassigned one entirely.
-    await expect(select.locator(`option[value="${unassignedFlockId}"]`)).toHaveCount(0);
-
-    // Inject ONE temporary option so the server-side write guard is reachable.
-    await select.evaluate(
-      (el, { value, label }) => {
-        const opt = document.createElement("option");
-        opt.value = value;
-        opt.textContent = label;
-        el.appendChild(opt);
-      },
-      { value: unassignedFlockId, label: UNASSIGNED_FLOCK },
-    );
-
-    await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
-
-    // Prefill-settle synchronization, mirroring manager.spec.ts:65-85
-    // (openDailyEntryAwaitingPrefill). The page resets every count when prefill
-    // settles, and filling before it creates the known CI-only race documented
-    // at manager.spec.ts:103-106.
+    // Register before navigation: the restricted picker has one flock, so the
+    // page auto-selects it and may fire prefill during load. Selecting the same
+    // option later triggers no change event (manager.spec.ts:56-85).
     const prefill = page.waitForResponse((r) =>
-      r.url().includes("/daily-entries") && r.url().includes(unassignedFlockId) && r.ok());
-    await select.selectOption(unassignedFlockId);
+      r.url().includes("/daily-entries")
+      && r.url().includes(assignedFlockId)
+      && r.request().method() === "GET"
+      && r.ok());
+    await page.goto("/daily-entry");
+    await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
+    const select = page.getByLabel(tEn("dailyEntry:flockLabel"));
+    await expect(select.locator(`option[value="${assignedFlockId}"]`)).toHaveCount(1);
+    await expect(select.locator("option").filter({ hasText: UNASSIGNED_FLOCK })).toHaveCount(0);
     await prefill;
     await expect(page.getByRole("button", { name: tEn("dailyEntry:saveDraftButton") })).toBeEnabled();
 
-    // The refusal text comes from the SERVER's ProblemDetails detail, which is
-    // English-only (server errors are not part of #182's translated catalogs) —
-    // so matching English here is correct rather than a hardcoded-copy smell.
-    // Matched loosely on the distinctive phrase, not the whole sentence. We
-    // fill everything only after prefill has settled.
+    let rewrotePost = false;
+    await page.route("**/api/v1/daily-entries", async (route) => {
+      const request = route.request();
+      if (request.method() !== "POST") {
+        await route.fallback();
+        return;
+      }
+
+      const body = request.postDataJSON() as { flockId?: string };
+      expect(body.flockId).not.toBe(unassignedFlockId);
+      rewrotePost = true;
+      await route.fallback({
+        postData: JSON.stringify({ ...body, flockId: unassignedFlockId }),
+      });
+    });
+
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("120");
     await clearSeededGrades(page);
     await page.getByRole("button", { name: tEn("dailyEntry:saveDraftButton") }).click();
@@ -156,6 +152,7 @@ test.describe("Worker", () => {
       page.getByText(/not assigned to this flock/i),
       "the unassigned-flock write was NOT refused — FlockScope enforcement may be gone",
     ).toBeVisible();
+    expect(rewrotePost).toBe(true);
     await expect(page.locator("p.success")).toBeHidden();
   });
 
@@ -194,7 +191,6 @@ test.describe("Worker", () => {
   test("is read-scoped to its assigned flock on the daily-entry picker (#388)", async ({
     page,
     signIn,
-    farm,
   }) => {
     await signIn(restrictedWorker());
     await page.goto("/daily-entry");
