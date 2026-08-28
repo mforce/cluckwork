@@ -3,8 +3,12 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Net;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Api.Middleware;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 
 // #388 — FlockScopeResolutionMiddleware: resolution outcomes per persona, and
 // the single-assignment contract. Scoping itself (filtered reads) is asserted
@@ -104,10 +108,35 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
     }
 
     [Fact]
-    public async Task UnauthenticatedRequest_DoesNotResolveScope()
+    public async Task UnresolvedLivenessRequest_ResolvesUnrestricted_WithoutDatabaseAccess()
     {
-        var client = factory.CreateClient();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/flocks")).StatusCode);
+        var flockScope = new FlockScope();
+        var currentUser = new CurrentUserContext(); // deliberately unresolved
+        var tenant = new TenantContext();           // deliberately unresolved
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(
+                "Host=127.0.0.1;Port=1;Database=unreachable;Username=none;" +
+                "Password=none;Timeout=1;Command Timeout=1")
+            .Options;
+        await using var db = new AppDbContext(options, tenant, flockScope);
+
+        var nextCalled = false;
+        var middleware = new FlockScopeResolutionMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/health/live";
+
+        // Any UserRoleAssignments query attempts the unreachable connection and
+        // throws. Completing proves the unresolved branch performs no DB I/O.
+        await middleware.InvokeAsync(context, flockScope, currentUser, db);
+
+        Assert.True(nextCalled);
+        Assert.True(flockScope.IsResolved);
+        Assert.True(flockScope.IsUnrestricted);
+        Assert.Empty(flockScope.AssignedFlockIds);
     }
 
     [Fact]
