@@ -10,6 +10,8 @@
 
 **Design:** `docs/designs/388-worker-flock-read-scoping.md` (approved 2026-08-25). Invariant IDs INV-1..INV-4 are stable — never renumber.
 
+**Owner decision (2026-08-27, PR #611 review round 1):** #388 preserves `main`'s farm-wide FIFO allocation for a Worker's sale confirmation (SalesFlow, not AdminOnly). Issue #612 owns the future configurable assigned-only/farm-wide policy. Task 3 below is corrected in place to reflect this — see the "Superseded" note ahead of its scope-walk table.
+
 ## Global Constraints
 
 - **No domain changes.** The filter is a query-time concern, not a domain invariant. `src/Cluckwork.Domain/**` is do-not-touch.
@@ -23,7 +25,7 @@
 - **Full suite in the foreground.** Report the final summary line verbatim.
 - **CI gates** (from `.github/workflows/ci.yml`): `dotnet build Cluckwork.sln --configuration Release --no-restore`, `dotnet test Cluckwork.sln --configuration Release --no-build --verbosity normal`, `tools/schema-docs/generate.sh --check`, `npm run test:coverage`, `npm run build`, `npm run verify:sw`.
 
-**Read-only surfaces a scoped Worker gets 403 on (AdminOnly — no filter needed there, documented for the review loop):** Sales/Profit/Expense reports (`ReportEndpoints.cs:28,33,38`), **Expenses + ExpenseCategories** (`Program.cs:359-367`, both groups AdminOnly — money is admin end to end, #87), Stock (`StockEndpoints.cs:33`), Inventory (`InventoryEndpoints.cs:34,39,44,49,74`), Catalog, EggGrades, Flocks create/deactivate/archive, DailyEntry adjust/void, WaterUsage update, Sales confirm/void, Payment records, Audit, Users, **Export** (`Program.cs:445-448`, AdminOnly group). The Worker's reachable READ surface — and the only surface the filters must protect for a Worker — is: Flocks list/detail (`/api/v1/flocks`, default policy), DailyEntries list/get, BirdMovements list (`/api/v1/flocks/{id}/movements`), WaterUsage list, FeedUsage list, Sales/Payment *view* endpoints (SalesFlow/SalesAccess). The Expense filter still ships (INV-1 says every scoped entity is filtered — it protects the Manager-less read paths and is the row the mutation table needs); there is simply no Worker-reachable HTTP surface to exercise it, so its test goes through the repository layer, not an endpoint.
+**Read-only surfaces a scoped Worker gets 403 on (AdminOnly — no filter needed there, documented for the review loop):** Sales/Profit/Expense reports (`ReportEndpoints.cs:28,33,38`), **Expenses + ExpenseCategories** (`Program.cs:359-367`, both groups AdminOnly — money is admin end to end, #87), Stock (`StockEndpoints.cs:33`), Inventory (`InventoryEndpoints.cs:34,39,44,49,74`), Catalog, EggGrades, Flocks create/deactivate/archive, DailyEntry adjust/void, WaterUsage update, Payment records, Audit, Users, **Export** (`Program.cs:445-448`, AdminOnly group). **Correction (owner decision 2026-08-27, #611 round 1):** sale confirm/void is **not** AdminOnly — it is SalesFlow, and a plain Worker may confirm a sale and allocate against farm-wide FIFO stock, not only assigned-flock stock. #612 owns the future assigned-only/farm-wide setting. The Worker's reachable READ surface — and the only surface the filters must protect for a Worker — is: Flocks list/detail (`/api/v1/flocks`, default policy), DailyEntries list/get, BirdMovements list (`/api/v1/flocks/{id}/movements`), WaterUsage list, FeedUsage list, Sales/Payment *view* endpoints (SalesFlow/SalesAccess). The Expense filter still ships (INV-1 says every scoped entity is filtered — it protects the Manager-less read paths and is the row the mutation table needs); there is simply no Worker-reachable HTTP surface to exercise it, so its test goes through the repository layer, not an endpoint.
 
 ---
 
@@ -176,6 +178,8 @@ In `CredentialEpochMiddlewareOrderTests.cs`, the pinned `expectedOrder` array as
 - [ ] **Step 4: Write the middleware behavior tests**
 
 Create `tests/Cluckwork.Api.IntegrationTests/FlockScopeMiddlewareTests.cs`. Mirror the shape of `RoleMatrixTests.cs` (same `CluckworkWebApplicationFactory`, same `[Collection(IntegrationCollection.Name)]`). These assert the RESOLUTION OUTCOME, not scoping — the factory's DI exposes the scoped `FlockScope`, so a request by a given persona, followed by a `scope.IsResolved/IsUnrestricted/AssignedFlockIds` check on that request's scope instance, is the assertion path (resolve the scope from the factory's `Services` after the request — or use a probe endpoint if the factory's scope instance is not request-scoped; pick the mechanism that works against the existing factory and note it in the test's comment).
+
+The sketch below is illustrative only; the shipped fact names differ (`Worker_ZeroAssignments_Request_Succeeds`, `Worker_FarmWideRow_Request_Succeeds`, `Owner_Request_Completes_ScopeUnrestricted`, `Manager_Request_Completes_ScopeUnrestricted`) and, as of #611 round 1, `Owner_Request_Completes_ScopeUnrestricted`/`Manager_Request_Completes_ScopeUnrestricted` also assert that an elevated role's own flock assignment never narrows its reads (`AssertElevatedUserWithAssignmentIsUnrestricted`), which this sketch predates.
 
 ```csharp
 [Collection(IntegrationCollection.Name)]
@@ -404,40 +408,28 @@ git commit -m "feat: add 8 flock-scope query filters to AppDbContext (#388)"
 - Consumes: `FlockScope` (Task 1, via the `AppDbContext` constructor parameter — the repositories already hold `db`)
 - Produces: raw-SQL queries with flock-scope `WHERE` predicates where the queried table has a flock column.
 
+**Superseded (owner decision 2026-08-27, #611 round 1):** this task originally added the flock-scope predicate to all three `EggLotRepository` raw-SQL sites, including `GetAvailableFifoLockedAsync`. That broke sale confirmation for a scoped Worker — SalesFlow lets a plain Worker confirm a sale and allocate against the farm's FIFO stock, not only assigned-flock stock (current `main` behavior, preserved). The round-1 fix **removed** the predicate from `GetAvailableFifoLockedAsync` only; `GetByIdsLockedAsync` and `GetByDailyEntryLockedAsync` (both AdminOnly reconciliation paths) keep it. #612 owns the future assigned-only/farm-wide setting. The table below is historical (as originally planned); the current contract is the corrected row after it.
+
 **Scope walk (why the file list is exactly this):** every `IgnoreQueryFilters`/`FromSqlInterpolated` site in `src/Cluckwork.Infrastructure` was walked; the ones over the 8 filtered entities are:
 
 | Site | Table | Flock column? | Action |
 |---|---|---|---|
-| `EggLotRepository.cs:38` `GetAvailableFifoLockedAsync` | `"EggLots"` | `"FlockId"` (NOT NULL) | add predicate (this task) |
+| `EggLotRepository.cs:38` `GetAvailableFifoLockedAsync` | `"EggLots"` | `"FlockId"` (NOT NULL) | ~~add predicate (this task)~~ — **superseded:** stays farm-wide (#612), no predicate |
 | `EggLotRepository.cs:66` `GetByIdsLockedAsync` | `"EggLots"` | `"FlockId"` (NOT NULL) | add predicate (this task) — needs no JOIN: the table itself carries the column |
 | `EggLotRepository.cs:85` `GetByDailyEntryLockedAsync` | `"EggLots"` | `"FlockId"` (NOT NULL) | add predicate (this task) |
 | `InventoryLotRepository.cs:19,39` | `"InventoryLots"` | **no `FlockId` column** — feed stock is farm-wide | NO predicate possible; see below |
-| `SalesOrderRepository.cs:30` | `"SalesOrders"` | **no `FlockId` column** | NO predicate possible; Sales writes are SalesFlow-gated and confirm/void are AdminOnly — documented no-op |
+| `SalesOrderRepository.cs:30` | `"SalesOrders"` | **no `FlockId` column** | NO predicate possible; sale writes are SalesFlow-gated (Worker-reachable), not AdminOnly — documented no-op |
 | `AccountRepository` / `AuditEventRepository` / `InventoryItemRepository` | Account / AuditEvent / InventoryItem | not in the 8-entity filter set | untouched by design |
 
 **`InventoryLot` / `InventoryItem` (no flock column):** feed stock is farm-wide by model (an `InventoryLot` has no `FlockId`); the consumption write path (`RecordFeedUsage`) is already `FlockScopeGuard`-checked on the target flock, and the read surfaces a Worker can reach (`InventoryEndpoints` list/stock) are AdminOnly → 403 before any read. There is no scoped read to protect; a predicate is impossible (no column) and a JOIN would invent a relationship the model does not have. This is the documented, deliberate exclusion — do not "fix" it by adding a column or a JOIN.
 
-- [ ] **Step 1: Add the flock predicate to the 3 `EggLotRepository` raw-SQL sites**
+- [ ] **Step 1 (superseded): Add the flock predicate to the 3 `EggLotRepository` raw-SQL sites**
 
-Each of the three `FromSqlInterpolated` queries gets one fixed predicate: `AND ({scope.IsUnrestricted} OR "FlockId" = ANY({scope.AssignedFlockIds.ToArray()}))`. `EggLots.FlockId` is NOT NULL, so no `IS NULL` branch; `= ANY(...)` is the existing Npgsql array-parameter pattern. Do **not** interpolate a prebuilt SQL-clause string — EF would parameterize the whole clause as a value rather than splice SQL syntax. The exact protected edit lives in `docs/plans/388-runbook.md` Increment 3a. Apply it to all three sites consistently. Unrestricted passes by the boolean parameter; restricted-empty yields zero rows (fail-closed).
+As originally planned, each of the three `FromSqlInterpolated` queries got one fixed predicate: `AND ({scope.IsUnrestricted} OR "FlockId" = ANY({scope.AssignedFlockIds.ToArray()}))`. The #611 round-1 fix removed that predicate from `GetAvailableFifoLockedAsync` only (owner decision, preserves `main`'s farm-wide sale allocation for a Worker); `GetByIdsLockedAsync` and `GetByDailyEntryLockedAsync` keep it, exactly as originally written here. `EggLots.FlockId` is NOT NULL, so no `IS NULL` branch; `= ANY(...)` is the existing Npgsql array-parameter pattern; do not interpolate a prebuilt SQL-clause string.
 
-- [ ] **Step 2: Add a raw-SQL-path integration test**
+- [ ] **Step 2 (superseded): Add a raw-SQL-path integration test**
 
-In `FlockScopeTests.cs`:
-
-```csharp
-[Fact]
-public async Task ScopedWorker_EggLotRawSqlPath_IsScoped()
-{
-    // Worker (flock A) exercises a Worker-reachable path that reaches the raw-SQL
-    // egg-lot query (confirm/void are AdminOnly — so this test drives the
-    // repository-level port directly through the factory's service provider,
-    // or asserts through the same surface the mutation row M3 names).
-    // Expect: flock A's lots visible/lockable, flock B's lots NOT returned.
-}
-```
-
-Pick the mechanism at implementation time that actually reaches `GetAvailableFifoLockedAsync`/`GetByIdsLockedAsync`/`GetByDailyEntryLockedAsync` as a scoped caller; the mutation row below names the test that must go RED, so whatever the mechanism, it must observe a scoped caller's result.
+The shipped fact is `FlockScopeTests.EggLotRawSqlPaths_HonorTheirDistinctSalesAndAdminContracts` — one fact covering all three raw-SQL sites, asserting the FIFO path stays farm-wide (SalesFlow, #612) while `GetByIdsLockedAsync`/`GetByDailyEntryLockedAsync` stay flock-scoped (AdminOnly reconciliation). It replaces the originally planned `ScopedWorker_EggLotRawSqlPath_IsScoped`, which assumed all three sites were scoped identically.
 
 - [ ] **Step 3: Build and run tests**
 
@@ -509,8 +501,12 @@ Each row: the mutation is causal to the named test — removing the code the row
 | M0 | control | `FlockScope.cs`: change a comment string (no test reads it) | *(none)* | GREEN (control — proves the harness itself is sound) |
 | M1 | guard | `AppDbContext.cs`: remove the `Flock` query filter | `ScopedWorker_FlocksList_SeesOnlyAssignedFlock` | RED (sees unassigned flocks) |
 | M2 | guard | `AppDbContext.cs`: remove the `Expense` query filter | `ExpenseFilter_FarmWideVisible_UnassignedExcluded` (the flock-B expense must stay ABSENT) | RED (flock B's expense appears) |
-| M3 | guard | `EggLotRepository.cs:66` `GetByIdsLockedAsync`: remove the flock predicate | `ScopedWorker_EggLotRawSqlPath_IsScoped` | RED (flock B's lots are returned to the scoped caller) |
-| M4 | guard | `FlockScopeResolutionMiddleware.cs`: make the 0-assignment branch resolve `Restricted` (empty) instead of `Unrestricted` | `Worker_ZeroAssignments_Resolved_Unrestricted` | RED |
-| M5 | guard | `FlockScopeResolutionMiddleware.cs`: delete the farm-wide-row early return (the `assignments.Any(a => a.FlockId == null)` branch) so a farm-wide row falls through to `Resolve(false, [])` | `Worker_FarmWideRow_Resolved_Unrestricted` | RED |
+| M3 | guard | `EggLotRepository.cs:66` `GetByIdsLockedAsync`: remove the flock predicate | `EggLotRawSqlPaths_HonorTheirDistinctSalesAndAdminContracts` (corrected name, #611 round 1 — supersedes the originally planned `ScopedWorker_EggLotRawSqlPath_IsScoped`) | RED (flock B's lots are returned to the scoped caller) |
+| M4 | guard | `FlockScopeResolutionMiddleware.cs`: make the 0-assignment branch resolve `Restricted` (empty) instead of `Unrestricted` | `Worker_ZeroAssignments_Request_Succeeds` (corrected name, #611 round 1) | RED |
+| M5 | guard | `FlockScopeResolutionMiddleware.cs`: delete the farm-wide-row early return (the `assignments.Any(a => a.FlockId == null)` branch) so a farm-wide row falls through to `Resolve(false, [])` | `Worker_FarmWideRow_Request_Succeeds` (corrected name, #611 round 1) | RED |
+| MR-FIFO | guard, #611 round 1 | `EggLotRepository.cs` `GetAvailableFifoLockedAsync`: re-add the removed scope predicate | `EggLotRawSqlPaths_HonorTheirDistinctSalesAndAdminContracts` | RED at `Assert.Contains(fifo, l => l.Id == lotBId)` (farm-wide contract broken) |
+| MR-BYIDS | guard, #611 round 1 | `EggLotRepository.cs` `GetByIdsLockedAsync`: remove the predicate | `EggLotRawSqlPaths_HonorTheirDistinctSalesAndAdminContracts` | RED at `Assert.DoesNotContain(byIds, l => l.Id == lotBId)` |
+| MR-BYENTRY | guard, #611 round 1 | `EggLotRepository.cs` `GetByDailyEntryLockedAsync`: remove the predicate | `EggLotRawSqlPaths_HonorTheirDistinctSalesAndAdminContracts` | RED at `Assert.Empty(byUnassignedEntry)` |
+| MR-ELEVATED | guard, #611 round 1 | `FlockScopeResolutionMiddleware.cs`: delete the Owner/Manager early-return block | `Owner_Request_Completes_ScopeUnrestricted` and `Manager_Request_Completes_ScopeUnrestricted` (mutation only; not a shipped middleware edit) | RED (only the assigned flock remains visible) |
 
 For each: apply → run the named test → confirm RED → restore → **rebuild** → confirm the full `FlockScopeTests` + `FlockScopeMiddlewareTests` are green again. Mark each mutant with `// MUTANT M<n>: <what this breaks>` and delete the marker on restore. `grep -rn MUTANT src/ tests/` must return nothing at the end.
