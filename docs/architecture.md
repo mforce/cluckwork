@@ -40,7 +40,7 @@ Four positions in that chain are decisions, not accidents:
 
 | Placement | Why | Break it and |
 |---|---|---|
-| `FlockScopeResolutionMiddleware` **after** tenant/user resolution, **before** endpoint queries | It resolves the caller's live `UserRoleAssignment` flock scope for the whole request | Moving or removing it lets a restricted Worker read unassigned flock rows (#388) |
+| `FlockScopeResolutionMiddleware` **after** tenant/user resolution, **before** endpoint queries | It resolves the caller's live `UserRoleAssignment` flock scope for the whole request; it explicitly skips resolution when `IExceptionHandlerFeature` is present (a `/error` re-execution) so a database fault can render `/error` without another assignment query | Moving or removing it lets a restricted Worker read unassigned flock rows (#388); removing the re-execution skip makes error rendering itself fail whenever the original failure was the database, so the client gets no mapped `ProblemDetails` response |
 | `CredentialEpochMiddleware` **after** tenant resolution | It reads the user's current epoch from the tenant's database | A revoked credential keeps working (#364) |
 | `MustChangePasswordMiddleware` **before** `UseAuthorization` | The gate then applies uniformly, whatever policy tier an endpoint carries | An endpoint's own policy decides whether a forced reset is enforced (#283) |
 | `IdempotencyMiddleware` **after** `UseAuthorization` | A replay returns a cached response *without invoking the endpoint* | A role-denied caller replaying someone else's key gets the cached response instead of a 403 |
