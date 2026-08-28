@@ -39,8 +39,9 @@ export function FlocksPage() {
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
-  // Creating a flock records the day's work (birds arrived); corrections,
-  // lifecycle changes, and manual movements are admin-only (#73).
+  // Creating a flock, corrections, lifecycle changes, and manual movements
+  // are all admin-only (#73, #388): a scoped Worker cannot assign the flock
+  // it just created, so arrival is Owner/Manager administration too.
   const { isAdmin } = useAuth();
   const { confirm, confirmDialog } = useConfirm();
   const [flocks, setFlocks] = useState<Flock[] | null>(null);
@@ -256,15 +257,17 @@ export function FlocksPage() {
     <section>
       <div className="page-head">
         <h2>{t("title")}</h2>
-        <button type="button" onClick={() => { closeEdit(); setCreating(true); }}>
-          <Plus size={16} aria-hidden /> {t("newFlockButton")}
-        </button>
+        {isAdmin && (
+          <button type="button" onClick={() => { closeEdit(); setCreating(true); }}>
+            <Plus size={16} aria-hidden /> {t("newFlockButton")}
+          </button>
+        )}
       </div>
       <p className="muted">
         {t("intro")}
       </p>
 
-      <Dialog open={creating} title={t("newFlockDialogTitle")} onClose={closeCreate}>
+      <Dialog open={creating && isAdmin} title={t("newFlockDialogTitle")} onClose={closeCreate}>
         <form className="inline-form" onSubmit={onCreate}>
           <label>{t("nameLabel")}
             <input value={name} required maxLength={100}

@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
+import { screen, within, fireEvent, act, waitFor, render } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { FlocksPage } from "./FlocksPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { AuthContext } from "../auth/AuthContext";
+import type { Role } from "../auth/claims";
 import {
   archiveFlock, createFlock, depleteFlock, listBirdMovements, listFlocks,
   reactivateFlock, recordBirdMovement, updateFlock,
@@ -98,8 +101,11 @@ async function answer(name: string) {
 async function renderReady(token: Record<string, unknown>, flocks: Flock[] = [ACTIVE, DEPLETED]) {
   mockListFlocks.mockResolvedValue(flocks);
   renderWithProviders(<FlocksPage />, { token });
-  // The create action only renders once the initial load resolves (flocks !== null).
-  await screen.findByRole("button", { name: "New flock" });
+  // Wait on a row instead of the New flock button: that button is now
+  // admin-only, so a Worker fixture would never resolve. Some callers pass
+  // only [DEPLETED], so pick whatever non-archived row the fixture has.
+  const ready = flocks.find((f) => f.status !== "Archived")!;
+  await screen.findByRole("row", { name: new RegExp(ready.name) });
 }
 
 // F131: add/edit/record moved into dialogs — open first, same assertions after.
@@ -525,11 +531,12 @@ describe("FlocksPage idempotency", () => {
 });
 
 describe("FlocksPage role gating", () => {
-  it("lets a worker add flocks but hides every lifecycle action", async () => {
+  it("hides flock creation and every lifecycle action from a worker, but leaves the ledger read open", async () => {
     await renderReady(WORKER, [ACTIVE, DEPLETED]);
 
-    // Creating a flock records the day's work — it is NOT admin-gated.
-    expect(screen.getByRole("button", { name: "New flock" })).toBeInTheDocument();
+    // Creating a flock is Owner/Manager administration (#388) — a scoped
+    // Worker cannot assign the flock it just created.
+    expect(screen.queryByRole("button", { name: "New flock" })).not.toBeInTheDocument();
 
     const row = screen.getByRole("row", { name: /Hen House 1/ });
     expect(within(row).getByRole("button", { name: "birds" })).toBeInTheDocument(); // ledger read is open to all
@@ -550,6 +557,35 @@ describe("FlocksPage role gating", () => {
     await screen.findByRole("row", { name: /Cull/ }); // rows render read-only
     // No way in: the action that opens the movement dialog is admin-only.
     expect(screen.queryByRole("button", { name: "Record movement" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  // Same controlled-AuthContext technique UsersPage.test.tsx uses for its own
+  // mid-session demotion cases: a live rerender (not a fresh mount) proves the
+  // dialog's `open={creating && isAdmin}` gate reacts to a ROLE change, not
+  // just to isAdmin at mount time.
+  it("closes an open create dialog the instant the role demotes away from admin", async () => {
+    const tree = (isAdmin: boolean) => (
+      <MemoryRouter initialEntries={["/"]}>
+        <AuthContext.Provider value={{
+          isAuthenticated: true, isLoading: false, isAdmin, role: (isAdmin ? "Admin" : "Worker") as Role,
+          userId: "u1", mustChangePassword: false, unauthenticatedReason: null,
+          login: vi.fn(), logout: vi.fn(),
+        }}
+        >
+          <FlocksPage />
+        </AuthContext.Provider>
+      </MemoryRouter>
+    );
+    mockListFlocks.mockResolvedValue([ACTIVE]);
+    const view = render(tree(true));
+    await screen.findByRole("row", { name: /Hen House 1/ });
+
+    fireEvent.click(screen.getByRole("button", { name: "New flock" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    view.rerender(tree(false)); // demoted mid-session
+
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

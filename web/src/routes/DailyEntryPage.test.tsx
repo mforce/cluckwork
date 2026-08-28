@@ -15,8 +15,19 @@ import { account, farmState, NO_RECORD_HISTORY } from "../test/fixtures";
 import { bindAccount, clearBoundAccount } from "../auth/tokenStore";
 import i18n from "../i18n";
 
-// DailyEntry has no auth deps — mock only the API seam it loads from. The
-// MemoryRouter wrapper exists solely for the #446 summary strip's <Link>s.
+// #388 — the new-flock trigger/dialog are admin-gated, and this file has many
+// direct <DailyEntryPage /> mounts with no <AuthProvider> ancestor, so useAuth
+// is mocked directly rather than pulling in the real provider. `auth` is a
+// single mutable object (vi.hoisted so the mock factory below can close over
+// it) — beforeEach resets it to admin, and only the tests that care about
+// gating flip it.
+const auth = vi.hoisted(() => ({ isAdmin: true }));
+vi.mock("../auth/useAuth", () => ({
+  useAuth: () => ({ isAdmin: auth.isAdmin }),
+}));
+
+// Mock only the API seam it loads from. The MemoryRouter wrapper exists
+// solely for the #446 summary strip's <Link>s.
 vi.mock("../api/cluckwork", async (importOriginal) => {
   // Real module (formatMoney and friends stay genuine); only the network
   // seam is stubbed.
@@ -62,6 +73,7 @@ const CRACKED: EggGrade = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  auth.isAdmin = true;
   // #535 — boundAccountId is MODULE state read once at import and setup.ts never
   // resets it, so a bind leaks into later tests. Clear it so each test is unbound.
   clearBoundAccount();
@@ -102,7 +114,8 @@ function remainingChip() {
   return document.querySelector(".entry-chip") as HTMLElement;
 }
 
-async function renderReady() {
+async function renderReady(isAdmin?: boolean) {
+  if (isAdmin !== undefined) auth.isAdmin = isAdmin;
   render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
   await screen.findByLabelText("Grade A"); // mount load done, grades rendered
   // wait out the prefill fetch (it gates the save buttons via prefillPending)
@@ -372,6 +385,41 @@ describe("DailyEntryPage new-flock dialog", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mockCreateFlock).not.toHaveBeenCalled();
+  });
+});
+
+// #388 — flock creation is Owner/Manager administration: a scoped Worker
+// cannot assign the flock it just created, so the trigger and the dialog it
+// opens are both admin-gated here too (mirrors FlocksPage's own gate).
+describe("DailyEntryPage new-flock admin gating (#388)", () => {
+  it("hides the new-flock trigger from a worker", async () => {
+    await renderReady(false);
+    expect(screen.queryByRole("button", { name: "+ new flock" })).not.toBeInTheDocument();
+  });
+
+  it("shows the new-flock trigger to an admin", async () => {
+    await renderReady(true);
+    expect(screen.getByRole("button", { name: "+ new flock" })).toBeInTheDocument();
+  });
+
+  it("closes an open new-flock dialog the instant the role demotes away from admin", async () => {
+    // Not renderReady(): this needs the render RESULT (for rerender) so the
+    // SAME mounted tree is re-evaluated, the way a live role change would —
+    // a fresh render() call would just mount closed from the start and prove
+    // nothing about the gate reacting to a change (UsersPage.test.tsx's own
+    // controlled-context demotion tests use the identical technique).
+    auth.isAdmin = true;
+    const view = render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
+    await screen.findByLabelText("Grade A");
+    await waitFor(() => expect(saveDraftBtn()).toBeEnabled());
+
+    fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    auth.isAdmin = false;
+    view.rerender(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
 
