@@ -3,6 +3,9 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Net;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
+using Cluckwork.Application.Features.Inventory.RecordFeedUsage;
+using Cluckwork.Application.Features.Inventory.RecordWaterUsage;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
@@ -11,6 +14,7 @@ using Cluckwork.Domain.Inventory;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 // #388 — the read scoping itself (INV-1): a Worker scoped to one flock sees
 // only that flock's rows + farm-wide rows; unassigned flock detail is 404
@@ -567,6 +571,195 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
             fix.AccountId, dailyBId, CancellationToken.None);
         Assert.Empty(byUnassignedEntry);
     }
+
+    // #388 — Codex FIX-NOW follow-up: Submit's stale request-scope/live-
+    // assignment fix (SubmitDailyEntryTests.
+    // Submit_AssignmentAddedAfterScopeSnapshot_StillChecksArchivedFlockLifecycle)
+    // covered only Submit. This fact represents the same race — a request-start
+    // FlockScope snapshot pinned to A, then a SEPARATE transaction adds live
+    // assignment B — against the three sibling write handlers: RecordDailyEntry,
+    // RecordFeedUsage and RecordWaterUsage, including their natural-key and
+    // provenance reads.
+    [Fact]
+    public async Task ScopedWrites_AssignmentAddedAfterScopeSnapshot_UseLiveFlockAndNaturalKeyState()
+    {
+        var ownerEmail = $"owner-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(ownerEmail);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var gradeId = grades["Large"];
+        var houseA = Guid.NewGuid();
+        var houseB = Guid.NewGuid();
+        var flockA = await factory.SeedFlockAsync(accountId, farmId, houseA);
+        var flockB = await factory.SeedFlockAsync(accountId, farmId, houseB);
+        var entryDate = Today;
+
+        // Flock B's daily entry, recorded under its OWN houseB — feed/water
+        // provenance below joins on (farm, house, flock, date), so this must
+        // be the same house the entry actually used (unlike SeedAsync's
+        // random per-call house).
+        var owner = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(ownerEmail));
+        var recordResponse = await owner.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        {
+            farmId, houseId = houseB, flockId = flockB, date = entryDate,
+            totalEggs = 600, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+            mortalityCount = 0, grades = new[] { new { eggGradeId = gradeId, quantity = 600 } }
+        });
+        Assert.Equal(HttpStatusCode.Created, recordResponse.StatusCode);
+        var entryBId = (await recordResponse.Content.ReadFromJsonAsync<RecordedDto>())!.Id;
+
+        var workerEmail = $"worker-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, workerEmail, role: null);
+        var workerId = await factory.WithTenantScopeAsync(accountId, db =>
+            db.Users.Where(u => u.AccountId == accountId && u.Email == workerEmail)
+                .Select(u => u.Id).SingleAsync());
+
+        // Worker assignment A exists BEFORE the request scope below pins its
+        // FlockScope snapshot.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.UserRoleAssignments.Add(UserRoleAssignment.Create(
+                Guid.NewGuid(), accountId, workerId, farmId: null, houseId: null, flockId: flockA));
+            await db.SaveChangesAsync();
+        });
+
+        var requestScope = factory.Services.CreateScope();
+        requestScope.ResolveTenantAndActor(accountId, workerId, workerEmail, roles: []);
+        requestScope.ServiceProvider.GetRequiredService<FlockScope>()
+            .Resolve(false, [flockA]);
+
+        // Separate DB scope: live assignment B, plus a feed item/lot with
+        // enough stock for the feed handler below.
+        var feedItemId = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.UserRoleAssignments.Add(UserRoleAssignment.Create(
+                Guid.NewGuid(), accountId, workerId, farmId: null, houseId: null, flockId: flockB));
+            db.InventoryItems.Add(InventoryItem.Create(
+                feedItemId, accountId, farmId, "Sibling-race feed",
+                InventoryCategory.Feed, "kg", Money.Zero("USD")));
+            db.InventoryLots.Add(InventoryLot.Create(
+                Guid.NewGuid(), accountId, feedItemId, entryDate,
+                quantity: 100m, Money.Zero("USD"), lotNumber: null, expiryDate: null));
+            await db.SaveChangesAsync();
+        });
+
+        var dailyHandler = requestScope.ServiceProvider.GetRequiredService<RecordDailyEntryHandler>();
+        var feedHandler = requestScope.ServiceProvider.GetRequiredService<RecordFeedUsageHandler>();
+        var waterHandler = requestScope.ServiceProvider.GetRequiredService<RecordWaterUsageHandler>();
+
+        // While B is live: all three handlers, driven from the pinned-to-A
+        // request scope, must reach flock B and its natural-key state, not
+        // NotFound/duplicate from the stale snapshot.
+        var dailyResult = await dailyHandler.HandleAsync(
+            new RecordDailyEntryCommand(
+                farmId, houseB, flockB, entryDate,
+                600, 0, 0, 0, 0,
+                [new GradeQuantityDto(gradeId, 600)]),
+            accountId, CancellationToken.None);
+        Assert.True(dailyResult.IsSuccess);
+        Assert.Equal(entryBId, dailyResult.Value);
+
+        var feedResult = await feedHandler.HandleAsync(
+            new RecordFeedUsageCommand(flockB, feedItemId, entryDate, 5m, Note: null),
+            accountId, CancellationToken.None);
+        Assert.True(feedResult.IsSuccess);
+
+        var waterResult = await waterHandler.HandleAsync(
+            new RecordWaterUsageCommand(flockB, entryDate, 10m, "L", "Municipal", null, null, null),
+            accountId, CancellationToken.None);
+        Assert.True(waterResult.IsSuccess);
+
+        var feedUsageId = feedResult.Value.FeedUsageId;
+        var waterUsageId = waterResult.Value;
+
+        requestScope.Dispose();
+
+        // A fresh, unrestricted context — never the stale-pinned handler
+        // context — proves the reused entry id and the persisted provenance
+        // links, and captures the baseline this test proves stays unchanged
+        // after the rejected calls below.
+        var lotQuantityBaseline = 0m;
+        var feedUsageCountBaseline = 0;
+        var waterUsageCountBaseline = 0;
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var reusedEntry = await db.DailyEntries.SingleAsync(e => e.Id == entryBId);
+            Assert.Equal(flockB, reusedEntry.FlockId);
+
+            var feedUsage = await db.FeedUsages.SingleAsync(f => f.Id == feedUsageId);
+            Assert.Equal(entryBId, feedUsage.DailyEntryId);
+
+            var waterUsage = await db.WaterUsages.SingleAsync(w => w.Id == waterUsageId);
+            Assert.Equal(entryBId, waterUsage.DailyEntryId);
+
+            lotQuantityBaseline = await db.InventoryLots
+                .Where(l => l.InventoryItemId == feedItemId)
+                .SumAsync(l => l.QuantityAvailable);
+            feedUsageCountBaseline = await db.FeedUsages.CountAsync(f => f.FlockId == flockB);
+            waterUsageCountBaseline = await db.WaterUsages.CountAsync(w => w.FlockId == flockB);
+        });
+
+        // Archive flock B in a separate scope.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var flock = await db.Flocks.SingleAsync(f => f.Id == flockB);
+            Assert.True(flock.Archive(entryDate).IsSuccess);
+            await db.SaveChangesAsync();
+        });
+
+        // A NEW request scope pinned to A, while assignment B is still live.
+        // The live FlockScopeGuard check passes (it reads assignments fresh),
+        // but the scoped-write flock lookup must see B's CURRENT (archived)
+        // state rather than the pinned-to-A snapshot, and reject with the
+        // exact lifecycle code.
+        var secondRequestScope = factory.Services.CreateScope();
+        secondRequestScope.ResolveTenantAndActor(accountId, workerId, workerEmail, roles: []);
+        secondRequestScope.ServiceProvider.GetRequiredService<FlockScope>()
+            .Resolve(false, [flockA]);
+
+        var secondDailyHandler = secondRequestScope.ServiceProvider.GetRequiredService<RecordDailyEntryHandler>();
+        var secondFeedHandler = secondRequestScope.ServiceProvider.GetRequiredService<RecordFeedUsageHandler>();
+        var secondWaterHandler = secondRequestScope.ServiceProvider.GetRequiredService<RecordWaterUsageHandler>();
+
+        var rejectedDaily = await secondDailyHandler.HandleAsync(
+            new RecordDailyEntryCommand(
+                farmId, houseB, flockB, entryDate,
+                600, 0, 0, 0, 0,
+                [new GradeQuantityDto(gradeId, 600)]),
+            accountId, CancellationToken.None);
+        Assert.True(rejectedDaily.IsFailure);
+        Assert.Equal("DailyEntry.FlockNotActive", rejectedDaily.Error.Code);
+
+        var rejectedFeed = await secondFeedHandler.HandleAsync(
+            new RecordFeedUsageCommand(flockB, feedItemId, entryDate, 5m, Note: null),
+            accountId, CancellationToken.None);
+        Assert.True(rejectedFeed.IsFailure);
+        Assert.Equal("FeedUsage.FlockNotActive", rejectedFeed.Error.Code);
+
+        var rejectedWater = await secondWaterHandler.HandleAsync(
+            new RecordWaterUsageCommand(flockB, entryDate, 10m, "L", "Municipal", null, null, null),
+            accountId, CancellationToken.None);
+        Assert.True(rejectedWater.IsFailure);
+        Assert.Equal("WaterUsage.FlockNotActive", rejectedWater.Error.Code);
+
+        secondRequestScope.Dispose();
+
+        // Another fresh unrestricted context: the rejected calls left no
+        // additional usage/water rows and consumed no further lot stock.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var lotQuantityAfter = await db.InventoryLots
+                .Where(l => l.InventoryItemId == feedItemId)
+                .SumAsync(l => l.QuantityAvailable);
+            Assert.Equal(lotQuantityBaseline, lotQuantityAfter);
+
+            Assert.Equal(feedUsageCountBaseline, await db.FeedUsages.CountAsync(f => f.FlockId == flockB));
+            Assert.Equal(waterUsageCountBaseline, await db.WaterUsages.CountAsync(w => w.FlockId == flockB));
+        });
+    }
+
+    private sealed record RecordedDto(Guid Id);
 
     private sealed record Fixture(
         Guid AccountId, Guid FarmId, Guid FlockA, Guid FlockB, Guid GradeId,

@@ -40,6 +40,23 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
                 e.Date == date &&
                 e.Status != DailyEntryStatus.Voided, ct);
 
+    // Write-side natural-key lookup (#388): same bypass as
+    // GetByIdForFlockScopedWriteAsync above, reinstating AccountId explicitly
+    // while keeping the full natural key and non-Voided predicate.
+    public Task<DailyEntry?> FindByNaturalKeyForFlockScopedWriteAsync(
+        Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date,
+        CancellationToken ct = default) =>
+        db.DailyEntries
+            .IgnoreQueryFilters()
+            .Include(e => e.Grades)
+            .FirstOrDefaultAsync(e =>
+                e.AccountId == accountId &&
+                e.FarmId == farmId &&
+                e.HouseId == houseId &&
+                e.FlockId == flockId &&
+                e.Date == date &&
+                e.Status != DailyEntryStatus.Voided, ct);
+
     public Task<DailyEntry?> GetReadOnlyAsync(Guid id, CancellationToken ct = default) =>
         db.DailyEntries
             .AsNoTracking()

@@ -24,4 +24,13 @@ public interface IDailyEntryRepository : IRepository<DailyEntry, Guid>
     Task<DailyEntry?> FindByNaturalKeyAsync(
         Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date,
         CancellationToken ct = default);
+
+    // Write-side natural-key lookup (#388). Same bypass shape as
+    // GetByIdForFlockScopedWriteAsync: IgnoreQueryFilters, AccountId
+    // reinstated explicitly, natural key + non-Voided predicate preserved.
+    // Post-live-guard write/provenance lookup only — read endpoints never
+    // call it.
+    Task<DailyEntry?> FindByNaturalKeyForFlockScopedWriteAsync(
+        Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date,
+        CancellationToken ct = default);
 }

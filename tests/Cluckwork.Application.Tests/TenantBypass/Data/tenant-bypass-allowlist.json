@@ -100,6 +100,11 @@
     "justification": "#388 post-authorization lifecycle lookup: after live FlockScopeGuard succeeds, bypasses the request-start flock snapshot so a newly assigned flock is lifecycle-checked; explicitly reinstates AccountId so foreign ids remain null. Read endpoints never call it."
   },
   {
+    "symbol": "Cluckwork.Infrastructure.Repositories.DailyEntryRepository.FindByNaturalKeyForFlockScopedWriteAsync(Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/DailyEntryRepository.cs",
+    "justification": "#388 post-live-guard write/provenance natural-key lookup: bypasses the request-start flock snapshot so RecordDailyEntry, RecordFeedUsage and RecordWaterUsage see a newly assigned sibling's live entry state; reinstates AccountId explicitly and keeps the full natural key plus non-Voided predicate. Read endpoints never call it."
+  },
+  {
     "symbol": "Cluckwork.Infrastructure.Repositories.EggLotRepository.GetAvailableFifoLockedAsync(Guid accountId, IReadOnlyList<Guid> eggGradeIds, DateOnly allocationDate, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs",
     "justification": "FIFO sale-allocation lock; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement so only this tenant's lots are locked (#313)."
