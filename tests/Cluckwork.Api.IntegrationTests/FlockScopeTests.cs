@@ -461,6 +461,46 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
         Assert.DoesNotContain(foreignExpenseId, expenseIds);
     }
 
+    // #388 — EggInventoryMovement has no FlockId, so the Worker-reachable
+    // movement-ledger endpoint is protected by a filtered EggLot parent lookup.
+    // Assigned positive + unassigned 404 prove that deleting the parent gate
+    // cannot expose tenant-owned movement rows from another flock.
+    [Fact]
+    public async Task ScopedWorker_LotMovementLedger_UsesFilteredParentGate()
+    {
+        var fix = await SeedAsync();
+        var lotAId = Guid.NewGuid();
+        var lotBId = Guid.NewGuid();
+        var movementAId = Guid.NewGuid();
+        var movementBId = Guid.NewGuid();
+
+        await factory.WithTenantScopeAsync(fix.AccountId, async db =>
+        {
+            db.EggLots.Add(EggLot.Create(
+                lotAId, fix.AccountId, fix.FlockA, Today, fix.GradeId, 10));
+            db.EggInventoryMovements.Add(EggInventoryMovement.Create(
+                movementAId, fix.AccountId, lotAId, EggMovementType.Production,
+                10, "ParentGate", Guid.NewGuid(), DateTimeOffset.UtcNow));
+            db.EggLots.Add(EggLot.Create(
+                lotBId, fix.AccountId, fix.FlockB, Today, fix.GradeId, 10));
+            db.EggInventoryMovements.Add(EggInventoryMovement.Create(
+                movementBId, fix.AccountId, lotBId, EggMovementType.Production,
+                10, "ParentGate", Guid.NewGuid(), DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        });
+
+        var assigned = await fix.Worker.GetAsync(
+            $"/api/v1/stock/lots/{lotAId}/movements");
+        Assert.Equal(HttpStatusCode.OK, assigned.StatusCode);
+        var assignedRows = await assigned.Content.ReadFromJsonAsync<List<EggMovementRow>>();
+        Assert.NotNull(assignedRows);
+        Assert.Contains(assignedRows, row => row.Id == movementAId);
+
+        var unassigned = await fix.Worker.GetAsync(
+            $"/api/v1/stock/lots/{lotBId}/movements");
+        Assert.Equal(HttpStatusCode.NotFound, unassigned.StatusCode);
+    }
+
     // #388/#612 — each raw-SQL contract is explicit. Sales FIFO stays farm-wide
     // for a restricted Worker (current SalesFlow behavior); the two AdminOnly
     // reconciliation locks retain the explicit flock predicate because they
@@ -536,6 +576,10 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
     private sealed record DailyEntryRow(Guid Id, Guid FarmId, Guid HouseId, Guid FlockId, DateOnly Date, string Status);
     private sealed record WaterUsageRow(Guid Id, Guid FlockId, DateOnly Date, decimal Quantity, string Unit, string Source);
     private sealed record UserRow(Guid Id, string Email, string? DisplayName, string Role);
+    private sealed record EggMovementRow(
+        Guid Id, string MovementType, int QuantityDelta,
+        string ReferenceType, Guid ReferenceId, string? Reason,
+        DateTimeOffset CreatedAtUtc);
 
     private sealed record StepUpDto(string Token, DateTimeOffset ExpiresAt);
 
