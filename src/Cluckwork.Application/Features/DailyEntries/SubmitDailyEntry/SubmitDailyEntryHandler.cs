@@ -44,20 +44,24 @@ public sealed class SubmitDailyEntryHandler(
             return Result.Failure<SubmitDailyEntryResponse>(
                 Error.NotFound(nameof(DailyEntry), dailyEntryId)).LogFailure(logger, "SubmitDailyEntry");
 
+        // Spec §5.3 (#103): submitting is recording too — same scope rule.
+        var scope = await flockScope.CheckAsync(entry.FlockId, ct);
+        if (scope.IsFailure)
+            return Result.Failure<SubmitDailyEntryResponse>(scope.Error).LogFailure(logger, "SubmitDailyEntry");
+
         // Same lifecycle gate as recording (#47/#54): a draft can still be
         // submitted after depletion when its date is on/before DepletedOn
-        // (late backfill), but never for an archived flock.
-        var flock = await flocks.GetByIdAsync(entry.FlockId, ct);
+        // (late backfill), but never for an archived flock. #388 — looked up
+        // AFTER the live guard above, via the tenant-explicit write lookup, so
+        // a flock newly assigned to this caller since the request-start scope
+        // snapshot is still lifecycle-checked rather than skipped.
+        var flock = await flocks.GetByIdForFlockScopedWriteAsync(
+            entry.FlockId, accountId, ct);
         if (flock is not null && !flock.CanRecordProductionOn(entry.Date))
             return Result.Failure<SubmitDailyEntryResponse>(Error.Validation(
                 "DailyEntry.FlockNotActive",
                 $"Flock '{flock.Name}' is {flock.Status.ToString().ToLowerInvariant()} — this entry can no longer be submitted."))
                 .LogFailure(logger, "SubmitDailyEntry");
-
-        // Spec §5.3 (#103): submitting is recording too — same scope rule.
-        var scope = await flockScope.CheckAsync(entry.FlockId, ct);
-        if (scope.IsFailure)
-            return Result.Failure<SubmitDailyEntryResponse>(scope.Error).LogFailure(logger, "SubmitDailyEntry");
 
         // #396 — submission is the ONE point at which the Cracked and Dirty
         // counters resolve to a grade. Both flags are required and neither

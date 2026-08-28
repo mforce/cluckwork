@@ -95,6 +95,11 @@
     "justification": "#388 write-side authorization lookup: bypasses the combined tenant+flock query filter so an OWN-account unassigned draft reaches FlockScopeGuard (preserving the 422 contract), then reinstates tenant isolation explicitly with e.AccountId == accountId so a foreign-account id still reads as null. READ endpoints never call this method and stay symmetric 404."
   },
   {
+    "symbol": "Cluckwork.Infrastructure.Repositories.FlockRepository.GetByIdForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs",
+    "justification": "#388 post-authorization lifecycle lookup: after live FlockScopeGuard succeeds, bypasses the request-start flock snapshot so a newly assigned flock is lifecycle-checked; explicitly reinstates AccountId so foreign ids remain null. Read endpoints never call it."
+  },
+  {
     "symbol": "Cluckwork.Infrastructure.Repositories.EggLotRepository.GetAvailableFifoLockedAsync(Guid accountId, IReadOnlyList<Guid> eggGradeIds, DateOnly allocationDate, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs",
     "justification": "FIFO sale-allocation lock; the raw SQL carries WHERE \"AccountId\" = {accountId} and the lock is inside the statement so only this tenant's lots are locked (#313)."
