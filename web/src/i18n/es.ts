@@ -1837,14 +1837,16 @@ export const es = {
     rolesHeading: "Quién puede hacer qué",
     rolesWorkers:
       "Cinco tipos de inicio de sesión. Los <strong>Trabajadores</strong> llevan a cabo el ciclo diario — "
-      + "registran y envían entradas, reciben alimento, registran el uso de alimento y agua, crean lotes y "
+      + "registran y envían entradas, reciben alimento, registran el uso de alimento y agua, crean "
       + "clientes, gestionan pedidos desde borrador hasta confirmación. Un trabajador puede restringirse a "
       + "<strong>lotes asignados</strong>: sin asignaciones puede registrar para cualquier lote; la primera "
-      + "asignación lo restringe a los indicados.",
+      + "asignación lo restringe a los indicados. Los trabajadores no pueden crear lotes — eso es "
+      + "administración de Propietario/Gerente.",
     rolesManagers:
       "Los <strong>Gerentes</strong> hacen todo lo que hacen los trabajadores, además de todo lo que "
       + "<strong>deshace, corrige o configura</strong>: anulaciones, correcciones de existencias y agua, "
-      + "ciclo de vida de los lotes, sacrificios, los catálogos de grados/productos/artículos, gastos, "
+      + "creación de lotes y cambios de ciclo de vida de los lotes, sacrificios, los catálogos de "
+      + "grados/productos/artículos, gastos, "
       + "informes de dinero, el registro de auditoría y las exportaciones.",
     rolesSalesReadOnly:
       "Los inicios de sesión de <strong>Ventas</strong> gestionan clientes, pedidos y <strong>pagos</strong> "
@@ -2000,8 +2002,9 @@ export const es = {
       + "historial permanece, se permite retroactivo) → <strong>Archivado</strong> (oculto del trabajo "
       + "diario). Agotar y archivar piden confirmación; ambos son reversibles con <strong>Reactivar</strong>.",
     flocksPermissions:
-      "Cualquiera puede crear un lote y ver el libro mayor de aves. Editar un lote, los cambios de ciclo "
-      + "de vida y registrar sacrificios/ajustes son solo para administradores.",
+      "Propietario y Gerente crean lotes. Cualquiera puede ver los lotes que tiene permitido ver y sus "
+      + "libros mayores de aves. Editar un lote, los cambios de ciclo de vida y registrar "
+      + "sacrificios/ajustes son solo para administradores.",
 
     gradesHeading: "Grados de huevo",
     gradesBuckets:
@@ -2648,7 +2651,8 @@ export const es = {
     glossaryFlockScopingDef:
       "Las lecturas de un Trabajador se limitan a sus lotes asignados más las filas de la granja completa. "
       + "Propietario y Gerente no tienen restricción. Los Trabajadores sin filas de asignación, o con una "
-      + "fila de granja completa, tampoco tienen restricción. El detalle de un lote no asignado devuelve 404.",
+      + "fila de granja completa, tampoco tienen restricción. El detalle de un lote no asignado devuelve 404. "
+      + "Crear un lote es siempre tarea de Propietario/Gerente, sin importar el alcance.",
 
     glossaryLockedEntryTerm: "Bloqueada (entrada)",
     glossaryLockedEntryDef:
