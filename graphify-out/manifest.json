@@ -125,8 +125,8 @@
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Endpoints/Flocks/FlockEndpoints.cs": {
-    "mtime": 1786466084.0008447,
-    "ast_hash": "1fb8b2ed88150d15f6b303332be6e340",
+    "mtime": 1787940814.3256266,
+    "ast_hash": "a166117ba5edf17c31aa8dd3be16e5ec",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Endpoints/Inventory/InventoryEndpoints.cs": {
@@ -155,7 +155,7 @@
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Endpoints/Stock/StockEndpoints.cs": {
-    "mtime": 1786263295.864289,
+    "mtime": 1787896204.6403327,
     "ast_hash": "dd6a50f668c2a50b1619da11c01b5b00",
     "semantic_hash": ""
   },
@@ -200,8 +200,8 @@
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Program.cs": {
-    "mtime": 1787382972.8979619,
-    "ast_hash": "82e7a34a098a56fd08c4f15eb57183dd",
+    "mtime": 1787940814.3256266,
+    "ast_hash": "6d58853313700e459dc5a1ba6ea42883",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/RateLimiting/RateLimitingOptions.cs": {
@@ -420,9 +420,9 @@
     "semantic_hash": "72fb8ec437596daa9b73ae3debb1b865"
   },
   "src/Cluckwork.Application/Features/DailyEntries/IDailyEntryRepository.cs": {
-    "mtime": 1784179036.3647377,
-    "ast_hash": "91cf0d545c86296ac9e5ef28ac7fdbfd",
-    "semantic_hash": "91cf0d545c86296ac9e5ef28ac7fdbfd"
+    "mtime": 1787940814.3256266,
+    "ast_hash": "4733a219b2149bd4b2c6808f2ab5234e",
+    "semantic_hash": ""
   },
   "src/Cluckwork.Application/Features/DailyEntries/RecordDailyEntry/RecordDailyEntryCommand.cs": {
     "mtime": 1784174388.4092572,
@@ -430,8 +430,8 @@
     "semantic_hash": "9e4f18eed046c65fc05b3678dcd897c9"
   },
   "src/Cluckwork.Application/Features/DailyEntries/RecordDailyEntry/RecordDailyEntryHandler.cs": {
-    "mtime": 1786466084.0009587,
-    "ast_hash": "b235622ce62e214738a73c382389f096",
+    "mtime": 1787940814.3256266,
+    "ast_hash": "0dd0dc58582234c54d0c62ff94cc29e6",
     "semantic_hash": ""
   },
   "src/Cluckwork.Application/Features/DailyEntries/RecordDailyEntry/RecordDailyEntryValidator.cs": {
@@ -440,8 +440,8 @@
     "semantic_hash": "48bbf69038e62d2e7c6441e74ed1921b"
   },
   "src/Cluckwork.Application/Features/DailyEntries/SubmitDailyEntry/SubmitDailyEntryHandler.cs": {
-    "mtime": 1786466084.0014896,
-    "ast_hash": "1a03d40ba1d860e777978102fe8f8723",
+    "mtime": 1787940814.3256266,
+    "ast_hash": "6fc0a3b02888d5eb82b006ad86a88425",
     "semantic_hash": ""
   },
   "src/Cluckwork.Application/Features/DailyEntries/VoidDailyEntry/VoidDailyEntryCommand.cs": {
@@ -610,9 +610,9 @@
     "semantic_hash": "67e61d2dbf1df1787f4b7005967dad33"
   },
   "src/Cluckwork.Application/Features/Flocks/IFlockRepository.cs": {
-    "mtime": 1784231087.779065,
-    "ast_hash": "329cefe580e74e47e72641977a561fdd",
-    "semantic_hash": "329cefe580e74e47e72641977a561fdd"
+    "mtime": 1787940814.3256266,
+    "ast_hash": "3814b5aed34c746b2940d214a98edb5d",
+    "semantic_hash": ""
   },
   "src/Cluckwork.Application/Features/Flocks/ReactivateFlock/ReactivateFlockHandler.cs": {
     "mtime": 1786143907.8691342,
@@ -710,8 +710,8 @@
     "semantic_hash": "8f7843919eeae446b457129515ebc2ee"
   },
   "src/Cluckwork.Application/Features/Inventory/RecordFeedUsage/RecordFeedUsageHandler.cs": {
-    "mtime": 1786171102.7995358,
-    "ast_hash": "bda859c916da120edc710771f9e544c4",
+    "mtime": 1787940814.3256266,
+    "ast_hash": "3d7c7cd3d2e8ac66d7629ba130f8d686",
     "semantic_hash": ""
   },
   "src/Cluckwork.Application/Features/Inventory/RecordFeedUsage/RecordFeedUsageValidator.cs": {
@@ -740,8 +740,8 @@
     "semantic_hash": "7160d09319368ecb58f0cf8939785e3c"
   },
   "src/Cluckwork.Application/Features/Inventory/RecordWaterUsage/RecordWaterUsageHandler.cs": {
-    "mtime": 1786171102.7995358,
-    "ast_hash": "f83d9c113e0ee52d71d55a81a5fca9f8",
+    "mtime": 1787940814.3256266,
+    "ast_hash": "38225d15462d2011f0a347f95a204732",
     "semantic_hash": ""
   },
   "src/Cluckwork.Application/Features/Inventory/RecordWaterUsage/RecordWaterUsageValidator.cs": {
@@ -1280,13 +1280,13 @@
     "semantic_hash": "ea968032537a332cbbdbacb08fffb7d1"
   },
   "src/Cluckwork.Infrastructure/Persistence/AppDbContext.cs": {
-    "mtime": 1787418976.3268337,
-    "ast_hash": "95de25da78988edc8279857b1bbf1c9c",
+    "mtime": 1787940814.326315,
+    "ast_hash": "0a2f03d8b28dfffa5afa706823da01b8",
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Persistence/AppDbContextDesignTimeFactory.cs": {
-    "mtime": 1785631848.7807434,
-    "ast_hash": "f17f337921e6d02dd6724ab0a0749fef",
+    "mtime": 1787940814.326315,
+    "ast_hash": "2c134dd180ad12177f8afa92f615ceb0",
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Persistence/Configurations/AccountConfiguration.cs": {
@@ -1435,9 +1435,9 @@
     "semantic_hash": "41aa13c2f7c28077ee79c0d699bc7b6b"
   },
   "src/Cluckwork.Infrastructure/Repositories/DailyEntryRepository.cs": {
-    "mtime": 1784496154.1470008,
-    "ast_hash": "cfa52cd80644876858a7a4dc95bb5dfe",
-    "semantic_hash": "cfa52cd80644876858a7a4dc95bb5dfe"
+    "mtime": 1787940814.326315,
+    "ast_hash": "ae3a7847967deab0f536e90b1f6b512d",
+    "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Repositories/EggGradeRepository.cs": {
     "mtime": 1784225801.9566164,
@@ -1450,8 +1450,8 @@
     "semantic_hash": "67d2f72092002a11b6381741c83e067a"
   },
   "src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs": {
-    "mtime": 1786263295.865033,
-    "ast_hash": "5db56b847e7646c60d622414c46ad941",
+    "mtime": 1787940814.326315,
+    "ast_hash": "f2d7c0447abeea4a61461791a9ee896a",
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Repositories/ExpenseRepositories.cs": {
@@ -1460,8 +1460,8 @@
     "semantic_hash": "cb99a575a878885d39f27506777b3f7b"
   },
   "src/Cluckwork.Infrastructure/Repositories/ExportQueries.cs": {
-    "mtime": 1785748184.5044942,
-    "ast_hash": "ec945271b94ec2df67925e2addd67e33",
+    "mtime": 1787940814.326315,
+    "ast_hash": "d19b7338503d6cf879e9dd2a7acda813",
     "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Repositories/FarmLogoRepository.cs": {
@@ -1475,9 +1475,9 @@
     "semantic_hash": "21de04248fe1c55450c1f6c8d3d0b806"
   },
   "src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs": {
-    "mtime": 1784231087.7792192,
-    "ast_hash": "f8cf55e8ce7f2f4dd1b51f7abfe461ba",
-    "semantic_hash": "f8cf55e8ce7f2f4dd1b51f7abfe461ba"
+    "mtime": 1787940814.326315,
+    "ast_hash": "e9330471bce9939928a6bf2a74169846",
+    "semantic_hash": ""
   },
   "src/Cluckwork.Infrastructure/Repositories/InventoryItemRepository.cs": {
     "mtime": 1785553134.4300222,
@@ -1540,8 +1540,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/AdminGatingTests.cs": {
-    "mtime": 1787810847.0564187,
-    "ast_hash": "cfea18ebb2335b70afa778e28da063e8",
+    "mtime": 1787940814.326315,
+    "ast_hash": "7534512cb7057a0a875e066fe2d54003",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/AuditTests.cs": {
@@ -1580,13 +1580,13 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/CurrencyLockRaceTests.cs": {
-    "mtime": 1787101182.4551914,
-    "ast_hash": "17e862755469475b54757d87f5f34b9f",
+    "mtime": 1787940814.326315,
+    "ast_hash": "7e1db06b895c44d94d6123b0a06d1d2a",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/CurrencyLockSerializationTests.cs": {
-    "mtime": 1787101182.455234,
-    "ast_hash": "2bff717ab83c92213bc0c187971c2d0f",
+    "mtime": 1787940814.326315,
+    "ast_hash": "21a10e2e32ede1173b9d5815d9d28e57",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/CustomerAndOrderTests.cs": {
@@ -1790,8 +1790,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/RoleMatrixTests.cs": {
-    "mtime": 1787810847.0567257,
-    "ast_hash": "15272922f3ffd9290478324286cf29ec",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "4a0edd526d4d0aa4d86e8b462bfe271d",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/SalesProductTests.cs": {
@@ -1815,8 +1815,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/SubmitDailyEntryTests.cs": {
-    "mtime": 1786466084.002252,
-    "ast_hash": "ed0f1a4f12102184f0996152a063ff91",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "6ab748bd1d906933f682689f3552ef4a",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/TenantIsolationTests.cs": {
@@ -2210,8 +2210,8 @@
     "semantic_hash": "7e9601e4b12e9a43b2fcbf5d687fd96d"
   },
   "web/src/i18n/en.ts": {
-    "mtime": 1787810847.0581944,
-    "ast_hash": "c3c308adff4b701e3388cf51d54ecc74",
+    "mtime": 1787940814.3283148,
+    "ast_hash": "5e5ea3bdaead3d6518dcea444b713441",
     "semantic_hash": ""
   },
   "web/src/i18n/enums.test.ts": {
@@ -2225,8 +2225,8 @@
     "semantic_hash": ""
   },
   "web/src/i18n/es.ts": {
-    "mtime": 1787810847.0584466,
-    "ast_hash": "385c471ef86341699258262bc273e5f9",
+    "mtime": 1787940814.3283148,
+    "ast_hash": "1159a070e2852b416e0bd59862ce2987",
     "semantic_hash": ""
   },
   "web/src/i18n/formattingIndependence.test.ts": {
@@ -2260,8 +2260,8 @@
     "semantic_hash": "44bfd74f0356d27be48aaf2adf4d4389"
   },
   "web/src/i18n/tl.ts": {
-    "mtime": 1787810847.0587032,
-    "ast_hash": "25424d0e8b0e309f1a51604eb45c4ae9",
+    "mtime": 1787940814.3283148,
+    "ast_hash": "582b7013224671f8169d8cd1fa652cca",
     "semantic_hash": ""
   },
   "web/src/i18n/translations-status.ts": {
@@ -2400,13 +2400,13 @@
     "semantic_hash": ""
   },
   "web/src/routes/DailyEntryPage.test.tsx": {
-    "mtime": 1787552174.8778067,
-    "ast_hash": "a20bd15bcc249feacdb32b27d4d31677",
+    "mtime": 1787940814.3283148,
+    "ast_hash": "5c7bee243f2f46e0efd448dbc9a57140",
     "semantic_hash": ""
   },
   "web/src/routes/DailyEntryPage.tsx": {
-    "mtime": 1787552174.8779018,
-    "ast_hash": "a91afda435df6bb904fda89ebc46acb4",
+    "mtime": 1787940814.3283148,
+    "ast_hash": "fdb077f2459ed2d7772a68a7fb5cf3f4",
     "semantic_hash": ""
   },
   "web/src/routes/Dashboard.test.tsx": {
@@ -2440,13 +2440,13 @@
     "semantic_hash": "491765c13d50bffe7fd98f22f98eb2b0"
   },
   "web/src/routes/FlocksPage.test.tsx": {
-    "mtime": 1786585062.8163364,
-    "ast_hash": "ad167d5e4fe531595b8467f3678087cc",
+    "mtime": 1787940814.3283148,
+    "ast_hash": "9fbf9b8b6e3099d1e46e6fdd1a5fd705",
     "semantic_hash": ""
   },
   "web/src/routes/FlocksPage.tsx": {
-    "mtime": 1786585062.8166404,
-    "ast_hash": "1691fc1f431a224c257533b5a9c0272e",
+    "mtime": 1787940814.3283148,
+    "ast_hash": "11754814d6acf40e095ee1f0664aaabf",
     "semantic_hash": ""
   },
   "web/src/routes/GradesPage.test.tsx": {
@@ -2460,13 +2460,13 @@
     "semantic_hash": ""
   },
   "web/src/routes/HelpPage.test.tsx": {
-    "mtime": 1787810847.0587697,
-    "ast_hash": "e702656d9520ed5c2bd732ef41265071",
+    "mtime": 1787940814.3283148,
+    "ast_hash": "2a2ee882768f78cec55c10d495449edd",
     "semantic_hash": ""
   },
   "web/src/routes/HelpPage.tsx": {
-    "mtime": 1787762338.1838984,
-    "ast_hash": "a3a8936422cc48542a21f596f42c87ec",
+    "mtime": 1787940814.3283148,
+    "ast_hash": "6ff612efab516f9230c90c3605eb99bb",
     "semantic_hash": ""
   },
   "web/src/routes/HistoryPage.test.tsx": {
@@ -2770,8 +2770,8 @@
     "semantic_hash": "1141b245608710b1d7d5109fa38c4a57"
   },
   "specs/product/GLOSSARY.md": {
-    "mtime": 1787810847.0555465,
-    "ast_hash": "b6f225c852db90bb10b1b5e68adee77d",
+    "mtime": 1787940814.3256266,
+    "ast_hash": "ff7a057fcc31a4bfbcbf87fa5d98dd7d",
     "semantic_hash": ""
   },
   "specs/product/README.md": {
@@ -3150,8 +3150,8 @@
     "semantic_hash": ""
   },
   "tools/simulation/k6/bundles.js": {
-    "mtime": 1785648948.2064495,
-    "ast_hash": "70fd2760b16c0bc9d27324debe991b05",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "736187a1eae9fe9bbf37d9e82c7d3a25",
     "semantic_hash": ""
   },
   "tools/simulation/k6/config.js": {
@@ -3280,8 +3280,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/AdminRecoveryServiceTests.cs": {
-    "mtime": 1787264287.0414522,
-    "ast_hash": "546b64334af04c8434ce9be653bb1790",
+    "mtime": 1787940814.326315,
+    "ast_hash": "ad7d2876770c34194834122d7093363e",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/CliDispatcherTests.cs": {
@@ -3350,8 +3350,8 @@
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Hosting/CluckworkPersistenceServiceCollectionExtensions.cs": {
-    "mtime": 1787067279.1110976,
-    "ast_hash": "38832b8a7910343af8287b86c9d7c02b",
+    "mtime": 1787940814.3256266,
+    "ast_hash": "3597f3b50fb3690956affd8bb85f5095",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Hosting/CluckworkRateLimitingServiceCollectionExtensions.cs": {
@@ -3475,8 +3475,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/TenantScopedLockTests.cs": {
-    "mtime": 1785631848.7820742,
-    "ast_hash": "2a569b057181c1f1594b39567845f7d1",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "68c7cd34d3ece422ed682c98ca7951da",
     "semantic_hash": ""
   },
   "src/Cluckwork.Api/Cli/BootstrapAdminCliCommand.cs": {
@@ -3530,8 +3530,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/BootstrapAdminCommandTests.cs": {
-    "mtime": 1787628218.132442,
-    "ast_hash": "d94005a2f49b7afd8d62c572ba0215d7",
+    "mtime": 1787940814.326315,
+    "ast_hash": "ef698f920a4e63e76e1f12ceb05af0ed",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/ExceptionHandlerReExecutionTests.cs": {
@@ -3555,8 +3555,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/ReportQueryBoundingTests.cs": {
-    "mtime": 1787101182.4561858,
-    "ast_hash": "be609db2aa03cd56ec6fbfdf0eb84833",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "0740b93f05f05d169f5ea82d2f217541",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/ReportsConcurrencyLimitTests.cs": {
@@ -3565,13 +3565,13 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/StepUpAuthTests.cs": {
-    "mtime": 1787810847.0570598,
-    "ast_hash": "f44907d300cd73662d6fe1e5e6a8fc51",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "d533e4ad93cc27bbf3930fd2bf7de1fd",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/StepUpGrantRegistryTests.cs": {
-    "mtime": 1787032743.9616203,
-    "ast_hash": "8e1c925b32c2784a321d7ab46d7bd200",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "2f114af7af00a758b356aeb33ed32a60",
     "semantic_hash": ""
   },
   "web/src/routes/SetPasswordPage.test.tsx": {
@@ -3645,8 +3645,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/BaseReferenceDataMigrationTests.cs": {
-    "mtime": 1787382972.8990934,
-    "ast_hash": "056ab159895990eb62d837a3e67852fd",
+    "mtime": 1787940814.326315,
+    "ast_hash": "dc2e90842d05439302e21667e4e4f653",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/BodyReadingEndpointTests.cs": {
@@ -3660,8 +3660,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/CredentialEpochMiddlewareOrderTests.cs": {
-    "mtime": 1787264287.0414522,
-    "ast_hash": "b691574786c682ca4cae10a2b5a548e1",
+    "mtime": 1787940814.326315,
+    "ast_hash": "fb91f0e2b303c07179cde0d6c650cfd6",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/CredentialEpochRaceTests.cs": {
@@ -3675,13 +3675,13 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/FirstRunLoginNoticeTests.cs": {
-    "mtime": 1787264287.0421426,
-    "ast_hash": "d0621623141eb57820f7d009580bd392",
+    "mtime": 1787940814.326315,
+    "ast_hash": "b868f855a71ec8d547bf0a279aa5ee79",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/IdempotencyRecordPurgeSweepTests.cs": {
-    "mtime": 1787121700.236447,
-    "ast_hash": "76c7372fb73c04c1cb71bc4a69801fac",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "fcf913f7bd6d6680cc1c3a5b90130b3e",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/Infrastructure/NonSeekableStream.cs": {
@@ -3810,8 +3810,8 @@
     "semantic_hash": ""
   },
   "tools/simulation/ui/specs/worker.spec.ts": {
-    "mtime": 1785733534.7302341,
-    "ast_hash": "5cb018ee9695c8c60e00b600e51cf469",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "00c22d39085976492835fa9536936eae",
     "semantic_hash": ""
   },
   "tools/simulation/ui/src/api.ts": {
@@ -4140,8 +4140,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/SecurityEventLoggingTests.cs": {
-    "mtime": 1787264287.0431426,
-    "ast_hash": "fb3713f6a24c2c5ccb4188a71b409de1",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "715805309eff3f54b1bbb5e5a3d792ba",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Application.Tests/Common/AuditVocabularyCoverageTests.cs": {
@@ -4280,8 +4280,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/ChangeUserRoleRaceTests.cs": {
-    "mtime": 1787810847.0564716,
-    "ast_hash": "3eddf34a22acefa7df0cb56e7364887e",
+    "mtime": 1787940814.326315,
+    "ast_hash": "12d80b0d52efc5063d2f991d9c867a35",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/ChangeUserRoleTests.cs": {
@@ -4290,8 +4290,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/DisableUserRaceTests.cs": {
-    "mtime": 1787810847.0565836,
-    "ast_hash": "c06c41096c03a6e9a9c8b333134a4b4c",
+    "mtime": 1787940814.326315,
+    "ast_hash": "40cd15299a62b16de03db8003de4ed96",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/DisableUserTests.cs": {
@@ -4305,8 +4305,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/FarmBannerMigrationDowngradeTests.cs": {
-    "mtime": 1786399005.4759307,
-    "ast_hash": "1c42dfcffd0af0d3f5f8a7cfe0e4a383",
+    "mtime": 1787940814.326315,
+    "ast_hash": "579c60fc0c45e317a2f16601472b9a70",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/FarmBannerTests.cs": {
@@ -4325,8 +4325,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/SchemaDocsTests.cs": {
-    "mtime": 1787628218.1326606,
-    "ast_hash": "a771f1c1116a00b0230d45845c83a998",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "a0c2f9db9267aa389dbab32ce09506cf",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Application.Tests/EggLots/RecordEggLotMovementValidatorTests.cs": {
@@ -4895,8 +4895,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/AccountScopedIdentityMigrationTests.cs": {
-    "mtime": 1787264287.0414522,
-    "ast_hash": "8f68360dcdd5fcf0a1eb5ae340a79a42",
+    "mtime": 1787940814.326315,
+    "ast_hash": "c316aaad820d1518366cf3d60afb3438",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/AccountScopedUserValidatorRegistrationTests.cs": {
@@ -4910,8 +4910,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/AccountSlugMigrationTests.cs": {
-    "mtime": 1787101182.4548025,
-    "ast_hash": "b649a1a311107fb339bda3e0d5f4248a",
+    "mtime": 1787940814.326315,
+    "ast_hash": "22e6401d36bbfa1ca9ad07df1c5d0da0",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/AccountSlugRaceTests.cs": {
@@ -4930,8 +4930,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/ApplicationUserIndexModelTests.cs": {
-    "mtime": 1787264287.0414522,
-    "ast_hash": "628b6b503dde4db23abeec1b9ef6cf4e",
+    "mtime": 1787940814.326315,
+    "ast_hash": "f8b652f90ef3627cc96832444236babf",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/AuditActorTests.cs": {
@@ -5100,8 +5100,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/StepUpGrantRegistrySharedStoreTests.cs": {
-    "mtime": 1787032743.9615655,
-    "ast_hash": "7f9167d845cb000f438be1729dececec",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "2a752326b37badff22dc8e8271e6185f",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/TenantContextSingleAssignmentTests.cs": {
@@ -5200,8 +5200,8 @@
     "semantic_hash": ""
   },
   "docs/architecture.md": {
-    "mtime": 1787382972.897087,
-    "ast_hash": "ebc85b2f294f6176a9cc50a6ba64b538",
+    "mtime": 1787940814.3256266,
+    "ast_hash": "b62fc15145d488051da8df6323fa5dbd",
     "semantic_hash": ""
   },
   "docs/decisions/260-proxy-trust.md": {
@@ -5485,8 +5485,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Application.Tests/TenantBypass/Data/tenant-bypass-allowlist.json": {
-    "mtime": 1787628218.1326606,
-    "ast_hash": "b61f61c7baf4c22321435448a86704fa",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "158eeca8a40ad4e6cdbe239c63369317",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Application.Tests/TenantBypass/GuardScanner.cs": {
@@ -5500,13 +5500,13 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Application.Tests/TenantBypass/TenantBypassDiscoveryTests.cs": {
-    "mtime": 1787441785.0532062,
-    "ast_hash": "34e39111e0387bcc651b38c025ddd112",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "4c8142cd2858f7c0ab39e2d45af2357f",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Application.Tests/TenantBypass/TenantBypassRealTreeTests.cs": {
-    "mtime": 1787441785.0532062,
-    "ast_hash": "3c377f86b11dcdec806894213dc75b92",
+    "mtime": 1787940814.3273149,
+    "ast_hash": "d168abbc439aa7bcc57a85dc782893de",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Application.Tests/TenantBypass/TenantBypassWalkTests.cs": {
@@ -5610,8 +5610,8 @@
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/ChangeUserEmailRaceTests.cs": {
-    "mtime": 1787762338.1834311,
-    "ast_hash": "5c30c3710d68ecc1e3028992606f6fae",
+    "mtime": 1787940814.326315,
+    "ast_hash": "f97ab726d3bf8f67912345339e6354df",
     "semantic_hash": ""
   },
   "tests/Cluckwork.Api.IntegrationTests/ChangeUserEmailTests.cs": {
@@ -5722,6 +5722,36 @@
   "docs/superpowers/plans/2026-08-25-change-user-email.md": {
     "mtime": 1787762338.1829066,
     "ast_hash": "1e9c3e13865589b66d9b02f505c7de09",
+    "semantic_hash": ""
+  },
+  "src/Cluckwork.Api/Middleware/FlockScopeResolutionMiddleware.cs": {
+    "mtime": 1787940814.3256266,
+    "ast_hash": "d323f2eecdec172200e570436ceb580e",
+    "semantic_hash": ""
+  },
+  "src/Cluckwork.Infrastructure/Persistence/FlockScope.cs": {
+    "mtime": 1787940814.326315,
+    "ast_hash": "7b2bf1331f69ea06ae61fd45d69dc52d",
+    "semantic_hash": ""
+  },
+  "tests/Cluckwork.Api.IntegrationTests/FlockScopeMiddlewareTests.cs": {
+    "mtime": 1787940814.326315,
+    "ast_hash": "6aee4358f6cd5a459e52d4812fe282ca",
+    "semantic_hash": ""
+  },
+  "tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs": {
+    "mtime": 1787940814.3273149,
+    "ast_hash": "ede62d3f30b464082b2e7b7daed34a13",
+    "semantic_hash": ""
+  },
+  "docs/designs/388-worker-flock-read-scoping.md": {
+    "mtime": 1787940814.3256266,
+    "ast_hash": "6913eee1093f1f01b76db923c36c1abb",
+    "semantic_hash": ""
+  },
+  "docs/plans/388-worker-flock-read-scoping.md": {
+    "mtime": 1787940814.3256266,
+    "ast_hash": "ddee4b27d2bbfab2c35025247f6d0efc",
     "semantic_hash": ""
   }
 }
