@@ -43,7 +43,7 @@ Close the gap where a Worker scoped to one flock can enumerate and read unassign
 | Worker with a **farm-wide** assignment row (`FlockId = null`) reads any flock | Unrestricted | `FlockScopeGuard` returns `Result.Success()` for a farm-wide row (`UserRoleAssignmentRepository.cs:84`: `a.FlockId == null || a.FlockId == flockId`) | **Repo rule** — the filter must treat a farm-wide row as Unrestricted (P1-1) |
 | Worker reads `GET /reports/sales` (or `/profit`, `/expenses`) | 403 (AdminOnly) | `AuthPolicies.AdminOnly` = Owner + Manager (`AuthPolicies.cs`) | **Repo rule** — the authorization policy blocks Workers before any data query; no flock scoping needed (P1-4) |
 | Worker reads `GET /reports/production` | Scoped by filter | `Production` is open to all signed-in users; reads `Flocks` + `BirdMovements` (both filtered) | **Plan** — the filter scopes it by construction |
-| New migration required? | Yes (EF query filter is a model change) | #407: one migration per change; `InitialCreate` is frozen; #417: `docs/schema/` regenerated with every migration | **Repo rule** — new migration + `docs/schema/` regeneration, not a fold into `InitialCreate` |
+| New migration required? | No — EF global query filters are runtime metadata, not a schema change | #407: one migration per change; `InitialCreate` is frozen; #417: `docs/schema/` regenerated with every migration | **Repo rule, satisfied by construction** — no model-snapshot change, no `docs/schema/` regeneration, `InitialCreate` untouched (see §8) |
 
 **No conflicts with the repo's canonical rules.** The plan is consistent with #530's tenancy pattern, #407's migration rule, #417's schema-docs rule, and the existing `FlockScopeGuard` semantics.
 
@@ -143,7 +143,7 @@ Close the gap where a Worker scoped to one flock can enumerate and read unassign
   - Scoped Worker reads `GET /flocks` → sees only assigned flocks (not unassigned).
   - Scoped Worker reads `GET /flocks/{unassigned-id}` → 404 (not 403, not 200).
   - Scoped Worker reads `GET /flocks/{assigned-id}` → 200 (positive control).
-  - Scoped Worker reads `GET /daily-entries?flockId={unassigned}` → 200 + empty list (flockId-param path; decision 2 says list/detail must agree — an empty 200 list for an unassigned flockId param is the oracle; either accept it and document, or add refusal).
+  - **Corrected — no dedicated shipped assertion for the `flockId` query-parameter path.** The shipped coverage is the Worker *list* filter: `FlockScopeTests.ScopedWorker_FlocksList_SeesOnlyAssignedFlock` and the child-row fact (§ below) prove `GET /daily-entries` returns only the assigned flock's rows by construction (the combined query filter, not a `flockId`-parameter-specific code path). No separate fact pins `GET /daily-entries?flockId={unassigned}` as its own query-parameter case.
   - Scoped Worker reads a farm-wide expense (`FlockId = null`) → visible (decision 1).
   - Worker with a **farm-wide assignment row** (`FlockId = null`) reads `GET /flocks` → sees all flocks (P1-1 tri-state).
   - Worker with **0 assignment rows** reads `GET /flocks` → sees all flocks (grandfathered #73).
@@ -156,7 +156,7 @@ Close the gap where a Worker scoped to one flock can enumerate and read unassign
   - `Resolve_DifferingScope_ThrowsReassignmentException` pins single-assignment/no mid-request scope replacement (INV-4).
   - `RoleMatrixTests.FlockScope_CoversFeed_SubmitOfUnassignedDraft_AndMismatchedUnassign` removes an assignment and proves the *next* HTTP request observes the changed scope.
   - Do not claim a test that pins a scope read racing a concurrent assignment write mid-request; none ships.
-- **`RoleMatrixTests`** (existing): add rows for the new read scoping (Worker → 200 on `GET /flocks` with a **row-count assertion**, not just a status-code assertion — a role-matrix row that only checks status is green both before and after the filter).
+- **Corrected — `RoleMatrixTests` did not gain a read row-count assertion.** The row-count coverage for scoped reads lives in `FlockScopeTests.ScopedWorker_FlocksList_SeesOnlyAssignedFlock` (Worker sees exactly the assigned flock, not the unassigned one) and the middleware resolution tests in `FlockScopeMiddlewareTests`. `RoleMatrixTests` was not the file that gained this assertion.
 - **Mutation checks:**
   - Remove the `Flock` filter → the "scoped Worker reads `GET /flocks` → sees only assigned" test must RED (sees unassigned flocks).
   - Remove the `Expense` filter → `ExpenseFilter_FarmWideVisible_UnassignedExcluded` must RED (the unassigned-flock expense becomes visible).

@@ -196,10 +196,10 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
     public async Task Manager_Resolved_Unrestricted() { /* INV-2 */ }
 
     [Fact]
-    public async Task Worker_ZeroAssignments_Resolved_Unrestricted() { /* INV-3 */ }
+    public async Task Worker_ZeroAssignments_Request_Succeeds() { /* INV-3 */ }
 
     [Fact]
-    public async Task Worker_FarmWideRow_Resolved_Unrestricted() { /* INV-3 */ }
+    public async Task Worker_FarmWideRow_Request_Succeeds() { /* INV-3 */ }
 
     [Fact]
     public async Task Worker_SingleFlockRow_Resolved_RestrictedToThatFlock() { /* RestrictedTo([A]) */ }
@@ -460,7 +460,7 @@ git commit -m "feat: add flock-scope predicates to raw-SQL egg-lot lock paths (#
 - Modify: `specs/product/GLOSSARY.md` (add "flock scoping" definition)
 - Modify: `web/src/i18n/en.ts`, `web/src/i18n/es.ts`, `web/src/i18n/tl.ts` (SPA Help glossary entries — every locale, same key names; `i18n.test.ts` / `translations-status.ts` enforce parity)
 - Modify: `web/src/routes/HelpPage.tsx` (the glossary table enumerates rows explicitly; add the new rendered row)
-- Modify: `tools/simulation/ui/specs/worker.spec.ts` (#277 Playwright E2E — Worker persona read assertions + preserve server write-guard coverage via captured-id DOM option injection, because the restricted picker now hides the unassigned flock)
+- Modify: `tools/simulation/ui/specs/worker.spec.ts` (#277 Playwright E2E — Worker persona read assertions + preserve server write-guard coverage via a captured-id `page.route` POST-body rewrite, because the restricted picker now hides the unassigned flock)
 
 **Interfaces:**
 - Consumes: Tasks 1-3 (the feature is complete)
@@ -476,7 +476,9 @@ Add a `glossaryFlockScopingTerm` / `glossaryFlockScopingDef` pair (naming follow
 
 - [ ] **Step 3: #277 Playwright E2E spec**
 
-Update `tools/simulation/ui/specs/worker.spec.ts` to assert read scoping for the scoped Worker persona: the flock picker shows the assigned flock and hides the unassigned flock; the API integration test pins unassigned detail = 404 (assert the SPA not-found state too if a detail route exists). Preserve the server-side 422 write-guard coverage: the current test selects the unassigned flock from the picker, which will no longer work. First sign in as the unrestricted worker to capture that option's real id, sign out, sign in restricted, inject one temporary option with that captured id into the real select, then submit through the normal SPA path and retain the distinctive `FlockScope.NotAssigned` assertion. Do not use `page.request.post` (it lacks the SPA's module-held access token) and never hardcode the id or credentials. Full exact procedure: runbook Increment 4c.
+Update `tools/simulation/ui/specs/worker.spec.ts` to assert read scoping for the scoped Worker persona: the flock picker shows the assigned flock and hides the unassigned flock (`is read-scoped to its assigned flock on the daily-entry picker (#388)`). The SPA has no flock-detail route (only the `/flocks` list), so the unassigned-detail 404 contract is pinned by `FlockScopeTests.ScopedWorker_UnassignedFlockDetail_Returns404` in the API integration suite, not by this spec.
+
+Preserve the server-side 422 write-guard coverage: the restricted picker no longer offers the unassigned flock, so the existing test's `selectOptionContaining(..., UNASSIGNED_FLOCK)` under the restricted persona breaks. The shipped mechanism does **not** inject a DOM option: sign in as the **unrestricted** worker first and capture both the assigned and unassigned flock's real ids from its (unfiltered) picker via `selectOptionContaining`; sign out; sign in as the **restricted** worker and select the real assigned option (the only one it has); register a `page.route("**/api/v1/daily-entries", ...)` handler that, on the POST only, asserts the outgoing body's `flockId` is not already the unassigned id, then rewrites it to the captured unassigned id via `route.fallback({ postData: ... })` and calls `route.fallback()` unmodified for every other method. Submit through the normal SPA path (the module-held access token travels with the real request) and assert the `not assigned to this flock` refusal text plus `rewrotePost === true`. Never use `page.request.post` (it lacks the SPA's module-held token) and never hardcode a flock id or credential. There is no private runbook step for this — the procedure above is the whole mechanism, already shipped in `worker.spec.ts`.
 
 - [ ] **Step 4: Build web and run web tests**
 
@@ -508,5 +510,22 @@ Each row: the mutation is causal to the named test — removing the code the row
 | MR-BYIDS | guard, #611 round 1 | `EggLotRepository.cs` `GetByIdsLockedAsync`: remove the predicate | `EggLotRawSqlPaths_HonorTheirDistinctSalesAndAdminContracts` | RED at `Assert.DoesNotContain(byIds, l => l.Id == lotBId)` |
 | MR-BYENTRY | guard, #611 round 1 | `EggLotRepository.cs` `GetByDailyEntryLockedAsync`: remove the predicate | `EggLotRawSqlPaths_HonorTheirDistinctSalesAndAdminContracts` | RED at `Assert.Empty(byUnassignedEntry)` |
 | MR-ELEVATED | guard, #611 round 1 | `FlockScopeResolutionMiddleware.cs`: delete the Owner/Manager early-return block | `Owner_Request_Completes_ScopeUnrestricted` and `Manager_Request_Completes_ScopeUnrestricted` (mutation only; not a shipped middleware edit) | RED (only the assigned flock remains visible) |
+| MF-FLOCK | guard, #611 round 3 | `AppDbContext.cs`: remove only the flock conjunct from the `Flock` filter (keep `AccountId`) | `AllEightCombinedFilters_AssignedPresent_UnassignedAbsent_FarmWideVisible` | RED at `Assert.DoesNotContain(fix.FlockB, flockIds)` |
+| MF-DAILYENTRY | guard, #611 round 3 | `AppDbContext.cs`: remove only the flock conjunct from the `DailyEntry` filter | same fact | RED at `Assert.DoesNotContain(dailyBId, dailyIds)` |
+| MF-EGGLOT | guard, #611 round 3 | `AppDbContext.cs`: remove only the flock conjunct from the `EggLot` filter | same fact | RED at `Assert.DoesNotContain(lotBId, lotIds)` |
+| MF-BIRDMOVEMENT | guard, #611 round 3 | `AppDbContext.cs`: remove only the flock conjunct from the `BirdMovement` filter | same fact | RED at `Assert.DoesNotContain(birdBId, birdIds)` |
+| MF-INVENTORYMOVEMENT | guard, #611 round 3 | `AppDbContext.cs`: remove only the flock conjunct from the `InventoryMovement` filter | same fact | RED at `Assert.DoesNotContain(inventoryBId, inventoryIds)` |
+| MF-FEEDUSAGE | guard, #611 round 3 | `AppDbContext.cs`: remove only the flock conjunct from the `FeedUsage` filter | same fact | RED at `Assert.DoesNotContain(feedBId, feedIds)` |
+| MF-WATERUSAGE | guard, #611 round 3 | `AppDbContext.cs`: remove only the flock conjunct from the `WaterUsage` filter | same fact | RED at `Assert.DoesNotContain(waterBId, waterIds)` |
+| MF-EXPENSE | guard, #611 round 3 | `AppDbContext.cs`: remove only the flock conjunct from the `Expense` filter | same fact | RED at `Assert.DoesNotContain(expenseBId, expenseIds)` |
+| M-SUBMIT | guard, #611 round 3 | `DailyEntryRepository.cs` `GetByIdForFlockScopedWriteAsync`: drop `IgnoreQueryFilters()`, so the write lookup runs through the combined query filter again | `RoleMatrixTests.FlockScope_CoversFeed_SubmitOfUnassignedDraft_AndMismatchedUnassign` | RED — an own-account unassigned draft now reads as null before `FlockScopeGuard` runs; the submit returns 404 instead of `422 FlockScope.NotAssigned`, failing `Assert.Contains("FlockScope.NotAssigned", ...)` |
+| M-SUBMIT-TENANT | guard, #611 round 3 | `DailyEntryRepository.cs` `GetByIdForFlockScopedWriteAsync`: drop the explicit `.Where(e => e.AccountId == accountId)` reinstatement (keep `IgnoreQueryFilters()`) | `Submit_ForeignEntry_Returns404` | RED — a foreign-account entry becomes visible to the write lookup; `FlockScopeGuard` then rejects it as not-assigned, so the response becomes `422 FlockScope.NotAssigned` instead of the asserted `404 NotFound` |
+| MT-BIRDMOVEMENT | guard, #611 round 2 | `AppDbContext.cs`: remove only the tenant conjunct (`e.AccountId == tenant.AccountId &&`) from the `BirdMovement` filter | `FiveRewrittenFilters_TenantConjunctExcludesForeignRows_WhenFlockScopeUnrestricted` | RED at `Assert.DoesNotContain(foreignBirdId, birdIds)` |
+| MT-INVENTORYMOVEMENT | guard, #611 round 2 | `AppDbContext.cs`: remove only the tenant conjunct from the `InventoryMovement` filter | same fact | RED at `Assert.DoesNotContain(foreignInventoryId, inventoryIds)` |
+| MT-FEEDUSAGE | guard, #611 round 2 | `AppDbContext.cs`: remove only the tenant conjunct from the `FeedUsage` filter | same fact | RED at `Assert.DoesNotContain(foreignFeedId, feedIds)` |
+| MT-WATERUSAGE | guard, #611 round 2 | `AppDbContext.cs`: remove only the tenant conjunct from the `WaterUsage` filter | same fact | RED at `Assert.DoesNotContain(foreignWaterId, waterIds)` |
+| MT-EXPENSE | guard, #611 round 2 | `AppDbContext.cs`: remove only the tenant conjunct from the `Expense` filter | same fact | RED at `Assert.DoesNotContain(foreignExpenseId, expenseIds)` |
 
 For each: apply → run the named test → confirm RED → restore → **rebuild** → confirm the full `FlockScopeTests` + `FlockScopeMiddlewareTests` are green again. Mark each mutant with `// MUTANT M<n>: <what this breaks>` and delete the marker on restore. `grep -rn MUTANT src/ tests/` must return nothing at the end.
+
+**Filtered-invocation coverage rule (#611 round 3):** every filtered invocation above discovered at least one test going RED — a mutation applied and re-run with zero test failures is not evidence the guard exists, it is evidence nothing exercises it. All 25 rows in this table were confirmed causal against a green baseline before being recorded here.
