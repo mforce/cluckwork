@@ -343,6 +343,124 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
         Assert.DoesNotContain(expenseBId, expenseIds);
     }
 
+    // #388 — these five filters were rewritten from tenant-only to combined
+    // tenant+flock expressions. Use an UNRESTRICTED flock scope so the flock
+    // disjunct is true for every row: only AccountId can exclude the foreign
+    // fixtures. Each entity has an exact own-row positive control and an exact
+    // foreign-row negative control, making tenant-conjunct mutations causal.
+    [Fact]
+    public async Task FiveRewrittenFilters_TenantConjunctExcludesForeignRows_WhenFlockScopeUnrestricted()
+    {
+        var fix = await SeedAsync();
+        var ownBirdId = Guid.NewGuid();
+        var ownFeedId = Guid.NewGuid();
+        var ownWaterId = Guid.NewGuid();
+        var ownExpenseId = Guid.NewGuid();
+        Guid ownInventoryId = default;
+
+        await factory.WithTenantScopeAsync(fix.AccountId, async db =>
+        {
+            var itemId = Guid.NewGuid();
+            var categoryId = Guid.NewGuid();
+            db.InventoryItems.Add(InventoryItem.Create(
+                itemId, fix.AccountId, fix.FarmId, "Own tenant guard feed",
+                InventoryCategory.Feed, "kg", Money.Zero("USD")));
+            db.ExpenseCategories.Add(Cluckwork.Domain.Expenses.ExpenseCategory.Create(
+                categoryId, fix.AccountId, fix.FarmId, "Own tenant guard expense"));
+            db.BirdMovements.Add(BirdMovement.Create(
+                ownBirdId, fix.AccountId, fix.FlockA, Today,
+                BirdMovementType.Adjustment, 1, "own tenant guard"));
+            var inventory = InventoryMovement.Create(
+                fix.AccountId, itemId, inventoryLotId: null, Today,
+                InventoryMovementType.Adjustment, 1m, "kg", DateTime.UtcNow,
+                flockId: fix.FlockA, note: "own tenant guard");
+            ownInventoryId = inventory.Id;
+            db.InventoryMovements.Add(inventory);
+            db.FeedUsages.Add(FeedUsage.Create(
+                ownFeedId, fix.AccountId, fix.FlockA, itemId, Today,
+                1m, "kg", Money.Zero("USD"), DateTime.UtcNow));
+            db.WaterUsages.Add(WaterUsage.Create(
+                ownWaterId, fix.AccountId, fix.FlockA, Today,
+                1m, "L", WaterSource.Municipal,
+                meterStart: null, meterEnd: null, DateTime.UtcNow));
+            db.Expenses.Add(Cluckwork.Domain.Expenses.Expense.Create(
+                ownExpenseId, fix.AccountId, fix.FarmId, categoryId, Today,
+                "Own tenant guard expense", 100, "USD", 2, flockId: fix.FlockA));
+            await db.SaveChangesAsync();
+        });
+
+        var foreignOwner = $"foreign-{Guid.NewGuid():N}@test.local";
+        var foreignAccountId = await factory.SeedAccountWithUserAsync(foreignOwner);
+        var foreignFarmId = Guid.NewGuid();
+        var foreignFlockId = await factory.SeedFlockAsync(foreignAccountId, foreignFarmId);
+        var foreignBirdId = Guid.NewGuid();
+        var foreignFeedId = Guid.NewGuid();
+        var foreignWaterId = Guid.NewGuid();
+        var foreignExpenseId = Guid.NewGuid();
+        Guid foreignInventoryId = default;
+
+        await factory.WithTenantScopeAsync(foreignAccountId, async db =>
+        {
+            var itemId = Guid.NewGuid();
+            var categoryId = Guid.NewGuid();
+            db.InventoryItems.Add(InventoryItem.Create(
+                itemId, foreignAccountId, foreignFarmId, "Foreign tenant guard feed",
+                InventoryCategory.Feed, "kg", Money.Zero("USD")));
+            db.ExpenseCategories.Add(Cluckwork.Domain.Expenses.ExpenseCategory.Create(
+                categoryId, foreignAccountId, foreignFarmId, "Foreign tenant guard expense"));
+            db.BirdMovements.Add(BirdMovement.Create(
+                foreignBirdId, foreignAccountId, foreignFlockId, Today,
+                BirdMovementType.Adjustment, 1, "foreign tenant guard"));
+            var inventory = InventoryMovement.Create(
+                foreignAccountId, itemId, inventoryLotId: null, Today,
+                InventoryMovementType.Adjustment, 1m, "kg", DateTime.UtcNow,
+                flockId: foreignFlockId, note: "foreign tenant guard");
+            foreignInventoryId = inventory.Id;
+            db.InventoryMovements.Add(inventory);
+            db.FeedUsages.Add(FeedUsage.Create(
+                foreignFeedId, foreignAccountId, foreignFlockId, itemId, Today,
+                1m, "kg", Money.Zero("USD"), DateTime.UtcNow));
+            db.WaterUsages.Add(WaterUsage.Create(
+                foreignWaterId, foreignAccountId, foreignFlockId, Today,
+                1m, "L", WaterSource.Municipal,
+                meterStart: null, meterEnd: null, DateTime.UtcNow));
+            db.Expenses.Add(Cluckwork.Domain.Expenses.Expense.Create(
+                foreignExpenseId, foreignAccountId, foreignFarmId, categoryId, Today,
+                "Foreign tenant guard expense", 100, "USD", 2,
+                flockId: foreignFlockId));
+            await db.SaveChangesAsync();
+        });
+
+        var tenant = new TenantContext();
+        tenant.Resolve(fix.AccountId);
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(factory.ConnectionString)
+            .Options;
+        // Fresh FlockScope is deliberately Unrestricted: the tenant conjunct is
+        // the only rejecting layer for the foreign fixtures in this fact.
+        await using var db = new AppDbContext(options, tenant, new FlockScope());
+
+        var birdIds = await db.BirdMovements.Select(e => e.Id).ToHashSetAsync();
+        Assert.Contains(ownBirdId, birdIds);
+        Assert.DoesNotContain(foreignBirdId, birdIds);
+
+        var inventoryIds = await db.InventoryMovements.Select(e => e.Id).ToHashSetAsync();
+        Assert.Contains(ownInventoryId, inventoryIds);
+        Assert.DoesNotContain(foreignInventoryId, inventoryIds);
+
+        var feedIds = await db.FeedUsages.Select(e => e.Id).ToHashSetAsync();
+        Assert.Contains(ownFeedId, feedIds);
+        Assert.DoesNotContain(foreignFeedId, feedIds);
+
+        var waterIds = await db.WaterUsages.Select(e => e.Id).ToHashSetAsync();
+        Assert.Contains(ownWaterId, waterIds);
+        Assert.DoesNotContain(foreignWaterId, waterIds);
+
+        var expenseIds = await db.Expenses.Select(e => e.Id).ToHashSetAsync();
+        Assert.Contains(ownExpenseId, expenseIds);
+        Assert.DoesNotContain(foreignExpenseId, expenseIds);
+    }
+
     // #388/#612 — each raw-SQL contract is explicit. Sales FIFO stays farm-wide
     // for a restricted Worker (current SalesFlow behavior); the two AdminOnly
     // reconciliation locks retain the explicit flock predicate because they
