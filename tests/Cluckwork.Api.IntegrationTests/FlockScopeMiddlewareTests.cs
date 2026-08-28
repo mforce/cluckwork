@@ -7,6 +7,7 @@ using Cluckwork.Api.Middleware;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
@@ -137,6 +138,44 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
         Assert.True(flockScope.IsResolved);
         Assert.True(flockScope.IsUnrestricted);
         Assert.Empty(flockScope.AssignedFlockIds);
+    }
+
+    [Fact]
+    public async Task ErrorReExecution_SkipsAssignmentResolution_WithoutDatabaseAccess()
+    {
+        var flockScope = new FlockScope();
+        var currentUser = new CurrentUserContext();
+        currentUser.Resolve(
+            Guid.NewGuid(), "worker-error@test.local", roles: []); // resolved plain Worker
+        var tenant = new TenantContext();
+        tenant.Resolve(Guid.NewGuid());
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(
+                "Host=127.0.0.1;Port=1;Database=unreachable;Username=none;" +
+                "Password=none;Timeout=1;Command Timeout=1")
+            .Options;
+        await using var db = new AppDbContext(options, tenant, flockScope);
+
+        var nextCalled = false;
+        var middleware = new FlockScopeResolutionMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/error";
+        context.Features.Set<IExceptionHandlerFeature>(new ExceptionHandlerFeature
+        {
+            Error = new InvalidOperationException("original database failure"),
+        });
+
+        // Without the re-execution bypass, the resolved Worker reaches the
+        // UserRoleAssignments query and the unreachable connection throws.
+        await middleware.InvokeAsync(context, flockScope, currentUser, db);
+
+        Assert.True(nextCalled);
+        Assert.False(flockScope.IsResolved);
+        Assert.True(flockScope.IsUnrestricted); // safe default; /error reads no tenant data
     }
 
     [Fact]

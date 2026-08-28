@@ -2,6 +2,7 @@ namespace Cluckwork.Api.Middleware;
 
 using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 
 // #388 — resolves FlockScope per request from UserRoleAssignment rows.
@@ -19,6 +20,19 @@ public sealed class FlockScopeResolutionMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context, FlockScope scope, CurrentUserContext user, AppDbContext db)
     {
+        // #388 — UseExceptionHandler re-executes the downstream pipeline at
+        // /error. Never repeat assignment resolution there: if the original
+        // failure was the database, retrying this query makes error rendering
+        // fail too and the client receives no mapped ProblemDetails response.
+        // A prior successful pass keeps its already-resolved scope; a failure
+        // during resolution leaves the default Unrestricted scope, and /error
+        // performs no tenant data read.
+        if (context.Features.Get<IExceptionHandlerFeature>() is not null)
+        {
+            await next(context);
+            return;
+        }
+
         if (!user.IsResolved)
         {
             // Unresolved user (seeders, one-shot verbs, background jobs): Unrestricted.
