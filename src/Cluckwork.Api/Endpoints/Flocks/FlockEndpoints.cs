@@ -26,7 +26,7 @@ public static class FlockEndpoints
         group.MapPost("/", CreateFlock)
             .WithName("CreateFlock")
             .WithSummary("Create a flock under the current account.")
-            .RequireAuthorization(AuthPolicies.ProductionWrite);
+            .RequireAuthorization(AuthPolicies.AdminOnly);
 
         group.MapGet("/", ListFlocks)
             .WithName("ListFlocks")

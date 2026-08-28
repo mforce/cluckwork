@@ -2,7 +2,11 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
+using Cluckwork.Domain.Accounts;
+using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 // #8 — the production -> stock bridge. Submitting a daily entry generates one
 // egg lot per grade line; the whole MVP loop hangs off this.
@@ -336,5 +340,59 @@ public sealed class SubmitDailyEntryTests(CluckworkWebApplicationFactory factory
         // the entry two candidate authors and let the later one win.
         Assert.Equal(["DailyEntry.Create", "DailyEntry.Update"], events);
         Assert.Single(events, a => a == "DailyEntry.Create");
+    }
+
+    // #388 — the request-start flock scope snapshot is pinned before a
+    // SEPARATE transaction assigns flock B to the caller and archives it.
+    // Lifecycle must still be checked against the flock the live guard just
+    // authorized, not the stale snapshot the request started with.
+    [Fact]
+    public async Task Submit_AssignmentAddedAfterScopeSnapshot_StillChecksArchivedFlockLifecycle()
+    {
+        var ownerEmail = $"owner-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(ownerEmail);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var flockA = await factory.SeedFlockAsync(accountId, farmId);
+        var flockB = await factory.SeedFlockAsync(accountId, farmId);
+        var owner = factory.CreateAuthedClient(
+            await factory.LoginForAccessTokenAsync(ownerEmail));
+        var entryId = await RecordAsync(owner, Body(
+            farmId, flockB,
+            [new { eggGradeId = grades["Large"], quantity = 600 }]));
+
+        var workerEmail = $"worker-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, workerEmail, role: null);
+        var workerId = await factory.WithTenantScopeAsync(accountId, db =>
+            db.Users.Where(u => u.AccountId == accountId && u.Email == workerEmail)
+                .Select(u => u.Id).SingleAsync());
+
+        // Pin the request-start snapshot BEFORE the separate transaction adds
+        // flock B to the live assignment table.
+        using var requestScope = factory.Services.CreateScope();
+        requestScope.ResolveTenantAndActor(
+            accountId, workerId, workerEmail, roles: []);
+        requestScope.ServiceProvider.GetRequiredService<FlockScope>()
+            .Resolve(false, [flockA]);
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var flock = await db.Flocks.SingleAsync(f => f.Id == flockB);
+            Assert.True(flock.Archive(DateOnly.FromDateTime(DateTime.UtcNow.Date)).IsSuccess);
+            db.UserRoleAssignments.Add(UserRoleAssignment.Create(
+                Guid.NewGuid(), accountId, workerId,
+                farmId: null, houseId: null, flockId: flockB));
+            await db.SaveChangesAsync();
+        });
+
+        var handler = requestScope.ServiceProvider
+            .GetRequiredService<SubmitDailyEntryHandler>();
+
+        var result = await handler.HandleAsync(entryId, accountId, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("DailyEntry.FlockNotActive", result.Error.Code);
+        Assert.Empty(await factory.WithTenantScopeAsync(accountId, db =>
+            db.EggLots.Where(l => l.DailyEntryId == entryId).ToListAsync()));
     }
 }

@@ -926,15 +926,32 @@ screen that renders.
 
 **Roles (#103, spec §5.1)** — five shipped: **Admin (owner)** does
 everything including user management; **Manager** runs the farm — every
-corrective, config, and money capability except managing users; **Worker**
-(a user with no role) records the day's work, optionally narrowed to
-**assigned flocks** (spec §5.3 — no assignments = account-wide, the first
-assignment restricts); **Sales** handles customers, orders, and payments but
+corrective, config, and money capability except managing users, including
+**creating flocks**; **Worker** (a user with no role) records the day's
+work — daily entries, feed, water — for assigned/unrestricted flocks
+(spec §5.3 — no assignments = account-wide, the first assignment
+restricts), but **cannot create a flock** (#388: a scoped Worker cannot
+assign the flock it just created, so flock creation is Owner/Manager
+administration); **Sales** handles customers, orders, and payments but
 no production capture; **Read-only** sees stock, history, and reports only.
 Vet/Consultant is deferred until a health module exists to gate, and
 house-level scoping until houses are real entities. The SPA hides gated
 controls; the API returns 403 with a problem body regardless. The role travels as a `role` claim in the
 access token and is re-read at every token refresh.
+
+### Flock scoping
+
+A Worker's reads are limited to their assigned flocks plus farm-wide rows
+(rows with no flock, e.g. farm-wide expenses). Owner and Manager are
+unrestricted. A Worker with no assignment rows, or with a farm-wide
+(no-flock) assignment row, is unrestricted too. An unassigned flock's
+detail returns 404 — symmetric with the list, which simply does not show
+it (not 403). Writes were already scoped by the flock-assignment guard;
+this extends the same boundary to reads. Flock **creation** sits outside
+scoping entirely (#388): no Worker may create a flock, restricted or not —
+there is nothing yet to assign it to, and doing so is Owner/Manager
+administration (`AuthPolicies.AdminOnly`), the same gate as editing or
+depleting one.
 
 **Users screen** — Owner-only user management (#103): create a user with
 email, password, an optional **display name**, and one of the five roles, and

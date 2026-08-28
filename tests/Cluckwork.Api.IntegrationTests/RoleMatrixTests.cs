@@ -59,6 +59,17 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             "/api/v1/daily-entries", Guid.NewGuid().ToString(),
             EntryBody(farmId, flockId, gradeId))).StatusCode);
 
+        // Flock creation is Owner/Manager administration, not day's-work (#388).
+        Assert.Equal(HttpStatusCode.Created, (await manager.PostWithKeyAsync(
+            "/api/v1/flocks", Guid.NewGuid().ToString(),
+            new
+            {
+                name = $"Manager flock {Guid.NewGuid():N}"[..24],
+                breed = "ISA Brown",
+                placementDate = Today,
+                initialCount = 50,
+            })).StatusCode);
+
         // But user management is the Owner's alone.
         Assert.Equal(HttpStatusCode.Forbidden, (await manager.GetAsync("/api/v1/users")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await manager.PostWithKeyAsync(

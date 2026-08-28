@@ -208,7 +208,7 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
         await using var fenceDb = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_factory.ConnectionString).Options, tenant);
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_factory.ConnectionString).Options, tenant, new FlockScope());
         await using var fenceTx = await fenceDb.Database.BeginTransactionAsync();
         await fenceDb.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "Accounts" WHERE "Id" = {accountId} FOR UPDATE""");
@@ -226,7 +226,7 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
         // Disabled through a SEPARATE connection while recovery is queued — the
         // upfront check already ran and saw an ACTIVE user.
         await using (var disablingDb = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_factory.ConnectionString).Options, tenant))
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_factory.ConnectionString).Options, tenant, new FlockScope()))
         {
             var user = await disablingDb.Users.SingleAsync(u => u.Id == userId);
             user.DisabledAt = DateTimeOffset.UtcNow;
@@ -241,7 +241,7 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
         Assert.Equal("Recovery.UserDisabled", result.Error.Code);
 
         await using var verifyDb = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_factory.ConnectionString).Options, tenant);
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_factory.ConnectionString).Options, tenant, new FlockScope());
         var after = await verifyDb.Users.IgnoreQueryFilters().SingleAsync(u => u.Id == userId);
         Assert.False(
             await verifyDb.AuditEvents.IgnoreQueryFilters()

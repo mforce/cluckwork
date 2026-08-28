@@ -198,13 +198,15 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
             new { flockId, date = Today, quantity = 5m });
         Assert.Equal(HttpStatusCode.OK, usage.StatusCode);
 
-        // Water and a new flock arriving are day's-work records too.
+        // Water remains the day's work; a NEW flock arriving is not — creating
+        // one is Owner/Manager administration, because a scoped Worker cannot
+        // assign the flock it just created (#388).
         var water = await worker.PostWithKeyAsync("/api/v1/water-usage", Guid.NewGuid().ToString(),
             new { flockId, date = Today, quantity = 40m, source = "Well" });
         Assert.Equal(HttpStatusCode.Created, water.StatusCode);
         var newFlock = await worker.PostWithKeyAsync("/api/v1/flocks", Guid.NewGuid().ToString(),
             new { name = $"Arrivals {Guid.NewGuid():N}"[..20], breed = "ISA Brown", placementDate = Today, initialCount = 50 });
-        Assert.Equal(HttpStatusCode.Created, newFlock.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, newFlock.StatusCode);
     }
 
     [Fact]

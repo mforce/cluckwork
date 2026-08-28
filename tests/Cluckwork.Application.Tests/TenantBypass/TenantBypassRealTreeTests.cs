@@ -63,7 +63,7 @@ public sealed class TenantBypassRealTreeTests
             new DbContextOptionsBuilder<AppDbContext>()
                 .UseNpgsql("Host=localhost;Database=unreachable;Username=unreachable;Password=unreachable")
                 .Options,
-            new TenantContext());
+            new TenantContext(), new FlockScope());
 
         var filterFreeEntityTypes = db.Model.GetEntityTypes()
             .Where(e => e.GetDeclaredQueryFilters().Count == 0)

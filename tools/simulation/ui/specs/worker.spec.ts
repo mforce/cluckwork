@@ -3,25 +3,31 @@
 // ================== READ #388 BEFORE CHANGING THE SECOND TEST ==================
 //
 // #277 specifies this persona as "the flock-restricted worker sees only assigned
-// flocks (403/hidden on the rest)". That is NOT what the application does, which
-// was established by probing the live fixture rather than by reading the issue:
+// flocks (403/hidden on the rest)". That is NOT what the application does — the
+// write side uses a 422 refusal, not 403, and the read side uses symmetric 404
+// filtering rather than a permission error. #277's core claim (the WRITE is
+// gated) was established by probing the live fixture rather than by reading the
+// issue:
 //
 //   POST /daily-entries, assigned flock    -> 201
 //   POST /daily-entries, UNASSIGNED flock  -> 422 FlockScope.NotAssigned
-//   GET  /flocks           (as the restricted worker) -> 200, BOTH flocks
-//   GET  /flocks/{id}      (unassigned)               -> 200, full detail
-//   GET  /daily-entries?flockId= (unassigned)         -> 200, full history
+//   GET  /flocks           (as the restricted worker) -> after #388: only the assigned flock
+//   GET  /flocks/{id}      (unassigned)               -> after #388: 404
+//   GET  /daily-entries?flockId= (unassigned)         -> after #388: no rows
 //
-// So the assignment gates the production WRITE and nothing else. Whether the
-// reads should also be scoped is a real open question, filed as **#388** — and
-// per the standing rule, the failure links to the owning issue instead of the
-// assertion being weakened to fit. This spec therefore asserts the guarantee the
-// app genuinely provides (the write refusal), with an unrestricted worker as the
-// control so "refused" is attributable to the assignment and not to the persona
-// being unable to write at all.
-//
-// If #388 lands read scoping, add the read assertions here — do not replace the
-// write ones, which will still be the enforcement that matters.
+// #388 LANDED read scoping (this PR): a restricted worker's READS are now
+// filtered too — the flock list shows only the assigned flock (plus farm-wide
+// rows), an unassigned flock's detail is 404, and the daily-entry / water
+// / movement reads return only the assigned flock's rows. The write guard
+// (422 FlockScope.NotAssigned) is unchanged, and this spec still asserts it,
+// because the server-side guard remains the enforcement that matters — the
+// read filter is not the write boundary. The second test therefore signs in
+// as the UNRESTRICTED worker first to capture the unassigned flock's real id
+// (the restricted picker no longer offers it), then injects a temporary
+// option so the 422 write-guard path stays reachable — it does NOT hardcode a
+// credential or a flock id, and it never uses out-of-band session injection
+// (fixtures.ts refuses that). The read boundary itself is asserted in the
+// dedicated read-scoping test below.
 
 // RE-RUNNABILITY, since this spec writes and does NOT mint its own flock the way
 // manager.spec.ts does. `RecordDailyEntry` is an UPSERT on
@@ -84,32 +90,69 @@ test.describe("Worker", () => {
   test("is refused a daily entry on a flock it is not assigned to (#388)", async ({
     page,
     signIn,
+    nav,
     farm,
   }) => {
-    await signIn(restrictedWorker());
-    await page.goto("/daily-entry");
-
     const today = farmToday(farm.timeZoneId);
-    await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
-    await selectOptionContaining(page.getByLabel(tEn("dailyEntry:flockLabel")), UNASSIGNED_FLOCK);
 
-    // #388: the unassigned flock IS offered in this dropdown, because the flock
-    // list is not scoped by assignment. That is the current behaviour, and the
-    // spec depends on it to reach the write at all — if #388 lands read scoping,
-    // this selectOption is what will start failing, which is the right place to
-    // notice.
+    // Read scoping removes the unassigned flock from the restricted picker.
+    // Capture its real id under the unrestricted persona, then use the real
+    // assigned option under the restricted persona. The route below rewrites
+    // only the authenticated POST body, preserving the SPA's module-held token
+    // and reaching the server guard without inventing an out-of-band session.
+    await signIn(unrestrictedWorker());
+    await page.goto("/daily-entry");
+    const unrestrictedSelect = page.getByLabel(tEn("dailyEntry:flockLabel"));
+    const assignedFlockId = await selectOptionContaining(unrestrictedSelect, ASSIGNED_FLOCK);
+    const unassignedFlockId = await selectOptionContaining(unrestrictedSelect, UNASSIGNED_FLOCK);
+    expect(assignedFlockId).not.toBe("");
+    expect(unassignedFlockId).not.toBe("");
+
+    await nav.signOut.click();
+    await expect(page).toHaveURL(/\/login/);
+
+    await signIn(restrictedWorker());
+    // Register before navigation: the restricted picker has one flock, so the
+    // page auto-selects it and may fire prefill during load. Selecting the same
+    // option later triggers no change event (manager.spec.ts:56-85).
+    const prefill = page.waitForResponse((r) =>
+      r.url().includes("/daily-entries")
+      && r.url().includes(assignedFlockId)
+      && r.request().method() === "GET"
+      && r.ok());
+    await page.goto("/daily-entry");
+    await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
+    const select = page.getByLabel(tEn("dailyEntry:flockLabel"));
+    await expect(select.locator(`option[value="${assignedFlockId}"]`)).toHaveCount(1);
+    await expect(select.locator("option").filter({ hasText: UNASSIGNED_FLOCK })).toHaveCount(0);
+    await prefill;
+    await expect(page.getByRole("button", { name: tEn("dailyEntry:saveDraftButton") })).toBeEnabled();
+
+    let rewrotePost = false;
+    await page.route("**/api/v1/daily-entries", async (route) => {
+      const request = route.request();
+      if (request.method() !== "POST") {
+        await route.fallback();
+        return;
+      }
+
+      const body = request.postDataJSON() as { flockId?: string };
+      expect(body.flockId).not.toBe(unassignedFlockId);
+      rewrotePost = true;
+      await route.fallback({
+        postData: JSON.stringify({ ...body, flockId: unassignedFlockId }),
+      });
+    });
+
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("120");
     await clearSeededGrades(page);
     await page.getByRole("button", { name: tEn("dailyEntry:saveDraftButton") }).click();
 
-    // The refusal text comes from the SERVER's ProblemDetails detail, which is
-    // English-only (server errors are not part of #182's translated catalogs) —
-    // so matching English here is correct rather than a hardcoded-copy smell.
-    // Matched loosely on the distinctive phrase, not the whole sentence.
     await expect(
       page.getByText(/not assigned to this flock/i),
       "the unassigned-flock write was NOT refused — FlockScope enforcement may be gone",
     ).toBeVisible();
+    expect(rewrotePost).toBe(true);
     await expect(page.locator("p.success")).toBeHidden();
   });
 
@@ -143,5 +186,27 @@ test.describe("Worker", () => {
     // Control: a Worker IS a producer, so the production destinations are there.
     await expect(nav.link("nav:dailyEntry")).toBeVisible();
     await expect(nav.link("nav:flocks")).toBeVisible();
+  });
+
+  test("is read-scoped to its assigned flock on the daily-entry picker (#388)", async ({
+    page,
+    signIn,
+  }) => {
+    await signIn(restrictedWorker());
+    await page.goto("/daily-entry");
+
+    // The read boundary, asserted where the worker actually sees it: the
+    // picker offers the assigned flock and hides the unassigned one entirely.
+    await expect(
+      page.getByLabel(tEn("dailyEntry:flockLabel")).locator(`option:has-text("${ASSIGNED_FLOCK}")`),
+    ).toHaveCount(1);
+    await expect(
+      page.getByLabel(tEn("dailyEntry:flockLabel")).locator(`option:has-text("${UNASSIGNED_FLOCK}")`),
+    ).toHaveCount(0);
+
+    // The SPA has no flock-detail route (only the /flocks list — see App.tsx),
+    // so the unassigned-detail 404 contract is pinned by the API integration
+    // test (FlockScopeTests.ScopedWorker_UnassignedFlockDetail_Returns404)
+    // rather than here; the picker is this spec's read boundary.
   });
 });

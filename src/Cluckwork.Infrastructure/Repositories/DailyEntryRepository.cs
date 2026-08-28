@@ -14,6 +14,14 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
             .Include(e => e.Grades)
             .FirstOrDefaultAsync(e => e.Id == id, ct);
 
+    public Task<DailyEntry?> GetByIdForFlockScopedWriteAsync(
+        Guid id, Guid accountId, CancellationToken ct = default) =>
+        db.DailyEntries
+            .IgnoreQueryFilters()
+            .Where(e => e.AccountId == accountId)
+            .Include(e => e.Grades)
+            .FirstOrDefaultAsync(e => e.Id == id, ct);
+
     // Voided entries are excluded: voiding vacates the natural key (#82), so
     // the day can be re-recorded as a fresh entry. The partial unique index
     // (IX_DailyEntries_NaturalKey) guarantees at most one live match.
@@ -23,6 +31,23 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
         Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date,
         CancellationToken ct = default) =>
         db.DailyEntries
+            .Include(e => e.Grades)
+            .FirstOrDefaultAsync(e =>
+                e.AccountId == accountId &&
+                e.FarmId == farmId &&
+                e.HouseId == houseId &&
+                e.FlockId == flockId &&
+                e.Date == date &&
+                e.Status != DailyEntryStatus.Voided, ct);
+
+    // Write-side natural-key lookup (#388): same bypass as
+    // GetByIdForFlockScopedWriteAsync above, reinstating AccountId explicitly
+    // while keeping the full natural key and non-Voided predicate.
+    public Task<DailyEntry?> FindByNaturalKeyForFlockScopedWriteAsync(
+        Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date,
+        CancellationToken ct = default) =>
+        db.DailyEntries
+            .IgnoreQueryFilters()
             .Include(e => e.Grades)
             .FirstOrDefaultAsync(e =>
                 e.AccountId == accountId &&

@@ -31,7 +31,7 @@ public sealed class ReportQueryBoundingTests(CluckworkWebApplicationFactory fact
             .UseNpgsql(factory.ConnectionString)
             .AddInterceptors(capture)
             .Options;
-        return new AppDbContext(options, tenant);
+        return new AppDbContext(options, tenant, new FlockScope());
     }
 
     // Seeds a flock with a LARGE number of bird movements strictly before the

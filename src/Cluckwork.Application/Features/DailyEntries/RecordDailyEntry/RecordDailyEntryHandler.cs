@@ -32,7 +32,7 @@ public sealed class RecordDailyEntryHandler(
         // dated on/before the depletion date (the final laying days are often
         // entered late). The flock must also belong to the farm/house the entry
         // names — ids are caller-supplied and only tenant-checked otherwise.
-        var flock = await flocks.GetByIdAsync(command.FlockId, ct);
+        var flock = await flocks.GetByIdForFlockScopedWriteAsync(command.FlockId, accountId, ct);
         if (flock is null)
             return Result.Failure<Guid>(Error.NotFound(nameof(Flock), command.FlockId))
                 .LogFailure(logger, "RecordDailyEntry");
@@ -76,7 +76,7 @@ public sealed class RecordDailyEntryHandler(
                 return Result.Failure<Guid>(conditionGrade).LogFailure(logger, "RecordDailyEntry");
         }
 
-        var existing = await repository.FindByNaturalKeyAsync(
+        var existing = await repository.FindByNaturalKeyForFlockScopedWriteAsync(
             accountId, command.FarmId, command.HouseId, command.FlockId, command.Date, ct);
 
         DailyEntry entry;

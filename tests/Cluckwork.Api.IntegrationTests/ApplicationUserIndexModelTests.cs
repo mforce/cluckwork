@@ -25,7 +25,7 @@ public sealed class ApplicationUserIndexModelTests
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql("Host=localhost;Database=model-only;Username=none;Password=none")
             .Options;
-        return new AppDbContext(options, new TenantContext());
+        return new AppDbContext(options, new TenantContext(), new FlockScope());
     }
 
     private static IEntityType UserEntity(AppDbContext db) =>

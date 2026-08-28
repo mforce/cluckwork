@@ -2288,13 +2288,14 @@ export const en = {
     rolesHeading: "Who can do what",
     rolesWorkers:
       "Five kinds of sign-in. <strong>Workers</strong> run the daily loop — record and submit entries, "
-      + "receive feed, record feed and water usage, create flocks and customers, take orders from draft "
+      + "receive feed, record feed and water usage, create customers, take orders from draft "
       + "through confirm. A worker can be narrowed to <strong>assigned flocks</strong>: with no assignments "
-      + "they can record for any flock; the first assignment restricts them to the listed ones.",
+      + "they can record for any flock; the first assignment restricts them to the listed ones. Workers "
+      + "cannot create flocks — that is Owner/Manager administration.",
     rolesManagers:
       "<strong>Managers</strong> do everything workers do, plus everything that <strong>undoes, corrects, or "
-      + "configures</strong>: voids, stock and water corrections, flock lifecycle, culls, the "
-      + "grade/product/item catalogs, expenses, money reports, the audit log, and exports.",
+      + "configures</strong>: voids, stock and water corrections, creating flocks and flock lifecycle changes, "
+      + "culls, the grade/product/item catalogs, expenses, money reports, the audit log, and exports.",
     rolesSalesReadOnly:
       "<strong>Sales</strong> sign-ins handle customers, orders, and <strong>payments</strong> — but no "
       + "production capture and no expenses. <strong>Read-only</strong> sign-ins see stock, history, and "
@@ -2435,8 +2436,8 @@ export const en = {
       + "backfill allowed) → <strong>Archived</strong> (hidden from daily work). Depleting and archiving ask "
       + "for confirmation; both are reversible with <strong>Reactivate</strong>.",
     flocksPermissions:
-      "Anyone can create a flock and view the bird ledger. Editing a flock, lifecycle changes, and recording "
-      + "culls/adjustments are admin-only.",
+      "Owner and Manager create flocks. Everyone can view the flocks they're permitted to see and their bird "
+      + "ledgers. Editing a flock, lifecycle changes, and recording culls/adjustments are admin-only.",
 
     // Egg grades
     gradesHeading: "Egg grades",
@@ -3047,6 +3048,13 @@ export const en = {
     glossaryRolesDef:
       "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "
       + "managers also correct and configure; sales handles orders and payments; read-only just views.",
+
+    glossaryFlockScopingTerm: "Flock scoping",
+    glossaryFlockScopingDef:
+      "A Worker's reads are limited to their assigned flocks plus farm-wide rows. Owner and Manager "
+      + "are unrestricted. Workers with no assignment rows, or a farm-wide row, are unrestricted too. "
+      + "An unassigned flock's detail returns 404. Creating a flock is always Owner/Manager, regardless "
+      + "of scope.",
 
     glossaryLockedEntryTerm: "Locked (entry)",
     glossaryLockedEntryDef:

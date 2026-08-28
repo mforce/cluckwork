@@ -290,11 +290,13 @@ export function dailyEntryScreen(session, persona, idemKeyFn) {
 
   const flocks = (safeJson(flocksRes) || []).filter((f) => f.status !== 'Archived');
   if (flocks.length === 0) return;
-  // Deliberately uniform across ALL fetched flocks, assigned or not: a
-  // flock-restricted worker (the sim seed's sim-worker-1) picking the
-  // unassigned flock is exactly how the "restricted worker 403s on an
-  // out-of-scope flock" case (#243 review, load-model rule 5) gets exercised
-  // for free, without hardcoding which cast user is restricted.
+  // #388 — `/flocks` is now read-scoped: a flock-restricted worker only ever
+  // sees its own visible/assigned flocks here, so this workload samples that
+  // visible set and exercises successful capture. It no longer exercises the
+  // "restricted worker 403s on an out-of-scope flock" case (#243 review,
+  // load-model rule 5) — that refusal is covered by the request rewrite in
+  // tools/simulation/ui/specs/worker.spec.ts. Never invent/hardcode an
+  // unassigned flock id here to compensate.
   const flock = flocks[Math.floor(Math.random() * flocks.length)];
   const readDate = today();
 

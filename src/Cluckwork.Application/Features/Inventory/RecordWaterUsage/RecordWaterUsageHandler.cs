@@ -25,8 +25,11 @@ public sealed class RecordWaterUsageHandler(
         var scope = await flockScope.CheckAsync(command.FlockId, ct);
         if (scope.IsFailure) return Result.Failure<Guid>(scope.Error).LogFailure(logger, "RecordWaterUsage");
 
-        // Tenant query filter scopes the lookup — foreign flocks read as null.
-        var flock = await flocks.GetByIdAsync(command.FlockId, ct);
+        // Post-live-guard write lookup (#388): reinstates AccountId explicitly
+        // so a foreign flock still reads as null, while a newly-live
+        // assignment sees the flock's current state rather than a stale
+        // request-start snapshot.
+        var flock = await flocks.GetByIdForFlockScopedWriteAsync(command.FlockId, accountId, ct);
         if (flock is null)
             return Result.Failure<Guid>(Error.NotFound("Flock", command.FlockId)).LogFailure(logger, "RecordWaterUsage");
 
@@ -47,7 +50,7 @@ public sealed class RecordWaterUsageHandler(
         // flock's own (farm, house, flock, date) right now, or null. Never
         // backfilled; Update never touches it. Same contract as feed — see
         // RecordFeedUsageHandler's comment for the full reasoning.
-        var dailyEntryId = (await dailyEntries.FindByNaturalKeyAsync(
+        var dailyEntryId = (await dailyEntries.FindByNaturalKeyForFlockScopedWriteAsync(
             accountId, flock.FarmId, flock.HouseId, command.FlockId, command.Date, ct))?.Id;
 
         var usage = WaterUsage.Create(

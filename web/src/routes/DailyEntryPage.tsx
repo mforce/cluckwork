@@ -18,6 +18,7 @@ import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
 import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
+import { useAuth } from "../auth/useAuth";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
@@ -48,6 +49,9 @@ export function DailyEntryPage() {
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
+  // Flock creation is Owner/Manager administration (#388): a scoped Worker
+  // cannot assign the flock it just created.
+  const { isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const { confirm, confirmDialog } = useConfirm();
   const [flocks, setFlocks] = useState<Flock[]>([]);
@@ -512,15 +516,19 @@ export function DailyEntryPage() {
           <input type="date" value={date} max={today}
             onChange={(e) => retarget(() => setDate(e.target.value))} />
         </label>
-        <button className="link" type="button" onClick={() => setShowNewFlock(true)}>
-          {t("newFlockButton")}
-        </button>
+        {isAdmin && (
+          <button className="link" type="button" onClick={() => setShowNewFlock(true)}>
+            {t("newFlockButton")}
+          </button>
+        )}
       </div>
 
       {/* F131: creating a flock is catalog work, not capture — it belongs in a
           dialog like every other create, instead of shoving the entry grid
-          down the page the moment the picker has nothing to offer yet. */}
-      <Dialog open={showNewFlock} title={t("newFlockDialogTitle")} onClose={closeNewFlock}>
+          down the page the moment the picker has nothing to offer yet.
+          Admin-gated (#388): a scoped Worker cannot assign the flock it just
+          created, so a role change mid-dialog closes it too. */}
+      <Dialog open={showNewFlock && isAdmin} title={t("newFlockDialogTitle")} onClose={closeNewFlock}>
         <form className="inline-form" onSubmit={onCreateFlock}>
           <label>{t("nameLabel")}
             <input value={newFlockName} required

@@ -1908,15 +1908,16 @@ export const tl = {
     rolesWorkers:
       "Limang uri ng sign-in. Isinasagawa ng mga <strong>Manggagawa</strong> ang pang-araw-araw na siklo — "
       + "nagtatala at nagsusumite ng entry, tumatanggap ng feed, nagtatala ng paggamit ng feed at tubig, "
-      + "gumagawa ng kawan at customer, humahawak ng order mula draft hanggang kumpirmasyon. Puwedeng "
+      + "gumagawa ng customer, humahawak ng order mula draft hanggang kumpirmasyon. Puwedeng "
       + "limitahan ang isang manggagawa sa <strong>mga naka-assign na kawan</strong>: kung walang "
       + "assignment, puwede siyang magtala para sa kahit anong kawan; ang unang assignment ang naglilimita "
-      + "sa kanya sa mga nakalista lang.",
+      + "sa kanya sa mga nakalista lang. Hindi puwedeng gumawa ng kawan ang mga manggagawa — "
+      + "administrasyon iyon ng May-ari/Manager.",
     rolesManagers:
       "Ginagawa ng mga <strong>Manager</strong> ang lahat ng ginagawa ng manggagawa, dagdag pa ang lahat "
       + "ng <strong>nag-a-undo, nagtatama, o nag-co-configure</strong>: void, pagtatama ng stock at tubig, "
-      + "lifecycle ng kawan, pag-cull, ang mga katalogo ng grado/produkto/item, gastos, report ng pera, "
-      + "audit log, at export.",
+      + "paggawa ng kawan at mga pagbabago sa lifecycle ng kawan, pag-cull, ang mga katalogo ng "
+      + "grado/produkto/item, gastos, report ng pera, audit log, at export.",
     rolesSalesReadOnly:
       "Hinahawakan ng mga sign-in na <strong>Benta</strong> ang customer, order, at <strong>bayad</strong> "
       + "— pero walang production capture at walang gastos. Nakikita ng mga sign-in na <strong>Read-"
@@ -2078,7 +2079,8 @@ export const tl = {
       + "pang-araw-araw na trabaho). Humihingi ng kumpirmasyon ang pag-ubos at pag-archive; parehong "
       + "puwedeng i-reverse gamit ang <strong>Reactivate</strong>.",
     flocksPermissions:
-      "Kahit sino ay puwedeng gumawa ng kawan at tumingin sa talaan ng ibon. Ang pag-edit ng kawan, mga "
+      "Gumagawa ng kawan ang May-ari at Manager. Kahit sino ay puwedeng tumingin sa mga kawan na "
+      + "pinapayagan niyang makita at sa kanilang talaan ng ibon. Ang pag-edit ng kawan, mga "
       + "pagbabago sa lifecycle, at pagtatala ng cull/adjustment ay para sa admin lang.",
 
     gradesHeading: "Mga Grado ng Itlog",
@@ -2737,6 +2739,14 @@ export const tl = {
       "Admin (may-ari), Manager, Manggagawa, Benta, Read-only — tingnan ang \"Sino ang puwedeng gumawa ng "
       + "ano\". Nagtatala ang mga manggagawa; nagtatama at nagko-configure rin ang mga manager; "
       + "hinahawakan ng benta ang mga order at bayad; nanonood lang ang read-only.",
+
+    glossaryFlockScopingTerm: "Saklaw ng Kawan",
+    glossaryFlockScopingDef:
+      "Ang mga nababasa ng isang Manggagawa ay limitado sa mga itinalagang kawan nila at sa mga row ng "
+      + "buong bukid. Walang limitasyon ang May-ari at Manager. Ang mga manggagawang walang row ng "
+      + "pagtatalaga, o may row ng buong bukid, ay walang limitasyon rin. Ang detalye ng hindi itinalagang "
+      + "kawan ay nagbabalik ng 404. Ang paggawa ng kawan ay laging para sa May-ari/Manager, anuman ang "
+      + "saklaw.",
 
     glossaryLockedEntryTerm: "Naka-lock (entry)",
     glossaryLockedEntryDef:

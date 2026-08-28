@@ -13,7 +13,8 @@ behind each lives in [`docs/decisions/`](decisions/).
 ## The request pipeline
 
 Registration order in `src/Cluckwork.Api/Program.cs`. Only the load-bearing
-steps are drawn — the full list runs to 28 entries, most of which are edge
+steps are drawn — the full list runs to 30 entries (22 `Use*` registrations,
+seven terminal/map registrations, and `app.Run()`), most of which are edge
 concerns whose relative order does not carry a guarantee.
 
 ```mermaid
@@ -27,17 +28,19 @@ flowchart TD
     LIMITS --> AUTHN["UseAuthentication<br/><i>JWT → HttpContext.User</i>"]
     AUTHN --> AMBIENT["AmbientPrincipalMiddleware<br/><i>blanks the ambient principal for endpoints that must ignore a bearer</i>"]
     AMBIENT --> TENANT["TenantResolutionMiddleware<br/><i>account_id claim → TenantContext</i>"]
-    TENANT --> EPOCH["CredentialEpochMiddleware<br/><i>fresh DB read, every request</i>"]
+    TENANT --> FLOCKSCOPE["FlockScopeResolutionMiddleware<br/><i>live UserRoleAssignment read → per-request FlockScope</i>"]
+    FLOCKSCOPE --> EPOCH["CredentialEpochMiddleware<br/><i>fresh DB read, every request</i>"]
     EPOCH --> MCP["MustChangePasswordMiddleware<br/><i>403s everything but change-password + logout</i>"]
     MCP --> AUTHZ["UseAuthorization"]
     AUTHZ --> IDEM["IdempotencyMiddleware"]
     IDEM --> ENDPOINT["endpoint · /health · SPA fallback"]
 ```
 
-Three positions in that chain are decisions, not accidents:
+Four positions in that chain are decisions, not accidents:
 
 | Placement | Why | Break it and |
 |---|---|---|
+| `FlockScopeResolutionMiddleware` **after** tenant/user resolution, **before** endpoint queries | It resolves the caller's live `UserRoleAssignment` flock scope for the whole request; it explicitly skips resolution when `IExceptionHandlerFeature` is present (a `/error` re-execution) so a database fault can render `/error` without another assignment query | Moving or removing it lets a restricted Worker read unassigned flock rows (#388); removing the re-execution skip makes error rendering itself fail whenever the original failure was the database, so the client gets no mapped `ProblemDetails` response |
 | `CredentialEpochMiddleware` **after** tenant resolution | It reads the user's current epoch from the tenant's database | A revoked credential keeps working (#364) |
 | `MustChangePasswordMiddleware` **before** `UseAuthorization` | The gate then applies uniformly, whatever policy tier an endpoint carries | An endpoint's own policy decides whether a forced reset is enforced (#283) |
 | `IdempotencyMiddleware` **after** `UseAuthorization` | A replay returns a cached response *without invoking the endpoint* | A role-denied caller replaying someone else's key gets the cached response instead of a 403 |

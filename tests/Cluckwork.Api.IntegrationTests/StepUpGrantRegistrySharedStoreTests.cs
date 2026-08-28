@@ -72,7 +72,7 @@ public sealed class StepUpGrantRegistrySharedStoreTests :
         tenant.Resolve(accountId);
         _db = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            tenant);
+            tenant, new FlockScope());
 
         // One REAL Redis claim store, one namespace, two registries — the
         // replica pair. Real (short) TTLs: Redis honours its server clock, not
@@ -161,7 +161,7 @@ public sealed class StepUpGrantRegistrySharedStoreTests :
         tenant.Resolve(_accountId);
         var sideEffectDb = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            tenant);
+            tenant, new FlockScope());
 
         var gapLogoutClaimOnce = new LogoutOnClaimClaimOnceStore(
             _claimOnce!, sideEffectDb, _userId);

@@ -18,6 +18,7 @@ internal static class CluckworkPersistenceServiceCollectionExtensions
         IHostEnvironment environment)
     {
         services.AddScoped<TenantContext>();
+        services.AddScoped<FlockScope>();
 
         var dbProvider = configuration["Database:Provider"] ?? "Postgres";
         var rawConnectionString = configuration.GetConnectionString("Default")

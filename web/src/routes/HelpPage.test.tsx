@@ -523,6 +523,17 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     });
   });
 
+  it("renders the flock-scoping glossary term and definition from the catalog (#388)", () => {
+    withOverride("glossaryFlockScopingTerm", "FLOCK-SCOPE-TERM-MARKER", () => {
+      withOverride("glossaryFlockScopingDef", "FLOCK-SCOPE-DEF-MARKER", () => {
+        render(<HelpPage />);
+        expect(screen.getByRole("rowheader", { name: "FLOCK-SCOPE-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("FLOCK-SCOPE-DEF-MARKER")).toBeInTheDocument();
+        expect(screen.queryByRole("rowheader", { name: "Flock scoping" })).not.toBeInTheDocument();
+      });
+    });
+  });
+
   it("reads the report-throttle glossary row from the catalog, not a hardcoded literal", () => {
     withOverride("glossaryTooManyReportsTerm", "REPORT-THROTTLE-TERM-MARKER", () => {
       withOverride("glossaryTooManyReportsDef", "REPORT-THROTTLE-DEF-MARKER", () => {

@@ -71,7 +71,7 @@ public sealed class StepUpGrantRegistryTests : IClassFixture<CluckworkWebApplica
         tenant.Resolve(_accountId);
         return new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            tenant);
+            tenant, new FlockScope());
     }
 
     private IClaimOnceStore? _claimOnce;
@@ -101,7 +101,7 @@ public sealed class StepUpGrantRegistryTests : IClassFixture<CluckworkWebApplica
         tenant.Resolve(accountId);
         _db = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            tenant);
+            tenant, new FlockScope());
 
         // Fixed anchor so the claim TTLs are deterministic. The in-process
         // store owns TTL now; the registry only passes it through.

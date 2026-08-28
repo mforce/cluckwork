@@ -253,7 +253,7 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
             var migrateOptions = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<AppDbContext>();
             new Cluckwork.Infrastructure.Providers.Postgres.PostgresDbContextConfigurator()
                 .Configure(migrateOptions, connectionString, new Cluckwork.Infrastructure.Providers.DatabaseResilienceOptions());
-            await using var migrateDb = new AppDbContext(migrateOptions.Options, new TenantContext());
+            await using var migrateDb = new AppDbContext(migrateOptions.Options, new TenantContext(), new FlockScope());
             await migrateDb.Database.MigrateAsync();
         }
 
@@ -284,7 +284,7 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
         var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<AppDbContext>();
         new Cluckwork.Infrastructure.Providers.Postgres.PostgresDbContextConfigurator()
             .Configure(options, connectionString, new Cluckwork.Infrastructure.Providers.DatabaseResilienceOptions());
-        await using var db = new AppDbContext(options.Options, new TenantContext());
+        await using var db = new AppDbContext(options.Options, new TenantContext(), new FlockScope());
         var owners = await db.Users.IgnoreQueryFilters()
             .Where(u => u.AccountId == SeedDefaults.AccountId)
             .ToListAsync();

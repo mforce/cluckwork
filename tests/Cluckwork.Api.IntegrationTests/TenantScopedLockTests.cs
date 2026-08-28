@@ -46,7 +46,7 @@ public sealed class TenantScopedLockTests(CluckworkWebApplicationFactory factory
         holderTenant.Resolve(accountB);
         await using var holderDb = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            holderTenant);
+            holderTenant, new FlockScope());
         await using var holderTx = await holderDb.Database.BeginTransactionAsync();
         await holderDb.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "SalesOrders" WHERE "Id" = {orderId} FOR UPDATE""");
@@ -91,7 +91,7 @@ public sealed class TenantScopedLockTests(CluckworkWebApplicationFactory factory
         holderTenant.Resolve(accountB);
         await using var holderDb = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
-            holderTenant);
+            holderTenant, new FlockScope());
         await using var holderTx = await holderDb.Database.BeginTransactionAsync();
         await holderDb.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "InventoryItems" WHERE "Id" = {itemId} FOR UPDATE""");

@@ -25,6 +25,7 @@ public sealed class CredentialEpochMiddlewareOrderTests
             // BEFORE authentication it would have no principal to blank.
             "app.UseMiddleware<AmbientPrincipalMiddleware>();",
             "app.UseMiddleware<TenantResolutionMiddleware>();",
+            "app.UseMiddleware<FlockScopeResolutionMiddleware>();",
             "app.UseMiddleware<CredentialEpochMiddleware>();",
             "app.UseMiddleware<MustChangePasswordMiddleware>();",
             "app.UseAuthorization();",
@@ -44,6 +45,37 @@ public sealed class CredentialEpochMiddlewareOrderTests
         var securitySlice = program[first..(last + expectedOrder[^1].Length)];
         var actualOrder = ExecutableStatements(securitySlice);
         Assert.Equal(expectedOrder, actualOrder);
+    }
+
+    // #388 — a DB fault raised while resolving flock scope must still reach
+    // the mapped ProblemDetails response, not an unhandled-exception 500. That
+    // only holds if the exception handler wraps the flock-scope middleware,
+    // i.e. is registered earlier in the pipeline.
+    [Fact]
+    public void Program_ExceptionHandlerWrapsFlockScopeResolution()
+    {
+        var repository = FindRepositoryRoot();
+        var program = File.ReadAllText(Path.Combine(
+            repository.FullName, "src", "Cluckwork.Api", "Program.cs"));
+
+        const string exceptionHandler = "app.UseExceptionHandler(";
+        const string flockScope = "app.UseMiddleware<FlockScopeResolutionMiddleware>();";
+
+        Assert.Equal(1, CountOccurrences(program, exceptionHandler));
+        Assert.Equal(1, CountOccurrences(program, flockScope));
+
+        var exceptionHandlerIndex = program.IndexOf(exceptionHandler, StringComparison.Ordinal);
+        var flockScopeIndex = program.IndexOf(flockScope, StringComparison.Ordinal);
+
+        Assert.True(exceptionHandlerIndex >= 0,
+            $"Program.cs is missing required middleware statement: {exceptionHandler}");
+        Assert.True(flockScopeIndex >= 0,
+            $"Program.cs is missing required middleware statement: {flockScope}");
+        Assert.True(exceptionHandlerIndex < flockScopeIndex,
+            "app.UseExceptionHandler(...) must be registered before " +
+            "app.UseMiddleware<FlockScopeResolutionMiddleware>() so a DB fault " +
+            "raised while resolving flock scope reaches the mapped ProblemDetails " +
+            "response instead of surfacing as an unhandled 500.");
     }
 
     [Fact]

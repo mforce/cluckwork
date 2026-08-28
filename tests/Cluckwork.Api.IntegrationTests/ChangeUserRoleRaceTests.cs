@@ -170,7 +170,7 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
         var db = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options, tenant);
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options, tenant, new FlockScope());
         var tx = await db.Database.BeginTransactionAsync();
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "Accounts" WHERE "Id" = {accountId} FOR UPDATE""");
@@ -373,7 +373,7 @@ public sealed class ChangeUserRoleRaceTests(CluckworkWebApplicationFactory facto
         var tenant = new TenantContext();
         tenant.Resolve(accountId);
         await using var fenceDb = new AppDbContext(
-            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options, tenant);
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options, tenant, new FlockScope());
         await using var fenceTx = await fenceDb.Database.BeginTransactionAsync();
         await fenceDb.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "AspNetUsers" WHERE "Id" = {bId} FOR UPDATE""");
