@@ -572,6 +572,65 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
         Assert.Empty(byUnassignedEntry);
     }
 
+    // #388 — the two scoped-write bypass lookups (GetByIdForFlockScopedWriteAsync,
+    // FindByNaturalKeyForFlockScopedWriteAsync) use IgnoreQueryFilters() to see a
+    // live, not request-scope-snapshotted, flock/entry — but that bypass also
+    // strips the tenant filter. Each repository reinstates AccountId explicitly;
+    // this fact proves that reinstatement, independent of the AppDbContext combined
+    // filters (which a fresh Unrestricted FlockScope here does not exercise).
+    [Fact]
+    public async Task ScopedWriteBypasses_ReinstateTenantIsolation()
+    {
+        var ownerEmailA = $"bypass-a-{Guid.NewGuid():N}@test.local";
+        var accountA = await factory.SeedAccountWithUserAsync(ownerEmailA);
+        var farmA = Guid.NewGuid();
+        var houseA = Guid.NewGuid();
+        var flockA = await factory.SeedFlockAsync(accountA, farmA, houseA);
+        var entryAId = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountA, async db =>
+        {
+            db.DailyEntries.Add(DailyEntry.Create(entryAId, accountA, farmA, houseA, flockA, Today));
+            await db.SaveChangesAsync();
+        });
+
+        var ownerEmailB = $"bypass-b-{Guid.NewGuid():N}@test.local";
+        var accountB = await factory.SeedAccountWithUserAsync(ownerEmailB);
+        var farmB = Guid.NewGuid();
+        var houseB = Guid.NewGuid();
+        var flockB = await factory.SeedFlockAsync(accountB, farmB, houseB);
+        var entryBId = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountB, async db =>
+        {
+            db.DailyEntries.Add(DailyEntry.Create(entryBId, accountB, farmB, houseB, flockB, Today));
+            await db.SaveChangesAsync();
+        });
+
+        var tenant = new TenantContext();
+        tenant.Resolve(accountA);
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(factory.ConnectionString)
+            .Options;
+        await using var db = new AppDbContext(options, tenant, new FlockScope());
+        var flocks = new FlockRepository(db);
+        var entries = new DailyEntryRepository(db);
+
+        // Positive controls: account A's own rows are still reachable through the bypass.
+        var ownFlock = await flocks.GetByIdForFlockScopedWriteAsync(flockA, accountA);
+        Assert.NotNull(ownFlock);
+        Assert.Equal(flockA, ownFlock!.Id);
+
+        var ownEntry = await entries.FindByNaturalKeyForFlockScopedWriteAsync(accountA, farmA, houseA, flockA, Today);
+        Assert.NotNull(ownEntry);
+        Assert.Equal(entryAId, ownEntry!.Id);
+
+        // Negative controls: account B's rows must NOT be reachable under accountA's tenant.
+        var foreignFlock = await flocks.GetByIdForFlockScopedWriteAsync(flockB, accountA);
+        Assert.Null(foreignFlock);
+
+        var foreignEntry = await entries.FindByNaturalKeyForFlockScopedWriteAsync(accountA, farmB, houseB, flockB, Today);
+        Assert.Null(foreignEntry);
+    }
+
     // #388 — Codex FIX-NOW follow-up: Submit's stale request-scope/live-
     // assignment fix (SubmitDailyEntryTests.
     // Submit_AssignmentAddedAfterScopeSnapshot_StillChecksArchivedFlockLifecycle)
