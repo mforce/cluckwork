@@ -35,7 +35,11 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
     {
         if (eggGradeIds.Count == 0) return [];
 
-        var scope = db.FlockScope;
+        // #612 — sale confirmation is SalesFlow: plain Workers intentionally
+        // sell from the farm's FIFO stock, not only stock from flocks assigned
+        // for production work. Keep this lock farm-wide to preserve main's
+        // behavior. #612 owns the future farm setting for assigned-only versus
+        // farm-wide Worker allocation and its insufficient-assigned-stock warning.
         return await db.EggLots.FromSqlInterpolated($"""
             SELECT *
             FROM "EggLots"
@@ -49,7 +53,6 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
               -- this change is exactly what let an entry be dated tomorrow.
               AND "ProductionDate" <= {allocationDate}
               AND ("RestrictedUntil" IS NULL OR "RestrictedUntil" < {allocationDate})
-              AND ({scope.IsUnrestricted} OR "FlockId" = ANY({scope.AssignedFlockIds.ToArray()}))
             ORDER BY "ProductionDate", "Id"
             FOR UPDATE
             """)

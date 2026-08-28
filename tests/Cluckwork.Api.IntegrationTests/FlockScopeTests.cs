@@ -343,35 +343,42 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
         Assert.DoesNotContain(expenseBId, expenseIds);
     }
 
-    // The raw-SQL FOR UPDATE paths bypass the query filter; the explicit
-    // predicate must scope them the same way. All three callers are AdminOnly
-    // paths, so drive the repository with a HAND-BUILT restricted context —
-    // the same mechanism as ExpenseFilter_FarmWideVisible_UnassignedExcluded.
+    // #388/#612 — each raw-SQL contract is explicit. Sales FIFO stays farm-wide
+    // for a restricted Worker (current SalesFlow behavior); the two AdminOnly
+    // reconciliation locks retain the explicit flock predicate because they
+    // bypass global filters. One assertion family per SQL statement keeps each
+    // mutation causal.
     [Fact]
-    public async Task EggLotRawSqlPath_IsScoped()
+    public async Task EggLotRawSqlPaths_HonorTheirDistinctSalesAndAdminContracts()
     {
         var fix = await SeedAsync();
-
-        // Seed one egg lot on flock A and one on flock B (owner scope) with
-        // the REAL flock ids — EggLot.Create(id, accountId, flockId, date,
-        // gradeId, qty), plus the Production EggInventoryMovement row that
-        // keeps the #101 ledger invariant, mirroring TestHarness.SeedEggLotAsync.
         var lotAId = Guid.NewGuid();
         var lotBId = Guid.NewGuid();
+        Guid dailyAId = default;
+        Guid dailyBId = default;
+
         await factory.WithTenantScopeAsync(fix.AccountId, async db =>
         {
-            db.EggLots.Add(EggLot.Create(lotAId, fix.AccountId, fix.FlockA, Today, fix.GradeId, 25));
+            dailyAId = await db.DailyEntries.Where(e => e.FlockId == fix.FlockA)
+                .Select(e => e.Id).SingleAsync();
+            dailyBId = await db.DailyEntries.Where(e => e.FlockId == fix.FlockB)
+                .Select(e => e.Id).SingleAsync();
+
+            db.EggLots.Add(EggLot.Create(
+                lotAId, fix.AccountId, fix.FlockA, Today, fix.GradeId, 25,
+                dailyEntryId: dailyAId));
             db.EggInventoryMovements.Add(EggInventoryMovement.Create(
                 Guid.NewGuid(), fix.AccountId, lotAId, EggMovementType.Production,
-                25, "DailyEntry", Guid.NewGuid(), DateTimeOffset.UtcNow));
-            db.EggLots.Add(EggLot.Create(lotBId, fix.AccountId, fix.FlockB, Today, fix.GradeId, 30));
+                25, "DailyEntry", dailyAId, DateTimeOffset.UtcNow));
+            db.EggLots.Add(EggLot.Create(
+                lotBId, fix.AccountId, fix.FlockB, Today, fix.GradeId, 30,
+                dailyEntryId: dailyBId));
             db.EggInventoryMovements.Add(EggInventoryMovement.Create(
                 Guid.NewGuid(), fix.AccountId, lotBId, EggMovementType.Production,
-                30, "DailyEntry", Guid.NewGuid(), DateTimeOffset.UtcNow));
+                30, "DailyEntry", dailyBId, DateTimeOffset.UtcNow));
             await db.SaveChangesAsync();
         });
 
-        // Restricted context: scope driven to flock A only.
         var scope = new FlockScope();
         scope.Resolve(false, [fix.FlockA]);
         var tenant = new TenantContext();
@@ -380,12 +387,27 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
             .UseNpgsql(factory.ConnectionString)
             .Options;
         await using var restrictedDb = new AppDbContext(options, tenant, scope);
-
         var repo = new EggLotRepository(restrictedDb);
-        var lots = await repo.GetByIdsLockedAsync(fix.AccountId, [lotAId, lotBId], CancellationToken.None);
 
-        Assert.Contains(lots, l => l.Id == lotAId);
-        Assert.DoesNotContain(lots, l => l.Id == lotBId);
+        // SalesFlow contract: FIFO allocation remains farm-wide (#612).
+        var fifo = await repo.GetAvailableFifoLockedAsync(
+            fix.AccountId, [fix.GradeId], Today, CancellationToken.None);
+        Assert.Contains(fifo, l => l.Id == lotAId);
+        Assert.Contains(fifo, l => l.Id == lotBId);
+
+        // Admin reconciliation by explicit ids remains flock-scoped.
+        var byIds = await repo.GetByIdsLockedAsync(
+            fix.AccountId, [lotAId, lotBId], CancellationToken.None);
+        Assert.Contains(byIds, l => l.Id == lotAId);
+        Assert.DoesNotContain(byIds, l => l.Id == lotBId);
+
+        // Admin reconciliation by DailyEntry remains flock-scoped.
+        var byAssignedEntry = await repo.GetByDailyEntryLockedAsync(
+            fix.AccountId, dailyAId, CancellationToken.None);
+        Assert.Contains(byAssignedEntry, l => l.Id == lotAId);
+        var byUnassignedEntry = await repo.GetByDailyEntryLockedAsync(
+            fix.AccountId, dailyBId, CancellationToken.None);
+        Assert.Empty(byUnassignedEntry);
     }
 
     private sealed record Fixture(
