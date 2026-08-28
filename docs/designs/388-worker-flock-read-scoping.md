@@ -18,8 +18,8 @@ Close the gap where a Worker scoped to one flock can enumerate and read unassign
 | 3 | **Chokepoint**: EF global query filter vs. manual guard per call site? | **EF global query filter on `FlockId`, parallel to the 27 existing `AccountId` filters.** Structural: a new flock-keyed read is scoped by construction. Reuses the repo's established pattern. |
 | 4 | **P1-1: Farm-wide assignment rows** (`FlockId = null` = unrestricted in the write guard). The filter must match. | **Tri-state:** `FlockScope` is `Unrestricted` (Owner/Manager, 0 assignment rows, or any farm-wide row) or `RestrictedTo(Guid[] flockIds)`. A farm-wide row = Unrestricted, matching `FlockScopeGuard` line 84. |
 | 5 | **P1-2: `Flock` has no `FlockId` column.** | The filter for `Flock` is `e.Id ∈ scope` (self-reference, like `Account.AccountId == Account.Id`). `Flock` is the only entity where the filter key ≠ the `FlockId` column. |
-| 6 | **P1-3: Raw-SQL / `IgnoreQueryFilters` bypass.** `EggLotRepository` uses `FromSqlInterpolated` + `IgnoreQueryFilters()` — the filter does not apply. | **Option A:** walk every `FromSql*`/`IgnoreQueryFilters` call site and add flock-scope predicates to the raw SQL. Closes the hole. |
-| 7 | **P1-4: Sales/Profit reports have no `FlockId`.** | **No additional work.** `ReportEndpoints.Sales`/`Profit`/`Expenses` are already `AdminOnly` (Owner + Manager) — Workers get 403 before any data query. `ExpenseEndpoints` is also `AdminOnly` (`Program.cs:366`) — the filter's role for `Expense` is scoping Owner/Manager reads to assigned flocks + farm-wide rows, not protecting Workers. No schema change, no scope creep. |
+| 6 | **P1-3: Raw-SQL / `IgnoreQueryFilters` bypass.** `EggLotRepository` uses `FromSqlInterpolated` + `IgnoreQueryFilters()` — the filter does not apply. | **Corrected 2026-08-27 (owner decision, #611 round 1):** sale-confirmation FIFO allocation (`GetAvailableFifoLockedAsync`) stays farm-wide — SalesFlow, not scoped; #612 owns the future assigned-only/farm-wide setting. Only the two AdminOnly reconciliation locks, `GetByIdsLockedAsync` and `GetByDailyEntryLockedAsync`, receive the flock-scope `WHERE` predicate. `InventoryLotRepository` is deliberately excluded: `InventoryLots` has no `FlockId` column — feed's flock linkage lives on the already-filtered `FeedUsage`/`InventoryMovement` rows, so there is no predicate to add. |
+| 7 | **P1-4: Sales/Profit reports have no `FlockId`.** | **No additional work.** `ReportEndpoints.Sales`/`Profit`/`Expenses` are already `AdminOnly` (Owner + Manager) — Workers get 403 before any data query. `ExpenseEndpoints` is also `AdminOnly` (`Program.cs:366`), and Owner/Manager are unrestricted by the `FlockScope` filter (INV-2) — so the `Expense` filter does not scope any Worker's reads today. It is structural defense-in-depth for a restricted/future repository caller, not a live Worker HTTP path. No schema change, no scope creep. |
 
 ## 3. Scope-ownership map (Phase 3)
 
@@ -64,9 +64,9 @@ Close the gap where a Worker scoped to one flock can enumerate and read unassign
   - `WaterUsage` (non-null `FlockId`) — `AppDbContext.cs` (new filter)
   - `Expense` (**nullable** `FlockId`) — `AppDbContext.cs` (new filter; null passes)
 - **Raw-SQL enforcement sites (P1-3, Option A):** Walk every `FromSql*`/`IgnoreQueryFilters` call site on the 8 filtered entities:
-  - `EggLotRepository.cs:38,66,85` (`FromSqlInterpolated` + `IgnoreQueryFilters`) — **corrected 2026-08-27 (owner decision, #611 round 1):** `:66` (`GetByIdsLockedAsync`) and `:85` (`GetByDailyEntryLockedAsync`), both AdminOnly reconciliation locks, carry the flock-scope `WHERE` predicate. `:38` (`GetAvailableFifoLockedAsync`) does **not** — sale confirmation is SalesFlow, and a plain Worker's FIFO allocation stays farm-wide to preserve `main`'s behavior; #612 owns the future assigned-only/farm-wide setting.
+  - `EggLotRepository.cs:38,66,85` (`FromSqlInterpolated` + `IgnoreQueryFilters`) — **corrected 2026-08-27 (owner decision, #611 round 1):** `:66` (`GetByIdsLockedAsync`) and `:85` (`GetByDailyEntryLockedAsync`), both AdminOnly reconciliation locks, carry the flock-scope `WHERE` predicate. Current production callers of both are AdminOnly (Owner/Manager, unrestricted by `FlockScope`), so the predicate scopes nobody today — it is defense-in-depth for a future non-elevated caller, not an active Worker restriction. `:38` (`GetAvailableFifoLockedAsync`) does **not** carry the predicate — sale confirmation is SalesFlow, and a plain Worker's FIFO allocation stays farm-wide to preserve `main`'s behavior; #612 owns the future assigned-only/farm-wide setting.
   - `EggLotRepository.cs:102` (`GetStockByGradeAsync`) — **LINQ, not raw SQL**; the query filter applies by construction. No change needed (codex v2 correction).
-  - `InventoryLotRepository.cs:19` (`GetAvailableFifoLockedAsync`) and `:39` (`GetByIdLockedAsync`) — raw SQL on `InventoryLots`, called from `RecordFeedUsageHandler` (Worker-reachable `ProductionWrite`). Add flock-scope `WHERE` predicate to each.
+  - `InventoryLotRepository.cs` — **deliberately excluded, not a gap.** `InventoryLots` has no `FlockId` column; feed's flock linkage lives on the already-filtered `FeedUsage`/`InventoryMovement` rows, so there is no predicate to add here.
   - `SalesOrderRepository.cs:30` (`GetByIdLockedAsync`) — raw SQL on `SalesOrders`. `SalesOrder` has **no `FlockId`** (not in the 8-entity filter set). No flock predicate needed; document why.
   - `DailyEntryLockSweep.cs:33` (`IgnoreQueryFilters`) — background job, not a user read. Confirmed: it resolves `TenantContext` but not a user; document that it bypasses the flock filter by design (jobs are account-level).
 - **Set difference (suspects):** The LINQ-path reads across 8 endpoint classes (`FlockEndpoints`, `DailyEntryEndpoints`, `WaterUsageEndpoints`, `InventoryEndpoints`, `ExpenseEndpoints`, `StockEndpoints`, `ReportEndpoints`, `ExportEndpoints`) are scoped **by construction** via the query filter. The `AdminOnly` reports (`Sales`, `Profit`, `Expenses`) are scoped by **authorization** (403 for Workers), not by the filter. The 4 write handlers already call `IFlockScopeGuard.CheckAsync` manually; the query filter is a second layer (defense in depth), not a replacement.
@@ -120,7 +120,6 @@ Close the gap where a Worker scoped to one flock can enumerate and read unassign
 - `src/Cluckwork.Api/Program.cs` (register `FlockScope` as scoped, add middleware)
 - `src/Cluckwork.Api/Hosting/CluckworkFeatureServiceCollectionExtensions.cs` (register `FlockScope` as scoped)
 - `src/Cluckwork.Infrastructure/Repositories/EggLotRepository.cs` (add flock-scope predicates to raw-SQL call sites at lines 66, 85 — P1-3; line 38 (`GetAvailableFifoLockedAsync`) stays farm-wide, corrected 2026-08-27 per #611 round 1 / #612)
-- `src/Cluckwork.Infrastructure/Repositories/InventoryLotRepository.cs` (add flock-scope predicates to raw-SQL call sites at lines 19, 39 — P1-3)
 - `src/Cluckwork.Infrastructure/Repositories/ExportQueries.cs` (add `FlockScope` to manual `AppDbContext` construction at line 76)
 - `tests/**` (update direct `AppDbContext` constructions in test factories)
 - `specs/product/GLOSSARY.md` (flock scoping definition)
@@ -128,6 +127,7 @@ Close the gap where a Worker scoped to one flock can enumerate and read unassign
 - `tools/simulation/ui/...` (#277 Playwright E2E spec — Worker persona read assertions)
 
 **Do-not-touch:**
+- `src/Cluckwork.Infrastructure/Repositories/InventoryLotRepository.cs` — deliberate exclusion, not an oversight: `InventoryLots` has no `FlockId` column; feed's flock linkage lives on the already-filtered `FeedUsage`/`InventoryMovement` rows, so no predicate exists to add.
 - `src/Cluckwork.Infrastructure/Repositories/UserRoleAssignmentRepository.cs` (the existing `FlockScopeGuard` — the write path is already correct; the query filter is a second layer, not a replacement)
 - `src/Cluckwork.Infrastructure/Persistence/TenantContext.cs` (tenancy is a different axis; do not conflate)
 - `src/Cluckwork.Infrastructure/Persistence/Interceptors/TenantStampInterceptor.cs` (tenancy write guard; do not conflate)
@@ -152,13 +152,15 @@ Close the gap where a Worker scoped to one flock can enumerate and read unassign
   - Scoped Worker reads `GET /reports/sales` → 403 (AdminOnly; P1-4 — authorization, not filter).
   - Scoped Worker's AdminOnly reconciliation reads (`GetByIdsLockedAsync`/`GetByDailyEntryLockedAsync`) are flock-scoped — raw-SQL path, `EggLotRepository` lines 66/85. **Corrected 2026-08-27 (#611 round 1):** `GetAvailableFifoLockedAsync` (line 38, sale confirmation) stays farm-wide by owner decision (#612), not scoped.
   - Unresolved user (seeder/one-shot verb) reads a flock-keyed entity → sees all flocks (INV-4 — unrestricted).
-- **Concurrency test** (replaces the misapplied "parallel-race" test): a Worker's assignment change is **not** reflected mid-request — the scope is pinned at middleware time. Test: resolve scope, change assignment in a second transaction, re-read → the second read sees the new scope (new request), the first request's scope is unchanged.
+- **Concurrency evidence (corrected 2026-08-27, PR #611 review round 2): no separate cross-transaction mid-request test ships.** What actually ships:
+  - `Resolve_DifferingScope_ThrowsReassignmentException` pins single-assignment/no mid-request scope replacement (INV-4).
+  - `RoleMatrixTests.FlockScope_CoversFeed_SubmitOfUnassignedDraft_AndMismatchedUnassign` removes an assignment and proves the *next* HTTP request observes the changed scope.
+  - Do not claim a test that pins a scope read racing a concurrent assignment write mid-request; none ships.
 - **`RoleMatrixTests`** (existing): add rows for the new read scoping (Worker → 200 on `GET /flocks` with a **row-count assertion**, not just a status-code assertion — a role-matrix row that only checks status is green both before and after the filter).
 - **Mutation checks:**
   - Remove the `Flock` filter → the "scoped Worker reads `GET /flocks` → sees only assigned" test must RED (sees unassigned flocks).
-  - Remove the `Expense` filter → the "scoped Worker reads farm-wide expense → visible" test stays GREEN (farm-wide is visible regardless), but the "scoped Worker reads `GET /flocks` → 404 on unassigned" test must RED.
+  - Remove the `Expense` filter → `ExpenseFilter_FarmWideVisible_UnassignedExcluded` must RED (the unassigned-flock expense becomes visible).
   - Remove the raw-SQL flock predicate in `EggLotRepository` (line 66 or 85) → `EggLotRawSqlPaths_HonorTheirDistinctSalesAndAdminContracts` must RED on the corresponding AdminOnly assertion. Re-adding the predicate to line 38 (`GetAvailableFifoLockedAsync`) must also RED it — that path is farm-wide by owner decision (#612), not scoped.
-  - Remove the raw-SQL flock predicate in `InventoryLotRepository` (line 19) → the "scoped Worker records feed usage → scoped" test must RED.
   - Restore, rebuild, confirm green.
 
 ## 10. Documentation surfaces
