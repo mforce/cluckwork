@@ -17,30 +17,12 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
     // (See RoleMatrixTests for the verbatim seeding + assignment patterns.)
 
     [Fact]
-    public async Task Owner_Request_Completes_ScopeUnrestricted()
-    {
-        var (accountId, farmId, flockA, _) = await SeedFarmAsync();
-        var owner = await ClientAsync(accountId, Roles.Owner);
-        Assert.Equal(HttpStatusCode.OK, (await owner.GetAsync("/api/v1/flocks")).StatusCode);
-
-        var scope = new FlockScope();
-        scope.Resolve(true, []);
-        Assert.True(scope.IsUnrestricted);
-        Assert.True(scope.IsResolved);
-    }
+    public Task Owner_Request_Completes_ScopeUnrestricted() =>
+        AssertElevatedUserWithAssignmentIsUnrestricted(Roles.Owner);
 
     [Fact]
-    public async Task Manager_Request_Completes_ScopeUnrestricted()
-    {
-        var (accountId, farmId, flockA, _) = await SeedFarmAsync();
-        var manager = await ClientAsync(accountId, Roles.Manager);
-        Assert.Equal(HttpStatusCode.OK, (await manager.GetAsync("/api/v1/flocks")).StatusCode);
-
-        var scope = new FlockScope();
-        scope.Resolve(true, []);
-        Assert.True(scope.IsUnrestricted);
-        Assert.True(scope.IsResolved);
-    }
+    public Task Manager_Request_Completes_ScopeUnrestricted() =>
+        AssertElevatedUserWithAssignmentIsUnrestricted(Roles.Manager);
 
     [Fact]
     public async Task Worker_ZeroAssignments_Request_Succeeds()
@@ -169,6 +151,33 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
         var scope = new FlockScope();
         scope.Resolve(true, []);
         Assert.Throws<FlockScopeReassignmentException>(() => scope.Resolve(false, [Guid.NewGuid()]));
+    }
+
+    private async Task AssertElevatedUserWithAssignmentIsUnrestricted(string role)
+    {
+        var assigningOwnerEmail = $"assigner-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(assigningOwnerEmail);
+        var farmId = Guid.NewGuid();
+        var flockA = await factory.SeedFlockAsync(accountId, farmId);
+        var flockB = await factory.SeedFlockAsync(accountId, farmId);
+        var assigningOwner = factory.CreateAuthedClient(
+            await factory.LoginForAccessTokenAsync(assigningOwnerEmail));
+
+        var targetEmail = $"elevated-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, targetEmail, role);
+        var targetId = (await assigningOwner.GetFromJsonAsync<List<UserRow>>("/api/v1/users"))!
+            .Single(u => u.Email == targetEmail).Id;
+        Assert.Equal(HttpStatusCode.Created,
+            (await AssignFlockAsync(assigningOwner, targetId, flockA)).StatusCode);
+
+        var target = factory.CreateAuthedClient(
+            await factory.LoginForAccessTokenAsync(targetEmail));
+        var response = await target.GetAsync("/api/v1/flocks");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var flocks = await response.Content.ReadFromJsonAsync<List<FlockRow>>();
+        Assert.NotNull(flocks);
+        Assert.Contains(flocks, f => f.Id == flockA);
+        Assert.Contains(flocks, f => f.Id == flockB);
     }
 
     // --- private helpers, verbatim patterns from RoleMatrixTests.cs ---
