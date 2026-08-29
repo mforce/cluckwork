@@ -29,6 +29,17 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
     public Task Manager_Request_Completes_ScopeUnrestricted() =>
         AssertElevatedUserWithAssignmentIsUnrestricted(Roles.Manager);
 
+    // #612 — the actual fix: before this issue, Sales/ReadOnly fell through
+    // to the same scoping branch as a plain Worker, so a retained assignment
+    // row narrowed them too. Only a plain Worker may ever be scoped now.
+    [Fact]
+    public Task Sales_Request_Completes_ScopeUnrestricted() =>
+        AssertElevatedUserWithAssignmentIsUnrestricted(Roles.Sales);
+
+    [Fact]
+    public Task ReadOnly_Request_Completes_ScopeUnrestricted() =>
+        AssertElevatedUserWithAssignmentIsUnrestricted(Roles.ReadOnly);
+
     [Fact]
     public async Task Worker_ZeroAssignments_Request_Succeeds()
     {
@@ -221,6 +232,11 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
         Assert.Throws<FlockScopeReassignmentException>(() => scope.Resolve(false, [Guid.NewGuid()]));
     }
 
+    // #612 — a live assignment write now requires the target to BE a plain
+    // Worker (Users.FlockAssignmentsWorkerOnly), so an elevated-role fixture
+    // has to assign while the target is still a Worker and then promote,
+    // matching the design's actual scenario: promotion RETAINS the row and
+    // makes it inert, it never creates a fresh row on an elevated user.
     private async Task AssertElevatedUserWithAssignmentIsUnrestricted(string role)
     {
         var assigningOwnerEmail = $"assigner-{Guid.NewGuid():N}@test.local";
@@ -232,11 +248,14 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
             await factory.LoginForAccessTokenAsync(assigningOwnerEmail));
 
         var targetEmail = $"elevated-{Guid.NewGuid():N}@test.local";
-        await factory.SeedUserAsync(accountId, targetEmail, role);
+        await factory.SeedUserAsync(accountId, targetEmail, (string?)null); // plain Worker
         var targetId = (await assigningOwner.GetFromJsonAsync<List<UserRow>>("/api/v1/users"))!
             .Single(u => u.Email == targetEmail).Id;
         Assert.Equal(HttpStatusCode.Created,
             (await AssignFlockAsync(assigningOwner, targetId, flockA)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await ChangeRoleAsync(assigningOwner, targetId, role)).StatusCode);
 
         var target = factory.CreateAuthedClient(
             await factory.LoginForAccessTokenAsync(targetEmail));
@@ -246,6 +265,18 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
         Assert.NotNull(flocks);
         Assert.Contains(flocks, f => f.Id == flockA);
         Assert.Contains(flocks, f => f.Id == flockB);
+    }
+
+    private static async Task<HttpResponseMessage> ChangeRoleAsync(
+        HttpClient client, Guid userId, string role)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/users/{userId}/role")
+        {
+            Content = JsonContent.Create(new { role }),
+        };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        request.Headers.Add(AuthEndpoints.StepUpHeaderName, await StepUpAsync(client));
+        return await client.SendAsync(request);
     }
 
     // --- private helpers, verbatim patterns from RoleMatrixTests.cs ---

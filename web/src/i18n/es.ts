@@ -115,6 +115,10 @@ export const es = {
   },
   errors: {
     "Me.Language.Format": "El idioma debe ser un código de 2 a 8 letras, por ejemplo 'en'.",
+    "EggLot.AssignedFlocksInsufficientStock":
+      "Tus parvadas asignadas no tienen suficiente stock para esta venta. Un "
+      + "propietario o gerente puede habilitar la venta desde otras parvadas "
+      + "en Configuración de la granja.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -318,6 +322,10 @@ export const es = {
 
     // Misc UI text
     addCustomerFirst: "Agregue un cliente primero (Customers page) y luego cree un pedido.",
+    // #612
+    farmWideAllocationNotice:
+      "Este ajuste de la granja permite que tus confirmaciones de venta "
+      + "tomen stock de fuera de tus parvadas asignadas.",
     noOrdersMatch: "Ningún pedido coincide.",
     voidingNeedsAdmin: "Anular requiere un administrador.",
     voidReasonLabel: "Motivo de anulación: {{reason}}",
@@ -1079,6 +1087,12 @@ export const es = {
       "Cuánto cuentan los botones +/− de la entrada diaria para todos en esta granja — "
       + "por ejemplo Tray para contar por bandeja (30 huevos) en lugar de huevo por huevo. "
       + "Cada persona puede elegir la suya en su pantalla de Cuenta.",
+    workerSaleAllocationPolicyLabel: "Asignación de ventas del trabajador",
+    workerSaleAllocationPolicyHint:
+      "Controla de qué lotes de huevo puede tomar stock la venta de un "
+      + "Trabajador restringido. Solo parvadas asignadas es el valor "
+      + "predeterminado; los propietarios y gerentes pueden optar por todas "
+      + "las parvadas de la granja.",
     firstDayOfWeekLabel: "Primer día de la semana",
     followLocaleOption: "Seguir la configuración regional",
     paletteLegend: "Paleta de la granja",
@@ -1175,6 +1189,12 @@ export const es = {
     removeAssignmentButton: "quitar",
     assignFlockButton: "Asignar lote",
     doneButton: "Listo",
+    // #612
+    retainedAssignmentsHint:
+      "Esta persona ya no es un Trabajador sencillo, así que estas "
+      + "asignaciones de lote retenidas no afectan su acceso. Aún pueden quitarse.",
+    inactiveAssignmentLabel: "inactivo",
+    assignmentsWorkerOnlyHint: "Las asignaciones de lote solo aplican a un Trabajador sencillo.",
 
     // Edit-user dialog
     editUserTitle: "Editar usuario — {{email}}",
@@ -1612,6 +1632,10 @@ export const es = {
     // unit system
     "unitSystem.Metric": "Métrico",
     "unitSystem.Imperial": "Imperial",
+
+    // worker sale-allocation policy — #612
+    "workerSaleAllocationPolicy.AssignedFlocksOnly": "Solo parvadas asignadas",
+    "workerSaleAllocationPolicy.AllFarmFlocks": "Todas las parvadas de la granja",
 
     // weekday
     "weekday.Sunday": "Domingo",
@@ -2299,6 +2323,11 @@ export const es = {
       + "la pantalla de entrada para todos en la granja — un huevo, o una unidad de empaque como Tray (30 "
       + "por toque). Solo se pueden elegir unidades con una definición activa de huevos por unidad en la "
       + "pantalla de Productos, y cada persona puede anularla para sí misma en su pantalla de Cuenta.",
+    farmSettingsWorkerSaleAllocation:
+      "<strong>Asignación de ventas del trabajador</strong> controla de qué lotes de huevo puede tomar stock "
+      + "la venta de un Trabajador restringido al confirmar un pedido: solo parvadas asignadas (predeterminado) "
+      + "o todas las parvadas de la granja. Las confirmaciones de Propietario, Gerente y Ventas siempre son "
+      + "de toda la granja, sin importar este ajuste (Solo lectura no puede confirmar una venta).",
 
     farmPaletteHeading: "Paleta de la granja",
     farmPaletteIntro:
@@ -2559,6 +2588,10 @@ export const es = {
     glossaryFifoDef:
       "\"Primero en entrar, primero en salir\" — las ventas y el uso de alimento siempre toman primero las "
       + "existencias más antiguas.",
+    glossaryWorkerSaleAllocationTerm: "Asignación de ventas del trabajador",
+    glossaryWorkerSaleAllocationDef:
+      "El ajuste de la granja que decide si la confirmación de venta de un Trabajador restringido toma stock "
+      + "solo de sus parvadas asignadas (predeterminado) o de toda la granja.",
 
     glossaryCullTerm: "Descarte",
     glossaryCullDef:

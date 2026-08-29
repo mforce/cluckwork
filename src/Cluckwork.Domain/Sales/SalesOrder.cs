@@ -123,7 +123,10 @@ public sealed class SalesOrder : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    public Result Confirm()
+    // #612 — the precondition, without mutating, so ConfirmSaleHandler can
+    // check it before touching stock (a NotDraft/NoItems refusal must never
+    // even attempt a lock or a FIFO query).
+    public Result CheckCanConfirm()
     {
         if (Status != SalesOrderStatus.Draft)
             return Result.Failure(Error.Domain(
@@ -131,6 +134,13 @@ public sealed class SalesOrder : AggregateRoot<Guid>
         if (_items.Count == 0)
             return Result.Failure(Error.Domain(
                 "SalesOrder.NoItems", "Cannot confirm an order with no items."));
+        return Result.Success();
+    }
+
+    public Result Confirm()
+    {
+        var guard = CheckCanConfirm();
+        if (guard.IsFailure) return guard;
 
         Status = SalesOrderStatus.Confirmed;
         Version++;

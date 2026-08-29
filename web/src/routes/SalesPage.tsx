@@ -595,6 +595,14 @@ export function SalesPage() {
         <p className="muted">{t("addCustomerFirst")}</p>
       )}
 
+      {/* #612 — persistent and generic on purpose: the farm has opted into
+          all-farm-flocks allocation, but THIS caller is still a restricted
+          Worker, so confirming may still refuse for a shortfall in flocks
+          they cannot see. Never names a flock, grade, or quantity. */}
+      {farm?.showFarmWideSaleAllocationNotice && (
+        <p className="hint" role="status">{t("farmWideAllocationNotice")}</p>
+      )}
+
       {/* Deliberately NOT a <form>: these controls were button-driven, so
           wrapping them in one would newly enforce min/step and swallow the
           screen's own money messages (codex review of #132). */}

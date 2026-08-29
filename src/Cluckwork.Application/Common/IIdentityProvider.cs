@@ -176,6 +176,15 @@ public interface IIdentityProvider
     // this is a plain write, same shape as SetLanguageAsync.
     Task<Result> SetStepperUnitAsync(
         Guid accountId, Guid userId, EggUnit? unit, CancellationToken ct = default);
+
+    // #612 — a fresh, account-scoped read of a user's CURRENT effective role
+    // (Roles.ResolveEffective precedence), for callers that must re-verify a
+    // live role rather than trust a JWT claim minted earlier in the request's
+    // lifetime (assignment admission) or a caller-supplied role list. Null
+    // when the user does not belong to this account (foreign id -> null,
+    // matching GetUserAsync's convention, never a cross-tenant read).
+    Task<Cluckwork.Domain.Accounts.EffectiveAccountRole?> GetEffectiveRoleAsync(
+        Guid accountId, Guid userId, CancellationToken ct = default);
 }
 
 public sealed record TokenPair(

@@ -19,7 +19,10 @@ import type { Brand } from "../lib/brand";
 import { isKnownTimeZone } from "../lib/dates";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
-import { unitSystemLabel, weekdayLabel } from "../i18n/enums";
+import {
+  unitSystemLabel, weekdayLabel, workerSaleAllocationPolicyLabel,
+  WORKER_SALE_ALLOCATION_POLICY_VALUES,
+} from "../i18n/enums";
 import type { en } from "../i18n/en";
 
 // The curated palettes' raw ids stay lowercase (#149) — they are matched by
@@ -157,6 +160,11 @@ export function SettingsPage() {
   // has no matching <option>.
   const [defaultStepperUnit, setDefaultStepperUnit] = useState("Individual");
   const [stepperUnits, setStepperUnits] = useState<EggUnitConversion[]>([]);
+  // #612 — how a restricted plain Worker's sale confirmation may draw stock.
+  // Lives on the FarmSettings wrapper (admin-only), not on Account/settings —
+  // every other role only ever sees the derived showFarmWideSaleAllocationNotice.
+  const [workerSaleAllocationPolicy, setWorkerSaleAllocationPolicy] =
+    useState("AssignedFlocksOnly");
   const [firstDayOfWeek, setFirstDayOfWeek] = useState("");
   const [dateFormat, setDateFormat] = useState("");
   // #452 — true once the user (or the loaded value) is on the "Custom…"
@@ -257,6 +265,7 @@ export function SettingsPage() {
     // fallback that the next save writes back as a valid value.
     const activeCodes = units.filter((u) => u.active).map((u) => u.unitCode);
     setDefaultStepperUnit(activeCodes.includes(s.defaultStepperUnit) ? s.defaultStepperUnit : "Individual");
+    setWorkerSaleAllocationPolicy(next.workerSaleAllocationPolicy);
     return next;
   }
 
@@ -323,6 +332,7 @@ export function SettingsPage() {
         timeFormatOverride: orNull(timeFormat),
         brand,
         defaultStepperUnit,
+        workerSaleAllocationPolicy,
         version: loaded.settings.version,
       };
       const attempt = keyFor(saveAttempt.current, JSON.stringify(body));
@@ -695,6 +705,20 @@ export function SettingsPage() {
           </select>
         </label>
         <p className="hint">{t("defaultStepperUnitHint")}</p>
+
+        {/* #612 — how a restricted plain Worker's sale confirmation may draw
+            stock. Owner/Manager/Sales confirmations stay farm-wide regardless
+            of this setting (ReadOnly cannot confirm at all). */}
+        <label>{t("workerSaleAllocationPolicyLabel")}
+          <select
+            value={workerSaleAllocationPolicy}
+            onChange={(e) => setWorkerSaleAllocationPolicy(e.target.value)}
+          >
+            {WORKER_SALE_ALLOCATION_POLICY_VALUES.map((p) =>
+              <option key={p} value={p}>{workerSaleAllocationPolicyLabel(p)}</option>)}
+          </select>
+        </label>
+        <p className="hint">{t("workerSaleAllocationPolicyHint")}</p>
 
         <label>{t("firstDayOfWeekLabel")}
           <select value={firstDayOfWeek} onChange={(e) => setFirstDayOfWeek(e.target.value)}>

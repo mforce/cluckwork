@@ -60,6 +60,32 @@ describe("HelpPage", () => {
     expect(screen.getByRole("rowheader", { name: "Farm logo" })).toBeInTheDocument();
   });
 
+  // #612 review fix — the guidance must name only the roles that actually
+  // confirm farm-wide regardless of this setting (Owner, Manager, Sales), not
+  // list ReadOnly among them as if it too confirmed farm-wide — ReadOnly
+  // cannot confirm a sale at all.
+  it("documents worker sale allocation under Farm settings, naming only Owner/Manager/Sales as farm-wide confirmers (#612)", () => {
+    render(<HelpPage />);
+    // "Worker sale allocation" also names the glossary row further down the
+    // page — the Farm settings guidance item is the FIRST match.
+    const item = screen.getAllByText(/Worker sale allocation/)[0]!.closest("li")!;
+    expect(item).toHaveTextContent("Owner");
+    expect(item).toHaveTextContent("Manager");
+    expect(item).toHaveTextContent("Sales");
+    // The old, wrong copy listed Read-only as a fourth farm-wide confirmer.
+    expect(item).not.toHaveTextContent(/Sales,? and Read-?only/i);
+    expect(item).not.toHaveTextContent(/Sales,? Read-?only/i);
+
+    // Never claims ReadOnly confirms, in any catalog.
+    for (const catalog of [en, es, tl]) {
+      const text = catalog.help.farmSettingsWorkerSaleAllocation;
+      expect(text).not.toMatch(/Sales,? and Read-?only/i);
+      expect(text).not.toMatch(/Sales,? Read-?only/i);
+      expect(text).not.toMatch(/Ventas y Solo lectura/i);
+      expect(text).not.toMatch(/Sales, at Read-only/i);
+    }
+  });
+
   it("documents the busy-save indicator (#236) via the catalog key, not a drifting literal", () => {
     // The line reads common:workingHint so it can never drift from the
     // BusyButton announcement it explains — swap the catalog value and the
@@ -541,6 +567,18 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
         expect(screen.getByRole("rowheader", { name: "REPORT-THROTTLE-TERM-MARKER" })).toBeInTheDocument();
         expect(screen.getByText("REPORT-THROTTLE-DEF-MARKER")).toBeInTheDocument();
         expect(screen.queryByRole("rowheader", { name: "Too many reports at once" })).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  // #612 — the Worker sale allocation glossary row, same shape as FIFO above.
+  it("reads the worker sale allocation glossary row's term and definition from the catalog, not a hardcoded literal", () => {
+    withOverride("glossaryWorkerSaleAllocationTerm", "WORKER-SALE-ALLOCATION-TERM-MARKER", () => {
+      withOverride("glossaryWorkerSaleAllocationDef", "WORKER-SALE-ALLOCATION-DEF-MARKER", () => {
+        render(<HelpPage />);
+        expect(screen.getByRole("rowheader", { name: "WORKER-SALE-ALLOCATION-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("WORKER-SALE-ALLOCATION-DEF-MARKER")).toBeInTheDocument();
+        expect(screen.queryByRole("rowheader", { name: "Worker sale allocation" })).not.toBeInTheDocument();
       });
     });
   });

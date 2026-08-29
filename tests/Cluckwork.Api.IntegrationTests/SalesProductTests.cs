@@ -323,6 +323,7 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
                 timeFormatOverride = (string?)null,
                 brand = "aubergine",
                 defaultStepperUnit = "Individual",
+                workerSaleAllocationPolicy = "AssignedFlocksOnly",
                 settings.Settings.Version
             })
         };

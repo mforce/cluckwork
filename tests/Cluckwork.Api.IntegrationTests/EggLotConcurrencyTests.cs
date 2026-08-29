@@ -52,4 +52,43 @@ public sealed class EggLotConcurrencyTests(CluckworkWebApplicationFactory factor
         Assert.Equal(1, saleMovements);
         Assert.Equal(remaining, ledgerSum);
     }
+
+    // #612 — the SAME order confirmed twice concurrently: the SalesOrder FOR
+    // UPDATE lock (now taken on a fresh, in-transaction read rather than the
+    // old pre-transaction tracked one) must serialize the two, so exactly one
+    // wins and the lot is never double-allocated.
+    [Fact]
+    public async Task SameOrderConfirmedTwiceConcurrently_OneSucceeds_OneRejected_NoDoubleAllocation()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var grades = await factory.SeedEggGradesAsync(accountId, Guid.NewGuid(), "Large");
+
+        await factory.SeedEggLotAsync(accountId, grades["Large"], 100);
+        var orderId = await factory.SeedSalesOrderAsync(accountId, grades["Large"], 50);
+
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var first = client.PostWithKeyAsync($"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
+        var second = client.PostWithKeyAsync($"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
+        var responses = await Task.WhenAll(first, second);
+
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.OK));
+        // The loser sees the winner's committed Confirmed status and refuses
+        // with the state-conflict code, not a second successful allocation.
+        Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+
+        var (status, allocated) = await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var order = await db.SalesOrders.AsNoTracking().SingleAsync();
+            var lot = await db.EggLots.AsNoTracking().SingleAsync();
+            return (order.Status, lot.QuantityAvailable);
+        });
+        Assert.Equal(Cluckwork.Domain.Sales.SalesOrderStatus.Confirmed, status);
+        Assert.Equal(50, allocated); // drawn exactly once, never twice
+
+        var saleMovements = await factory.WithTenantScopeAsync(accountId, async db =>
+            await db.EggInventoryMovements.CountAsync(m => m.MovementType == Cluckwork.Domain.Eggs.EggMovementType.Sale));
+        Assert.Equal(1, saleMovements);
+    }
 }

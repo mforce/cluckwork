@@ -69,7 +69,9 @@ public sealed class FlockScopeGuard(
         // narrowed.
         if (!user.IsResolved) return Result.Success();
 
-        if (user.Roles.Contains(Roles.Owner) || user.Roles.Contains(Roles.Manager))
+        // #612 — only a plain Worker is ever flock-scoped. Owner, Manager,
+        // Sales, ReadOnly and Denied all bypass assignment rows entirely.
+        if (Roles.ResolveEffective(user.Roles) != EffectiveAccountRole.Worker)
             return Result.Success();
 
         var assignments = await db.UserRoleAssignments.AsNoTracking()

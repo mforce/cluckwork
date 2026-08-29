@@ -38,10 +38,18 @@ public sealed class UpdateFarmSettingsHandler(
         var currencyChanging = !string.Equals(
             command.CurrencyCode.Trim(), account.DefaultCurrencyCode, StringComparison.OrdinalIgnoreCase);
 
+        // #612 — an actual policy change is treated like a currency change:
+        // it takes the account FOR UPDATE below. A same-value request keeps
+        // the optimistic path, same as every other field.
+        var policyChanging = !string.Equals(
+            command.WorkerSaleAllocationPolicy.Trim(), account.WorkerSaleAllocationPolicy.ToString(),
+            StringComparison.OrdinalIgnoreCase);
+
         // The ordinary save — a rename, a locale, a timezone — has nothing to
         // read-then-decide, so it stays a plain write. §4.6 only gates a
-        // currency CHANGE, and only that path pays for the probes below.
-        if (!currencyChanging)
+        // currency CHANGE (and #612 a policy change), and only that path pays
+        // for the probes/lock below.
+        if (!currencyChanging && !policyChanging)
         {
             var before = Snapshot(account);
             var plain = Apply(account, command, currencyBoundRowsExist: false);
@@ -127,6 +135,7 @@ public sealed class UpdateFarmSettingsHandler(
             command.TimeFormatOverride,
             command.Brand,
             Enum.Parse<EggUnit>(command.DefaultStepperUnit, ignoreCase: true),
+            Enum.Parse<WorkerSaleAllocationPolicy>(command.WorkerSaleAllocationPolicy, ignoreCase: true),
             currencyBoundRowsExist);
 
     // Same SaveChanges as the change (#93). Settings decide how every date and
@@ -151,6 +160,7 @@ public sealed class UpdateFarmSettingsHandler(
         a.DateFormatOverride,
         a.TimeFormatOverride,
         a.Brand,
-        DefaultStepperUnit = a.DefaultStepperUnit.ToString()
+        DefaultStepperUnit = a.DefaultStepperUnit.ToString(),
+        WorkerSaleAllocationPolicy = a.WorkerSaleAllocationPolicy.ToString()
     };
 }

@@ -22,6 +22,7 @@ public sealed class UpdateFarmSettingsValidatorTests
         TimeFormatOverride: null,
         Brand: FarmBrands.Default,
         DefaultStepperUnit: "Individual",
+        WorkerSaleAllocationPolicy: "AssignedFlocksOnly",
         Version: 0);
 
     private bool Fails(UpdateFarmSettingsCommand command, string property) =>

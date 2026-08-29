@@ -65,7 +65,10 @@ const CONVERSIONS = [
 const MAX_UPLOAD = 2 * 1024 * 1024;
 const BANNER_MAX_UPLOAD = 5 * 1024 * 1024;
 
-const SETTINGS = (over: Partial<Account> = {}, canChangeCurrency = true): FarmSettings => ({
+const SETTINGS = (
+  over: Partial<Account> = {}, canChangeCurrency = true,
+  workerSaleAllocationPolicy = "AssignedFlocksOnly",
+): FarmSettings => ({
   settings: account({
     name: "Hen House",
     timeZoneId: "America/Los_Angeles",
@@ -79,6 +82,7 @@ const SETTINGS = (over: Partial<Account> = {}, canChangeCurrency = true): FarmSe
   canChangeCurrency,
   logoMaxUploadBytes: MAX_UPLOAD,
   bannerMaxUploadBytes: BANNER_MAX_UPLOAD,
+  workerSaleAllocationPolicy,
 });
 
 let refreshed = 0;
@@ -195,6 +199,7 @@ describe("SettingsPage saving", () => {
       timeFormatOverride: null,
       brand: "aubergine",
       defaultStepperUnit: "Individual",
+      workerSaleAllocationPolicy: "AssignedFlocksOnly",
       version: 7,
     });
     expect(key).toBeTruthy();
@@ -451,6 +456,35 @@ describe("SettingsPage stepper unit (#444)", () => {
     await renderReady(SETTINGS({ defaultStepperUnit: "Tray" }));
 
     expect(select()).toHaveValue("Individual");
+  });
+});
+
+// #612 — the farm setting controlling a restricted plain Worker's sale
+// allocation. Both choices, and a round-trip through save.
+describe("SettingsPage worker sale allocation policy (#612)", () => {
+  const select = () => screen.getByLabelText("Worker sale allocation");
+
+  it("shows both policy choices and selects the stored default", async () => {
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly"));
+
+    expect(select()).toHaveValue("AssignedFlocksOnly");
+    const options = within(select()).getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual(["Assigned flocks only", "All farm flocks"]);
+  });
+
+  it("selects the opted-in farm-wide policy when that is what is stored", async () => {
+    await renderReady(SETTINGS({}, true, "AllFarmFlocks"));
+    expect(select()).toHaveValue("AllFarmFlocks");
+  });
+
+  it("sends the picked policy on save", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderReady();
+
+    fireEvent.change(select(), { target: { value: "AllFarmFlocks" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    expect(mockUpdate.mock.calls[0][0]).toMatchObject({ workerSaleAllocationPolicy: "AllFarmFlocks" });
   });
 });
 

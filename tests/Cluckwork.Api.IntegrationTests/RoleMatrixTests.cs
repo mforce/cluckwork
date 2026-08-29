@@ -538,6 +538,58 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
         return await client.SendAsync(request);
     }
 
+    // #612 — a live assignment write now requires the target to BE a plain
+    // Worker. Owner/Manager/Sales/ReadOnly are all "elevated" for this check.
+    [Theory]
+    [InlineData(Roles.Owner)]
+    [InlineData(Roles.Manager)]
+    [InlineData(Roles.Sales)]
+    [InlineData(Roles.ReadOnly)]
+    public async Task AssigningAFlock_ToALiveNonWorker_IsRefused(string role)
+    {
+        var (accountId, farmId, flockA, _) = await SeedFarmAsync();
+        var owner = await ClientAsync(accountId, Roles.Owner);
+        var targetEmail = $"nw-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, targetEmail, role);
+        var targetId = (await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users"))!
+            .Single(u => u.Email == targetEmail).Id;
+
+        var response = await AssignFlockAsync(owner, targetId, flockA);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("Users.FlockAssignmentsWorkerOnly", await response.Content.ReadAsStringAsync());
+        Assert.Empty((await owner.GetFromJsonAsync<List<AssignmentRow>>(
+            $"/api/v1/users/{targetId}/flock-assignments"))!);
+    }
+
+    // #612 — removing a RETAINED row on an elevated user stays allowed even
+    // though a NEW write onto that same user is refused (promotion retains
+    // rows; only assignment CREATION is Worker-only).
+    [Fact]
+    public async Task UnassigningARetainedRow_OnAnElevatedUser_RemainsAllowed()
+    {
+        var (accountId, farmId, flockA, _) = await SeedFarmAsync();
+        var owner = await ClientAsync(accountId, Roles.Owner);
+        var targetEmail = $"pr-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, targetEmail, (string?)null); // plain Worker
+        var targetId = (await owner.GetFromJsonAsync<List<UserRow>>("/api/v1/users"))!
+            .Single(u => u.Email == targetEmail).Id;
+        Assert.Equal(HttpStatusCode.Created, (await AssignFlockAsync(owner, targetId, flockA)).StatusCode);
+
+        var roleChange = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/users/{targetId}/role")
+        { Content = JsonContent.Create(new { role = Roles.Manager }) };
+        roleChange.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        roleChange.Headers.Add(AuthEndpoints.StepUpHeaderName, await StepUpAsync(owner));
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.SendAsync(roleChange)).StatusCode);
+
+        var assignmentId = Assert.Single((await owner.GetFromJsonAsync<List<AssignmentRow>>(
+            $"/api/v1/users/{targetId}/flock-assignments"))!).Id;
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await UnassignFlockAsync(owner, targetId, assignmentId)).StatusCode);
+        Assert.Empty((await owner.GetFromJsonAsync<List<AssignmentRow>>(
+            $"/api/v1/users/{targetId}/flock-assignments"))!);
+    }
+
     private sealed record UserRow(Guid Id, string Email, string? DisplayName, string Role);
     private sealed record AssignmentRow(Guid Id, Guid? FlockId);
 }

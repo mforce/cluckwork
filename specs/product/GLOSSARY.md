@@ -388,6 +388,26 @@ Cancelled`): drafts are fully editable (add/edit/remove lines, cancel);
 exist in the status enum for later phases; nothing sets them yet, and only
 `Confirmed` orders can be voided.)
 
+**Worker sale allocation policy (#612)** — one farm setting deciding how a
+restricted plain **Worker's** confirmation may draw stock: `AssignedFlocksOnly`
+(default for every farm) tries the worker's own assigned flocks first, and
+only if that falls short does it check whether the farm's full FIFO stock
+would have covered the sale — returning a distinct, generic 422
+(`EggLot.AssignedFlocksInsufficientStock`) when it would, so the sale is
+refused without revealing what stock exists outside the worker's flocks.
+`AllFarmFlocks` is an explicit Owner/Manager opt-in restoring farm-wide
+allocation for restricted Workers too. Owner, Manager, and Sales
+confirmations are always farm-wide regardless of this setting (Read-only
+cannot confirm a sale at all, so it is not part of this list) — only a plain
+Worker with concrete flock assignments (not zero rows, not a farm-wide row)
+is ever affected. A restricted Worker never sees the detailed grade/quantity
+422 on insufficient stock, even under `AllFarmFlocks`, and its distinct
+`EggLot.AssignedFlocksInsufficientStock` copy tells them an Owner/Manager can
+enable selling from other flocks in Farm settings, without naming which
+flock or how much is short. The FIFO lock/query itself never changes shape
+or runs twice; the policy only decides which already-locked lots the plan
+tries first.
+
 **Sales line (#99)** — sells a **product** in a packed unit. At line creation
 the line snapshots the product type, the grade the product mapped to, and the
 unit's eggs-per-unit factor (`base_unit_factor`, spec §10.5/§9.7); `quantity`
@@ -942,20 +962,27 @@ access token and is re-read at every token refresh.
 ### Flock scoping
 
 A Worker's reads are limited to their assigned flocks plus farm-wide rows
-(rows with no flock, e.g. farm-wide expenses). Owner and Manager are
-unrestricted. A Worker with no assignment rows, or with a farm-wide
-(no-flock) assignment row, is unrestricted too. An unassigned flock's
-detail returns 404 — symmetric with the list, which simply does not show
-it (not 403). Writes were already scoped by the flock-assignment guard;
-this extends the same boundary to reads. Flock **creation** sits outside
-scoping entirely (#388): no Worker may create a flock, restricted or not —
-there is nothing yet to assign it to, and doing so is Owner/Manager
-administration (`AuthPolicies.AdminOnly`), the same gate as editing or
-depleting one.
+(rows with no flock, e.g. farm-wide expenses). Only a plain Worker is ever
+scoped this way (#612): Owner, Manager, Sales, Read-only, and an unknown/Denied
+role all ignore retained assignment rows and stay unrestricted, even a
+promoted user who kept assignment rows from when they were a Worker — those
+rows go inert on promotion and reactivate on demotion back to Worker, with no
+separate flag and no assignment-write serialization. A Worker with no
+assignment rows, or with a farm-wide (no-flock) assignment row, is
+unrestricted too. An unassigned flock's detail returns 404 — symmetric with
+the list, which simply does not show it (not 403). Writes were already scoped
+by the flock-assignment guard; this extends the same boundary to reads. Flock
+**creation** sits outside scoping entirely (#388): no Worker may create a
+flock, restricted or not — there is nothing yet to assign it to, and doing so
+is Owner/Manager administration (`AuthPolicies.AdminOnly`), the same gate as
+editing or depleting one.
 
 **Users screen** — Owner-only user management (#103): create a user with
 email, password, an optional **display name**, and one of the five roles, and
-manage worker flock assignments (spec §5.3). A user's name can be set at
+manage worker flock assignments (spec §5.3) — assigning a **new** flock is
+refused (`Users.FlockAssignmentsWorkerOnly`) unless the target is currently a
+plain Worker; a promoted user's already-retained rows stay visible and can
+still be removed (#612). A user's name can be set at
 creation and later changed from the row's **edit** action (#163; blank clears
 it back to "—"). The row's **password** action sets a new password without
 knowing the current one (#165) — the forgot-password path, since there is no

@@ -19,4 +19,7 @@ public sealed record UpdateFarmSettingsCommand(
     // #444 — the farm-default Daily Entry stepper pack unit (e.g. "Tray"),
     // travels as a name like UnitSystem/FirstDayOfWeek above.
     string DefaultStepperUnit,
+    // #612 — how a restricted plain Worker's sale confirmation may draw
+    // stock, travels as a name like UnitSystem/FirstDayOfWeek above.
+    string WorkerSaleAllocationPolicy,
     int Version);

@@ -82,6 +82,11 @@ public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSe
             .WithMessage("Default stepper unit must be one of the farm's egg units, for example Individual or Tray.")
             .WithErrorCode("FarmSettings.DefaultStepperUnit.Allowed");
 
+        RuleFor(x => x.WorkerSaleAllocationPolicy)
+            .Must(BeEnumName<WorkerSaleAllocationPolicy>)
+            .WithMessage("Worker sale allocation policy must be AssignedFlocksOnly or AllFarmFlocks.")
+            .WithErrorCode("FarmSettings.WorkerSaleAllocationPolicy.Allowed");
+
         RuleFor(x => x.Version)
             .GreaterThanOrEqualTo(0)
             .WithErrorCode("FarmSettings.Version.NonNegative");

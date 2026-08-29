@@ -194,6 +194,49 @@ describe("SalesPage i18n", () => {
   });
 });
 
+// #612 — the persistent, generic notice for a restricted plain Worker under
+// AllFarmFlocks: this farm setting lets their confirmations draw from
+// outside their assigned flocks.
+describe("SalesPage farm-wide allocation notice (#612)", () => {
+  it("shows the notice when the account flags it", async () => {
+    renderWithProviders(<SalesPage />, {
+      token: ADMIN,
+      farm: account({ showFarmWideSaleAllocationNotice: true }),
+    });
+    await screen.findByRole("button", { name: "New order" });
+
+    // Pinned to i18n.t, not the literal — proves the screen reads the
+    // catalog rather than a hardcoded string (same convention as the
+    // "SalesPage i18n" describe block above).
+    expect(screen.getByRole("status")).toHaveTextContent(i18n.t("sales:farmWideAllocationNotice"));
+  });
+
+  it("shows nothing when the account does not flag it", async () => {
+    renderWithProviders(<SalesPage />, {
+      token: ADMIN,
+      farm: account({ showFarmWideSaleAllocationNotice: false }),
+    });
+    await screen.findByRole("button", { name: "New order" });
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("reads the notice text from the sales i18n catalog, not a hardcoded literal", async () => {
+    const original = i18n.getResource("en", "sales", "farmWideAllocationNotice") as string;
+    i18n.addResource("en", "sales", "farmWideAllocationNotice", "NOTICE-MARKER");
+    try {
+      renderWithProviders(<SalesPage />, {
+        token: ADMIN,
+        farm: account({ showFarmWideSaleAllocationNotice: true }),
+      });
+      await screen.findByRole("button", { name: "New order" });
+      expect(screen.getByRole("status")).toHaveTextContent("NOTICE-MARKER");
+    } finally {
+      i18n.addResource("en", "sales", "farmWideAllocationNotice", original);
+    }
+  });
+});
+
 // #250 — the quantity fields use the shared NumberField stepper (F134): −/+
 // beside the input, floored at 1 (a zero-quantity sale line is meaningless).
 // Steps land through the keyboard/click path here; the hold-to-repeat physics
@@ -746,6 +789,29 @@ describe("SalesPage one-way actions", () => {
     });
 
     expect(vi.mocked(confirmOrder)).toHaveBeenCalledWith("o2", expect.any(String));
+  });
+
+  // #612 — the distinct, generic 422 a restricted Worker gets is not a dialog
+  // scope (only create-order/record-payment are), so it lands on the SAME
+  // page-level error paragraph as every other confirm failure — the smallest
+  // existing error-display mechanism, not a bespoke banner. client.ts (#612)
+  // is what turns the domain-error TITLE into this localized text; here the
+  // mocked confirmOrder rejects with the ALREADY-resolved message, same as a
+  // real ApiError leaving the fetch client.
+  it("shows the localized assigned-flocks-insufficient-stock warning on the page, generically", async () => {
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Confirm order/ }));
+    });
+
+    const localized = i18n.t("errors:EggLot.AssignedFlocksInsufficientStock");
+    vi.mocked(confirmOrder).mockRejectedValue(
+      new ApiError(422, "EggLot.AssignedFlocksInsufficientStock", localized));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Confirm order" }));
+    });
+
+    expect(screen.getByText(localized)).toBeInTheDocument();
   });
 
   it("leaves the draft alone when the cancel is dismissed", async () => {

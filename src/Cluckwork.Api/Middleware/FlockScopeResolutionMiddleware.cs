@@ -11,7 +11,8 @@ using Microsoft.EntityFrameworkCore;
 // credential state; its position is pinned by
 // CredentialEpochMiddlewareOrderTests.
 //
-// Skips the DB read for Owner/Manager (role check from the resolved user, no I/O).
+// #612 — skips the DB read for any non-Worker effective role (Owner, Manager,
+// Sales, ReadOnly, Denied — role check from the resolved user, no I/O).
 // An unresolved user (seeders, one-shot verbs, background jobs) is Unrestricted
 // (matches FlockScopeGuard line 70 fail-open behavior).
 // 0 assignment rows (grandfathered #73) and any farm-wide row (FlockId=null)
@@ -41,10 +42,12 @@ public sealed class FlockScopeResolutionMiddleware(RequestDelegate next)
             return;
         }
 
-        if (user.Roles.Contains(Cluckwork.Domain.Accounts.Roles.Owner)
-            || user.Roles.Contains(Cluckwork.Domain.Accounts.Roles.Manager))
+        // #612 — only a plain Worker is ever flock-scoped. Owner, Manager,
+        // Sales, ReadOnly and Denied all bypass assignment rows entirely —
+        // their route permissions are a separate, untouched surface.
+        if (Cluckwork.Domain.Accounts.Roles.ResolveEffective(user.Roles)
+            != Cluckwork.Domain.Accounts.EffectiveAccountRole.Worker)
         {
-            // Owner/Manager: Unrestricted, no DB read.
             scope.Resolve(true, []);
             await next(context);
             return;

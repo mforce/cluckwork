@@ -99,7 +99,13 @@ async function parseError(res: Response): Promise<ApiError> {
       }
       detail = parts.join(" ");
     } else {
-      detail = body.detail ?? detail;
+      // #612 — a plain domain-error ProblemDetails (Error.Domain) carries no
+      // errors map, just a stable code AS its title. Same catalog, same
+      // defaultValue fallback as the per-field lookup above: a coded screen
+      // (e.g. EggLot.AssignedFlocksInsufficientStock) renders translated, an
+      // uncatalogued title keeps the server's English detail.
+      const serverDetail = body.detail ?? detail;
+      detail = title ? i18n.t(`errors:${title}`, { defaultValue: serverDetail }) : serverDetail;
     }
   } catch {
     // non-JSON body — keep status text

@@ -21,6 +21,7 @@
 | AccountId | uuid |  | false |  |  |  |
 | DefaultStepperUnit | varchar(16) | 'Individual'::character varying | false |  |  |  |
 | Slug | varchar(32) |  | false |  |  |  |
+| WorkerSaleAllocationPolicy | varchar(24) | 'AssignedFlocksOnly'::character varying | false |  |  |  |
 
 ## Viewpoints
 
@@ -45,6 +46,7 @@
 | Accounts_TimeZoneId_not_null | n | NOT NULL "TimeZoneId" |
 | Accounts_UnitSystem_not_null | n | NOT NULL "UnitSystem" |
 | Accounts_Version_not_null | n | NOT NULL "Version" |
+| Accounts_WorkerSaleAllocationPolicy_not_null | n | NOT NULL "WorkerSaleAllocationPolicy" |
 | PK_Accounts | PRIMARY KEY | PRIMARY KEY ("Id") |
 
 ## Indexes
@@ -79,6 +81,7 @@ erDiagram
   uuid AccountId
   varchar_16_ DefaultStepperUnit
   varchar_32_ Slug
+  varchar_24_ WorkerSaleAllocationPolicy
 }
 "public.AspNetUsers" {
   uuid Id
