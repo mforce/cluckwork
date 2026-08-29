@@ -58,25 +58,35 @@ public sealed class FlockScopeDiscoveryTests
         Assert.True(guarded.Count >= 8,
             $"Expected at least 8 structurally guarded types; discovered {guarded.Count}.");
 
+        // Exclusion is from flock scoping only. Every discovered type must
+        // still carry the exact tenant conjunct before the split below.
+        var filterShapes = discovered.ToDictionary(
+            entity => entity,
+            entity => AssertTenantFilter(entity, tenant));
+
+        foreach (var entity in excluded)
+            Assert.True(filterShapes[entity].Conjuncts.Count == 1,
+                $"{entity.ClrType.Name}: flock-scope exclusion must remain tenant-only.");
+
         foreach (var entity in guarded)
-            AssertCombinedFilter(entity, tenant, flockScope);
+            AssertFlockFilter(entity, filterShapes[entity], flockScope);
     }
 
-    private static void AssertCombinedFilter(
+    private static (
+        ParameterExpression Parameter,
+        IReadOnlyList<Expression> Conjuncts,
+        Expression TenantConjunct) AssertTenantFilter(
         IEntityType entity,
-        TenantContext tenant,
-        FlockScope flockScope)
+        TenantContext tenant)
     {
         var filters = entity.GetDeclaredQueryFilters();
         Assert.True(filters.Count == 1,
-            $"{entity.ClrType.Name}: expected one combined query filter, found {filters.Count}.");
+            $"{entity.ClrType.Name}: expected one query filter, found {filters.Count}.");
 
         var filter = filters.Single().Expression;
         Assert.NotNull(filter);
         var parameter = Assert.Single(filter.Parameters);
         var conjuncts = Flatten(filter.Body, ExpressionType.AndAlso).ToList();
-        Assert.True(conjuncts.Count == 2,
-            $"{entity.ClrType.Name}: filter must be exactly tenant AND flock scope.");
 
         var accountProperty = entity.FindProperty("AccountId");
         Assert.NotNull(accountProperty);
@@ -87,8 +97,22 @@ public sealed class FlockScopeDiscoveryTests
         Assert.True(accountConjuncts.Count == 1,
             $"{entity.ClrType.Name}: filter must contain e.AccountId == tenant.AccountId.");
 
+        return (parameter, conjuncts, accountConjuncts[0]);
+    }
+
+    private static void AssertFlockFilter(
+        IEntityType entity,
+        (
+            ParameterExpression Parameter,
+            IReadOnlyList<Expression> Conjuncts,
+            Expression TenantConjunct) filter,
+        FlockScope flockScope)
+    {
+        Assert.True(filter.Conjuncts.Count == 2,
+            $"{entity.ClrType.Name}: filter must be exactly tenant AND flock scope.");
+
         var flockConjunct = Assert.Single(
-            conjuncts, expression => expression != accountConjuncts[0]);
+            filter.Conjuncts, expression => expression != filter.TenantConjunct);
         var disjuncts = Flatten(flockConjunct, ExpressionType.OrElse).ToList();
 
         var keyProperty = entity.ClrType == typeof(Flock)
@@ -105,10 +129,10 @@ public sealed class FlockScopeDiscoveryTests
         Assert.True(disjuncts.Count(expression => IsUnrestricted(expression, flockScope)) == 1,
             $"{entity.ClrType.Name}: filter must contain flockScope.IsUnrestricted exactly once.");
         Assert.True(disjuncts.Count(expression =>
-                IsAssignedContains(expression, parameter, keyProperty, nullable, flockScope)) == 1,
+                IsAssignedContains(expression, filter.Parameter, keyProperty, nullable, flockScope)) == 1,
             $"{entity.ClrType.Name}: filter must test the assigned flock ids exactly once.");
         Assert.True(disjuncts.Count(expression =>
-                IsNullFlock(expression, parameter, keyProperty)) == (nullable ? 1 : 0),
+                IsNullFlock(expression, filter.Parameter, keyProperty)) == (nullable ? 1 : 0),
             nullable
                 ? $"{entity.ClrType.Name}: nullable FlockId must keep the farm-wide null branch."
                 : $"{entity.ClrType.Name}: non-nullable flock keys cannot have a null branch.");
