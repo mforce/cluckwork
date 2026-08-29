@@ -6,6 +6,7 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.Inventory.RecordFeedUsage;
 using Cluckwork.Application.Features.Inventory.RecordWaterUsage;
+using Cluckwork.Application.Features.Reports;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
@@ -42,18 +43,23 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
 
         // Daily entry + water row on EACH flock (owner-seeded). Each response
         // is pinned so an absent B row means filtering, not seed failure (#388).
-        Assert.Equal(HttpStatusCode.Created, (await owner.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        var entryAResponse = await owner.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
         {
             farmId, houseId = Guid.NewGuid(), flockId = flockA, date = Today,
             totalEggs = 50, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
             mortalityCount = 0, grades = new[] { new { eggGradeId = gradeId, quantity = 50 } }
-        })).StatusCode);
-        Assert.Equal(HttpStatusCode.Created, (await owner.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        });
+        Assert.Equal(HttpStatusCode.Created, entryAResponse.StatusCode);
+        var entryAId = (await entryAResponse.Content.ReadFromJsonAsync<RecordedDto>())!.Id;
+
+        var entryBResponse = await owner.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
         {
             farmId, houseId = Guid.NewGuid(), flockId = flockB, date = Today,
             totalEggs = 60, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
             mortalityCount = 0, grades = new[] { new { eggGradeId = gradeId, quantity = 60 } }
-        })).StatusCode);
+        });
+        Assert.Equal(HttpStatusCode.Created, entryBResponse.StatusCode);
+        var entryBId = (await entryBResponse.Content.ReadFromJsonAsync<RecordedDto>())!.Id;
         Assert.Equal(HttpStatusCode.Created, (await owner.PostWithKeyAsync("/api/v1/water-usage", Guid.NewGuid().ToString(), new
         {
             flockId = flockA, date = Today, quantity = 10.5m, unit = "L", source = "Municipal"
@@ -100,7 +106,9 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
         await factory.SeedUserAsync(accountId, managerEmail, Roles.Manager);
         var manager = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(managerEmail));
 
-        return new Fixture(accountId, farmId, flockA, flockB, gradeId, worker, owner, manager, workerId);
+        return new Fixture(
+            accountId, farmId, flockA, flockB, gradeId, entryAId, entryBId,
+            worker, owner, manager, workerId);
     }
 
     // INV-1 — the core bug from #388's title.
@@ -184,6 +192,32 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
         Assert.NotNull(water);
         Assert.NotEmpty(water);
         Assert.All(water, w => Assert.Equal(fix.FlockA, w.FlockId));
+    }
+
+    // #613 — DailyEntryGrade has no scalar FlockId. The Worker-readable
+    // production report must correlate grade rows through the filtered
+    // DailyEntry parent; otherwise the headline is scoped but By grade leaks B.
+    [Fact]
+    public async Task ScopedWorker_ProductionGradeTotals_UseFilteredDailyEntryParent()
+    {
+        var fix = await SeedAsync();
+        Assert.Equal(HttpStatusCode.OK,
+            (await fix.Owner.PostWithKeyAsync(
+                $"/api/v1/daily-entries/{fix.EntryAId}/submit", Guid.NewGuid().ToString())).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await fix.Owner.PostWithKeyAsync(
+                $"/api/v1/daily-entries/{fix.EntryBId}/submit", Guid.NewGuid().ToString())).StatusCode);
+
+        var response = await fix.Worker.GetAsync(
+            $"/api/v1/reports/production?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var report = await response.Content.ReadFromJsonAsync<ProductionReport>();
+
+        Assert.NotNull(report);
+        Assert.Equal(50, report.TotalEggs);
+        var grade = Assert.Single(report.GradeTotals);
+        Assert.Equal(fix.GradeId, grade.EggGradeId);
+        Assert.Equal(50, grade.Quantity);
     }
 
     // The Expense filter: no Worker-reachable HTTP surface (AdminOnly, #87),
@@ -822,6 +856,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
 
     private sealed record Fixture(
         Guid AccountId, Guid FarmId, Guid FlockA, Guid FlockB, Guid GradeId,
+        Guid EntryAId, Guid EntryBId,
         HttpClient Worker, HttpClient Owner, HttpClient Manager, Guid WorkerId);
 
     private sealed record FlockRow(Guid Id, Guid FarmId, Guid HouseId, string Name, string Breed);

@@ -87,6 +87,23 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/v1/export/no-such-dataset")).StatusCode);
     }
 
+    // #613 — these no-FlockId child datasets rely on the export policy rather
+    // than a flock query filter. Pin each concrete path so a future literal
+    // route or endpoint-level policy override cannot hide behind /flocks.
+    [Theory]
+    [InlineData("daily-entry-grades")]
+    [InlineData("egg-inventory-movements")]
+    public async Task FlockDerivedChildExport_IsAdminOnly(string dataset)
+    {
+        var (_, accountId, _, _) = await SetupAsync();
+        var workerEmail = $"w-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, workerEmail, asAdmin: false);
+        var worker = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(workerEmail));
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await worker.GetAsync($"/api/v1/export/{dataset}")).StatusCode);
+    }
+
     [Fact]
     public async Task Csv_EscapesRfc4180_AndGuardsFormulas()
     {
