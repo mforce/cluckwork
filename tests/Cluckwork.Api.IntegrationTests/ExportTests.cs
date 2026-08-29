@@ -5,6 +5,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Domain.Accounts;
 
 // #95 — manual backup: admin-only CSV export per dataset + full-account zip.
 // The CSVs must be tenant-scoped, RFC 4180-escaped, and formula-guarded.
@@ -85,6 +86,40 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
         Assert.Equal("text/csv", csv.Content.Headers.ContentType!.MediaType);
 
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/v1/export/no-such-dataset")).StatusCode);
+    }
+
+    // #613 — these no-FlockId child datasets rely on the export policy rather
+    // than a flock query filter. Pin the complete AdminOnly role boundary on
+    // each concrete path so a future literal route or endpoint-level policy
+    // override cannot hide behind /flocks.
+    [Theory]
+    [InlineData("daily-entry-grades")]
+    [InlineData("egg-inventory-movements")]
+    public async Task FlockDerivedChildExport_MatchesAdminOnlyRoleBoundary(string dataset)
+    {
+        var (owner, accountId, _, _) = await SetupAsync();
+        var manager = await ClientForRoleAsync(Roles.Manager);
+        var sales = await ClientForRoleAsync(Roles.Sales);
+        var readOnly = await ClientForRoleAsync(Roles.ReadOnly);
+        var worker = await ClientForRoleAsync(role: null);
+
+        Assert.Equal(HttpStatusCode.OK,
+            (await owner.GetAsync($"/api/v1/export/{dataset}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await manager.GetAsync($"/api/v1/export/{dataset}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await sales.GetAsync($"/api/v1/export/{dataset}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await readOnly.GetAsync($"/api/v1/export/{dataset}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await worker.GetAsync($"/api/v1/export/{dataset}")).StatusCode);
+
+        async Task<HttpClient> ClientForRoleAsync(string? role)
+        {
+            var email = $"role-{Guid.NewGuid():N}@test.local";
+            await factory.SeedUserAsync(accountId, email, role);
+            return factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        }
     }
 
     [Fact]
