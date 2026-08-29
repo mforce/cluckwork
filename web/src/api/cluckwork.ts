@@ -417,6 +417,11 @@ export interface Account {
   // #444 — the farm-default Daily Entry stepper pack unit (an EggUnitConversion
   // code, e.g. "Tray"). A user's own Me.preferredStepperUnit overrides this.
   defaultStepperUnit: string;
+  // #612 — role-agnostic on purpose: true only for a restricted plain Worker
+  // under AllFarmFlocks, so the Sales screen can show the persistent generic
+  // notice without exposing the raw policy (that lives only on
+  // FarmSettings, admin-only) to every role.
+  showFarmWideSaleAllocationNotice: boolean;
 }
 
 // Clients need the account currency to parse money input correctly — a JPY
@@ -462,6 +467,9 @@ export interface FarmSettings {
   logoMaxUploadBytes: number;
   // Same contract, for the banner (#179) — a separate, larger cap.
   bannerMaxUploadBytes: number;
+  // #612 — the raw policy, admin-only (like canChangeCurrency above). Every
+  // other role only ever sees the derived Account.showFarmWideSaleAllocationNotice.
+  workerSaleAllocationPolicy: string;
 }
 
 export interface UpdateFarmSettings {
@@ -475,6 +483,7 @@ export interface UpdateFarmSettings {
   timeFormatOverride: string | null;
   brand: string;
   defaultStepperUnit: string;
+  workerSaleAllocationPolicy: string;
   version: number;
 }
 

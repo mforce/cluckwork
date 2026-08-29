@@ -1501,6 +1501,28 @@ public sealed class IdentityProvider(
             user.PreferredStepperUnit);
     }
 
+    // #612 — a fresh, account-scoped read of the CURRENT effective role, for
+    // callers that must re-verify live rather than trust a JWT claim minted
+    // earlier in the request (AssignFlockHandler's target-role admission).
+    // A DISABLED user has NO effective role: the account-membership check alone
+    // returned the role of a user disabled after the request passed middleware,
+    // so a request parked on a lock resumed with the authority it held when it
+    // queued. Existence is not authority — the predicate is active membership.
+    public async Task<Cluckwork.Domain.Accounts.EffectiveAccountRole?> GetEffectiveRoleAsync(
+        Guid accountId, Guid userId, CancellationToken ct = default)
+    {
+        var isActive = await db.Users.AsNoTracking().AnyAsync(
+            u => u.Id == userId && u.AccountId == accountId && u.DisabledAt == null, ct);
+        if (!isActive) return null;
+
+        var roleNames = await (
+            from userRole in db.UserRoles
+            join role in db.Roles on userRole.RoleId equals role.Id
+            where userRole.UserId == userId
+            select role.Name!).ToListAsync(ct);
+        return Cluckwork.Domain.Accounts.Roles.ResolveEffective(roleNames);
+    }
+
     public async Task<Result> SetLanguageAsync(
         Guid accountId, Guid userId, string? language, CancellationToken ct = default)
     {

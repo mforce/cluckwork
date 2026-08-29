@@ -360,7 +360,7 @@ public sealed class DemoDataSeeder(
             confirmed, largeEggs, 360, null, null), accountId, ct));
         Require(await addItem.HandleAsync(new AddOrderItemCommand(
             confirmed, mediumEggs, 180, null, null), accountId, ct));
-        Check((await confirmSale.HandleAsync(new ConfirmSaleCommand(confirmed), accountId, ct))
+        Check((await confirmSale.HandleAsync(new ConfirmSaleCommand(confirmed), accountId, currentUser.UserId, ct))
             is { IsSuccess: true } ? Result.Success() : Result.Failure(Error.Domain("Demo.Confirm", "confirm failed")));
 
         var draft = Require(await createOrder.HandleAsync(new CreateSalesOrderCommand(

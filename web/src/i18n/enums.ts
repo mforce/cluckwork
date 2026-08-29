@@ -246,6 +246,23 @@ export function unitSystemLabel(value: UnitSystemValue | (string & {})): string 
 }
 
 // ---------------------------------------------------------------------------
+// worker sale-allocation policy (SettingsPage picker) — #612
+// WorkerSaleAllocationPolicy enum.
+// ---------------------------------------------------------------------------
+export const WORKER_SALE_ALLOCATION_POLICY_VALUES = ["AssignedFlocksOnly", "AllFarmFlocks"] as const;
+export type WorkerSaleAllocationPolicyValue = (typeof WORKER_SALE_ALLOCATION_POLICY_VALUES)[number];
+const WORKER_SALE_ALLOCATION_POLICY_KEYS = {
+  AssignedFlocksOnly: "enums:workerSaleAllocationPolicy.AssignedFlocksOnly",
+  AllFarmFlocks: "enums:workerSaleAllocationPolicy.AllFarmFlocks",
+} as const satisfies Record<WorkerSaleAllocationPolicyValue, EnumsKey>;
+export function workerSaleAllocationPolicyLabel(
+  value: WorkerSaleAllocationPolicyValue | (string & {}),
+): string {
+  const key = WORKER_SALE_ALLOCATION_POLICY_KEYS[value as WorkerSaleAllocationPolicyValue];
+  return key ? i18n.t(key) : String(value);
+}
+
+// ---------------------------------------------------------------------------
 // weekday (SettingsPage week-start picker) — standalone day-name labels.
 // ---------------------------------------------------------------------------
 export const WEEKDAY_VALUES = [
@@ -484,6 +501,11 @@ export const ENUMS = {
     label: stockMovementLabel,
   },
   unitSystem: { values: UNIT_SYSTEM_VALUES, keys: UNIT_SYSTEM_KEYS, label: unitSystemLabel },
+  workerSaleAllocationPolicy: {
+    values: WORKER_SALE_ALLOCATION_POLICY_VALUES,
+    keys: WORKER_SALE_ALLOCATION_POLICY_KEYS,
+    label: workerSaleAllocationPolicyLabel,
+  },
   weekday: { values: WEEKDAY_VALUES, keys: WEEKDAY_KEYS, label: weekdayLabel },
   auditAction: { values: AUDIT_ACTION_VALUES, keys: AUDIT_ACTION_KEYS, label: auditActionLabel },
   entityType: { values: ENTITY_TYPE_VALUES, keys: ENTITY_TYPE_KEYS, label: entityTypeLabel },

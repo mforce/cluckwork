@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.Endpoints.Sales;
 
 using Cluckwork.Api.Validation;
+using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Audit;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Application.Features.Sales.AddOrderItem;
@@ -272,12 +273,14 @@ public static class SaleEndpoints
         Guid id,
         ConfirmSaleHandler handler,
         TenantContext tenant,
+        ICurrentUser currentUser,
         CancellationToken ct)
     {
-        if (!tenant.IsResolved)
+        if (!tenant.IsResolved || !currentUser.IsResolved)
             return Results.Unauthorized();
 
-        var result = await handler.HandleAsync(new ConfirmSaleCommand(id), tenant.AccountId, ct);
+        var result = await handler.HandleAsync(
+            new ConfirmSaleCommand(id), tenant.AccountId, currentUser.UserId, ct);
 
         // TenantMismatch is surfaced as NotFound to avoid revealing that the
         // resource exists but belongs to a different tenant.
@@ -285,6 +288,14 @@ public static class SaleEndpoints
         {
             if (result.Error.Code.EndsWith(".NotFound") || result.Error.Code == "Tenant.Mismatch")
                 return Results.NotFound();
+
+            // #612 — a caller whose role changed WHILE queued behind the
+            // Account lock is refused post-lock, before the generic 409/422
+            // branch below, so it returns 403 rather than a business-rule 422.
+            if (result.Error.Code == "Auth.Forbidden")
+                return Results.Problem(
+                    result.Error.Description, statusCode: StatusCodes.Status403Forbidden,
+                    title: result.Error.Code);
 
             // SalesOrder.NotDraft is a genuine state conflict (409); all other domain
             // errors (insufficient stock, withdrawal restriction, no items) are

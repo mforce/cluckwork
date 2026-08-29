@@ -433,6 +433,12 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="farmSettingsCountingUnit" components={{ strong: <strong /> }} />
         </li>
+        {/* #612 — how a restricted plain Worker's sale confirmation may draw
+            stock; Owner/Manager/Sales confirmations stay farm-wide (ReadOnly
+            cannot confirm at all). */}
+        <li>
+          <Trans ns="help" i18nKey="farmSettingsWorkerSaleAllocation" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <h3 id="farm-palette">{t("farmPaletteHeading")}</h3>
@@ -577,6 +583,8 @@ export function HelpPage() {
             <td>{t("glossaryStockWriteOffDef")}</td></tr>
           <tr><th scope="row">{t("glossaryFifoTerm")}</th>
             <td>{t("glossaryFifoDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryWorkerSaleAllocationTerm")}</th>
+            <td>{t("glossaryWorkerSaleAllocationDef")}</td></tr>
           <tr><th scope="row">{t("glossaryCullTerm")}</th>
             <td>{t("glossaryCullDef")}</td></tr>
           <tr><th scope="row">{t("glossaryMortalityTerm")}</th>

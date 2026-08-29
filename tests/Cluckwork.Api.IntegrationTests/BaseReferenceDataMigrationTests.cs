@@ -80,6 +80,10 @@ public sealed class BaseReferenceDataMigrationTests
             nameof(Account.DateFormatOverride),
             nameof(Account.TimeFormatOverride),
             nameof(Account.TimeZoneId),
+            // #612 — same shape as UnitSystem/DefaultStepperUnit: a plain
+            // default-value property, so the base-seeded row is compared
+            // directly against Account.Create's own default.
+            nameof(Account.WorkerSaleAllocationPolicy),
         };
         var accountExcludedProperties = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -94,7 +98,7 @@ public sealed class BaseReferenceDataMigrationTests
         };
         ReferenceDataComparison.AssertExactMappedPropertyPartition(
             accountEntityType, accountComparedProperties, accountExcludedProperties);
-        Assert.Equal(9, accountComparedProperties.Count);
+        Assert.Equal(10, accountComparedProperties.Count);
         Assert.Equal(8, accountExcludedProperties.Count);
 
         var actualAccount = Assert.Single(await db.Accounts.IgnoreQueryFilters()

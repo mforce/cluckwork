@@ -170,6 +170,13 @@ export const en = {
   // literal flat keys, not nested paths. Filled in Task 4.
   errors: {
     "Me.Language.Format": "Language must be a 2–8 letter code, for example 'en'.",
+    // #612 — the distinct 422 a restricted plain Worker gets when their
+    // assigned flocks fall short but the farm's full stock would have
+    // covered the sale. Generic on purpose: no grade, quantity, flock, or
+    // farm-wide stock fact — only that an Owner/Manager can opt the farm in.
+    "EggLot.AssignedFlocksInsufficientStock":
+      "Your assigned flocks do not have enough stock for this sale. An owner "
+      + "or manager can enable selling from other flocks in Farm settings.",
   },
   // Shared navigation chrome (Task 7, #182) — the FIRST screen-externalization
   // batch (B1). `nav` is in TRANSLATED_NAMESPACES — es/tl are machine-drafted
@@ -385,6 +392,14 @@ export const en = {
 
     // Misc UI text
     addCustomerFirst: "Add a customer first (Customers page), then create an order.",
+    // #612 — persistent and generic on purpose: never names a flock, grade,
+    // or quantity, since a restricted Worker cannot see farm-wide stock. This
+    // notice only shows when AllFarmFlocks is on for a restricted Worker, so
+    // it must say their confirmations draw from OUTSIDE their assigned
+    // flocks now — the opposite of "still limited to" them.
+    farmWideAllocationNotice:
+      "This farm setting allows your sale confirmations to draw stock from "
+      + "outside your assigned flocks.",
     noOrdersMatch: "No orders match.",
     voidingNeedsAdmin: "Voiding needs an admin.",
     voidReasonLabel: "Void reason: {{reason}}",
@@ -1312,6 +1327,14 @@ export const en = {
       "How much the Daily Entry +/− buttons count by for everyone on this farm "
       + "— for example Tray to count by the tray (30 eggs) instead of one egg at "
       + "a time. Each person can pick their own on their Account screen.",
+    // #612 — how a restricted plain Worker's sale confirmation may draw
+    // stock. Owner, Manager, and Sales confirmations are always farm-wide
+    // regardless of this setting (ReadOnly cannot confirm at all).
+    workerSaleAllocationPolicyLabel: "Worker sale allocation",
+    workerSaleAllocationPolicyHint:
+      "Controls which egg lots a restricted plain Worker's sale can draw "
+      + "from. Assigned flocks only is the default; owners and managers can "
+      + "opt a farm into all farm flocks.",
     firstDayOfWeekLabel: "First day of week",
     // Reused for the First-day-of-week "no override" option AND both the
     // date/time format placeholders — same English text, same meaning, in
@@ -1438,6 +1461,14 @@ export const en = {
     removeAssignmentButton: "remove",
     assignFlockButton: "Assign flock",
     doneButton: "Done",
+    // #612 — a promoted user keeps their rows, but only a plain Worker is
+    // ever narrowed by them: the retained rows below are inert until (or
+    // unless) this person is demoted back to Worker.
+    retainedAssignmentsHint:
+      "This person is no longer a plain Worker, so these retained flock "
+      + "assignments have no effect on their access. They can still be removed.",
+    inactiveAssignmentLabel: "inactive",
+    assignmentsWorkerOnlyHint: "Flock assignments only apply to a plain Worker.",
 
     // Edit-user dialog. {{email}} is DATA.
     editUserTitle: "Edit user — {{email}}",
@@ -2062,6 +2093,11 @@ export const en = {
     // unit system (SettingsPage picker) — UnitSystem enum.
     "unitSystem.Metric": "Metric",
     "unitSystem.Imperial": "Imperial",
+
+    // worker sale-allocation policy (SettingsPage picker) — #612
+    // WorkerSaleAllocationPolicy enum.
+    "workerSaleAllocationPolicy.AssignedFlocksOnly": "Assigned flocks only",
+    "workerSaleAllocationPolicy.AllFarmFlocks": "All farm flocks",
 
     // weekday (SettingsPage week-start picker) — standalone day-name labels.
     "weekday.Sunday": "Sunday",
@@ -2729,6 +2765,11 @@ export const en = {
       + "everyone on the farm — one egg, or a pack unit like Tray (30 per tap). Only units with an active "
       + "eggs-per-unit definition on the Products screen can be picked, and each person can override it for "
       + "themselves on their Account screen.",
+    farmSettingsWorkerSaleAllocation:
+      "<strong>Worker sale allocation</strong> controls which egg lots a restricted plain Worker's sale can "
+      + "draw from when confirming an order: assigned flocks only (the default) or all farm flocks. Owner, "
+      + "Manager, and Sales confirmations are always farm-wide, whatever this is set to (Read-only cannot "
+      + "confirm a sale at all).",
 
     // Farm palette
     farmPaletteHeading: "Farm palette",
@@ -2974,6 +3015,10 @@ export const en = {
       + "production figures stay untouched. A recount can add eggs back up to what was previously written off.",
     glossaryFifoTerm: "FIFO",
     glossaryFifoDef: "\"First in, first out\" — sales and feed usage always take the oldest stock first.",
+    glossaryWorkerSaleAllocationTerm: "Worker sale allocation",
+    glossaryWorkerSaleAllocationDef:
+      "The farm setting deciding whether a restricted plain Worker's sale confirmation draws only from their "
+      + "assigned flocks (the default) or from the whole farm.",
 
     glossaryCullTerm: "Cull",
     glossaryCullDef: "Birds deliberately removed from a flock (sold, slaughtered, given away) — not deaths.",

@@ -97,6 +97,40 @@ public sealed class SalesOrderTests
         Assert.Equal("SalesOrder.NotDraft", result.Error.Code);
     }
 
+    // #612 — Confirm delegates to CheckCanConfirm, so ConfirmSaleHandler can
+    // run the same precondition before touching stock without mutating.
+    [Fact]
+    public void CheckCanConfirm_Draft_WithItems_Succeeds_AndDoesNotMutate()
+    {
+        var order = MakeDraft();
+        order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"));
+        var before = order.Version;
+
+        var result = order.CheckCanConfirm();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(SalesOrderStatus.Draft, order.Status);
+        Assert.Equal(before, order.Version);
+    }
+
+    [Fact]
+    public void CheckCanConfirm_NoItems_Fails_SameCodeAsConfirm()
+    {
+        var order = MakeDraft();
+        var result = order.CheckCanConfirm();
+        Assert.True(result.IsFailure);
+        Assert.Equal("SalesOrder.NoItems", result.Error.Code);
+    }
+
+    [Fact]
+    public void CheckCanConfirm_NotDraft_Fails_SameCodeAsConfirm()
+    {
+        var order = MakeConfirmed();
+        var result = order.CheckCanConfirm();
+        Assert.True(result.IsFailure);
+        Assert.Equal("SalesOrder.NotDraft", result.Error.Code);
+    }
+
     private static SalesOrder MakeConfirmed()
     {
         var order = MakeDraft();

@@ -271,4 +271,8 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
 
     public Task<Result> SetStepperUnitAsync(Guid accountId, Guid userId, EggUnit? unit, CancellationToken ct = default) =>
         inner.SetStepperUnitAsync(accountId, userId, unit, ct);
+
+    public Task<Cluckwork.Domain.Accounts.EffectiveAccountRole?> GetEffectiveRoleAsync(
+        Guid accountId, Guid userId, CancellationToken ct = default) =>
+        inner.GetEffectiveRoleAsync(accountId, userId, ct);
 }

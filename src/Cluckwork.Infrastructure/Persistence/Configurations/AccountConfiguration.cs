@@ -34,6 +34,13 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
             .HasConversion<string>()
             .HasMaxLength(16)
             .IsRequired();
+        // #612 — named-enum column, same shape as UnitSystem/DefaultStepperUnit
+        // above. Stored as the enum member name so the wire value and the
+        // stored value never drift.
+        builder.Property(e => e.WorkerSaleAllocationPolicy)
+            .HasConversion<string>()
+            .HasMaxLength(24)
+            .IsRequired();
         builder.Property(e => e.DateFormatOverride).HasMaxLength(Account.MaxFormatOverrideLength);
         builder.Property(e => e.TimeFormatOverride).HasMaxLength(Account.MaxFormatOverrideLength);
 

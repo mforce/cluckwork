@@ -20,6 +20,7 @@ import {
 } from "./client";
 import { getAccessToken, setAccessToken, clearAccessToken } from "../auth/tokenStore";
 import { bindAccount, clearBoundAccount, getBoundAccountId } from "../auth/tokenStore";
+import i18n from "../i18n";
 
 // The fetch client owns the SPA's session lifecycle: bearer-attach, one
 // transparent refresh-and-retry on 401, single-flight refresh, and fail-closed
@@ -318,6 +319,36 @@ describe("apiFetch — error mapping", () => {
     const err = await apiGet("/stock").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).message).toBe("required too big nan");
+  });
+
+  // #612 — a plain Error.Domain ProblemDetails carries no errors map, just a
+  // stable code AS its title. It goes through the SAME errors catalog as the
+  // per-field lookup above, not a separate mechanism.
+  it("maps a domain error's TITLE (no errors map) to its catalog message", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          title: "EggLot.AssignedFlocksInsufficientStock",
+          detail: "server english fallback text",
+        },
+        422,
+      ),
+    );
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).message).toBe(
+      i18n.t("errors:EggLot.AssignedFlocksInsufficientStock"),
+    );
+    expect((err as ApiError).message).not.toBe("server english fallback text");
+  });
+
+  it("falls back to the server's English detail for a domain error TITLE with no catalog key", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ title: "EggLot.InsufficientStock", detail: "There is not enough stock." }, 422),
+    );
+    const err = await apiGet("/stock").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).message).toBe("There is not enough stock.");
   });
 });
 

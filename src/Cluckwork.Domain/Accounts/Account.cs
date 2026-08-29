@@ -64,6 +64,12 @@ public sealed class Account : AggregateRoot<Guid>
     // to each user's own light/night preference, which the SPA keeps locally.
     public string Brand { get; private set; } = FarmBrands.Default;
     public bool IsActive { get; private set; }
+
+    // #612 — default for existing and new farms; AllFarmFlocks is an explicit
+    // Owner/Manager opt-in. Only a plain Worker is ever affected by this.
+    public WorkerSaleAllocationPolicy WorkerSaleAllocationPolicy { get; private set; } =
+        WorkerSaleAllocationPolicy.AssignedFlocksOnly;
+
     public int Version { get; private set; }
 
     private Account() { }
@@ -149,6 +155,7 @@ public sealed class Account : AggregateRoot<Guid>
         string? timeFormatOverride,
         string brand,
         EggUnit defaultStepperUnit,
+        WorkerSaleAllocationPolicy workerSaleAllocationPolicy,
         bool financialRowsExist)
     {
         var guard = ValidateRequiredFields(name, timeZoneId, locale, currencyCode);
@@ -190,6 +197,7 @@ public sealed class Account : AggregateRoot<Guid>
         TimeFormatOverride = Normalize(timeFormatOverride);
         Brand = normalizedBrand;
         DefaultStepperUnit = defaultStepperUnit;
+        WorkerSaleAllocationPolicy = workerSaleAllocationPolicy;
 
         // Only re-derive on an actual change (§4.6). Refreshing the symbol and
         // minor unit on every save would let a catalog update silently

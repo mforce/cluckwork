@@ -883,6 +883,7 @@ public sealed class SimulationDataSeeder(
             account.TimeFormatOverride,
             account.Brand,
             account.DefaultStepperUnit.ToString(),
+            account.WorkerSaleAllocationPolicy.ToString(),
             account.Version);
 
         var result = await updateFarmSettings.HandleAsync(command, ct);
@@ -1229,7 +1230,7 @@ public sealed class SimulationDataSeeder(
         // FIFO allocation (tech spec §10.9.1): draws from the oldest
         // available lots for this grade under a FOR UPDATE lock — this is
         // what depletes the production history's egg lots.
-        var confirmed = await confirmSale.HandleAsync(new ConfirmSaleCommand(orderId), accountId, ct);
+        var confirmed = await confirmSale.HandleAsync(new ConfirmSaleCommand(orderId), accountId, actor.UserId, ct);
         Require(confirmed, $"confirm sales order {orderId}");
         return orderId;
     }

@@ -36,7 +36,8 @@ public static class AccountEndpoints
     }
 
     private static async Task<IResult> GetAccount(
-        IAccountRepository accounts, IFarmLogoRepository logos, TenantContext tenant, CancellationToken ct)
+        IAccountRepository accounts, IFarmLogoRepository logos, TenantContext tenant,
+        FlockScope flockScope, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var account = await accounts.GetCurrentAsync(ct);
@@ -46,7 +47,9 @@ public static class AccountEndpoints
         // whether to fetch /logo (or the splash /banner) at all, and gives it a
         // value that changes when the image does.
         var branding = await logos.GetBrandingHashesAsync(ct);
-        return Results.Ok(ToResponse(account, branding.LogoContentHash, branding.BannerContentHash));
+        return Results.Ok(ToResponse(
+            account, branding.LogoContentHash, branding.BannerContentHash,
+            ShowFarmWideSaleAllocationNotice(account, flockScope)));
     }
 
     private static async Task<IResult> GetSettings(
@@ -56,6 +59,7 @@ public static class AccountEndpoints
         IOptionsSnapshot<FarmLogoOptions> logoOptions,
         IOptionsSnapshot<FarmBannerOptions> bannerOptions,
         TenantContext tenant,
+        FlockScope flockScope,
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -71,11 +75,24 @@ public static class AccountEndpoints
         // what the server enforces (#123, #179). It IS config, so the SPA must
         // not carry its own copy.
         return Results.Ok(new FarmSettingsResponse(
-            ToResponse(account, branding.LogoContentHash, branding.BannerContentHash),
+            ToResponse(
+                account, branding.LogoContentHash, branding.BannerContentHash,
+                ShowFarmWideSaleAllocationNotice(account, flockScope)),
             canChangeCurrency,
             logoOptions.Value.MaxUploadBytes,
-            bannerOptions.Value.MaxUploadBytes));
+            bannerOptions.Value.MaxUploadBytes,
+            account.WorkerSaleAllocationPolicy.ToString()));
     }
+
+    // #612 — true only for a restricted plain Worker under AllFarmFlocks: the
+    // farm has opted into farm-wide allocation, but THIS caller is still
+    // narrowed by their own flock assignments, so the sale screen shows the
+    // persistent generic notice. FlockScope is already resolved by
+    // FlockScopeResolutionMiddleware before this endpoint runs, from the same
+    // UserRoleAssignment rows Confirm reads — no second query, no new state.
+    private static bool ShowFarmWideSaleAllocationNotice(Account account, FlockScope flockScope) =>
+        account.WorkerSaleAllocationPolicy == WorkerSaleAllocationPolicy.AllFarmFlocks
+        && !flockScope.IsUnrestricted;
 
     private static async Task<IResult> UpdateSettings(
         UpdateFarmSettingsRequest request,
@@ -97,6 +114,7 @@ public static class AccountEndpoints
             request.TimeFormatOverride,
             request.Brand,
             request.DefaultStepperUnit,
+            request.WorkerSaleAllocationPolicy,
             request.Version);
 
         var validation = await validator.ValidateAsync(command, ct);
@@ -118,7 +136,9 @@ public static class AccountEndpoints
         _ => Results.Problem(error.Description, statusCode: 422, title: error.Code)
     };
 
-    private static AccountResponse ToResponse(Account a, string? logoContentHash, string? bannerContentHash) => new(
+    private static AccountResponse ToResponse(
+        Account a, string? logoContentHash, string? bannerContentHash,
+        bool showFarmWideSaleAllocationNotice) => new(
         a.Id, a.Name,
         a.DefaultCurrencyCode, a.DefaultCurrencyMinorUnit, a.CurrencySymbol,
         a.TimeZoneId, a.Locale,
@@ -129,7 +149,8 @@ public static class AccountEndpoints
         logoContentHash,
         a.Brand,
         a.DefaultStepperUnit.ToString(),
-        bannerContentHash);
+        bannerContentHash,
+        showFarmWideSaleAllocationNotice);
 }
 
 // CurrencyCode/CurrencyMinorUnit keep their names and positions from the
@@ -162,7 +183,12 @@ public sealed record AccountResponse(
     // Null when the farm has no banner — the post-login splash is skipped
     // entirely (#179). Otherwise the stored image's content hash, same
     // self-invalidating role as LogoContentHash.
-    string? BannerContentHash);
+    string? BannerContentHash,
+    // #612 — role-agnostic on purpose: true only for a restricted plain
+    // Worker under AllFarmFlocks, so the Sales screen can show the persistent
+    // generic notice without exposing the raw policy (that lives only on
+    // FarmSettingsResponse, admin-only) to every role.
+    bool ShowFarmWideSaleAllocationNotice);
 
 public sealed record FarmSettingsResponse(
     AccountResponse Settings,
@@ -171,7 +197,11 @@ public sealed record FarmSettingsResponse(
     // for the client-side size pre-check and the "up to N MB" copy.
     int LogoMaxUploadBytes,
     // Same, for the farm banner (#179) — a separate, larger cap.
-    int BannerMaxUploadBytes);
+    int BannerMaxUploadBytes,
+    // #612 — the raw policy, admin-only (like CanChangeCurrency above). Every
+    // other role only ever sees the derived ShowFarmWideSaleAllocationNotice
+    // on the role-agnostic AccountResponse.
+    string WorkerSaleAllocationPolicy);
 
 public sealed record UpdateFarmSettingsRequest(
     string Name,
@@ -184,4 +214,5 @@ public sealed record UpdateFarmSettingsRequest(
     string? TimeFormatOverride,
     string Brand,
     string DefaultStepperUnit,
+    string WorkerSaleAllocationPolicy,
     int Version);

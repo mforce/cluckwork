@@ -123,6 +123,10 @@ export const tl = {
   },
   errors: {
     "Me.Language.Format": "Dapat 2–8 letrang code ang wika, halimbawa 'en'.",
+    "EggLot.AssignedFlocksInsufficientStock":
+      "Wala pang sapat na stock ang mga kawan na nakatalaga sa iyo para sa "
+      + "bentang ito. Maaaring paganahin ng isang Owner o Manager ang pagbenta "
+      + "mula sa ibang kawan sa Mga setting ng bukid.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -334,6 +338,11 @@ export const tl = {
 
     // Misc UI text
     addCustomerFirst: "Magdagdag muna ng customer (Customers page), pagkatapos gumawa ng order.",
+    // #612
+    farmWideAllocationNotice:
+      "Pinapayagan ng setting na ito ng bukid na kumuha ng stock ang iyong "
+      + "mga kumpirmasyon ng benta mula sa labas ng mga kawan na nakatalaga "
+      + "sa iyo.",
     noOrdersMatch: "Walang tugmang order.",
     voidingNeedsAdmin: "Kailangan ng admin para mag-void.",
     voidReasonLabel: "Dahilan ng pag-void: {{reason}}",
@@ -1118,6 +1127,12 @@ export const tl = {
       "Kung magkano ang ibinibilang ng mga +/− na button ng Daily Entry para sa lahat sa "
       + "bukid na ito — halimbawa Tray para magbilang bawat tray (30 itlog) sa halip na "
       + "isa-isang itlog. Maaaring pumili ang bawat tao ng kanilang sarili sa kanilang Account screen.",
+    workerSaleAllocationPolicyLabel: "Paglalaan ng benta ng manggagawa",
+    workerSaleAllocationPolicyHint:
+      "Kinokontrol kung saang mga lote ng itlog maaaring kumuha ng stock ang "
+      + "benta ng isang nakatalagang plain Worker. Nakatalagang kawan lang "
+      + "ang default; ang mga may-ari at manager ay maaaring pumili ng lahat "
+      + "ng kawan sa bukid.",
     firstDayOfWeekLabel: "Unang araw ng linggo",
     followLocaleOption: "Sundin ang locale",
     paletteLegend: "Paleta ng bukid",
@@ -1218,6 +1233,12 @@ export const tl = {
     removeAssignmentButton: "alisin",
     assignFlockButton: "Mag-assign ng kawan",
     doneButton: "Tapos na",
+    // #612
+    retainedAssignmentsHint:
+      "Hindi na plain Worker ang taong ito, kaya walang epekto ang mga "
+      + "nakatalagang kawan na ito sa kanyang access. Puwede pa rin itong alisin.",
+    inactiveAssignmentLabel: "inactive",
+    assignmentsWorkerOnlyHint: "Ang pag-assign ng kawan ay para lang sa plain Worker.",
 
     // Edit-user dialog
     editUserTitle: "I-edit ang user — {{email}}",
@@ -1671,6 +1692,10 @@ export const tl = {
     // unit system
     "unitSystem.Metric": "Metriko",
     "unitSystem.Imperial": "Imperyal",
+
+    // worker sale-allocation policy — #612
+    "workerSaleAllocationPolicy.AssignedFlocksOnly": "Nakatalagang kawan lang",
+    "workerSaleAllocationPolicy.AllFarmFlocks": "Lahat ng kawan sa bukid",
 
     // weekday
     "weekday.Sunday": "Linggo",
@@ -2386,6 +2411,11 @@ export const tl = {
       + "Tray (30 bawat tap). Ang mga yunit lang na may aktibong depinisyon ng itlog-bawat-yunit sa "
       + "Products screen ang mapipili, at maaari itong i-override ng bawat tao para sa sarili nila sa "
       + "kanilang Account screen.",
+    farmSettingsWorkerSaleAllocation:
+      "Kinokontrol ng <strong>Paglalaan ng benta ng manggagawa</strong> kung saang mga lote ng itlog maaaring "
+      + "kumuha ng stock ang benta ng isang nakatalagang plain Worker kapag nagkukumpirma ng order: "
+      + "nakatalagang kawan lang (default) o lahat ng kawan sa bukid. Ang mga kumpirmasyon ng Owner, Manager, "
+      + "at Sales ay laging farm-wide, anuman ang setting na ito (hindi makakumpirma ng benta ang Read-only).",
 
     farmPaletteHeading: "Paleta ng Bukid",
     farmPaletteIntro:
@@ -2649,6 +2679,10 @@ export const tl = {
     glossaryFifoDef:
       "\"First in, first out\" — palaging kinukuha muna ng benta at ng paggamit ng feed ang pinakalumang "
       + "stock.",
+    glossaryWorkerSaleAllocationTerm: "Paglalaan ng benta ng manggagawa",
+    glossaryWorkerSaleAllocationDef:
+      "Ang setting ng bukid na nagpapasya kung ang kumpirmasyon ng benta ng isang nakatalagang plain Worker "
+      + "ay kukuha lang mula sa kanilang nakatalagang kawan (default) o mula sa buong bukid.",
 
     glossaryCullTerm: "Cull",
     glossaryCullDef: "Mga ibong sadyang inalis sa isang kawan (naibenta, pinatay, ibinigay) — hindi kamatayan.",

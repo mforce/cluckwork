@@ -35,6 +35,16 @@ public sealed class AssignFlockHandler(
         if (target is null)
             return Result.Failure<Guid>(Error.NotFound("User", userId));
 
+        // #612 — a fresh live read, not the JWT-issued caller's own claims and
+        // not ListUsersAsync's raw-string Role: only a plain Worker may be
+        // assigned a flock. Retained rows on an elevated user are inert (the
+        // scope resolver bypasses them); this refuses NEW writes onto one.
+        var targetRole = await identity.GetEffectiveRoleAsync(accountId, userId, ct);
+        if (targetRole != EffectiveAccountRole.Worker)
+            return Result.Failure<Guid>(Error.Validation(
+                "Users.FlockAssignmentsWorkerOnly",
+                "Flock assignments apply only to a plain Worker."));
+
         var flock = await flocks.GetByIdAsync(flockId, ct);
         if (flock is null)
             return Result.Failure<Guid>(Error.NotFound("Flock", flockId));

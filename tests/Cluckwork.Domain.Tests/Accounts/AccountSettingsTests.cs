@@ -22,6 +22,7 @@ public sealed class AccountSettingsTests
         string? dateFormatOverride = null,
         string? timeFormatOverride = null,
         EggUnit defaultStepperUnit = EggUnit.Individual,
+        WorkerSaleAllocationPolicy workerSaleAllocationPolicy = WorkerSaleAllocationPolicy.AssignedFlocksOnly,
         bool financialRowsExist = false) =>
         account.UpdateSettings(
             name ?? account.Name,
@@ -29,7 +30,7 @@ public sealed class AccountSettingsTests
             locale ?? account.Locale,
             currencyCode ?? account.DefaultCurrencyCode,
             unitSystem, firstDayOfWeek, dateFormatOverride, timeFormatOverride,
-            brand: FarmBrands.Default, defaultStepperUnit, financialRowsExist);
+            brand: FarmBrands.Default, defaultStepperUnit, workerSaleAllocationPolicy, financialRowsExist);
 
     [Fact]
     public void UpdateSettings_AppliesTheBlock_AndBumpsVersion()
@@ -190,7 +191,8 @@ public sealed class AccountSettingsTests
         var result = account.UpdateSettings(
             name, timeZoneId, locale, currencyCode,
             UnitSystem.Metric, null, null, null,
-            brand: FarmBrands.Default, defaultStepperUnit: EggUnit.Individual, financialRowsExist: false);
+            brand: FarmBrands.Default, defaultStepperUnit: EggUnit.Individual,
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(expectedCode, result.Error.Code);
@@ -224,7 +226,8 @@ public sealed class AccountSettingsTests
         var result = account.UpdateSettings(
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
             firstDayOfWeek: null, dateFormatOverride: null, timeFormatOverride: null,
-            brand: "forest", defaultStepperUnit: EggUnit.Individual, financialRowsExist: false);
+            brand: "forest", defaultStepperUnit: EggUnit.Individual,
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly, financialRowsExist: false);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("forest", account.Brand);
@@ -242,7 +245,8 @@ public sealed class AccountSettingsTests
 
         var result = account.UpdateSettings(
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
-            null, null, null, brand: submitted, defaultStepperUnit: EggUnit.Individual, financialRowsExist: false);
+            null, null, null, brand: submitted, defaultStepperUnit: EggUnit.Individual,
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly, financialRowsExist: false);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("forest", account.Brand);
@@ -258,7 +262,8 @@ public sealed class AccountSettingsTests
 
         var result = account.UpdateSettings(
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
-            null, null, null, brand: submitted, defaultStepperUnit: EggUnit.Individual, financialRowsExist: false);
+            null, null, null, brand: submitted, defaultStepperUnit: EggUnit.Individual,
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Account.UnknownBrand", result.Error.Code);
@@ -274,12 +279,53 @@ public sealed class AccountSettingsTests
 
         var result = account.UpdateSettings(
             "Renamed", "America/Los_Angeles", "es-MX", "USD", UnitSystem.Imperial,
-            null, null, null, brand: "chartreuse", defaultStepperUnit: EggUnit.Individual, financialRowsExist: false);
+            null, null, null, brand: "chartreuse", defaultStepperUnit: EggUnit.Individual,
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Original", account.Name);
         Assert.Equal("UTC", account.TimeZoneId);
         Assert.Equal(versionBefore, account.Version);
+    }
+
+    // --- worker sale-allocation policy (#612) ------------------------------
+
+    [Fact]
+    public void NewAccount_DefaultsToAssignedFlocksOnly()
+    {
+        var account = UsdFarm();
+        Assert.Equal(WorkerSaleAllocationPolicy.AssignedFlocksOnly, account.WorkerSaleAllocationPolicy);
+    }
+
+    [Fact]
+    public void UpdateSettings_StoresTheWorkerSaleAllocationPolicy_AndBumpsVersion()
+    {
+        var account = UsdFarm();
+        var before = account.Version;
+
+        var result = Update(account, workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AllFarmFlocks);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(WorkerSaleAllocationPolicy.AllFarmFlocks, account.WorkerSaleAllocationPolicy);
+        Assert.Equal(before + 1, account.Version);
+    }
+
+    [Fact]
+    public void UpdateSettings_WithAnUncuratedBrand_LeavesThePolicyUnchanged()
+    {
+        // Same whole-block-under-one-token guard as the brand/currency cases:
+        // a rejected save must not leave a half-applied policy change behind.
+        var account = UsdFarm();
+        Assert.Equal(WorkerSaleAllocationPolicy.AssignedFlocksOnly, account.WorkerSaleAllocationPolicy);
+
+        var result = account.UpdateSettings(
+            account.Name, account.TimeZoneId, account.Locale, account.DefaultCurrencyCode,
+            UnitSystem.Metric, null, null, null, brand: "chartreuse",
+            defaultStepperUnit: EggUnit.Individual,
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AllFarmFlocks, financialRowsExist: false);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(WorkerSaleAllocationPolicy.AssignedFlocksOnly, account.WorkerSaleAllocationPolicy);
     }
 
     [Fact]

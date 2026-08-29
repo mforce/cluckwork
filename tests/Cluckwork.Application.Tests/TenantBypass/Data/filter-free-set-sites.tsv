@@ -50,10 +50,10 @@ src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:128	db.RefreshTokens	b
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:178	db.RefreshTokens	by-hash: refresh-token rotation reads by token hash; the hash is account-scoped by construction.
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:301	db.RefreshTokens	by-hash: same rotation path, second read by token hash.
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1412	db.RefreshTokens	by-user: password change revokes the user's tokens by user id (account-unique).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1567	db.RefreshTokens	by-hash: logout attribution reads the token row by TokenHash == presentedHash (unique, account-scoped by construction); AccountId is in the SELECT projection (to attribute the logout to the right account), not a predicate. Review P1-3 surfaced this as a candidate because the old Contains("AccountId") read the projection as a predicate; the comparison-shape check correctly does not.
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1712	db.RefreshTokens	by-user: revokes all active tokens for a user by user id (account-unique).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1781	db.RefreshTokens	by-hash: revokes by token hash (account-scoped).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1807	db.RefreshTokens	by-hash: checks a minted token's durability by hash (account-scoped).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1589	db.RefreshTokens	by-hash: logout attribution reads the token row by TokenHash == presentedHash (unique, account-scoped by construction); AccountId is in the SELECT projection (to attribute the logout to the right account), not a predicate. Review P1-3 surfaced this as a candidate because the old Contains("AccountId") read the projection as a predicate; the comparison-shape check correctly does not.
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1734	db.RefreshTokens	by-user: revokes all active tokens for a user by user id (account-unique).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1803	db.RefreshTokens	by-hash: revokes by token hash (account-scoped).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1829	db.RefreshTokens	by-hash: checks a minted token's durability by hash (account-scoped).
 src/Cluckwork.Infrastructure/Identity/PersistentStepUpGrantRegistry.cs:53	db.Users	by-id: reads the user's StepUpLogoutEpoch by user id (account-unique) to check the grant is not revoked; #338 shared-state.
 src/Cluckwork.Infrastructure/Identity/PersistentStepUpGrantRegistry.cs:92	db.Users	by-id: records a logout by bumping the user's StepUpLogoutEpoch (account-unique).
 src/Cluckwork.Infrastructure/Identity/PersistentStepUpGrantRegistry.cs:104	db.Users	by-id: checks revocation by the user's StepUpLogoutEpoch (account-unique).
@@ -78,6 +78,8 @@ src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1448	db.UserRoles	scop
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1449	db.Roles	global-reference: role name resolution in ListUsers (AspNetRoles is farm-wide reference data).
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1493	db.UserRoles	scoped-by-account: GetUser loads the user's roles; the method takes accountId and the user lookup is scoped to it.
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1494	db.Roles	global-reference: role name resolution in GetUser (AspNetRoles is farm-wide reference data).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1519	db.UserRoles	scoped-by-account: GetEffectiveRoleAsync (#612) loads the user's roles; the method takes accountId and has already confirmed the user is an ACTIVE member of it via a preceding db.Users AnyAsync(u.Id == userId && u.AccountId == accountId && u.DisabledAt == null) check.
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1520	db.Roles	global-reference: role name resolution in GetEffectiveRoleAsync (#612) (AspNetRoles is farm-wide reference data).
 src/Cluckwork.Infrastructure/Jobs/DurableJobWorker.cs:149	db.DurableJobs	non-tenant table: DurableJob has no AccountId column by design (#271 at-most-one-leader lease, single-leader gate); the worker runs with no tenant resolved and polls by status/RunAfter.
 src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs:204	db.Roles	global-reference: dev-only seeder ensures the base role rows exist (AspNetRoles is farm-wide reference data); runs at unresolved tenant by design (#280).
 src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs:457	db.Roles	global-reference: simulation seeder ensures base role rows (AspNetRoles is farm-wide reference data); runs at unresolved tenant by design (#279).

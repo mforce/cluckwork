@@ -161,7 +161,7 @@ describe("UsersPage load", () => {
   // can't reach (a documented false positive). Event-handler error paths, which
   // this file DOES cover, are unaffected.
 
-  it("renders each user's role, a display-name fallback, and a flocks toggle only for workers", async () => {
+  it("renders each user's role, a display-name fallback, and the flocks toggle for every role", async () => {
     await renderReady(ADMIN);
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
@@ -172,8 +172,10 @@ describe("UsersPage load", () => {
     const adminRow = screen.getByRole("row", { name: /boss@farm.test/ });
     expect(within(adminRow).getByText("Admin")).toBeInTheDocument();
     expect(within(adminRow).getByText("—")).toBeInTheDocument(); // null displayName
-    // Flock scoping is a worker-only affordance — admins never narrow.
-    expect(within(adminRow).queryByRole("button", { name: "flocks" })).not.toBeInTheDocument();
+    // #612 — shown for every role now, not just Worker: a promoted user's
+    // RETAINED assignment rows must stay visible/removable even though a
+    // new assignment onto them is refused.
+    expect(within(adminRow).getByRole("button", { name: "flocks" })).toBeInTheDocument();
   });
 
   // #182, Task 22 — the table's Role cell renders roleLabel(u.role), not the
@@ -1714,6 +1716,39 @@ describe("UsersPage flock scoping", () => {
     const item = within(panel).getByRole("listitem");
     expect(within(item).getByText("Coop A")).toBeInTheDocument();
     expect(within(item).getByRole("button", { name: "remove" })).toBeInTheDocument();
+  });
+
+  // #612 — a promoted user keeps their retained rows, inert but still
+  // visible/removable; adding a NEW one is refused server-side, so the add
+  // control is disabled here rather than letting the admin discover that as
+  // a 422.
+  it("shows a promoted user's retained assignment as inactive/removable, with add disabled", async () => {
+    mockListAssignments.mockResolvedValue([ASSIGN_1]);
+    await renderReady(ADMIN);
+
+    const adminRow = screen.getByRole("row", { name: /boss@farm.test/ });
+    await act(async () => {
+      fireEvent.click(within(adminRow).getByRole("button", { name: "flocks" }));
+    });
+
+    const panel = await screen.findByRole("dialog", { name: /Flock access — boss@farm.test/ });
+    expect(within(panel).getByText(
+      /no longer a plain Worker.*have no effect on their access/,
+    )).toBeInTheDocument();
+
+    const item = within(panel).getByRole("listitem");
+    expect(within(item).getByText("Coop A")).toBeInTheDocument();
+    expect(within(item).getByText("(inactive)")).toBeInTheDocument();
+    // Removal stays available regardless of role — same step-up gate as any
+    // other worker's row, not disabled BECAUSE this target is elevated.
+    fillFlockPassword();
+    expect(within(item).getByRole("button", { name: "remove" })).toBeEnabled();
+
+    // Adding a NEW assignment is refused for a non-Worker target — no picker,
+    // no "Assign flock" button, just the explanatory hint.
+    expect(within(panel).queryByRole("combobox")).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: "Assign flock" })).not.toBeInTheDocument();
+    expect(within(panel).getByText("Flock assignments only apply to a plain Worker.")).toBeInTheDocument();
   });
 
   it("shows the empty-assignments hint (account-wide access) and lists only ACTIVE flocks to assign", async () => {

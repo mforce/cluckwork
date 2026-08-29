@@ -19,8 +19,11 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         Guid Id, string Name, string CurrencyCode, int CurrencyMinorUnit, string CurrencySymbol,
         string TimeZoneId, string Locale, string UnitSystem, string? FirstDayOfWeek,
         string? DateFormatOverride, string? TimeFormatOverride, int Version,
-        string? LogoContentHash, string Brand, string DefaultStepperUnit);
-    private sealed record SettingsDto(AccountDto Settings, bool CanChangeCurrency, int LogoMaxUploadBytes);
+        string? LogoContentHash, string Brand, string DefaultStepperUnit,
+        string? BannerContentHash, bool ShowFarmWideSaleAllocationNotice);
+    private sealed record SettingsDto(
+        AccountDto Settings, bool CanChangeCurrency, int LogoMaxUploadBytes,
+        string WorkerSaleAllocationPolicy);
     private sealed record ProblemDto(string? Title);
     private sealed record IdDto(Guid Id);
 
@@ -48,7 +51,8 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         string? name = null, string? timeZoneId = null, string? locale = null,
         string? currencyCode = null, string? unitSystem = null, string? firstDayOfWeek = null,
         string? dateFormatOverride = null, string? timeFormatOverride = null,
-        string? brand = null, string? defaultStepperUnit = null, int? version = null) => new
+        string? brand = null, string? defaultStepperUnit = null,
+        string? workerSaleAllocationPolicy = null, int? version = null) => new
         {
             name = name ?? current.Name,
             timeZoneId = timeZoneId ?? current.TimeZoneId,
@@ -60,6 +64,7 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
             timeFormatOverride = timeFormatOverride ?? current.TimeFormatOverride,
             brand = brand ?? current.Brand,
             defaultStepperUnit = defaultStepperUnit ?? current.DefaultStepperUnit,
+            workerSaleAllocationPolicy = workerSaleAllocationPolicy ?? "AssignedFlocksOnly",
             version = version ?? current.Version
         };
 
@@ -704,6 +709,169 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         // Exactly one of the two, never a blend and never the pre-race default.
         Assert.Contains(after.Brand, new[] { "forest", "terracotta" });
         Assert.Equal(before.Version + 1, after.Version);
+    }
+
+    // --- worker sale-allocation policy (#612) -------------------------------
+
+    [Fact]
+    public async Task WorkerSaleAllocationPolicy_DefaultsToAssignedFlocksOnly()
+    {
+        var (client, _, _) = await AdminAsync();
+
+        var settings = await client.GetFromJsonAsync<SettingsDto>(SettingsPath);
+
+        Assert.Equal("AssignedFlocksOnly", settings!.WorkerSaleAllocationPolicy);
+    }
+
+    [Fact]
+    public async Task WorkerSaleAllocationPolicy_RoundTripsThroughTheSettingsEndpoint()
+    {
+        var (client, _, _) = await AdminAsync();
+        var before = await client.GetFromJsonAsync<SettingsDto>(SettingsPath);
+
+        var response = await PutSettingsAsync(client,
+            Body(before!.Settings, workerSaleAllocationPolicy: "AllFarmFlocks"));
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var after = await client.GetFromJsonAsync<SettingsDto>(SettingsPath);
+        Assert.Equal("AllFarmFlocks", after!.WorkerSaleAllocationPolicy);
+        Assert.Equal(before.Settings.Version + 1, after.Settings.Version);
+    }
+
+    [Fact]
+    public async Task UnknownWorkerSaleAllocationPolicy_Is400()
+    {
+        var (client, _, _) = await AdminAsync();
+        var before = await client.GetFromJsonAsync<SettingsDto>(SettingsPath);
+
+        var response = await PutSettingsAsync(client,
+            Body(before!.Settings, workerSaleAllocationPolicy: "SomethingElse"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("AssignedFlocksOnly",
+            (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.WorkerSaleAllocationPolicy);
+    }
+
+    [Fact]
+    public async Task WorkerSaleAllocationPolicyChange_IsAudited_WithBothSidesOfTheBlock()
+    {
+        var (client, accountId, _) = await AdminAsync();
+        var before = await client.GetFromJsonAsync<SettingsDto>(SettingsPath);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await PutSettingsAsync(
+            client, Body(before!.Settings, workerSaleAllocationPolicy: "AllFarmFlocks"))).StatusCode);
+
+        var details = await factory.WithTenantScopeAsync(accountId, async db =>
+            await db.AuditEvents
+                .Where(e => e.Action == "Account.UpdateSettings")
+                .OrderByDescending(e => e.OccurredAtUtc)
+                .Select(e => e.DetailsJson)
+                .FirstAsync());
+
+        Assert.Contains("\"AssignedFlocksOnly\"", details);
+        Assert.Contains("\"AllFarmFlocks\"", details);
+    }
+
+    [Fact]
+    public async Task ParallelPolicySaves_SameBaseVersion_ExactlyOneWins()
+    {
+        // Same shape as ParallelBrandSaves_SameBaseVersion_ExactlyOneWins: a
+        // policy change now takes the Account FOR UPDATE lock like a currency
+        // change, so this only passes if that lock genuinely serializes the
+        // two writers rather than the in-memory version check alone.
+        var (client, _, _) = await AdminAsync();
+        var before = await client.GetFromJsonAsync<SettingsDto>(SettingsPath);
+
+        var first = PutSettingsAsync(client,
+            Body(before!.Settings, workerSaleAllocationPolicy: "AllFarmFlocks"));
+        var second = PutSettingsAsync(client,
+            Body(before.Settings, name: "Second writer", workerSaleAllocationPolicy: "AllFarmFlocks"));
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.NoContent));
+        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+
+        var after = await client.GetFromJsonAsync<SettingsDto>(SettingsPath);
+        Assert.Equal(before.Settings.Version + 1, after!.Settings.Version);
+    }
+
+    [Fact]
+    public async Task ShowFarmWideSaleAllocationNotice_IsAlwaysFalse_ForAnAdmin()
+    {
+        var (client, _, _) = await AdminAsync();
+        Assert.Equal(HttpStatusCode.NoContent, (await PutSettingsAsync(client,
+            Body((await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings,
+                workerSaleAllocationPolicy: "AllFarmFlocks"))).StatusCode);
+
+        Assert.False((await GetAccountAsync(client)).ShowFarmWideSaleAllocationNotice);
+    }
+
+    [Fact]
+    public async Task ShowFarmWideSaleAllocationNotice_IsFalse_ForAnUnrestrictedWorker_EvenUnderAllFarmFlocks()
+    {
+        var (admin, accountId, _) = await AdminAsync();
+        Assert.Equal(HttpStatusCode.NoContent, (await PutSettingsAsync(
+            admin, Body(await client_SettingsBody(admin), workerSaleAllocationPolicy: "AllFarmFlocks"))).StatusCode);
+
+        var workerEmail = $"w-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, workerEmail, asAdmin: false);
+        var worker = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(workerEmail));
+
+        // No UserRoleAssignment rows at all (grandfathered #73) => Unrestricted.
+        Assert.False((await GetAccountAsync(worker)).ShowFarmWideSaleAllocationNotice);
+    }
+
+    [Fact]
+    public async Task ShowFarmWideSaleAllocationNotice_IsFalse_ForARestrictedWorker_UnderAssignedFlocksOnly()
+    {
+        var (admin, accountId, _) = await AdminAsync();
+
+        var workerEmail = $"w-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, workerEmail, asAdmin: false);
+        var worker = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(workerEmail));
+        await SeedFlockAssignmentAsync(accountId, workerEmail);
+
+        // Default policy — the farm never opted into farm-wide allocation, so
+        // there is nothing for the notice to explain.
+        Assert.False((await GetAccountAsync(worker)).ShowFarmWideSaleAllocationNotice);
+    }
+
+    [Fact]
+    public async Task ShowFarmWideSaleAllocationNotice_IsTrue_ForARestrictedWorker_UnderAllFarmFlocks()
+    {
+        var (admin, accountId, _) = await AdminAsync();
+        Assert.Equal(HttpStatusCode.NoContent, (await PutSettingsAsync(
+            admin, Body(await client_SettingsBody(admin), workerSaleAllocationPolicy: "AllFarmFlocks"))).StatusCode);
+
+        var workerEmail = $"w-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, workerEmail, asAdmin: false);
+        var worker = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(workerEmail));
+        await SeedFlockAssignmentAsync(accountId, workerEmail);
+
+        Assert.True((await GetAccountAsync(worker)).ShowFarmWideSaleAllocationNotice);
+    }
+
+    private async Task<AccountDto> client_SettingsBody(HttpClient client) =>
+        (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.Settings;
+
+    // Direct EF insert rather than the full AssignFlock HTTP flow (step-up
+    // grants, target-role checks) — this slice only needs a live restricted
+    // scope for FlockScope to resolve, same fixture shape FlockScope's own
+    // middleware tests use.
+    private async Task SeedFlockAssignmentAsync(Guid accountId, string email)
+    {
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider
+            .GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<Cluckwork.Infrastructure.Identity.ApplicationUser>>();
+        var user = await users.FindByEmailAsync(email)
+            ?? throw new InvalidOperationException($"No user {email}");
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.UserRoleAssignments.Add(Cluckwork.Domain.Accounts.UserRoleAssignment.Create(
+                Guid.NewGuid(), accountId, user.Id, farmId: null, houseId: null, flockId: Guid.NewGuid()));
+            await db.SaveChangesAsync();
+        });
     }
 
     // --- the point of the whole slice -------------------------------------

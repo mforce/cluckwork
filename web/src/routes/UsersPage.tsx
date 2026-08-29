@@ -702,6 +702,11 @@ export function UsersPage() {
   if (errors.page && users === null) return <section><h2>{t("heading")}</h2><p className="error" role="alert">{errors.page}</p></section>;
   if (users === null) return <section><h2>{t("heading")}</h2><p className="muted">{tc("loading")}</p></section>;
 
+  // #612 — only a plain Worker is ever narrowed by flock assignments; the
+  // flock-access dialog reads this to disable adding a new one and to mark
+  // any retained rows on an elevated user as inactive.
+  const openUserIsWorker = users.find((u) => u.id === openUser)?.role === "Worker";
+
   return (
     <section>
       <div className="page-head">
@@ -795,11 +800,12 @@ export function UsersPage() {
                 <button className="link" onClick={() => openEmail(u)}>
                   <Mail size={14} aria-hidden /> {t("changeEmailButton")}
                 </button>
-                {u.role === "Worker" && (
-                  <button className="link" onClick={() => void openAssignments(u.id)}>
-                    {t("flocksButton")}
-                  </button>
-                )}
+                {/* #612 — shown for every role, not just Worker: a promoted
+                    user keeps their retained rows (inert, but still visible
+                    and removable) even though a NEW assignment is Worker-only. */}
+                <button className="link" onClick={() => void openAssignments(u.id)}>
+                  {t("flocksButton")}
+                </button>
                 {myId !== u.id && (
                   u.disabledAt ? (
                     <button className="link" disabled={busy} onClick={() => openStepUp(u, "enable")}>
@@ -832,13 +838,20 @@ export function UsersPage() {
         <p className="muted">
           {t("flockAccessHint")}
         </p>
+        {/* #612 — only a plain Worker is ever narrowed by these rows; a
+            promoted user's retained rows are inert until (or unless) they
+            are demoted back to Worker. */}
+        {!openUserIsWorker && assignments.length > 0 && (
+          <p className="hint">{t("retainedAssignmentsHint")}</p>
+        )}
         {assignments.length === 0 ? (
           <p className="muted">{t("noAssignmentsMessage")}</p>
         ) : (
           <ul>
             {assignments.map((a) => (
               <li key={a.id}>
-                {flockName(a.flockId)}{" "}
+                {flockName(a.flockId)}
+                {!openUserIsWorker && <span className="muted"> ({t("inactiveAssignmentLabel")})</span>}{" "}
                 <BusyButton className="link" disabled={busy || !flockStepUpPassword}
                   busy={openUser !== null && isPending(`unassign:${openUser}:${a.flockId}`)}
                   onClick={() => void onUnassign(a)}>
@@ -848,21 +861,29 @@ export function UsersPage() {
             ))}
           </ul>
         )}
-        <div className="inline-form">
-          {/* Disabled during any flight: the assign scope embeds the selected
-              flock id, so changing the selection mid-flight would re-point
-              isPending at a scope nobody is running and drop the spinner
-              while the request is still open (#242 review). */}
-          <select value={assignFlockId} disabled={busy}
-            onChange={(e) => setAssignFlockId(e.target.value)}>
-            {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-          <BusyButton disabled={busy || !assignFlockId || !flockStepUpPassword}
-            busy={openUser !== null && isPending(`assign:${openUser}:${assignFlockId}`)}
-            onClick={() => void onAssign()}>
-            {t("assignFlockButton")}
-          </BusyButton>
-        </div>
+        {/* #612 — a live assignment write is refused server-side for a
+            non-Worker target (Users.FlockAssignmentsWorkerOnly); the add
+            control is disabled here rather than letting the user discover
+            that as a 422. Removal above stays available regardless. */}
+        {openUserIsWorker ? (
+          <div className="inline-form">
+            {/* Disabled during any flight: the assign scope embeds the selected
+                flock id, so changing the selection mid-flight would re-point
+                isPending at a scope nobody is running and drop the spinner
+                while the request is still open (#242 review). */}
+            <select value={assignFlockId} disabled={busy}
+              onChange={(e) => setAssignFlockId(e.target.value)}>
+              {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+            <BusyButton disabled={busy || !assignFlockId || !flockStepUpPassword}
+              busy={openUser !== null && isPending(`assign:${openUser}:${assignFlockId}`)}
+              onClick={() => void onAssign()}>
+              {t("assignFlockButton")}
+            </BusyButton>
+          </div>
+        ) : (
+          <p className="hint">{t("assignmentsWorkerOnlyHint")}</p>
+        )}
         <p className="muted">{t("stepUpFlockHint")}</p>
         <label>{t("stepUpFieldLabel")}
           <input type="password" value={flockStepUpPassword} required maxLength={256}
