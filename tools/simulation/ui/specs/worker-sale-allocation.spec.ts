@@ -89,18 +89,36 @@ test.describe("Worker sale allocation (#612)", () => {
       await expect(lineItems.getByRole("row").filter({ hasText: PRODUCT })).toHaveCount(1);
 
       await page.getByRole("button", { name: tEn("sales:confirmOrderButton") }).click();
+
+      // Which branch this spec takes is decided by the confirm RESPONSE, so the
+      // wait is registered before the click that fires it. The previous shape
+      // asked `pageError.isVisible()` immediately after the click — a
+      // non-waiting check that returned false while the 422 was still in
+      // flight, sending the test into the success branch and timing out on
+      // "Expected Confirmed, received '[Draft]'" (CI, line 115).
+      const confirmSettled = page.waitForResponse(
+        (r) => r.url().includes("/api/v1/sales/")
+          && r.url().endsWith("/confirm")
+          && r.request().method() === "POST",
+      );
       await page
         .getByRole("dialog", { name: tEn("sales:confirmOrderTitle") })
         .getByRole("button", { name: tEn("sales:confirmOrderConfirmLabel") })
         .click();
+      const confirmResponse = await confirmSettled;
 
-      const pageError = page.locator("p.error");
-      // #612's whole point: an absurd quantity for a restricted Worker must
-      // NEVER surface the detailed grade/quantity message a non-restricted
-      // caller gets for the identical shortfall.
-      await expect(pageError.filter({ hasText: /unallocated/ })).toHaveCount(0);
-
-      if (await pageError.isVisible()) {
+      if (confirmResponse.ok()) {
+        // The seed somehow covered even this — the order confirmed instead.
+        await expect(page.getByRole("heading", { name: new RegExp(customerName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }))
+          .toContainText(tEn("enums:status.Confirmed"));
+      } else {
+        const pageError = page.locator("p.error");
+        await expect(pageError).toBeVisible();
+        // #612's whole point: an absurd quantity for a restricted Worker must
+        // NEVER surface the detailed grade/quantity message a non-restricted
+        // caller gets for the identical shortfall. Asserted only once the error
+        // has actually rendered — before that the count is trivially 0.
+        await expect(pageError.filter({ hasText: /unallocated/ })).toHaveCount(0);
         const text = await pageError.textContent();
         const genericAssignedOnly = tEn("errors:EggLot.AssignedFlocksInsufficientStock");
         // EggLot.InsufficientStock (the both-insufficient / AllFarmFlocks-
@@ -109,10 +127,6 @@ test.describe("Worker sale allocation (#612)", () => {
         // still renders the server's plain English default text.
         const genericFarmWide = "There is not enough stock available to confirm this sale.";
         expect([genericAssignedOnly, genericFarmWide]).toContain(text?.trim());
-      } else {
-        // The seed somehow covered even this — the order confirmed instead.
-        await expect(page.getByRole("heading", { name: new RegExp(customerName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }))
-          .toContainText(tEn("enums:status.Confirmed"));
       }
     },
   );

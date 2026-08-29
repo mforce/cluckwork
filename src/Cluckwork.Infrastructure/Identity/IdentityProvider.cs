@@ -1504,11 +1504,16 @@ public sealed class IdentityProvider(
     // #612 — a fresh, account-scoped read of the CURRENT effective role, for
     // callers that must re-verify live rather than trust a JWT claim minted
     // earlier in the request (AssignFlockHandler's target-role admission).
+    // A DISABLED user has NO effective role: the account-membership check alone
+    // returned the role of a user disabled after the request passed middleware,
+    // so a request parked on a lock resumed with the authority it held when it
+    // queued. Existence is not authority — the predicate is active membership.
     public async Task<Cluckwork.Domain.Accounts.EffectiveAccountRole?> GetEffectiveRoleAsync(
         Guid accountId, Guid userId, CancellationToken ct = default)
     {
-        var exists = await db.Users.AnyAsync(u => u.Id == userId && u.AccountId == accountId, ct);
-        if (!exists) return null;
+        var isActive = await db.Users.AsNoTracking().AnyAsync(
+            u => u.Id == userId && u.AccountId == accountId && u.DisabledAt == null, ct);
+        if (!isActive) return null;
 
         var roleNames = await (
             from userRole in db.UserRoles

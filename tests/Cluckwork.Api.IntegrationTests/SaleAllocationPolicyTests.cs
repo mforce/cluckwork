@@ -335,6 +335,72 @@ public sealed class SaleAllocationPolicyTests(CluckworkWebApplicationFactory fac
         Assert.Equal("Confirmed", status);
     }
 
+    // Review r3887146493 — the same Account-lock window, but the actor is
+    // DISABLED while parked. GetEffectiveRoleAsync's admission check asked only
+    // whether the user EXISTS in the account, and a disabled user's role rows
+    // survive (only auth is blocked — #355), so step 5's "fresh read" returned
+    // the queued authority and the confirm completed: 200, stock decremented,
+    // order Confirmed, by a caller whose access was revoked before it ran.
+    // Membership is not authority; the predicate is ACTIVE membership.
+    //
+    // Red-before-green: with the DisabledAt == null predicate removed this
+    // fails on the very first assertion with OK instead of Forbidden, and the
+    // snapshot comparison then fails too (10 eggs drawn, status Confirmed).
+    [Fact]
+    public async Task ConfirmSale_ParkedOnTheAccountLock_IsForbidden_WhenTheActorIsDisabledWhileItWaits()
+    {
+        var (accountId, owner, farmId, gradeId, productId) = await SeedFarmAsync();
+        var flockA = await factory.SeedFlockAsync(accountId, farmId);
+        var flockB = await factory.SeedFlockAsync(accountId, farmId);
+        // Deliberately SUFFICIENT on the assigned flock under the default
+        // AssignedFlocksOnly: the only thing that can refuse this confirm is
+        // the actor check, so a 200 here is unambiguously the stale-actor bug
+        // and not a shortfall.
+        var lotA = await SeedLotAsync(accountId, flockA, gradeId, 20, Today.AddDays(-1));
+        var lotB = await SeedLotAsync(accountId, flockB, gradeId, 20, Today);
+
+        var (worker, workerId) = await SeedWorkerAsync(accountId, owner);
+        Assert.Equal(HttpStatusCode.Created, (await AssignFlockAsync(owner, workerId, flockA)).StatusCode);
+        var orderId = await CreateOrderAsync(worker, productId, 10);
+        var before = await SnapshotAsync(accountId, lotA, lotB, orderId);
+
+        // Same fence as the policy race above: an exclusive Account-row lock
+        // standing in for an in-flight settings write, built directly (#269).
+        var tenantA = new TenantContext();
+        tenantA.Resolve(accountId);
+        await using var dbA = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options,
+            tenantA, new FlockScope());
+        await using var transactionA = await dbA.Database.BeginTransactionAsync();
+        await dbA.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM "Accounts" WHERE "Id" = {accountId} FOR UPDATE""");
+        var holderPid = await dbA.BackendPidAsync();
+
+        // The request authenticates BEFORE it parks — this is the window the
+        // fix closes: middleware has already passed, the disable lands after.
+        var confirm = worker.PostWithKeyAsync($"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
+
+        var blocked = await factory.WaitUntilDoneOrBlockedAsync(confirm, holderPid);
+        Assert.True(blocked, "ConfirmSaleHandler must park on the account row's shared lock");
+
+        // Disable from a SEPARATE DbContext, committed while the confirm waits.
+        // It touches AspNetUsers, never Accounts, so it does not queue behind
+        // the fence — the row is committed-disabled before the confirm resumes.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var user = await db.Users.SingleAsync(u => u.Id == workerId);
+            user.DisabledAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+        });
+
+        await transactionA.CommitAsync();
+        var response = await confirm;
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var after = await SnapshotAsync(accountId, lotA, lotB, orderId);
+        Assert.Equal(before, after);
+    }
+
     // --- zero/null assignments: unrestricted regardless of policy -----------
 
     [Fact]
