@@ -78,8 +78,11 @@ public sealed class FlockScopeDiscoveryTests
         Assert.True(conjuncts.Count == 2,
             $"{entity.ClrType.Name}: filter must be exactly tenant AND flock scope.");
 
+        var accountProperty = entity.FindProperty("AccountId");
+        Assert.NotNull(accountProperty);
         var accountConjuncts = conjuncts
-            .Where(expression => IsAccountEquality(expression, parameter, tenant))
+            .Where(expression => IsAccountEquality(
+                expression, parameter, accountProperty, tenant))
             .ToList();
         Assert.True(accountConjuncts.Count == 1,
             $"{entity.ClrType.Name}: filter must contain e.AccountId == tenant.AccountId.");
@@ -88,12 +91,12 @@ public sealed class FlockScopeDiscoveryTests
             conjuncts, expression => expression != accountConjuncts[0]);
         var disjuncts = Flatten(flockConjunct, ExpressionType.OrElse).ToList();
 
-        var flockProperty = entity.ClrType == typeof(Flock)
-            ? null
+        var keyProperty = entity.ClrType == typeof(Flock)
+            ? entity.FindProperty(nameof(Flock.Id))
             : entity.FindProperty(nameof(UserRoleAssignment.FlockId));
-        var keyName = flockProperty is null ? nameof(Flock.Id) : flockProperty.Name;
-        var nullable = flockProperty?.ClrType == typeof(Guid?);
-        Assert.True(flockProperty is null || flockProperty.ClrType == typeof(Guid) || nullable,
+        Assert.NotNull(keyProperty);
+        var nullable = keyProperty.ClrType == typeof(Guid?);
+        Assert.True(keyProperty.ClrType == typeof(Guid) || nullable,
             $"{entity.ClrType.Name}: FlockId must be Guid or nullable Guid.");
 
         var expectedCount = nullable ? 3 : 2;
@@ -102,10 +105,10 @@ public sealed class FlockScopeDiscoveryTests
         Assert.True(disjuncts.Count(expression => IsUnrestricted(expression, flockScope)) == 1,
             $"{entity.ClrType.Name}: filter must contain flockScope.IsUnrestricted exactly once.");
         Assert.True(disjuncts.Count(expression =>
-                IsAssignedContains(expression, parameter, keyName, nullable, flockScope)) == 1,
+                IsAssignedContains(expression, parameter, keyProperty, nullable, flockScope)) == 1,
             $"{entity.ClrType.Name}: filter must test the assigned flock ids exactly once.");
         Assert.True(disjuncts.Count(expression =>
-                IsNullFlock(expression, parameter, keyName)) == (nullable ? 1 : 0),
+                IsNullFlock(expression, parameter, keyProperty)) == (nullable ? 1 : 0),
             nullable
                 ? $"{entity.ClrType.Name}: nullable FlockId must keep the farm-wide null branch."
                 : $"{entity.ClrType.Name}: non-nullable flock keys cannot have a null branch.");
@@ -129,11 +132,12 @@ public sealed class FlockScopeDiscoveryTests
     private static bool IsAccountEquality(
         Expression expression,
         ParameterExpression parameter,
+        IProperty accountProperty,
         TenantContext tenant) =>
         expression is BinaryExpression { NodeType: ExpressionType.Equal } binary
-        && ((IsEntityMember(binary.Left, parameter, "AccountId", nullableValue: false)
+        && ((IsEntityMember(binary.Left, parameter, accountProperty, nullableValue: false)
                 && IsCapturedProperty(binary.Right, nameof(TenantContext.AccountId), tenant))
-            || (IsEntityMember(binary.Right, parameter, "AccountId", nullableValue: false)
+            || (IsEntityMember(binary.Right, parameter, accountProperty, nullableValue: false)
                 && IsCapturedProperty(binary.Left, nameof(TenantContext.AccountId), tenant)));
 
     private static bool IsUnrestricted(Expression expression, FlockScope flockScope) =>
@@ -142,7 +146,7 @@ public sealed class FlockScopeDiscoveryTests
     private static bool IsAssignedContains(
         Expression expression,
         ParameterExpression parameter,
-        string keyName,
+        IProperty keyProperty,
         bool nullable,
         FlockScope flockScope)
     {
@@ -162,40 +166,48 @@ public sealed class FlockScopeDiscoveryTests
 
         return IsCapturedProperty(
                 call.Arguments[0], nameof(FlockScope.AssignedFlockIds), flockScope)
-            && IsEntityMember(call.Arguments[1], parameter, keyName, nullable);
+            && IsEntityMember(call.Arguments[1], parameter, keyProperty, nullable);
     }
 
     private static bool IsNullFlock(
         Expression expression,
         ParameterExpression parameter,
-        string keyName)
+        IProperty keyProperty)
     {
         expression = StripConvert(expression);
         return expression is BinaryExpression { NodeType: ExpressionType.Equal } binary
-            && ((IsEntityMember(binary.Left, parameter, keyName, nullableValue: false)
+            && ((IsEntityMember(binary.Left, parameter, keyProperty, nullableValue: false)
                     && IsNull(binary.Right))
-                || (IsEntityMember(binary.Right, parameter, keyName, nullableValue: false)
+                || (IsEntityMember(binary.Right, parameter, keyProperty, nullableValue: false)
                     && IsNull(binary.Left)));
     }
 
     private static bool IsEntityMember(
         Expression expression,
         ParameterExpression parameter,
-        string memberName,
+        IProperty mappedProperty,
         bool nullableValue)
     {
-        expression = StripConvert(expression);
         if (nullableValue)
         {
-            if (expression is not MemberExpression { Member.Name: "Value" } valueMember)
+            if (expression is not MemberExpression valueMember
+                || valueMember.Member != typeof(Guid?).GetProperty(nameof(Nullable<Guid>.Value))
+                || valueMember.Expression is null)
                 return false;
-            expression = StripConvert(valueMember.Expression!);
+            expression = valueMember.Expression;
         }
 
         return expression is MemberExpression member
-            && member.Member.Name == memberName
-            && ReferenceEquals(StripConvert(member.Expression!), parameter);
+            && (IsSameMember(member.Member, mappedProperty.PropertyInfo)
+                || IsSameMember(member.Member, mappedProperty.FieldInfo))
+            && member.Expression is not null
+            && ReferenceEquals(member.Expression, parameter);
     }
+
+    private static bool IsSameMember(MemberInfo actual, MemberInfo? expected) =>
+        expected is not null
+        && actual.Module.Equals(expected.Module)
+        && actual.MetadataToken == expected.MetadataToken;
 
     private static bool IsCapturedProperty<T>(
         Expression expression,

@@ -96,12 +96,13 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
     public async Task FlockDerivedChildExport_IsAdminOnly(string dataset)
     {
         var (_, accountId, _, _) = await SetupAsync();
-        var workerEmail = $"w-{Guid.NewGuid():N}@test.local";
-        await factory.SeedUserAsync(accountId, workerEmail, asAdmin: false);
-        var worker = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(workerEmail));
+        var salesEmail = $"sales-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(
+            accountId, salesEmail, Cluckwork.Domain.Accounts.Roles.Sales);
+        var sales = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(salesEmail));
 
         Assert.Equal(HttpStatusCode.Forbidden,
-            (await worker.GetAsync($"/api/v1/export/{dataset}")).StatusCode);
+            (await sales.GetAsync($"/api/v1/export/{dataset}")).StatusCode);
     }
 
     [Fact]
