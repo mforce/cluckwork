@@ -76,7 +76,10 @@ unchanged because it is intentional for seeders, one-shot verbs, background jobs
 requests, and `/error` re-execution.
 
 Smallest viable production change: one authenticated-only invalid-`account_id` short-circuit in
-`TenantResolutionMiddleware`; no new abstraction, state, service, schema, endpoint, or frontend surface.
+`TenantResolutionMiddleware`; no new abstraction, state, service, schema, endpoint, or frontend-code
+surface. The response changes from CredentialEpoch's `Auth.CredentialsSuperseded` ProblemDetails to a
+bodiless 401 for this unmintable incomplete external-token state; existing SPA title consumers are
+recorded in the implementer runbook, but require no code or localization change.
 
 Alternatives rejected:
 

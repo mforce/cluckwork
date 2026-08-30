@@ -6,6 +6,7 @@ Closes #616.
 - preserve the existing valid-claim and anonymous health paths
 - add direct middleware regression coverage for both invalid account forms, invalid `sub`, valid Tenant → Flock composition, and anonymous database independence
 - correct the report limiter's now-stale unresolved-tenant comment
+- for an unmintable external token with valid `sub` but missing/malformed `account_id`, deliberately change the 401 from CredentialEpoch's `Auth.CredentialsSuperseded` ProblemDetails to a bodiless response; existing `Login.tsx` and `UsersPage.tsx` problem-title consumers need no code change
 
 ## Verification
 
@@ -15,6 +16,7 @@ Closes #616.
 - focused middleware suite: 8/8
 - full .NET build and test suite: 2080/2080 (361 Domain + 175 Application + 10 AppHost + 1534 API)
 - causal M1–M11 mutation checks, including bare-response and real Tenant→Flock/database-attempt boundaries
+- caller review: CredentialEpoch's pre-fix ProblemDetails fallback and the existing `Login.tsx`/`UsersPage.tsx` title consumers were inspected; no SPA/localization code change is required
 - repository CI gates
 
 The current later credential-epoch gate and tenant query filters already prevent tenant data exposure; this fix closes the earlier fail-open intermediate state and unwanted flock-scope work.
