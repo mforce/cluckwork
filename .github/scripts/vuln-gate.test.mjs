@@ -383,6 +383,13 @@ test("loadExceptions: only a missing file is quiet; unusable files warn and supp
     assert.deepEqual(loadExceptions(path, warn), []);
     assert.deepEqual(warnings, []);
 
+    warnings.length = 0;
+    assert.deepEqual(warnings, []);
+    assert.deepEqual(loadExceptions(dir, warn), []);
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].includes(dir));
+
+    warnings.length = 0;
     writeFileSync(path, "not json", "utf8");
     assert.deepEqual(loadExceptions(path, warn), []);
     assert.equal(warnings.length, 1);
