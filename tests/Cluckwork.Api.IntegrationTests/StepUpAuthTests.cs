@@ -599,9 +599,9 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     }
 
     // Regression: the ordinary case the SPA now sends — cookie and bearer both
-    // present and naming the SAME user. Both paths record a logout for one user;
-    // the registry keeps the latest instant per user, so this is idempotent
-    // rather than double-counted, and revocation still works.
+    // present and naming the SAME user. Both paths advance the durable logout
+    // epoch; a duplicate advance can only over-revoke, and session revocation
+    // still works.
     [Fact]
     public async Task CreateOwner_StepUpRevokedByLogout_WhenCookieAndBearerAreTheSameUser()
     {
@@ -625,11 +625,11 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
 
     // ---------- Bearer logout survives a cookie-path DB failure (PR #336 review) ----------
     //
-    // RevokeRefreshTokenAsync (the cookie path) hits the database and can
-    // throw — a transient outage being the realistic case. RecordLogoutAsync
-    // (the bearer path) is in-memory and does not. Before AuthEndpoints.Logout
-    // recorded the bearer FIRST, a throw from the cookie path skipped the
-    // bearer recording entirely: the caller's outstanding step-up grant
+    // RevokeRefreshTokenAsync (the cookie path) and RecordLogoutAsync (the
+    // bearer path) both hit the database and can throw. Before
+    // AuthEndpoints.Logout recorded the bearer FIRST, a throw from the cookie
+    // path skipped the bearer recording entirely: the caller's outstanding
+    // step-up grant
     // stayed valid, so a captured access token + grant could still perform
     // the privileged operation after the user had logged out, any time
     // before the grant's own short expiry, if the database recovered first.
