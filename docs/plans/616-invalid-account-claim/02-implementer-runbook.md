@@ -696,9 +696,9 @@ G1, and rerunning the named test GREEN before the next row.
 
 | # | Kind | Exact mutation | Named test | Expected RED | Restored result |
 |---|---|---|---|---|---|
-| M8 | isolated layer, missing account reaches Flock | Replace the protected condition with the exact M8 line below | `AuthenticatedRequest_InvalidAccountId_DoesNotReachFlockDatabase` | only `accountId: null` fails: expected `(401, 0, False, False, False, False)`, actual `(200, 0, False, True, False, True)`; malformed row passes | implementer fills |
-| M9 | isolated layer, malformed account reaches Flock | Replace the protected condition with the exact M9 line below | same theory | only `accountId: "not-a-guid"` fails with the same tuple; null row passes | implementer fills |
-| M10 | guard response becomes non-bare | After the protected 401 assignment, insert the exact M10 block below | both direct missing/malformed rejection tests | both fail: expected suffix `(0, null)`, actual `(2, "application/problem+json")`; status/downstream/context fields remain correct | implementer fills |
+| M8 | isolated layer, missing account reaches Flock | Replace the protected condition with the exact M8 line below | `AuthenticatedRequest_InvalidAccountId_DoesNotReachFlockDatabase` | only `accountId: null` fails: expected `(401, 0, False, False, False, False)`, actual `(200, 0, False, True, False, True)`; malformed row passes | RED observed exactly: 1 failed / 1 passed; only null row actual (200, 0, False, True, False, True). Exact condition restored; G1 0 warnings/errors; theory GREEN 2/2. |
+| M9 | isolated layer, malformed account reaches Flock | Replace the protected condition with the exact M9 line below | same theory | only `accountId: "not-a-guid"` fails with the same tuple; null row passes | RED observed exactly: 1 failed / 1 passed; only not-a-guid row actual (200, 0, False, True, False, True). Exact condition restored; G1 0 warnings/errors; theory GREEN 2/2. |
+| M10 | guard response becomes non-bare | After the protected 401 assignment, insert the exact M10 block below | both direct missing/malformed rejection tests | both fail: expected suffix `(0, null)`, actual `(2, "application/problem+json")`; status/downstream/context fields remain correct | RED observed exactly: 2 failed / 0 passed; both actual suffix (2, "application/problem+json"). Exact block removed; G1 0 warnings/errors; direct tests GREEN 2/2. |
 
 M8 exact replacement line:
 
