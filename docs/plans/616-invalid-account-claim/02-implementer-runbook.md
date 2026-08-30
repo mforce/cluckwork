@@ -435,21 +435,23 @@ separate excluded classes, while malformed values are unbounded. `sub` preserves
 missing/malformed boundary. The valid and anonymous tests pass before the new guard and are explicitly
 exempt from Step 1a's RED requirement; M3/M4 prove they are non-vacuous.
 
-M1–M7 exact 4-tuple outputs were initially observed at `1415f9f372e4cd8ca94d9944fa6cdd2f69fe461a`,
-before `f545b0d` extended `InvokeTenantAsync` from 4 to 6 tuple elements. The driver independently
-replayed M1/M2/M5/M6 against final-harness head `045501917f2e4d0013218d8846afb2ad6c23f623`; they retain
-the identical first-four discriminator and add expected/actual suffix `(0, null)`. M3/M4/M7 were not
-rerun on `045501917f2e4d0013218d8846afb2ad6c23f623`.
+Only M1/M2/M5/M6 exact 4-tuple outputs were initially observed at
+`1415f9f372e4cd8ca94d9944fa6cdd2f69fe461a`, before `f545b0d` extended `InvokeTenantAsync` from 4 to 6
+tuple elements; M3/M4/M7 used status/invocation/order assertions. The driver independently replayed
+M1/M2/M5/M6 against final-harness head `045501917f2e4d0013218d8846afb2ad6c23f623`; they retain the
+identical first-four discriminator and add expected/actual suffix `(0, null)`. Their sources were
+unchanged at `2f6a57aeaad6c5d1d4507c772dd9defbf9cf589c`, where the driver independently replayed M3/M4/M7.
+Together those final-harness replays cover M1–M7 without claiming they all ran at one head.
 
 | # | Kind | Exact mutation | Supplied elsewhere? | Named test | Expected result + failure | Rebuild command run | Observed failure |
 |---|---|---|---|---|---|---|---|
 | M1 | guard, missing account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is { Value: var accountIdClaim } && !Guid.TryParse(accountIdClaim, out _)) // MUTANT M1: admit missing account_id` | n/a, replacement | `AuthenticatedRequest_MissingAccountId_IsRejectedBeforeDownstream` | RED: expected `(401, 0, False, False, 0, null)`, actual `(200, 1, False, True, 0, null)`; malformed remains rejected | final-harness driver replayed clean G1, then named test GREEN 1/1 after restore | exact six-element tuple RED; failed 1, passed 0 |
 | M2 | guard, malformed account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is null) // MUTANT M2: admit malformed account_id` | n/a | `AuthenticatedRequest_MalformedAccountId_IsRejectedBeforeDownstream` | RED: expected `(401, 0, False, False, 0, null)`, actual `(200, 1, False, True, 0, null)`; missing remains rejected | final-harness driver replayed clean G1, then named test GREEN 1/1 after restore | exact six-element tuple RED; failed 1, passed 0 |
-| M3 | guard, valid included | Replace the protected condition with `if (context.User.Identity?.IsAuthenticated == true && (!Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _) \|\| Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _))) // MUTANT M3: reject every authenticated account claim` | n/a | `AuthenticatedRequest_ValidClaims_ResolvesScopesAndContinues` | RED: status expected 200, actual 401 (and final invocation remains 0) | driver replayed G1, then named test GREEN 1/1 after restore | exact status RED: expected 200, actual 401 |
-| M4 | guard, anonymous excluded | Replace the full two-line protected condition with the exact M4 block below | n/a | `AnonymousHealthRequest_RemainsUnresolvedAndDoesNotQueryDatabase` | RED: status expected 200, actual 401; final invocation expected 1, actual 0 | driver replayed G1, then named test GREEN 1/1 after restore | exact status RED: expected 200, actual 401 |
+| M3 | guard, valid included | Replace the protected condition with `if (context.User.Identity?.IsAuthenticated == true && (!Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _) \|\| Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _))) // MUTANT M3: reject every authenticated account claim` | n/a | `AuthenticatedRequest_ValidClaims_ResolvesScopesAndContinues` | RED: Expected 200, Actual 401; final invocation remains 0 | exact condition restored; clean G1 0 warnings/errors; named test GREEN 1/1 | RED observed exactly: failed 1, passed 0 |
+| M4 | guard, anonymous excluded | Replace the full two-line protected condition with the exact M4 block below | n/a | `AnonymousHealthRequest_RemainsUnresolvedAndDoesNotQueryDatabase` | RED: Expected 200, Actual 401; final invocation expected 1, actual 0 | exact condition restored; clean G1 0 warnings/errors; named test GREEN 1/1 | RED observed exactly: failed 1, passed 0 |
 | M5 | guard, missing sub | Apply exact M5 block below in the invalid-`sub` `else` | n/a | theory row `sub: null` | only `sub: null` RED: expected `(401, 0, True, False, 0, null)`, actual `(200, 1, True, False, 0, null)`; `not-a-guid` remains green | final-harness driver replayed clean G1, then theory GREEN 2/2 after restore | exact six-element tuple RED for `null`; failed 1, passed 1 |
 | M6 | guard, malformed sub | Apply exact M6 block below in the invalid-`sub` `else` | n/a | theory row `sub: "not-a-guid"` | only `sub: "not-a-guid"` RED: expected `(401, 0, True, False, 0, null)`, actual `(200, 1, True, False, 0, null)`; `null` remains green | final-harness driver replayed clean G1, then theory GREEN 2/2 after restore | exact six-element tuple RED for `not-a-guid`; failed 1, passed 1 |
-| M7 | guard, middleware order | In `Program.cs`, apply the exact M7 replacement below; preserve the #388 comment | n/a | `CredentialEpochMiddlewareOrderTests.Program_PinsTheCompleteCredentialGateSequence` | RED: expected order has Tenant then Flock; actual has Flock then Tenant | driver replayed G1, then order guard GREEN 1/1 after restore | exact collection-order RED at position 2; failed 1, passed 0 |
+| M7 | guard, middleware order | In `Program.cs`, apply the exact M7 replacement below; preserve the #388 comment | n/a | `CredentialEpochMiddlewareOrderTests.Program_PinsTheCompleteCredentialGateSequence` | RED: exact collection mismatch at position 2: expected Tenant then Flock, actual Flock then Tenant | exact replacement restored; clean G1 0 warnings/errors; order guard GREEN 1/1 | RED observed exactly: failed 1, passed 0 |
 
 Exact M4 replacement:
 
