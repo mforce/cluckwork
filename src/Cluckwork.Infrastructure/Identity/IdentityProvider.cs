@@ -1546,7 +1546,7 @@ public sealed class IdentityProvider(
     private static string Describe(IdentityResult result) =>
         string.Join(" ", result.Errors.Select(e => e.Description));
 
-    public async Task RevokeRefreshTokenAsync(
+    public async Task<RefreshTokenRevocationOutcome> RevokeRefreshTokenAsync(
         string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null)
     {
         // Bulk conditional update, not a tracked read-modify-save: the #176 xmin
@@ -1555,6 +1555,7 @@ public sealed class IdentityProvider(
         var presentedHash = Hash(refreshToken);
         var now = timeProvider.GetUtcNow();
         Guid? ownerId = null;
+        var outcome = RefreshTokenRevocationOutcome.OutOfScope;
 
         // #273 codex review (round 2, P2c) — the failure boundary covers the
         // owner LOOKUP as well as the update. The lookup is a prerequisite of
@@ -1602,6 +1603,8 @@ public sealed class IdentityProvider(
                 return;
 
             ownerId = tokenRow?.UserId;
+            if (tokenRow is not null)
+                outcome = RefreshTokenRevocationOutcome.InScope;
 
             // #336 review (2nd round) — record BEFORE the bulk update, not after.
             // Since #338 RecordLogoutAsync advances the durable StepUpLogoutEpoch
@@ -1623,6 +1626,8 @@ public sealed class IdentityProvider(
 
             await RevokeByHashCoreAsync(presentedHash, now, ct);
         });
+
+        return outcome;
     }
 
     // #336 review — the access-token half of logout revocation. The cookie owner

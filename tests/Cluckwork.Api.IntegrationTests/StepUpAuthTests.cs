@@ -649,7 +649,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         public Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null) =>
             inner.RefreshAsync(refreshToken, ct, expectedAccountId);
 
-        public Task RevokeRefreshTokenAsync(
+        public Task<RefreshTokenRevocationOutcome> RevokeRefreshTokenAsync(
             string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null) =>
             throw new InvalidOperationException(
                 "Simulated transient DB outage (#336 review regression test).");

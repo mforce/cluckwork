@@ -558,12 +558,11 @@ public static class AuthEndpoints
     // #532 — the account header selects this tab's per-farm cookie. When it is
     // absent, the bearer account_id claim is the fallback. With neither, clear
     // no per-farm cookie; logout remains idempotent and never sweeps another
-    // farm's named session. The temporary legacy cookie is different: its old
-    // shared name cannot select a farm. With no selected farm it is the only
-    // presented session and is revoked unconditionally. Alongside a selected
-    // farm it may belong to another farm from a pre-deploy tab, so its durable
-    // owner must match the selection before it is revoked. The browser copy is
-    // still cleared because the legacy name is being drained.
+    // farm's named session. The temporary legacy cookie is unambiguous only
+    // when it is the sole presented refresh session. Alongside a selected farm,
+    // its durable owner must match that farm before it is revoked or cleared.
+    // With no selector and any named farm cookie present, infer nothing and
+    // preserve every session (RefreshAccountBindingTests, #569/#570).
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IIdentityProvider identity,
         ICurrentUser currentUser, IWebHostEnvironment env, CancellationToken ct)
@@ -599,23 +598,36 @@ public static class AuthEndpoints
             ? AuthCookies.ReadRefreshCookie(request, selectedAccount)
             : null;
         var legacyRefreshToken = AuthCookies.ReadLegacyRefreshCookie(request);
+        var legacyIsOnlyPresentedSession = accountId is null
+            && legacyRefreshToken is not null
+            && AuthCookies.RefreshCookieAccounts(request).Count == 0;
+        var legacyMatchesSelected = legacyRefreshToken is not null
+            && string.Equals(legacyRefreshToken, selectedRefreshToken, StringComparison.Ordinal);
+        var clearLegacyCookie = legacyIsOnlyPresentedSession || legacyMatchesSelected;
 
-        // Revoke every in-scope credential before clearing either browser copy.
+        // Revoke every attributable credential before clearing its browser copy.
         // If the database operation fails, Logout fails loudly and a retry can
-        // safely repeat the idempotent revocations. Comparing the two values is
-        // only a cost optimisation: when the same token temporarily appears
-        // under both names, one idempotent revoke is enough. Both cookies are
-        // still deleted below.
+        // safely repeat the idempotent revocations. When the same token appears
+        // under both names, revoke once and clear both names. A distinct legacy
+        // cookie is cleared only after the provider's durable owner lookup says
+        // it belongs to the selected farm (RefreshAccountBindingTests, #569).
         if (selectedRefreshToken is not null)
             await identity.RevokeRefreshTokenAsync(selectedRefreshToken, ct);
-        if (legacyRefreshToken is not null
-            && !string.Equals(legacyRefreshToken, selectedRefreshToken, StringComparison.Ordinal))
-            await identity.RevokeRefreshTokenAsync(legacyRefreshToken, ct, accountId);
+        if (legacyRefreshToken is not null && !legacyMatchesSelected)
+        {
+            if (legacyIsOnlyPresentedSession)
+                await identity.RevokeRefreshTokenAsync(legacyRefreshToken, ct);
+            else if (accountId is not null)
+            {
+                var legacyOutcome = await identity.RevokeRefreshTokenAsync(legacyRefreshToken, ct, accountId);
+                clearLegacyCookie = legacyOutcome == RefreshTokenRevocationOutcome.InScope;
+            }
+        }
 
         var secure = CookieSecure(env);
         if (accountId is { } account)
             AuthCookies.ClearRefreshCookie(response, account, secure);
-        if (legacyRefreshToken is not null)
+        if (clearLegacyCookie)
             AuthCookies.ClearLegacyRefreshCookie(response, secure);
         return Results.NoContent();
     }
