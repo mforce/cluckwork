@@ -18,7 +18,7 @@
 //   dotnet list package --vulnerable --include-transitive --format json --output-version 1 \
 //     | node .github/scripts/vuln-gate.mjs --ecosystem nuget
 //
-// Flags: --level <low|moderate|high|critical>  (default high — blocks at or above)
+// Flags: --level <info|low|moderate|high|critical>  (default high — blocks at or above)
 //        --warn-only                           (report, always exit 0)
 //        --exceptions <path>                   (default .github/security-exceptions.json)
 //        --emit-allowlist                      (print live GHSA ids for dependency-review)
@@ -41,6 +41,12 @@ const ONE_DAY_MS = 86_400_000;
 export function severityRank(severity) {
   const i = SEVERITIES.indexOf(String(severity ?? "").toLowerCase());
   return i < 0 ? UNKNOWN_RANK : i;
+}
+
+export function levelProblem(level) {
+  return SEVERITIES.includes(String(level ?? "").toLowerCase())
+    ? null
+    : `--level must be one of ${SEVERITIES.join(", ")}`;
 }
 
 // Both ecosystems point their advisory URLs at GitHub Security Advisories, so a
@@ -172,14 +178,24 @@ function isLive(exception, now) {
   return Number.isFinite(dayStart) && now.getTime() < dayStart + ONE_DAY_MS;
 }
 
+function scopeOf(exception) {
+  return String(exception.ecosystem ?? "").toLowerCase();
+}
+
+function inScope(exception, ecosystem) {
+  const scope = scopeOf(exception);
+  return scope === "any" || scope === String(ecosystem).toLowerCase();
+}
+
 function matches(exception, finding, ecosystem) {
-  const scope = String(exception.ecosystem).toLowerCase();
-  if (scope !== "any" && scope !== ecosystem) return false;
+  if (!inScope(exception, ecosystem)) return false;
   return canonicalGhsa(exception.id) === finding.id;
 }
 
 export function gate({ findings, exceptions = [], ecosystem, level = "high", now = new Date() }) {
-  const floor = severityRank(level);
+  const problem = levelProblem(level);
+  if (problem) throw new Error(problem);
+  const floor = SEVERITIES.indexOf(String(level).toLowerCase());
   const atOrAbove = findings.filter((f) => severityRank(f.severity) >= floor);
 
   const valid = exceptions.filter(isValidException);
@@ -187,8 +203,6 @@ export function gate({ findings, exceptions = [], ecosystem, level = "high", now
   const invalidExceptions = exceptions
     .filter((e) => !isValidException(e))
     .map((e) => ({ raw: e, problem: exceptionProblem(e) }));
-
-  const inScope = (e) => e.ecosystem === "any" || e.ecosystem.toLowerCase() === ecosystem;
 
   const suppressed = [];
   const blocking = [];
@@ -200,7 +214,7 @@ export function gate({ findings, exceptions = [], ecosystem, level = "high", now
 
   // Valid, in-scope, but past its window — surfaced so a lapsed entry gets
   // deleted instead of lingering as dead config.
-  const staleExceptions = valid.filter((e) => inScope(e) && !isLive(e, now));
+  const staleExceptions = valid.filter((e) => inScope(e, ecosystem) && !isLive(e, now));
 
   return {
     blocking,
@@ -295,12 +309,23 @@ async function readStdin() {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function loadExceptions(path) {
+export function loadExceptions(path, warn = console.error) {
+  let parsed;
   try {
-    return JSON.parse(readFileSync(path, "utf8")).exceptions ?? [];
-  } catch {
-    return []; // no file → empty allowlist, the normal case
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch (err) {
+    if (err?.code === "ENOENT") return []; // no file → empty allowlist, the normal case
+    warn(`::warning::could not load security exceptions from ${path}: ${err.message}`);
+    return [];
   }
+
+  const exceptions = parsed?.exceptions;
+  if (exceptions === undefined || exceptions === null) return [];
+  if (!Array.isArray(exceptions)) {
+    warn(`::warning::security exceptions from ${path} must contain an exceptions array`);
+    return [];
+  }
+  return exceptions;
 }
 
 async function main() {
@@ -315,6 +340,13 @@ async function main() {
 
   if (options.ecosystem !== "npm" && options.ecosystem !== "nuget") {
     console.error("usage: vuln-gate.mjs --ecosystem npm|nuget [--level high] [--warn-only]");
+    process.exitCode = 2;
+    return;
+  }
+
+  const problem = levelProblem(options.level);
+  if (problem) {
+    console.error(`usage: vuln-gate.mjs --ecosystem npm|nuget [--level info|low|moderate|high|critical] [--warn-only] — ${problem}`);
     process.exitCode = 2;
     return;
   }
