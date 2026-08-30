@@ -58,6 +58,12 @@ History, …), so a worker leads with Daily entry and a ReadOnly viewer, who has
 neither production nor sales, leads with Stock. Both navs are built from one
 model, so the role gates cannot drift between them.
 
+**Page loading** — the brief **Loading…** state that may appear the first time
+a screen opens in the current app version. Only the content pane waits; the
+sidebar or bottom navigation stays available. The message disappears when the
+screen is ready, and a failed page chunk uses the existing **"Something went
+wrong" screen** instead of blanking the app.
+
 **"Something went wrong" screen** — the error-boundary fallback. If a screen
 throws while rendering, the app catches it and shows this — a short message,
 **Reload**, and **Back to the dashboard** — instead of unmounting to a blank
