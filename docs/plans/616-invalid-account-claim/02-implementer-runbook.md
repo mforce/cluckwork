@@ -8,7 +8,7 @@ The branch and planning artifacts already exist; implement, verify, commit, push
 
 - Transcribe the exact code blocks verbatim. The production block marked **PROTECTED** is
   correctness-critical: transcribe it or stop; never repair, reformat, rename, or improve it. After the
-  committed GREEN, the exact temporary M1–M4 edits are the sole exception, authorized only as mutation
+  committed GREEN, the exact temporary M1–M10 edits are the sole exception, authorized only as mutation
   checks; each must be restored byte-for-byte before any following row or gate.
 - Run commands exactly as written. An expected RED is clean only when the named tests reach the named
   assertion and show the stable tuple discriminator recorded below. Any compile, discovery, runner,
@@ -74,7 +74,7 @@ Generated/historical `graphify-out/` matches are inventory only and must not be 
 
 | Increment | Contract changed | Every production caller | What each does at this commit | Same-commit or later? | Phase 11 observation |
 |---|---|---|---|---|---|
-| 1 | `TenantResolutionMiddleware.InvokeAsync`: authenticated HTTP principals now require parseable `account_id` before tenant/user/flock resolution | `Program.cs` request pipeline; downstream middleware/endpoints via `next`; direct middleware test harnesses | Ordinary authenticated requests reject missing/malformed account claims with 401 before `next`; valid principals and anonymous requests preserve existing behavior. Login/refresh have their principal erased by `AmbientPrincipalMiddleware` before this middleware and remain anonymous here. | Same commit; no signature change or caller edit | Driver fills after replaying focused tests, order guard, and full suite against the commit |
+| 1 | `TenantResolutionMiddleware.InvokeAsync`: authenticated HTTP principals now require parseable `account_id` before tenant/user/flock resolution | `Program.cs` request pipeline; downstream middleware/endpoints via `next`; direct middleware test harnesses | Ordinary authenticated requests reject missing/malformed account claims with 401 before `next`; valid principals and anonymous requests preserve existing behavior. Login/refresh have their principal erased by `AmbientPrincipalMiddleware` before this middleware and remain anonymous here. | Same commit; no signature change or caller edit | driver observed focused 8/8, middleware-order guard green, full 2080/2080 = 361 Domain + 175 Application + 10 AppHost + 1534 API at `f545b0d`, including valid/anonymous/login-refresh preservation |
 
 ## Environment expectations
 
@@ -97,7 +97,7 @@ different local command is equivalent.
 | ID | Gate | Source | Command, verbatim | Baseline on base SHA | Clean looks like |
 |---|---|---|---|---|---|
 | G1 | build | `ci.yml`, Build and test / Build | `dotnet build Cluckwork.sln --configuration Release --no-restore` | driver clean: 0 warnings, 0 errors | `Build succeeded.`; 0 warnings/errors |
-| G2 | full test | `ci.yml`, Build and test / Test | `dotnet test Cluckwork.sln --configuration Release --no-build --verbosity normal` | driver clean: 2072/2072 | all four summaries `Failed: 0`; new total 2078 |
+| G2 | full test | `ci.yml`, Build and test / Test | `dotnet test Cluckwork.sln --configuration Release --no-build --verbosity normal` | driver clean: 2072/2072 | all four summaries `Failed: 0`; new total 2080 |
 | G3 | locked restore | `ci.yml`, Build and test / Restore dependencies | `dotnet restore Cluckwork.sln --locked-mode` | CI-attested on `1690db...`, run `33323952884` | exit 0 |
 | G4 | NuGet vulnerability gate | `ci.yml`, Build and test / Audit NuGet dependencies | exact block G4 below | CI-attested on `1690db...`, run `33323952884` | exit 0, no unexcepted high+ advisory |
 | G5 | schema docs | `ci.yml`, Build and test / Verify schema docs | `tools/schema-docs/generate.sh --check` | CI-attested on `1690db...`, run `33323952884` | exit 0, no generated diff |
@@ -434,6 +434,11 @@ excluded). `account_id` is open-valued: valid is included; missing and literal `
 separate excluded classes, while malformed values are unbounded. `sub` preserves its existing valid vs
 missing/malformed boundary. The valid and anonymous tests pass before the new guard and are explicitly
 exempt from Step 1a's RED requirement; M3/M4 prove they are non-vacuous.
+
+M1–M7 exact outputs were observed at `1415f9f372e4cd8ca94d9944fa6cdd2f69fe461a`, before `f545b0d`
+extended `InvokeTenantAsync` from 4 to 6 tuple elements; on current head M1/M2/M5/M6 retain the identical
+first-four discriminator and add expected/actual suffix `(0, null)`. This historical tuple evidence was
+not rerun on the final head.
 
 | # | Kind | Exact mutation | Supplied elsewhere? | Named test | Expected result + failure | Rebuild command run | Observed failure |
 |---|---|---|---|---|---|---|---|
