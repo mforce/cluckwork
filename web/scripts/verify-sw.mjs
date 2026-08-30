@@ -14,7 +14,7 @@
 //
 // Usage: node scripts/verify-sw.mjs [dist]
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const dist = process.argv[2] ?? "dist";
@@ -78,6 +78,36 @@ function extractDenylist(source) {
   return { patterns, raw: source.slice(at) };
 }
 
+function extractPrecacheUrls(source) {
+  const marker = "precacheAndRoute(";
+  const callAt = source.indexOf(marker);
+  if (callAt < 0) return null;
+
+  let start = callAt + marker.length;
+  while (/\s/.test(source[start] ?? "")) start++;
+  if (source[start] !== "[") return null;
+
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  for (let i = start; i < source.length; i++) {
+    const c = source[i];
+    if (quote !== null) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === quote) quote = null;
+      continue;
+    }
+    if (c === "\"" || c === "'") { quote = c; continue; }
+    if (c === "[") depth++;
+    if (c === "]" && --depth === 0) {
+      const raw = source.slice(start, i + 1);
+      return [...raw.matchAll(/url:"([^"]+)"/g)].map(([, url]) => url);
+    }
+  }
+  return null;
+}
+
 if (!existsSync(swPath)) {
   console.error(`::error::${swPath} not found — run \`vite build\` first.`);
   process.exit(2);
@@ -111,11 +141,22 @@ check(!/registerRoute\((?!.*NavigationRoute)/.test(sw.replace(/\s+/g, " ")) ||
       !/new\s+(?:workbox_strategies|\w+)\.(NetworkFirst|CacheFirst|StaleWhileRevalidate|CacheOnly)/.test(sw),
   "a runtime caching strategy was added — API responses could be served from cache");
 
-// 3. Nothing resembling an API URL may be in the precache manifest.
-const precached = [...sw.matchAll(/url:"([^"]+)"/g)].map(([, u]) => u);
-const apiish = precached.filter((u) => /(^|\/)api(\/|$)/i.test(u));
+// 3. Nothing resembling an API URL may be in the precache manifest, and every
+// emitted JavaScript asset must be listed by Workbox's actual precache call.
+const extractedPrecache = extractPrecacheUrls(sw);
+check(extractedPrecache !== null, "no usable precacheAndRoute array found in the generated worker");
+const precached = extractedPrecache ?? [];
+const normalizedPrecache = new Set(precached.map((url) => url.replace(/^\.?\//, "")));
+const emittedJs = readdirSync(join(dist, "assets"), { withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith(".js"))
+  .map((entry) => `assets/${entry.name}`)
+  .sort();
+const missingJs = emittedJs.filter((asset) => !normalizedPrecache.has(asset));
+
+const apiish = precached.filter((url) => /(^|\/)api(\/|$)/i.test(url));
 check(apiish.length === 0, `API paths found in the precache manifest: ${apiish.join(", ")}`);
 check(precached.length > 0, "precache manifest is empty — the app shell would not be cached at all");
+check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missingJs.join(", ")}`);
 
 if (failures.length) {
   for (const f of failures) console.error(`::error::[service worker] ${f}`);
@@ -125,5 +166,6 @@ if (failures.length) {
 
 console.log(
   `[service worker] ${swPath}: /api and /health excluded from the navigation fallback, ` +
-  `no runtime caching strategy, ${precached.length} shell entries precached and no API path among them.`,
+  `no runtime caching strategy, ${precached.length} shell entries precached, ` +
+  `${emittedJs.length} JavaScript assets verified and no API path among them.`,
 );
