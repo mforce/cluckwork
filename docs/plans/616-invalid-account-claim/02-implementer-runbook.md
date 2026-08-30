@@ -8,7 +8,7 @@ The branch and planning artifacts already exist; implement, verify, commit, push
 
 - Transcribe the exact code blocks verbatim. The production block marked **PROTECTED** is
   correctness-critical: transcribe it or stop; never repair, reformat, rename, or improve it. After the
-  committed GREEN, the exact temporary M1–M10 edits are the sole exception, authorized only as mutation
+  committed GREEN, the exact temporary M1–M11 edits are the sole exception, authorized only as mutation
   checks; each must be restored byte-for-byte before any following row or gate.
 - Run commands exactly as written. An expected RED is clean only when the named tests reach the named
   assertion and show the stable tuple discriminator recorded below. Any compile, discovery, runner,
@@ -97,7 +97,7 @@ different local command is equivalent.
 | ID | Gate | Source | Command, verbatim | Baseline on base SHA | Clean looks like |
 |---|---|---|---|---|---|
 | G1 | build | `ci.yml`, Build and test / Build | `dotnet build Cluckwork.sln --configuration Release --no-restore` | driver clean: 0 warnings, 0 errors | `Build succeeded.`; 0 warnings/errors |
-| G2 | full test | `ci.yml`, Build and test / Test | `dotnet test Cluckwork.sln --configuration Release --no-build --verbosity normal` | driver clean: 2072/2072 | all four summaries `Failed: 0`; new total 2080 |
+| G2 | full test | `ci.yml`, Build and test / Test | `dotnet test Cluckwork.sln --configuration Release --no-build --verbosity normal` | driver clean: 2072/2072 | all four summaries `Failed: 0`; 2078 after Increment 1, 2080 after Increment 2/final |
 | G3 | locked restore | `ci.yml`, Build and test / Restore dependencies | `dotnet restore Cluckwork.sln --locked-mode` | CI-attested on `1690db...`, run `33323952884` | exit 0 |
 | G4 | NuGet vulnerability gate | `ci.yml`, Build and test / Audit NuGet dependencies | exact block G4 below | CI-attested on `1690db...`, run `33323952884` | exit 0, no unexcepted high+ advisory |
 | G5 | schema docs | `ci.yml`, Build and test / Verify schema docs | `tools/schema-docs/generate.sh --check` | CI-attested on `1690db...`, run `33323952884` | exit 0, no generated diff |
@@ -435,19 +435,20 @@ separate excluded classes, while malformed values are unbounded. `sub` preserves
 missing/malformed boundary. The valid and anonymous tests pass before the new guard and are explicitly
 exempt from Step 1a's RED requirement; M3/M4 prove they are non-vacuous.
 
-M1–M7 exact outputs were observed at `1415f9f372e4cd8ca94d9944fa6cdd2f69fe461a`, before `f545b0d`
-extended `InvokeTenantAsync` from 4 to 6 tuple elements; on current head M1/M2/M5/M6 retain the identical
-first-four discriminator and add expected/actual suffix `(0, null)`. This historical tuple evidence was
-not rerun on the final head.
+M1–M7 exact 4-tuple outputs were initially observed at `1415f9f372e4cd8ca94d9944fa6cdd2f69fe461a`,
+before `f545b0d` extended `InvokeTenantAsync` from 4 to 6 tuple elements. The driver independently
+replayed M1/M2/M5/M6 against final-harness head `045501917f2e4d0013218d8846afb2ad6c23f623`; they retain
+the identical first-four discriminator and add expected/actual suffix `(0, null)`. M3/M4/M7 were not
+rerun on `045501917f2e4d0013218d8846afb2ad6c23f623`.
 
 | # | Kind | Exact mutation | Supplied elsewhere? | Named test | Expected result + failure | Rebuild command run | Observed failure |
 |---|---|---|---|---|---|---|---|
-| M1 | guard, missing account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is { Value: var accountIdClaim } && !Guid.TryParse(accountIdClaim, out _)) // MUTANT M1: admit missing account_id` | n/a, replacement | `AuthenticatedRequest_MissingAccountId_IsRejectedBeforeDownstream` | RED: tuple expected `(401, 0, False, False)`, actual `(200, 1, False, True)`; malformed remains rejected | driver replayed G1, then named test GREEN 1/1 after restore | exact tuple RED; failed 1, passed 0 |
-| M2 | guard, malformed account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is null) // MUTANT M2: admit malformed account_id` | n/a | `AuthenticatedRequest_MalformedAccountId_IsRejectedBeforeDownstream` | RED with the same expected/actual tuple; missing remains rejected | driver replayed G1, then named test GREEN 1/1 after restore | exact tuple RED; failed 1, passed 0 |
+| M1 | guard, missing account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is { Value: var accountIdClaim } && !Guid.TryParse(accountIdClaim, out _)) // MUTANT M1: admit missing account_id` | n/a, replacement | `AuthenticatedRequest_MissingAccountId_IsRejectedBeforeDownstream` | RED: expected `(401, 0, False, False, 0, null)`, actual `(200, 1, False, True, 0, null)`; malformed remains rejected | final-harness driver replayed clean G1, then named test GREEN 1/1 after restore | exact six-element tuple RED; failed 1, passed 0 |
+| M2 | guard, malformed account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is null) // MUTANT M2: admit malformed account_id` | n/a | `AuthenticatedRequest_MalformedAccountId_IsRejectedBeforeDownstream` | RED: expected `(401, 0, False, False, 0, null)`, actual `(200, 1, False, True, 0, null)`; missing remains rejected | final-harness driver replayed clean G1, then named test GREEN 1/1 after restore | exact six-element tuple RED; failed 1, passed 0 |
 | M3 | guard, valid included | Replace the protected condition with `if (context.User.Identity?.IsAuthenticated == true && (!Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _) \|\| Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _))) // MUTANT M3: reject every authenticated account claim` | n/a | `AuthenticatedRequest_ValidClaims_ResolvesScopesAndContinues` | RED: status expected 200, actual 401 (and final invocation remains 0) | driver replayed G1, then named test GREEN 1/1 after restore | exact status RED: expected 200, actual 401 |
 | M4 | guard, anonymous excluded | Replace the full two-line protected condition with the exact M4 block below | n/a | `AnonymousHealthRequest_RemainsUnresolvedAndDoesNotQueryDatabase` | RED: status expected 200, actual 401; final invocation expected 1, actual 0 | driver replayed G1, then named test GREEN 1/1 after restore | exact status RED: expected 200, actual 401 |
-| M5 | guard, missing sub | Apply exact M5 block below in the invalid-`sub` `else` | n/a | theory row `sub: null` | only `sub: null` RED: expected `(401, 0, True, False)`, actual `(200, 1, True, False)`; `not-a-guid` remains green | driver replayed G1, then theory GREEN 2/2 after restore | exact tuple RED for `null`; failed 1, passed 1 |
-| M6 | guard, malformed sub | Apply exact M6 block below in the invalid-`sub` `else` | n/a | theory row `sub: "not-a-guid"` | only `sub: "not-a-guid"` RED with the same tuple mismatch; `null` remains green | driver replayed G1, then theory GREEN 2/2 after restore | exact tuple RED for `not-a-guid`; failed 1, passed 1 |
+| M5 | guard, missing sub | Apply exact M5 block below in the invalid-`sub` `else` | n/a | theory row `sub: null` | only `sub: null` RED: expected `(401, 0, True, False, 0, null)`, actual `(200, 1, True, False, 0, null)`; `not-a-guid` remains green | final-harness driver replayed clean G1, then theory GREEN 2/2 after restore | exact six-element tuple RED for `null`; failed 1, passed 1 |
+| M6 | guard, malformed sub | Apply exact M6 block below in the invalid-`sub` `else` | n/a | theory row `sub: "not-a-guid"` | only `sub: "not-a-guid"` RED: expected `(401, 0, True, False, 0, null)`, actual `(200, 1, True, False, 0, null)`; `null` remains green | final-harness driver replayed clean G1, then theory GREEN 2/2 after restore | exact six-element tuple RED for `not-a-guid`; failed 1, passed 1 |
 | M7 | guard, middleware order | In `Program.cs`, apply the exact M7 replacement below; preserve the #388 comment | n/a | `CredentialEpochMiddlewareOrderTests.Program_PinsTheCompleteCredentialGateSequence` | RED: expected order has Tenant then Flock; actual has Flock then Tenant | driver replayed G1, then order guard GREEN 1/1 after restore | exact collection-order RED at position 2; failed 1, passed 0 |
 
 Exact M4 replacement:
@@ -704,6 +705,7 @@ G1, and rerunning the named test GREEN before the next row.
 | M8 | isolated layer, missing account reaches Flock | Replace the protected condition with the exact M8 line below | `AuthenticatedRequest_InvalidAccountId_DoesNotReachFlockDatabase` | only `accountId: null` fails: expected `(401, 0, False, False, False, False)`, actual `(200, 0, False, True, False, True)`; malformed row passes | RED observed exactly: 1 failed / 1 passed; only null row actual (200, 0, False, True, False, True). Exact condition restored; G1 0 warnings/errors; theory GREEN 2/2. |
 | M9 | isolated layer, malformed account reaches Flock | Replace the protected condition with the exact M9 line below | same theory | only `accountId: "not-a-guid"` fails with the same tuple; null row passes | RED observed exactly: 1 failed / 1 passed; only not-a-guid row actual (200, 0, False, True, False, True). Exact condition restored; G1 0 warnings/errors; theory GREEN 2/2. |
 | M10 | guard response becomes non-bare | After the protected 401 assignment, insert the exact M10 block below | both direct missing/malformed rejection tests | both fail: expected suffix `(0, null)`, actual `(2, "application/problem+json")`; status/downstream/context fields remain correct | RED observed exactly: 2 failed / 0 passed; both actual suffix (2, "application/problem+json"). Exact block removed; G1 0 warnings/errors; direct tests GREEN 2/2. |
+| M11 | invalid-sub rejection becomes non-bare | After the invalid-sub 401 assignment, insert the exact M11 block below | `AuthenticatedRequest_InvalidSub_IsRejectedBeforeDownstream` theory | both rows RED: expected `(401, 0, True, False, 0, null)`, actual `(401, 0, True, False, 2, "application/problem+json")` | RED observed exactly: 2 failed / 0 passed; both actual suffix `(2, "application/problem+json")`. Exact block removed; G1 0 warnings/errors; theory GREEN 2/2. |
 
 M8 exact replacement line:
 
@@ -726,6 +728,14 @@ authenticated invalid-account guard only:
             await context.Response.WriteAsync("{}");
 ```
 
+M11 exact insertion after the invalid-sub `context.Response.StatusCode = StatusCodes.Status401Unauthorized;` only:
+
+```csharp
+                // MUTANT M11: make invalid-sub rejection non-bare
+                context.Response.ContentType = "application/problem+json";
+                await context.Response.WriteAsync("{}");
+```
+
 M8/M9 command:
 
 ```bash
@@ -744,9 +754,19 @@ dotnet test tests/Cluckwork.Api.IntegrationTests/Cluckwork.Api.IntegrationTests.
   --verbosity minimal
 ```
 
+M11 command:
+
+```bash
+dotnet test tests/Cluckwork.Api.IntegrationTests/Cluckwork.Api.IntegrationTests.csproj \
+  --configuration Release \
+  --filter 'FullyQualifiedName~TenantResolutionMiddlewareTests.AuthenticatedRequest_InvalidSub_IsRejectedBeforeDownstream' \
+  --verbosity minimal
+```
+
 The driver compiled the exact test diff and independently observed all eight tests GREEN, M8 and M9
-each RED 1/2 through the exact query-attempt tuple, and M10 RED 2/2 through the exact bare-response tuple.
-That probe was restored; it is verification evidence, not implementation attribution.
+each RED 1/2 through the exact query-attempt tuple, M10 RED 2/2 through the direct bare-response tuple,
+and M11 RED 2/2 through the invalid-sub bare-response tuple. Those probes were restored; they are
+verification evidence, not implementation attribution.
 
 ## 2c. Final gates and commit
 
@@ -767,5 +787,5 @@ git push origin fix/616-invalid-account-claim
 ```
 
 Do not modify production files. Report the new full SHA, 8-test focused summary, every project full-suite
-summary, M8–M10 exact RED/restored GREEN, `git diff --check`, clean status, push result, and PR check state.
+summary, M8–M11 exact RED/restored GREEN, `git diff --check`, clean status, push result, and PR check state.
 Never merge or enable auto-merge.
