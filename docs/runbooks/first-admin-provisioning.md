@@ -107,13 +107,32 @@ data volume, with a **generated** password and the username `postgres` — not t
 connection string into the `api` resource it launches, but `bootstrap-admin` is
 a separate run-then-exit process the AppHost knows nothing about, so form 3
 falls through to the API's own user-secrets and reaches for the Compose
-credential. Against a running Aspire stack that surfaces as a connection error,
-never as anything about the database being empty:
+credential. How that surfaces depends on whether Compose is *also* up, and only
+the first two are visible failures:
 
-- `Failed to connect to 127.0.0.1:5432` when the two stacks sit on different
-  ports (the pinned defaults), or
-- `28P01: password authentication failed for user "cluckwork"` once they share
-  one — same port, wrong credential.
+- `Failed to connect to 127.0.0.1:5432` — Compose is down and the two stacks sit
+  on different ports (the pinned defaults), or
+- `28P01: password authentication failed for user "cluckwork"` — they share one
+  port, so form 3 reached Aspire's Postgres with the wrong credential, or
+- **exit `0` and no error at all** — Compose is *also* running, so form 3 reached
+  it instead. Nothing distinguishes this from success, and it has two shapes:
+  Compose had no Owner, so form 3 migrated it and provisioned one **there** and
+  printed you a password for the wrong database; or Compose already had one, and
+  form 3 printed
+
+  ```text
+  Admin already provisioned (an Owner exists in the default account); nothing to do.
+  ```
+
+  which reads as "you are done" while the Aspire database you are actually
+  looking at still has no Owner at all. That second shape is the most misleading
+  output this verb can produce.
+
+That third case is the one to design against: both stacks up is the normal state
+on a machine that uses either, and it is silent. Do not run form 3 while an
+AppHost is up and hope to read the outcome — use **form 4**, or pass
+`ConnectionStrings__Default` explicitly, so the target is stated rather than
+inherited.
 
 Leave the AppHost **running** — its container *is* the database — and pass the
 credential explicitly:
@@ -158,13 +177,13 @@ does not exist for form 4, and vice versa; each needs its own run.
 | Boot fails on the TLS floor | `ASPNETCORE_ENVIRONMENT` unset against a plaintext Postgres (#261/#262). |
 | Exits `1` naming `bootstrap-admin` while seeding | This is `seed --profile demo` (#500) telling you to run this runbook first. |
 | `28P01: password authentication failed for user "cluckwork"` | Form 3 against the Aspire stack: the API's user-secrets carry the Compose credential, Aspire generated its own. Use form 4. |
-| `Failed to connect to 127.0.0.1:<port>` | Nothing is listening there — the intended stack is down, or the other stack holds the port. |
+| `Failed to connect to 127.0.0.1:<port>` | Nothing is listening there — the intended stack is down. If the *other* stack holds that port you get no error at all: it connects, and the write lands in the wrong database. |
 
 ## Drill
 
 Safe on a scratch database only.
 
-1. `docker compose -f deploy/docker-compose.dev.yml down -v && … up -d` — a
+1. `docker compose -f deploy/docker-compose.dev.yml down -v && docker compose -f deploy/docker-compose.dev.yml up -d` — a
    database with no Owner. This drills form 3; form 4 is drilled
    against a reset AppHost volume (see the Aspire runbook's reset procedure).
 2. Run form 3. Expected: a password and the farm code on stdout, exit `0`.

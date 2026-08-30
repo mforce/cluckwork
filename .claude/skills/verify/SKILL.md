@@ -7,12 +7,26 @@ description: Build, launch, and drive the Cluckwork app (API + SPA) locally to v
 
 ## Launch the stack
 
-**First: is an Aspire AppHost already running?** (`docker ps | grep -E 'postgres-|redis-'`, or
-check for a listener on the `LocalPorts` — `5433`/`6380`/`8080`/`5173`.) Aspire already owns
-`:8080` and `:5173`, so the manual launch below collides with it, and Aspire's Postgres is a
-**different database** with a generated credential (#565). Either drive the running Aspire stack
-at its advertised web endpoint and skip steps 1-3 entirely, or stop the AppHost first. Do not run
-both.
+**First: is an Aspire AppHost already running?** Ask the AppHost, not the container names:
+
+```sh
+pgrep -af 'Cluckwork\.AppHost'                  # the AppHost process itself
+ss -ltn | grep -E ':18888\b'                    # its pinned dashboard (#565)
+aspire describe --apphost src/Cluckwork.AppHost/Cluckwork.AppHost.csproj \
+  --format Json --non-interactive               # the endpoints THIS run actually holds
+```
+
+Do **not** detect it with `docker ps | grep -E 'postgres-|redis-'` — that matches
+`deploy-redis-1` and `cluckwork-sim-redis-1` too, so Compose or the sim stack reads as Aspire.
+And do not treat `5433`/`6380`/`8080`/`5173` as more than **committed defaults**: `LocalPorts:*`
+can be overridden per machine or set empty for a random port, so a running AppHost can be sitting
+on none of them. `aspire describe` is the authority for a given run; the dashboard port is pinned
+and so is a reliable presence check.
+
+If one is running it already owns the API and SPA ports, so the manual launch below collides with
+it, and Aspire's Postgres is a **different database** with a generated credential (#565). Either
+drive the running Aspire stack at its advertised web endpoint and skip steps 1-3 entirely, or stop
+the AppHost first. Do not run both.
 
 
 ```sh
@@ -33,7 +47,19 @@ A freshly reset database has no admin at all — provision one with
 [first-admin provisioning](../../../docs/runbooks/first-admin-provisioning.md) (form 4 if the
 database is Aspire's), then use that generated password rather than `Seed:*`.
 
-Login credentials come from user-secrets: `dotnet user-secrets list --project src/Cluckwork.Api | grep '^Seed:'` (email `admin@cluckwork.local`). Don't print the password into reports.
+Login credentials depend on which stack you are driving, and the two are not interchangeable:
+
+- **Compose dev database, seeded** — `dotnet user-secrets list --project src/Cluckwork.Api | grep '^Seed:'`
+  (email `admin@cluckwork.local`). These are the **Compose** credentials only; they do not exist in
+  Aspire's database.
+- **Aspire's database, or any freshly reset one** — there is no `Seed:*` answer. The sign-in password
+  is the one `bootstrap-admin` printed **to stdout on the run that created the Owner** (form 4), and
+  it is not recoverable afterwards: it is stored hashed and never logged. If it was not captured, mint
+  a new one with `recover-admin` rather than hunting for it. The AppHost user-secret
+  `Parameters:postgres-password` is the **database** password — it is what form 4 passes in
+  `ConnectionStrings__Default`, and it is never a login credential.
+
+Don't print either password into reports.
 
 ## Drive the browser
 

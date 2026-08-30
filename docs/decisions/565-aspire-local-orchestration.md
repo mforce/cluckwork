@@ -19,7 +19,7 @@ There is one developer-facing failure behind this record, from 2026-08-30.
 `bootstrap-admin` was run against a live Aspire stack and failed twice with two
 different messages before anyone suspected the database:
 
-```
+```text
 Bootstrap failed: Failed to connect to 127.0.0.1:5432
 Bootstrap failed: 28P01: password authentication failed for user "cluckwork"
 ```
