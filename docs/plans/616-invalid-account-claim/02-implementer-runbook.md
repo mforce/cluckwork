@@ -136,8 +136,11 @@ node ../.github/scripts/vuln-gate.mjs --ecosystem npm --level moderate --warn-on
 CI-only required checks and their source are: dependency review (`ci.yml`, `dependency-review` job),
 runtime image build + stale-lock negative guard + pinned Trivy scan + boot/readiness smoke (`ci.yml`,
 `image` job), CodeQL (`.github/workflows/codeql.yml`), GitGuardian (GitHub App), and any branch-policy
-checks. Baseline for all is successful CI run `33323952884` on the base SHA; clean means the corresponding
-PR check concludes success. Do not substitute an invented local command.
+checks. Clean means the corresponding PR check concludes success. The image job passed in CI run
+`33323952884` on the base SHA; CodeQL passed
+in separate run `33323952920`; dependency review was skipped because the base event was a push, and no
+GitGuardian check-run/status exists on that SHA, so those two are **not driver-verified at baseline** and
+must pass on the PR. Do not substitute an invented local command.
 
 ## Documentation surfaces
 
@@ -416,13 +419,13 @@ git commit -m "fix(auth): reject invalid account claims"
 # MUTATION CHECKS — prove every boundary bites
 ===================================================================================
 
-Run each row separately. Mark it in place with the exact `// MUTANT M1` through `// MUTANT M6` label.
+Run each row separately. Mark it in place with the exact `// MUTANT M1` through `// MUTANT M7` label.
 For each row:
 
 1. apply the exact compiling mutation;
 2. run the named focused `dotnet test` without `--no-build` or `--no-restore`;
 3. observe only the expected RED;
-4. for M1–M5 restore `TenantResolutionMiddleware.cs`; for M6 restore `Program.cs`;
+4. for M1–M6 restore `TenantResolutionMiddleware.cs`; for M7 restore `Program.cs`;
 5. run G1, then rerun the named focused command green;
 6. record both results.
 
@@ -432,14 +435,15 @@ separate excluded classes, while malformed values are unbounded. `sub` preserves
 missing/malformed boundary. The valid and anonymous tests pass before the new guard and are explicitly
 exempt from Step 1a's RED requirement; M3/M4 prove they are non-vacuous.
 
-| # | Kind | Exact mutation | Supplied elsewhere? | Named test | Expected result + failure |
-|---|---|---|---|---|---|
-| M1 | guard, missing account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is { Value: var accountIdClaim } && !Guid.TryParse(accountIdClaim, out _)) // MUTANT M1: admit missing account_id` | n/a, replacement | `AuthenticatedRequest_MissingAccountId_IsRejectedBeforeDownstream` | RED: tuple expected `(401, 0, False, False)`, actual `(200, 1, False, True)`; malformed remains rejected |
-| M2 | guard, malformed account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is null) // MUTANT M2: admit malformed account_id` | n/a | `AuthenticatedRequest_MalformedAccountId_IsRejectedBeforeDownstream` | RED with the same expected/actual tuple; missing remains rejected |
-| M3 | guard, valid included | Replace the protected condition with `if (context.User.Identity?.IsAuthenticated == true && (!Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _) \|\| Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _))) // MUTANT M3: reject every authenticated account claim` | n/a | `AuthenticatedRequest_ValidClaims_ResolvesScopesAndContinues` | RED: status expected 200, actual 401 (and final invocation remains 0) |
-| M4 | guard, anonymous excluded | Replace the full two-line protected condition with the exact M4 block below | n/a | `AnonymousHealthRequest_RemainsUnresolvedAndDoesNotQueryDatabase` | RED: status expected 200, actual 401; final invocation expected 1, actual 0 |
-| M5 | guard, invalid sub preserved | In the existing invalid-`sub` `else`, replace the 401 assignment and `return;` with `// MUTANT M5: admit invalid sub` followed by `await next(context); return;` | n/a | `AuthenticatedRequest_InvalidSub_IsRejectedBeforeDownstream` | both theory rows RED: tuple expected `(401, 0, True, False)`, actual `(200, 1, True, False)` |
-| M6 | guard, middleware order | In `Program.cs`, apply the exact M6 replacement below; preserve the #388 comment | n/a | `CredentialEpochMiddlewareOrderTests.Program_PinsTheCompleteCredentialGateSequence` | RED: expected order has Tenant then Flock; actual has Flock then Tenant |
+| # | Kind | Exact mutation | Supplied elsewhere? | Named test | Expected result + failure | Rebuild command run | Observed failure |
+|---|---|---|---|---|---|---|---|
+| M1 | guard, missing account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is { Value: var accountIdClaim } && !Guid.TryParse(accountIdClaim, out _)) // MUTANT M1: admit missing account_id` | n/a, replacement | `AuthenticatedRequest_MissingAccountId_IsRejectedBeforeDownstream` | RED: tuple expected `(401, 0, False, False)`, actual `(200, 1, False, True)`; malformed remains rejected | implementer fills | implementer fills |
+| M2 | guard, malformed account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is null) // MUTANT M2: admit malformed account_id` | n/a | `AuthenticatedRequest_MalformedAccountId_IsRejectedBeforeDownstream` | RED with the same expected/actual tuple; missing remains rejected | implementer fills | implementer fills |
+| M3 | guard, valid included | Replace the protected condition with `if (context.User.Identity?.IsAuthenticated == true && (!Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _) \|\| Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _))) // MUTANT M3: reject every authenticated account claim` | n/a | `AuthenticatedRequest_ValidClaims_ResolvesScopesAndContinues` | RED: status expected 200, actual 401 (and final invocation remains 0) | implementer fills | implementer fills |
+| M4 | guard, anonymous excluded | Replace the full two-line protected condition with the exact M4 block below | n/a | `AnonymousHealthRequest_RemainsUnresolvedAndDoesNotQueryDatabase` | RED: status expected 200, actual 401; final invocation expected 1, actual 0 | implementer fills | implementer fills |
+| M5 | guard, missing sub | Apply exact M5 block below in the invalid-`sub` `else` | n/a | theory row `sub: null` | only `sub: null` RED: expected `(401, 0, True, False)`, actual `(200, 1, True, False)`; `not-a-guid` remains green | implementer fills | implementer fills |
+| M6 | guard, malformed sub | Apply exact M6 block below in the invalid-`sub` `else` | n/a | theory row `sub: "not-a-guid"` | only `sub: "not-a-guid"` RED with the same tuple mismatch; `null` remains green | implementer fills | implementer fills |
+| M7 | guard, middleware order | In `Program.cs`, apply the exact M7 replacement below; preserve the #388 comment | n/a | `CredentialEpochMiddlewareOrderTests.Program_PinsTheCompleteCredentialGateSequence` | RED: expected order has Tenant then Flock; actual has Flock then Tenant | implementer fills | implementer fills |
 
 Exact M4 replacement:
 
@@ -448,7 +452,35 @@ Exact M4 replacement:
         if (!Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _))
 ```
 
-For M6, find:
+For M5, replace the existing 401 assignment and return inside the invalid-`sub` `else` with:
+
+```csharp
+                if (sub is null)
+                {
+                    // MUTANT M5: admit missing sub
+                    await next(context);
+                    return;
+                }
+
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return;
+```
+
+For M6, replace the same block with:
+
+```csharp
+                if (sub is not null)
+                {
+                    // MUTANT M6: admit malformed sub
+                    await next(context);
+                    return;
+                }
+
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return;
+```
+
+For M7, find:
 
 ```csharp
 app.UseMiddleware<AmbientPrincipalMiddleware>();
@@ -466,7 +498,7 @@ app.UseMiddleware<AmbientPrincipalMiddleware>();
 // #388 — flock-scope resolution, after tenant/user resolution and before the
 // credential gate. Touches no credential state; position pinned by
 // CredentialEpochMiddlewareOrderTests.
-// MUTANT M6: run flock scope before tenant scope
+// MUTANT M7: run flock scope before tenant scope
 app.UseMiddleware<FlockScopeResolutionMiddleware>();
 app.UseMiddleware<TenantResolutionMiddleware>();
 ```
@@ -486,7 +518,8 @@ dotnet test tests/Cluckwork.Api.IntegrationTests/Cluckwork.Api.IntegrationTests.
   --configuration Release --filter 'FullyQualifiedName~TenantResolutionMiddlewareTests.AuthenticatedRequest_InvalidSub_IsRejectedBeforeDownstream' --verbosity minimal
 ```
 
-Run them one at a time for M1 through M5 in the table's order. For M6 use:
+Run them one at a time for M1 through M6 in the table's order; M5 and M6 use the same theory-method
+filter and must each report exactly one failed and one passed case. For M7 use:
 
 ```bash
 dotnet test tests/Cluckwork.Api.IntegrationTests/Cluckwork.Api.IntegrationTests.csproj \
@@ -495,13 +528,14 @@ dotnet test tests/Cluckwork.Api.IntegrationTests/Cluckwork.Api.IntegrationTests.
   --verbosity minimal
 ```
 
-The mutation allowance temporarily extends to `Program.cs` only for M6. It must have no diff after
+The mutation allowance temporarily extends to `Program.cs` only for M7. It must have no diff after
 restore. No control row is required because results are read directly from raw `dotnet test` output,
 without a script/parser/wrapper. At the end:
 
 ```bash
 grep -rn MUTANT src tests && exit 1 || true
 git status --short
+test -z "$(git status --porcelain)"
 ```
 
 The tree must be clean after every restore; no mutant may remain. Any green
@@ -522,6 +556,7 @@ git push -u origin fix/616-invalid-account-claim
 gh pr create --draft \
   --title "fix(auth): reject invalid account claims" \
   --body-file docs/plans/616-invalid-account-claim/03-pr-body.md
+gh pr checks --watch --fail-fast
 ```
 
 After the draft PR exists, wait for and inspect every CI-only required check named in the gate section.
