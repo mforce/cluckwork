@@ -603,6 +603,68 @@ public sealed class PerFarmRefreshCookieTests(CluckworkWebApplicationFactory fac
     }
 
     [Fact]
+    public async Task Logout_WithSelectedFarmAndOnlySameFarmLegacyCookie_RevokesAndClearsLegacy()
+    {
+        var loginClient = new TestBrowser(factory);
+        var (farm, token, _) = await LoginAsync(
+            factory, loginClient, $"569-selected-legacy-only-{Guid.NewGuid():N}@test.local");
+        var client = factory.CreateClient(TestHarness.Cookieless(factory));
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, farm.ToString());
+        request.Headers.Add("Cookie", AuthCookies.LegacyRefreshCookieName + "=" + token);
+        var logout = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+        AssertClearsCookie(logout, AuthCookies.LegacyRefreshCookieName);
+
+        var afterLogout = await client.PostRefreshRawAsync(
+            AuthCookies.LegacyRefreshCookieName + "=" + token,
+            expectedAccount: farm.ToString());
+        Assert.Equal(HttpStatusCode.Unauthorized, afterLogout.StatusCode);
+    }
+
+    [Fact]
+    public async Task Logout_WithSelectedFarmAndRetainedRevokedLegacyToken_ClearsLegacy()
+    {
+        var email = $"569-retained-revoked-{Guid.NewGuid():N}@test.local";
+        var loginClient = new TestBrowser(factory);
+        var (farm, selectedToken, _) = await LoginAsync(factory, loginClient, email);
+
+        var secondLogin = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
+        {
+            Content = JsonContent.Create(new
+            {
+                farmCode = await factory.FarmCodeForAsync(email),
+                email,
+                password = TestHarness.Password,
+            }),
+        };
+        var secondLoginResponse = await loginClient.SendAsync(secondLogin);
+        secondLoginResponse.EnsureSuccessStatusCode();
+        var retainedToken = (await TestHarness.ReadTokensAsync(secondLoginResponse)).RefreshToken;
+        var client = factory.CreateClient(TestHarness.Cookieless(factory));
+
+        var rotation = await client.PostRefreshRawAsync(
+            AuthCookies.LegacyRefreshCookieName + "=" + retainedToken,
+            expectedAccount: farm.ToString());
+        Assert.Equal(HttpStatusCode.OK, rotation.StatusCode);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, farm.ToString());
+        request.Headers.Add(
+            "Cookie",
+            $"{AuthCookies.RefreshCookieNameFor(farm)}={selectedToken}; "
+            + $"{AuthCookies.LegacyRefreshCookieName}={retainedToken}");
+        var logout = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+        AssertClearsCookie(logout, AuthCookies.LegacyRefreshCookieName);
+    }
+
+    [Fact]
     public async Task Logout_WithSelectedFarmAndPurgedLegacyToken_DoesNotClearLegacy()
     {
         var loginClient = new TestBrowser(factory);
