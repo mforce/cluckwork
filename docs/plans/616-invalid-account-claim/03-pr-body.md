@@ -10,7 +10,7 @@ Closes #616.
 ## Verification
 
 - baseline pre-fix reproduction at `1690db89`: expected `(401, 0)`, actual `(200, 1)`
-- 4-tuple RED reproduced for missing and malformed `account_id` at `1415f9f3`, before the additive bare-response assertions: expected `(401, 0, false, false)`, actual `(200, 1, false, true)`
+- historical M1/M2 4-tuple mutation RED at `1415f9f3`, before the additive bare-response assertions: expected `(401, 0, false, false)`, actual `(200, 1, false, true)`
 - six-element final-harness M1/M2 mutation RED at `0455019`: expected `(401, 0, false, false, 0, null)`, actual `(200, 1, false, true, 0, null)`
 - focused middleware suite: 8/8
 - full .NET build and test suite: 2080/2080 (361 Domain + 175 Application + 10 AppHost + 1534 API)
