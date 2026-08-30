@@ -58,6 +58,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Container image hardening (#267)](267-container-hardening.md) | AGENTS · Conventions |
 | [Exactly one serving API instance (#271, #338)](271-single-serving-instance.md) | AGENTS · Host-agnostic repo |
 | [Multi-farm tenancy — several farms on one deployment: shared-DB row-level isolation, farm-code sign-in, per-account email identity, the at-most-one-leader contract, and why an unattributable value cannot be rescued by any rule about when to read it (#530, #586)](530-multi-farm-tenancy.md) | AGENTS · Conventions |
+| [Aspire is local orchestration, and it is a second database (#565)](565-aspire-local-orchestration.md) | AGENTS · Build / test / run · Boot guards |
 
 **Every bullet that cites an issue has a record here; the plain conventions do
 not, and should not.** The Result pattern, handler-per-feature, FluentValidation,

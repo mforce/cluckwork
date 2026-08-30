@@ -37,10 +37,11 @@ src/
   Cluckwork.Application      feature handlers, repository interfaces, validators
   Cluckwork.Infrastructure   EF Core, Identity/JWT, repositories, seeding, jobs
   Cluckwork.Api             minimal-API endpoints, middleware, Program.cs
+  Cluckwork.AppHost         .NET Aspire local orchestration — dev only, never a deploy path
 web/                        React/Vite SPA (see web/README.md)
 deploy/                     docker-compose (.yml prod, .dev.yml dev DB), .env.example
 specs/                      product + technical specs, wireframes
-tests/                      Domain.Tests, Application.Tests, Api.IntegrationTests
+tests/                      Domain.Tests, Application.Tests, Api.IntegrationTests, AppHost.Tests
 ```
 
 Dependencies point inward: Api → Application/Infrastructure → Domain. Domain depends on nothing.
@@ -59,6 +60,7 @@ dotnet test  Cluckwork.sln                 # 688 tests as of 2026-07; integratio
 - **Run full stack (prod-like):** `docker compose -f deploy/docker-compose.yml up --build` → SPA + API on http://localhost:8080 (single container; API serves the built SPA from `wwwroot`).
 - **Run frontend dev:** `cd web && npm run dev` → http://localhost:5173 (proxies `/api` → :8080).
 - **Debug API (no docker stack):** `docker compose -f deploy/docker-compose.dev.yml up -d` (Postgres on :5432), then run/debug `Cluckwork.Api` (Development env). Dev secrets live in **user-secrets**, not files.
+- **Run the whole stack under Aspire:** `aspire run` from the repo root (Aspire CLI 13.5) starts Postgres, Redis, the API and Vite with a dashboard → [runbook](docs/runbooks/aspire-local-development.md). **Aspire is a SECOND database (#565)**, not a view of the Compose one: its own volume, username `postgres`, and a generated password in the *AppHost's* user-secrets. Aspire injects that connection string into the `api` resource **it launches** and nowhere else, so a hand-run one-shot verb (`bootstrap-admin`, `seed`, `migrate`, `recover-admin`) falls through to the API's own user-secrets and silently addresses the **Compose** database — pass `ConnectionStrings__Default` explicitly instead ([form 4](docs/runbooks/first-admin-provisioning.md#4-aspire-apphost-stack)). The committed `LocalPorts` defaults must stay clear of the ports Compose publishes; override per machine, **never by editing the committed file**. → [`565-aspire-local-orchestration.md`](docs/decisions/565-aspire-local-orchestration.md)
 
 ## Conventions (follow these)
 
@@ -103,6 +105,7 @@ dotnet test  Cluckwork.sln                 # 688 tests as of 2026-07; integratio
 - **GSS/Kerberos negotiation off by default (#332).** `PostgresConnectionString` appends `GSS Encryption Mode=Disable` unless the operator set it (detected by **presence, not value**), textually, after the TLS floor runs — a round-trip through the Npgsql builder would reorder the operator's string and throw on any keyword this version does not know. → [`332-gss-kerberos.md`](docs/decisions/332-gss-kerberos.md)
 - **Farm timezone + tzdata/ICU (#264).** A farm sets its IANA zone in Settings after first login, not at provisioning time. The clock resolves zones via `TimeZoneInfo.FindSystemTimeZoneById` and fails closed, so the runtime image **must** carry tzdata + ICU — never an Alpine/chiseled base, never `InvariantGlobalization=true`. `TimeZoneAvailability.EnsureResolvable` asserts a canary at boot for **both** process roles. → [`264-farm-timezone.md`](docs/decisions/264-farm-timezone.md)
 - **A new Production boot guard must be taught to the sim harness (#370).** Every guard that fails the boot on missing config, and every config-key add/rename/retire, updates `tools/simulation/bootstrap.sh`, `docker-compose.sim.yml` and `verify-harness.sh` **in the same PR** — that harness runs Production config on purpose, is deliberately not in CI, and nothing tells you when you break it. Satisfy guards properly, never by disabling one. → [`370-sim-harness-boot-guards.md`](docs/decisions/370-sim-harness-boot-guards.md)
+- **A new required config key must also be taught to the AppHost (#565).** Aspire wires the API's configuration by hand — `WithReference(database, connectionName: "Default")` and the `SharedState__Redis__ConnectionString` entry in `src/Cluckwork.AppHost/Program.cs` — so a newly required key that nothing there supplies breaks `aspire run` and nothing tells you: the AppHost is deliberately not in CI, exactly like the sim harness above. Same PR, same discipline; the difference is only that #370's harness runs Production config while this one runs Development. → [`565-aspire-local-orchestration.md`](docs/decisions/565-aspire-local-orchestration.md)
 
 ### Operations and callers
 

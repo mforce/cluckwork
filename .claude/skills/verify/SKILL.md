@@ -7,6 +7,14 @@ description: Build, launch, and drive the Cluckwork app (API + SPA) locally to v
 
 ## Launch the stack
 
+**First: is an Aspire AppHost already running?** (`docker ps | grep -E 'postgres-|redis-'`, or
+check for a listener on the `LocalPorts` — `5433`/`6380`/`8080`/`5173`.) Aspire already owns
+`:8080` and `:5173`, so the manual launch below collides with it, and Aspire's Postgres is a
+**different database** with a generated credential (#565). Either drive the running Aspire stack
+at its advertised web endpoint and skip steps 1-3 entirely, or stop the AppHost first. Do not run
+both.
+
+
 ```sh
 # 1. Dev Postgres (loopback 5432, creds cluckwork/cluckwork/cluckwork)
 docker compose -f deploy/docker-compose.dev.yml up -d --wait
@@ -20,6 +28,10 @@ ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://127.0.0.1:8080 \
 # 3. SPA dev server (proxies /api -> 8080)
 cd web && npm run dev   # http://localhost:5173
 ```
+
+A freshly reset database has no admin at all — provision one with
+[first-admin provisioning](../../../docs/runbooks/first-admin-provisioning.md) (form 4 if the
+database is Aspire's), then use that generated password rather than `Seed:*`.
 
 Login credentials come from user-secrets: `dotnet user-secrets list --project src/Cluckwork.Api | grep '^Seed:'` (email `admin@cluckwork.local`). Don't print the password into reports.
 

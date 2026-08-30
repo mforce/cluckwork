@@ -47,6 +47,11 @@ TestResults/
 
 .agents/skills
 .claude/skills
+# verify/ is Cluckwork's own skill, not an installed one: it knows this repo's
+# stacks and ports, it is tracked (since #43), and gitignore does not apply to
+# tracked files anyway - so the carve-out states the intent instead of leaving
+# the file looking like an accident in every diff.
+!.claude/skills/verify/
 .codex/skills
 skills-lock.json
 scratchpad/

@@ -45,7 +45,26 @@ never are. Provision one: [first admin provisioning](docs/runbooks/first-admin-p
 **Aspire local stack:** see [Aspire local development](docs/runbooks/aspire-local-development.md)
 to orchestrate Postgres, Redis, API and Vite locally. It is not a deployment path.
 
+Aspire runs its **own** Postgres — separate container, separate volume, username
+`postgres`, and a generated password in the *AppHost's* user-secrets. It is a
+second database, not a view of the Compose one, and the two are kept on
+different ports on purpose so a stray `localhost:5432` cannot mean both. Aspire
+injects its connection string into the `api` resource **it launches** and
+nowhere else, so a one-shot verb you run by hand (`bootstrap-admin`, `seed`,
+`migrate`) reaches the *Compose* database unless you pass
+`ConnectionStrings__Default` yourself — see
+[form 4](docs/runbooks/first-admin-provisioning.md#4-aspire-apphost-stack) and
+[#565](docs/decisions/565-aspire-local-orchestration.md). Provision an admin
+once per database; neither knows about the other's.
+
 ### Resetting the dev database
+
+This resets the **Compose** database only. The Aspire stack keeps its own
+volume, `cluckwork-apphost-postgres-pg18`; wiping one leaves the other exactly as
+it was, which looks like the wipe silently failed. The Aspire reset is a
+different, guarded procedure — resolve the volume from the running resource, do
+not type that name from memory:
+[Aspire local development § Persistence and reset](docs/runbooks/aspire-local-development.md#persistence-and-reset).
 
 Always wipe through Compose:
 

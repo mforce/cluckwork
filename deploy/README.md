@@ -1,5 +1,11 @@
 # Deployment
 
+**Aspire is not here.** `src/Cluckwork.AppHost` orchestrates the *local
+development* stack only — there is no Aspire publish or deploy path, and nothing
+in this directory depends on it
+([#565](../docs/decisions/565-aspire-local-orchestration.md)). Everything below
+is the Compose/image path and is unaffected by it.
+
 Cluckwork ships as a **single origin**: one container runs the .NET API, which
 serves both the JSON API (`/api/*`) and the built React SPA (from `wwwroot`) on
 one domain. There is no separate frontend host — no CORS, no version skew

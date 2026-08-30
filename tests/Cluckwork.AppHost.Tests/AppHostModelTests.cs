@@ -18,8 +18,16 @@ public sealed class AppHostModelTests
     private const string RedisTag = "7.4-alpine";
     private const string RedisSha256 = "e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2";
 
+    // The AppHost's own host endpoints are not resources, so `LocalPorts:*` cannot
+    // reach them: the dashboard, its OTLP receiver and the resource service are
+    // configured by the launch profile and would otherwise take a random free port
+    // on every run. Pinning them here is what keeps a bookmarked dashboard URL and
+    // a copied OTLP endpoint valid across restarts, so the values are asserted
+    // exactly — a silent drift back to a random port is the failure this catches.
+    // The profile stays otherwise minimal: the key sets are exhaustive, so an
+    // unreviewed addition goes red rather than riding along.
     [Fact]
-    public void AppHost_launch_profile_is_minimal_and_runs_in_Development()
+    public void AppHost_launch_profile_pins_host_endpoints_and_runs_in_Development()
     {
         var launchSettingsPath = Path.Combine(
             FindRepositoryRoot(),
@@ -37,22 +45,45 @@ public sealed class AppHostModelTests
 
         var profile = profiles.GetProperty("http");
         Assert.Equal(
-            ["commandName", "environmentVariables"],
+            ["applicationUrl", "commandName", "environmentVariables"],
             profile.EnumerateObject().Select(property => property.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray());
         Assert.Equal("Project", profile.GetProperty("commandName").GetString());
 
+        // The dashboard frontend. Aspire binds it from ASPNETCORE_URLS, which the
+        // launch profile supplies as applicationUrl.
+        Assert.Equal("http://localhost:18888", profile.GetProperty("applicationUrl").GetString());
+
         var environmentVariables = profile.GetProperty("environmentVariables");
-        Assert.True(
-            environmentVariables.TryGetProperty("DOTNET_ENVIRONMENT", out var dotnetEnvironment),
-            "AppHost launch profile must set DOTNET_ENVIRONMENT.");
-        Assert.True(
-            environmentVariables.TryGetProperty("ASPNETCORE_ENVIRONMENT", out var aspnetcoreEnvironment),
-            "AppHost launch profile must set ASPNETCORE_ENVIRONMENT.");
         Assert.Equal(
-            ["ASPNETCORE_ENVIRONMENT", "DOTNET_ENVIRONMENT"],
+            [
+                "ASPIRE_ALLOW_UNSECURED_TRANSPORT",
+                "ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL",
+                "ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL",
+                "ASPNETCORE_ENVIRONMENT",
+                "DOTNET_ENVIRONMENT",
+            ],
             environmentVariables.EnumerateObject().Select(property => property.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray());
-        Assert.Equal("Development", dotnetEnvironment.GetString());
-        Assert.Equal("Development", aspnetcoreEnvironment.GetString());
+        Assert.Equal("Development", environmentVariables.GetProperty("DOTNET_ENVIRONMENT").GetString());
+        Assert.Equal("Development", environmentVariables.GetProperty("ASPNETCORE_ENVIRONMENT").GetString());
+        Assert.Equal(
+            "http://localhost:18889",
+            environmentVariables.GetProperty("ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL").GetString());
+        Assert.Equal(
+            "http://localhost:18890",
+            environmentVariables.GetProperty("ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL").GetString());
+
+        // All three endpoints above are plaintext loopback, which Aspire refuses
+        // unless the opt-out is set. Switching any of them to https:// is what
+        // retires this flag — leaving it set beside an http:// URL is not optional.
+        Assert.Equal("true", environmentVariables.GetProperty("ASPIRE_ALLOW_UNSECURED_TRANSPORT").GetString());
+        Assert.All(
+            new[]
+            {
+                profile.GetProperty("applicationUrl").GetString(),
+                environmentVariables.GetProperty("ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL").GetString(),
+                environmentVariables.GetProperty("ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL").GetString(),
+            },
+            url => Assert.StartsWith("http://", url, StringComparison.Ordinal));
     }
 
     [Fact]
