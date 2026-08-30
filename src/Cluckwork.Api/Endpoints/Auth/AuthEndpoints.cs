@@ -603,7 +603,7 @@ public static class AuthEndpoints
             && AuthCookies.RefreshCookieAccounts(request).Count == 0;
         var legacyMatchesSelected = legacyRefreshToken is not null
             && string.Equals(legacyRefreshToken, selectedRefreshToken, StringComparison.Ordinal);
-        var clearLegacyCookie = legacyIsOnlyPresentedSession || legacyMatchesSelected;
+        var clearLegacyCookie = legacyIsOnlyPresentedSession;
 
         // Revoke every attributable credential before clearing its browser copy.
         // If the database operation fails, Logout fails loudly and a retry can
@@ -612,7 +612,12 @@ public static class AuthEndpoints
         // cookie is cleared only after the provider's durable owner lookup says
         // it belongs to the selected farm (RefreshAccountBindingTests, #569).
         if (selectedRefreshToken is not null)
-            await identity.RevokeRefreshTokenAsync(selectedRefreshToken, ct);
+        {
+            var selectedOutcome = await identity.RevokeRefreshTokenAsync(
+                selectedRefreshToken, ct, accountId);
+            if (legacyMatchesSelected)
+                clearLegacyCookie = selectedOutcome == RefreshTokenRevocationOutcome.InScope;
+        }
         if (legacyRefreshToken is not null && !legacyMatchesSelected)
         {
             if (legacyIsOnlyPresentedSession)

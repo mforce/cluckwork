@@ -575,6 +575,34 @@ public sealed class PerFarmRefreshCookieTests(CluckworkWebApplicationFactory fac
     }
 
     [Fact]
+    public async Task Logout_WithForeignTokenUnderSelectedAndLegacyNames_PreservesForeignSession()
+    {
+        var loginClient = new TestBrowser(factory);
+        var (selectedFarm, _, _) = await LoginAsync(
+            factory, loginClient, $"569-selected-equal-{Guid.NewGuid():N}@test.local");
+        var (foreignFarm, foreignToken, _) = await LoginAsync(
+            factory, loginClient, $"569-foreign-equal-{Guid.NewGuid():N}@test.local");
+        var client = factory.CreateClient(TestHarness.Cookieless(factory));
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, selectedFarm.ToString());
+        request.Headers.Add(
+            "Cookie",
+            $"{AuthCookies.RefreshCookieNameFor(selectedFarm)}={foreignToken}; "
+            + $"{AuthCookies.LegacyRefreshCookieName}={foreignToken}");
+        var logout = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+        AssertNoSetCookie(logout, AuthCookies.LegacyRefreshCookieName);
+
+        var foreignAfterLogout = await client.PostRefreshRawAsync(
+            AuthCookies.LegacyRefreshCookieName + "=" + foreignToken,
+            expectedAccount: foreignFarm.ToString());
+        Assert.Equal(HttpStatusCode.OK, foreignAfterLogout.StatusCode);
+    }
+
+    [Fact]
     public async Task Logout_WithSelectedFarmAndPurgedLegacyToken_DoesNotClearLegacy()
     {
         var loginClient = new TestBrowser(factory);
