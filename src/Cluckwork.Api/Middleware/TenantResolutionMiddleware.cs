@@ -18,6 +18,17 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
         Serilog.IDiagnosticContext diagnosticContext,
         ILogger<TenantResolutionMiddleware> logger)
     {
+        if (context.User.Identity?.IsAuthenticated == true
+            && !Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _))
+        {
+            // An authenticated HTTP principal must resolve both tenant and actor
+            // before flock scope. Unresolved is reserved for anonymous/non-HTTP
+            // callers; the complete Tenant -> Flock order is pinned by
+            // CredentialEpochMiddlewareOrderTests (#616).
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
+
         using var accountScope = ResolveAccountScope(context, tenant, diagnosticContext, logger);
         if (context.User.Identity?.IsAuthenticated == true)
         {

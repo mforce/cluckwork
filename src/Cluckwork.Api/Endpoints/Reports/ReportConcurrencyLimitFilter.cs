@@ -21,9 +21,9 @@ public sealed class ReportConcurrencyLimitFilter(DistributedReportConcurrencyLim
         EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var tenant = context.HttpContext.RequestServices.GetRequiredService<TenantContext>();
-        // No account to partition by, so there is nothing to meter — fall through
-        // and let the handler reject it (unauthenticated, or an authenticated JWT
-        // with no usable account_id claim).
+        // No account to partition by, so there is nothing to meter. This remains a
+        // defensive fallback; TenantResolutionMiddleware rejects authenticated HTTP
+        // requests with no usable account_id before this filter (#616).
         if (!tenant.IsResolved)
             return await next(context);
 
