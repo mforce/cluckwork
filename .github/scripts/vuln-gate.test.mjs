@@ -9,6 +9,11 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   advisoryId,
   emitAllowlist,
@@ -17,6 +22,8 @@ import {
   gate,
   isGhsaId,
   isValidException,
+  levelProblem,
+  loadExceptions,
   parseArgs,
   parseNpm,
   parseNuget,
@@ -28,6 +35,7 @@ import {
 const NOW = new Date("2026-07-24T00:00:00Z");
 const GHSA_ONE = "GHSA-aaaa-bbbb-cccc";
 const GHSA_TWO = "GHSA-dddd-eeee-ffff";
+const SCRIPT = fileURLToPath(new URL("./vuln-gate.mjs", import.meta.url));
 
 const finding = (over = {}) => ({
   id: GHSA_ONE, package: "left-pad@1.0.0", severity: "high", title: "", url: "", ...over,
@@ -306,4 +314,92 @@ test("parseArgs reads the flags and keeps sensible defaults", () => {
     ecosystem: "npm", level: "moderate", warnOnly: true, emitAllowlist: false, exceptionsPath: "x.json",
   });
   assert.equal(parseArgs(["--emit-allowlist"]).emitAllowlist, true);
+});
+
+test("levelProblem accepts supported case-insensitive thresholds and rejects bad values", () => {
+  for (const level of ["info", "LOW", "Moderate", "high", "CRITICAL"]) {
+    assert.equal(levelProblem(level), null);
+  }
+  assert.match(levelProblem("hihg"), /--level/);
+  assert.match(levelProblem(), /--level/);
+});
+
+test("gate: rejects an unknown configured threshold instead of lowering the floor", () => {
+  assert.throws(
+    () => gate({ findings: [finding({ severity: "critical" })], ecosystem: "npm", level: "hihg", now: NOW }),
+    /--level/,
+  );
+});
+
+test("CLI: a critical npm advisory blocks by default and a typoed level is a usage error", () => {
+  const report = JSON.stringify({
+    auditReportVersion: 2,
+    vulnerabilities: {
+      "left-pad": {
+        name: "left-pad",
+        severity: "critical",
+        via: [{
+          source: 1,
+          name: "left-pad",
+          severity: "critical",
+          title: "critical test advisory",
+          url: `https://github.com/advisories/${GHSA_ONE}`,
+        }],
+      },
+    },
+  });
+  const run = (level) => spawnSync(
+    process.execPath,
+    [SCRIPT, "--ecosystem", "npm", ...(level ? ["--level", level] : [])],
+    { cwd: process.cwd(), encoding: "utf8", input: report },
+  );
+
+  assert.equal(run().status, 1);
+  const invalid = run("hihg");
+  assert.equal(invalid.status, 2);
+  assert.match(invalid.stderr, /--level/);
+});
+
+test("gate: expired ANY and npm scopes are each reported stale", () => {
+  for (const ecosystem of ["ANY", "any", "NPM", "npm"]) {
+    const result = gate({
+      findings: [finding()],
+      exceptions: [exception({ ecosystem, expires: "2026-07-23" })],
+      ecosystem: "npm",
+      now: NOW,
+    });
+    assert.equal(result.blocking.length, 1, `${ecosystem} exception must not suppress after expiry`);
+    assert.equal(result.staleExceptions.length, 1, `${ecosystem} exception must be reported stale`);
+  }
+});
+
+test("loadExceptions: only a missing file is quiet; unusable files warn and suppress nothing", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cluckwork-vuln-gate-"));
+  const path = join(dir, "exceptions.json");
+  const warnings = [];
+  const warn = (line) => warnings.push(line);
+
+  try {
+    assert.deepEqual(loadExceptions(path, warn), []);
+    assert.deepEqual(warnings, []);
+
+    writeFileSync(path, "not json", "utf8");
+    assert.deepEqual(loadExceptions(path, warn), []);
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].includes(path));
+
+    warnings.length = 0;
+    writeFileSync(path, JSON.stringify({ exceptions: {} }), "utf8");
+    assert.deepEqual(loadExceptions(path, warn), []);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /array/i);
+
+    warnings.length = 0;
+    const valid = [exception()];
+    writeFileSync(path, JSON.stringify({ exceptions: valid }), "utf8");
+    assert.deepEqual(loadExceptions(path, warn), valid);
+    assert.deepEqual(warnings, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
