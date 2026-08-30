@@ -146,8 +146,8 @@ must pass on the PR. Do not substitute an invented local command.
 
 | Surface | Path / key | Locales | Increment | Verification procedure | Phase 11 result |
 |---|---|---|---|---|---|
-| Maintainer comment made stale by the fix | `ReportConcurrencyLimitFilter.cs`, unresolved-tenant comment | n/a, source comment only | 1 | `rg -n -C 3 "No account to partition|authenticated principal" src/Cluckwork.Api/Endpoints/Reports/ReportConcurrencyLimitFilter.cs` must describe the defensive fallback and #616 rejection without claiming invalid authenticated JWTs reach the handler | Driver fills |
-| User/operator/API/localized surfaces | none — response remains the existing bare 401 and no endpoint/schema/config/UI contract changes | effective locale set irrelevant | 1 | `git diff --name-only origin/main...HEAD` contains no `web/`, endpoint contract, schema, config, or runbook surface beyond this implementation plan | Driver fills |
+| Maintainer comment made stale by the fix | `ReportConcurrencyLimitFilter.cs`, unresolved-tenant comment | n/a, source comment only | 1 | `rg -n -C 3 -e "No account to partition" -e "authenticated principal" src/Cluckwork.Api/Endpoints/Reports/ReportConcurrencyLimitFilter.cs` must describe the defensive fallback and #616 rejection without claiming invalid authenticated JWTs reach the handler | Driver observed the defensive fallback and #616 rejection wording at head `1415f9f3` |
+| User/operator/API/localized surfaces | none — response remains the existing bare 401 and no endpoint/schema/config/UI contract changes | effective locale set irrelevant | 1 | `git diff --name-only origin/main...HEAD` contains no `web/`, endpoint contract, schema, config, or runbook surface beyond this implementation plan | Driver observed no user/operator/API/localized surface at head `1415f9f3` |
 
 ## Step 0 — verify branch
 
@@ -437,13 +437,13 @@ exempt from Step 1a's RED requirement; M3/M4 prove they are non-vacuous.
 
 | # | Kind | Exact mutation | Supplied elsewhere? | Named test | Expected result + failure | Rebuild command run | Observed failure |
 |---|---|---|---|---|---|---|---|
-| M1 | guard, missing account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is { Value: var accountIdClaim } && !Guid.TryParse(accountIdClaim, out _)) // MUTANT M1: admit missing account_id` | n/a, replacement | `AuthenticatedRequest_MissingAccountId_IsRejectedBeforeDownstream` | RED: tuple expected `(401, 0, False, False)`, actual `(200, 1, False, True)`; malformed remains rejected | implementer fills | implementer fills |
-| M2 | guard, malformed account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is null) // MUTANT M2: admit malformed account_id` | n/a | `AuthenticatedRequest_MalformedAccountId_IsRejectedBeforeDownstream` | RED with the same expected/actual tuple; missing remains rejected | implementer fills | implementer fills |
-| M3 | guard, valid included | Replace the protected condition with `if (context.User.Identity?.IsAuthenticated == true && (!Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _) \|\| Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _))) // MUTANT M3: reject every authenticated account claim` | n/a | `AuthenticatedRequest_ValidClaims_ResolvesScopesAndContinues` | RED: status expected 200, actual 401 (and final invocation remains 0) | implementer fills | implementer fills |
-| M4 | guard, anonymous excluded | Replace the full two-line protected condition with the exact M4 block below | n/a | `AnonymousHealthRequest_RemainsUnresolvedAndDoesNotQueryDatabase` | RED: status expected 200, actual 401; final invocation expected 1, actual 0 | implementer fills | implementer fills |
-| M5 | guard, missing sub | Apply exact M5 block below in the invalid-`sub` `else` | n/a | theory row `sub: null` | only `sub: null` RED: expected `(401, 0, True, False)`, actual `(200, 1, True, False)`; `not-a-guid` remains green | implementer fills | implementer fills |
-| M6 | guard, malformed sub | Apply exact M6 block below in the invalid-`sub` `else` | n/a | theory row `sub: "not-a-guid"` | only `sub: "not-a-guid"` RED with the same tuple mismatch; `null` remains green | implementer fills | implementer fills |
-| M7 | guard, middleware order | In `Program.cs`, apply the exact M7 replacement below; preserve the #388 comment | n/a | `CredentialEpochMiddlewareOrderTests.Program_PinsTheCompleteCredentialGateSequence` | RED: expected order has Tenant then Flock; actual has Flock then Tenant | implementer fills | implementer fills |
+| M1 | guard, missing account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is { Value: var accountIdClaim } && !Guid.TryParse(accountIdClaim, out _)) // MUTANT M1: admit missing account_id` | n/a, replacement | `AuthenticatedRequest_MissingAccountId_IsRejectedBeforeDownstream` | RED: tuple expected `(401, 0, False, False)`, actual `(200, 1, False, True)`; malformed remains rejected | driver replayed G1, then named test GREEN 1/1 after restore | exact tuple RED; failed 1, passed 0 |
+| M2 | guard, malformed account | Replace the protected `if` condition with `if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is null) // MUTANT M2: admit malformed account_id` | n/a | `AuthenticatedRequest_MalformedAccountId_IsRejectedBeforeDownstream` | RED with the same expected/actual tuple; missing remains rejected | driver replayed G1, then named test GREEN 1/1 after restore | exact tuple RED; failed 1, passed 0 |
+| M3 | guard, valid included | Replace the protected condition with `if (context.User.Identity?.IsAuthenticated == true && (!Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _) \|\| Guid.TryParse(context.User.FindFirst("account_id")?.Value, out _))) // MUTANT M3: reject every authenticated account claim` | n/a | `AuthenticatedRequest_ValidClaims_ResolvesScopesAndContinues` | RED: status expected 200, actual 401 (and final invocation remains 0) | driver replayed G1, then named test GREEN 1/1 after restore | exact status RED: expected 200, actual 401 |
+| M4 | guard, anonymous excluded | Replace the full two-line protected condition with the exact M4 block below | n/a | `AnonymousHealthRequest_RemainsUnresolvedAndDoesNotQueryDatabase` | RED: status expected 200, actual 401; final invocation expected 1, actual 0 | driver replayed G1, then named test GREEN 1/1 after restore | exact status RED: expected 200, actual 401 |
+| M5 | guard, missing sub | Apply exact M5 block below in the invalid-`sub` `else` | n/a | theory row `sub: null` | only `sub: null` RED: expected `(401, 0, True, False)`, actual `(200, 1, True, False)`; `not-a-guid` remains green | driver replayed G1, then theory GREEN 2/2 after restore | exact tuple RED for `null`; failed 1, passed 1 |
+| M6 | guard, malformed sub | Apply exact M6 block below in the invalid-`sub` `else` | n/a | theory row `sub: "not-a-guid"` | only `sub: "not-a-guid"` RED with the same tuple mismatch; `null` remains green | driver replayed G1, then theory GREEN 2/2 after restore | exact tuple RED for `not-a-guid`; failed 1, passed 1 |
+| M7 | guard, middleware order | In `Program.cs`, apply the exact M7 replacement below; preserve the #388 comment | n/a | `CredentialEpochMiddlewareOrderTests.Program_PinsTheCompleteCredentialGateSequence` | RED: expected order has Tenant then Flock; actual has Flock then Tenant | driver replayed G1, then order guard GREEN 1/1 after restore | exact collection-order RED at position 2; failed 1, passed 0 |
 
 Exact M4 replacement:
 
@@ -566,3 +566,201 @@ Report: branch, commit SHA, push result, PR number, G1 tail, every G2
 project summary, all remaining gate outcomes, and every mutation RED + restored GREEN. Confirm that you
 personally applied the test block, protected product block, and comment block; name any block already
 present or applied by someone else. Never merge.
+
+===================================================================================
+# REVIEW ROUND 1 CORRECTION — INCREMENT 2, TEST AND EVIDENCE HARDENING
+===================================================================================
+
+Classification: **Mechanical**. This increment changes no product behavior or contract. It pins the
+already-required bare 401, composes the real Tenant → Flock chain to make the unwanted database attempt
+observable, and repairs the executed runbook's evidence/rendering. Its proof mutations are the review;
+it earns no design-fix round. The driver applied only the runbook table corrections above; shipped-code
+fix budget remains 0. The implementer applies the exact test diff below and commits both files together.
+
+This increment answers four verified round-1 findings:
+
+1. the missing/malformed direct tests did not assert that the 401 was bare;
+2. those tests' counted generic delegate did not exercise the actual Tenant → Flock seam or observe a
+   `UserRoleAssignments` database attempt;
+3. the M1–M7 result cells still read `implementer fills` after execution;
+4. the documentation-surface table's regex alternation broke its Markdown column count (the corrected
+   command now uses two `-e` arguments, preserving both command and rendering semantics).
+
+Three other Claude follow-ups are rejected as defects in this slice: the unchanged
+`ResolveAccountScope` authenticated check already prevents an unauthenticated identity carrying claims
+from resolving a tenant; `IgnoresAmbientPrincipalAttribute` is enumerated at exactly login and refresh
+and has its own integration guards; and rejecting an authenticated invalid-account principal at logout
+is the owner-approved all-authenticated-HTTP contract, while anonymous logout still reaches the endpoint's
+idempotent no-selection branch. Do not broaden this increment to those surfaces.
+
+## 2a. Apply this exact test-only diff
+
+Apply this block verbatim to
+`tests/Cluckwork.Api.IntegrationTests/TenantResolutionMiddlewareTests.cs`:
+
+```diff
+@@
+ using Microsoft.EntityFrameworkCore;
+ using Microsoft.Extensions.Logging.Abstractions;
++using Npgsql;
+ using Serilog;
+@@
+         Assert.Equal(
+             (Status: StatusCodes.Status401Unauthorized, DownstreamInvocations: 0,
+-                TenantResolved: false, UserResolved: false),
++                TenantResolved: false, UserResolved: false,
++                BodyLength: 0L, ContentType: (string?)null),
+             result);
+@@
+         Assert.Equal(
+             (Status: StatusCodes.Status401Unauthorized, DownstreamInvocations: 0,
+-                TenantResolved: false, UserResolved: false),
++                TenantResolved: false, UserResolved: false,
++                BodyLength: 0L, ContentType: (string?)null),
+             result);
+     }
++
++    [Theory]
++    [InlineData(null)]
++    [InlineData("not-a-guid")]
++    public async Task AuthenticatedRequest_InvalidAccountId_DoesNotReachFlockDatabase(string? accountId)
++    {
++        var claims = new List<Claim>
++        {
++            new("sub", Guid.NewGuid().ToString()),
++        };
++        if (accountId is not null)
++            claims.Add(new Claim("account_id", accountId));
++
++        var tenant = new TenantContext();
++        var user = new CurrentUserContext();
++        var flockScope = new FlockScope();
++        var finalInvocations = 0;
++        var context = AuthenticatedContext(claims.ToArray());
++        var databaseAttempted = false;
++
++        try
++        {
++            await InvokePipelineAsync(context, tenant, user, flockScope, () => finalInvocations++);
++        }
++        catch (Exception exception) when (
++            exception is NpgsqlException || exception.InnerException is NpgsqlException)
++        {
++            databaseAttempted = true;
++        }
++
++        Assert.Equal(
++            (Status: StatusCodes.Status401Unauthorized, FinalInvocations: 0,
++                TenantResolved: false, UserResolved: false,
++                FlockResolved: false, DatabaseAttempted: false),
++            (Status: context.Response.StatusCode, FinalInvocations: finalInvocations,
++                TenantResolved: tenant.IsResolved, UserResolved: user.IsResolved,
++                FlockResolved: flockScope.IsResolved, DatabaseAttempted: databaseAttempted));
++    }
+@@
+         Assert.Equal(
+             (Status: StatusCodes.Status401Unauthorized, DownstreamInvocations: 0,
+-                TenantResolved: true, UserResolved: false),
++                TenantResolved: true, UserResolved: false,
++                BodyLength: 0L, ContentType: (string?)null),
+             result);
+@@
+     private static async Task<(int Status, int DownstreamInvocations,
+-        bool TenantResolved, bool UserResolved)> InvokeTenantAsync(params Claim[] claims)
++        bool TenantResolved, bool UserResolved,
++        long BodyLength, string? ContentType)> InvokeTenantAsync(params Claim[] claims)
+@@
+         var user = new CurrentUserContext();
+         var context = AuthenticatedContext(claims);
++        context.Response.Body = new MemoryStream();
+@@
+         return (context.Response.StatusCode, downstreamInvocations,
+-            tenant.IsResolved, user.IsResolved);
++            tenant.IsResolved, user.IsResolved,
++            context.Response.Body.Length, context.Response.ContentType);
+```
+
+Run GREEN:
+
+```bash
+dotnet test tests/Cluckwork.Api.IntegrationTests/Cluckwork.Api.IntegrationTests.csproj \
+  --configuration Release --filter 'FullyQualifiedName~TenantResolutionMiddlewareTests' --verbosity minimal
+```
+
+Expected: 8/8 passed. A compile/discovery/infrastructure error is not GREEN.
+
+## 2b. New proof mutations
+
+Run each row separately, restoring `TenantResolutionMiddleware.cs` byte-for-byte, touching it, running
+G1, and rerunning the named test GREEN before the next row.
+
+| # | Kind | Exact mutation | Named test | Expected RED | Restored result |
+|---|---|---|---|---|---|
+| M8 | isolated layer, missing account reaches Flock | Replace the protected condition with the exact M8 line below | `AuthenticatedRequest_InvalidAccountId_DoesNotReachFlockDatabase` | only `accountId: null` fails: expected `(401, 0, False, False, False, False)`, actual `(200, 0, False, True, False, True)`; malformed row passes | implementer fills |
+| M9 | isolated layer, malformed account reaches Flock | Replace the protected condition with the exact M9 line below | same theory | only `accountId: "not-a-guid"` fails with the same tuple; null row passes | implementer fills |
+| M10 | guard response becomes non-bare | After the protected 401 assignment, insert the exact M10 block below | both direct missing/malformed rejection tests | both fail: expected suffix `(0, null)`, actual `(2, "application/problem+json")`; status/downstream/context fields remain correct | implementer fills |
+
+M8 exact replacement line:
+
+```csharp
+        if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is { Value: var accountIdClaim } && !Guid.TryParse(accountIdClaim, out _)) // MUTANT M8: admit missing account_id to flock resolution
+```
+
+M9 exact replacement line:
+
+```csharp
+        if (context.User.Identity?.IsAuthenticated == true && context.User.FindFirst("account_id") is null) // MUTANT M9: admit malformed account_id to flock resolution
+```
+
+M10 exact insertion after `context.Response.StatusCode = StatusCodes.Status401Unauthorized;` in the
+authenticated invalid-account guard only:
+
+```csharp
+            // MUTANT M10: make the rejection non-bare
+            context.Response.ContentType = "application/problem+json";
+            await context.Response.WriteAsync("{}");
+```
+
+M8/M9 command:
+
+```bash
+dotnet test tests/Cluckwork.Api.IntegrationTests/Cluckwork.Api.IntegrationTests.csproj \
+  --configuration Release \
+  --filter 'FullyQualifiedName~TenantResolutionMiddlewareTests.AuthenticatedRequest_InvalidAccountId_DoesNotReachFlockDatabase' \
+  --verbosity minimal
+```
+
+M10 command:
+
+```bash
+dotnet test tests/Cluckwork.Api.IntegrationTests/Cluckwork.Api.IntegrationTests.csproj \
+  --configuration Release \
+  --filter 'FullyQualifiedName~TenantResolutionMiddlewareTests.AuthenticatedRequest_MissingAccountId_IsRejectedBeforeDownstream|FullyQualifiedName~TenantResolutionMiddlewareTests.AuthenticatedRequest_MalformedAccountId_IsRejectedBeforeDownstream' \
+  --verbosity minimal
+```
+
+The driver compiled the exact test diff and independently observed all eight tests GREEN, M8 and M9
+each RED 1/2 through the exact query-attempt tuple, and M10 RED 2/2 through the exact bare-response tuple.
+That probe was restored; it is verification evidence, not implementation attribution.
+
+## 2c. Final gates and commit
+
+After all restores:
+
+```bash
+! rg -n 'MUTANT|\[DEBUG-' src tests
+dotnet build Cluckwork.sln --configuration Release --no-restore
+dotnet test tests/Cluckwork.Api.IntegrationTests/Cluckwork.Api.IntegrationTests.csproj \
+  --configuration Release --filter 'FullyQualifiedName~TenantResolutionMiddlewareTests' --verbosity minimal
+dotnet test Cluckwork.sln --configuration Release --no-build --verbosity normal
+git status --short
+git diff --check
+git add docs/plans/616-invalid-account-claim/02-implementer-runbook.md \
+  tests/Cluckwork.Api.IntegrationTests/TenantResolutionMiddlewareTests.cs
+git commit -m "test(auth): harden invalid account claim guards"
+git push origin fix/616-invalid-account-claim
+```
+
+Do not modify production files. Report the new full SHA, 8-test focused summary, every project full-suite
+summary, M8–M10 exact RED/restored GREEN, `git diff --check`, clean status, push result, and PR check state.
+Never merge or enable auto-merge.

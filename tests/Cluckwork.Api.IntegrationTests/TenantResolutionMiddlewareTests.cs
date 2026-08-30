@@ -8,6 +8,7 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using Serilog;
 using Serilog.Extensions.Hosting;
 
@@ -21,7 +22,8 @@ public sealed class TenantResolutionMiddlewareTests
 
         Assert.Equal(
             (Status: StatusCodes.Status401Unauthorized, DownstreamInvocations: 0,
-                TenantResolved: false, UserResolved: false),
+                TenantResolved: false, UserResolved: false,
+                BodyLength: 0L, ContentType: (string?)null),
             result);
     }
 
@@ -34,8 +36,47 @@ public sealed class TenantResolutionMiddlewareTests
 
         Assert.Equal(
             (Status: StatusCodes.Status401Unauthorized, DownstreamInvocations: 0,
-                TenantResolved: false, UserResolved: false),
+                TenantResolved: false, UserResolved: false,
+                BodyLength: 0L, ContentType: (string?)null),
             result);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("not-a-guid")]
+    public async Task AuthenticatedRequest_InvalidAccountId_DoesNotReachFlockDatabase(string? accountId)
+    {
+        var claims = new List<Claim>
+        {
+            new("sub", Guid.NewGuid().ToString()),
+        };
+        if (accountId is not null)
+            claims.Add(new Claim("account_id", accountId));
+
+        var tenant = new TenantContext();
+        var user = new CurrentUserContext();
+        var flockScope = new FlockScope();
+        var finalInvocations = 0;
+        var context = AuthenticatedContext(claims.ToArray());
+        var databaseAttempted = false;
+
+        try
+        {
+            await InvokePipelineAsync(context, tenant, user, flockScope, () => finalInvocations++);
+        }
+        catch (Exception exception) when (
+            exception is NpgsqlException || exception.InnerException is NpgsqlException)
+        {
+            databaseAttempted = true;
+        }
+
+        Assert.Equal(
+            (Status: StatusCodes.Status401Unauthorized, FinalInvocations: 0,
+                TenantResolved: false, UserResolved: false,
+                FlockResolved: false, DatabaseAttempted: false),
+            (Status: context.Response.StatusCode, FinalInvocations: finalInvocations,
+                TenantResolved: tenant.IsResolved, UserResolved: user.IsResolved,
+                FlockResolved: flockScope.IsResolved, DatabaseAttempted: databaseAttempted));
     }
 
     [Theory]
@@ -54,7 +95,8 @@ public sealed class TenantResolutionMiddlewareTests
 
         Assert.Equal(
             (Status: StatusCodes.Status401Unauthorized, DownstreamInvocations: 0,
-                TenantResolved: true, UserResolved: false),
+                TenantResolved: true, UserResolved: false,
+                BodyLength: 0L, ContentType: (string?)null),
             result);
     }
 
@@ -110,12 +152,14 @@ public sealed class TenantResolutionMiddlewareTests
     }
 
     private static async Task<(int Status, int DownstreamInvocations,
-        bool TenantResolved, bool UserResolved)> InvokeTenantAsync(params Claim[] claims)
+        bool TenantResolved, bool UserResolved,
+        long BodyLength, string? ContentType)> InvokeTenantAsync(params Claim[] claims)
     {
         var downstreamInvocations = 0;
         var tenant = new TenantContext();
         var user = new CurrentUserContext();
         var context = AuthenticatedContext(claims);
+        context.Response.Body = new MemoryStream();
         var middleware = new TenantResolutionMiddleware(_ =>
         {
             downstreamInvocations++;
@@ -131,7 +175,8 @@ public sealed class TenantResolutionMiddlewareTests
             NullLogger<TenantResolutionMiddleware>.Instance);
 
         return (context.Response.StatusCode, downstreamInvocations,
-            tenant.IsResolved, user.IsResolved);
+            tenant.IsResolved, user.IsResolved,
+            context.Response.Body.Length, context.Response.ContentType);
     }
 
     private static async Task InvokePipelineAsync(
