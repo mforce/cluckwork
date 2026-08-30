@@ -532,8 +532,8 @@ public static class AuthEndpoints
     //   - caller authenticated -> record the bearer subject's logout, so their
     //                        grants die even when the cookie names someone else,
     //                        or is absent/expired entirely.
-    // Same user via both paths is idempotent — the registry keeps the latest
-    // instant per user, so it is recorded once, not twice.
+    // Same user via both paths is deliberately safe rather than deduplicated:
+    // each durable epoch advance can only over-revoke pre-logout grants.
     //
     // Still ANONYMOUS-capable: the bearer is optional, so a logout with an
     // expired access token keeps working off the cookie alone (#145). The CSRF
