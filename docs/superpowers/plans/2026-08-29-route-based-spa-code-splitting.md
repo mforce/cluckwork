@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- The approved product scope is exactly ten files: `web/src/App.tsx`, `web/src/routes/AppLayout.tsx`, `web/src/routes/AppLayout.test.tsx`, `web/scripts/verify-sw.mjs`, `web/src/routes/HelpPage.tsx`, `web/src/routes/HelpPage.test.tsx`, `web/src/i18n/en.ts`, `web/src/i18n/es.ts`, `web/src/i18n/tl.ts`, and `specs/product/GLOSSARY.md`.
+- The approved implementation scope is exactly eleven files: `web/src/App.tsx`, `web/src/routes/AppLayout.tsx`, `web/src/routes/AppLayout.test.tsx`, `web/scripts/verify-sw.mjs`, `web/src/routes/HelpPage.tsx`, `web/src/routes/HelpPage.test.tsx`, `web/src/i18n/en.ts`, `web/src/i18n/es.ts`, `web/src/i18n/tl.ts`, `specs/product/GLOSSARY.md`, and `tools/simulation/ui/specs/pwa.spec.ts`. The last file is an owner-approved CI synchronization correction: wait for `navigator.serviceWorker.ready` before reloading in each existing PWA test; do not add retries, increase timeouts, add a helper, or change product code.
 - Do not add a server/runtime flag, runtime-config channel, second eager route graph, route registry, generic lazy-loader helper, default-export rewrite, `manualChunks`, dependency, CSS, backend change, or locale-catalog splitting (#597).
 - `Login`, `ProtectedRoute`, `SessionProvider`, `AppLayout`, and the conditional `SetPasswordPage` remain eager.
 - Preserve all 20 existing authenticated paths and their component identity exactly.
@@ -562,7 +562,7 @@ If and only if commits are authorized and the current branch is not `main`, comm
 ### Task 5: Verify the complete production slice and stop on scope drift
 
 **Files:**
-- Verify only: all ten approved product files and the plan artifact
+- Verify only: all eleven approved implementation files and the plan artifact
 
 **Interfaces:**
 - Consumes: Tasks 1-4 as one production SPA build.
@@ -576,7 +576,7 @@ git diff --name-only 0955095f3185471a55a6890adfa827bb29dd518e
 git ls-files --others --exclude-standard
 ```
 
-`git diff <base>` includes both staged and unstaged tracked edits, whether or not commits were authorized. Expected product files are exactly the ten listed under Global Constraints. The plan itself may appear as the sole additional untracked/repository artifact; any other product file is a stop-and-report scope change.
+`git diff <base>` includes both staged and unstaged tracked edits, whether or not commits were authorized. Expected implementation files are exactly the eleven listed under Global Constraints. The plan itself may appear as the sole additional repository artifact; any other implementation file is a stop-and-report scope change.
 
 - [ ] **Step 2: Run the frontend CI bar against the final tree**
 

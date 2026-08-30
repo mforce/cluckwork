@@ -52,6 +52,7 @@ test.describe("PWA shell", () => {
       null,
       { timeout: 15_000 },
     );
+    await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
 
     // Control arrives on the NEXT navigation, not on activation — #142 registers
     // without `clientsClaim`, so the page that installed the worker deliberately
@@ -80,6 +81,7 @@ test.describe("PWA shell", () => {
       null,
       { timeout: 15_000 },
     );
+    await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
     // Take control first — an uncontrolled page has no worker to answer the
     // offline navigation, so without this the spec would be testing nothing and
     // failing for the wrong reason.
@@ -122,6 +124,7 @@ test.describe("PWA shell", () => {
       null,
       { timeout: 15_000 },
     );
+    await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
     await page.reload();
     await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15_000 });
 
