@@ -1,3 +1,4 @@
+import { lazy } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { AuthProvider } from "./auth/AuthContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -6,26 +7,27 @@ import { SessionProvider } from "./session/SessionContext";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { AppLayout } from "./routes/AppLayout";
 import { Login } from "./routes/Login";
-import { Dashboard } from "./routes/Dashboard";
-import { DailyEntryPage } from "./routes/DailyEntryPage";
-import { StockPage } from "./routes/StockPage";
-import { CustomersPage } from "./routes/CustomersPage";
-import { SalesPage } from "./routes/SalesPage";
-import { HistoryPage } from "./routes/HistoryPage";
-import { GradesPage } from "./routes/GradesPage";
-import { FlocksPage } from "./routes/FlocksPage";
-import { InventoryPage } from "./routes/InventoryPage";
-import { HelpPage } from "./routes/HelpPage";
-import { AccountPage } from "./routes/AccountPage";
-import { FeedPage } from "./routes/FeedPage";
-import { WaterPage } from "./routes/WaterPage";
-import { ExpensesPage } from "./routes/ExpensesPage";
-import { ReportsPage } from "./routes/ReportsPage";
-import { AuditPage } from "./routes/AuditPage";
-import { ExportPage } from "./routes/ExportPage";
-import { ProductsPage } from "./routes/ProductsPage";
-import { UsersPage } from "./routes/UsersPage";
-import { SettingsPage } from "./routes/SettingsPage";
+
+const Dashboard = lazy(() => import("./routes/Dashboard").then(({ Dashboard }) => ({ default: Dashboard })));
+const DailyEntryPage = lazy(() => import("./routes/DailyEntryPage").then(({ DailyEntryPage }) => ({ default: DailyEntryPage })));
+const StockPage = lazy(() => import("./routes/StockPage").then(({ StockPage }) => ({ default: StockPage })));
+const CustomersPage = lazy(() => import("./routes/CustomersPage").then(({ CustomersPage }) => ({ default: CustomersPage })));
+const SalesPage = lazy(() => import("./routes/SalesPage").then(({ SalesPage }) => ({ default: SalesPage })));
+const HistoryPage = lazy(() => import("./routes/HistoryPage").then(({ HistoryPage }) => ({ default: HistoryPage })));
+const GradesPage = lazy(() => import("./routes/GradesPage").then(({ GradesPage }) => ({ default: GradesPage })));
+const ProductsPage = lazy(() => import("./routes/ProductsPage").then(({ ProductsPage }) => ({ default: ProductsPage })));
+const FlocksPage = lazy(() => import("./routes/FlocksPage").then(({ FlocksPage }) => ({ default: FlocksPage })));
+const InventoryPage = lazy(() => import("./routes/InventoryPage").then(({ InventoryPage }) => ({ default: InventoryPage })));
+const FeedPage = lazy(() => import("./routes/FeedPage").then(({ FeedPage }) => ({ default: FeedPage })));
+const WaterPage = lazy(() => import("./routes/WaterPage").then(({ WaterPage }) => ({ default: WaterPage })));
+const ExpensesPage = lazy(() => import("./routes/ExpensesPage").then(({ ExpensesPage }) => ({ default: ExpensesPage })));
+const ReportsPage = lazy(() => import("./routes/ReportsPage").then(({ ReportsPage }) => ({ default: ReportsPage })));
+const AuditPage = lazy(() => import("./routes/AuditPage").then(({ AuditPage }) => ({ default: AuditPage })));
+const ExportPage = lazy(() => import("./routes/ExportPage").then(({ ExportPage }) => ({ default: ExportPage })));
+const UsersPage = lazy(() => import("./routes/UsersPage").then(({ UsersPage }) => ({ default: UsersPage })));
+const SettingsPage = lazy(() => import("./routes/SettingsPage").then(({ SettingsPage }) => ({ default: SettingsPage })));
+const AccountPage = lazy(() => import("./routes/AccountPage").then(({ AccountPage }) => ({ default: AccountPage })));
+const HelpPage = lazy(() => import("./routes/HelpPage").then(({ HelpPage }) => ({ default: HelpPage })));
 
 export function App() {
   return (

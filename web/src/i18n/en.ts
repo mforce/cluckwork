@@ -2239,6 +2239,8 @@ export const en = {
       "On a phone, the screens you use most are <strong>tabs across the bottom</strong>, in easy thumb reach. "
       + "Which four you get depends on your role — a worker gets Daily entry, someone in sales gets Sales. "
       + "Everything else is one tap away under <strong>More</strong>.",
+    gettingAroundPageLoading:
+      "The first time you open a screen after starting or updating Cluckwork, a brief page-loading message may appear while that screen opens. Navigation stays available; wait for the screen to appear.",
     gettingAroundErrorScreen:
       "If a screen ever shows <strong>\"Something went wrong\"</strong>, that is the app catching an error "
       + "instead of leaving you on a blank page. Anything you had already saved is safe (anything you were "
@@ -2906,6 +2908,10 @@ export const en = {
     glossaryNavigationDef:
       "Screens live in the left sidebar on a computer; on a phone the four you use most are tabs across "
       + "the bottom, the rest under More.",
+
+    glossaryPageLoadingTerm: "Page loading",
+    glossaryPageLoadingDef:
+      "The brief message shown while Cluckwork opens a screen that has not loaded yet. Navigation remains available, and the message disappears when the screen is ready.",
 
     glossaryOperationalDayTerm: "Operational day",
     glossaryOperationalDayDef:

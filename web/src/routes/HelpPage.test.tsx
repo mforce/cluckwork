@@ -60,6 +60,20 @@ describe("HelpPage", () => {
     expect(screen.getByRole("rowheader", { name: "Farm logo" })).toBeInTheDocument();
   });
 
+  it("documents page loading in Getting around and the in-app glossary (#595)", () => {
+    render(<HelpPage />);
+    expect(screen.getByText(/first time you open a screen after starting or updating Cluckwork/i))
+      .toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: "Page loading" })).toBeInTheDocument();
+
+    for (const catalog of [es, tl]) {
+      expect(catalog.help.gettingAroundPageLoading).toBeTruthy();
+      expect(catalog.help.gettingAroundPageLoading).not.toBe(en.help.gettingAroundPageLoading);
+      expect(catalog.help.glossaryPageLoadingTerm).not.toBe(en.help.glossaryPageLoadingTerm);
+      expect(catalog.help.glossaryPageLoadingDef).not.toBe(en.help.glossaryPageLoadingDef);
+    }
+  });
+
   // #612 review fix — the guidance must name only the roles that actually
   // confirm farm-wide regardless of this setting (Owner, Manager, Sales), not
   // list ReadOnly among them as if it too confirmed farm-wide — ReadOnly
@@ -453,6 +467,15 @@ describe("HelpPage i18n wiring (#182, Task 32)", () => {
     });
   });
 
+  it("reads the Page loading note from the catalog", () => {
+    withOverride("gettingAroundPageLoading", "PAGE-LOADING-NOTE-MARKER", () => {
+      render(<HelpPage />);
+      expect(screen.getByText("PAGE-LOADING-NOTE-MARKER")).toBeInTheDocument();
+      expect(screen.queryByText(/first time you open a screen after starting or updating Cluckwork/i))
+        .not.toBeInTheDocument();
+    });
+  });
+
   it("reads a 'Fixing mistakes' table cell from the catalog, not a hardcoded literal", () => {
     withOverride("mistakesRow1Mistake", "MISTAKE-ROW-MARKER", () => {
       render(<HelpPage />);
@@ -545,6 +568,16 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
         expect(screen.getByText("FIFO-DEF-MARKER")).toBeInTheDocument();
         expect(screen.queryByRole("rowheader", { name: "FIFO" })).not.toBeInTheDocument();
         expect(screen.queryByText(/first in, first out/i)).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  it("reads the Page loading glossary row from the catalog", () => {
+    withOverride("glossaryPageLoadingTerm", "PAGE-LOADING-TERM-MARKER", () => {
+      withOverride("glossaryPageLoadingDef", "PAGE-LOADING-DEF-MARKER", () => {
+        render(<HelpPage />);
+        expect(screen.getByRole("rowheader", { name: "PAGE-LOADING-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("PAGE-LOADING-DEF-MARKER")).toBeInTheDocument();
       });
     });
   });

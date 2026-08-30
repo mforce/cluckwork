@@ -1775,6 +1775,8 @@ export const es = {
       + "inferior</strong>, al alcance del pulgar. Cuáles cuatro obtiene depende de su rol — un trabajador "
       + "obtiene Entrada diaria, alguien de ventas obtiene Ventas. Todo lo demás está a un toque de "
       + "distancia bajo <strong>Más</strong>.",
+    gettingAroundPageLoading:
+      "La primera vez que abra una pantalla después de iniciar o actualizar Cluckwork, puede aparecer brevemente un mensaje de carga mientras se abre esa pantalla. La navegación sigue disponible; espere a que aparezca la pantalla.",
     gettingAroundErrorScreen:
       "Si una pantalla alguna vez muestra <strong>\"Algo salió mal\"</strong>, eso es la aplicación "
       + "capturando un error en lugar de dejarlo en una página en blanco. Todo lo que ya había guardado "
@@ -2462,6 +2464,10 @@ export const es = {
     glossaryNavigationDef:
       "En una computadora, las pantallas están en la barra lateral izquierda; en un teléfono, las cuatro "
       + "que más usa aparecen como pestañas en la parte inferior, y el resto está bajo Más.",
+
+    glossaryPageLoadingTerm: "Carga de página",
+    glossaryPageLoadingDef:
+      "El breve mensaje que aparece mientras Cluckwork abre una pantalla que aún no se ha cargado. La navegación sigue disponible y el mensaje desaparece cuando la pantalla está lista.",
 
     glossaryOperationalDayTerm: "Día operativo",
     glossaryOperationalDayDef:

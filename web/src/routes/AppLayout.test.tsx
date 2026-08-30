@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { lazy, type ReactElement } from "react";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { act, render, screen, fireEvent, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { AuthProvider } from "../auth/AuthContext";
 import { FarmContext } from "../farm/FarmContext";
@@ -17,6 +18,70 @@ afterEach(() => document.documentElement.removeAttribute("data-theme"));
 // finds a name in the sidebar AND the tab bar. Scope to the landmark under test.
 const sidebar = () => within(screen.getByRole("navigation", { name: "Primary" }));
 const tabbar = () => within(screen.getByRole("navigation", { name: "Sections" }));
+
+describe("AppLayout lazy route containment (#595)", () => {
+  it("shows catalog loading status only in the content pane while shell navigation remains", async () => {
+    let resolveScreen!: (value: { default: () => ReactElement }) => void;
+    const DeferredScreen = lazy(() => new Promise<{ default: () => ReactElement }>((resolve) => {
+      resolveScreen = resolve;
+    }));
+    const original = i18n.getResource("en", "common", "loading") as string;
+    i18n.addResource("en", "common", "loading", "ROUTE-LOADING-MARKER");
+
+    try {
+      renderWithProviders(
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route index element={<p>Resolved dashboard</p>} />
+            <Route path="stock" element={<DeferredScreen />} />
+          </Route>
+        </Routes>,
+        { token: { sub: "u1", role: "Admin" } },
+      );
+
+      expect(screen.getByText("Resolved dashboard")).toBeInTheDocument();
+      fireEvent.click(sidebar().getByRole("link", { name: "Stock" }));
+
+      expect(await screen.findByRole("status")).toHaveTextContent("ROUTE-LOADING-MARKER");
+      expect(screen.queryByText("Resolved dashboard")).not.toBeInTheDocument();
+      expect(sidebar().getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
+
+      await act(async () => {
+        resolveScreen({ default: () => <p>Deferred stock</p> });
+      });
+      expect(await screen.findByText("Deferred stock")).toBeInTheDocument();
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    } finally {
+      i18n.addResource("en", "common", "loading", original);
+    }
+  });
+
+  it("contains a rejected route module in the screen boundary while the shell survives", async () => {
+    const RejectedScreen = lazy(() => Promise.reject(new Error("ROUTE-CHUNK-REJECTION")));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      renderWithProviders(
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route index element={<p>Resolved dashboard</p>} />
+            <Route path="stock" element={<RejectedScreen />} />
+          </Route>
+        </Routes>,
+        { token: { sub: "u1", role: "Admin" } },
+      );
+
+      fireEvent.click(sidebar().getByRole("link", { name: "Stock" }));
+
+      const fallback = await screen.findByRole("alert");
+      expect(fallback).toHaveTextContent("Something went wrong");
+      expect(fallback).toHaveTextContent("ROUTE-CHUNK-REJECTION");
+      expect(sidebar().getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+});
 
 describe("AppLayout sidebar", () => {
   it("groups the nav and gates links by role — an admin sees Setup destinations", () => {

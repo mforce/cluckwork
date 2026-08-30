@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { LogOut } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -27,6 +27,7 @@ const APP_VERSION = import.meta.env.VITE_APP_VERSION as string | undefined;
 // navs render from the same nav model, so the role gates live in one place.
 export function AppLayout() {
   const { t } = useTranslation("nav");
+  const { t: tc } = useTranslation("common");
   const { logout, isAdmin, role } = useAuth();
   const { farm, loadFailed, refresh } = useFarm();
   const navigate = useNavigate();
@@ -136,7 +137,9 @@ export function AppLayout() {
             a resetKey-diffing boundary hits when you navigate into a screen that
             throws on its first render. */}
         <ErrorBoundary key={location.key} scope="screen">
-          <Outlet />
+          <Suspense fallback={<p className="muted" role="status">{tc("loading")}</p>}>
+            <Outlet />
+          </Suspense>
         </ErrorBoundary>
       </main>
 

@@ -109,6 +109,7 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="gettingAroundTabs" components={{ strong: <strong /> }} />
         </li>
+        <li>{t("gettingAroundPageLoading")}</li>
         <li>
           <Trans ns="help" i18nKey="gettingAroundErrorScreen" components={{ strong: <strong /> }} />
         </li>
@@ -548,6 +549,8 @@ export function HelpPage() {
         <tbody>
           <tr><th scope="row">{t("glossaryNavigationTerm")}</th>
             <td>{t("glossaryNavigationDef")}</td></tr>
+          <tr><th scope="row">{t("glossaryPageLoadingTerm")}</th>
+            <td>{t("glossaryPageLoadingDef")}</td></tr>
           <tr><th scope="row">{t("glossaryOperationalDayTerm")}</th>
             <td>{t("glossaryOperationalDayDef")}</td></tr>
           <tr><th scope="row">{t("glossaryInstallToHomeScreenTerm")}</th>

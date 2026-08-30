@@ -1843,6 +1843,8 @@ export const tl = {
       + "ibaba</strong>, malapit sa hinlalaki. Depende sa tungkulin mo kung alin sa apat ang makukuha mo — "
       + "makukuha ng manggagawa ang Araw-araw na Tala, makukuha ng Benta ang Benta. Isang tap na lang ang "
       + "lahat ng iba pa, sa ilalim ng <strong>Higit Pa</strong>.",
+    gettingAroundPageLoading:
+      "Sa unang pagkakataong magbukas ka ng screen pagkatapos simulan o i-update ang Cluckwork, maaaring sandaling lumabas ang mensahe ng pag-load habang binubuksan ang screen. Magagamit pa rin ang navigation; hintaying lumabas ang screen.",
     gettingAroundErrorScreen:
       "Kapag nagpakita ang isang screen ng <strong>\"May Nangyaring Mali\"</strong>, ibig sabihin ay "
       + "na-catch ng app ang isang error sa halip na mag-iwan sa iyo ng blangkong page. Ligtas ang anumang "
@@ -2555,6 +2557,10 @@ export const tl = {
     glossaryNavigationDef:
       "Nasa sidebar sa kaliwa ang mga screen sa computer; sa telepono, ang apat na pinakamadalas mong "
       + "gamitin ay mga tab sa ibaba, at ang iba pa ay nasa ilalim ng More.",
+
+    glossaryPageLoadingTerm: "Pag-load ng page",
+    glossaryPageLoadingDef:
+      "Ang maikling mensaheng ipinapakita habang binubuksan ng Cluckwork ang isang screen na hindi pa nalo-load. Magagamit pa rin ang navigation, at nawawala ang mensahe kapag handa na ang screen.",
 
     glossaryOperationalDayTerm: "Araw ng operasyon",
     glossaryOperationalDayDef:
