@@ -137,9 +137,12 @@ if (denylist) {
 // 2. No runtime caching route may exist at all. `runtimeCaching: []` means
 //    workbox registers no fetch handler beyond the precache + navigation route,
 //    so every API call goes straight to the network.
-check(!/registerRoute\((?!.*NavigationRoute)/.test(sw.replace(/\s+/g, " ")) ||
-      !/new\s+(?:workbox_strategies|\w+)\.(NetworkFirst|CacheFirst|StaleWhileRevalidate|CacheOnly)/.test(sw),
-  "a runtime caching strategy was added — API responses could be served from cache");
+const routeRegistrations = [...sw.matchAll(/\bregisterRoute\(/g)].length;
+const navigationRegistrations = [
+  ...sw.matchAll(/\bregisterRoute\(\s*new\s+[$\w]+\.NavigationRoute\(/g),
+].length;
+check(routeRegistrations === 1 && navigationRegistrations === 1,
+  "unexpected Workbox route registration — API responses could be served from cache");
 
 // 3. Nothing resembling an API URL may be in the precache manifest, and every
 // emitted JavaScript asset must be listed by Workbox's actual precache call.
