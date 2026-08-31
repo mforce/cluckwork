@@ -209,6 +209,9 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             new { productId, quantity = 1 })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await sales.GetAsync(
             $"/api/v1/sales/{orderId}/payments")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await sales.PutWithKeyAsync(
+            $"/api/v1/customers/{customerId}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Sales Customer Updated", phone = "555-0101" })).StatusCode);
 
         // The customer directory + order book reads (#127) — SalesAccess ⊂ SalesFlow.
         // List and by-id, both groups: the SalesFlow tier reaches all four.
@@ -251,6 +254,9 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.PostWithKeyAsync(
             "/api/v1/customers", Guid.NewGuid().ToString(),
             new { name = "Nope", phone = "1" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.PutWithKeyAsync(
+            $"/api/v1/customers/{Guid.NewGuid()}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Nope", phone = "1" })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await reader.PostWithKeyAsync(
             "/api/v1/sales", Guid.NewGuid().ToString(),
             new { customerId = Guid.NewGuid(), orderDate = Today })).StatusCode);

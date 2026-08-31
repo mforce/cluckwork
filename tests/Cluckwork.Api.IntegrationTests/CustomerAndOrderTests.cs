@@ -12,7 +12,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
 {
     private sealed record IdDto(Guid Id);
     private sealed record CustomerDto(
-        Guid Id, string Name, string Phone, string? Email, string? Address, string? Note);
+        Guid Id, string Name, string Phone, string? Email, string? Address, string? Note, int Version);
     private sealed record OrderItemDto(Guid Id, Guid EggGradeId, int Quantity, long UnitPriceMinorUnits);
     private sealed record OrderDto(
         Guid Id, Guid CustomerId, string ReferenceNumber, string Status,
@@ -464,5 +464,179 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
 
         var created = Assert.Single(events);
         Assert.Equal("SalesOrder.Create", created.Action);
+    }
+
+    [Fact]
+    public async Task Customer_Update_Success_AllFieldsAndVersionBump()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+
+        var update = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "  Updated Name  ", phone = "  555-9999  ", email = "u@example.com", address = "New Addr", note = "New Note" });
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var got = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Equal("Updated Name", got!.Name);
+        Assert.Equal("555-9999", got.Phone);
+        Assert.Equal("u@example.com", got.Email);
+        Assert.Equal("New Addr", got.Address);
+        Assert.Equal("New Note", got.Note);
+        Assert.Equal(1, got.Version);
+    }
+
+    [Fact]
+    public async Task Customer_Update_InvalidBody_400()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+
+        var response = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "   ", phone = "   " });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Customer_Update_UnknownId_404()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var response = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{Guid.NewGuid()}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Nope", phone = "1" });
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Customer_Update_ForeignCustomer_404_AndBRecordFullyUnchanged()
+    {
+        var (clientA, _, _, _, _) = await SetupAsync("Large");
+        var emailB = $"cb-{Guid.NewGuid():N}@test.local";
+        var accountB = await factory.SeedAccountWithUserAsync(emailB);
+        var clientB = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(emailB));
+        var customerBId = await CreatedId(await clientB.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "B's customer", phone = "555-1234", email = "b@example.com", address = "B Addr", note = "B Note" }));
+
+        var response = await clientA.PutWithKeyAsync(
+            $"/api/v1/customers/{customerBId}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Hijacked", phone = "999" });
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        var bRow = await factory.WithTenantScopeAsync(accountB, db =>
+            db.Customers.SingleAsync(c => c.Id == customerBId));
+        Assert.Equal("B's customer", bRow.Name);
+        Assert.Equal("555-1234", bRow.Phone);
+        Assert.Equal("b@example.com", bRow.Email);
+        Assert.Equal("B Addr", bRow.Address);
+        Assert.Equal("B Note", bRow.Note);
+        Assert.Equal(0, bRow.Version);
+    }
+
+    [Fact]
+    public async Task Customer_Update_StaleBaseVersion_ExactlyOneWinnerOverHttp()
+    {
+        var (client, accountId, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+        var loaded = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Equal(0, loaded!.Version);
+
+        var responses = await Task.WhenAll(
+            client.PutWithKeyAsync($"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+                new { version = loaded.Version, name = "Winner A", phone = "111" }),
+            client.PutWithKeyAsync($"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+                new { version = loaded.Version, name = "Winner B", phone = "222" }));
+
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.NoContent);
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+
+        var final = await factory.WithTenantScopeAsync(accountId, db => db.Customers.SingleAsync(c => c.Id == id));
+        Assert.Equal(1, final.Version);
+        Assert.True(final.Name is "Winner A" or "Winner B");
+        Assert.True(
+            (final.Name == "Winner A" && final.Phone == "111") ||
+            (final.Name == "Winner B" && final.Phone == "222"),
+            "final row must be wholly one winner's payload");
+    }
+
+    [Fact]
+    public async Task Customer_Update_HeldSnapshots_SecondSaveThrowsDbUpdateConcurrencyException()
+    {
+        // Two open EF contexts holding the same row, saved A-then-B — the direct
+        // IsConcurrencyToken() proof (FarmLogoTests precedent): a serialized HTTP
+        // race can't show this since the host may just queue the two requests.
+        var (client, accountId, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+
+        var conflict = await Record.ExceptionAsync(() =>
+            factory.WithTenantScopeAsync(accountId, dbA =>
+                factory.WithTenantScopeAsync(accountId, async dbB =>
+                {
+                    var a = await dbA.Customers.SingleAsync(c => c.Id == id);
+                    var b = await dbB.Customers.SingleAsync(c => c.Id == id);
+
+                    a.Update("A wins", "111", null, null, null);
+                    await dbA.SaveChangesAsync();
+
+                    b.Update("B loses", "222", null, null, null);
+                    await dbB.SaveChangesAsync();
+                })));
+
+        Assert.IsType<DbUpdateConcurrencyException>(conflict);
+
+        var final = await factory.WithTenantScopeAsync(accountId, db => db.Customers.SingleAsync(c => c.Id == id));
+        Assert.Equal("A wins", final.Name);
+        Assert.Equal(1, final.Version);
+    }
+
+    [Fact]
+    public async Task Customer_CreateThenUpdate_WritesAuditEvents_WithResolvedActor()
+    {
+        var (client, accountId, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+        var update = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Updated", phone = "111" });
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var events = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .Where(e => e.EntityType == "Customer" && e.EntityId == id)
+            .OrderBy(e => e.OccurredAtUtc)
+            .ToListAsync());
+
+        Assert.Equal(2, events.Count);
+        Assert.Equal("Customer.Create", events[0].Action);
+        Assert.Equal("Customer.Update", events[1].Action);
+        Assert.All(events, e => Assert.NotEqual(Guid.Empty, e.ActorUserId));
+    }
+
+    [Fact]
+    public async Task Customer_Update_RejectedVersionMismatch_AddsNoUpdateAuditRow()
+    {
+        var (client, accountId, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+
+        var response = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 5, name = "Nope", phone = "111" });
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        var events = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .Where(e => e.EntityType == "Customer" && e.EntityId == id)
+            .ToListAsync());
+        Assert.DoesNotContain(events, e => e.Action == "Customer.Update");
     }
 }
