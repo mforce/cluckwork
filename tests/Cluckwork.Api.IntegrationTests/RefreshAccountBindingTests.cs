@@ -582,6 +582,7 @@ public sealed class PerFarmRefreshCookieTests(CluckworkWebApplicationFactory fac
             factory, loginClient, $"569-selected-equal-{Guid.NewGuid():N}@test.local");
         var (foreignFarm, foreignToken, _) = await LoginAsync(
             factory, loginClient, $"569-foreign-equal-{Guid.NewGuid():N}@test.local");
+        var foreignEpochBefore = await LogoutEpochAsync(factory, foreignFarm);
         var client = factory.CreateClient(TestHarness.Cookieless(factory));
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
@@ -595,6 +596,7 @@ public sealed class PerFarmRefreshCookieTests(CluckworkWebApplicationFactory fac
 
         Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
         AssertNoSetCookie(logout, AuthCookies.LegacyRefreshCookieName);
+        Assert.Equal(foreignEpochBefore, await LogoutEpochAsync(factory, foreignFarm));
 
         var foreignAfterLogout = await client.PostRefreshRawAsync(
             AuthCookies.LegacyRefreshCookieName + "=" + foreignToken,
