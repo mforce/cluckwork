@@ -26,10 +26,14 @@ const rows = (...ids: string[]): Row[] => ids.map((id) => ({ id, label: `row ${i
 function Host({
   fetchPage,
   write,
+  committedRowWrite,
+  onCommittedRowError,
   pageSize = 3,
 }: {
   fetchPage: (offset: number, limit: number) => Promise<Row[]>;
   write?: () => Promise<unknown>;
+  committedRowWrite?: () => Promise<Row>;
+  onCommittedRowError?: (err: unknown) => void;
   pageSize?: number;
 }) {
   const list = usePagedList<Row>({ fetchPage, pageSize });
@@ -48,6 +52,11 @@ function Host({
       {write && (
         <button onClick={() => void list.runWrite(write).catch(() => {})}>write</button>
       )}
+      {committedRowWrite && (
+        <button onClick={() => void list.runWriteWithCommittedRow(committedRowWrite)
+          .catch((err) => onCommittedRowError?.(err))}>committed-row-write</button>
+      )}
+      <p data-testid="labels">{list.rows === null ? "null" : list.rows.map((r) => r.label).join(",")}</p>
     </div>
   );
 }
@@ -56,6 +65,7 @@ const shown = () => screen.getByTestId("rows").textContent;
 const errorText = () => screen.getByTestId("error").textContent;
 const loading = () => screen.getByTestId("loading").textContent;
 const reloading = () => screen.getByTestId("reloading").textContent;
+const labels = () => screen.getByTestId("labels").textContent;
 
 describe("usePagedList — first load and paging", () => {
   it("loads the first page on mount and reports more when the page is full", async () => {
@@ -417,6 +427,54 @@ describe("usePagedList — error lifecycle", () => {
 });
 
 describe("usePagedList — writes", () => {
+  it("keeps the loaded window and optimistic committed row when its refresh fails", async () => {
+    const refreshFailure = new Error("refresh died");
+    const seen: unknown[] = [];
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockResolvedValueOnce(rows("d", "e", "f"))
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockRejectedValueOnce(refreshFailure);
+    render(<Host
+      fetchPage={fetchPage}
+      committedRowWrite={() => Promise.resolve({ id: "f", label: "committed f" })}
+      onCommittedRowError={(err) => seen.push(err)}
+    />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f"));
+
+    fireEvent.click(screen.getByRole("button", { name: "committed-row-write" }));
+    await waitFor(() => expect(seen).toEqual([refreshFailure]));
+
+    expect(fetchPage.mock.calls.slice(-2).map(([offset]) => offset)).toEqual([0, 3]);
+    expect(shown()).toBe("a,b,c,d,e,f");
+    expect(labels()).toContain("committed f");
+    // The caller owns this failure (the customer edit dialog); the hook must
+    // not duplicate it in the page-level slot.
+    expect(errorText()).toBe("");
+  });
+
+  it("keeps newer intent authoritative when a committed-row write is superseded", async () => {
+    const writeGate = deferred<Row>();
+    const fetchA = vi.fn().mockResolvedValue(rows("a"));
+    const fetchB = vi.fn()
+      .mockResolvedValueOnce(rows("b"))
+      .mockResolvedValueOnce(rows("b", "written"));
+    const { rerender } = render(
+      <Host fetchPage={fetchA} committedRowWrite={() => writeGate.promise} />);
+    await waitFor(() => expect(shown()).toBe("a"));
+
+    fireEvent.click(screen.getByRole("button", { name: "committed-row-write" }));
+    rerender(<Host fetchPage={fetchB} committedRowWrite={() => writeGate.promise} />);
+    await waitFor(() => expect(shown()).toBe("b"));
+
+    await act(async () => writeGate.resolve({ id: "a", label: "stale committed a" }));
+    await waitFor(() => expect(shown()).toBe("b,written"));
+    expect(labels()).not.toContain("stale committed a");
+    expect(fetchA).toHaveBeenCalledTimes(1);
+  });
+
   it("refreshes the list after a write", async () => {
     const fetchPage = vi.fn()
       .mockResolvedValueOnce(rows("a"))

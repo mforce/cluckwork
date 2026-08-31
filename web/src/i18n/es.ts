@@ -692,6 +692,7 @@ export const es = {
     invalidCostError: "Costo inválido.",
     itemCreatedMessage: "Artículo creado.",
     loadLedgerFailed: "No se pudo cargar el registro de movimientos.",
+    loadLotsFailed: "No se pudieron cargar los lotes del artículo.",
     quantityMustBePositive: "La cantidad debe ser un número positivo.",
     purchaseRecordedMessage: "Compra registrada — existencias recibidas.",
     adjustQuantityRequired:
@@ -758,6 +759,7 @@ export const es = {
     ledgerQuantityHeader: "Cantidad",
     ledgerNoteHeader: "Nota",
     noMovementsMessage: "Aún no hay movimientos — registre una compra arriba.",
+    loadMoreButton: "cargar más",
     closeButton: "cerrar",
 
     // Items table
@@ -1001,6 +1003,7 @@ export const es = {
     ledgerTypeHeader: "Tipo",
     ledgerBirdsHeader: "Aves",
     ledgerNoteHeader: "Nota",
+    loadMoreButton: "cargar más",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
@@ -1351,6 +1354,7 @@ export const es = {
     addressHeader: "Dirección",
     noteHeader: "Nota",
     outstandingHeader: "Pendiente",
+    loadMoreButton: "cargar más",
   },
 
   // machine-drafted (#182) — pending native review. Task 28 (B5): new

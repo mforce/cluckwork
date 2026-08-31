@@ -716,6 +716,7 @@ export const tl = {
     invalidCostError: "Di-wastong halaga.",
     itemCreatedMessage: "Nagawa ang item.",
     loadLedgerFailed: "Hindi na-load ang talaan ng galaw.",
+    loadLotsFailed: "Hindi na-load ang mga lote ng item.",
     quantityMustBePositive: "Dapat positibong numero ang dami.",
     purchaseRecordedMessage: "Naitala ang pagbili — natanggap ang stock.",
     adjustQuantityRequired:
@@ -782,6 +783,7 @@ export const tl = {
     ledgerQuantityHeader: "Dami",
     ledgerNoteHeader: "Tala",
     noMovementsMessage: "Wala pang galaw — magtala ng pagbili sa itaas.",
+    loadMoreButton: "mag-load pa",
     closeButton: "isara",
 
     // Items table
@@ -1034,6 +1036,7 @@ export const tl = {
     ledgerTypeHeader: "Uri",
     ledgerBirdsHeader: "Mga Ibon",
     ledgerNoteHeader: "Tala",
+    loadMoreButton: "mag-load pa",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
@@ -1396,6 +1399,7 @@ export const tl = {
     addressHeader: "Address",
     noteHeader: "Tala",
     outstandingHeader: "Nakabinbin",
+    loadMoreButton: "mag-load pa",
   },
 
   // machine-drafted (#182) — pending native review. Task 28 (B5): new

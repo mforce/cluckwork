@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
+import { screen, within, fireEvent, act, waitFor, cleanup } from "@testing-library/react";
 import { InventoryPage } from "./InventoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account, NO_RECORD_HISTORY } from "../test/fixtures";
@@ -343,7 +343,7 @@ describe("InventoryPage lot & movement drill-down", () => {
     await renderReady(ADMIN);
     await openItem(FEED);
 
-    expect(mockListMovements).toHaveBeenCalledWith("it1", { limit: 100 });
+    expect(mockListMovements).toHaveBeenCalledWith("it1", { limit: 100, offset: 0 });
     expect(mockListLots).toHaveBeenCalledWith("it1");
 
     const mvRow = screen.getByRole("row", { name: /Purchase/ });
@@ -751,25 +751,38 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     expect(screen.getAllByText("Could not load the movement ledger.")).toHaveLength(1);
   });
 
+  // #511 round 2 — restored. Round 1 briefly rewrote this to assert the
+  // ledger error was CLEARED by an unrelated create, which was a consequence
+  // of wrapping every write in the ledger's runWrite, not a behaviour anyone
+  // wanted. Increment 5 removed that coupling, so the original guarantee is
+  // back: a dialog write that has nothing to do with the ledger must not
+  // touch the ledger's error, and the dialog's own failure stays in the
+  // dialog (#479).
   it("keeps a page failure visible after opening a dialog and running a failing dialog write", async () => {
     mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
     mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "create boom"));
     await renderReady(ADMIN);
-
     const row = screen.getByRole("row", { name: /Layer Feed/ });
     await act(async () => {
       fireEvent.click(within(row).getByRole("button", { name: "open" }));
     });
-    expect(await screen.findByText("Could not load the movement ledger.")).toBeInTheDocument();
+    await screen.findByText("Could not load the movement ledger.");
 
-    const form = openDialog("New item");
-    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "X" } });
+    openDialog("New item");
+    fireEvent.change(within(dialog()).getByLabelText(/Name/i), { target: { value: "Grit" } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
     });
 
+    // The create never touched the ledger, so the ledger's failure is untouched.
     expect(screen.getByText("Could not load the movement ledger.")).toBeInTheDocument();
+    // And the create's own failure stays inside the create dialog.
     expect(within(dialog()).getByText("create boom")).toBeInTheDocument();
+    expect(screen.getAllByText("create boom")).toHaveLength(1);
+    // The unrelated create must not have re-read the ledger at all: one call,
+    // from opening the item. This is the assertion that pins WHY the error
+    // survived, rather than just that it did.
+    expect(mockListMovements).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -938,5 +951,313 @@ describe("InventoryPage i18n wiring (#182, Task 16)", () => {
       expect(await screen.findByText("LEDGER-FAILED-MARKER")).toBeInTheDocument();
       expect(screen.queryByText("Could not load the movement ledger.")).not.toBeInTheDocument();
     });
+  });
+});
+
+// #511 — the movement ledger asked for 100 rows and rendered them with no
+// pager, so the oldest movements were unreachable. These pin the paged
+// behaviour and the per-item identity that keeps one item's rows off
+// another item's heading.
+const invMovementRow = (over: Partial<InventoryMovement> = {}): InventoryMovement => ({
+  id: "im0", inventoryItemId: "it1", inventoryLotId: "lot1", date: "2026-07-01",
+  type: "Purchase", quantityDelta: 1, unit: "kg", flockId: null, note: "note",
+  referenceType: null, referenceId: null, ...over,
+});
+const invMovementPage = (n: number, prefix = "im") =>
+  Array.from({ length: n }, (_, i) =>
+    invMovementRow({ id: `${prefix}${i}`, note: `${prefix} note ${String(i).padStart(3, "0")}` }));
+
+describe("InventoryPage ledger paging (#511)", () => {
+  it("reaches a movement past the first page through load more", async () => {
+    mockListMovements.mockResolvedValueOnce(invMovementPage(100));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    await screen.findByText("im note 000");
+    expect(mockListMovements).toHaveBeenCalledWith("it1",
+      expect.objectContaining({ limit: 100, offset: 0 }));
+
+    mockListMovements.mockResolvedValueOnce([invMovementRow({ id: "old", note: "oldest row" })]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+
+    expect(mockListMovements).toHaveBeenLastCalledWith("it1",
+      expect.objectContaining({ offset: 100 }));
+    expect(await screen.findByText("oldest row")).toBeInTheDocument();
+    expect(screen.getByText("im note 000")).toBeInTheDocument();
+  });
+
+  it("withdraws the pager on a short page", async () => {
+    mockListMovements.mockResolvedValueOnce(invMovementPage(3));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    await screen.findByText("im note 000");
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+  });
+
+  it("hides the previous item's movements while the next item's ledger is loading", async () => {
+    // INV-4, render half. Item one's page has ALREADY LANDED, so `rows` holds
+    // it; the user then switches straight to item two and that replacement is
+    // in flight. The rows still in `rows` belong to an item the user has
+    // left, and `reloading` is the only state that knows it.
+    mockListMovements.mockResolvedValueOnce([invMovementRow({ id: "a1", note: "item one row" })]);
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    await screen.findByText("item one row");
+
+    let releaseSecond!: (rows: InventoryMovement[]) => void;
+    mockListMovements.mockReturnValueOnce(new Promise((r) => { releaseSecond = r; }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "open" }));
+    });
+
+    expect(screen.queryByText("item one row")).not.toBeInTheDocument();
+
+    await act(async () => {
+      releaseSecond([invMovementRow({ id: "b1", inventoryItemId: "it2", note: "item two row" })]);
+    });
+    expect(await screen.findByText("item two row")).toBeInTheDocument();
+  });
+
+  it("refreshes every loaded page after recording a purchase", async () => {
+    mockListMovements.mockResolvedValueOnce(invMovementPage(100));
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    await screen.findByText("im note 000");
+
+    mockListMovements.mockResolvedValueOnce([invMovementRow({ id: "old", note: "oldest row" })]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+    await screen.findByText("oldest row");
+
+    // The refresh has to be OBSERVABLE: the post-write fixtures carry
+    // DIFFERENT text from the pre-write ones, same technique as FlocksPage's
+    // equivalent (#511).
+    mockPurchase.mockResolvedValue({ lotId: "lot9" });
+    mockListMovements.mockResolvedValueOnce(
+      invMovementPage(100).map((m, i) => ({ ...m, note: `refreshed ${String(i).padStart(3, "0")}` })));
+    mockListMovements.mockResolvedValueOnce([invMovementRow({ id: "old", note: "refreshed oldest" })]);
+
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+
+    // Both pages the user had loaded were re-read, not just page one.
+    expect(await screen.findByText("refreshed oldest")).toBeInTheDocument();
+    expect(screen.getByText("refreshed 000")).toBeInTheDocument();
+  });
+
+  // Mutation table row 6: `clearKey` must stay AFTER `runWrite` resolves, not
+  // inside its callback — otherwise a failed refresh still rotates the key,
+  // and a retry mints a fresh write instead of replaying the idempotent one.
+  it("keeps the same key when the post-write refresh fails, so a retry replays the write", async () => {
+    mockPurchase.mockResolvedValue({ lotId: "lot9" });
+    // The write succeeds; refreshAll's own read (listInventoryItems) is what
+    // fails — this is the refresh runWrite wraps, not the write itself.
+    mockListItems.mockResolvedValueOnce([FEED, PACKAGING, INACTIVE]); // initial mount load
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    mockListItems.mockRejectedValueOnce(new ApiError(500, "Server error", "refresh down"));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+    // The failed refresh reports through the purchase dialog's own slot.
+    expect(within(dialog()).getByText("refresh down")).toBeInTheDocument();
+
+    // Retry with the refresh healthy this time.
+    mockListItems.mockResolvedValueOnce([FEED, PACKAGING, INACTIVE]);
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+
+    const k1 = mockPurchase.mock.calls[0][2];
+    const k2 = mockPurchase.mock.calls[1][2];
+    expect(k2).toBe(k1); // the failed refresh kept the key → exact replay
+  });
+
+  it("re-reads the ledger when the already-open item is opened again", async () => {
+    // Pre-#511 this screen re-read the ledger on EVERY open click. The hook
+    // only reloads when `activeId` CHANGES, so re-opening the same item is
+    // exactly the case that silently stopped refreshing.
+    mockListMovements.mockResolvedValueOnce([invMovementRow({ id: "a1", note: "stale row" })]);
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    await screen.findByText("stale row");
+    expect(mockListMovements).toHaveBeenCalledTimes(1);
+
+    mockListMovements.mockResolvedValueOnce([invMovementRow({ id: "a2", note: "fresh row" })]);
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "open" }));
+    });
+
+    expect(mockListMovements).toHaveBeenCalledTimes(2);
+    expect(await screen.findByText("fresh row")).toBeInTheDocument();
+    expect(screen.queryByText("stale row")).not.toBeInTheDocument();
+  });
+
+  it("clears the previous item's lots the moment a different item is opened", async () => {
+    // #511 round 3 — the version of this test written in round 2 asserted on
+    // the panel AFTER releasing item one's late lots response, which the
+    // pre-existing `lotsRequest` ticket already rejected on its own: it passed
+    // with the whole fix deleted. The window that actually needs guarding is
+    // the one BEFORE item two's lots land, where item one's list is still the
+    // only thing in `lots`.
+    //
+    // Adapted from the runbook literal (reported): a lot's NUMBER text
+    // ("A-1") only ever renders inside the Adjust dialog's <select>, and
+    // `onOpen`'s displacement guard force-closes that dialog on every item
+    // switch regardless of whether `lots` itself was cleared — so a
+    // closed-dialog absence of "A-1" would pass whether or not the clear ran.
+    // The `lots.length > 0` gate on the "Correct stock" button lives
+    // directly on the panel, untouched by the dialog's open/close state, so
+    // it is what actually observes whether `lots` still holds the departed
+    // item's rows while the next item's own read is in flight.
+    mockListMovements.mockResolvedValue([]);
+    mockListLots.mockResolvedValueOnce([
+      { ...LOT, id: "lotA", lotNumber: "A-1" },
+    ]);
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    await screen.findByRole("button", { name: "Correct stock" });
+
+    // Item two's lots never settle during this test: the assertion is about
+    // what is on screen while they are still in flight.
+    mockListLots.mockReturnValueOnce(new Promise(() => {}));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "open" }));
+    });
+
+    expect(screen.queryByRole("button", { name: "Correct stock" })).not.toBeInTheDocument();
+  });
+
+  // One test, two locales, per the round-2 runbook. Two adaptations from a
+  // literal read of the CustomersPage precedent, both reported: (1)
+  // renderReady()/render doesn't auto-unmount between calls within one test
+  // — only afterEach does that between tests — so an explicit cleanup() is
+  // needed between the two locale checks; (2) openItem()'s hardcoded "open"
+  // button name is English-only — inventory:openButton is itself translated
+  // ("abrir"/"buksan") — so opening the item under es/tl needs the CURRENT
+  // locale's label, read via i18n.t rather than the helper.
+  it("renders the pager label from the active locale", async () => {
+    mockListMovements.mockResolvedValueOnce(invMovementPage(100));
+    await i18n.changeLanguage("es");
+    try {
+      await renderReady(ADMIN);
+      const openLabel = i18n.t("inventory:openButton");
+      await act(async () => {
+        fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: openLabel }));
+      });
+      await screen.findByText("im note 000");
+      expect(screen.getByRole("button", { name: "cargar más" })).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("en");
+      cleanup();
+    }
+
+    mockListMovements.mockResolvedValueOnce(invMovementPage(100));
+    await i18n.changeLanguage("tl");
+    try {
+      await renderReady(ADMIN);
+      const openLabel = i18n.t("inventory:openButton");
+      await act(async () => {
+        fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: openLabel }));
+      });
+      await screen.findByText("im note 000");
+      expect(screen.getByRole("button", { name: "mag-load pa" })).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("en");
+    }
+  });
+
+  it("blames the lots read, not the movement ledger, when lots fail to load", async () => {
+    // #511 round 4 — before the round-1 split, one catch covered a combined
+    // movements+lots read and "Could not load the movement ledger." was
+    // accurate for both. After the split this catch only ever wraps loadLots,
+    // so a lots failure was reporting a failure of a read that succeeded.
+    mockListMovements.mockResolvedValue([]);
+    mockListLots.mockRejectedValueOnce(new ApiError(500, "Server error", "lots down"));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+
+    expect(await screen.findByText("Could not load the item's lots.")).toBeInTheDocument();
+    expect(screen.queryByText("Could not load the movement ledger.")).not.toBeInTheDocument();
+  });
+
+  it("keeps the loaded movements on screen when a load-more fails, and offers the retry", async () => {
+    // AC3. usePagedList keeps `rows` and `hasMore` when an EXTENSION fails —
+    // only a failed REPLACEMENT empties them — so the screen must not throw
+    // the table away on `error`. Paging deep and hitting one transient failure
+    // must not cost the user everything already on screen.
+    mockListMovements.mockResolvedValueOnce(invMovementPage(100));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    await screen.findByText("im note 000");
+
+    mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+
+    // The error is shown...
+    expect(screen.getByText("Could not load the movement ledger.")).toBeInTheDocument();
+    // ...and the rows already loaded are STILL THERE, with the pager to retry.
+    expect(screen.getByText("im note 000")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "load more" })).toBeInTheDocument();
+  });
+
+  it("does not report a superseded item's lots failure over the item now open", async () => {
+    // INV-1, failure path. The ticket already drops a stale SUCCESS; a stale
+    // REJECTION is exactly as stale and must not paint over a healthy panel.
+    mockListMovements.mockResolvedValue([]);
+    let failFirst!: (err: unknown) => void;
+    mockListLots.mockReturnValueOnce(new Promise((_, rej) => { failFirst = rej; }));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+
+    mockListLots.mockResolvedValueOnce([]);
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "open" }));
+    });
+
+    await act(async () => {
+      failFirst(new ApiError(500, "Server error", "lots down"));
+    });
+
+    expect(screen.queryByText("Could not load the item's lots.")).not.toBeInTheDocument();
+  });
+
+  it("fails the write and keeps its key when the post-write LOTS re-read fails", async () => {
+    // INV-6, via the lots branch specifically. The existing key-survival test
+    // drives refreshAll's fetchItems() failure; nothing drove its loadLots
+    // failure, which is exactly the gap that let round 5's proposed fix look
+    // safe. A live lots rejection must still fail the write.
+    mockListMovements.mockResolvedValue([]);
+    mockPurchase.mockResolvedValue({ lotId: "lot9" });
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    mockListLots.mockRejectedValueOnce(new ApiError(500, "Server error", "lots down"));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+
+    // The write is reported FAILED even though the POST succeeded, because its
+    // refresh did not: the dialog stays open carrying the failure.
+    expect(within(dialog()).getByText("lots down")).toBeInTheDocument();
+
+    // And the key survived, so a retry replays rather than repeats.
+    mockListLots.mockResolvedValueOnce([]);
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+    expect(mockPurchase.mock.calls[1][2]).toBe(mockPurchase.mock.calls[0][2]);
   });
 });

@@ -278,6 +278,14 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             MaybeFail(command);
             return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
         }
+
+        public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<object> result,
+            CancellationToken cancellationToken = default)
+        {
+            MaybeFail(command);
+            return base.ScalarExecutingAsync(command, eventData, result, cancellationToken);
+        }
     }
 
     [Fact]

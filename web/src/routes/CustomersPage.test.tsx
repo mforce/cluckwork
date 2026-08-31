@@ -806,3 +806,145 @@ describe("CustomersPage abandoned attempts (#474, pinned in #491)", () => {
     expect(screen.queryByText("Phone is already in use.")).not.toBeInTheDocument();
   });
 });
+
+// #511 — the customer book renders ONE server page and no pager, so an
+// alphabetically later customer silently disappears. These pin the paged
+// behaviour: the cap is crossed, the next page is reachable, and the loaded
+// window survives a create.
+const customerPage = (n: number, prefix = "p") =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `${prefix}${i}`,
+    // Zero-padded so the fixture's own order matches the server's Name,Id
+    // ordering — an unpadded "c10" sorts before "c9" and would make the
+    // sentinel's position an accident of string comparison.
+    name: `${prefix} customer ${String(i).padStart(3, "0")}`,
+    phone: `555-${i}`,
+    email: null,
+    address: null,
+    note: null,
+    version: i,
+  })) as Customer[];
+
+describe("CustomersPage paging (#511)", () => {
+  it("reaches a customer past the first server page through load more", async () => {
+    mockList.mockResolvedValueOnce(customerPage(100));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /p customer 000/ });
+    expect(mockList).toHaveBeenCalledWith(expect.objectContaining({ limit: 100, offset: 0 }));
+
+    mockList.mockResolvedValueOnce([
+      { id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null, version: 0 },
+    ] as Customer[]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+
+    expect(mockList).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 100 }));
+    expect(await screen.findByRole("row", { name: /Zulu Farm/ })).toBeInTheDocument();
+    // The first page is still on screen — this is an EXTENSION, not a replacement.
+    expect(screen.getByRole("row", { name: /p customer 000/ })).toBeInTheDocument();
+  });
+
+  it("withdraws the pager on a short page and never offers it on an empty list", async () => {
+    mockList.mockResolvedValueOnce(customerPage(3));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /p customer 000/ });
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the loaded window after a create instead of snapping back to page one", async () => {
+    mockList.mockResolvedValueOnce(customerPage(100));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /p customer 000/ });
+
+    mockList.mockResolvedValueOnce([
+      { id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null, version: 0 },
+    ] as Customer[]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+    await screen.findByRole("row", { name: /Zulu Farm/ });
+
+    // The create's refresh must re-read BOTH pages the user has loaded.
+    mockCreate.mockResolvedValue({ id: "c9" });
+    mockList.mockResolvedValueOnce(customerPage(100));
+    mockList.mockResolvedValueOnce([
+      { id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null, version: 0 },
+    ] as Customer[]);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Zeta" } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "999" } });
+    await submit();
+
+    // Still deep in the list: the row only page two carries is still rendered.
+    expect(await screen.findByRole("row", { name: /Zulu Farm/ })).toBeInTheDocument();
+  });
+
+  it("refreshes every loaded page after an edit instead of snapping back to page one", async () => {
+    const zulu: Customer = {
+      id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null, version: 4,
+    };
+    mockList.mockResolvedValueOnce(customerPage(100));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /p customer 000/ });
+
+    mockList.mockResolvedValueOnce([zulu]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+    await screen.findByRole("row", { name: /Zulu Farm/ });
+
+    mockList.mockResolvedValueOnce(customerPage(100));
+    mockList.mockResolvedValueOnce([{ ...zulu, name: "Zulu Farm Updated", version: 5 }]);
+    openEdit("Zulu Farm");
+    await screen.findByRole("dialog", { name: "Edit Zulu Farm" });
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), {
+      target: { value: "Zulu Farm Updated" },
+    });
+    await submitEdit();
+
+    expect(mockList.mock.calls.slice(-2).map(([params]) => params?.offset)).toEqual([0, 100]);
+    expect(screen.getByRole("row", { name: /p customer 000/ })).toBeInTheDocument();
+    expect(await screen.findByRole("row", { name: /Zulu Farm Updated/ })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps the loaded rows when EXTENDING fails, and offers the retry", async () => {
+    mockList.mockResolvedValueOnce(customerPage(100));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /p customer 000/ });
+
+    mockList.mockRejectedValueOnce(new ApiError(500, "Server.Error", "boom"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+
+    // A failed EXTENSION says nothing about the rows already on screen.
+    expect(screen.getByRole("row", { name: /p customer 000/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "load more" })).toBeInTheDocument();
+  });
+
+  it("renders the pager label from the active locale", async () => {
+    mockList.mockResolvedValueOnce(customerPage(100));
+    await i18n.changeLanguage("es");
+    try {
+      renderWithProviders(<CustomersPage />, { token: WORKER });
+      await screen.findByRole("row", { name: /p customer 000/ });
+      expect(screen.getByRole("button", { name: "cargar más" })).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("en");
+    }
+  });
+
+  it("renders the pager label under tl", async () => {
+    mockList.mockResolvedValueOnce(customerPage(100));
+    await i18n.changeLanguage("tl");
+    try {
+      renderWithProviders(<CustomersPage />, { token: WORKER });
+      await screen.findByRole("row", { name: /p customer 000/ });
+      expect(screen.getByRole("button", { name: "mag-load pa" })).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("en");
+    }
+  });
+});

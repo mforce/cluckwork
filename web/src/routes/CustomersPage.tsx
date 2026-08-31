@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Pencil, Plus } from "lucide-react";
@@ -11,6 +11,7 @@ import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
+import { usePagedList } from "../components/usePagedList";
 import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
@@ -31,6 +32,10 @@ interface EditForm {
   note: string;
 }
 
+// Matches the endpoint's DefaultPageSize (CustomerEndpoints.cs) so a full page
+// is exactly what the server considers one.
+const CUSTOMER_PAGE = 100;
+
 // #23: customer book — name + phone required, the rest optional.
 export function CustomersPage() {
   const { t } = useTranslation("customers");
@@ -39,7 +44,21 @@ export function CustomersPage() {
   // Balances are money data (#89): the column renders for admins only and the
   // API refuses workers regardless.
   const { isAdmin } = useAuth();
-  const [customers, setCustomers] = useState<Customer[] | null>(null);
+  // #511 — the customer book is server-paged and unbounded; rendering one page
+  // with no pager silently hid every alphabetically later customer. The empty
+  // dep array is load-bearing: this list has no filter, so `fetchPage` keeps
+  // ONE identity for the life of the screen, and the hook's "a new fetchPage
+  // identity IS a filter change" effect never re-fires.
+  const fetchCustomers = useCallback(
+    (offset: number, limit: number) => listCustomers({ limit, offset }),
+    [],
+  );
+  const customerList = usePagedList<Customer>({
+    fetchPage: fetchCustomers,
+    pageSize: CUSTOMER_PAGE,
+    errorText: () => i18n.t("customers:loadCustomersErrorMessage"),
+  });
+  const customers = customerList.rows;
   const [balances, setBalances] = useState<CustomerBalances | null>(null);
   // #479 — one slot per PLACE a message can appear. Both reads below belong to
   // the page; the create form's failures belong to the form.
@@ -77,13 +96,6 @@ export function CustomersPage() {
     return fresh.key;
   };
   const clearEditKey = (id: string) => editKeys.current.delete(id);
-
-  const load = () =>
-    listCustomers().then(setCustomers)
-      .catch(() => setPageError(i18n.t("customers:loadCustomersErrorMessage")));
-
-  useEffect(() => { void load(); }, []);
-
   useEffect(() => {
     if (!isAdmin) return;
     // The balances read sets no `busy` and the New customer trigger is not
@@ -114,16 +126,17 @@ export function CustomersPage() {
     await run("create", async () => {
       errors.beginAttempt("create");
       try {
-        await createCustomer({
-          name, phone,
-          email: email || undefined,
-          address: address || undefined,
-          note: note || undefined,
-        }, createKey.current);
+        await customerList.runWrite(async () => {
+          await createCustomer({
+            name, phone,
+            email: email || undefined,
+            address: address || undefined,
+            note: note || undefined,
+          }, createKey.current);
+        });
         createKey.current = newId();
         setName(""); setPhone(""); setEmail(""); setAddress(""); setNote("");
         setCreating(false);
-        await load();
       } catch (err) {
         errors.report("create", err instanceof ApiError ? err.message : String(err));
       }
@@ -173,59 +186,41 @@ export function CustomersPage() {
           address: target.address || undefined,
           note: target.note || undefined,
         };
-        await updateCustomer(target.id, body, editKeyFor(target.id, JSON.stringify(body)));
-        // Clear the key the instant the WRITE is confirmed — before the
-        // refresh — so a changed retry after a failed refresh cannot replay
-        // this cached response (same contract as UsersPage's onUpdate/#163).
-        clearEditKey(target.id);
-        // The server's Version is now target.version + 1 (Update always bumps
-        // exactly once). Rebind the form AND the backing row to that
-        // COMMITTED value before the refresh: if the refresh below fails, the
-        // dialog stays open on the real current Version (a retry sends it
-        // correctly rather than replaying the now-stale value that already
-        // succeeded once), and — critically — a close+reopen of this SAME
-        // row (permitted once !editWriteInFlight, i.e. after this whole
-        // write+refresh cycle settles) reads FROM `customers`, so leaving
-        // that array holding pre-write data would silently reintroduce the
-        // exact same stale-Version bug one level later, through a path that
-        // isn't "still open", just "reopened before a later refresh ever
-        // succeeded".
-        // Normalized exactly like Customer.Update on the server: required
-        // fields trimmed, optional fields trimmed-then-null-if-blank. Without
-        // this the optimistic snapshot would diverge from what the server
-        // actually persisted (padded input, or a whitespace-only optional
-        // that the server nulled but this patch would have kept as "   ").
-        const committedVersion = target.version + 1;
-        const normalizeOptional = (v: string): string | null => {
-          const trimmed = v.trim();
-          return trimmed === "" ? null : trimmed;
-        };
-        const normalizedName = target.name.trim();
-        const normalizedPhone = target.phone.trim();
-        const normalizedEmail = normalizeOptional(target.email);
-        const normalizedAddress = normalizeOptional(target.address);
-        const normalizedNote = normalizeOptional(target.note);
-        const committedFields: Customer = {
-          id: target.id, version: committedVersion, name: normalizedName, phone: normalizedPhone,
-          email: normalizedEmail, address: normalizedAddress, note: normalizedNote,
-        };
-        if (isCurrentDialog()) {
-          setEditForm((prev) => (prev && prev.id === target.id ? {
-            ...prev, version: committedVersion, name: normalizedName, phone: normalizedPhone,
-            email: normalizedEmail ?? "", address: normalizedAddress ?? "", note: normalizedNote ?? "",
-          } : prev));
-        }
-        setCustomers((prev) => prev && prev.map((c) => (c.id === target.id ? committedFields : c)));
-        // Not the page-level `load()` helper: it swallows its own rejection
-        // into the PAGE's error slot, which would misattribute a refresh
-        // failure to the screen instead of the dialog whose write caused it.
-        try {
-          const fresh = await listCustomers();
-          if (isCurrentDialog()) setCustomers(fresh);
-        } catch (err) {
-          if (isCurrentDialog()) errors.report("edit-customer", errText(err));
-          return;
-        }
+        await customerList.runWriteWithCommittedRow(async () => {
+          await updateCustomer(target.id, body, editKeyFor(target.id, JSON.stringify(body)));
+          // Clear the key the instant the WRITE is confirmed — before the
+          // refresh — so a changed retry after a failed refresh cannot replay
+          // this cached response (same contract as UsersPage's onUpdate/#163).
+          clearEditKey(target.id);
+          // The server's Version is now target.version + 1 (Update always
+          // bumps exactly once). Rebind the form AND the hook's loaded row to
+          // that COMMITTED value before it refreshes the complete loaded
+          // window: a failed refresh leaves both on the real current Version,
+          // including through a close+reopen of this same row.
+          // Normalized exactly like Customer.Update on the server: required
+          // fields trimmed, optional fields trimmed-then-null-if-blank.
+          const committedVersion = target.version + 1;
+          const normalizeOptional = (v: string): string | null => {
+            const trimmed = v.trim();
+            return trimmed === "" ? null : trimmed;
+          };
+          const normalizedName = target.name.trim();
+          const normalizedPhone = target.phone.trim();
+          const normalizedEmail = normalizeOptional(target.email);
+          const normalizedAddress = normalizeOptional(target.address);
+          const normalizedNote = normalizeOptional(target.note);
+          const committedFields: Customer = {
+            id: target.id, version: committedVersion, name: normalizedName, phone: normalizedPhone,
+            email: normalizedEmail, address: normalizedAddress, note: normalizedNote,
+          };
+          if (isCurrentDialog()) {
+            setEditForm((prev) => (prev && prev.id === target.id ? {
+              ...prev, version: committedVersion, name: normalizedName, phone: normalizedPhone,
+              email: normalizedEmail ?? "", address: normalizedAddress ?? "", note: normalizedNote ?? "",
+            } : prev));
+          }
+          return committedFields;
+        });
         if (isCurrentDialog()) closeEdit();
       } catch (err) {
         if (isCurrentDialog()) errors.report("edit-customer", errText(err));
@@ -327,6 +322,7 @@ export function CustomersPage() {
           dialog's message now lives in a slot only the dialog renders, so
           there is nothing here to double up on or to inherit. */}
       {errors.page && <p className="error">{errors.page}</p>}
+      {customerList.error && <p className="error">{customerList.error}</p>}
 
       {customers === null ? (
         <p className="muted">{tc("loading")}</p>
@@ -365,6 +361,15 @@ export function CustomersPage() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {customerList.canLoadMore && (
+        // Rendered from canLoadMore, which folds in `loading`: the control is
+        // withdrawn for the duration of its own flight, so two rapid clicks
+        // cannot append the same page twice.
+        <button className="link" onClick={() => void customerList.loadMore()}>
+          {t("loadMoreButton")}
+        </button>
       )}
     </section>
   );

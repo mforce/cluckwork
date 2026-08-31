@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -15,6 +15,7 @@ import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
+import { usePagedList } from "../components/usePagedList";
 import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
@@ -35,6 +36,9 @@ function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
 }
+
+// The ledger's previous hard cap, kept as the page size.
+const LEDGER_PAGE = 100;
 
 // F15 (#66, PR 1): inventory catalog + receiving stock. Items define what and
 // how it's measured; lots carry quantities/cost; the movement ledger explains
@@ -77,7 +81,6 @@ export function InventoryPage() {
   // open item panel: purchase/adjust forms + ledger. Feed usage moved to its
   // own /feed page (#446) — the panel keeps only a deep link there.
   const [active, setActive] = useState<InventoryItem | null>(null);
-  const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [lots, setLots] = useState<InventoryLot[]>([]);
   // the open item's two capture dialogs
   const [purchasing, setPurchasing] = useState(false);
@@ -93,8 +96,25 @@ export function InventoryPage() {
   const [lotNumber, setLotNumber] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [purchaseNote, setPurchaseNote] = useState("");
-  // Guards stale ledger responses when switching items quickly.
-  const ledgerRequest = useRef(0);
+
+  // #511 — the movement ledger is server-paged; the OPEN ITEM is the fetch
+  // identity, so switching items reloads from the top and a late response for
+  // the previous item can never paint under this one's heading.
+  const activeId = active?.id ?? null;
+  const fetchMovements = useCallback(
+    (offset: number, limit: number) =>
+      activeId
+        ? listInventoryMovements(activeId, { limit, offset })
+        : Promise.resolve<InventoryMovement[]>([]),
+    [activeId],
+  );
+  const ledger = usePagedList<InventoryMovement>({
+    fetchPage: fetchMovements,
+    pageSize: LEDGER_PAGE,
+    // The LEDGER's own key, not the item list's: four existing ledger-failure
+    // tests assert this exact sentence, and `onOpen`'s catch used it too.
+    errorText: () => i18n.t("inventory:loadLedgerFailed"),
+  });
 
   // Stable idempotency keys per logical mutation, rotated only after the full
   // action (write + refresh) succeeds — same contract as the other screens.
@@ -137,18 +157,59 @@ export function InventoryPage() {
     if (target) {
       const stillThere = fresh.find((i) => i.id === target) ?? null;
       setActive(stillThere);
-      if (stillThere) await loadLedger(stillThere.id);
+      if (stillThere) await loadLots(stillThere.id);
     }
   }
 
-  async function loadLedger(itemId: string) {
-    const req = ++ledgerRequest.current;
-    const [rows, lotRows] = await Promise.all([
-      listInventoryMovements(itemId, { limit: 100 }),
-      listInventoryLots(itemId),
-    ]);
-    if (ledgerRequest.current !== req) return;
-    setMovements(rows);
+  // Lots are deliberately NOT folded into the paged ledger's `meta`: the hook
+  // sets meta from every page it fetches, so a window refresh would re-request
+  // the lots once per page. They keep their own read and their own guard.
+  const lotsRequest = useRef(0);
+
+  // #511 round 4 — an `activeIdRef.current !== itemId` guard was added here in
+  // round 2 and removed again in round 3, deliberately. Why it was redundant,
+  // stated as the argument that actually holds:
+  //   * Both callers set `active` to the same item SYNCHRONOUSLY before
+  //     calling this — `onOpen` does setActive(i) then loadLots(i.id);
+  //     `refreshAll` does setActive(stillThere) then loadLots(stillThere.id) —
+  //     so the ids agree at call time and a call-time comparison is a no-op.
+  //   * A divergence can only appear AFTER the await, and that is exactly what
+  //     the `lotsRequest` ticket below rejects: opening any item bumps it.
+  //   * `usePendingAction`'s `busy` disables every row's open button for the
+  //     whole of a write, so the interleaving the ref form would have caught
+  //     cannot be produced from the UI.
+  // The round-3 comment justified this by saying the suite stayed green when
+  // the guard was deleted. That was the wrong evidence and is not repeated
+  // here: a green suite after a deletion proves no test REACHES the branch,
+  // which is a coverage fact, not an unreachability proof.
+  // The ticket is now the sole guard on this read, and it has no test of its
+  // own — measured, not assumed: disabling it leaves the whole suite green.
+  // That gap is tracked as #631.
+  async function loadLots(itemId: string) {
+    const req = ++lotsRequest.current;
+    let lotRows: InventoryLot[];
+    try {
+      lotRows = await listInventoryLots(itemId);
+    } catch (err) {
+      // #511 round 6 — INV-1 applies to the failure path, but INV-6 still owns
+      // the live one, and the two are distinguishable by the same ticket that
+      // already guards the success path:
+      //   * SUPERSEDED (the ticket moved on): nobody is waiting for this and
+      //     the panel is showing a different item. Swallow it — neither report
+      //     nor throw. Painting it over a healthy view is the bug the hook's
+      //     own header calls "a superseded request's rejection is exactly as
+      //     stale as its response".
+      //   * CURRENT: rethrow, unchanged. `refreshAll` awaits this with no catch
+      //     of its own, so the throw reaches `run()`, which reports it into the
+      //     write's dialog and SKIPS clearKey — that is how a write whose
+      //     post-write refresh failed keeps its idempotency key for a replay.
+      // An earlier draft of this fix swallowed BOTH and would have reported
+      // such a write as successful. It is pinned now by "fails the write and
+      // keeps its key when the post-write LOTS re-read fails".
+      if (lotsRequest.current !== req) return;
+      throw err;
+    }
+    if (lotsRequest.current !== req) return;
     setLots(lotRows);
     setAdjustLotId((prev) => lotRows.some((l) => l.id === prev) ? prev : (lotRows[0]?.id ?? ""));
   }
@@ -156,15 +217,29 @@ export function InventoryPage() {
   // `scope` drives the idempotency key + pending spinner (#236); `errorScope`
   // is the #479 slot the attempt reports to — `null` for the two row-level
   // writes (activate/deactivate) that have no dialog of their own.
-  async function run(scope: string, errorScope: string | null, action: (key: string) => Promise<unknown>, openItemId?: string): Promise<boolean> {
+  // #511 round 2 — `touchesLedger` decides whether this write goes through the
+  // LEDGER's runWrite. Only a write that produces an InventoryMovement does.
+  // Round 1 wrapped all six, so an unrelated create-item claimed the open
+  // ledger's ticket: it disabled that ledger's Load more for the duration
+  // (canLoadMore folds in `loading`), re-walked every loaded page for nothing,
+  // and could clear a standing ledger error the moment its incidental re-read
+  // happened to succeed. FlocksPage already draws this line — only
+  // onRecordMovement goes through ledger.runWrite there.
+  async function run(scope: string, errorScope: string | null, action: (key: string) => Promise<unknown>, openItemId?: string, touchesLedger = false): Promise<boolean> {
     const outcome = await runPending(scope, async () => {
       errors.beginAttempt(errorScope);
       setMessage(null);
       try {
-        await action(keyFor(scope));
-        // The refresh must succeed before the key rotates: if it throws, the key
-        // survives and a retry replays the idempotent write instead of repeating it.
-        await refreshAll(openItemId);
+        const write = async () => {
+          await action(keyFor(scope));
+          // The refresh must succeed before the key rotates: if it throws, the key
+          // survives and a retry replays the idempotent write instead of repeating it.
+          await refreshAll(openItemId);
+        };
+        // A ledger write refreshes the whole loaded movement window (AC4); a
+        // catalog write refreshes items and lots only.
+        if (touchesLedger) await ledger.runWrite(write);
+        else await write();
         clearKey(scope);
         return true;
       } catch (err) {
@@ -248,13 +323,25 @@ export function InventoryPage() {
     if (active === null || active.id !== i.id) {
       closePurchase();
       closeAdjust();
+      // A different item's lots must never be visible under this one, not even
+      // for the length of the fetch.
+      setLots([]);
+      setAdjustLotId("");
     }
+    // #511 round 2 — the hook reloads only when `activeId` CHANGES, so
+    // re-opening the item that is already open would leave the movement
+    // ledger stale while the lots beside it refreshed. The pre-#511 code
+    // re-read the ledger on every Open click; `reload()` restores that.
+    const sameItem = active !== null && active.id === i.id;
     setActive(i);
-    setMovements([]);
+    if (sameItem) void ledger.reload();
     try {
-      await loadLedger(i.id);
+      await loadLots(i.id);
     } catch {
-      setPageError(i18n.t("inventory:loadLedgerFailed"));
+      // Names the read that actually failed. Before #511 split the combined
+      // movements+lots read, this catch covered both and the ledger wording
+      // was accurate; it only wraps loadLots now.
+      setPageError(i18n.t("inventory:loadLotsFailed"));
     }
   }
 
@@ -277,7 +364,7 @@ export function InventoryPage() {
         lotNumber: lotNumber.trim() || undefined,
         expiryDate: expiryDate || undefined,
         note: purchaseNote.trim() || undefined,
-      }, key), active.id);
+      }, key), active.id, true);
     if (ok) {
       setPurchaseQty("");
       setPurchaseCost("");
@@ -311,7 +398,7 @@ export function InventoryPage() {
         type: adjustType,
         quantityDelta: adjustType === "Discard" ? -Math.abs(delta) : delta,
         reason: adjustReason.trim(),
-      }, key), active.id);
+      }, key), active.id, true);
     if (ok) {
       setAdjustQty("");
       setAdjustReason("");
@@ -526,13 +613,28 @@ export function InventoryPage() {
             </form>
           </Dialog>
 
-          {movements.length > 0 ? (
+          {/* #511 round 5 — the error renders BESIDE the rows, never instead of
+              them. usePagedList keeps `rows` and `hasMore` when an EXTENSION
+              fails (only a failed REPLACEMENT empties them), so a branch that
+              swapped the table for the message threw away everything the user
+              had paged to over one transient load-more failure. That is AC3:
+              a failed extension keeps already-loaded rows and permits retry.
+              CustomersPage had this right from the start — it is the shape
+              copied here. A failed REPLACEMENT still shows the message alone,
+              because the hook has emptied `rows` by then and the empty branch
+              below does not fire on `error`. */}
+          {ledger.error && <p className="error">{ledger.error}</p>}
+          {ledger.rows === null || ledger.reloading ? (
+            <p className="muted">{tc("loading")}</p>
+          ) : ledger.rows.length === 0 && !ledger.error ? (
+            <p className="muted">{t("noMovementsMessage")}</p>
+          ) : (
             <table className="data">
               <thead>
                 <tr><th>{t("ledgerDateHeader")}</th><th>{t("ledgerTypeHeader")}</th><th>{t("ledgerQuantityHeader")}</th><th>{t("ledgerNoteHeader")}</th></tr>
               </thead>
               <tbody>
-                {movements.map((m) => (
+                {ledger.rows.map((m) => (
                   <tr key={m.id}>
                     <td>{m.date}</td>
                     <td>{inventoryMovementLabel(m.type)}</td>
@@ -542,8 +644,11 @@ export function InventoryPage() {
                 ))}
               </tbody>
             </table>
-          ) : (
-            <p className="muted">{t("noMovementsMessage")}</p>
+          )}
+          {ledger.canLoadMore && (
+            <button className="link" onClick={() => void ledger.loadMore()}>
+              {t("loadMoreButton")}
+            </button>
           )}
           <div className="actions">
             <button className="link" onClick={() => setActive(null)}>{t("closeButton")}</button>

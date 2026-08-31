@@ -35,6 +35,11 @@ import { errText } from "../lib/errText";
 // picker reads as a legitimate number for the wrong period.
 export type PageResult<T, M> = T[] | { items: T[]; meta: M };
 
+type WindowRefreshOutcome =
+  | { status: "applied" }
+  | { status: "stale" }
+  | { status: "failed"; error: unknown };
+
 export function usePagedList<T extends { id: string }, M = never>({
   fetchPage,
   pageSize,
@@ -55,6 +60,7 @@ export function usePagedList<T extends { id: string }, M = never>({
   error: string | null;
   loadMore: () => Promise<void>;
   runWrite: <R>(write: () => Promise<R>) => Promise<R>;
+  runWriteWithCommittedRow: (write: () => Promise<T>) => Promise<T>;
   reload: () => Promise<void>;
 } {
   const [rows, setRows] = useState<T[] | null>(null);
@@ -189,7 +195,10 @@ export function usePagedList<T extends { id: string }, M = never>({
   // (StockPage learned this in #467). Bails the moment a newer intent claims
   // the ticket, so an abandoned walk stops issuing requests instead of
   // finishing them for nothing.
-  const refreshWindow = useCallback(async (seq: number) => {
+  const refreshWindow = useCallback(async (
+    seq: number,
+    preserveRowsOnError = false,
+  ): Promise<WindowRefreshOutcome> => {
     const target = Math.max(cursorRef.current, 1);
     let consumed = 0;
     const window = new Map<string, T>();
@@ -200,8 +209,15 @@ export function usePagedList<T extends { id: string }, M = never>({
         result = await fetchPage(offset, pageSize);
       } catch (err) {
         // Same rule as `load`: a superseded page's failure is moot.
-        if (seq !== req.current) return;
-          setError(formatErrorRef.current(err));
+        if (seq !== req.current) return { status: "stale" };
+        if (preserveRowsOnError) {
+          // Some writes can construct the exact committed row before this
+          // refresh. Keep that honest snapshot (and every page already
+          // loaded) while the caller reports the read failure in its own UI.
+          setReloading(false);
+          return { status: "failed", error: err };
+        }
+        setError(formatErrorRef.current(err));
         rowsRef.current = [];
         cursorRef.current = 0;
         setRows([]);
@@ -210,9 +226,9 @@ export function usePagedList<T extends { id: string }, M = never>({
         // A failed replacement still ENDS the replacement — leaving the
         // blanking on would strand the screen on its loading state.
         setReloading(false);
-        return;
+        return { status: "failed", error: err };
       }
-      if (seq !== req.current) return;
+      if (seq !== req.current) return { status: "stale" };
       const page = Array.isArray(result) ? result : result.items;
       if (!Array.isArray(result)) setMeta(result.meta);
       // Keyed by id: an insert between the walk's own fetches shifts the
@@ -222,7 +238,7 @@ export function usePagedList<T extends { id: string }, M = never>({
       lastPageFull = page.length === pageSize;
       if (!lastPageFull) break;
     }
-    if (seq !== req.current) return;
+    if (seq !== req.current) return { status: "stale" };
     const next = [...window.values()];
     rowsRef.current = next;
     cursorRef.current = consumed;
@@ -232,7 +248,19 @@ export function usePagedList<T extends { id: string }, M = never>({
     // This IS a replacement read: whatever is on screen now came from the
     // current filter, so any blanking a pending change raised can end.
     setReloading(false);
+    return { status: "applied" };
   }, [fetchPage, pageSize]);
+
+  const replaceLoadedRow = useCallback((committedRow: T) => {
+    setRows((prev) => {
+      if (prev === null || !prev.some((row) => row.id === committedRow.id)) return prev;
+      // Same cardinality and order: replacing a row must not move the server
+      // cursor or invent a row outside the loaded window.
+      const next = prev.map((row) => row.id === committedRow.id ? committedRow : row);
+      rowsRef.current = next;
+      return next;
+    });
+  }, []);
 
   const runWrite = useCallback(async <R,>(write: () => Promise<R>): Promise<R> => {
     // Claimed BEFORE the write: everything the user does from here on is
@@ -273,6 +301,41 @@ export function usePagedList<T extends { id: string }, M = never>({
     }
   }, [refreshWindow]);
 
+  // Variant for writes whose response contract lets the screen construct the
+  // exact committed row. It preserves runWrite's ticket-before-await rule,
+  // but lets a dialog keep that row and own a subsequent refresh error while
+  // the hook still re-walks every page the user had loaded.
+  const runWriteWithCommittedRow = useCallback(async (
+    write: () => Promise<T>,
+  ): Promise<T> => {
+    const seq = ++req.current;
+    setLoadingOwned(seq, true);
+    try {
+      let committedRow: T;
+      try {
+        committedRow = await write();
+      } catch (err) {
+        // A failed/ambiguous write invalidates older reads exactly like
+        // runWrite: re-read the current intent before surfacing the error.
+        if (seq === req.current) await refreshWindow(seq);
+        else await reloadRef.current();
+        throw err;
+      }
+
+      if (seq === req.current) {
+        replaceLoadedRow(committedRow);
+        const outcome = await refreshWindow(seq, true);
+        if (outcome.status === "failed") throw outcome.error;
+      } else {
+        // Never paint the old write's row into a newer filter/window.
+        await reloadRef.current();
+      }
+      return committedRow;
+    } finally {
+      setLoadingOwned(seq, false);
+    }
+  }, [refreshWindow, replaceLoadedRow]);
+
   return {
     rows,
     meta,
@@ -285,6 +348,7 @@ export function usePagedList<T extends { id: string }, M = never>({
     error,
     loadMore,
     runWrite,
+    runWriteWithCommittedRow,
     reload,
   };
 }
