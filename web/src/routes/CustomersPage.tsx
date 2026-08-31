@@ -129,12 +129,15 @@ export function CustomersPage() {
     });
   }
 
-  // #625 — the row Edit button opens or REBINDS this dialog. A different
-  // customer's row displaces the one still open: that session ends without
-  // Dialog's own onClose (Escape/backdrop/close are all disabled while a
-  // write is in flight, but this displacement is not one of those paths), so
-  // its verdict is abandoned explicitly rather than left to render under the
-  // new customer's title. Same-record re-open is not a displacement.
+  // #625 — the row Edit button opens or REBINDS this dialog. `closeDisabled`
+  // makes the entire background — every OTHER row's Edit button included —
+  // `inert` for the whole write+refresh window (Dialog's own modal
+  // mechanism), so a live cross-record displacement is not reachable through
+  // the real UI: there is no click that can reach a different row while this
+  // one is in flight. The id/generation guard below is deliberate
+  // defense-in-depth against that not staying true (a future relaxation of
+  // `closeDisabled`, a programmatic re-open), not a path this component
+  // exercises today — do not test it as if it were a live user path (#501).
   function openEdit(c: Customer) {
     if (editForm !== null && editForm.id !== c.id) errors.abandon("edit-customer");
     activeEdit.current = { id: c.id, generation: ++editDialogGeneration.current };
@@ -173,6 +176,17 @@ export function CustomersPage() {
         // refresh — so a changed retry after a failed refresh cannot replay
         // this cached response (same contract as UsersPage's onUpdate/#163).
         clearEditKey(target.id);
+        // The server's Version is now target.version + 1 (Update always bumps
+        // exactly once). Rebind the form to that COMMITTED value before the
+        // refresh: if the refresh below fails, the dialog stays open on the
+        // real current Version, so a retry sends it correctly instead of the
+        // now-stale value that already succeeded once — which the server
+        // would otherwise (correctly, but confusingly) reject as a conflict
+        // against the write's OWN prior success.
+        const committedVersion = target.version + 1;
+        if (isCurrentDialog()) {
+          setEditForm((prev) => (prev && prev.id === target.id ? { ...prev, version: committedVersion } : prev));
+        }
         // Not the page-level `load()` helper: it swallows its own rejection
         // into the PAGE's error slot, which would misattribute a refresh
         // failure to the screen instead of the dialog whose write caused it.

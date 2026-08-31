@@ -572,6 +572,15 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         // Two open EF contexts holding the same row, saved A-then-B — the direct
         // IsConcurrencyToken() proof (FarmLogoTests precedent): a serialized HTTP
         // race can't show this since the host may just queue the two requests.
+        //
+        // Both contexts write the IDENTICAL name/phone (the same-value-update
+        // precedent from CustomerTests: Update always bumps Version even when
+        // nothing else changes). This isolates the claim to the Version TOKEN
+        // alone — with differing field values, EF's own "which columns changed"
+        // check could independently flag the second save even with the
+        // concurrency token removed, so that shape would prove nothing about
+        // IsConcurrencyToken() specifically. Same values leaves Version as the
+        // ONLY thing that can possibly make B's save fail.
         var (client, accountId, _, _, _) = await SetupAsync("Large");
         var id = await CreatedId(await client.PostWithKeyAsync(
             "/api/v1/customers", Guid.NewGuid().ToString(),
@@ -584,18 +593,25 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
                     var a = await dbA.Customers.SingleAsync(c => c.Id == id);
                     var b = await dbB.Customers.SingleAsync(c => c.Id == id);
 
-                    a.Update("A wins", "111", null, null, null);
+                    a.Update("Original", "555-0000", null, null, null);
                     await dbA.SaveChangesAsync();
 
-                    b.Update("B loses", "222", null, null, null);
+                    b.Update("Original", "555-0000", null, null, null);
                     await dbB.SaveChangesAsync();
                 })));
 
-        Assert.IsType<DbUpdateConcurrencyException>(conflict);
+        var concurrencyException = Assert.IsType<DbUpdateConcurrencyException>(conflict);
+        // The EF metadata itself names Version as the modified, conflicting
+        // property on B's tracked entry — not merely "some exception fired".
+        var entry = Assert.Single(concurrencyException.Entries);
+        var versionProperty = entry.Property("Version");
+        Assert.True(versionProperty.IsModified);
+        Assert.Equal(0, versionProperty.OriginalValue);
+        Assert.Equal(1, versionProperty.CurrentValue);
 
         var final = await factory.WithTenantScopeAsync(accountId, db => db.Customers.SingleAsync(c => c.Id == id));
-        Assert.Equal("A wins", final.Name);
-        Assert.Equal(1, final.Version);
+        Assert.Equal("Original", final.Name); // both wrote the same value — the row is coherent either way
+        Assert.Equal(1, final.Version); // A's save is the only one that committed
     }
 
     [Fact]
@@ -618,7 +634,19 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         Assert.Equal(2, events.Count);
         Assert.Equal("Customer.Create", events[0].Action);
         Assert.Equal("Customer.Update", events[1].Action);
-        Assert.All(events, e => Assert.NotEqual(Guid.Empty, e.ActorUserId));
+
+        // SetupAsync seeds exactly one (Owner) user for this fresh account —
+        // the one the client is authenticated as. Asserted POSITIVELY against
+        // that real user's id AND email, never just "!= empty": the negative
+        // form passes for any wrong-but-non-placeholder value (a stale actor,
+        // a different account's user), which is most of the ways this can
+        // regress (#500 precedent, DemoSeedAttributionTests).
+        var actor = await factory.WithTenantScopeAsync(accountId, db => db.Users.SingleAsync(u => u.AccountId == accountId));
+        Assert.All(events, e =>
+        {
+            Assert.Equal(actor.Id, e.ActorUserId);
+            Assert.Equal(actor.Email, e.ActorEmail);
+        });
     }
 
     [Fact]
@@ -634,9 +662,61 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
             new { version = 5, name = "Nope", phone = "111" });
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
 
+        // The deterministic single-client stale-version path (the explicit
+        // Version check in UpdateCustomerHandler, not the EF race path Program
+        // maps separately) — real backend code/message, no new localization.
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("Customer.VersionMismatch", doc.RootElement.GetProperty("title").GetString());
+        Assert.Equal(
+            "This customer was changed since you loaded it — reload and retry.",
+            doc.RootElement.GetProperty("detail").GetString());
+
         var events = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
             .Where(e => e.EntityType == "Customer" && e.EntityId == id)
             .ToListAsync());
         Assert.DoesNotContain(events, e => e.Action == "Customer.Update");
+    }
+
+    // #625 review round 1 — bypassing FluentValidation via the domain method
+    // must not be possible: the endpoint's validator is the boundary a
+    // MaxLength violation is caught at, before the handler/domain ever runs.
+    [Fact]
+    public async Task Customer_Update_NameExceedsMaxLength_400WithExactErrorCode()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+
+        var response = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = new string('a', Cluckwork.Domain.Sales.Customer.MaxNameLength + 1), phone = "555-0000" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(doc.RootElement.TryGetProperty("errorCodes", out var codes));
+        Assert.Contains("Customer.Name.MaxLength", codes.GetRawText());
+    }
+
+    // #625 review round 1 — Update() normalizes blank optionals to null; this
+    // proves it end to end: a customer created with every optional field
+    // populated, then PUT with them blanked, persists as null (not "").
+    [Fact]
+    public async Task Customer_Update_BlankPopulatedOptionals_PersistsAsNull()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000", email = "orig@example.com", address = "Orig Addr", note = "Orig Note" }));
+
+        var update = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Original", phone = "555-0000", email = "", address = "   ", note = "" });
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var got = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Null(got!.Email);
+        Assert.Null(got.Address);
+        Assert.Null(got.Note);
     }
 }

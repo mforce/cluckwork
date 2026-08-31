@@ -12,6 +12,7 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
 {
     private sealed record Created(Guid Id);
     private sealed record AuditRow(Guid Id, string Action, string? DetailsJson);
+    private sealed record CustomerDto(Guid Id, string Name, string Phone, int Version);
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
@@ -176,6 +177,21 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
         // customer directory + order book are SalesFlow, not SalesAccess (#127).
         Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync("/api/v1/customers")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync("/api/v1/sales")).StatusCode);
+
+        // #625 review round 1 — SalesFlow is "everyone but ReadOnly" (workers
+        // build orders — #73), so a worker's customer PUT must succeed AND
+        // actually persist, not just avoid a 403 the GETs above already prove.
+        var customer = await worker.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Worker Buyer", phone = "555-0300" });
+        Assert.Equal(HttpStatusCode.Created, customer.StatusCode);
+        var customerId = (await customer.Content.ReadFromJsonAsync<Created>())!.Id;
+        var putResponse = await worker.PutWithKeyAsync($"/api/v1/customers/{customerId}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Worker Buyer Updated", phone = "555-0301" });
+        Assert.Equal(HttpStatusCode.NoContent, putResponse.StatusCode);
+        var afterUpdate = await worker.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{customerId}");
+        Assert.Equal("Worker Buyer Updated", afterUpdate!.Name);
+        Assert.Equal("555-0301", afterUpdate.Phone);
+        Assert.Equal(1, afterUpdate.Version);
 
         foreach (var (path, body) in new (string, object)[]
         {

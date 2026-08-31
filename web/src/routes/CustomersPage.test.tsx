@@ -479,29 +479,59 @@ describe("CustomersPage edit (#625)", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  it("disables every dismissal path while the write is in flight, and restores it once settled", async () => {
+  // #501 — everything in `document.body` except the topmost dialog's own
+  // backdrop is marked `inert` by Dialog while it is open (syncModalBackground
+  // in Dialog.tsx), which covers the WHOLE app including every other row's
+  // Edit button. jsdom does not enforce `inert` the way a real browser does,
+  // so a `fireEvent.click` on a "background" row while this dialog is open
+  // would succeed here but could never happen for a real user — that test
+  // existed in an earlier revision and made a false claim about reachable
+  // browser behaviour. It is removed; what remains below only exercises
+  // paths a real click, Escape, or backdrop press can actually take.
+  it("blocks Close, Escape and backdrop during the write AND during the refresh, then restores dismissal once both settle", async () => {
     let resolveUpdate!: () => void;
     mockUpdate.mockReturnValue(new Promise((r) => (resolveUpdate = () => r(undefined))));
+    mockList.mockResolvedValueOnce([C1, C2]); // mount
+    let resolveList!: (v: Customer[]) => void;
+    mockList.mockReturnValueOnce(new Promise((r) => (resolveList = r))); // post-save refresh
     renderWithProviders(<CustomersPage />, { token: WORKER });
     await screen.findByRole("row", { name: /Acme Eggs/ });
     openEdit("Acme Eggs");
     await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
 
-    const form = within(dialog()).getByRole("button", { name: "Save" }).closest("form")!;
-    await act(async () => { fireEvent.submit(form); });
+    const backdrop = () => document.querySelector(".dialog-backdrop")!;
+    const assertDismissalBlocked = () => {
+      expect(within(dialog()).getByRole("button", { name: "Close" })).toBeDisabled();
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      fireEvent.click(backdrop());
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    };
 
-    // Close button disabled; Escape does nothing while the write is in flight.
-    expect(within(dialog()).getByRole("button", { name: "Close" })).toBeDisabled();
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.submit(within(dialog()).getByRole("button", { name: "Save" }).closest("form")!);
+    });
+
+    // Window 1: the write itself is in flight.
+    assertDismissalBlocked();
 
     await act(async () => resolveUpdate());
-    // Settled and refreshed — the dialog closes on success, freeing dismissal
-    // for the NEXT open (there's nothing left open to prove Escape on here).
+
+    // Window 2: the write is confirmed but the post-write refresh is not —
+    // the exact span #609 exists for (closing/reopening here would load data
+    // that predates the write, and the write's own late completion would
+    // then have nowhere correct to land).
+    assertDismissalBlocked();
+
+    await act(async () => resolveList([C1, C2].map((c) => (c.id === "c1" ? { ...c, name: "Server value" } : c))));
+
+    // Refresh SUCCEEDED here, so the dialog closes itself — dismissal is
+    // moot on this instance. The failed-refresh variant below is what proves
+    // dismissal actually re-enables on a dialog that stays open.
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("keeps closeDisabled through a failed post-write refresh, not just the write itself", async () => {
+  it("keeps every dismissal path blocked through a failed post-write refresh, then restores it once settled", async () => {
     mockList.mockResolvedValueOnce([C1, C2]); // mount load
     let resolveUpdate!: () => void;
     mockUpdate.mockReturnValue(new Promise((r) => (resolveUpdate = () => r(undefined))));
@@ -516,37 +546,88 @@ describe("CustomersPage edit (#625)", () => {
     // submitEdit already awaited the click; drive the deferred write now.
     await act(async () => resolveUpdate());
 
-    // The refresh rejected: dialog stays open with the failure inside it, and
-    // dismissal is still blocked (assert via the disabled Close button — the
-    // window between write-confirmed and refresh-settled is the one #609
-    // exists for).
+    // The refresh rejected: dialog stays open with the failure inside it.
     expect(await within(dialog()).findByText(/Server error|boom/)).toBeInTheDocument();
+
+    // Settled (failed) — dismissal is restored: Close is enabled and Escape
+    // now actually closes the dialog.
+    expect(within(dialog()).getByRole("button", { name: "Close" })).not.toBeDisabled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("permits a non-dismissal displacement to a different row while A's write settles later", async () => {
-    let resolveA!: () => void;
-    mockUpdate.mockImplementation((id) => {
-      if (id === "c1") return new Promise((r) => (resolveA = () => r(undefined)));
-      return Promise.resolve(undefined);
-    });
+  // #625 review round 1 — the SAME re-entry guard `usePendingAction` already
+  // gives create (see the double-submit describe block above), proven here
+  // for the edit form: this IS reachable, since the Save button's `disabled`
+  // only takes effect after React's next render, so two submits in the same
+  // tick both reach the handler before either sees it disabled.
+  it("sends exactly one update when the edit form is submitted twice while the first is still in flight", async () => {
+    let resolveUpdate!: () => void;
+    mockUpdate.mockReturnValue(new Promise((r) => (resolveUpdate = () => r(undefined))));
     renderWithProviders(<CustomersPage />, { token: WORKER });
     await screen.findByRole("row", { name: /Acme Eggs/ });
-
     openEdit("Acme Eggs");
     await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+
+    const form = within(dialog()).getByRole("button", { name: "Save" }).closest("form")!;
     await act(async () => {
-      fireEvent.submit(within(dialog()).getByRole("button", { name: "Save" }).closest("form")!);
+      fireEvent.submit(form);
+      fireEvent.submit(form);
     });
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
 
-    // Displace to B — not through Escape/backdrop/close (those are disabled);
-    // the row button is a separate, permitted path.
-    openEdit("Bravo Co");
-    expect(await screen.findByRole("dialog", { name: "Edit Bravo Co" })).toBeInTheDocument();
+    await act(async () => resolveUpdate());
+    expect(mockUpdate).toHaveBeenCalledTimes(1); // still exactly one after settle
+  });
 
-    // A's write settles after the displacement — must not touch B's dialog.
-    await act(async () => resolveA());
-    expect(screen.getByRole("dialog", { name: "Edit Bravo Co" })).toBeInTheDocument();
-    expect(within(dialog()).queryByText(/Server error|boom/)).not.toBeInTheDocument();
+  // #625 review round 1 — the real bug: after a CONFIRMED write, editForm's
+  // Version must advance to the committed value before the refresh, so a
+  // retry (following a failed refresh) sends Version+1, not the now-stale
+  // value that already succeeded once. Also proves the honest converse: if
+  // someone else updates the row in between, the correctly-advanced retry
+  // still 409s against that real, later conflict.
+  it("advances the retry's Version to the committed value after a confirmed write but a failed refresh, and still 409s on a genuinely later conflict", async () => {
+    mockList.mockResolvedValueOnce([C1, C2]); // mount
+    mockUpdate.mockResolvedValueOnce(undefined); // write #1 confirms
+    mockList.mockRejectedValueOnce(new ApiError(500, "Server error", "boom")); // refresh #1 fails
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ }); // C1.version === 0
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await submitEdit();
+    await screen.findByText(/Server error|boom/);
+
+    // An intervening update landed between write #1 and this retry — the
+    // retry is honestly stale now, so the mock reproduces a REAL 409.
+    mockUpdate.mockRejectedValueOnce(new ApiError(
+      409, "Customer.VersionMismatch", "This customer was changed since you loaded it — reload and retry."));
+    await submitEdit();
+
+    expect(mockUpdate.mock.calls[1][1]).toMatchObject({ version: 1 }); // 0 + 1, not the stale 0
+    expect(within(dialog()).getByText(
+      "This customer was changed since you loaded it — reload and retry.")).toBeInTheDocument();
+  });
+
+  // #625 review round 1 — the WRITE itself failing (not the refresh) must
+  // not spend the idempotency key: a retry with unchanged fields is the
+  // exact same logical request and must replay under the same key (same
+  // contract as create's "replays the SAME create key after a failure").
+  it("reuses the SAME idempotency key on retry when the write itself fails", async () => {
+    mockUpdate.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+    mockUpdate.mockResolvedValueOnce(undefined);
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await submitEdit();
+    expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
+
+    await submitEdit(); // retry, unchanged fields
+
+    expect(mockUpdate).toHaveBeenCalledTimes(2);
+    const key1 = mockUpdate.mock.calls[0][2];
+    const key2 = mockUpdate.mock.calls[1][2];
+    expect(key2).toBe(key1);
   });
 
   it("issues a fresh idempotency key for the next save after a confirmed write but a failed refresh", async () => {
