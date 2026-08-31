@@ -1704,8 +1704,11 @@ export const es = {
     "auditAction.SalesOrder.Cancel": "Pedido de venta cancelado",
     "auditAction.Expense.Create": "Gasto creado",
     "auditAction.EggGrade.Create": "Grado de huevo creado",
+    "auditAction.Customer.Create": "Cliente creado",
+    "auditAction.Customer.Update": "Cliente actualizado",
 
     "entityType.Account": "Cuenta",
+    "entityType.Customer": "Cliente",
     "entityType.DailyEntry": "Entrada diaria",
     "entityType.EggGrade": "Grado de huevo",
     "entityType.EggLot": "Lote de huevos",

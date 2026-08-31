@@ -89,4 +89,6 @@ public static class AuditActions
     public const string SalesOrderCancel = "SalesOrder.Cancel";
     public const string ExpenseCreate = "Expense.Create";
     public const string EggGradeCreate = "EggGrade.Create";
+    public const string CustomerCreate = "Customer.Create";
+    public const string CustomerUpdate = "Customer.Update";
 }

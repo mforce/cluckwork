@@ -1769,8 +1769,11 @@ export const tl = {
     "auditAction.SalesOrder.Cancel": "Kinansela ang order ng benta",
     "auditAction.Expense.Create": "Nagawa ang gastos",
     "auditAction.EggGrade.Create": "Nagawa ang grado ng itlog",
+    "auditAction.Customer.Create": "Nagawa ang customer",
+    "auditAction.Customer.Update": "Na-update ang customer",
 
     "entityType.Account": "Account",
+    "entityType.Customer": "Customer",
     "entityType.DailyEntry": "Araw-araw na Entry",
     "entityType.EggGrade": "Grado ng Itlog",
     "entityType.EggLot": "Lote ng Itlog",

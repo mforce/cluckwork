@@ -2167,9 +2167,12 @@ export const en = {
     "auditAction.SalesOrder.Cancel": "Sales order cancelled",
     "auditAction.Expense.Create": "Expense created",
     "auditAction.EggGrade.Create": "Egg grade created",
+    "auditAction.Customer.Create": "Customer created",
+    "auditAction.Customer.Update": "Customer updated",
 
     // entity type (AuditPage table entity cell) — AuditEvent.entityType.
     "entityType.Account": "Account",
+    "entityType.Customer": "Customer",
     "entityType.DailyEntry": "Daily entry",
     "entityType.EggGrade": "Egg grade",
     "entityType.EggLot": "Egg lot",
