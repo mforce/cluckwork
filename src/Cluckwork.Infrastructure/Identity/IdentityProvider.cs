@@ -8,6 +8,9 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.Logging;
@@ -1557,13 +1560,13 @@ public sealed class IdentityProvider(
         // #273 codex review (round 2, P2c) — the failure boundary covers the
         // owner LOOKUP as well as the update. The lookup is a prerequisite of
         // the revocation, not something happening beside it: if it throws, the
-        // bulk update below never runs, so the revocation fails just as
-        // completely as if the update had thrown — but it used to do so in
+        // lineage command below never runs, so the revocation fails just as
+        // completely as if the command had thrown — but it used to do so in
         // silence, with no Auth.RefreshRevocationFailed for a deployment to
         // alert on. One boundary over the whole sequence, and EXACTLY ONE
-        // emission either way: the update inside is the raw statement
-        // (RevokeByHashCoreAsync), never a second RunRevocationAsync wrapper,
-        // so a failing update cannot log the event twice.
+        // emission either way: the CTE inside is raw SQL, never a second
+        // RunRevocationAsync wrapper, so a failing command cannot log the event
+        // twice.
         //
         // `ownerId` is read through a closure at catch time rather than passed
         // in, because who the token belongs to is only known once the lookup
@@ -1573,7 +1576,7 @@ public sealed class IdentityProvider(
         {
             // #308 — a real logout must invalidate any outstanding step-up grant
             // for this user (a grant captured before this logout must not work
-            // after it), so read the owning user id BEFORE the bulk update.
+            // after it), so read the owning user id BEFORE the lineage command.
             //
             // Deliberately NOT filtered on RevokedAt: the cookie may already be
             // stale because a background refresh rotated it moments earlier, and
@@ -1603,12 +1606,12 @@ public sealed class IdentityProvider(
             if (tokenRow is not null)
                 outcome = RefreshTokenRevocationOutcome.InScope;
 
-            // #336 review (2nd round) — record BEFORE the bulk update, not after.
+            // #336 review (2nd round) — record BEFORE token revocation, not after.
             // Since #338 RecordLogoutAsync advances the durable StepUpLogoutEpoch
             // in Postgres, so it CAN throw just like ExecuteUpdateAsync (transient
             // connection loss, deadlock) — it is no longer the infallible in-memory
             // record it once was. The ordering still holds: when the epoch bump
-            // SUCCEEDS and the bulk update below throws, the grant-kill has already
+            // SUCCEEDS and the lineage command below throws, the grant-kill has already
             // committed, so the failure over-revokes (grants dead, refresh row
             // possibly still live) rather than under-revoking. When the bump itself
             // throws, the whole revocation fails loudly (both hit the same
@@ -1661,36 +1664,52 @@ public sealed class IdentityProvider(
         };
     }
 
-    // #176/#364/#468 — identifies four distinct states for a revoked token: a
-    // live same-epoch grace replacement, a genuine same-epoch replay, a linked
-    // child written with a retired epoch by an old replica, or a revocation
-    // stamped ahead of this request's clock. The last two must fail INERTLY —
-    // they are mixed-version and clock-disagreement evidence respectively, and
-    // neither is evidence that the current-epoch family was stolen, so neither
-    // may answer with a family revocation.
+    // #176/#364/#468 — identifies five distinct states for a revoked token from
+    // one fresh no-tracking parent/replacement snapshot: a live same-epoch grace
+    // replacement, a genuine same-epoch replay (including a bulk-revoked
+    // no-pointer tip), a pointer atomically severed by concurrent logout, a
+    // linked child written with a retired epoch by an old replica, or a
+    // revocation stamped ahead of this request's clock. The last three fail
+    // INERTLY because none is theft evidence in the current family.
     private async Task<(RefreshToken? Replacement, bool FailInert)>
         InspectGraceReplacementAsync(
         RefreshToken revoked, DateTimeOffset now, CancellationToken ct)
     {
-        if (revoked.RevokedAt is null)
+        var inspection = await (
+            from parent in db.RefreshTokens.AsNoTracking()
+            where parent.TokenHash == revoked.TokenHash
+                && parent.UserId == revoked.UserId
+                && parent.AccountId == revoked.AccountId
+                && parent.IssuedEpoch == revoked.IssuedEpoch
+            from freshReplacement in db.RefreshTokens.AsNoTracking()
+                .Where(candidate => candidate.TokenHash == parent.ReplacedByTokenHash
+                    && candidate.UserId == parent.UserId
+                    && candidate.AccountId == parent.AccountId)
+                .DefaultIfEmpty()
+            select new { Parent = parent, Replacement = freshReplacement })
+            .SingleOrDefaultAsync(ct);
+
+        if (inspection is null || inspection.Parent.RevokedAt is null)
             return (null, false);
 
-        // A revoked row with no child pointer is an explicit tombstone. Logout
-        // severs the exact lineage after fencing its tip, and bulk revocations
-        // also leave an unlinked tip. Neither shape is evidence that authorizes
-        // revoking unrelated sessions for the same user.
-        if (revoked.ReplacedByTokenHash is null)
+        // The caller may have loaded P -> C immediately before logout atomically
+        // fenced C and severed P. Comparing that previously observed link with
+        // this fresh parent/child snapshot identifies only that concurrent
+        // logout transition. A row that was already a revoked no-pointer tip at
+        // the original lookup is instead the existing strict #176 replay shape.
+        if (revoked.ReplacedByTokenHash is not null
+            && inspection.Parent.ReplacedByTokenHash is null)
             return (null, true);
 
-        var replacement = await db.RefreshTokens.FirstOrDefaultAsync(t =>
-            t.TokenHash == revoked.ReplacedByTokenHash
-            && t.UserId == revoked.UserId
-            && t.AccountId == revoked.AccountId, ct);
-        if (replacement is not null && replacement.IssuedEpoch != revoked.IssuedEpoch)
+        if (inspection.Parent.ReplacedByTokenHash is null)
+            return (null, false);
+
+        var replacement = inspection.Replacement;
+        if (replacement is not null && replacement.IssuedEpoch != inspection.Parent.IssuedEpoch)
             return (null, true);
 
         var graceSeconds = jwtOptions.Value.RefreshReuseGraceSeconds;
-        var elapsed = now - revoked.RevokedAt.Value;
+        var elapsed = now - inspection.Parent.RevokedAt.Value;
 
         // Replay evidence that does NOT depend on the clock is settled FIRST,
         // and is unchanged by #468: grace switched off, a second grace hop (the
@@ -1705,7 +1724,7 @@ public sealed class IdentityProvider(
         // review of #468, pinned from all three sides in
         // RefreshGraceClockRaceTests).
         if (graceSeconds <= 0                        // grace disabled → strict replay
-            || revoked.RevokedByGrace                // already a grace hop → don't chain (one-hop bound)
+            || inspection.Parent.RevokedByGrace      // already a grace hop → don't chain (one-hop bound)
             || replacement is null || !replacement.IsActive(now))  // chain moved on → not a benign retry
             return (null, false);
 
@@ -1728,6 +1747,7 @@ public sealed class IdentityProvider(
         if (elapsed > TimeSpan.FromSeconds(graceSeconds))
             return (null, false);
 
+        db.RefreshTokens.Attach(replacement);
         return (replacement, false);
     }
 
@@ -1813,14 +1833,16 @@ public sealed class IdentityProvider(
         logger.LogError(ex, "{SecurityEvent} user={UserId}",
             SecurityEvents.RefreshRevocationFailed, userId);
 
-    // Chases only the durable lineage named by the presented row. Each active
-    // tip is fenced with the same ConcurrencyStamp CAS used by refresh rotation:
-    // if refresh publishes a child first, the zero-row update rereads this hash
-    // and follows that child; if logout updates first, refresh's tracked save
-    // loses its stale stamp and its child insert rolls back.
+    // Chases only the durable lineage named by the presented row. One
+    // PostgreSQL data-modifying CTE fences each active tip with the same
+    // ConcurrencyStamp CAS used by refresh rotation and, only when that fence
+    // returns a row, severs every visited ancestor pointer in the same statement.
+    // If refresh publishes a child first, scalar false rereads this hash and
+    // follows that child; if logout updates first, refresh's tracked save loses
+    // its stale stamp and its child insert rolls back.
     //
-    // Raw statements stay inside RevokeRefreshTokenAsync's one
-    // RunRevocationAsync boundary. Each read/update is a self-contained EF unit,
+    // Raw CTE statements stay inside RevokeRefreshTokenAsync's one
+    // RunRevocationAsync boundary. Each read/CTE is a self-contained EF unit,
     // so transient replay is safe without an explicit transaction or a new
     // SingleAttemptExecution region (#269).
     private async Task RevokeExactLineageCoreAsync(
@@ -1833,9 +1855,7 @@ public sealed class IdentityProvider(
     {
         var visitedHashes = new HashSet<string>(StringComparer.Ordinal);
         var currentHash = presentedHash;
-        var tipFenced = false;
-
-        while (!tipFenced)
+        while (true)
         {
             if (!visitedHashes.Add(currentHash))
             {
@@ -1843,8 +1863,7 @@ public sealed class IdentityProvider(
                     "Refresh-token replacement lineage contains a cycle.");
             }
 
-            var advanceToChild = false;
-            while (!tipFenced && !advanceToChild)
+            while (true)
             {
                 var node = await db.RefreshTokens
                     .AsNoTracking()
@@ -1869,52 +1888,95 @@ public sealed class IdentityProvider(
                 {
                     if (node.ReplacedByTokenHash is null)
                     {
-                        tipFenced = true;
+                        return;
                     }
-                    else
-                    {
-                        currentHash = node.ReplacedByTokenHash;
-                        advanceToChild = true;
-                    }
-
-                    continue;
+                    currentHash = node.ReplacedByTokenHash;
+                    break;
                 }
 
                 var rotatedStamp = Guid.NewGuid().ToString();
-                var affected = await db.RefreshTokens
-                    .Where(token => token.TokenHash == currentHash
-                        && token.UserId == rootUserId
-                        && token.AccountId == rootAccountId
-                        && token.IssuedEpoch == rootIssuedEpoch
-                        && token.RevokedAt == null)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(token => token.RevokedAt, now)
-                        .SetProperty(token => token.ConcurrencyStamp, rotatedStamp), ct);
+                var ancestorHashes = visitedHashes
+                    .Where(hash => !string.Equals(hash, currentHash, StringComparison.Ordinal))
+                    .ToArray();
+                var tipFenced = await ExecuteLineageFenceAsync(
+                    currentHash,
+                    ancestorHashes,
+                    rootUserId,
+                    rootAccountId,
+                    rootIssuedEpoch,
+                    now,
+                    rotatedStamp,
+                    ct);
 
-                if (affected == 1)
-                {
-                    tipFenced = true;
-                }
-                else if (affected != 0)
-                {
-                    throw new InvalidOperationException(
-                        "Refresh-token lineage tip update affected more than one row.");
-                }
+                if (tipFenced)
+                    return;
+
                 // Zero means refresh won this row race and may have published a
                 // child. Reread the same hash before deciding where the tip is.
             }
         }
+    }
 
-        var severedStamp = Guid.NewGuid().ToString();
-        await db.RefreshTokens
-            .Where(token => visitedHashes.Contains(token.TokenHash)
-                && token.UserId == rootUserId
-                && token.AccountId == rootAccountId
-                && token.IssuedEpoch == rootIssuedEpoch
-                && token.ReplacedByTokenHash != null)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(token => token.ReplacedByTokenHash, (string?)null)
-                .SetProperty(token => token.ConcurrencyStamp, severedStamp), ct);
+    private async Task<bool> ExecuteLineageFenceAsync(
+        string currentHash,
+        string[] ancestorHashes,
+        Guid rootUserId,
+        Guid rootAccountId,
+        int rootIssuedEpoch,
+        DateTimeOffset now,
+        string rotatedStamp,
+        CancellationToken ct)
+    {
+        var strategy = db.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            const string sql = """
+                    WITH fenced_tip AS (
+                        UPDATE refresh_tokens
+                        SET "RevokedAt" = @revokedAt,
+                            "ConcurrencyStamp" = @rotatedStamp,
+                            "ReplacedByTokenHash" = NULL
+                        WHERE "TokenHash" = @currentHash
+                          AND "UserId" = @rootUserId
+                          AND "AccountId" = @rootAccountId
+                          AND "IssuedEpoch" = @rootIssuedEpoch
+                          AND "RevokedAt" IS NULL
+                        RETURNING 1
+                    ),
+                    severed_ancestors AS (
+                        UPDATE refresh_tokens AS ancestor
+                        SET "ReplacedByTokenHash" = NULL,
+                            "ConcurrencyStamp" = @rotatedStamp
+                        WHERE ancestor."TokenHash" = ANY (@ancestorHashes)
+                          AND ancestor."UserId" = @rootUserId
+                          AND ancestor."AccountId" = @rootAccountId
+                          AND ancestor."IssuedEpoch" = @rootIssuedEpoch
+                          AND ancestor."ReplacedByTokenHash" IS NOT NULL
+                          AND EXISTS (SELECT 1 FROM fenced_tip)
+                        RETURNING 1
+                    )
+                    SELECT EXISTS (SELECT 1 FROM fenced_tip) AS "Value"
+                    FROM (SELECT count(*) FROM severed_ancestors) AS severed
+                    """;
+            var rawCommand = db.GetService<IRawSqlCommandBuilder>().Build(sql,
+            [
+                new NpgsqlParameter("revokedAt", now),
+                new NpgsqlParameter("rotatedStamp", rotatedStamp),
+                new NpgsqlParameter("currentHash", currentHash),
+                new NpgsqlParameter("rootUserId", rootUserId),
+                new NpgsqlParameter("rootAccountId", rootAccountId),
+                new NpgsqlParameter("rootIssuedEpoch", rootIssuedEpoch),
+                new NpgsqlParameter<string[]>("ancestorHashes", ancestorHashes),
+            ], db.Model);
+            var parameterObject = new RelationalCommandParameterObject(
+                db.GetService<IRelationalConnection>(),
+                rawCommand.ParameterValues,
+                readerColumns: null,
+                db,
+                db.GetService<IRelationalCommandDiagnosticsLogger>(),
+                CommandSource.ExecuteSqlRaw);
+            return await rawCommand.RelationalCommand.ExecuteScalarAsync(parameterObject, ct) is true;
+        });
     }
 
     // #269 — "did the save I just attempted actually commit?", answered by the
