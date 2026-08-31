@@ -179,8 +179,12 @@ public sealed class SimulationCrossDayRerunTests(SimulationMutableClockFactory f
     }
 
     // Row counts for every date-relative fixture the anchor drives — a shifted
-    // re-run would inflate at least the daily-entry, egg-lot, and order counts.
-    private async Task<(int Accounts, int DailyEntries, int EggLots, int SalesOrders)> SnapshotAsync()
+    // re-run would inflate at least the daily-entry, egg-lot, and order
+    // counts. #627 extended the snapshot with the over-cap bands (customers,
+    // flocks, bird movements, inventory movements): a re-run that re-derived
+    // the earlier placement/opening anchors would duplicate the date-keyed
+    // rows in exactly these bands.
+    private async Task<(int Accounts, int DailyEntries, int EggLots, int SalesOrders, int Customers, int Flocks, int BirdMovements, int InventoryMovements)> SnapshotAsync()
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -191,7 +195,15 @@ public sealed class SimulationCrossDayRerunTests(SimulationMutableClockFactory f
             .CountAsync(l => l.AccountId == SeedDefaults.AccountId);
         var salesOrders = await db.SalesOrders.IgnoreQueryFilters()
             .CountAsync(o => o.AccountId == SeedDefaults.AccountId);
-        return (accounts, dailyEntries, eggLots, salesOrders);
+        var customers = await db.Customers.IgnoreQueryFilters()
+            .CountAsync(c => c.AccountId == SeedDefaults.AccountId);
+        var flocks = await db.Flocks.IgnoreQueryFilters()
+            .CountAsync(f => f.AccountId == SeedDefaults.AccountId);
+        var birdMovements = await db.BirdMovements.IgnoreQueryFilters()
+            .CountAsync(m => m.AccountId == SeedDefaults.AccountId);
+        var inventoryMovements = await db.InventoryMovements.IgnoreQueryFilters()
+            .CountAsync(m => m.AccountId == SeedDefaults.AccountId);
+        return (accounts, dailyEntries, eggLots, salesOrders, customers, flocks, birdMovements, inventoryMovements);
     }
 }
 

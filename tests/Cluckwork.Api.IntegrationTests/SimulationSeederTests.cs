@@ -9,6 +9,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
@@ -182,6 +183,16 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         Assert.Empty(await users.GetRolesAsync(worker1!));
     }
 
+    // #627 — the two operational flocks every fanout band (daily entries,
+    // feed/water usage, the explicit bird-movement band) is keyed to. The
+    // LINQ-to-Entities translation rejects `is` patterns inside Where, so the
+    // name pair is inlined here rather than pulled from a constant.
+    private static Task<List<Flock>> OperationalFlocksAsync(AppDbContext db)
+        => db.Flocks.IgnoreQueryFilters()
+            .Where(f => f.AccountId == SeedDefaults.AccountId
+                        && (f.Name == "Sim House A" || f.Name == "Sim House B"))
+            .ToListAsync();
+
     [Fact]
     public async Task SimulationSeed_RestrictsExactlyOneWorkerToOneOfTwoFlocks()
     {
@@ -192,16 +203,22 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         var flocks = await db.Flocks.IgnoreQueryFilters()
             .Where(f => f.AccountId == SeedDefaults.AccountId)
             .ToListAsync();
-        Assert.Equal(2, flocks.Count);
 
         var scopedAssignments = await db.UserRoleAssignments.IgnoreQueryFilters()
             .Where(a => a.AccountId == SeedDefaults.AccountId && a.FlockId != null)
             .ToListAsync();
         var assignment = Assert.Single(scopedAssignments);
 
-        // Genuinely narrowed: assigned to one flock, the other left out.
+        // Genuinely narrowed: assigned to one of the two operational flocks,
+        // the other left out. #627's picker catalog rows carry no assignment
+        // (the restricted worker's guard read is per-row, so an assignment to a
+        // catalog flock would be equally meaningless) — the narrowing this test
+        // proves is still the operational pair.
         Assert.Contains(assignment.FlockId!.Value, flocks.Select(f => f.Id));
-        Assert.Single(flocks, f => f.Id != assignment.FlockId!.Value);
+        var operational = flocks.Where(f => f.Name is "Sim House A" or "Sim House B").ToList();
+        Assert.Equal(2, operational.Count);
+        Assert.Contains(operational, f => f.Id == assignment.FlockId!.Value);
+        Assert.Single(operational, f => f.Id != assignment.FlockId!.Value);
     }
 
     [Fact]
@@ -268,17 +285,21 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var flocks = await db.Flocks.IgnoreQueryFilters()
-            .Where(f => f.AccountId == SeedDefaults.AccountId)
-            .ToListAsync();
-        Assert.Equal(2, flocks.Count);
+        // #627 — the fixture now carries 102 flocks (the picker catalog), but
+        // the production-history bands below are still per (flock, day) on the
+        // TWO operational flocks: the daily-entry count is the fanout's
+        // identity, and INV-3 pins it to the operational houses in
+        // SimulationSeed_SeedsTheFlockCatalogSplitWithFanoutOnTwoOperationalFlocksOnly.
+        var flocks = await OperationalFlocksAsync(db);
 
         var entries = await db.DailyEntries.IgnoreQueryFilters()
             .Where(e => e.AccountId == SeedDefaults.AccountId)
             .ToListAsync();
 
-        // Exactly one entry per (flock, day) across the whole shallow history
-        // window — nothing skipped, nothing doubled on a single seed pass.
+        // Exactly one entry per (operational flock, day) across the whole
+        // shallow history window — nothing skipped, nothing doubled on a
+        // single seed pass. #627's catalog rows carry no entries at all
+        // (INV-3, pinned separately).
         Assert.Equal(flocks.Count * SimulationSeedFactory.HistoryDays, entries.Count);
         Assert.All(flocks, f => Assert.Contains(entries, e => e.FlockId == f.Id));
 
@@ -349,16 +370,14 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var flocks = await db.Flocks.IgnoreQueryFilters()
-            .Where(f => f.AccountId == SeedDefaults.AccountId)
-            .ToListAsync();
+        var flocks = await OperationalFlocksAsync(db);
         var entries = await db.DailyEntries.IgnoreQueryFilters()
             .Where(e => e.AccountId == SeedDefaults.AccountId)
             .ToListAsync();
 
         // A second full seed pass converges rather than doubling: still
-        // exactly one entry per (flock, day), and each natural key
-        // (flock, date) is unique — the RecordDailyEntry natural-key
+        // exactly one entry per (operational flock, day), and each natural
+        // key (flock, date) is unique — the RecordDailyEntry natural-key
         // existence check in SeedFlockHistoryAsync skipped every day the
         // first pass already created.
         Assert.Equal(flocks.Count * SimulationSeedFactory.HistoryDays, entries.Count);
@@ -397,6 +416,131 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             .ToListAsync();
         foreach (var name in new[] { "Sim Customer 1", "Sim Customer 2", "Sim Customer 3" })
             Assert.Contains(customers, c => c.Name == name);
+    }
+
+    // #627 — the exact customer band: the three lifecycle customers, 97
+    // zero-padded fillers, and the lexically-last page-two sentinel, for
+    // exactly 101 rows. The sentinel's phone/note are asserted so the SPA
+    // spec's row-detail claim has an integration-side twin.
+    [Fact]
+    public async Task SimulationSeed_SeedsExactlyOneHundredOneCustomersWithAPageTwoSentinel()
+    {
+        using var client = factory.CreateClient();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var customers = await db.Customers.IgnoreQueryFilters()
+            .Where(c => c.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.Equal(101, customers.Count);
+        Assert.DoesNotContain(customers.GroupBy(c => c.Name), g => g.Count() > 1);
+
+        for (var i = 1; i <= 97; i++)
+            Assert.Contains(customers, c => c.Name == $"Sim Customer Filler {i:000}");
+
+        var sentinel = Assert.Single(customers, c => c.Name == "Sim Customer Z Page Two");
+        Assert.Equal("555-0299", sentinel.Phone);
+        Assert.Equal("Simulation fixture customer", sentinel.Note);
+    }
+
+    // #627 — the exact flock band and lifecycle split (INV-5): 102 flocks,
+    // 100 Active / 1 Depleted / 1 Archived, and the DAILY-ENTRY fanout still
+    // based on exactly the two operational houses (INV-3) — the catalog is
+    // list volume only. The explicit bird-movement band (auto baseline + 51)
+    // is certified on Sim House A.
+    [Fact]
+    public async Task SimulationSeed_SeedsTheFlockCatalogSplitWithFanoutOnTwoOperationalFlocksOnly()
+    {
+        using var client = factory.CreateClient();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var flocks = await db.Flocks.IgnoreQueryFilters()
+            .Where(f => f.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.Equal(102, flocks.Count);
+        Assert.Equal(100, flocks.Count(f => f.Status == FlockStatus.Active));
+        Assert.Equal(1, flocks.Count(f => f.Status == FlockStatus.Depleted));
+        Assert.Equal(1, flocks.Count(f => f.Status == FlockStatus.Archived));
+
+        for (var i = 1; i <= 97; i++)
+            Assert.Contains(flocks, f => f.Name == $"Sim Z Flock Catalog {i:000}" && f.Status == FlockStatus.Active);
+        Assert.Contains(flocks, f => f.Name == "Sim Z Flock Page Two" && f.Status == FlockStatus.Active);
+        Assert.Contains(flocks, f => f.Name == "Sim Z Flock Depleted" && f.Status == FlockStatus.Depleted);
+        Assert.Contains(flocks, f => f.Name == "Sim Z Flock Archived" && f.Status == FlockStatus.Archived);
+
+        // #627 driver correction — the ordering guarantee is that every catalog
+        // row sorts AFTER the two operational houses ("Sim Z …" > "Sim House
+        // …"). It is deliberately NOT that all 100 catalog rows fall outside a
+        // 100-row page: with the 101 NON-ARCHIVED seed rows (the flock list
+        // excludes Archived by default), page one holds both houses plus the 98
+        // earliest catalog rows, and only the lexically-last sentinel sits on
+        // page two. Query the repository's own path — IgnoreQueryFilters
+        // scoped to the account, non-Archived, OrderBy Name ThenBy Id — so the
+        // assertion certifies the PostgreSQL ordering and the endpoint's
+        // default page shape, not an in-memory Enumerable sort.
+        var pageOne = await db.Flocks.IgnoreQueryFilters()
+            .Where(f => f.AccountId == SeedDefaults.AccountId && f.Status != FlockStatus.Archived)
+            .OrderBy(f => f.Name).ThenBy(f => f.Id)
+            .Take(100)
+            .Select(f => f.Name)
+            .ToListAsync();
+        Assert.Contains("Sim House A", pageOne);
+        Assert.Contains("Sim House B", pageOne);
+        Assert.DoesNotContain("Sim Z Flock Page Two", pageOne);
+
+        var pageTwo = await db.Flocks.IgnoreQueryFilters()
+            .Where(f => f.AccountId == SeedDefaults.AccountId && f.Status != FlockStatus.Archived)
+            .OrderBy(f => f.Name).ThenBy(f => f.Id)
+            .Skip(100).Take(100)
+            .Select(f => f.Name)
+            .ToListAsync();
+        Assert.Equal(new[] { "Sim Z Flock Page Two" }, pageTwo);
+
+        // INV-3 — the catalog rows never enter the fanout: daily entries and
+        // feed/water usage exist ONLY on the two operational houses.
+        var operationalIds = flocks.Where(f => f.Name is "Sim House A" or "Sim House B").Select(f => f.Id).ToHashSet();
+        Assert.Equal(2, operationalIds.Count);
+
+        // Set membership, not instance equality: Assert.Equal on two HashSets
+        // can pass on coincidental enumeration order, so each band is certified
+        // with SetEquals — exactly the two operational houses, nothing else.
+        var entryFlockIds = (await db.DailyEntries.IgnoreQueryFilters()
+            .Where(e => e.AccountId == SeedDefaults.AccountId)
+            .Select(e => e.FlockId).Distinct().ToListAsync()).ToHashSet();
+        Assert.True(operationalIds.SetEquals(entryFlockIds));
+
+        var feedFlockIds = (await db.FeedUsages.IgnoreQueryFilters()
+            .Where(u => u.AccountId == SeedDefaults.AccountId)
+            .Select(u => u.FlockId).Distinct().ToListAsync()).ToHashSet();
+        Assert.True(operationalIds.SetEquals(feedFlockIds));
+
+        var waterFlockIds = (await db.WaterUsages.IgnoreQueryFilters()
+            .Where(u => u.AccountId == SeedDefaults.AccountId)
+            .Select(u => u.FlockId).Distinct().ToListAsync()).ToHashSet();
+        Assert.True(operationalIds.SetEquals(waterFlockIds));
+
+        var expenseFlockIds = (await db.Expenses.IgnoreQueryFilters()
+            .Where(e => e.AccountId == SeedDefaults.AccountId && e.FlockId != null)
+            .Select(e => e.FlockId!.Value).Distinct().ToListAsync()).ToHashSet();
+        Assert.True(operationalIds.SetEquals(expenseFlockIds));
+
+        // The explicit band: automatic mortality (2 per flock over the 12-day
+        // window) + 51 explicit adjustments, all on the first operational
+        // flock (Sim House A); the sentinel note exists as a ledger row.
+        var houseA = flocks.Single(f => f.Name == "Sim House A");
+        var houseB = flocks.Single(f => f.Name == "Sim House B");
+        var movements = await db.BirdMovements.IgnoreQueryFilters()
+            .Where(m => m.AccountId == SeedDefaults.AccountId)
+            .ToListAsync();
+        Assert.Equal(ExpectedTotalBirdMovements, movements.Count);
+        Assert.Equal(2, movements.Count(m => m.FlockId == houseB.Id && m.Type == BirdMovementType.Mortality));
+        Assert.Equal(2, movements.Count(m => m.FlockId == houseA.Id && m.Type == BirdMovementType.Mortality));
+        Assert.Equal(51, movements.Count(m => m.FlockId == houseA.Id && m.Type == BirdMovementType.Adjustment));
+        Assert.DoesNotContain(movements, m => m.FlockId == houseB.Id && m.Type == BirdMovementType.Adjustment);
+        Assert.Contains(movements,
+            m => m.FlockId == houseA.Id && m.Type == BirdMovementType.Adjustment
+                 && m.Note == "Sim bird movement page two sentinel");
     }
 
     [Fact]
@@ -498,14 +642,14 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             .ToListAsync();
 
         // A second full seed pass converges rather than doubling — same
-        // five products (#396 added the two condition grades), three
-        // customers, six orders (2 draft + 2
+        // five products (#396 added the two condition grades), 101 customers
+        // (#627's over-cap band), six orders (2 draft + 2
         // confirmed-unpaid + 1 confirmed-partially-paid + 1 recurring
         // confirmed, #243 Task 3d's RecurringStartDay/RecurringCadenceDays
         // drip — exactly one point lands inside a 12-day HistoryDays window)
         // as a single pass.
         Assert.Equal(5, products.Count);
-        Assert.Equal(3, customers.Count);
+        Assert.Equal(101, customers.Count);
         Assert.Equal(6, orders.Count);
         Assert.DoesNotContain(products.GroupBy(p => p.Name), g => g.Count() > 1);
         Assert.DoesNotContain(customers.GroupBy(c => c.Name), g => g.Count() > 1);
@@ -568,10 +712,10 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var flocks = await db.Flocks.IgnoreQueryFilters()
-            .Where(f => f.AccountId == SeedDefaults.AccountId)
-            .ToListAsync();
-        Assert.Equal(2, flocks.Count);
+        // #627 — the flock list is now the 102-row picker catalog; the usage
+        // fanout stays on the two operational flocks (INV-3, pinned separately
+        // in SimulationSeed_SeedsTheFlockCatalogSplitWithFanoutOnTwoOperationalFlocksOnly).
+        var flocks = await OperationalFlocksAsync(db);
 
         var feedUsages = await db.FeedUsages.IgnoreQueryFilters()
             .Where(u => u.AccountId == SeedDefaults.AccountId)
@@ -634,9 +778,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var flocks = await db.Flocks.IgnoreQueryFilters()
-            .Where(f => f.AccountId == SeedDefaults.AccountId)
-            .ToListAsync();
+        var flocks = await OperationalFlocksAsync(db);
 
         var items = await db.InventoryItems.IgnoreQueryFilters()
             .Where(i => i.AccountId == SeedDefaults.AccountId)
@@ -655,7 +797,9 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             .Where(m => m.AccountId == SeedDefaults.AccountId
                         && (m.Type == InventoryMovementType.Adjustment || m.Type == InventoryMovementType.Discard))
             .ToListAsync();
-        Assert.Equal(2, adjustmentMovements.Count);
+        // #627 — the feed lot's 110-row band plus the two original
+        // correction/discard rows (one per item).
+        Assert.Equal(2 + ExpectedFeedAdjustmentBand, adjustmentMovements.Count);
 
         var feedUsages = await db.FeedUsages.IgnoreQueryFilters()
             .Where(u => u.AccountId == SeedDefaults.AccountId)
@@ -841,6 +985,19 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     private const int ExpectedDraftWindowDays = 2;
     private const int ExpectedGradesPerDailyEntry = 3;
 
+    // #627 — over-cap band expectations, duplicated from the seeder's private
+    // constants (same convention as ExpectedDraftWindowDays above).
+    // Automatic mortality mirrors the seeder's explicit day loop, not a
+    // division: one row per (operational flock, submitted day) where
+    // d % 5 == 0 for d in DraftWindowDays+1..HistoryDays.
+    private const int ExpectedAutomaticMortalityPerFlock = 2; // d = 5, 10 within 2..12
+    private const int ExpectedExplicitBirdMovements = 51;
+    private const int ExpectedFeedAdjustmentBand = 110;
+    private const int ExpectedTotalBirdMovements =
+        2 * ExpectedAutomaticMortalityPerFlock + ExpectedExplicitBirdMovements;
+    private const int ExpectedTotalCustomers = 3 + 97 + 1; // lifecycle + fillers + sentinel
+    private const int ExpectedTotalFlocks = 2 + 97 + 1 + 1 + 1; // operational + catalog + sentinel + Depleted + Archived
+
     // #396: submit also mints a lot for each condition counter that resolved to
     // a condition grade. Kept as its own constant, mirroring the seeder's
     // ConditionLotsPerDailyEntry — the two answer different questions (grade
@@ -876,7 +1033,16 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         Assert.Equal(ExpectedWorkers, counts.Workers);
         Assert.Equal(ExpectedReadOnly, counts.ReadOnly);
         Assert.Equal(1 + ExpectedCastUsers, counts.UsersTotal);
-        Assert.Equal(2, counts.Flocks);
+        // #627 — exact over-cap bands: 101 customers; 102 flocks split
+        // 100 Active / 1 Depleted / 1 Archived; the bird-movement total is the
+        // automatic-mortality baseline (explicit day loop, both operational
+        // flocks) plus the 51 explicit adjustments on Sim House A.
+        Assert.Equal(ExpectedTotalCustomers, counts.Customers);
+        Assert.Equal(ExpectedTotalFlocks, counts.Flocks);
+        Assert.Equal(ExpectedTotalBirdMovements, counts.BirdMovements);
+        // The daily/feed/water/expense fanout stays based on exactly the TWO
+        // operational flocks — the 100-row picker catalog is list volume, not
+        // production history (INV-3).
         Assert.Equal(2 * SimulationSeedFactory.HistoryDays, counts.DailyEntriesTotal);
         // #279 review Fix 2: one lot per grade (Large/Medium/Small) for every
         // entry that reached Submitted — Draft entries (the most recent
@@ -893,9 +1059,26 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         Assert.Equal(1, counts.Payments);
         Assert.Equal(2, counts.InventoryItems);
         Assert.Equal(2, counts.InventoryLots);
-        // 2 Purchase + 2 Adjustment/Discard + one Usage row per feed usage.
-        Assert.Equal(2 * ExpectedFeedUsageDays + 4, counts.InventoryMovementsTotal);
+        // 2 Purchase + (2 + 110 feed-lot adjustment band) Adjustment/Discard +
+        // one Usage row per feed usage — the feed item alone carries exactly
+        // 120 movements (1 purchase + 1 discard + 110 adjustments + 8 usages)
+        // and the account-wide total is exactly 122 (the bedding item keeps
+        // its 2).
+        Assert.Equal(2 * ExpectedFeedUsageDays + 4 + ExpectedFeedAdjustmentBand, counts.InventoryMovementsTotal);
         Assert.Equal(2 * ExpectedFeedUsageDays, counts.FeedUsageRows);
+        // #627 — the feed lot's own movement band, certified exactly.
+        using (var bandScope = factory.Services.CreateScope())
+        {
+            var bandDb = bandScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var feedItemId = (await bandDb.InventoryItems.IgnoreQueryFilters()
+                .Where(i => i.Name == "Sim Layer Feed").Select(i => i.Id).ToListAsync())
+                .Single();
+            var feedLotId = (await bandDb.InventoryLots.IgnoreQueryFilters()
+                .Where(l => l.InventoryItemId == feedItemId).Select(l => l.Id).ToListAsync())
+                .Single();
+            Assert.Equal(120, await bandDb.InventoryMovements.IgnoreQueryFilters()
+                .CountAsync(m => m.InventoryLotId == feedLotId));
+        }
         Assert.Equal(2 * ExpectedWaterUsageDays, counts.WaterUsageRows);
         Assert.Equal(2, counts.ExpenseCategories);
         Assert.Equal(ExpectedExpensesWithRecurring, counts.Expenses);
@@ -919,8 +1102,12 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         Assert.Equal(0, states.SalesOrders.Shipped + states.SalesOrders.Invoiced
                          + states.SalesOrders.Cancelled + states.SalesOrders.Voided);
         Assert.Equal(2, states.InventoryMovements.Purchase);
-        Assert.Equal(2, states.InventoryMovements.Adjustment + states.InventoryMovements.Discard);
+        Assert.Equal(2 + ExpectedFeedAdjustmentBand, states.InventoryMovements.Adjustment + states.InventoryMovements.Discard);
         Assert.Equal(counts.FeedUsageRows, states.InventoryMovements.Usage);
+        // #627 — exact flock lifecycle split (INV-5).
+        Assert.Equal(100, states.Flocks.Active);
+        Assert.Equal(1, states.Flocks.Depleted);
+        Assert.Equal(1, states.Flocks.Archived);
     }
 
     [Fact]
@@ -969,15 +1156,16 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     public void SimulationSeed_Fingerprint_ExcludesTheDailyEntryLifecycleSplit()
     {
         var counts = new SimulationManifestCounts(
-            Accounts: 2, Owners: 1, Managers: 1, Sales: 1, Workers: 3, ReadOnly: 4, UsersTotal: 10,
-            Flocks: 2, DailyEntriesTotal: 24, EggLots: 60, SalesOrdersTotal: 6, Payments: 1,
+            Accounts: 2, Customers: 101, BirdMovements: 55, Owners: 1, Managers: 1, Sales: 1, Workers: 3, ReadOnly: 4, UsersTotal: 10,
+            Flocks: 102, DailyEntriesTotal: 24, EggLots: 60, SalesOrdersTotal: 6, Payments: 1,
             InventoryItems: 2, InventoryLots: 2, InventoryMovementsTotal: 12,
             FeedUsageRows: 8, WaterUsageRows: 8, ExpenseCategories: 2, Expenses: 5);
         var states = new SimulationLifecycleStates(
             DailyEntries: new SimulationDailyEntryStates(Draft: 4, Submitted: 10, Locked: 10),
             SalesOrders: new SimulationSalesOrderStates(
                 Draft: 2, Confirmed: 4, Shipped: 0, Invoiced: 0, Cancelled: 0, Voided: 0),
-            InventoryMovements: new SimulationInventoryMovementStates(Purchase: 2, Usage: 8, Adjustment: 1, Discard: 1));
+            InventoryMovements: new SimulationInventoryMovementStates(Purchase: 2, Usage: 8, Adjustment: 1, Discard: 1),
+            Flocks: new SimulationFlockStates(Active: 100, Depleted: 1, Archived: 1));
         // Same total (24) and every other field, but a DIFFERENT
         // Submitted/Locked split — the shape two runs straddling the
         // farm-local midnight boundary would actually produce.
@@ -1004,6 +1192,49 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         Assert.NotEqual(fingerprint, fingerprintWithDifferentSalesOrders);
     }
 
+    // #627 — the flock lifecycle split JOINS the fingerprint (its inverse of
+    // the DailyEntries exclusion above): two otherwise-identical manifests
+    // whose ONLY difference is the Active/Depleted/Archived split must
+    // fingerprint differently, while the deliberate DailyEntries exclusion
+    // still holds.
+    [Fact]
+    public void SimulationSeed_Fingerprint_IncludesTheFlockLifecycleSplit()
+    {
+        var counts = new SimulationManifestCounts(
+            Accounts: 2, Customers: 101, BirdMovements: 55, Owners: 1, Managers: 1, Sales: 1, Workers: 3, ReadOnly: 4, UsersTotal: 10,
+            Flocks: 102, DailyEntriesTotal: 24, EggLots: 60, SalesOrdersTotal: 6, Payments: 1,
+            InventoryItems: 2, InventoryLots: 2, InventoryMovementsTotal: 12,
+            FeedUsageRows: 8, WaterUsageRows: 8, ExpenseCategories: 2, Expenses: 5);
+        var states = new SimulationLifecycleStates(
+            DailyEntries: new SimulationDailyEntryStates(Draft: 4, Submitted: 10, Locked: 10),
+            SalesOrders: new SimulationSalesOrderStates(
+                Draft: 2, Confirmed: 4, Shipped: 0, Invoiced: 0, Cancelled: 0, Voided: 0),
+            InventoryMovements: new SimulationInventoryMovementStates(Purchase: 2, Usage: 8, Adjustment: 1, Discard: 1),
+            Flocks: new SimulationFlockStates(Active: 100, Depleted: 1, Archived: 1));
+
+        var fingerprint = SimulationDataSeeder.ComputeFingerprint(243, counts, states);
+
+        // Same total (102) and every other field, only the split differs —
+        // the shape a drifted lifecycle row would actually produce.
+        var statesWithDifferentFlockSplit = states with
+        {
+            Flocks = new SimulationFlockStates(Active: 99, Depleted: 2, Archived: 1),
+        };
+        var fingerprintWithDifferentFlockSplit =
+            SimulationDataSeeder.ComputeFingerprint(243, counts, statesWithDifferentFlockSplit);
+        Assert.NotEqual(fingerprint, fingerprintWithDifferentFlockSplit);
+
+        // The deliberate exclusion still holds: a different DailyEntries split
+        // (same total) must NOT change the hash, even alongside the flock
+        // split that now belongs in it.
+        var statesWithDifferentDailySplit = states with
+        {
+            DailyEntries = new SimulationDailyEntryStates(Draft: 4, Submitted: 17, Locked: 3),
+        };
+        Assert.Equal(fingerprint,
+            SimulationDataSeeder.ComputeFingerprint(243, counts, statesWithDifferentDailySplit));
+    }
+
     // Pure unit-style check on SimulationDataSeeder.ValidateCounts (internal,
     // visible via InternalsVisibleTo) — a hand-built "one worker short" actual
     // count against the real expectations must throw, proving the fail-closed
@@ -1015,21 +1246,24 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
     public void SimulationSeed_ValidateCounts_ThrowsWhenACountIsShortOfExpectations()
     {
         var counts = new SimulationManifestCounts(
-            Accounts: 2, Owners: 1, Managers: 1, Sales: 1, Workers: 2, ReadOnly: 4, UsersTotal: 9,
-            Flocks: 2, DailyEntriesTotal: 24, EggLots: 60, SalesOrdersTotal: 6, Payments: 1,
+            Accounts: 2, Customers: 101, BirdMovements: 55, Owners: 1, Managers: 1, Sales: 1, Workers: 2, ReadOnly: 4, UsersTotal: 9,
+            Flocks: 102, DailyEntriesTotal: 24, EggLots: 60, SalesOrdersTotal: 6, Payments: 1,
             InventoryItems: 2, InventoryLots: 2, InventoryMovementsTotal: 12,
             FeedUsageRows: 8, WaterUsageRows: 8, ExpenseCategories: 2, Expenses: 5);
         var states = new SimulationLifecycleStates(
             DailyEntries: new SimulationDailyEntryStates(Draft: 4, Submitted: 10, Locked: 10),
             SalesOrders: new SimulationSalesOrderStates(
                 Draft: 2, Confirmed: 4, Shipped: 0, Invoiced: 0, Cancelled: 0, Voided: 0),
-            InventoryMovements: new SimulationInventoryMovementStates(Purchase: 2, Usage: 8, Adjustment: 1, Discard: 1));
+            InventoryMovements: new SimulationInventoryMovementStates(Purchase: 2, Usage: 8, Adjustment: 1, Discard: 1),
+            Flocks: new SimulationFlockStates(Active: 100, Depleted: 1, Archived: 1));
         // Expects one MORE worker (and, consequently, one more total user)
         // than the counts above actually seeded — the "silently short seed"
         // this validation exists to catch.
         var expected = new SimulationExpectedCounts(
             Accounts: 2, Owners: 1, Managers: 1, Sales: 1, Workers: 3, ReadOnly: 4, UsersTotal: 10,
-            Flocks: 2, DailyEntriesTotal: 24, DraftEntries: 4, SubmittedEntries: 10, LockedEntries: 10,
+            Flocks: 102, FlocksActive: 100, FlocksDepleted: 1, FlocksArchived: 1,
+            Customers: 101, BirdMovements: 55,
+            DailyEntriesTotal: 24, DraftEntries: 4, SubmittedEntries: 10, LockedEntries: 10,
             EggLots: 60, SalesOrdersTotal: 6, SalesOrdersDraft: 2, SalesOrdersConfirmed: 4, Payments: 1,
             InventoryItems: 2, InventoryLots: 2, InventoryPurchaseMovements: 2,
             InventoryAdjustmentOrDiscardMovements: 2, InventoryUsageMovements: 8, InventoryMovementsTotal: 12,
@@ -1038,6 +1272,39 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
         var ex = Assert.Throws<InvalidOperationException>(
             () => SimulationDataSeeder.ValidateCounts(counts, states, expected));
         Assert.Contains("users.workers", ex.Message);
+    }
+
+    // #627 — sibling of the workers-short test above, isolating the
+    // bird-movement band: every other field is self-consistent, only
+    // BirdMovements is short, and the stable discriminator must be
+    // "birdMovements".
+    [Fact]
+    public void SimulationSeed_ValidateCounts_ThrowsWhenBirdMovementsAreShort()
+    {
+        var counts = new SimulationManifestCounts(
+            Accounts: 2, Customers: 101, BirdMovements: 54, Owners: 1, Managers: 1, Sales: 1, Workers: 3, ReadOnly: 4, UsersTotal: 10,
+            Flocks: 102, DailyEntriesTotal: 24, EggLots: 60, SalesOrdersTotal: 6, Payments: 1,
+            InventoryItems: 2, InventoryLots: 2, InventoryMovementsTotal: 12,
+            FeedUsageRows: 8, WaterUsageRows: 8, ExpenseCategories: 2, Expenses: 5);
+        var states = new SimulationLifecycleStates(
+            DailyEntries: new SimulationDailyEntryStates(Draft: 4, Submitted: 10, Locked: 10),
+            SalesOrders: new SimulationSalesOrderStates(
+                Draft: 2, Confirmed: 4, Shipped: 0, Invoiced: 0, Cancelled: 0, Voided: 0),
+            InventoryMovements: new SimulationInventoryMovementStates(Purchase: 2, Usage: 8, Adjustment: 1, Discard: 1),
+            Flocks: new SimulationFlockStates(Active: 100, Depleted: 1, Archived: 1));
+        var expected = new SimulationExpectedCounts(
+            Accounts: 2, Owners: 1, Managers: 1, Sales: 1, Workers: 3, ReadOnly: 4, UsersTotal: 10,
+            Flocks: 102, FlocksActive: 100, FlocksDepleted: 1, FlocksArchived: 1,
+            Customers: 101, BirdMovements: 55,
+            DailyEntriesTotal: 24, DraftEntries: 4, SubmittedEntries: 10, LockedEntries: 10,
+            EggLots: 60, SalesOrdersTotal: 6, SalesOrdersDraft: 2, SalesOrdersConfirmed: 4, Payments: 1,
+            InventoryItems: 2, InventoryLots: 2, InventoryPurchaseMovements: 2,
+            InventoryAdjustmentOrDiscardMovements: 2, InventoryUsageMovements: 8, InventoryMovementsTotal: 12,
+            FeedUsageRows: 8, WaterUsageRows: 8, ExpenseCategories: 2, Expenses: 5);
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => SimulationDataSeeder.ValidateCounts(counts, states, expected));
+        Assert.Contains("birdMovements", ex.Message);
     }
 
     // #500 — nothing the simulation seeder writes is unattributed.
@@ -1150,6 +1417,13 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
 
             // A manager runs the farm's definitions and its spending.
             [AuditActions.FlockCreate] = FromPool(ManagerPrefix),
+            // #627 — the picker catalog's lifecycle rows go through the real
+            // Deplete/Archive handlers (store-keeper, a manager by role), and
+            // the 51 explicit bird adjustments are ledger rows the same persona
+            // records; all three actions were introduced by the seeder this run.
+            [AuditActions.FlockDeplete] = FromPool(ManagerPrefix),
+            [AuditActions.FlockArchive] = FromPool(ManagerPrefix),
+            [AuditActions.FlockBirdMovement] = FromPool(ManagerPrefix),
             [AuditActions.ProductCreate] = FromPool(ManagerPrefix),
             [AuditActions.ExpenseCreate] = FromPool(ManagerPrefix),
             [AuditActions.InventoryItemAdjust] = FromPool(ManagerPrefix),
