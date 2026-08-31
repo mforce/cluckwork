@@ -1174,4 +1174,18 @@ describe("InventoryPage ledger paging (#511)", () => {
       await i18n.changeLanguage("en");
     }
   });
+
+  it("blames the lots read, not the movement ledger, when lots fail to load", async () => {
+    // #511 round 4 — before the round-1 split, one catch covered a combined
+    // movements+lots read and "Could not load the movement ledger." was
+    // accurate for both. After the split this catch only ever wraps loadLots,
+    // so a lots failure was reporting a failure of a read that succeeded.
+    mockListMovements.mockResolvedValue([]);
+    mockListLots.mockRejectedValueOnce(new ApiError(500, "Server error", "lots down"));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+
+    expect(await screen.findByText("Could not load the item's lots.")).toBeInTheDocument();
+    expect(screen.queryByText("Could not load the movement ledger.")).not.toBeInTheDocument();
+  });
 });

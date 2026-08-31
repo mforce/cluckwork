@@ -716,6 +716,7 @@ export const tl = {
     invalidCostError: "Di-wastong halaga.",
     itemCreatedMessage: "Nagawa ang item.",
     loadLedgerFailed: "Hindi na-load ang talaan ng galaw.",
+    loadLotsFailed: "Hindi na-load ang mga lote ng item.",
     quantityMustBePositive: "Dapat positibong numero ang dami.",
     purchaseRecordedMessage: "Naitala ang pagbili — natanggap ang stock.",
     adjustQuantityRequired:

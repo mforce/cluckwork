@@ -836,6 +836,7 @@ export const en = {
     invalidCostError: "Invalid cost.",
     itemCreatedMessage: "Item created.",
     loadLedgerFailed: "Could not load the movement ledger.",
+    loadLotsFailed: "Could not load the item's lots.",
     quantityMustBePositive: "Quantity must be a positive number.",
     purchaseRecordedMessage: "Purchase recorded — stock received.",
     adjustQuantityRequired: "Adjustment quantity must be a non-zero number (negative removes stock).",

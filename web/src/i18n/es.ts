@@ -692,6 +692,7 @@ export const es = {
     invalidCostError: "Costo inválido.",
     itemCreatedMessage: "Artículo creado.",
     loadLedgerFailed: "No se pudo cargar el registro de movimientos.",
+    loadLotsFailed: "No se pudieron cargar los lotes del artículo.",
     quantityMustBePositive: "La cantidad debe ser un número positivo.",
     purchaseRecordedMessage: "Compra registrada — existencias recibidas.",
     adjustQuantityRequired:

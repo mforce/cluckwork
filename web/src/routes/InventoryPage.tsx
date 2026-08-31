@@ -310,7 +310,10 @@ export function InventoryPage() {
     try {
       await loadLots(i.id);
     } catch {
-      setPageError(i18n.t("inventory:loadLedgerFailed"));
+      // Names the read that actually failed. Before #511 split the combined
+      // movements+lots read, this catch covered both and the ledger wording
+      // was accurate; it only wraps loadLots now.
+      setPageError(i18n.t("inventory:loadLotsFailed"));
     }
   }
 
