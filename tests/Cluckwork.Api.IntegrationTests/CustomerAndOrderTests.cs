@@ -746,12 +746,19 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
             client, id, new { name = "Changed Name", phone = "555-9999" }); // no "version" key at all
     }
 
-    // #625 review round 6 — the SECOND wire shape for the same nullable-
-    // presence invariant: an EXPLICIT JSON `"version": null` must be rejected
-    // identically to an omitted field, not silently accepted by some binder
-    // path that treats "key present, value null" differently from "key
-    // absent". M18 (UpdateCustomerRequest.Version reverted to plain int)
-    // remains the combined mutation proof for both wire shapes.
+    // #625 review round 6/9 — the SECOND wire shape for the same nullable-
+    // presence invariant: an EXPLICIT JSON `"version": null` must be
+    // rejected identically to an omitted field, not silently accepted by
+    // some binder path that treats "key present, value null" differently
+    // from "key absent". Sent as a RAW literal JSON string, not
+    // JsonContent.Create on a C# `(int?)null` field — the anonymous-object
+    // path only proves the .NET serializer's own null-handling, which is
+    // not the same claim as "the wire actually carries the JSON literal
+    // null". The literal below is the self-proof; it deliberately does not
+    // go through AssertVersionRequiredRejectsUnmutatedAsync, so this test
+    // stands on its own rather than inheriting that helper's object-based
+    // request construction. M18 (UpdateCustomerRequest.Version reverted to
+    // plain int) remains the combined mutation proof for both wire shapes.
     [Fact]
     public async Task Customer_Update_ExplicitNullVersion_400WithExactRequiredErrorCode_AndNoMutation()
     {
@@ -760,8 +767,26 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
             "/api/v1/customers", Guid.NewGuid().ToString(),
             new { name = "Original", phone = "555-0000" })); // Version 0
 
-        await AssertVersionRequiredRejectsUnmutatedAsync(
-            client, id, new { version = (int?)null, name = "Changed Name", phone = "555-9999" });
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/customers/{id}")
+        {
+            Content = new StringContent(
+                """{"version":null,"name":"Changed Name","phone":"555-9999"}""",
+                System.Text.Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(doc.RootElement.TryGetProperty("errorCodes", out var codes));
+        var versionCodes = codes.GetProperty("Version").EnumerateArray()
+            .Select(e => e.GetString()).ToList();
+        Assert.Equal(["Customer.Version.Required"], versionCodes);
+
+        var got = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Equal("Original", got!.Name);
+        Assert.Equal("555-0000", got.Phone);
+        Assert.Equal(0, got.Version);
     }
 
     // #625 review round 1 — Update() normalizes blank optionals to null; this
@@ -784,5 +809,32 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         Assert.Null(got!.Email);
         Assert.Null(got.Address);
         Assert.Null(got.Note);
+    }
+
+    // #625 review round 9 — CustomersPage seeds its edit dialog straight from
+    // the LIST row (each row already carries every field the dialog needs —
+    // see the design's own "atomic prefill" rationale), never a fresh by-id
+    // fetch. A Version regression that only showed up on GET /{id} would
+    // still ship a broken edit dialog, since the dialog never calls that
+    // endpoint. This must not rely only on the by-id GET the other tests
+    // above use.
+    [Fact]
+    public async Task Customer_Update_ListPayload_CarriesTheCommittedVersion()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" })); // Version 0
+
+        var update = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Updated Name", phone = "555-9999" });
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var list = await client.GetFromJsonAsync<List<CustomerDto>>("/api/v1/customers");
+        var row = list!.Single(c => c.Id == id);
+        Assert.Equal("Updated Name", row.Name);
+        Assert.Equal("555-9999", row.Phone);
+        Assert.Equal(1, row.Version);
     }
 }
