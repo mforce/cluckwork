@@ -1834,9 +1834,10 @@ public sealed class IdentityProvider(
             SecurityEvents.RefreshRevocationFailed, userId);
 
     // Chases only the durable lineage named by the presented row. One
-    // PostgreSQL data-modifying CTE fences each active tip with the same
-    // ConcurrencyStamp CAS used by refresh rotation and, only when that fence
-    // returns a row, severs every visited ancestor pointer in the same statement.
+    // PostgreSQL data-modifying CTE fences each still-live tip with a
+    // `RevokedAt IS NULL` predicate and rotates its ConcurrencyStamp. Only when
+    // that fence returns a row does it sever every visited ancestor pointer in
+    // the same statement.
     // If refresh publishes a child first, scalar false rereads this hash and
     // follows that child; if logout updates first, refresh's tracked save loses
     // its stale stamp and its child insert rolls back.

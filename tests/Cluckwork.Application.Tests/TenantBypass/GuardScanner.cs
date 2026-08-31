@@ -21,7 +21,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 public enum BypassKind
 {
     IgnoreQueryFilters,
-    RawSql,            // FromSql*/ExecuteSql*/SqlQuery — raw SQL bypasses EF filters outright
+    RawSql,            // EF raw-SQL APIs or IRawSqlCommandBuilder — both bypass EF filters outright
     IdentityLookup,    // FindByEmailAsync/FindByNameAsync/FindByLoginAsync/GetUsersInRoleAsync
     SignInManager,     // any SignInManager member invocation
     UserManagerUsers,  // UserManager.Users member access
@@ -47,7 +47,8 @@ public sealed record GuardReport(
     IReadOnlyList<string> ParseErrors,
     int ScannedFileCount,
     int ExpectedFileCountFloor,
-    IReadOnlyList<string> RawSqlPredicateViolations);
+    IReadOnlyList<string> RawSqlPredicateViolations,
+    IReadOnlyList<string> RawSqlExecutionViolations);
 
 public static class GuardScanner
 {
@@ -134,6 +135,7 @@ public static class GuardScanner
 
         var occurrences = new List<BypassOccurrence>();
         var parseErrors = new List<string>();
+        var rawSqlExecutionViolations = new List<string>();
 
         foreach (var file in files)
         {
@@ -242,6 +244,35 @@ public static class GuardScanner
                 else if (name is IdentifierNameSyntax id)
                 {
                     methodName = id.Identifier.ValueText;
+                }
+
+                // EF's own FromSql*/ExecuteSql*/SqlQuery surface is not the
+                // only escape hatch. A command built through
+                // IRawSqlCommandBuilder and executed through its
+                // RelationalCommand bypasses query filters at the lower layer.
+                if (IsLowLevelRawSqlBuild(invocation))
+                {
+                    var occurrence = MakeOccurrence(
+                        BypassKind.RawSql,
+                        repoRoot,
+                        file,
+                        invocation,
+                        "IRawSqlCommandBuilder.Build");
+                    var sqlExpression = invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+                    occurrences.Add(occurrence with
+                    {
+                        RawSqlText = sqlExpression is null
+                            ? string.Empty
+                            : ResolveSqlText(sqlExpression, invocation),
+                    });
+                    if (!HasRelationalCommandExecution(invocation))
+                    {
+                        var line = invocation.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                        rawSqlExecutionViolations.Add(
+                            $"{Relative(repoRoot, file)}:{line} in {EnclosingSymbolOf(invocation, file)} — " +
+                            "IRawSqlCommandBuilder.Build has no classified RelationalCommand execution");
+                    }
+                    continue;
                 }
 
                 if (methodName is not null && BannedMethods.TryGetValue(methodName, out var kind))
@@ -403,7 +434,7 @@ public static class GuardScanner
 
         return new GuardReport(occurrences, excusedOccurrences,
             unexcusedOccurrences,
-            stale, parseErrors, files.Count, floor, rawSqlViolations);
+            stale, parseErrors, files.Count, floor, rawSqlViolations, rawSqlExecutionViolations);
     }
 
     // Round-4 finding F5 — all four Postgres row-lock keywords. The predicate
@@ -566,6 +597,51 @@ public static class GuardScanner
         return sb.ToString();
     }
 
+    internal static IReadOnlyList<string> FindScopedUpdateArmViolations(
+        string sql,
+        int expectedUpdateArmCount,
+        params (string Column, string Parameter)[] requiredPredicates)
+    {
+        // The atomic logout command contains two data-modifying CTE arms. Each
+        // arm has its own WHERE clause, so a predicate in one must not launder
+        // the other. Capture and validate every UPDATE ... WHERE ... RETURNING
+        // arm independently, and pin the expected arm count so deleting an arm
+        // cannot turn the predicate loop into a false green.
+        var matches = System.Text.RegularExpressions.Regex.Matches(
+                StripSqlComments(sql),
+                @"(?is)\b(?<arm>[A-Za-z_][A-Za-z0-9_]*)\s+AS\s*\(\s*UPDATE\s+.*?\bSET\b.*?\bWHERE\b(?<where>.*?)\bRETURNING\b")
+            .Cast<System.Text.RegularExpressions.Match>()
+            .ToList();
+        var violations = new List<string>();
+
+        if (matches.Count != expectedUpdateArmCount)
+        {
+            violations.Add(
+                $"expected {expectedUpdateArmCount} data-modifying CTE update arms, found {matches.Count}");
+        }
+
+        foreach (var match in matches)
+        {
+            var arm = match.Groups["arm"].Value;
+            var where = match.Groups["where"].Value;
+            foreach (var (column, parameter) in requiredPredicates)
+            {
+                var pattern =
+                    $@"(?:\b[A-Za-z_][A-Za-z0-9_]*\s*\.\s*)?""?{System.Text.RegularExpressions.Regex.Escape(column)}""?\s*=\s*@{System.Text.RegularExpressions.Regex.Escape(parameter)}\b";
+                if (!System.Text.RegularExpressions.Regex.IsMatch(
+                        where,
+                        pattern,
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                {
+                    violations.Add(
+                        $"{arm} update arm is missing {column} = @{parameter} in its WHERE clause");
+                }
+            }
+        }
+
+        return violations;
+    }
+
     private static int IndexOf(string haystack, string needle, StringComparison cmp)
         => haystack.IndexOf(needle, cmp);
 
@@ -608,6 +684,11 @@ public static class GuardScanner
         foreach (var v in report.RawSqlPredicateViolations)
         {
             failures.Add($"raw-SQL row lock missing an AccountId predicate (M4): {v}");
+        }
+
+        foreach (var v in report.RawSqlExecutionViolations)
+        {
+            failures.Add($"low-level raw-SQL execution seam is incomplete: {v}");
         }
 
         return failures;
@@ -944,6 +1025,73 @@ public static class GuardScanner
         var methodName = name is MemberAccessExpressionSyntax m ? m.Name.Identifier.ValueText
             : name is IdentifierNameSyntax id ? id.Identifier.ValueText : null;
         return methodName is not null && BannedMethods.ContainsKey(methodName);
+    }
+
+    private static bool IsLowLevelRawSqlBuild(InvocationExpressionSyntax invocation)
+    {
+        if (invocation.Expression is not MemberAccessExpressionSyntax
+            {
+                Name.Identifier.ValueText: "Build",
+            } member)
+        {
+            return false;
+        }
+
+        return member.Expression.DescendantNodesAndSelf()
+            .OfType<GenericNameSyntax>()
+            .Any(generic => generic.Identifier.ValueText == "GetService"
+                && generic.TypeArgumentList.Arguments.Any(argument =>
+                    argument.ToString() == "IRawSqlCommandBuilder"));
+    }
+
+    private static bool HasRelationalCommandExecution(InvocationExpressionSyntax build)
+    {
+        // Bind the execution to the local receiving this exact Build result.
+        // A different ExecuteScalarAsync elsewhere in the method must not
+        // classify a built-but-never-executed command as complete.
+        var commandVariable = build.Ancestors()
+            .OfType<VariableDeclaratorSyntax>()
+            .FirstOrDefault()?.Identifier.ValueText;
+        var method = build.Ancestors().OfType<BaseMethodDeclarationSyntax>().FirstOrDefault();
+        if (commandVariable is null || method is null)
+        {
+            return false;
+        }
+
+        return method.DescendantNodes()
+            .OfType<InvocationExpressionSyntax>()
+            .Any(invocation => invocation.Expression is MemberAccessExpressionSyntax
+                {
+                    Name.Identifier.ValueText: "ExecuteScalarAsync",
+                    Expression: MemberAccessExpressionSyntax
+                    {
+                        Name.Identifier.ValueText: "RelationalCommand",
+                        Expression: IdentifierNameSyntax identifier,
+                    },
+                }
+                && identifier.Identifier.ValueText == commandVariable);
+    }
+
+    private static string ResolveSqlText(ExpressionSyntax expression, SyntaxNode useSite)
+    {
+        // Low-level callers commonly pass a local const identifier rather than
+        // the literal directly. Resolve the nearest preceding declaration in
+        // the method so the predicate guard sees the SQL, not merely `sql`.
+        if (expression is not IdentifierNameSyntax identifier)
+        {
+            return ReconstructSqlText(expression);
+        }
+
+        var method = useSite.Ancestors().OfType<BaseMethodDeclarationSyntax>().FirstOrDefault();
+        var declaration = method?.DescendantNodes()
+            .OfType<VariableDeclaratorSyntax>()
+            .Where(candidate => candidate.SpanStart < useSite.SpanStart)
+            .LastOrDefault(candidate =>
+                candidate.Identifier.ValueText == identifier.Identifier.ValueText);
+
+        return declaration?.Initializer?.Value is { } initializer
+            ? ReconstructSqlText(initializer)
+            : expression.ToString();
     }
 
     private static bool IsIdentityManagerReceiver(string? receiverText, bool isSignInManager)

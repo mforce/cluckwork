@@ -10,6 +10,28 @@ using System.Text.Json;
 // M8, review M5).
 public sealed class TenantBypassAllowListTests : IDisposable
 {
+    private const string ScopedLineageCte = """
+        WITH fenced_tip AS (
+            UPDATE refresh_tokens
+            SET "RevokedAt" = @revokedAt
+            WHERE "TokenHash" = @currentHash
+              AND "UserId" = @rootUserId
+              AND "AccountId" = @rootAccountId
+              AND "IssuedEpoch" = @rootIssuedEpoch
+            RETURNING 1
+        ),
+        severed_ancestors AS (
+            UPDATE refresh_tokens AS ancestor
+            SET "ReplacedByTokenHash" = NULL
+            WHERE ancestor."TokenHash" = ANY (@ancestorHashes)
+              AND ancestor."UserId" = @rootUserId
+              AND ancestor."AccountId" = @rootAccountId
+              AND ancestor."IssuedEpoch" = @rootIssuedEpoch
+            RETURNING 1
+        )
+        SELECT TRUE
+        """;
+
     private readonly string _tempRoot = Directory.CreateTempSubdirectory("t8-guard-").FullName;
 
     public void Dispose()
@@ -163,5 +185,133 @@ public sealed class TenantBypassAllowListTests : IDisposable
         // the caller Caller.Use is an unexcused occurrence too.
         Assert.Contains(failures, f => f.Contains("Ext.Unfiltered"));
         Assert.Contains(failures, f => f.Contains("Caller.Use") || f.Contains("Use()"));
+    }
+
+    [Fact]
+    public void LowLevelRawSqlBuild_IsDiscoveredAndClassified()
+    {
+        WriteSource("src/LowLevel.cs", """
+            namespace LowLevel;
+            public class Runner
+            {
+                public async Task<bool> ExecuteAsync()
+                {
+                    const string sql = "SELECT TRUE";
+                    var rawCommand = db.GetService<IRawSqlCommandBuilder>().Build(sql, [], db.Model);
+                    return await rawCommand.RelationalCommand.ExecuteScalarAsync(parameters, ct) is true;
+                }
+            }
+            """);
+
+        var report = Scan(_tempRoot, WriteAllowList(
+            ("LowLevel.Runner.ExecuteAsync()", "src/LowLevel.cs", "test fixture")));
+
+        var occurrence = Assert.Single(report.Occurrences,
+            o => o.Kind == BypassKind.RawSql
+                && o.EnclosingSymbol == "LowLevel.Runner.ExecuteAsync()");
+        Assert.Contains("IRawSqlCommandBuilder.Build", occurrence.Detail);
+        Assert.Contains("SELECT TRUE", occurrence.RawSqlText);
+        Assert.Empty(GuardScanner.Evaluate(report));
+    }
+
+    [Fact]
+    public void LowLevelRawSqlBuild_RequiresRelationalCommandExecution()
+    {
+        WriteSource("src/LowLevel.cs", """
+            namespace LowLevel;
+            public class Runner
+            {
+                public void Execute()
+                {
+                    const string sql = "SELECT TRUE";
+                    _ = db.GetService<IRawSqlCommandBuilder>().Build(sql, [], db.Model);
+                }
+            }
+            """);
+
+        var report = Scan(_tempRoot, WriteAllowList(
+            ("LowLevel.Runner.Execute()", "src/LowLevel.cs", "test fixture")));
+
+        Assert.Contains(GuardScanner.Evaluate(report), failure =>
+            failure.Contains("IRawSqlCommandBuilder.Build", StringComparison.Ordinal)
+            && failure.Contains("RelationalCommand execution", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LowLevelRawSqlBuild_RemovalOrMethodMoveFailsClassification()
+    {
+        const string classifiedSymbol = "LowLevel.Runner.ExecuteAsync()";
+        var allowList = WriteAllowList(
+            (classifiedSymbol, "src/LowLevel.cs", "test fixture"));
+
+        WriteSource("src/LowLevel.cs", """
+            namespace LowLevel;
+            public class Runner
+            {
+                public Task<bool> ExecuteAsync() => Task.FromResult(true);
+            }
+            """);
+        var removed = Scan(_tempRoot, allowList);
+        Assert.Contains(GuardScanner.Evaluate(removed), failure =>
+            failure.Contains("stale allow-list entry", StringComparison.Ordinal)
+            && failure.Contains(classifiedSymbol, StringComparison.Ordinal));
+
+        WriteSource("src/LowLevel.cs", """
+            namespace LowLevel;
+            public class Runner
+            {
+                public async Task<bool> MovedAsync()
+                {
+                    const string sql = "SELECT TRUE";
+                    var rawCommand = db.GetService<IRawSqlCommandBuilder>().Build(sql, [], db.Model);
+                    return await rawCommand.RelationalCommand.ExecuteScalarAsync(parameters, ct) is true;
+                }
+            }
+            """);
+        var moved = Scan(_tempRoot, allowList);
+        var movedFailures = GuardScanner.Evaluate(moved);
+        Assert.Contains(movedFailures, failure =>
+            failure.Contains("stale allow-list entry", StringComparison.Ordinal)
+            && failure.Contains(classifiedSymbol, StringComparison.Ordinal));
+        Assert.Contains(movedFailures, failure =>
+            failure.Contains("unexcused bypass", StringComparison.Ordinal)
+            && failure.Contains("LowLevel.Runner.MovedAsync()", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LowLevelRawSqlScope_AcceptsBothScopedCteUpdateArms()
+    {
+        var violations = GuardScanner.FindScopedUpdateArmViolations(
+            ScopedLineageCte,
+            expectedUpdateArmCount: 2,
+            ("UserId", "rootUserId"),
+            ("AccountId", "rootAccountId"),
+            ("IssuedEpoch", "rootIssuedEpoch"));
+
+        Assert.Empty(violations);
+    }
+
+    [Theory]
+    [InlineData("fenced_tip", "AND \"UserId\" = @rootUserId", "UserId")]
+    [InlineData("fenced_tip", "AND \"AccountId\" = @rootAccountId", "AccountId")]
+    [InlineData("fenced_tip", "AND \"IssuedEpoch\" = @rootIssuedEpoch", "IssuedEpoch")]
+    [InlineData("severed_ancestors", "AND ancestor.\"UserId\" = @rootUserId", "UserId")]
+    [InlineData("severed_ancestors", "AND ancestor.\"AccountId\" = @rootAccountId", "AccountId")]
+    [InlineData("severed_ancestors", "AND ancestor.\"IssuedEpoch\" = @rootIssuedEpoch", "IssuedEpoch")]
+    public void LowLevelRawSqlScope_RemovingOwnerPredicateFromEitherArmFails(
+        string arm, string predicate, string column)
+    {
+        var mutant = ScopedLineageCte.Replace(predicate, string.Empty, StringComparison.Ordinal);
+
+        var violations = GuardScanner.FindScopedUpdateArmViolations(
+            mutant,
+            expectedUpdateArmCount: 2,
+            ("UserId", "rootUserId"),
+            ("AccountId", "rootAccountId"),
+            ("IssuedEpoch", "rootIssuedEpoch"));
+
+        Assert.Contains(violations, violation =>
+            violation.Contains(arm, StringComparison.Ordinal)
+            && violation.Contains(column, StringComparison.Ordinal));
     }
 }
