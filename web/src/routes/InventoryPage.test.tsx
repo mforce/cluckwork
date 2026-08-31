@@ -751,42 +751,38 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     expect(screen.getAllByText("Could not load the movement ledger.")).toHaveLength(1);
   });
 
-  // #511 — this used to pin the ledger's stale failure surviving an unrelated
-  // dialog write forever, because the old code only re-read the ledger on a
-  // SUCCESSFUL write's own refresh. `usePagedList`'s `runWrite` re-reads on
-  // BOTH outcomes of ANY write it wraps — including create-item, which is not
-  // ledger-specific — and a successful re-read clears a previous error by
-  // design ("an error can never outlive the condition that caused it", see
-  // the hook's own header comment). The create's mock rejection is
-  // ONE-shot, so by the time its failure triggers the ledger's re-read, the
-  // ledger mock has reverted to its default (empty) resolve — the read
-  // genuinely recovers, so the stale message is correctly replaced, not lost.
-  // What #479 isolation still guarantees, and what this test now pins: the
-  // dialog's OWN failure renders only inside the dialog, never on the page.
-  it("keeps a dialog's own failure inside the dialog after it incidentally recovers the page's ledger error", async () => {
+  // #511 round 2 — restored. Round 1 briefly rewrote this to assert the
+  // ledger error was CLEARED by an unrelated create, which was a consequence
+  // of wrapping every write in the ledger's runWrite, not a behaviour anyone
+  // wanted. Increment 5 removed that coupling, so the original guarantee is
+  // back: a dialog write that has nothing to do with the ledger must not
+  // touch the ledger's error, and the dialog's own failure stays in the
+  // dialog (#479).
+  it("keeps a page failure visible after opening a dialog and running a failing dialog write", async () => {
     mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
     mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "create boom"));
     await renderReady(ADMIN);
-
     const row = screen.getByRole("row", { name: /Layer Feed/ });
     await act(async () => {
       fireEvent.click(within(row).getByRole("button", { name: "open" }));
     });
-    expect(await screen.findByText("Could not load the movement ledger.")).toBeInTheDocument();
+    await screen.findByText("Could not load the movement ledger.");
 
-    const form = openDialog("New item");
-    fireEvent.change(within(form).getByLabelText("Item name *"), { target: { value: "X" } });
+    openDialog("New item");
+    fireEvent.change(within(dialog()).getByLabelText(/Name/i), { target: { value: "Grit" } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
     });
 
-    // The ledger's own retry (triggered by the create settling) succeeded —
-    // the stale error is gone, replaced by the recovered empty-ledger state.
-    expect(screen.queryByText("Could not load the movement ledger.")).not.toBeInTheDocument();
-    expect(screen.getByText(/No movements yet/)).toBeInTheDocument();
-    // The create's own failure stays inside its own dialog, never the page.
+    // The create never touched the ledger, so the ledger's failure is untouched.
+    expect(screen.getByText("Could not load the movement ledger.")).toBeInTheDocument();
+    // And the create's own failure stays inside the create dialog.
     expect(within(dialog()).getByText("create boom")).toBeInTheDocument();
     expect(screen.getAllByText("create boom")).toHaveLength(1);
+    // The unrelated create must not have re-read the ledger at all: one call,
+    // from opening the item. This is the assertion that pins WHY the error
+    // survived, rather than just that it did.
+    expect(mockListMovements).toHaveBeenCalledTimes(1);
   });
 });
 

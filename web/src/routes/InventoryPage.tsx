@@ -177,17 +177,29 @@ export function InventoryPage() {
   // `scope` drives the idempotency key + pending spinner (#236); `errorScope`
   // is the #479 slot the attempt reports to — `null` for the two row-level
   // writes (activate/deactivate) that have no dialog of their own.
-  async function run(scope: string, errorScope: string | null, action: (key: string) => Promise<unknown>, openItemId?: string): Promise<boolean> {
+  // #511 round 2 — `touchesLedger` decides whether this write goes through the
+  // LEDGER's runWrite. Only a write that produces an InventoryMovement does.
+  // Round 1 wrapped all six, so an unrelated create-item claimed the open
+  // ledger's ticket: it disabled that ledger's Load more for the duration
+  // (canLoadMore folds in `loading`), re-walked every loaded page for nothing,
+  // and could clear a standing ledger error the moment its incidental re-read
+  // happened to succeed. FlocksPage already draws this line — only
+  // onRecordMovement goes through ledger.runWrite there.
+  async function run(scope: string, errorScope: string | null, action: (key: string) => Promise<unknown>, openItemId?: string, touchesLedger = false): Promise<boolean> {
     const outcome = await runPending(scope, async () => {
       errors.beginAttempt(errorScope);
       setMessage(null);
       try {
-        await ledger.runWrite(async () => {
+        const write = async () => {
           await action(keyFor(scope));
           // The refresh must succeed before the key rotates: if it throws, the key
           // survives and a retry replays the idempotent write instead of repeating it.
           await refreshAll(openItemId);
-        });
+        };
+        // A ledger write refreshes the whole loaded movement window (AC4); a
+        // catalog write refreshes items and lots only.
+        if (touchesLedger) await ledger.runWrite(write);
+        else await write();
         clearKey(scope);
         return true;
       } catch (err) {
@@ -299,7 +311,7 @@ export function InventoryPage() {
         lotNumber: lotNumber.trim() || undefined,
         expiryDate: expiryDate || undefined,
         note: purchaseNote.trim() || undefined,
-      }, key), active.id);
+      }, key), active.id, true);
     if (ok) {
       setPurchaseQty("");
       setPurchaseCost("");
@@ -333,7 +345,7 @@ export function InventoryPage() {
         type: adjustType,
         quantityDelta: adjustType === "Discard" ? -Math.abs(delta) : delta,
         reason: adjustReason.trim(),
-      }, key), active.id);
+      }, key), active.id, true);
     if (ok) {
       setAdjustQty("");
       setAdjustReason("");
