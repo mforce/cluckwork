@@ -134,6 +134,7 @@ public sealed class CustomerConfiguration : IEntityTypeConfiguration<Cluckwork.D
         builder.Property(c => c.Email).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxEmailLength);
         builder.Property(c => c.Address).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxAddressLength);
         builder.Property(c => c.Note).HasMaxLength(Cluckwork.Domain.Sales.Customer.MaxNoteLength);
+        builder.Property(c => c.Version).IsConcurrencyToken();
 
         builder.HasIndex(c => new { c.AccountId, c.Name });
     }

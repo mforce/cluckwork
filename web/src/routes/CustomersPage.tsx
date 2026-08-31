@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus } from "lucide-react";
-import { createCustomer, formatMoney, listCustomerBalances, listCustomers } from "../api/cluckwork";
+import { Pencil, Plus } from "lucide-react";
+import {
+  createCustomer, formatMoney, listCustomerBalances, listCustomers, updateCustomer,
+} from "../api/cluckwork";
 import type { Customer, CustomerBalances } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
@@ -14,6 +16,21 @@ import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
+
+function errText(err: unknown): string {
+  if (err instanceof ApiError) return err.message;
+  return err instanceof Error ? err.message : String(err);
+}
+
+interface EditForm {
+  id: string;
+  version: number;
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  note: string;
+}
 
 // Matches the endpoint's DefaultPageSize (CustomerEndpoints.cs) so a full page
 // is exactly what the server considers one.
@@ -54,9 +71,31 @@ export function CustomersPage() {
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
-  const { busy, run } = usePendingAction();
+  const { busy, isPending, run } = usePendingAction();
   const createKey = useRef<string>(newId());
 
+  // #625 — one edit object (id/version/all five fields) or null, following the
+  // reviewed UsersPage displacement pattern: a synchronous active-target +
+  // generation ref so a write that resolves after the dialog moved on (closed,
+  // or reopened for a DIFFERENT customer) cannot splice its result into the
+  // wrong session. Each list row already carries every field the dialog needs
+  // (unlike an async detail fetch), so prefill is one atomic state assignment.
+  const [editForm, setEditForm] = useState<EditForm | null>(null);
+  const [editWriteInFlight, setEditWriteInFlight] = useState(false);
+  const editDialogGeneration = useRef(0);
+  const activeEdit = useRef<{ id: string; generation: number } | null>(null);
+  // Stable idempotency key per customer AND exact wire payload, rotated when
+  // either the Version/fields or omitted-optionals shape changes. A confirmed
+  // write still clears it immediately, before the refresh.
+  const editKeys = useRef(new Map<string, { key: string; fingerprint: string }>());
+  const editKeyFor = (id: string, fingerprint: string) => {
+    const existing = editKeys.current.get(id);
+    if (existing?.fingerprint === fingerprint) return existing.key;
+    const fresh = { key: newId(), fingerprint };
+    editKeys.current.set(id, fresh);
+    return fresh.key;
+  };
+  const clearEditKey = (id: string) => editKeys.current.delete(id);
   useEffect(() => {
     if (!isAdmin) return;
     // The balances read sets no `busy` and the New customer trigger is not
@@ -104,6 +143,93 @@ export function CustomersPage() {
     });
   }
 
+  // #625 — the row Edit button opens or REBINDS this dialog. `closeDisabled`
+  // makes the entire background — every OTHER row's Edit button included —
+  // `inert` for the whole write+refresh window (Dialog's own modal
+  // mechanism), so a live cross-record displacement is not reachable through
+  // the real UI: there is no click that can reach a different row while this
+  // one is in flight. The id/generation guard below is deliberate
+  // defense-in-depth against that not staying true (a future relaxation of
+  // `closeDisabled`, a programmatic re-open), not a path this component
+  // exercises today — do not test it as if it were a live user path (#501).
+  function openEdit(c: Customer) {
+    if (editForm !== null && editForm.id !== c.id) errors.abandon("edit-customer");
+    activeEdit.current = { id: c.id, generation: ++editDialogGeneration.current };
+    setEditForm({
+      id: c.id, version: c.version, name: c.name, phone: c.phone,
+      email: c.email ?? "", address: c.address ?? "", note: c.note ?? "",
+    });
+  }
+
+  function closeEdit() {
+    activeEdit.current = null;
+    setEditForm(null);
+    errors.abandon("edit-customer");
+  }
+
+  async function onSaveEdit(e: FormEvent) {
+    e.preventDefault();
+    const target = editForm;
+    const dialog = activeEdit.current;
+    if (!target || dialog === null || dialog.id !== target.id) return;
+    const isCurrentDialog = () => activeEdit.current?.generation === dialog.generation;
+    const scope = `update:${target.id}`;
+    await run(scope, async () => {
+      errors.beginAttempt("edit-customer");
+      setEditWriteInFlight(true);
+      try {
+        const body = {
+          version: target.version,
+          name: target.name,
+          phone: target.phone,
+          email: target.email || undefined,
+          address: target.address || undefined,
+          note: target.note || undefined,
+        };
+        await customerList.runWriteWithCommittedRow(async () => {
+          await updateCustomer(target.id, body, editKeyFor(target.id, JSON.stringify(body)));
+          // Clear the key the instant the WRITE is confirmed — before the
+          // refresh — so a changed retry after a failed refresh cannot replay
+          // this cached response (same contract as UsersPage's onUpdate/#163).
+          clearEditKey(target.id);
+          // The server's Version is now target.version + 1 (Update always
+          // bumps exactly once). Rebind the form AND the hook's loaded row to
+          // that COMMITTED value before it refreshes the complete loaded
+          // window: a failed refresh leaves both on the real current Version,
+          // including through a close+reopen of this same row.
+          // Normalized exactly like Customer.Update on the server: required
+          // fields trimmed, optional fields trimmed-then-null-if-blank.
+          const committedVersion = target.version + 1;
+          const normalizeOptional = (v: string): string | null => {
+            const trimmed = v.trim();
+            return trimmed === "" ? null : trimmed;
+          };
+          const normalizedName = target.name.trim();
+          const normalizedPhone = target.phone.trim();
+          const normalizedEmail = normalizeOptional(target.email);
+          const normalizedAddress = normalizeOptional(target.address);
+          const normalizedNote = normalizeOptional(target.note);
+          const committedFields: Customer = {
+            id: target.id, version: committedVersion, name: normalizedName, phone: normalizedPhone,
+            email: normalizedEmail, address: normalizedAddress, note: normalizedNote,
+          };
+          if (isCurrentDialog()) {
+            setEditForm((prev) => (prev && prev.id === target.id ? {
+              ...prev, version: committedVersion, name: normalizedName, phone: normalizedPhone,
+              email: normalizedEmail ?? "", address: normalizedAddress ?? "", note: normalizedNote ?? "",
+            } : prev));
+          }
+          return committedFields;
+        });
+        if (isCurrentDialog()) closeEdit();
+      } catch (err) {
+        if (isCurrentDialog()) errors.report("edit-customer", errText(err));
+      } finally {
+        setEditWriteInFlight(false);
+      }
+    });
+  }
+
   return (
     <section>
       <div className="page-head">
@@ -138,6 +264,57 @@ export function CustomersPage() {
         </form>
       </Dialog>
 
+      {/* #625 — closeDisabled covers the write AND its post-write refresh:
+          closing/reopening the SAME record mid-flight would load data that
+          predates the write, and the write's own completion is then discarded
+          by the bumped generation, leaving the reopened dialog stuck stale
+          until closed and reopened again post-settle (Dialog's own #609
+          precedent). */}
+      <Dialog
+        open={editForm !== null}
+        title={t("editCustomerTitle", { name: editForm?.name ?? "" })}
+        onClose={closeEdit}
+        closeDisabled={editWriteInFlight}
+      >
+        {editForm && (
+          <form className="inline-form" onSubmit={onSaveEdit}>
+            {/* #625 review round 2 — disabled while the write OR its refresh
+                is in flight: without this, keystrokes made after Save land in
+                editForm/state but are silently discarded (the request already
+                snapshotted `target`), and the field APPEARS live while the
+                edit it holds cannot go anywhere. */}
+            <label>{t("nameFieldLabel")}
+              <input value={editForm.name} required disabled={editWriteInFlight}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+            </label>
+            <label>{t("phoneFieldLabel")}
+              <input value={editForm.phone} required disabled={editWriteInFlight}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+            </label>
+            <label>{t("emailFieldLabel")}
+              <input type="email" value={editForm.email} disabled={editWriteInFlight}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+            </label>
+            <label>{t("addressFieldLabel")}
+              <input value={editForm.address} disabled={editWriteInFlight}
+                onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
+            </label>
+            <label>{t("noteFieldLabel")}
+              <input value={editForm.note} disabled={editWriteInFlight}
+                onChange={(e) => setEditForm({ ...editForm, note: e.target.value })} />
+            </label>
+            <DialogError errors={errors} scope="edit-customer" />
+            <div className="dialog-foot">
+              <button type="button" className="link" disabled={editWriteInFlight} onClick={closeEdit}>
+                {tc("cancel")}
+              </button>
+              <BusyButton type="submit" disabled={busy}
+                busy={isPending(`update:${editForm.id}`)}>{tc("save")}</BusyButton>
+            </div>
+          </form>
+        )}
+      </Dialog>
+
       {/* Unconditional since #479. The `!creating` guard this replaces was the
           #474 complaint one screen over: with a single slot, dismissing a
           failed create MOVED its message out here, where it reads as a
@@ -157,6 +334,7 @@ export function CustomersPage() {
             <tr>
               <th>{t("nameHeader")}</th><th>{t("phoneHeader")}</th><th>{t("emailHeader")}</th><th>{t("addressHeader")}</th><th>{t("noteHeader")}</th>
               {isAdmin && <th>{t("outstandingHeader")}</th>}
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -174,6 +352,11 @@ export function CustomersPage() {
                       : formatMoney(outstandingFor(c.id)!, balances.currencyCode, balances.currencyMinorUnit)}
                   </td>
                 )}
+                <td>
+                  <button type="button" className="link" onClick={() => openEdit(c)}>
+                    <Pencil size={14} aria-hidden /> {t("editButton")}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

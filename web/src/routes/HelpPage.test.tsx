@@ -394,6 +394,18 @@ describe("HelpPage", () => {
     }
   });
 
+  // #625 — customer editing shipped: the Help page must say details can be
+  // changed after creation, in every catalog.
+  it("documents that a customer's details can be edited after creation (#625)", () => {
+    render(<HelpPage />);
+    expect(screen.getByText(/A customer's details.*can be edited at any time/i)).toBeInTheDocument();
+
+    for (const catalog of [es, tl]) {
+      expect(catalog.help.salesCustomerEdit).toBeTruthy();
+      expect(catalog.help.salesCustomerEdit).not.toBe(en.help.salesCustomerEdit);
+    }
+  });
+
   it("scroll-spies the contents rail — the section in view is marked current", () => {
     render(<HelpPage />);
     const toc = screen.getByRole("navigation", { name: "Help contents" });

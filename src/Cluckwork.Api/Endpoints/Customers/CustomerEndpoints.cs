@@ -3,6 +3,7 @@ namespace Cluckwork.Api.Endpoints.Customers;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.Customers;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
+using Cluckwork.Application.Features.Customers.UpdateCustomer;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using FluentValidation;
@@ -32,7 +33,30 @@ public static class CustomerEndpoints
             .WithSummary("Get a single customer by id.")
             .RequireAuthorization(AuthPolicies.SalesFlow);
 
+        group.MapPut("/{id:guid}", UpdateCustomer)
+            .WithName("UpdateCustomer")
+            .WithSummary("Update a customer's details.")
+            .RequireAuthorization(AuthPolicies.SalesFlow);
+
         return group;
+    }
+
+    private static async Task<IResult> UpdateCustomer(
+        Guid id, UpdateCustomerRequest request, UpdateCustomerHandler handler,
+        IValidator<UpdateCustomerCommand> validator, TenantContext tenant, CancellationToken ct)
+    {
+        if (!tenant.IsResolved) return Results.Unauthorized();
+        var command = new UpdateCustomerCommand(
+            id, request.Version, request.Name, request.Phone, request.Email, request.Address, request.Note);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid) return ValidationResponse.Problem(validation);
+        var result = await handler.HandleAsync(command, ct);
+        return result.IsSuccess ? Results.NoContent()
+            : result.Error.Code == "Customer.VersionMismatch"
+                ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status409Conflict, title: result.Error.Code)
+                : result.Error.Code.EndsWith(".NotFound", StringComparison.Ordinal)
+                    ? Results.NotFound()
+                    : Results.Problem(result.Error.Description, statusCode: StatusCodes.Status400BadRequest, title: result.Error.Code);
     }
 
     private static async Task<IResult> CreateCustomer(
@@ -79,11 +103,14 @@ public static class CustomerEndpoints
     }
 
     private static CustomerResponse ToResponse(Customer c) =>
-        new(c.Id, c.Name, c.Phone, c.Email, c.Address, c.Note);
+        new(c.Id, c.Name, c.Phone, c.Email, c.Address, c.Note, c.Version);
 }
 
 public sealed record CreateCustomerRequest(
     string Name, string Phone, string? Email = null, string? Address = null, string? Note = null);
 
+public sealed record UpdateCustomerRequest(
+    int? Version, string Name, string Phone, string? Email = null, string? Address = null, string? Note = null);
+
 public sealed record CustomerResponse(
-    Guid Id, string Name, string Phone, string? Email, string? Address, string? Note);
+    Guid Id, string Name, string Phone, string? Email, string? Address, string? Note, int Version);

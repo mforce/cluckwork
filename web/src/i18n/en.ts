@@ -1664,6 +1664,10 @@ export const en = {
     noteFieldLabel: "Note",
     addCustomerButton: "Add customer",
 
+    // Edit-customer dialog (#625) — reuses the create dialog's field labels.
+    editButton: "edit",
+    editCustomerTitle: "Edit {{name}}",
+
     // Imperative messages (mount-effect .catch callbacks — see
     // CONTRIBUTING-i18n.md's imperative i18n.t() pattern).
     loadCustomersErrorMessage: "Could not load customers.",
@@ -2171,9 +2175,12 @@ export const en = {
     "auditAction.SalesOrder.Cancel": "Sales order cancelled",
     "auditAction.Expense.Create": "Expense created",
     "auditAction.EggGrade.Create": "Egg grade created",
+    "auditAction.Customer.Create": "Customer created",
+    "auditAction.Customer.Update": "Customer updated",
 
     // entity type (AuditPage table entity cell) — AuditEvent.entityType.
     "entityType.Account": "Account",
+    "entityType.Customer": "Customer",
     "entityType.DailyEntry": "Daily entry",
     "entityType.EggGrade": "Egg grade",
     "entityType.EggLot": "Egg lot",
@@ -2576,6 +2583,9 @@ export const en = {
 
     // Customers & sales
     salesHeading: "Customers & sales",
+    salesCustomerEdit:
+      "A customer's details (name, phone, email, address, note) can be edited at any time from the "
+      + "Customers page.",
     salesDrafts:
       "Orders start as <strong>drafts</strong>: add lines by picking a <strong>product</strong>, a packed "
       + "unit (dozen, carton, …), a whole-number quantity, and a price per unit (prefilled from the "

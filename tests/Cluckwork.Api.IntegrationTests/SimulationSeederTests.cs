@@ -1154,7 +1154,8 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             [AuditActions.ExpenseCreate] = FromPool(ManagerPrefix),
             [AuditActions.InventoryItemAdjust] = FromPool(ManagerPrefix),
 
-            // The sales desk books the orders.
+            // The sales desk books the orders and creates the customers who place them.
+            [AuditActions.CustomerCreate] = FromPool(SalesPrefix),
             [AuditActions.SalesOrderCreate] = FromPool(SalesPrefix),
             [AuditActions.SalesOrderAddItem] = FromPool(SalesPrefix),
             [AuditActions.SalesOrderConfirm] = FromPool(SalesPrefix),
@@ -1442,6 +1443,7 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             [AuditActions.ProductCreate] = Roles.Manager,
             [AuditActions.ExpenseCreate] = Roles.Manager,
             [AuditActions.InventoryItemAdjust] = Roles.Manager,
+            [AuditActions.CustomerCreate] = Roles.Sales,
             [AuditActions.SalesOrderCreate] = Roles.Sales,
             [AuditActions.SalesOrderAddItem] = Roles.Sales,
             [AuditActions.SalesOrderConfirm] = Roles.Sales,

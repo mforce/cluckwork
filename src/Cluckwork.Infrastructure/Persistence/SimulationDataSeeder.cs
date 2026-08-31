@@ -1141,9 +1141,8 @@ public sealed class SimulationDataSeeder(
         return result.Value;
     }
 
-    // Customer.* is audited by NOTHING (verified against every audit.WriteAsync
-    // call site) — the sales clerk is declared here for consistency with the
-    // orders these customers receive, and no test can pin it.
+    // Customer.Create is audited as the Sales actor declared per customer here,
+    // for consistency with the orders these customers receive.
     private async Task<IReadOnlyList<Guid>> SeedCustomersAsync(
         Guid accountId, SimCast cast, CancellationToken ct)
     {

@@ -8,7 +8,7 @@ Customers, orders, FIFO allocations, payments, expenses, products.
 
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
-| [public.Customers](public.Customers.md) | 7 |  | BASE TABLE |
+| [public.Customers](public.Customers.md) | 8 |  | BASE TABLE |
 | [public.EggGrades](public.EggGrades.md) | 10 |  | BASE TABLE |
 | [public.ExpenseCategories](public.ExpenseCategories.md) | 6 |  | BASE TABLE |
 | [public.Products](public.Products.md) | 12 |  | BASE TABLE |
@@ -47,6 +47,7 @@ erDiagram
   varchar_500_ Address
   varchar_1000_ Note
   uuid AccountId
+  integer Version
 }
 "public.EggGrades" {
   uuid Id

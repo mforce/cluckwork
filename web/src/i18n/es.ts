@@ -1338,6 +1338,10 @@ export const es = {
     noteFieldLabel: "Nota",
     addCustomerButton: "Agregar cliente",
 
+    // Edit-customer dialog (#625)
+    editButton: "editar",
+    editCustomerTitle: "Editar {{name}}",
+
     // Imperative messages
     loadCustomersErrorMessage: "No se pudieron cargar los clientes.",
     loadBalancesErrorMessage: "No se pudieron cargar los saldos de los clientes.",
@@ -1708,8 +1712,11 @@ export const es = {
     "auditAction.SalesOrder.Cancel": "Pedido de venta cancelado",
     "auditAction.Expense.Create": "Gasto creado",
     "auditAction.EggGrade.Create": "Grado de huevo creado",
+    "auditAction.Customer.Create": "Cliente creado",
+    "auditAction.Customer.Update": "Cliente actualizado",
 
     "entityType.Account": "Cuenta",
+    "entityType.Customer": "Cliente",
     "entityType.DailyEntry": "Entrada diaria",
     "entityType.EggGrade": "Grado de huevo",
     "entityType.EggLot": "Lote de huevos",
@@ -2129,6 +2136,9 @@ export const es = {
       + "fecha de agotamiento, los archivados no aceptan nada.",
 
     salesHeading: "Clientes y ventas",
+    salesCustomerEdit:
+      "Los datos de un cliente (nombre, teléfono, correo electrónico, dirección, nota) se pueden editar en "
+      + "cualquier momento desde la página Clientes.",
     salesDrafts:
       "Los pedidos comienzan como <strong>borradores</strong>: agregue líneas eligiendo un "
       + "<strong>producto</strong>, una unidad empacada (docena, cartón, …), una cantidad entera, y un "

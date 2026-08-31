@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act } from "@testing-library/react";
+import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { CustomersPage } from "./CustomersPage";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { createCustomer, listCustomerBalances, listCustomers } from "../api/cluckwork";
+import { createCustomer, listCustomerBalances, listCustomers, updateCustomer } from "../api/cluckwork";
 import type { Customer, CustomerBalances } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
+import { en } from "../i18n/en";
+import { es } from "../i18n/es";
+import { tl } from "../i18n/tl";
 
 // Keep the real formatMoney (renders the outstanding column); stub the network.
 vi.mock("../api/cluckwork", async (importOriginal) => {
@@ -15,15 +18,21 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     listCustomers: vi.fn(),
     listCustomerBalances: vi.fn(),
     createCustomer: vi.fn(),
+    updateCustomer: vi.fn(),
   };
 });
 
 const mockList = vi.mocked(listCustomers);
 const mockBalances = vi.mocked(listCustomerBalances);
 const mockCreate = vi.mocked(createCustomer);
+const mockUpdate = vi.mocked(updateCustomer);
 
-const C1: Customer = { id: "c1", name: "Acme Eggs", phone: "555-1", email: "a@x.co", address: "1 St", note: "vip" };
-const C2: Customer = { id: "c2", name: "Bravo Co", phone: "555-2", email: null, address: null, note: null };
+const C1: Customer = {
+  id: "c1", name: "Acme Eggs", phone: "555-1", email: "a@x.co", address: "1 St", note: "vip", version: 0,
+};
+const C2: Customer = {
+  id: "c2", name: "Bravo Co", phone: "555-2", email: null, address: null, note: null, version: 3,
+};
 // c1 owes 500; c2 has no confirmed orders → absent from the balance list.
 // KWD (3 decimals) so the assertion pins formatMoney's currency scale — 500
 // renders "0.500 KWD", which a hard-coded 2-decimal formatter could not produce.
@@ -40,6 +49,7 @@ beforeEach(() => {
   localStorage.clear();
   mockList.mockResolvedValue([C1, C2]);
   mockBalances.mockResolvedValue(BALANCES);
+  mockUpdate.mockResolvedValue(undefined);
 });
 
 describe("CustomersPage list", () => {
@@ -394,6 +404,385 @@ describe("CustomersPage i18n wiring (#182, Task 24)", () => {
 // alternative that was lost, it is the defect. SalesPage already ships the
 // same rule with its own test ("does not report an abandoned attempt against
 // the session that replaced it"), landed in #489.
+// #625 — edit an existing customer's details.
+const openEdit = (name: string) =>
+  fireEvent.click(within(screen.getByRole("row", { name: new RegExp(name) })).getByRole("button", { name: "edit" }));
+const submitEdit = async () => {
+  await act(async () => {
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+  });
+};
+
+describe("CustomersPage edit (#625)", () => {
+  it("opens a labeled dialog prefilled with the row's five values", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+
+    expect(await screen.findByRole("dialog", { name: "Edit Acme Eggs" })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("Acme Eggs");
+    expect(within(dialog()).getByLabelText("Phone *")).toHaveValue("555-1");
+    expect(within(dialog()).getByLabelText("Email")).toHaveValue("a@x.co");
+    expect(within(dialog()).getByLabelText("Address")).toHaveValue("1 St");
+    expect(within(dialog()).getByLabelText("Note")).toHaveValue("vip");
+  });
+
+  // #625 review round 5 (CodeRabbit CR-2, mechanical) — `editButton` was the
+  // one sibling row-action label capitalized ("Edit"/"Editar"/"I-edit") among
+  // every other lowercase row action across the catalogs; pinned lowercase in
+  // all three so it can't silently drift back.
+  it("keeps the customers editButton label lowercase in every catalog", () => {
+    expect(en.customers.editButton).toBe("edit");
+    expect(es.customers.editButton).toBe("editar");
+    expect(tl.customers.editButton).toBe("i-edit");
+  });
+
+  it("edits every field and sends the full new payload", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Acme Eggs Ltd" } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "555-9999" } });
+    fireEvent.change(within(dialog()).getByLabelText("Email"), { target: { value: "new@acme.co" } });
+    fireEvent.change(within(dialog()).getByLabelText("Address"), { target: { value: "2 New St" } });
+    fireEvent.change(within(dialog()).getByLabelText("Note"), { target: { value: "updated note" } });
+    await submitEdit();
+
+    expect(mockUpdate).toHaveBeenCalledWith("c1", {
+      version: 0, name: "Acme Eggs Ltd", phone: "555-9999",
+      email: "new@acme.co", address: "2 New St", note: "updated note",
+    }, expect.any(String));
+  });
+
+  it("saves with the loaded version, blank optionals omitted, then refreshes and closes", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Bravo Co/ });
+    openEdit("Bravo Co");
+    await screen.findByRole("dialog", { name: "Edit Bravo Co" });
+
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Bravo Company" } });
+    await submitEdit();
+
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    const [id, body, key] = mockUpdate.mock.calls[0];
+    expect(id).toBe("c2");
+    expect(body).toMatchObject({ version: 3, name: "Bravo Company", phone: "555-2" });
+    expect(body.email).toBeUndefined();
+    expect(body.address).toBeUndefined();
+    expect(body.note).toBeUndefined();
+    expect(typeof key).toBe("string");
+    expect(mockList).toHaveBeenCalledTimes(2); // mount + post-save refresh
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("leaves the dialog open and renders the exact server conflict message on a 409", async () => {
+    mockUpdate.mockRejectedValue(
+      new ApiError(409, "Customer.VersionMismatch", "This customer was changed since you loaded it — reload and retry."));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+
+    await submitEdit();
+
+    expect(within(dialog()).getByText(
+      "This customer was changed since you loaded it — reload and retry.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // #501 — everything in `document.body` except the topmost dialog's own
+  // backdrop is marked `inert` by Dialog while it is open (syncModalBackground
+  // in Dialog.tsx), which covers the WHOLE app including every other row's
+  // Edit button. jsdom does not enforce `inert` the way a real browser does,
+  // so a `fireEvent.click` on a "background" row while this dialog is open
+  // would succeed here but could never happen for a real user — that test
+  // existed in an earlier revision and made a false claim about reachable
+  // browser behaviour. It is removed; what remains below only exercises
+  // paths a real click, Escape, or backdrop press can actually take.
+  it("blocks Close, Escape and backdrop during the write AND during the refresh, then restores dismissal once both settle", async () => {
+    let resolveUpdate!: () => void;
+    mockUpdate.mockReturnValue(new Promise((r) => (resolveUpdate = () => r(undefined))));
+    mockList.mockResolvedValueOnce([C1, C2]); // mount
+    let resolveList!: (v: Customer[]) => void;
+    mockList.mockReturnValueOnce(new Promise((r) => (resolveList = r))); // post-save refresh
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+
+    const backdrop = () => document.querySelector(".dialog-backdrop")!;
+    const assertDismissalBlocked = () => {
+      expect(within(dialog()).getByRole("button", { name: "Close" })).toBeDisabled();
+      expect(within(dialog()).getByRole("button", { name: "Cancel" })).toBeDisabled();
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      fireEvent.click(backdrop());
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      // #625 review round 2 — every field input disabled too: post-submit
+      // typing must not be silently discarded (the request already
+      // snapshotted its own copy of the form).
+      expect(within(dialog()).getByLabelText("Name *")).toBeDisabled();
+      expect(within(dialog()).getByLabelText("Phone *")).toBeDisabled();
+      expect(within(dialog()).getByLabelText("Email")).toBeDisabled();
+      expect(within(dialog()).getByLabelText("Address")).toBeDisabled();
+      expect(within(dialog()).getByLabelText("Note")).toBeDisabled();
+    };
+
+    await act(async () => {
+      fireEvent.submit(within(dialog()).getByRole("button", { name: "Save" }).closest("form")!);
+    });
+
+    // Window 1: the write itself is in flight.
+    assertDismissalBlocked();
+
+    await act(async () => resolveUpdate());
+
+    // Window 2: the write is confirmed but the post-write refresh is not —
+    // the exact span #609 exists for (closing/reopening here would load data
+    // that predates the write, and the write's own late completion would
+    // then have nowhere correct to land).
+    assertDismissalBlocked();
+
+    await act(async () => resolveList([C1, C2].map((c) => (
+      c.id === "c1" ? { ...c, name: "Server value", version: 7 } : c))));
+
+    // Refresh SUCCEEDED here, so the dialog closes itself — dismissal is
+    // moot on this instance. The failed-refresh variant below is what proves
+    // dismissal actually re-enables on a dialog that stays open.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByRole("row", { name: /Server value/ })).toBeInTheDocument();
+  });
+
+  it("keeps every dismissal path blocked through a failed post-write refresh, then restores it once settled", async () => {
+    mockList.mockResolvedValueOnce([C1, C2]); // mount load
+    let resolveUpdate!: () => void;
+    mockUpdate.mockReturnValue(new Promise((r) => (resolveUpdate = () => r(undefined))));
+    mockList.mockRejectedValueOnce(new ApiError(500, "Server error", "boom")); // the post-save refresh
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await submitEdit();
+
+    // Window 1 — the write is in flight: Close/Cancel/fields all disabled.
+    expect(within(dialog()).getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(within(dialog()).getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(within(dialog()).getByLabelText("Name *")).toBeDisabled();
+
+    // resolveUpdate hasn't been called in this closure's control-flow above —
+    // submitEdit already awaited the click; drive the deferred write now.
+    await act(async () => resolveUpdate());
+
+    // The refresh rejected: dialog stays open with the failure inside it.
+    expect(await within(dialog()).findByText(/Server error|boom/)).toBeInTheDocument();
+
+    // Settled (failed) — dismissal AND every field are restored: Close/
+    // Cancel/all five fields re-enabled, and Escape now actually closes the
+    // dialog.
+    expect(within(dialog()).getByRole("button", { name: "Close" })).not.toBeDisabled();
+    expect(within(dialog()).getByRole("button", { name: "Cancel" })).not.toBeDisabled();
+    expect(within(dialog()).getByLabelText("Name *")).not.toBeDisabled();
+    expect(within(dialog()).getByLabelText("Phone *")).not.toBeDisabled();
+    expect(within(dialog()).getByLabelText("Email")).not.toBeDisabled();
+    expect(within(dialog()).getByLabelText("Address")).not.toBeDisabled();
+    expect(within(dialog()).getByLabelText("Note")).not.toBeDisabled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  // #625 review round 1 — the SAME re-entry guard `usePendingAction` already
+  // gives create (see the double-submit describe block above), proven here
+  // for the edit form: this IS reachable, since the Save button's `disabled`
+  // only takes effect after React's next render, so two submits in the same
+  // tick both reach the handler before either sees it disabled.
+  it("sends exactly one update when the edit form is submitted twice while the first is still in flight", async () => {
+    let resolveUpdate!: () => void;
+    mockUpdate.mockReturnValue(new Promise((r) => (resolveUpdate = () => r(undefined))));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+
+    const form = within(dialog()).getByRole("button", { name: "Save" }).closest("form")!;
+    await act(async () => {
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+    });
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolveUpdate());
+    expect(mockUpdate).toHaveBeenCalledTimes(1); // still exactly one after settle
+  });
+
+  // #625 review round 1 — the real bug: after a CONFIRMED write, editForm's
+  // Version must advance to the committed value before the refresh, so a
+  // retry (following a failed refresh) sends Version+1, not the now-stale
+  // value that already succeeded once. Also proves the honest converse: if
+  // someone else updates the row in between, the correctly-advanced retry
+  // still 409s against that real, later conflict.
+  it("advances the retry's Version to the committed value after a confirmed write but a failed refresh, and still 409s on a genuinely later conflict", async () => {
+    mockList.mockResolvedValueOnce([C1, C2]); // mount
+    mockUpdate.mockResolvedValueOnce(undefined); // write #1 confirms
+    mockList.mockRejectedValueOnce(new ApiError(500, "Server error", "boom")); // refresh #1 fails
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ }); // C1.version === 0
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await submitEdit();
+    await screen.findByText(/Server error|boom/);
+
+    // An intervening update landed between write #1 and this retry — the
+    // retry is honestly stale now, so the mock reproduces a REAL 409.
+    mockUpdate.mockRejectedValueOnce(new ApiError(
+      409, "Customer.VersionMismatch", "This customer was changed since you loaded it — reload and retry."));
+    await submitEdit();
+
+    expect(mockUpdate.mock.calls[1][1]).toMatchObject({ version: 1 }); // 0 + 1, not the stale 0
+    expect(within(dialog()).getByText(
+      "This customer was changed since you loaded it — reload and retry.")).toBeInTheDocument();
+  });
+
+  // #625 review round 2 — the same bug one level later: after a confirmed
+  // write whose refresh then fails, closing the dialog (permitted once the
+  // write+refresh cycle settles) and reopening the SAME row must not read
+  // stale pre-write data out of `customers` — that array needs the same
+  // optimistic patch editForm gets, or a close+reopen silently resurrects
+  // the exact stale-Version bug the round-1 fix closed for the "still open"
+  // case.
+  it("keeps the committed Version AND the normalized fields after a failed refresh even through a close and reopen of the same row", async () => {
+    mockList.mockResolvedValueOnce([C1, C2]); // mount
+    mockUpdate.mockResolvedValueOnce(undefined); // write #1 confirms
+    mockList.mockRejectedValueOnce(new ApiError(500, "Server error", "boom")); // refresh #1 fails
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ }); // C1.version === 0
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+
+    // Change all five fields: padded required values, and both optionals
+    // cleared to whitespace-only (the Update() normalization case, not just
+    // an untouched field) — proves the optimistic snapshot mirrors
+    // Customer.Update exactly, not merely `target` verbatim.
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "  New Name  " } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "  555-9999  " } });
+    fireEvent.change(within(dialog()).getByLabelText("Email"), { target: { value: "   " } });
+    fireEvent.change(within(dialog()).getByLabelText("Address"), { target: { value: "  2 New St  " } });
+    fireEvent.change(within(dialog()).getByLabelText("Note"), { target: { value: "   " } });
+    await submitEdit();
+    await screen.findByText(/Server error|boom/);
+
+    // Close (permitted now — the write+refresh cycle already settled) and
+    // reopen the SAME row from its OWN Edit button, not a stale reference.
+    // The row's own displayed name is now "New Name" too — the optimistic
+    // patch updated the TABLE, not just the dialog that caused it.
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByRole("row", { name: /New Name/ })).toBeInTheDocument();
+    mockUpdate.mockResolvedValueOnce(undefined);
+    openEdit("New Name");
+    await screen.findByRole("dialog", { name: "Edit New Name" });
+
+    // #625 review round 4 — the PRIOR attempt's refresh failure must not
+    // leak into this new session: closeEdit's errors.abandon("edit-customer")
+    // mutes it, so the reopened dialog starts with a clean slate.
+    expect(within(dialog()).queryByText(/Server error|boom/)).not.toBeInTheDocument();
+
+    // The reopened form shows the NORMALIZED committed values — trimmed
+    // required fields, whitespace-only optionals cleared to blank — not the
+    // pre-write row and not the raw padded/whitespace input.
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("New Name");
+    expect(within(dialog()).getByLabelText("Phone *")).toHaveValue("555-9999");
+    expect(within(dialog()).getByLabelText("Email")).toHaveValue("");
+    expect(within(dialog()).getByLabelText("Address")).toHaveValue("2 New St");
+    expect(within(dialog()).getByLabelText("Note")).toHaveValue("");
+
+    await submitEdit();
+
+    // Version+1, and the fields sent are the normalized committed ones, NOT
+    // reverted to C1's original values.
+    expect(mockUpdate.mock.calls[1][1]).toEqual({
+      version: 1, name: "New Name", phone: "555-9999", email: undefined, address: "2 New St", note: undefined,
+    });
+  });
+
+  // #625 review round 1 — the WRITE itself failing (not the refresh) must
+  // not spend the idempotency key: a retry with unchanged fields is the
+  // exact same logical request and must replay under the same key (same
+  // contract as create's "replays the SAME create key after a failure").
+  it("reuses the SAME idempotency key when an unchanged payload is retried after the write fails", async () => {
+    mockUpdate.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+    mockUpdate.mockResolvedValueOnce(undefined);
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await submitEdit();
+    expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
+
+    await submitEdit(); // retry, unchanged fields
+
+    expect(mockUpdate).toHaveBeenCalledTimes(2);
+    // Full payload deep-equality, not just the key: proves the retry replays
+    // the EXACT same logical request (id, every field, and Version) — a key
+    // match alone would still pass if some field silently drifted between
+    // attempts.
+    expect(mockUpdate.mock.calls[1][0]).toEqual(mockUpdate.mock.calls[0][0]);
+    expect(mockUpdate.mock.calls[1][1]).toEqual(mockUpdate.mock.calls[0][1]);
+    expect(mockUpdate.mock.calls[1][1]).toMatchObject({ version: 0 });
+    const key1 = mockUpdate.mock.calls[0][2];
+    const key2 = mockUpdate.mock.calls[1][2];
+    expect(key2).toBe(key1);
+  });
+
+  it.each([
+    ["name", "Acme Eggs Renamed"],
+    ["phone", "555-9999"],
+    ["email", "changed@x.co"],
+    ["address", "2 New St"],
+    ["note", "changed note"],
+  ] as const)("uses a different idempotency key when changed %s is retried after the write fails", async (field, value) => {
+    mockUpdate.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+    mockUpdate.mockResolvedValueOnce(undefined);
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await submitEdit();
+    expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
+
+    fireEvent.change(within(dialog()).getByLabelText(field === "name" ? "Name *" : field === "phone" ? "Phone *" : field[0].toUpperCase() + field.slice(1)), { target: { value } });
+    await submitEdit();
+
+    expect(mockUpdate).toHaveBeenCalledTimes(2);
+    const firstBody = mockUpdate.mock.calls[0][1];
+    const secondBody = mockUpdate.mock.calls[1][1];
+    expect(secondBody[field]).toBe(value);
+    expect(secondBody).not.toEqual(firstBody);
+    expect(mockUpdate.mock.calls[1][2]).not.toBe(mockUpdate.mock.calls[0][2]);
+  });
+
+  it("issues a fresh idempotency key for the next save after a confirmed write but a failed refresh", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    mockList.mockResolvedValueOnce([C1, C2]); // mount
+    mockList.mockRejectedValueOnce(new ApiError(500, "Server error", "boom")); // post-save refresh #1 fails
+    mockList.mockResolvedValueOnce([C1, C2]); // post-save refresh #2 succeeds
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await submitEdit();
+    await screen.findByText(/Server error|boom/); // refresh #1 failed; dialog stays open
+
+    await submitEdit(); // retry — refresh #2 succeeds, dialog closes
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    const key1 = mockUpdate.mock.calls[0][2];
+    const key2 = mockUpdate.mock.calls[1][2];
+    expect(key2).not.toBe(key1);
+  });
+});
+
 describe("CustomersPage abandoned attempts (#474, pinned in #491)", () => {
   it("drops a dismissed create's failure rather than showing it in the reopened form", async () => {
     let rejectCreate!: (err: unknown) => void;
@@ -435,6 +824,7 @@ const customerPage = (n: number, prefix = "p") =>
     email: null,
     address: null,
     note: null,
+    version: i,
   })) as Customer[];
 
 describe("CustomersPage paging (#511)", () => {
@@ -445,7 +835,7 @@ describe("CustomersPage paging (#511)", () => {
     expect(mockList).toHaveBeenCalledWith(expect.objectContaining({ limit: 100, offset: 0 }));
 
     mockList.mockResolvedValueOnce([
-      { id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null },
+      { id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null, version: 0 },
     ] as Customer[]);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "load more" }));
@@ -470,7 +860,7 @@ describe("CustomersPage paging (#511)", () => {
     await screen.findByRole("row", { name: /p customer 000/ });
 
     mockList.mockResolvedValueOnce([
-      { id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null },
+      { id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null, version: 0 },
     ] as Customer[]);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "load more" }));
@@ -481,7 +871,7 @@ describe("CustomersPage paging (#511)", () => {
     mockCreate.mockResolvedValue({ id: "c9" });
     mockList.mockResolvedValueOnce(customerPage(100));
     mockList.mockResolvedValueOnce([
-      { id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null },
+      { id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null, version: 0 },
     ] as Customer[]);
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Zeta" } });
@@ -490,6 +880,45 @@ describe("CustomersPage paging (#511)", () => {
 
     // Still deep in the list: the row only page two carries is still rendered.
     expect(await screen.findByRole("row", { name: /Zulu Farm/ })).toBeInTheDocument();
+  });
+
+  it("refreshes every loaded page after an edit instead of snapping back to page one", async () => {
+    const zulu: Customer = {
+      id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null, version: 4,
+    };
+    const findCustomerRow = async (name: string) => {
+      const cell = await screen.findByText(name, { selector: "td" });
+      const row = cell.closest("tr");
+      expect(row).not.toBeNull();
+      return row as HTMLElement;
+    };
+    mockList.mockResolvedValueOnce(customerPage(100));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await findCustomerRow("p customer 000");
+
+    mockList.mockResolvedValueOnce([zulu]);
+    await act(async () => {
+      fireEvent.click(screen.getByText("load more", { selector: "button" }));
+    });
+    const zuluRow = await findCustomerRow("Zulu Farm");
+
+    mockList.mockResolvedValueOnce(customerPage(100));
+    mockList.mockResolvedValueOnce([{ ...zulu, name: "Zulu Farm Updated", version: 5 }]);
+    fireEvent.click(within(zuluRow).getByRole("button", { name: "edit" }));
+    const dialogHeading = await screen.findByText("Edit Zulu Farm", { selector: "h3" });
+    const editDialog = dialogHeading.closest('[role="dialog"]');
+    expect(editDialog).not.toBeNull();
+    fireEvent.change(within(editDialog as HTMLElement).getByLabelText("Name *"), {
+      target: { value: "Zulu Farm Updated" },
+    });
+    await act(async () => {
+      fireEvent.click(within(editDialog as HTMLElement).getByRole("button", { name: "Save" }));
+    });
+
+    expect(mockList.mock.calls.slice(-2).map(([params]) => params?.offset)).toEqual([0, 100]);
+    expect(await findCustomerRow("Zulu Farm Updated")).toBeInTheDocument();
+    expect(screen.getByText("p customer 000", { selector: "td" })).toBeInTheDocument();
+    expect(editDialog).not.toBeInTheDocument();
   });
 
   it("keeps the loaded rows when EXTENDING fails, and offers the retry", async () => {

@@ -11,6 +11,7 @@
 | Address | varchar(500) |  | true |  |  |  |
 | Note | varchar(1000) |  | true |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| Version | integer | 0 | false |  |  |  |
 
 ## Viewpoints
 
@@ -26,6 +27,7 @@
 | Customers_Id_not_null | n | NOT NULL "Id" |
 | Customers_Name_not_null | n | NOT NULL "Name" |
 | Customers_Phone_not_null | n | NOT NULL "Phone" |
+| Customers_Version_not_null | n | NOT NULL "Version" |
 | PK_Customers | PRIMARY KEY | PRIMARY KEY ("Id") |
 
 ## Indexes
@@ -51,6 +53,7 @@ erDiagram
   varchar_500_ Address
   varchar_1000_ Note
   uuid AccountId
+  integer Version
 }
 "public.SalesOrders" {
   uuid Id

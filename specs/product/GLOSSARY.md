@@ -384,8 +384,10 @@ and feed.
 
 ## Sales
 
-**Customer** — name + phone required; email/address/note optional. No
-payments and balances (spec §10.11, shipped #89).
+**Customer** — name + phone required; email/address/note optional, all
+**editable in place** after creation via `PUT /customers/{id}` (Version-guarded
+optimistic concurrency, shipped #625) — no delete/archive/deactivate, no
+duplicate merge. No payments and balances (spec §10.11, shipped #89).
 
 **Sales order lifecycle** — `Draft → Confirmed → Voided` (or `Draft →
 Cancelled`): drafts are fully editable (add/edit/remove lines, cancel);

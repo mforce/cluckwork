@@ -12,7 +12,7 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
 {
     private sealed record IdDto(Guid Id);
     private sealed record CustomerDto(
-        Guid Id, string Name, string Phone, string? Email, string? Address, string? Note);
+        Guid Id, string Name, string Phone, string? Email, string? Address, string? Note, int Version);
     private sealed record OrderItemDto(Guid Id, Guid EggGradeId, int Quantity, long UnitPriceMinorUnits);
     private sealed record OrderDto(
         Guid Id, Guid CustomerId, string ReferenceNumber, string Status,
@@ -464,5 +464,399 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
 
         var created = Assert.Single(events);
         Assert.Equal("SalesOrder.Create", created.Action);
+    }
+
+    [Fact]
+    public async Task Customer_Update_Success_AllFieldsAndVersionBump()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+
+        var update = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "  Updated Name  ", phone = "  555-9999  ", email = "u@example.com", address = "New Addr", note = "New Note" });
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var got = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Equal("Updated Name", got!.Name);
+        Assert.Equal("555-9999", got.Phone);
+        Assert.Equal("u@example.com", got.Email);
+        Assert.Equal("New Addr", got.Address);
+        Assert.Equal("New Note", got.Note);
+        Assert.Equal(1, got.Version);
+    }
+
+    [Fact]
+    public async Task Customer_Update_InvalidBody_400()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+
+        var response = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "   ", phone = "   " });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Customer_Update_UnknownId_404()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var response = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{Guid.NewGuid()}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Nope", phone = "1" });
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Customer_Update_ForeignCustomer_404_AndBRecordFullyUnchanged()
+    {
+        var (clientA, _, _, _, _) = await SetupAsync("Large");
+        var emailB = $"cb-{Guid.NewGuid():N}@test.local";
+        var accountB = await factory.SeedAccountWithUserAsync(emailB);
+        var clientB = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(emailB));
+        var customerBId = await CreatedId(await clientB.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "B's customer", phone = "555-1234", email = "b@example.com", address = "B Addr", note = "B Note" }));
+
+        var response = await clientA.PutWithKeyAsync(
+            $"/api/v1/customers/{customerBId}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Hijacked", phone = "999" });
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        var bRow = await factory.WithTenantScopeAsync(accountB, db =>
+            db.Customers.SingleAsync(c => c.Id == customerBId));
+        Assert.Equal("B's customer", bRow.Name);
+        Assert.Equal("555-1234", bRow.Phone);
+        Assert.Equal("b@example.com", bRow.Email);
+        Assert.Equal("B Addr", bRow.Address);
+        Assert.Equal("B Note", bRow.Note);
+        Assert.Equal(0, bRow.Version);
+    }
+
+    [Fact]
+    public async Task Customer_Update_StaleBaseVersion_ExactlyOneWinnerOverHttp()
+    {
+        var (client, accountId, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+        var loaded = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Equal(0, loaded!.Version);
+
+        var responses = await Task.WhenAll(
+            client.PutWithKeyAsync($"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+                new { version = loaded.Version, name = "Winner A", phone = "111" }),
+            client.PutWithKeyAsync($"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+                new { version = loaded.Version, name = "Winner B", phone = "222" }));
+
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.NoContent);
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+
+        var final = await factory.WithTenantScopeAsync(accountId, db => db.Customers.SingleAsync(c => c.Id == id));
+        Assert.Equal(1, final.Version);
+        Assert.True(final.Name is "Winner A" or "Winner B");
+        Assert.True(
+            (final.Name == "Winner A" && final.Phone == "111") ||
+            (final.Name == "Winner B" && final.Phone == "222"),
+            "final row must be wholly one winner's payload");
+    }
+
+    [Fact]
+    public async Task Customer_Update_HeldSnapshots_SecondSaveThrowsDbUpdateConcurrencyException()
+    {
+        // Two open EF contexts holding the same row, saved A-then-B — the direct
+        // IsConcurrencyToken() proof (FarmLogoTests precedent): a serialized HTTP
+        // race can't show this since the host may just queue the two requests.
+        //
+        // Both contexts write the IDENTICAL name/phone (the same-value-update
+        // precedent from CustomerTests: Update always bumps Version even when
+        // nothing else changes). This isolates the claim to the Version TOKEN
+        // alone — with differing field values, EF's own "which columns changed"
+        // check could independently flag the second save even with the
+        // concurrency token removed, so that shape would prove nothing about
+        // IsConcurrencyToken() specifically. Same values leaves Version as the
+        // ONLY thing that can possibly make B's save fail.
+        var (client, accountId, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+
+        var conflict = await Record.ExceptionAsync(() =>
+            factory.WithTenantScopeAsync(accountId, dbA =>
+                factory.WithTenantScopeAsync(accountId, async dbB =>
+                {
+                    var a = await dbA.Customers.SingleAsync(c => c.Id == id);
+                    var b = await dbB.Customers.SingleAsync(c => c.Id == id);
+
+                    a.Update("Original", "555-0000", null, null, null);
+                    await dbA.SaveChangesAsync();
+
+                    b.Update("Original", "555-0000", null, null, null);
+                    await dbB.SaveChangesAsync();
+                })));
+
+        var concurrencyException = Assert.IsType<DbUpdateConcurrencyException>(conflict);
+        // The EF metadata itself names Version as the modified, conflicting
+        // property on B's tracked entry — not merely "some exception fired".
+        var entry = Assert.Single(concurrencyException.Entries);
+        var versionProperty = entry.Property("Version");
+        Assert.True(versionProperty.IsModified);
+        Assert.Equal(0, versionProperty.OriginalValue);
+        Assert.Equal(1, versionProperty.CurrentValue);
+
+        var final = await factory.WithTenantScopeAsync(accountId, db => db.Customers.SingleAsync(c => c.Id == id));
+        Assert.Equal("Original", final.Name); // both wrote the same value — the row is coherent either way
+        Assert.Equal(1, final.Version); // A's save is the only one that committed
+    }
+
+    [Fact]
+    public async Task Customer_CreateThenUpdate_WritesAuditEvents_WithResolvedActor()
+    {
+        var (client, accountId, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+        var update = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Updated", phone = "111" });
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var events = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .Where(e => e.EntityType == "Customer" && e.EntityId == id)
+            .OrderBy(e => e.OccurredAtUtc)
+            .ToListAsync());
+
+        Assert.Equal(2, events.Count);
+        Assert.Equal("Customer.Create", events[0].Action);
+        Assert.Equal("Customer.Update", events[1].Action);
+
+        // SetupAsync seeds exactly one (Owner) user for this fresh account —
+        // the one the client is authenticated as. Asserted POSITIVELY against
+        // that real user's id AND email, never just "!= empty": the negative
+        // form passes for any wrong-but-non-placeholder value (a stale actor,
+        // a different account's user), which is most of the ways this can
+        // regress (#500 precedent, DemoSeedAttributionTests).
+        var actor = await factory.WithTenantScopeAsync(accountId, db => db.Users.SingleAsync(u => u.AccountId == accountId));
+        Assert.All(events, e =>
+        {
+            Assert.Equal(actor.Id, e.ActorUserId);
+            Assert.Equal(actor.Email, e.ActorEmail);
+        });
+    }
+
+    [Fact]
+    public async Task Customer_Update_RejectedVersionMismatch_AddsNoUpdateAuditRow()
+    {
+        var (client, accountId, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+
+        var response = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 5, name = "Nope", phone = "111" });
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        // The deterministic single-client stale-version path (the explicit
+        // Version check in UpdateCustomerHandler, not the EF race path Program
+        // maps separately) — real backend code/message, no new localization.
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("Customer.VersionMismatch", doc.RootElement.GetProperty("title").GetString());
+        Assert.Equal(
+            "This customer was changed since you loaded it — reload and retry.",
+            doc.RootElement.GetProperty("detail").GetString());
+
+        var events = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .Where(e => e.EntityType == "Customer" && e.EntityId == id)
+            .ToListAsync());
+        Assert.DoesNotContain(events, e => e.Action == "Customer.Update");
+    }
+
+    // #625 review round 1 — bypassing FluentValidation via the domain method
+    // must not be possible: the endpoint's validator is the boundary a
+    // MaxLength violation is caught at, before the handler/domain ever runs.
+    [Fact]
+    public async Task Customer_Update_NameExceedsMaxLength_400WithExactErrorCode()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" }));
+
+        var response = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = new string('a', Cluckwork.Domain.Sales.Customer.MaxNameLength + 1), phone = "555-0000" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(doc.RootElement.TryGetProperty("errorCodes", out var codes));
+        // The exact per-property code array, not a raw-JSON substring match —
+        // a substring match would still pass if the code leaked under the
+        // wrong property key or alongside an unrelated stray match.
+        var nameCodes = codes.GetProperty("Name").EnumerateArray()
+            .Select(e => e.GetString()).ToList();
+        // Exact equality, matching the test's own name/comment: a Contains
+        // check would still pass if an unrelated stray Name code rode along.
+        Assert.Equal(["Customer.Name.MaxLength"], nameCodes);
+    }
+
+    // #625 review round 5/6 — shared assertions for both wire shapes of the
+    // same nullable-presence invariant: the version key entirely absent from
+    // the JSON body, and the version key present with an explicit JSON null.
+    // Both must be rejected identically — 400, the exact Required code, and
+    // the row fully unmutated — kept as one helper so the two Facts below
+    // stay individually legible instead of duplicating the assertion body.
+    private static async Task AssertVersionRequiredRejectsUnmutatedAsync(HttpClient client, Guid id, object body)
+    {
+        var response = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(), body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(doc.RootElement.TryGetProperty("errorCodes", out var codes));
+        var versionCodes = codes.GetProperty("Version").EnumerateArray()
+            .Select(e => e.GetString()).ToList();
+        Assert.Equal(["Customer.Version.Required"], versionCodes);
+
+        var got = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Equal("Original", got!.Name);
+        Assert.Equal("555-0000", got.Phone);
+        Assert.Equal(0, got.Version);
+    }
+
+    // #625 review round 5 (CodeRabbit CR-1) — an OMITTED version field must
+    // not silently bind to 0 and pass as if the caller explicitly loaded and
+    // sent a Version-0 row: that would let an update through with no real
+    // concurrency check at all for a brand-new customer. The request body
+    // below carries no "version" key.
+    [Fact]
+    public async Task Customer_Update_MissingVersion_400WithExactRequiredErrorCode_AndNoMutation()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" })); // Version 0
+
+        await AssertVersionRequiredRejectsUnmutatedAsync(
+            client, id, new { name = "Changed Name", phone = "555-9999" }); // no "version" key at all
+    }
+
+    // #625 review round 6/9 — the SECOND wire shape for the same nullable-
+    // presence invariant: an EXPLICIT JSON `"version": null` must be
+    // rejected identically to an omitted field, not silently accepted by
+    // some binder path that treats "key present, value null" differently
+    // from "key absent". Sent as a RAW literal JSON string, not
+    // JsonContent.Create on a C# `(int?)null` field — the anonymous-object
+    // path only proves the .NET serializer's own null-handling, which is
+    // not the same claim as "the wire actually carries the JSON literal
+    // null". The literal below is the self-proof; it deliberately does not
+    // go through AssertVersionRequiredRejectsUnmutatedAsync, so this test
+    // stands on its own rather than inheriting that helper's object-based
+    // request construction. M18 (UpdateCustomerRequest.Version reverted to
+    // plain int) remains the combined mutation proof for both wire shapes.
+    [Fact]
+    public async Task Customer_Update_ExplicitNullVersion_400WithExactRequiredErrorCode_AndNoMutation()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" })); // Version 0
+
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/customers/{id}")
+        {
+            Content = new StringContent(
+                """{"version":null,"name":"Changed Name","phone":"555-9999"}""",
+                System.Text.Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(doc.RootElement.TryGetProperty("errorCodes", out var codes));
+        var versionCodes = codes.GetProperty("Version").EnumerateArray()
+            .Select(e => e.GetString()).ToList();
+        Assert.Equal(["Customer.Version.Required"], versionCodes);
+
+        var got = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Equal("Original", got!.Name);
+        Assert.Equal("555-0000", got.Phone);
+        Assert.Equal(0, got.Version);
+    }
+
+    // #625 review round 1 — Update() normalizes blank optionals to null; this
+    // proves it end to end: a customer created with every optional field
+    // populated, then PUT with them blanked, persists as null (not "").
+    [Fact]
+    public async Task Customer_Update_BlankPopulatedOptionals_PersistsAsNull()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000", email = "orig@example.com", address = "Orig Addr", note = "Orig Note" }));
+
+        var update = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Original", phone = "555-0000", email = "", address = "   ", note = "" });
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var got = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Null(got!.Email);
+        Assert.Null(got.Address);
+        Assert.Null(got.Note);
+    }
+
+    [Fact]
+    public async Task Customer_Update_OmittedPopulatedOptionals_PersistsAsNull_AndBumpsVersion()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000", email = "orig@example.com", address = "Orig Addr", note = "Orig Note" }));
+
+        var update = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Updated", phone = "555-9999" });
+
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+        var got = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Equal("Updated", got!.Name);
+        Assert.Equal("555-9999", got.Phone);
+        Assert.Null(got.Email);
+        Assert.Null(got.Address);
+        Assert.Null(got.Note);
+        Assert.Equal(1, got.Version);
+    }
+
+    // #625 review round 9 — CustomersPage seeds its edit dialog straight from
+    // the LIST row (each row already carries every field the dialog needs —
+    // see the design's own "atomic prefill" rationale), never a fresh by-id
+    // fetch. A Version regression that only showed up on GET /{id} would
+    // still ship a broken edit dialog, since the dialog never calls that
+    // endpoint. This must not rely only on the by-id GET the other tests
+    // above use.
+    [Fact]
+    public async Task Customer_Update_ListPayload_CarriesTheCommittedVersion()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" })); // Version 0
+
+        var update = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Updated Name", phone = "555-9999" });
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var list = await client.GetFromJsonAsync<List<CustomerDto>>("/api/v1/customers");
+        var row = list!.Single(c => c.Id == id);
+        Assert.Equal("Updated Name", row.Name);
+        Assert.Equal("555-9999", row.Phone);
+        Assert.Equal(1, row.Version);
     }
 }

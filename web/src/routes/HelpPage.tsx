@@ -336,6 +336,7 @@ export function HelpPage() {
 
       <h3 id="sales">{t("salesHeading")}</h3>
       <ul>
+        <li>{t("salesCustomerEdit")}</li>
         <li>
           <Trans ns="help" i18nKey="salesDrafts" components={{ strong: <strong /> }} />
         </li>

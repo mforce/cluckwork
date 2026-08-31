@@ -5,6 +5,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Customers;
 using Cluckwork.Application.Features.Customers.CreateCustomer;
+using Cluckwork.Application.Features.Customers.UpdateCustomer;
 using Cluckwork.Application.Features.DailyEntries;
 using Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
@@ -161,6 +162,9 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             IValidator<CreateCustomerCommand>,
             CreateCustomerValidator>();
         services.AddScoped<
+            IValidator<UpdateCustomerCommand>,
+            UpdateCustomerValidator>();
+        services.AddScoped<
             IValidator<CreateSalesOrderCommand>,
             CreateSalesOrderValidator>();
         services.AddScoped<
@@ -270,6 +274,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
         services.AddScoped<RecordDailyEntryHandler>();
         services.AddScoped<SubmitDailyEntryHandler>();
         services.AddScoped<CreateCustomerHandler>();
+        services.AddScoped<UpdateCustomerHandler>();
         services.AddScoped<CreateSalesOrderHandler>();
         services.AddScoped<AddOrderItemHandler>();
         services.AddScoped<CancelSalesOrderHandler>();

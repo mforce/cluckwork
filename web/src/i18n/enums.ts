@@ -311,7 +311,7 @@ export const AUDIT_ACTION_VALUES = [
   "Flock.Create", "DailyEntry.Create", "DailyEntry.Update", "DailyEntry.Submit",
   "SalesOrder.Create", "SalesOrder.Confirm", "SalesOrder.Cancel",
   "SalesOrder.AddItem", "SalesOrder.UpdateItem", "SalesOrder.RemoveItem",
-  "Expense.Create", "EggGrade.Create",
+  "Expense.Create", "EggGrade.Create", "Customer.Create", "Customer.Update",
 ] as const;
 export type AuditActionValue = (typeof AUDIT_ACTION_VALUES)[number];
 const AUDIT_ACTION_KEYS = {
@@ -369,6 +369,8 @@ const AUDIT_ACTION_KEYS = {
   "SalesOrder.Cancel": "enums:auditAction.SalesOrder.Cancel",
   "Expense.Create": "enums:auditAction.Expense.Create",
   "EggGrade.Create": "enums:auditAction.EggGrade.Create",
+  "Customer.Create": "enums:auditAction.Customer.Create",
+  "Customer.Update": "enums:auditAction.Customer.Update",
 } as const satisfies Record<AuditActionValue, EnumsKey>;
 export function auditActionLabel(value: AuditActionValue | (string & {})): string {
   const key = AUDIT_ACTION_KEYS[value as AuditActionValue];
@@ -437,19 +439,22 @@ export const AUDIT_ACTION_ENTITY_TYPE = {
   "SalesOrder.RemoveItem": "SalesOrder",
   "Expense.Create": "Expense",
   "EggGrade.Create": "EggGrade",
+  "Customer.Create": "Customer",
+  "Customer.Update": "Customer",
 } as const satisfies Record<AuditActionValue, EntityTypeValue>;
 
 // ---------------------------------------------------------------------------
 // entity type (AuditPage table entity cell) — AuditEvent.entityType.
 // ---------------------------------------------------------------------------
 export const ENTITY_TYPE_VALUES = [
-  "Account", "DailyEntry", "EggGrade", "EggLot", "EggUnitConversion", "Expense",
+  "Account", "Customer", "DailyEntry", "EggGrade", "EggLot", "EggUnitConversion", "Expense",
   "ExpenseCategory", "FarmLogo", "Flock", "InventoryItem", "Payment", "Product",
   "SalesOrder", "User", "WaterUsage",
 ] as const;
 export type EntityTypeValue = (typeof ENTITY_TYPE_VALUES)[number];
 const ENTITY_TYPE_KEYS = {
   Account: "enums:entityType.Account",
+  Customer: "enums:entityType.Customer",
   DailyEntry: "enums:entityType.DailyEntry",
   EggGrade: "enums:entityType.EggGrade",
   EggLot: "enums:entityType.EggLot",
