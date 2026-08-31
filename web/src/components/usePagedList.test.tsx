@@ -457,22 +457,26 @@ describe("usePagedList — writes", () => {
 
   it("keeps newer intent authoritative when a committed-row write is superseded", async () => {
     const writeGate = deferred<Row>();
-    const fetchA = vi.fn().mockResolvedValue(rows("a"));
+    const reread = deferred<Row[]>();
+    const fetchA = vi.fn().mockResolvedValue([{ id: "same", label: "old committed fields" }]);
     const fetchB = vi.fn()
-      .mockResolvedValueOnce(rows("b"))
-      .mockResolvedValueOnce(rows("b", "written"));
+      .mockResolvedValueOnce([{ id: "same", label: "new window fields" }])
+      .mockReturnValueOnce(reread.promise);
     const { rerender } = render(
       <Host fetchPage={fetchA} committedRowWrite={() => writeGate.promise} />);
-    await waitFor(() => expect(shown()).toBe("a"));
+    await waitFor(() => expect(shown()).toBe("same"));
 
     fireEvent.click(screen.getByRole("button", { name: "committed-row-write" }));
     rerender(<Host fetchPage={fetchB} committedRowWrite={() => writeGate.promise} />);
-    await waitFor(() => expect(shown()).toBe("b"));
+    await waitFor(() => expect(shown()).toBe("same"));
 
-    await act(async () => writeGate.resolve({ id: "a", label: "stale committed a" }));
-    await waitFor(() => expect(shown()).toBe("b,written"));
-    expect(labels()).not.toContain("stale committed a");
+    await act(async () => writeGate.resolve({ id: "same", label: "stale committed fields" }));
+    expect(shown()).toBe("same");
+    expect(labels()).toBe("new window fields");
     expect(fetchA).toHaveBeenCalledTimes(1);
+
+    await act(async () => reread.resolve([{ id: "same", label: "newest committed fields" }]));
+    await waitFor(() => expect(labels()).toBe("newest committed fields"));
   });
 
   it("refreshes the list after a write", async () => {

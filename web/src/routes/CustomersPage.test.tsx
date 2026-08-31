@@ -735,7 +735,13 @@ describe("CustomersPage edit (#625)", () => {
     expect(key2).toBe(key1);
   });
 
-  it("uses a different idempotency key when a changed payload is retried after the write fails", async () => {
+  it.each([
+    ["name", "Acme Eggs Renamed"],
+    ["phone", "555-9999"],
+    ["email", "changed@x.co"],
+    ["address", "2 New St"],
+    ["note", "changed note"],
+  ] as const)("uses a different idempotency key when changed %s is retried after the write fails", async (field, value) => {
     mockUpdate.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
     mockUpdate.mockResolvedValueOnce(undefined);
     renderWithProviders(<CustomersPage />, { token: WORKER });
@@ -745,17 +751,13 @@ describe("CustomersPage edit (#625)", () => {
     await submitEdit();
     expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
 
-    // The first request's email was populated. Clearing it changes both the
-    // payload value and the JSON wire shape because undefined optionals are
-    // omitted by the API client.
-    fireEvent.change(within(dialog()).getByLabelText("Email"), { target: { value: "" } });
+    fireEvent.change(within(dialog()).getByLabelText(field === "name" ? "Name *" : field === "phone" ? "Phone *" : field[0].toUpperCase() + field.slice(1)), { target: { value } });
     await submitEdit();
 
     expect(mockUpdate).toHaveBeenCalledTimes(2);
     const firstBody = mockUpdate.mock.calls[0][1];
     const secondBody = mockUpdate.mock.calls[1][1];
-    expect(firstBody.email).toBe("a@x.co");
-    expect(secondBody.email).toBeUndefined();
+    expect(secondBody[field]).toBe(value);
     expect(secondBody).not.toEqual(firstBody);
     expect(mockUpdate.mock.calls[1][2]).not.toBe(mockUpdate.mock.calls[0][2]);
   });

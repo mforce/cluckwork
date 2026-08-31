@@ -113,6 +113,32 @@ public sealed class UpdateCustomerHandlerTests
         Assert.Empty(audit.Calls);
     }
 
+    [Fact]
+    public async Task LowerSubmittedVersion_ReturnsConflict_LeavesCommittedStateAndAuditUnchanged()
+    {
+        var repo = new FakeCustomerRepository();
+        var uow = new FakeUnitOfWork();
+        var audit = new FakeAuditWriter();
+        var customer = MakeCustomer();
+        Assert.True(customer.Update("Committed Name", "555-2222", "committed@example.com", "Committed Addr", "Committed Note").IsSuccess);
+        Assert.Equal(1, customer.Version);
+        repo.Seed(customer);
+        var handler = new UpdateCustomerHandler(repo, uow, audit);
+
+        var result = await handler.HandleAsync(CommandFor(customer, version: 0), CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Customer.VersionMismatch", result.Error.Code);
+        Assert.Equal("Committed Name", customer.Name);
+        Assert.Equal("555-2222", customer.Phone);
+        Assert.Equal("committed@example.com", customer.Email);
+        Assert.Equal("Committed Addr", customer.Address);
+        Assert.Equal("Committed Note", customer.Note);
+        Assert.Equal(1, customer.Version);
+        Assert.Equal(0, uow.SaveChangesCallCount);
+        Assert.Empty(audit.Calls);
+    }
+
     // #625 review round 6 — the validator normally rejects a null Version
     // before the handler ever runs, but the handler's own guard is what
     // actually stops a mutation — this proves that defense directly,
