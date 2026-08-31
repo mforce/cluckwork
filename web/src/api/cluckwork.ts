@@ -292,6 +292,7 @@ export interface Customer {
   email: string | null;
   address: string | null;
   note: string | null;
+  version: number;
 }
 
 export interface OrderItem {
@@ -330,6 +331,15 @@ export const createCustomer = (body: {
   address?: string;
   note?: string;
 }, key?: string) => apiPost<Created>("/customers", body, key);
+
+export const updateCustomer = (id: string, body: {
+  version: number;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  note?: string;
+}, key?: string) => apiPut<void>(`/customers/${id}`, body, key);
 
 export const listOrders = (params?: {
   status?: string; customerId?: string; from?: string; to?: string;

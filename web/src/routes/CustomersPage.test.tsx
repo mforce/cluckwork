@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act } from "@testing-library/react";
+import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { CustomersPage } from "./CustomersPage";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { createCustomer, listCustomerBalances, listCustomers } from "../api/cluckwork";
+import { createCustomer, listCustomerBalances, listCustomers, updateCustomer } from "../api/cluckwork";
 import type { Customer, CustomerBalances } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
@@ -15,15 +15,21 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     listCustomers: vi.fn(),
     listCustomerBalances: vi.fn(),
     createCustomer: vi.fn(),
+    updateCustomer: vi.fn(),
   };
 });
 
 const mockList = vi.mocked(listCustomers);
 const mockBalances = vi.mocked(listCustomerBalances);
 const mockCreate = vi.mocked(createCustomer);
+const mockUpdate = vi.mocked(updateCustomer);
 
-const C1: Customer = { id: "c1", name: "Acme Eggs", phone: "555-1", email: "a@x.co", address: "1 St", note: "vip" };
-const C2: Customer = { id: "c2", name: "Bravo Co", phone: "555-2", email: null, address: null, note: null };
+const C1: Customer = {
+  id: "c1", name: "Acme Eggs", phone: "555-1", email: "a@x.co", address: "1 St", note: "vip", version: 0,
+};
+const C2: Customer = {
+  id: "c2", name: "Bravo Co", phone: "555-2", email: null, address: null, note: null, version: 3,
+};
 // c1 owes 500; c2 has no confirmed orders → absent from the balance list.
 // KWD (3 decimals) so the assertion pins formatMoney's currency scale — 500
 // renders "0.500 KWD", which a hard-coded 2-decimal formatter could not produce.
@@ -40,6 +46,7 @@ beforeEach(() => {
   localStorage.clear();
   mockList.mockResolvedValue([C1, C2]);
   mockBalances.mockResolvedValue(BALANCES);
+  mockUpdate.mockResolvedValue(undefined);
 });
 
 describe("CustomersPage list", () => {
@@ -394,6 +401,175 @@ describe("CustomersPage i18n wiring (#182, Task 24)", () => {
 // alternative that was lost, it is the defect. SalesPage already ships the
 // same rule with its own test ("does not report an abandoned attempt against
 // the session that replaced it"), landed in #489.
+// #625 — edit an existing customer's details.
+const openEdit = (name: string) =>
+  fireEvent.click(within(screen.getByRole("row", { name: new RegExp(name) })).getByRole("button", { name: "Edit" }));
+const submitEdit = async () => {
+  await act(async () => {
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+  });
+};
+
+describe("CustomersPage edit (#625)", () => {
+  it("opens a labeled dialog prefilled with the row's five values", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+
+    expect(await screen.findByRole("dialog", { name: "Edit Acme Eggs" })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("Acme Eggs");
+    expect(within(dialog()).getByLabelText("Phone *")).toHaveValue("555-1");
+    expect(within(dialog()).getByLabelText("Email")).toHaveValue("a@x.co");
+    expect(within(dialog()).getByLabelText("Address")).toHaveValue("1 St");
+    expect(within(dialog()).getByLabelText("Note")).toHaveValue("vip");
+  });
+
+  it("edits every field and sends the full new payload", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Acme Eggs Ltd" } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "555-9999" } });
+    fireEvent.change(within(dialog()).getByLabelText("Email"), { target: { value: "new@acme.co" } });
+    fireEvent.change(within(dialog()).getByLabelText("Address"), { target: { value: "2 New St" } });
+    fireEvent.change(within(dialog()).getByLabelText("Note"), { target: { value: "updated note" } });
+    await submitEdit();
+
+    expect(mockUpdate).toHaveBeenCalledWith("c1", {
+      version: 0, name: "Acme Eggs Ltd", phone: "555-9999",
+      email: "new@acme.co", address: "2 New St", note: "updated note",
+    }, expect.any(String));
+  });
+
+  it("saves with the loaded version, blank optionals omitted, then refreshes and closes", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Bravo Co/ });
+    openEdit("Bravo Co");
+    await screen.findByRole("dialog", { name: "Edit Bravo Co" });
+
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Bravo Company" } });
+    await submitEdit();
+
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    const [id, body, key] = mockUpdate.mock.calls[0];
+    expect(id).toBe("c2");
+    expect(body).toMatchObject({ version: 3, name: "Bravo Company", phone: "555-2" });
+    expect(body.email).toBeUndefined();
+    expect(body.address).toBeUndefined();
+    expect(body.note).toBeUndefined();
+    expect(typeof key).toBe("string");
+    expect(mockList).toHaveBeenCalledTimes(2); // mount + post-save refresh
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("leaves the dialog open and renders the exact server conflict message on a 409", async () => {
+    mockUpdate.mockRejectedValue(
+      new ApiError(409, "Customer.VersionMismatch", "This customer was changed since you loaded it — reload and retry."));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+
+    await submitEdit();
+
+    expect(within(dialog()).getByText(
+      "This customer was changed since you loaded it — reload and retry.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("disables every dismissal path while the write is in flight, and restores it once settled", async () => {
+    let resolveUpdate!: () => void;
+    mockUpdate.mockReturnValue(new Promise((r) => (resolveUpdate = () => r(undefined))));
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+
+    const form = within(dialog()).getByRole("button", { name: "Save" }).closest("form")!;
+    await act(async () => { fireEvent.submit(form); });
+
+    // Close button disabled; Escape does nothing while the write is in flight.
+    expect(within(dialog()).getByRole("button", { name: "Close" })).toBeDisabled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await act(async () => resolveUpdate());
+    // Settled and refreshed — the dialog closes on success, freeing dismissal
+    // for the NEXT open (there's nothing left open to prove Escape on here).
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps closeDisabled through a failed post-write refresh, not just the write itself", async () => {
+    mockList.mockResolvedValueOnce([C1, C2]); // mount load
+    let resolveUpdate!: () => void;
+    mockUpdate.mockReturnValue(new Promise((r) => (resolveUpdate = () => r(undefined))));
+    mockList.mockRejectedValueOnce(new ApiError(500, "Server error", "boom")); // the post-save refresh
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await submitEdit();
+
+    // resolveUpdate hasn't been called in this closure's control-flow above —
+    // submitEdit already awaited the click; drive the deferred write now.
+    await act(async () => resolveUpdate());
+
+    // The refresh rejected: dialog stays open with the failure inside it, and
+    // dismissal is still blocked (assert via the disabled Close button — the
+    // window between write-confirmed and refresh-settled is the one #609
+    // exists for).
+    expect(await within(dialog()).findByText(/Server error|boom/)).toBeInTheDocument();
+  });
+
+  it("permits a non-dismissal displacement to a different row while A's write settles later", async () => {
+    let resolveA!: () => void;
+    mockUpdate.mockImplementation((id) => {
+      if (id === "c1") return new Promise((r) => (resolveA = () => r(undefined)));
+      return Promise.resolve(undefined);
+    });
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await act(async () => {
+      fireEvent.submit(within(dialog()).getByRole("button", { name: "Save" }).closest("form")!);
+    });
+
+    // Displace to B — not through Escape/backdrop/close (those are disabled);
+    // the row button is a separate, permitted path.
+    openEdit("Bravo Co");
+    expect(await screen.findByRole("dialog", { name: "Edit Bravo Co" })).toBeInTheDocument();
+
+    // A's write settles after the displacement — must not touch B's dialog.
+    await act(async () => resolveA());
+    expect(screen.getByRole("dialog", { name: "Edit Bravo Co" })).toBeInTheDocument();
+    expect(within(dialog()).queryByText(/Server error|boom/)).not.toBeInTheDocument();
+  });
+
+  it("issues a fresh idempotency key for the next save after a confirmed write but a failed refresh", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    mockList.mockResolvedValueOnce([C1, C2]); // mount
+    mockList.mockRejectedValueOnce(new ApiError(500, "Server error", "boom")); // post-save refresh #1 fails
+    mockList.mockResolvedValueOnce([C1, C2]); // post-save refresh #2 succeeds
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await submitEdit();
+    await screen.findByText(/Server error|boom/); // refresh #1 failed; dialog stays open
+
+    await submitEdit(); // retry — refresh #2 succeeds, dialog closes
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    const key1 = mockUpdate.mock.calls[0][2];
+    const key2 = mockUpdate.mock.calls[1][2];
+    expect(key2).not.toBe(key1);
+  });
+});
+
 describe("CustomersPage abandoned attempts (#474, pinned in #491)", () => {
   it("drops a dismissed create's failure rather than showing it in the reopened form", async () => {
     let rejectCreate!: (err: unknown) => void;

@@ -1380,6 +1380,10 @@ export const tl = {
     noteFieldLabel: "Tala",
     addCustomerButton: "Magdagdag ng customer",
 
+    // Edit-customer dialog (#625)
+    editButton: "I-edit",
+    editCustomerTitle: "I-edit ang {{name}}",
+
     // Imperative messages
     loadCustomersErrorMessage: "Hindi na-load ang mga customer.",
     loadBalancesErrorMessage: "Hindi na-load ang mga balance ng customer.",
@@ -2210,6 +2214,9 @@ export const tl = {
       + "backfill hanggang sa petsa ng pag-ubos nila, walang tinatanggap ang mga naka-archive.",
 
     salesHeading: "Mga Customer at Benta",
+    salesCustomerEdit:
+      "Puwedeng i-edit anumang oras ang detalye ng customer (pangalan, telepono, email, address, tala) "
+      + "mula sa Customers page.",
     salesDrafts:
       "Nagsisimula ang mga order bilang <strong>draft</strong>: magdagdag ng linya sa pamamagitan ng "
       + "pagpili ng <strong>produkto</strong>, isang packed unit (dosena, karton, …), isang buong bilang "
