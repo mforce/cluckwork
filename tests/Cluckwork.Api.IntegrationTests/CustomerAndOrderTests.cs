@@ -700,7 +700,33 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         // wrong property key or alongside an unrelated stray match.
         var nameCodes = codes.GetProperty("Name").EnumerateArray()
             .Select(e => e.GetString()).ToList();
-        Assert.Contains("Customer.Name.MaxLength", nameCodes);
+        // Exact equality, matching the test's own name/comment: a Contains
+        // check would still pass if an unrelated stray Name code rode along.
+        Assert.Equal(["Customer.Name.MaxLength"], nameCodes);
+    }
+
+    // #625 review round 5/6 — shared assertions for both wire shapes of the
+    // same nullable-presence invariant: the version key entirely absent from
+    // the JSON body, and the version key present with an explicit JSON null.
+    // Both must be rejected identically — 400, the exact Required code, and
+    // the row fully unmutated — kept as one helper so the two Facts below
+    // stay individually legible instead of duplicating the assertion body.
+    private static async Task AssertVersionRequiredRejectsUnmutatedAsync(HttpClient client, Guid id, object body)
+    {
+        var response = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(), body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(doc.RootElement.TryGetProperty("errorCodes", out var codes));
+        var versionCodes = codes.GetProperty("Version").EnumerateArray()
+            .Select(e => e.GetString()).ToList();
+        Assert.Equal(["Customer.Version.Required"], versionCodes);
+
+        var got = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Equal("Original", got!.Name);
+        Assert.Equal("555-0000", got.Phone);
+        Assert.Equal(0, got.Version);
     }
 
     // #625 review round 5 (CodeRabbit CR-1) — an OMITTED version field must
@@ -716,21 +742,26 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
             "/api/v1/customers", Guid.NewGuid().ToString(),
             new { name = "Original", phone = "555-0000" })); // Version 0
 
-        var response = await client.PutWithKeyAsync(
-            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
-            new { name = "Changed Name", phone = "555-9999" }); // no "version" key at all
+        await AssertVersionRequiredRejectsUnmutatedAsync(
+            client, id, new { name = "Changed Name", phone = "555-9999" }); // no "version" key at all
+    }
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.True(doc.RootElement.TryGetProperty("errorCodes", out var codes));
-        var versionCodes = codes.GetProperty("Version").EnumerateArray()
-            .Select(e => e.GetString()).ToList();
-        Assert.Equal(["Customer.Version.Required"], versionCodes);
+    // #625 review round 6 — the SECOND wire shape for the same nullable-
+    // presence invariant: an EXPLICIT JSON `"version": null` must be rejected
+    // identically to an omitted field, not silently accepted by some binder
+    // path that treats "key present, value null" differently from "key
+    // absent". M18 (UpdateCustomerRequest.Version reverted to plain int)
+    // remains the combined mutation proof for both wire shapes.
+    [Fact]
+    public async Task Customer_Update_ExplicitNullVersion_400WithExactRequiredErrorCode_AndNoMutation()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" })); // Version 0
 
-        var got = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
-        Assert.Equal("Original", got!.Name);
-        Assert.Equal("555-0000", got.Phone);
-        Assert.Equal(0, got.Version);
+        await AssertVersionRequiredRejectsUnmutatedAsync(
+            client, id, new { version = (int?)null, name = "Changed Name", phone = "555-9999" });
     }
 
     // #625 review round 1 — Update() normalizes blank optionals to null; this

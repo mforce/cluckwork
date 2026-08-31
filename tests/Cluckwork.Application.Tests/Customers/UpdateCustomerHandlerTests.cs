@@ -62,8 +62,17 @@ public sealed class UpdateCustomerHandlerTests
     private static Customer MakeCustomer() =>
         Customer.Create(Guid.NewGuid(), Guid.NewGuid(), "Original Name", "555-0000");
 
-    private static UpdateCustomerCommand CommandFor(Customer c, int? version = null) => new(
-        c.Id, version ?? c.Version, "New Name", "555-1111", "new@example.com", "New Addr", "New Note");
+    // #625 review round 6 — overloads, not `version ?? c.Version`: that
+    // default made an explicitly-passed `null` indistinguishable from "use
+    // the row's current Version", so a null-Version handler test could not
+    // actually be expressed. The zero-arg overload is "use current Version"
+    // (every pre-existing call site); the explicit overload sends EXACTLY
+    // the value given, null included.
+    private static UpdateCustomerCommand CommandFor(Customer c) => new(
+        c.Id, c.Version, "New Name", "555-1111", "new@example.com", "New Addr", "New Note");
+
+    private static UpdateCustomerCommand CommandFor(Customer c, int? version) => new(
+        c.Id, version, "New Name", "555-1111", "new@example.com", "New Addr", "New Note");
 
     [Fact]
     public async Task UnknownCustomer_ReturnsNotFound()
@@ -94,6 +103,32 @@ public sealed class UpdateCustomerHandlerTests
         var handler = new UpdateCustomerHandler(repo, uow, audit);
 
         var command = CommandFor(customer, version: customer.Version + 1);
+        var result = await handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Customer.VersionMismatch", result.Error.Code);
+        Assert.Equal("Original Name", customer.Name);
+        Assert.Equal(0, customer.Version);
+        Assert.Equal(0, uow.SaveChangesCallCount);
+        Assert.Empty(audit.Calls);
+    }
+
+    // #625 review round 6 — the validator normally rejects a null Version
+    // before the handler ever runs, but the handler's own guard is what
+    // actually stops a mutation — this proves that defense directly,
+    // bypassing the validator layer entirely (a fake repository/unit-of-
+    // work/audit-writer, exactly like the other handler tests here).
+    [Fact]
+    public async Task NullVersion_ReturnsConflict_LeavesStateAndAuditUnchanged()
+    {
+        var repo = new FakeCustomerRepository();
+        var uow = new FakeUnitOfWork();
+        var audit = new FakeAuditWriter();
+        var customer = MakeCustomer();
+        repo.Seed(customer);
+        var handler = new UpdateCustomerHandler(repo, uow, audit);
+
+        var command = CommandFor(customer, version: null);
         var result = await handler.HandleAsync(command, CancellationToken.None);
 
         Assert.True(result.IsFailure);
