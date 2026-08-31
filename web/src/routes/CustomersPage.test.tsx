@@ -502,10 +502,19 @@ describe("CustomersPage edit (#625)", () => {
     const backdrop = () => document.querySelector(".dialog-backdrop")!;
     const assertDismissalBlocked = () => {
       expect(within(dialog()).getByRole("button", { name: "Close" })).toBeDisabled();
+      expect(within(dialog()).getByRole("button", { name: "Cancel" })).toBeDisabled();
       fireEvent.keyDown(document, { key: "Escape" });
       expect(screen.getByRole("dialog")).toBeInTheDocument();
       fireEvent.click(backdrop());
       expect(screen.getByRole("dialog")).toBeInTheDocument();
+      // #625 review round 2 — every field input disabled too: post-submit
+      // typing must not be silently discarded (the request already
+      // snapshotted its own copy of the form).
+      expect(within(dialog()).getByLabelText("Name *")).toBeDisabled();
+      expect(within(dialog()).getByLabelText("Phone *")).toBeDisabled();
+      expect(within(dialog()).getByLabelText("Email")).toBeDisabled();
+      expect(within(dialog()).getByLabelText("Address")).toBeDisabled();
+      expect(within(dialog()).getByLabelText("Note")).toBeDisabled();
     };
 
     await act(async () => {
@@ -542,6 +551,11 @@ describe("CustomersPage edit (#625)", () => {
     await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
     await submitEdit();
 
+    // Window 1 — the write is in flight: Close/Cancel/fields all disabled.
+    expect(within(dialog()).getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(within(dialog()).getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(within(dialog()).getByLabelText("Name *")).toBeDisabled();
+
     // resolveUpdate hasn't been called in this closure's control-flow above —
     // submitEdit already awaited the click; drive the deferred write now.
     await act(async () => resolveUpdate());
@@ -549,9 +563,11 @@ describe("CustomersPage edit (#625)", () => {
     // The refresh rejected: dialog stays open with the failure inside it.
     expect(await within(dialog()).findByText(/Server error|boom/)).toBeInTheDocument();
 
-    // Settled (failed) — dismissal is restored: Close is enabled and Escape
-    // now actually closes the dialog.
+    // Settled (failed) — dismissal AND every field are restored: Close/
+    // Cancel/fields re-enabled, and Escape now actually closes the dialog.
     expect(within(dialog()).getByRole("button", { name: "Close" })).not.toBeDisabled();
+    expect(within(dialog()).getByRole("button", { name: "Cancel" })).not.toBeDisabled();
+    expect(within(dialog()).getByLabelText("Name *")).not.toBeDisabled();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -608,6 +624,36 @@ describe("CustomersPage edit (#625)", () => {
       "This customer was changed since you loaded it — reload and retry.")).toBeInTheDocument();
   });
 
+  // #625 review round 2 — the same bug one level later: after a confirmed
+  // write whose refresh then fails, closing the dialog (permitted once the
+  // write+refresh cycle settles) and reopening the SAME row must not read
+  // stale pre-write data out of `customers` — that array needs the same
+  // optimistic patch editForm gets, or a close+reopen silently resurrects
+  // the exact stale-Version bug the round-1 fix closed for the "still open"
+  // case.
+  it("keeps the committed Version after a failed refresh even through a close and reopen of the same row", async () => {
+    mockList.mockResolvedValueOnce([C1, C2]); // mount
+    mockUpdate.mockResolvedValueOnce(undefined); // write #1 confirms
+    mockList.mockRejectedValueOnce(new ApiError(500, "Server error", "boom")); // refresh #1 fails
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ }); // C1.version === 0
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await submitEdit();
+    await screen.findByText(/Server error|boom/);
+
+    // Close (permitted now — the write+refresh cycle already settled) and
+    // reopen the SAME row from its OWN Edit button, not a stale reference.
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    mockUpdate.mockResolvedValueOnce(undefined);
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await submitEdit();
+
+    expect(mockUpdate.mock.calls[1][1]).toMatchObject({ version: 1 }); // committed by write #1, not the stale 0
+  });
+
   // #625 review round 1 — the WRITE itself failing (not the refresh) must
   // not spend the idempotency key: a retry with unchanged fields is the
   // exact same logical request and must replay under the same key (same
@@ -625,6 +671,13 @@ describe("CustomersPage edit (#625)", () => {
     await submitEdit(); // retry, unchanged fields
 
     expect(mockUpdate).toHaveBeenCalledTimes(2);
+    // Full payload deep-equality, not just the key: proves the retry replays
+    // the EXACT same logical request (id, every field, and Version) — a key
+    // match alone would still pass if some field silently drifted between
+    // attempts.
+    expect(mockUpdate.mock.calls[1][0]).toEqual(mockUpdate.mock.calls[0][0]);
+    expect(mockUpdate.mock.calls[1][1]).toEqual(mockUpdate.mock.calls[0][1]);
+    expect(mockUpdate.mock.calls[1][1]).toMatchObject({ version: 0 });
     const key1 = mockUpdate.mock.calls[0][2];
     const key2 = mockUpdate.mock.calls[1][2];
     expect(key2).toBe(key1);

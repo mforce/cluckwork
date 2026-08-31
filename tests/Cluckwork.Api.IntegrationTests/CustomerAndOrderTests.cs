@@ -695,7 +695,12 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.True(doc.RootElement.TryGetProperty("errorCodes", out var codes));
-        Assert.Contains("Customer.Name.MaxLength", codes.GetRawText());
+        // The exact per-property code array, not a raw-JSON substring match —
+        // a substring match would still pass if the code leaked under the
+        // wrong property key or alongside an unrelated stray match.
+        var nameCodes = codes.GetProperty("Name").EnumerateArray()
+            .Select(e => e.GetString()).ToList();
+        Assert.Contains("Customer.Name.MaxLength", nameCodes);
     }
 
     // #625 review round 1 — Update() normalizes blank optionals to null; this

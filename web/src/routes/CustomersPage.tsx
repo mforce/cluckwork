@@ -177,16 +177,26 @@ export function CustomersPage() {
         // this cached response (same contract as UsersPage's onUpdate/#163).
         clearEditKey(target.id);
         // The server's Version is now target.version + 1 (Update always bumps
-        // exactly once). Rebind the form to that COMMITTED value before the
-        // refresh: if the refresh below fails, the dialog stays open on the
-        // real current Version, so a retry sends it correctly instead of the
-        // now-stale value that already succeeded once — which the server
-        // would otherwise (correctly, but confusingly) reject as a conflict
-        // against the write's OWN prior success.
+        // exactly once). Rebind the form AND the backing row to that
+        // COMMITTED value before the refresh: if the refresh below fails, the
+        // dialog stays open on the real current Version (a retry sends it
+        // correctly rather than replaying the now-stale value that already
+        // succeeded once), and — critically — a close+reopen of this SAME
+        // row (permitted once !editWriteInFlight, i.e. after this whole
+        // write+refresh cycle settles) reads FROM `customers`, so leaving
+        // that array holding pre-write data would silently reintroduce the
+        // exact same stale-Version bug one level later, through a path that
+        // isn't "still open", just "reopened before a later refresh ever
+        // succeeded".
         const committedVersion = target.version + 1;
+        const committedFields: Customer = {
+          id: target.id, version: committedVersion, name: target.name, phone: target.phone,
+          email: target.email || null, address: target.address || null, note: target.note || null,
+        };
         if (isCurrentDialog()) {
           setEditForm((prev) => (prev && prev.id === target.id ? { ...prev, version: committedVersion } : prev));
         }
+        setCustomers((prev) => prev && prev.map((c) => (c.id === target.id ? committedFields : c)));
         // Not the page-level `load()` helper: it swallows its own rejection
         // into the PAGE's error slot, which would misattribute a refresh
         // failure to the screen instead of the dialog whose write caused it.
@@ -254,24 +264,29 @@ export function CustomersPage() {
       >
         {editForm && (
           <form className="inline-form" onSubmit={onSaveEdit}>
+            {/* #625 review round 2 — disabled while the write OR its refresh
+                is in flight: without this, keystrokes made after Save land in
+                editForm/state but are silently discarded (the request already
+                snapshotted `target`), and the field APPEARS live while the
+                edit it holds cannot go anywhere. */}
             <label>{t("nameFieldLabel")}
-              <input value={editForm.name} required
+              <input value={editForm.name} required disabled={editWriteInFlight}
                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
             </label>
             <label>{t("phoneFieldLabel")}
-              <input value={editForm.phone} required
+              <input value={editForm.phone} required disabled={editWriteInFlight}
                 onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
             </label>
             <label>{t("emailFieldLabel")}
-              <input type="email" value={editForm.email}
+              <input type="email" value={editForm.email} disabled={editWriteInFlight}
                 onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
             </label>
             <label>{t("addressFieldLabel")}
-              <input value={editForm.address}
+              <input value={editForm.address} disabled={editWriteInFlight}
                 onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
             </label>
             <label>{t("noteFieldLabel")}
-              <input value={editForm.note}
+              <input value={editForm.note} disabled={editWriteInFlight}
                 onChange={(e) => setEditForm({ ...editForm, note: e.target.value })} />
             </label>
             <DialogError errors={errors} scope="edit-customer" />
