@@ -118,6 +118,7 @@ erDiagram
   varchar_500_ Address
   varchar_1000_ Note
   uuid AccountId
+  integer Version
 }
 ```
 

@@ -1,5 +1,7 @@
 namespace Cluckwork.Domain.Sales;
 
+using Cluckwork.Domain.Common;
+
 // MVP customer (issue #10): reference-app shape — name + phone required,
 // email/address/note optional. Balances, credit terms, and payments are
 // Phase 1.1.
@@ -16,6 +18,7 @@ public sealed class Customer : AggregateRoot<Guid>
     public string? Email { get; private set; }
     public string? Address { get; private set; }
     public string? Note { get; private set; }
+    public int Version { get; private set; }
 
     private Customer() { }
 
@@ -37,6 +40,22 @@ public sealed class Customer : AggregateRoot<Guid>
             Address = Normalize(address),
             Note = Normalize(note)
         };
+    }
+
+    public Result Update(string name, string phone, string? email, string? address, string? note)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return Result.Failure(Error.Validation("Customer.Name.Required", "Customer name is required."));
+        if (string.IsNullOrWhiteSpace(phone))
+            return Result.Failure(Error.Validation("Customer.Phone.Required", "Customer phone is required."));
+
+        Name = name.Trim();
+        Phone = phone.Trim();
+        Email = Normalize(email);
+        Address = Normalize(address);
+        Note = Normalize(note);
+        Version++;
+        return Result.Success();
     }
 
     private static string? Normalize(string? value) =>
