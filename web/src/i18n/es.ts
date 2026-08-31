@@ -1001,6 +1001,7 @@ export const es = {
     ledgerTypeHeader: "Tipo",
     ledgerBirdsHeader: "Aves",
     ledgerNoteHeader: "Nota",
+    loadMoreButton: "cargar más",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new

@@ -1218,6 +1218,7 @@ export const en = {
     ledgerTypeHeader: "Type",
     ledgerBirdsHeader: "Birds",
     ledgerNoteHeader: "Note",
+    loadMoreButton: "load more",
   },
   // Farm settings — admin localization + logo (#123, #149) + the currency
   // lock (§4.6) (Task 21, #182, batch B4). `settings` is in

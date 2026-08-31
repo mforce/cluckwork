@@ -210,7 +210,7 @@ describe("FlocksPage bird ledger", () => {
     fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
 
     const cullRow = await screen.findByRole("row", { name: /Cull/ });
-    expect(mockListMovements).toHaveBeenCalledWith("f1", { limit: 50 });
+    expect(mockListMovements).toHaveBeenCalledWith("f1", { limit: 50, offset: 0 });
     expect(screen.getByRole("heading", { name: /Bird ledger — Hen House 1/ })).toBeInTheDocument();
     expect(within(cullRow).getByText("2026-03-15")).toBeInTheDocument();
     expect(within(cullRow).getByText("−2")).toBeInTheDocument(); // positive qty renders as a cull (−2)
@@ -745,5 +745,110 @@ describe("FlocksPage i18n wiring (#182, Task 19)", () => {
       expect(screen.getByText("SHOW-MARKER 1 MARKER-END")).toBeInTheDocument();
       expect(screen.queryByText(/show 1 archived/)).not.toBeInTheDocument();
     });
+  });
+});
+
+// #511 — the bird ledger asked for 50 rows and rendered them with no pager, so
+// the oldest movements were unreachable. These pin the paged behaviour and the
+// per-flock identity that keeps one flock's rows off another flock's heading.
+const movementRow = (over: Partial<BirdMovement> = {}): BirdMovement => ({
+  id: "m0", flockId: "f1", date: "2026-08-01", type: "Cull", quantity: 1, note: "note", ...over,
+});
+const movementPage = (n: number, prefix = "m") =>
+  Array.from({ length: n }, (_, i) =>
+    movementRow({ id: `${prefix}${i}`, note: `${prefix} note ${String(i).padStart(3, "0")}` }));
+
+// Same inline shape every existing ledger test in this file uses.
+const openLedgerFor = (rowName: RegExp) =>
+  fireEvent.click(
+    within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "birds" }));
+
+describe("FlocksPage bird ledger paging (#511)", () => {
+  it("reaches a movement past the first page through load more", async () => {
+    mockListMovements.mockResolvedValueOnce(movementPage(50));
+    await renderReady(ADMIN, [ACTIVE]);
+    await act(async () => { openLedgerFor(/Hen House 1/); });
+    await screen.findByText("m note 000");
+    expect(mockListMovements).toHaveBeenCalledWith("f1",
+      expect.objectContaining({ limit: 50, offset: 0 }));
+
+    mockListMovements.mockResolvedValueOnce([movementRow({ id: "old", note: "oldest row" })]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+
+    expect(mockListMovements).toHaveBeenLastCalledWith("f1",
+      expect.objectContaining({ offset: 50 }));
+    expect(await screen.findByText("oldest row")).toBeInTheDocument();
+    expect(screen.getByText("m note 000")).toBeInTheDocument();
+  });
+
+  it("withdraws the pager on a short page", async () => {
+    mockListMovements.mockResolvedValueOnce(movementPage(3));
+    await renderReady(ADMIN, [ACTIVE]);
+    await act(async () => { openLedgerFor(/Hen House 1/); });
+    await screen.findByText("m note 000");
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+  });
+
+  it("hides the previous flock's movements while the next flock's ledger is loading", async () => {
+    // INV-4, render half. Flock one's page has ALREADY LANDED, so `rows` holds
+    // it; the user then switches straight to flock two and that replacement is
+    // in flight. The rows still in `rows` belong to a flock the user has left,
+    // and `reloading` is the only state that knows it. Do NOT close flock one
+    // first: closing swaps in the empty no-flock page and `rows` would be []
+    // before the assertion, which would make this test pass no matter what the
+    // render guard does.
+    mockListMovements.mockResolvedValueOnce([movementRow({ id: "a1", note: "flock one row" })]);
+    await renderReady(ADMIN, [ACTIVE, DEPLETED]);
+    await act(async () => { openLedgerFor(/Hen House 1/); });
+    await screen.findByText("flock one row");
+
+    let releaseSecond!: (rows: BirdMovement[]) => void;
+    mockListMovements.mockReturnValueOnce(new Promise((r) => { releaseSecond = r; }));
+    await act(async () => { openLedgerFor(/Depleted Flock/); });
+
+    expect(screen.queryByText("flock one row")).not.toBeInTheDocument();
+
+    await act(async () => {
+      releaseSecond([movementRow({ id: "b1", flockId: "f2", note: "flock two row" })]);
+    });
+    expect(await screen.findByText("flock two row")).toBeInTheDocument();
+  });
+
+  it("refreshes every loaded page after recording a movement", async () => {
+    mockListMovements.mockResolvedValueOnce(movementPage(50));
+    await renderReady(ADMIN, [ACTIVE]);
+    await act(async () => { openLedgerFor(/Hen House 1/); });
+    await screen.findByText("m note 000");
+
+    mockListMovements.mockResolvedValueOnce([movementRow({ id: "old", note: "oldest row" })]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+    await screen.findByText("oldest row");
+
+    // The refresh has to be OBSERVABLE. If both sides of the write return the
+    // same fixture, a page that never refreshes renders exactly the DOM a page
+    // that refreshed does, and the assertion cannot fail. So the re-read
+    // returns DIFFERENT text for both pages.
+    mockRecordMovement.mockResolvedValue({ id: "mv9" });
+    mockListMovements.mockResolvedValueOnce(
+      movementPage(50).map((m, i) => ({ ...m, note: `refreshed ${String(i).padStart(3, "0")}` })));
+    mockListMovements.mockResolvedValueOnce([movementRow({ id: "old", note: "refreshed oldest" })]);
+
+    // Copied from the existing "records a bird movement with the type/quantity/
+    // date body and a key" test in this file — same dialog, same controls.
+    fireEvent.click(await screen.findByRole("button", { name: "Record movement" }));
+    fireEvent.change(within(dialog()).getByLabelText("Date"), { target: { value: "2026-05-01" } });
+    fireEvent.change(within(dialog()).getByLabelText("Type"), { target: { value: "Adjustment" } });
+    fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Birds" }), { target: { value: "-5" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record" }));
+    });
+
+    // Both pages the user had loaded were re-read, not just page one.
+    expect(await screen.findByText("refreshed oldest")).toBeInTheDocument();
+    expect(screen.getByText("refreshed 000")).toBeInTheDocument();
   });
 });

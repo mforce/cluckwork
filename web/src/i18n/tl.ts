@@ -1034,6 +1034,7 @@ export const tl = {
     ledgerTypeHeader: "Uri",
     ledgerBirdsHeader: "Mga Ibon",
     ledgerNoteHeader: "Tala",
+    loadMoreButton: "mag-load pa",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
