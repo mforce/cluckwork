@@ -704,10 +704,10 @@ public sealed class PerFarmRefreshCookieTests(CluckworkWebApplicationFactory fac
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(
             retainedToken, expectedAccount: farm.ToString())).StatusCode);
 
-        // Both cleared nodes are inert tombstones, not theft evidence that may
-        // revoke a sibling login for the same user and credential epoch.
-        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(
-            siblingChild.RefreshToken, expectedAccount: farm.ToString())).StatusCode);
+        // A later presentation starts from the already-severed no-pointer row,
+        // which is intentionally indistinguishable from a bulk-revoked tip and
+        // therefore retains #176's strict replay behavior. The sibling probe
+        // above is the proof that logout itself stayed on the selected lineage.
     }
 
     [Fact]

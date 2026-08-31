@@ -791,6 +791,15 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             MaybeFail(command);
             return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
         }
+
+        public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
+            System.Data.Common.DbCommand command, CommandEventData eventData,
+            InterceptionResult<object> result,
+            CancellationToken cancellationToken = default)
+        {
+            MaybeFail(command);
+            return base.ScalarExecutingAsync(command, eventData, result, cancellationToken);
+        }
     }
 
     // #336 review (2nd round) — the cookie path's own ordering, one layer below

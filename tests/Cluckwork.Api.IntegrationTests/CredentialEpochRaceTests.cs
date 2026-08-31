@@ -205,6 +205,49 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
     }
 
     [Fact]
+    public async Task BulkRevokedNoPointerTip_StillTakesTheStrictReplayPath()
+    {
+        var email = $"bulk-revoked-replay-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var stale = await factory.LoginAsync(email);
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var staleRow = await db.RefreshTokens.SingleAsync(token =>
+                token.AccountId == accountId && token.RevokedAt == null);
+            staleRow.RevokedAt = DateTimeOffset.UtcNow;
+            staleRow.ConcurrencyStamp = Guid.NewGuid().ToString();
+            await db.SaveChangesAsync();
+        });
+
+        factory.Barrier.Arm();
+        var replayTask = factory.CreateClient().PostRefreshAsync(
+            stale.RefreshToken, expectedAccount: accountId.ToString());
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await factory.Barrier.WaitUntilReachedAsync(timeout.Token);
+
+        TokenPairDto fresh;
+        try
+        {
+            await factory.WithTenantScopeAsync(accountId, async db =>
+            {
+                var user = await db.Users.SingleAsync(candidate => candidate.Email == email);
+                user.CredentialEpoch++;
+                await db.SaveChangesAsync();
+            });
+            fresh = await factory.LoginAsync(email);
+        }
+        finally
+        {
+            factory.Barrier.Release();
+        }
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await replayTask).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await factory.CreateClient().PostRefreshAsync(
+                fresh.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
+    }
+
+    [Fact]
     public async Task LoginThatVerifiedTheOldPassword_CannotAdoptAConcurrentPasswordReset()
     {
         var email = $"login-proof-race-{Guid.NewGuid():N}@test.local";
