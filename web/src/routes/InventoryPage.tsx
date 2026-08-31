@@ -166,19 +166,22 @@ export function InventoryPage() {
   // the lots once per page. They keep their own read and their own guard.
   const lotsRequest = useRef(0);
 
-  // #511 round 2 — movements and lots were one `Promise.all` under one ticket
-  // before this slice split them. Two independent tickets can disagree about
-  // which item is open, and a stale lot list drives the Adjust dialog's lot
-  // <select> and default adjustLotId. The ticket alone is not enough: it
-  // orders THIS read against other lot reads, and says nothing about whether
-  // the item is still open.
-  const activeIdRef = useRef<string | null>(null);
-  activeIdRef.current = activeId;
-
+  // #511 round 3 — an `activeIdRef.current !== itemId` guard was added here in
+  // round 2 and removed again, deliberately. It could not fire: every caller
+  // sets `active` to the same item immediately before calling this
+  // (`onOpen` does setActive(i) then loadLots(i.id); `refreshAll` does
+  // setActive(stillThere) then loadLots(stillThere.id)), so the ids always
+  // agree at call time, and any later switch bumps the ticket below, which
+  // already rejects the response. Deleting all of increment 7 left the whole
+  // InventoryPage suite green, which is how the redundancy was established
+  // rather than argued. What DOES matter is the setLots([]) clear in `onOpen`
+  // — that covers a different question, namely what is on screen while the
+  // NEXT item's lots are still in flight, and it is pinned by
+  // "clears the previous item's lots the moment a different item is opened".
   async function loadLots(itemId: string) {
     const req = ++lotsRequest.current;
     const lotRows = await listInventoryLots(itemId);
-    if (lotsRequest.current !== req || activeIdRef.current !== itemId) return;
+    if (lotsRequest.current !== req) return;
     setLots(lotRows);
     setAdjustLotId((prev) => lotRows.some((l) => l.id === prev) ? prev : (lotRows[0]?.id ?? ""));
   }

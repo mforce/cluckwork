@@ -1101,34 +1101,39 @@ describe("InventoryPage ledger paging (#511)", () => {
     expect(screen.queryByText("stale row")).not.toBeInTheDocument();
   });
 
-  it("never leaves the previous item's lots under the next item's panel", async () => {
+  it("clears the previous item's lots the moment a different item is opened", async () => {
+    // #511 round 3 — the version of this test written in round 2 asserted on
+    // the panel AFTER releasing item one's late lots response, which the
+    // pre-existing `lotsRequest` ticket already rejected on its own: it passed
+    // with the whole fix deleted. The window that actually needs guarding is
+    // the one BEFORE item two's lots land, where item one's list is still the
+    // only thing in `lots`.
+    //
+    // Adapted from the runbook literal (reported): a lot's NUMBER text
+    // ("A-1") only ever renders inside the Adjust dialog's <select>, and
+    // `onOpen`'s displacement guard force-closes that dialog on every item
+    // switch regardless of whether `lots` itself was cleared — so a
+    // closed-dialog absence of "A-1" would pass whether or not the clear ran.
+    // The `lots.length > 0` gate on the "Correct stock" button lives
+    // directly on the panel, untouched by the dialog's open/close state, so
+    // it is what actually observes whether `lots` still holds the departed
+    // item's rows while the next item's own read is in flight.
     mockListMovements.mockResolvedValue([]);
-    let releaseLots!: (rows: InventoryLot[]) => void;
-    mockListLots.mockReturnValueOnce(new Promise((r) => { releaseLots = r; }));
+    mockListLots.mockResolvedValueOnce([
+      { ...LOT, id: "lotA", lotNumber: "A-1" },
+    ]);
     await renderReady(ADMIN);
     await openItem(FEED);
+    await screen.findByRole("button", { name: "Correct stock" });
 
-    // Switch to the second item before the first item's lots settle.
-    mockListLots.mockResolvedValueOnce([]);
+    // Item two's lots never settle during this test: the assertion is about
+    // what is on screen while they are still in flight.
+    mockListLots.mockReturnValueOnce(new Promise(() => {}));
     await act(async () => {
       fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "open" }));
     });
-    await act(async () => {
-      // Corrected against InventoryLot's real shape (api/cluckwork.ts): the
-      // runbook literal used quantityRemaining (not a field) and omitted
-      // inventoryItemId/quantityReceived/unitCostCurrencyCode/
-      // unitCostCurrencyMinorUnit, all required.
-      releaseLots([{
-        id: "lotA", inventoryItemId: "it1", lotNumber: "A-1",
-        receivedDate: "2026-07-01", expiryDate: null,
-        quantityReceived: 5, quantityAvailable: 5,
-        unitCostMinorUnits: 100, unitCostCurrencyCode: "USD", unitCostCurrencyMinorUnit: 2,
-      } as InventoryLot]);
-    });
 
-    // The late lots belong to the item the user has LEFT — they must not be
-    // offered as this item's lots.
-    expect(screen.queryByText(/A-1/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Correct stock" })).not.toBeInTheDocument();
   });
 
   // One test, two locales, per the round-2 runbook. Two adaptations from a
