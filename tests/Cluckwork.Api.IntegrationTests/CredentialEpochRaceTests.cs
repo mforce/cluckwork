@@ -168,7 +168,7 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
     {
         var email = $"epoch-race-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
-        var client = factory.CreateClient();
+        var client = factory.CreateClient(TestHarness.Cookieless(factory));
         var stale = await factory.LoginAsync(email); // P
         var childResponse = await client.PostRefreshAsync(
             stale.RefreshToken, expectedAccount: accountId.ToString()); // P -> C

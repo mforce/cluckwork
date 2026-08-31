@@ -135,6 +135,7 @@ public static class GuardScanner
 
         var occurrences = new List<BypassOccurrence>();
         var parseErrors = new List<string>();
+        var rawSqlViolations = new List<string>();
         var rawSqlExecutionViolations = new List<string>();
 
         foreach (var file in files)
@@ -259,12 +260,18 @@ public static class GuardScanner
                         invocation,
                         "IRawSqlCommandBuilder.Build");
                     var sqlExpression = invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression;
-                    occurrences.Add(occurrence with
+                    var rawSqlText = sqlExpression is null
+                        ? string.Empty
+                        : ResolveSqlText(sqlExpression, invocation);
+                    occurrences.Add(occurrence with { RawSqlText = rawSqlText });
+                    if (HasRowLockKeyword(rawSqlText)
+                        && !HasAccountIdPredicateInWhereClause(rawSqlText))
                     {
-                        RawSqlText = sqlExpression is null
-                            ? string.Empty
-                            : ResolveSqlText(sqlExpression, invocation),
-                    });
+                        var line = invocation.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                        rawSqlViolations.Add(
+                            $"{Relative(repoRoot, file)}:{line} in {EnclosingSymbolOf(invocation, file)} — " +
+                            $"IRawSqlCommandBuilder.Build row lock without an AccountId predicate in its WHERE clause: {Truncate(rawSqlText)}");
+                    }
                     if (!HasRelationalCommandExecution(invocation))
                     {
                         var line = invocation.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
@@ -355,7 +362,6 @@ public static class GuardScanner
         // predicate, but this walk *proves* it. Dropping the AccountId from a
         // lock query (M4) goes red here even though the site is still
         // allow-listed.
-        var rawSqlViolations = new List<string>();
         foreach (var file in files)
         {
             var tree2 = CSharpSyntaxTree.ParseText(File.ReadAllText(file), path: file);
@@ -1037,11 +1043,48 @@ public static class GuardScanner
             return false;
         }
 
-        return member.Expression.DescendantNodesAndSelf()
+        if (IsRawSqlCommandBuilderServiceResolution(member.Expression))
+        {
+            return true;
+        }
+
+        if (member.Expression is not IdentifierNameSyntax identifier)
+        {
+            return false;
+        }
+
+        var method = invocation.Ancestors().OfType<BaseMethodDeclarationSyntax>().FirstOrDefault();
+        var declaration = method?.DescendantNodes()
+            .OfType<VariableDeclaratorSyntax>()
+            .Where(candidate => candidate.SpanStart < invocation.SpanStart)
+            .LastOrDefault(candidate =>
+                candidate.Identifier.ValueText == identifier.Identifier.ValueText);
+
+        return declaration?.Initializer?.Value is { } initializer
+            && IsRawSqlCommandBuilderServiceResolution(initializer);
+    }
+
+    private static bool IsRawSqlCommandBuilderServiceResolution(ExpressionSyntax expression)
+    {
+        var generic = expression.DescendantNodesAndSelf()
             .OfType<GenericNameSyntax>()
             .Any(generic => generic.Identifier.ValueText == "GetService"
                 && generic.TypeArgumentList.Arguments.Any(argument =>
                     argument.ToString() == "IRawSqlCommandBuilder"));
+        if (generic)
+        {
+            return true;
+        }
+
+        return expression.DescendantNodesAndSelf()
+            .OfType<InvocationExpressionSyntax>()
+            .Any(service => service.Expression is MemberAccessExpressionSyntax
+                {
+                    Name.Identifier.ValueText: "GetService",
+                }
+                && service.ArgumentList.Arguments.Any(argument =>
+                    argument.Expression is TypeOfExpressionSyntax typeOf
+                    && typeOf.Type.ToString() == "IRawSqlCommandBuilder"));
     }
 
     private static bool HasRelationalCommandExecution(InvocationExpressionSyntax build)

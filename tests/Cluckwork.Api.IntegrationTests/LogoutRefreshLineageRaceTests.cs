@@ -311,11 +311,11 @@ public sealed class LogoutRefreshLineageRaceTests(LogoutRefreshLineageRaceFactor
         var refreshTask = client.PostRefreshAsync(
             presented.RefreshToken, expectedAccount: accountId.ToString());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await factory.RefreshRotation.WaitUntilReachedAsync(timeout.Token);
 
         HttpResponseMessage logout;
         try
         {
+            await factory.RefreshRotation.WaitUntilReachedAsync(timeout.Token);
             logout = await client.PostLogoutAsync(presented.RefreshToken, accountId: accountId);
         }
         finally
@@ -352,11 +352,11 @@ public sealed class LogoutRefreshLineageRaceTests(LogoutRefreshLineageRaceFactor
         factory.LogoutTipUpdate.Arm();
         var logoutTask = client.PostLogoutAsync(presented.RefreshToken, accountId: accountId);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await factory.LogoutTipUpdate.WaitUntilReachedAsync(timeout.Token);
 
         HttpResponseMessage refresh;
         try
         {
+            await factory.LogoutTipUpdate.WaitUntilReachedAsync(timeout.Token);
             refresh = await client.PostRefreshAsync(
                 presented.RefreshToken, expectedAccount: accountId.ToString());
         }
@@ -398,24 +398,31 @@ public sealed class LogoutRefreshLineageRaceTests(LogoutRefreshLineageRaceFactor
         factory.LogoutTipUpdate.Arm();
         var logoutTask = client.PostLogoutAsync(parent.RefreshToken, accountId: accountId);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await factory.LogoutTipUpdate.WaitUntilReachedAsync(timeout.Token);
-
-        var refresh = await client.PostRefreshAsync(
-            child.RefreshToken, expectedAccount: accountId.ToString());
-        refresh.EnsureSuccessStatusCode();
-
-        factory.LogoutZeroRowReread.Arm();
-        factory.LogoutTipUpdate.Release();
-        await factory.LogoutZeroRowReread.WaitUntilReachedAsync(timeout.Token);
 
         try
         {
-            var pointer = await ReplacementPointerAsync(accountId, parentId);
-            Assert.NotNull(pointer);
+            await factory.LogoutTipUpdate.WaitUntilReachedAsync(timeout.Token);
+
+            var refresh = await client.PostRefreshAsync(
+                child.RefreshToken, expectedAccount: accountId.ToString());
+            refresh.EnsureSuccessStatusCode();
+
+            factory.LogoutZeroRowReread.Arm();
+            factory.LogoutTipUpdate.Release();
+            try
+            {
+                await factory.LogoutZeroRowReread.WaitUntilReachedAsync(timeout.Token);
+                var pointer = await ReplacementPointerAsync(accountId, parentId);
+                Assert.NotNull(pointer);
+            }
+            finally
+            {
+                factory.LogoutZeroRowReread.Release();
+            }
         }
         finally
         {
-            factory.LogoutZeroRowReread.Release();
+            factory.LogoutTipUpdate.Release();
         }
 
         Assert.Equal(1, factory.LogoutTipUpdate.Hits);
@@ -443,12 +450,13 @@ public sealed class LogoutRefreshLineageRaceTests(LogoutRefreshLineageRaceFactor
         var staleRefreshTask = client.PostRefreshAsync(
             parent.RefreshToken, expectedAccount: accountId.ToString());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await factory.GraceInspection.WaitUntilReachedAsync(timeout.Token);
-
-        var logoutTask = client.PostLogoutAsync(parent.RefreshToken, accountId: accountId);
-        var separateSeverTask = factory.LogoutAncestorSever.WaitUntilReachedAsync(timeout.Token);
+        Task<HttpResponseMessage> logoutTask;
         try
         {
+            await factory.GraceInspection.WaitUntilReachedAsync(timeout.Token);
+
+            logoutTask = client.PostLogoutAsync(parent.RefreshToken, accountId: accountId);
+            var separateSeverTask = factory.LogoutAncestorSever.WaitUntilReachedAsync(timeout.Token);
             var first = await Task.WhenAny(logoutTask, separateSeverTask);
             if (first == separateSeverTask)
             {

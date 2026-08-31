@@ -215,6 +215,86 @@ public sealed class TenantBypassAllowListTests : IDisposable
     }
 
     [Fact]
+    public void LowLevelRawSqlBuild_IsDiscoveredFromGenericGetServiceLocal()
+    {
+        WriteSource("src/LowLevel.cs", """
+            namespace LowLevel;
+            public class Runner
+            {
+                public async Task<bool> ExecuteAsync()
+                {
+                    const string sql = "SELECT TRUE";
+                    var builder = db.GetService<IRawSqlCommandBuilder>();
+                    var rawCommand = builder.Build(sql, [], db.Model);
+                    return await rawCommand.RelationalCommand.ExecuteScalarAsync(parameters, ct) is true;
+                }
+            }
+            """);
+
+        var report = Scan(_tempRoot, WriteAllowList(
+            ("LowLevel.Runner.ExecuteAsync()", "src/LowLevel.cs", "test fixture")));
+
+        var occurrence = Assert.Single(report.Occurrences,
+            o => o.Kind == BypassKind.RawSql
+                && o.EnclosingSymbol == "LowLevel.Runner.ExecuteAsync()");
+        Assert.Contains("IRawSqlCommandBuilder.Build", occurrence.Detail);
+        Assert.Contains("SELECT TRUE", occurrence.RawSqlText);
+        Assert.Empty(GuardScanner.Evaluate(report));
+    }
+
+    [Fact]
+    public void LowLevelRawSqlBuild_IsDiscoveredFromNonGenericGetServiceLocal()
+    {
+        WriteSource("src/LowLevel.cs", """
+            namespace LowLevel;
+            public class Runner
+            {
+                public async Task<bool> ExecuteAsync()
+                {
+                    const string sql = "SELECT TRUE";
+                    var builder = (IRawSqlCommandBuilder)db.GetService(typeof(IRawSqlCommandBuilder));
+                    var rawCommand = builder.Build(sql, [], db.Model);
+                    return await rawCommand.RelationalCommand.ExecuteScalarAsync(parameters, ct) is true;
+                }
+            }
+            """);
+
+        var report = Scan(_tempRoot, WriteAllowList(
+            ("LowLevel.Runner.ExecuteAsync()", "src/LowLevel.cs", "test fixture")));
+
+        var occurrence = Assert.Single(report.Occurrences,
+            o => o.Kind == BypassKind.RawSql
+                && o.EnclosingSymbol == "LowLevel.Runner.ExecuteAsync()");
+        Assert.Contains("IRawSqlCommandBuilder.Build", occurrence.Detail);
+        Assert.Contains("SELECT TRUE", occurrence.RawSqlText);
+        Assert.Empty(GuardScanner.Evaluate(report));
+    }
+
+    [Fact]
+    public void LowLevelRawSqlBuild_RowLockWithoutAccountIdPredicateFails()
+    {
+        WriteSource("src/LowLevel.cs", """
+            namespace LowLevel;
+            public class Runner
+            {
+                public async Task<bool> ExecuteAsync()
+                {
+                    const string sql = "SELECT * FROM refresh_tokens WHERE \"TokenHash\" = @hash FOR UPDATE";
+                    var rawCommand = db.GetService<IRawSqlCommandBuilder>().Build(sql, [], db.Model);
+                    return await rawCommand.RelationalCommand.ExecuteScalarAsync(parameters, ct) is true;
+                }
+            }
+            """);
+
+        var report = Scan(_tempRoot, WriteAllowList(
+            ("LowLevel.Runner.ExecuteAsync()", "src/LowLevel.cs", "test fixture")));
+
+        Assert.Contains(GuardScanner.Evaluate(report), failure =>
+            failure.Contains("raw-SQL row lock missing an AccountId predicate (M4)", StringComparison.Ordinal)
+            && failure.Contains("IRawSqlCommandBuilder.Build", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void LowLevelRawSqlBuild_RequiresRelationalCommandExecution()
     {
         WriteSource("src/LowLevel.cs", """
