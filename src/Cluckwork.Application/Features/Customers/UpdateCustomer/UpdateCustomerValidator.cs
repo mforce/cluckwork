@@ -8,7 +8,11 @@ public sealed class UpdateCustomerValidator : AbstractValidator<UpdateCustomerCo
     public UpdateCustomerValidator()
     {
         RuleFor(x => x.CustomerId).NotEmpty().WithErrorCode("Customer.CustomerId.Required");
-        RuleFor(x => x.Version).GreaterThanOrEqualTo(0).WithErrorCode("Customer.Version.NonNegative");
+        // An omitted Version binds to null (never the framework default 0),
+        // so a caller who never actually loaded the row cannot silently pass
+        // as if it had — see #625 review round 5 (CodeRabbit CR-1).
+        RuleFor(x => x.Version).NotNull().WithErrorCode("Customer.Version.Required")
+            .GreaterThanOrEqualTo(0).WithErrorCode("Customer.Version.NonNegative");
         RuleFor(x => x.Name).Must(v => !string.IsNullOrWhiteSpace(v)).WithMessage("Name is required.")
             .WithErrorCode("Customer.Name.Required").MaximumLength(Customer.MaxNameLength)
             .WithErrorCode("Customer.Name.MaxLength");

@@ -703,6 +703,36 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         Assert.Contains("Customer.Name.MaxLength", nameCodes);
     }
 
+    // #625 review round 5 (CodeRabbit CR-1) — an OMITTED version field must
+    // not silently bind to 0 and pass as if the caller explicitly loaded and
+    // sent a Version-0 row: that would let an update through with no real
+    // concurrency check at all for a brand-new customer. The request body
+    // below carries no "version" key.
+    [Fact]
+    public async Task Customer_Update_MissingVersion_400WithExactRequiredErrorCode_AndNoMutation()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000" })); // Version 0
+
+        var response = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { name = "Changed Name", phone = "555-9999" }); // no "version" key at all
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(doc.RootElement.TryGetProperty("errorCodes", out var codes));
+        var versionCodes = codes.GetProperty("Version").EnumerateArray()
+            .Select(e => e.GetString()).ToList();
+        Assert.Equal(["Customer.Version.Required"], versionCodes);
+
+        var got = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Equal("Original", got!.Name);
+        Assert.Equal("555-0000", got.Phone);
+        Assert.Equal(0, got.Version);
+    }
+
     // #625 review round 1 — Update() normalizes blank optionals to null; this
     // proves it end to end: a customer created with every optional field
     // populated, then PUT with them blanked, persists as null (not "").

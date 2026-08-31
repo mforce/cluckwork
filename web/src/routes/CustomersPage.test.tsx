@@ -6,6 +6,9 @@ import { createCustomer, listCustomerBalances, listCustomers, updateCustomer } f
 import type { Customer, CustomerBalances } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
+import { en } from "../i18n/en";
+import { es } from "../i18n/es";
+import { tl } from "../i18n/tl";
 
 // Keep the real formatMoney (renders the outstanding column); stub the network.
 vi.mock("../api/cluckwork", async (importOriginal) => {
@@ -403,7 +406,7 @@ describe("CustomersPage i18n wiring (#182, Task 24)", () => {
 // the session that replaced it"), landed in #489.
 // #625 — edit an existing customer's details.
 const openEdit = (name: string) =>
-  fireEvent.click(within(screen.getByRole("row", { name: new RegExp(name) })).getByRole("button", { name: "Edit" }));
+  fireEvent.click(within(screen.getByRole("row", { name: new RegExp(name) })).getByRole("button", { name: "edit" }));
 const submitEdit = async () => {
   await act(async () => {
     fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
@@ -422,6 +425,16 @@ describe("CustomersPage edit (#625)", () => {
     expect(within(dialog()).getByLabelText("Email")).toHaveValue("a@x.co");
     expect(within(dialog()).getByLabelText("Address")).toHaveValue("1 St");
     expect(within(dialog()).getByLabelText("Note")).toHaveValue("vip");
+  });
+
+  // #625 review round 5 (CodeRabbit CR-2, mechanical) — `editButton` was the
+  // one sibling row-action label capitalized ("Edit"/"Editar"/"I-edit") among
+  // every other lowercase row action across the catalogs; pinned lowercase in
+  // all three so it can't silently drift back.
+  it("keeps the customers editButton label lowercase in every catalog", () => {
+    expect(en.customers.editButton).toBe("edit");
+    expect(es.customers.editButton).toBe("editar");
+    expect(tl.customers.editButton).toBe("i-edit");
   });
 
   it("edits every field and sends the full new payload", async () => {

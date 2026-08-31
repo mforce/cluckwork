@@ -29,6 +29,23 @@ public sealed class UpdateCustomerValidatorTests
     {
         var result = await _validator.ValidateAsync(Valid() with { Version = -1 });
         Assert.Contains(result.Errors, e => e.ErrorCode == "Customer.Version.NonNegative");
+        // Exactly NonNegative, not also Required: a present-but-negative
+        // value must not trip the null check too.
+        Assert.DoesNotContain(result.Errors, e => e.ErrorCode == "Customer.Version.Required");
+    }
+
+    // #625 review round 5 (CodeRabbit CR-1) — an omitted Version binds to
+    // null (never the framework default 0), so it must fail its OWN explicit
+    // code rather than silently passing as a valid Version-0 row.
+    [Fact]
+    public async Task NullVersion_Fails()
+    {
+        var result = await _validator.ValidateAsync(Valid() with { Version = null });
+        Assert.Contains(result.Errors, e => e.ErrorCode == "Customer.Version.Required");
+        // Exactly Required, not also NonNegative: FluentValidation's
+        // comparison validators treat null as vacuously non-negative, so a
+        // null value must not ALSO trip the >= 0 check.
+        Assert.DoesNotContain(result.Errors, e => e.ErrorCode == "Customer.Version.NonNegative");
     }
 
     [Fact]

@@ -1662,7 +1662,7 @@ export const en = {
     addCustomerButton: "Add customer",
 
     // Edit-customer dialog (#625) — reuses the create dialog's field labels.
-    editButton: "Edit",
+    editButton: "edit",
     editCustomerTitle: "Edit {{name}}",
 
     // Imperative messages (mount-effect .catch callbacks — see

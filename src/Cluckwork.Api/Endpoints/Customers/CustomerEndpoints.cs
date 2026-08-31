@@ -110,7 +110,7 @@ public sealed record CreateCustomerRequest(
     string Name, string Phone, string? Email = null, string? Address = null, string? Note = null);
 
 public sealed record UpdateCustomerRequest(
-    int Version, string Name, string Phone, string? Email = null, string? Address = null, string? Note = null);
+    int? Version, string Name, string Phone, string? Email = null, string? Address = null, string? Note = null);
 
 public sealed record CustomerResponse(
     Guid Id, string Name, string Phone, string? Email, string? Address, string? Note, int Version);

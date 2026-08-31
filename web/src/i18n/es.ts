@@ -1336,7 +1336,7 @@ export const es = {
     addCustomerButton: "Agregar cliente",
 
     // Edit-customer dialog (#625)
-    editButton: "Editar",
+    editButton: "editar",
     editCustomerTitle: "Editar {{name}}",
 
     // Imperative messages

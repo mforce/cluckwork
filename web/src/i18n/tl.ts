@@ -1381,7 +1381,7 @@ export const tl = {
     addCustomerButton: "Magdagdag ng customer",
 
     // Edit-customer dialog (#625)
-    editButton: "I-edit",
+    editButton: "i-edit",
     editCustomerTitle: "I-edit ang {{name}}",
 
     // Imperative messages
