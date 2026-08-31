@@ -475,11 +475,20 @@ export function FlocksPage() {
             </form>
           </Dialog>
 
+          {/* #511 round 5 — the error renders BESIDE the rows, never instead of
+              them. usePagedList keeps `rows` and `hasMore` when an EXTENSION
+              fails (only a failed REPLACEMENT empties them), so a branch that
+              swapped the table for the message threw away everything the user
+              had paged to over one transient load-more failure. That is AC3:
+              a failed extension keeps already-loaded rows and permits retry.
+              CustomersPage had this right from the start — it is the shape
+              copied here. A failed REPLACEMENT still shows the message alone,
+              because the hook has emptied `rows` by then and the empty branch
+              below does not fire on `error`. */}
+          {ledger.error && <p className="error">{ledger.error}</p>}
           {ledger.rows === null || ledger.reloading ? (
             <p className="muted">{tc("loading")}</p>
-          ) : ledger.error ? (
-            <p className="error">{ledger.error}</p>
-          ) : ledger.rows.length === 0 ? (
+          ) : ledger.rows.length === 0 && !ledger.error ? (
             <p className="muted">{t("noMovementsMessage")}</p>
           ) : (
             <table className="data">

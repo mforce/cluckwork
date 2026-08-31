@@ -1188,4 +1188,26 @@ describe("InventoryPage ledger paging (#511)", () => {
     expect(await screen.findByText("Could not load the item's lots.")).toBeInTheDocument();
     expect(screen.queryByText("Could not load the movement ledger.")).not.toBeInTheDocument();
   });
+
+  it("keeps the loaded movements on screen when a load-more fails, and offers the retry", async () => {
+    // AC3. usePagedList keeps `rows` and `hasMore` when an EXTENSION fails —
+    // only a failed REPLACEMENT empties them — so the screen must not throw
+    // the table away on `error`. Paging deep and hitting one transient failure
+    // must not cost the user everything already on screen.
+    mockListMovements.mockResolvedValueOnce(invMovementPage(100));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    await screen.findByText("im note 000");
+
+    mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+
+    // The error is shown...
+    expect(screen.getByText("Could not load the movement ledger.")).toBeInTheDocument();
+    // ...and the rows already loaded are STILL THERE, with the pager to retry.
+    expect(screen.getByText("im note 000")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "load more" })).toBeInTheDocument();
+  });
 });
