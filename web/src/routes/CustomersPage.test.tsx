@@ -884,29 +884,39 @@ describe("CustomersPage paging (#511)", () => {
     const zulu: Customer = {
       id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null, version: 4,
     };
+    const findCustomerRow = async (name: string) => {
+      const cell = await screen.findByText(name, { selector: "td" });
+      const row = cell.closest("tr");
+      expect(row).not.toBeNull();
+      return row as HTMLElement;
+    };
     mockList.mockResolvedValueOnce(customerPage(100));
     renderWithProviders(<CustomersPage />, { token: WORKER });
-    await screen.findByRole("row", { name: /p customer 000/ });
+    await findCustomerRow("p customer 000");
 
     mockList.mockResolvedValueOnce([zulu]);
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+      fireEvent.click(screen.getByText("load more", { selector: "button" }));
     });
-    await screen.findByRole("row", { name: /Zulu Farm/ });
+    const zuluRow = await findCustomerRow("Zulu Farm");
 
     mockList.mockResolvedValueOnce(customerPage(100));
     mockList.mockResolvedValueOnce([{ ...zulu, name: "Zulu Farm Updated", version: 5 }]);
-    openEdit("Zulu Farm");
-    await screen.findByRole("dialog", { name: "Edit Zulu Farm" });
-    fireEvent.change(within(dialog()).getByLabelText("Name *"), {
+    fireEvent.click(within(zuluRow).getByRole("button", { name: "edit" }));
+    const dialogHeading = await screen.findByText("Edit Zulu Farm", { selector: "h3" });
+    const editDialog = dialogHeading.closest('[role="dialog"]');
+    expect(editDialog).not.toBeNull();
+    fireEvent.change(within(editDialog as HTMLElement).getByLabelText("Name *"), {
       target: { value: "Zulu Farm Updated" },
     });
-    await submitEdit();
+    await act(async () => {
+      fireEvent.click(within(editDialog as HTMLElement).getByRole("button", { name: "Save" }));
+    });
 
     expect(mockList.mock.calls.slice(-2).map(([params]) => params?.offset)).toEqual([0, 100]);
-    expect(screen.getByRole("row", { name: /p customer 000/ })).toBeInTheDocument();
-    expect(await screen.findByRole("row", { name: /Zulu Farm Updated/ })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await findCustomerRow("Zulu Farm Updated")).toBeInTheDocument();
+    expect(screen.getByText("p customer 000", { selector: "td" })).toBeInTheDocument();
+    expect(editDialog).not.toBeInTheDocument();
   });
 
   it("keeps the loaded rows when EXTENDING fails, and offers the retry", async () => {
