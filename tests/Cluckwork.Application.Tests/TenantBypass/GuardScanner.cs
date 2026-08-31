@@ -502,7 +502,7 @@ public static class GuardScanner
         // statement (its `;` is only at the end), so the CTE fix survives; a
         // previous statement's AccountId can no longer launder the lock. (Npgsql
         // batches multi-statement text, so this is a real execution shape.)
-        var noComments = StripSqlComments(sqlText);
+        var noComments = StripSqlComments(StripSingleQuotedSqlLiterals(sqlText));
         var statements = noComments.Split(';', StringSplitOptions.RemoveEmptyEntries);
 
         // The statement carrying the lock keyword is the one whose predicate we
@@ -570,11 +570,10 @@ public static class GuardScanner
     }
 
     // Strip `-- line` and `/* block */` comments from SQL text. A `--` runs to
-    // end of line; a `/* */` runs to the matching close. Quote-aware enough for
-    // the repo's SQL (double-quoted identifiers, single-quoted literals) — a
-    // `--` inside a literal is not present in the current src/ raw-SQL, and a
-    // mis-strip would only remove text, never add an AccountId, so the risk is a
-    // false-red, not a false-green.
+    // end of line; a `/* */` runs to the matching close. Predicate scanning
+    // blanks single-quoted literals before calling this helper, so comment
+    // markers inside values cannot affect the walk while quoted identifiers
+    // remain intact.
     private static string StripSqlComments(string sql)
     {
         var sb = new System.Text.StringBuilder(sql.Length);
@@ -601,6 +600,61 @@ public static class GuardScanner
             }
         }
         return sb.ToString();
+    }
+
+    // Single-quoted SQL literals are values, never identifier references. Blank
+    // their contents before the AccountId predicate walk so a value such as
+    // 'tenant''s AccountId' cannot launder an unscoped lock. Preserve newlines
+    // and string length for the comment/statement scans that follow, and leave
+    // double-quoted PostgreSQL identifiers untouched.
+    private static string StripSingleQuotedSqlLiterals(string sql)
+    {
+        var chars = sql.ToCharArray();
+        var i = 0;
+        while (i < chars.Length)
+        {
+            if (chars[i] != '\'')
+            {
+                i++;
+                continue;
+            }
+
+            chars[i++] = ' ';
+            while (i < chars.Length)
+            {
+                if (chars[i] == '\\' && i + 1 < chars.Length)
+                {
+                    chars[i++] = ' ';
+                    if (chars[i] != '\n' && chars[i] != '\r')
+                    {
+                        chars[i] = ' ';
+                    }
+                    i++;
+                    continue;
+                }
+
+                if (chars[i] != '\'')
+                {
+                    if (chars[i] != '\n' && chars[i] != '\r')
+                    {
+                        chars[i] = ' ';
+                    }
+                    i++;
+                    continue;
+                }
+
+                chars[i++] = ' ';
+                if (i < chars.Length && chars[i] == '\'')
+                {
+                    chars[i++] = ' ';
+                    continue;
+                }
+
+                break;
+            }
+        }
+
+        return new string(chars);
     }
 
     internal static IReadOnlyList<string> FindScopedUpdateArmViolations(
@@ -1060,8 +1114,26 @@ public static class GuardScanner
             .LastOrDefault(candidate =>
                 candidate.Identifier.ValueText == identifier.Identifier.ValueText);
 
-        return declaration?.Initializer?.Value is { } initializer
-            && IsRawSqlCommandBuilderServiceResolution(initializer);
+        if (declaration?.Initializer?.Value is { } initializer)
+        {
+            return IsRawSqlCommandBuilderServiceResolution(initializer);
+        }
+
+        if (declaration is null)
+        {
+            return false;
+        }
+
+        var assignment = method!.DescendantNodes()
+            .OfType<AssignmentExpressionSyntax>()
+            .Where(candidate => declaration.SpanStart < candidate.SpanStart
+                && candidate.SpanStart < invocation.SpanStart
+                && candidate.IsKind(SyntaxKind.SimpleAssignmentExpression))
+            .LastOrDefault(candidate => candidate.Left is IdentifierNameSyntax assigned
+                && assigned.Identifier.ValueText == identifier.Identifier.ValueText);
+
+        return assignment is not null
+            && IsRawSqlCommandBuilderServiceResolution(assignment.Right);
     }
 
     private static bool IsRawSqlCommandBuilderServiceResolution(ExpressionSyntax expression)
