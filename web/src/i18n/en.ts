@@ -836,6 +836,7 @@ export const en = {
     invalidCostError: "Invalid cost.",
     itemCreatedMessage: "Item created.",
     loadLedgerFailed: "Could not load the movement ledger.",
+    loadLotsFailed: "Could not load the item's lots.",
     quantityMustBePositive: "Quantity must be a positive number.",
     purchaseRecordedMessage: "Purchase recorded — stock received.",
     adjustQuantityRequired: "Adjustment quantity must be a non-zero number (negative removes stock).",
@@ -910,6 +911,7 @@ export const en = {
     ledgerQuantityHeader: "Quantity",
     ledgerNoteHeader: "Note",
     noMovementsMessage: "No movements yet — record a purchase above.",
+    loadMoreButton: "load more",
     closeButton: "close",
 
     // Items table
@@ -1218,6 +1220,7 @@ export const en = {
     ledgerTypeHeader: "Type",
     ledgerBirdsHeader: "Birds",
     ledgerNoteHeader: "Note",
+    loadMoreButton: "load more",
   },
   // Farm settings — admin localization + logo (#123, #149) + the currency
   // lock (§4.6) (Task 21, #182, batch B4). `settings` is in
@@ -1674,6 +1677,7 @@ export const en = {
     addressHeader: "Address",
     noteHeader: "Note",
     outstandingHeader: "Outstanding",
+    loadMoreButton: "load more",
   },
   // Daily-entry history — browse recorded entries with flock/date filters,
   // plus the admin-only adjust/void corrections (Task 27, #182, batch B5 —

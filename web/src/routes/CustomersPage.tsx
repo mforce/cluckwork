@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
@@ -9,10 +9,15 @@ import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
+import { usePagedList } from "../components/usePagedList";
 import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
+
+// Matches the endpoint's DefaultPageSize (CustomerEndpoints.cs) so a full page
+// is exactly what the server considers one.
+const CUSTOMER_PAGE = 100;
 
 // #23: customer book — name + phone required, the rest optional.
 export function CustomersPage() {
@@ -22,7 +27,21 @@ export function CustomersPage() {
   // Balances are money data (#89): the column renders for admins only and the
   // API refuses workers regardless.
   const { isAdmin } = useAuth();
-  const [customers, setCustomers] = useState<Customer[] | null>(null);
+  // #511 — the customer book is server-paged and unbounded; rendering one page
+  // with no pager silently hid every alphabetically later customer. The empty
+  // dep array is load-bearing: this list has no filter, so `fetchPage` keeps
+  // ONE identity for the life of the screen, and the hook's "a new fetchPage
+  // identity IS a filter change" effect never re-fires.
+  const fetchCustomers = useCallback(
+    (offset: number, limit: number) => listCustomers({ limit, offset }),
+    [],
+  );
+  const customerList = usePagedList<Customer>({
+    fetchPage: fetchCustomers,
+    pageSize: CUSTOMER_PAGE,
+    errorText: () => i18n.t("customers:loadCustomersErrorMessage"),
+  });
+  const customers = customerList.rows;
   const [balances, setBalances] = useState<CustomerBalances | null>(null);
   // #479 — one slot per PLACE a message can appear. Both reads below belong to
   // the page; the create form's failures belong to the form.
@@ -37,12 +56,6 @@ export function CustomersPage() {
   const [note, setNote] = useState("");
   const { busy, run } = usePendingAction();
   const createKey = useRef<string>(newId());
-
-  const load = () =>
-    listCustomers().then(setCustomers)
-      .catch(() => setPageError(i18n.t("customers:loadCustomersErrorMessage")));
-
-  useEffect(() => { void load(); }, []);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -74,16 +87,17 @@ export function CustomersPage() {
     await run("create", async () => {
       errors.beginAttempt("create");
       try {
-        await createCustomer({
-          name, phone,
-          email: email || undefined,
-          address: address || undefined,
-          note: note || undefined,
-        }, createKey.current);
+        await customerList.runWrite(async () => {
+          await createCustomer({
+            name, phone,
+            email: email || undefined,
+            address: address || undefined,
+            note: note || undefined,
+          }, createKey.current);
+        });
         createKey.current = newId();
         setName(""); setPhone(""); setEmail(""); setAddress(""); setNote("");
         setCreating(false);
-        await load();
       } catch (err) {
         errors.report("create", err instanceof ApiError ? err.message : String(err));
       }
@@ -131,6 +145,7 @@ export function CustomersPage() {
           dialog's message now lives in a slot only the dialog renders, so
           there is nothing here to double up on or to inherit. */}
       {errors.page && <p className="error">{errors.page}</p>}
+      {customerList.error && <p className="error">{customerList.error}</p>}
 
       {customers === null ? (
         <p className="muted">{tc("loading")}</p>
@@ -163,6 +178,15 @@ export function CustomersPage() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {customerList.canLoadMore && (
+        // Rendered from canLoadMore, which folds in `loading`: the control is
+        // withdrawn for the duration of its own flight, so two rapid clicks
+        // cannot append the same page twice.
+        <button className="link" onClick={() => void customerList.loadMore()}>
+          {t("loadMoreButton")}
+        </button>
       )}
     </section>
   );

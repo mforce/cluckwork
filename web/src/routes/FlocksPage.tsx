@@ -18,6 +18,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useConfirm } from "../components/useConfirm";
 import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
+import { usePagedList } from "../components/usePagedList";
 import { useAuth } from "../auth/useAuth";
 import { ageWeeks } from "../lib/dates";
 import { useFarmToday } from "../farm/useFarm";
@@ -29,6 +30,10 @@ function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
 }
+
+// The ledger's previous hard cap, kept as the page size: the endpoint's own
+// max is 500, and 50 is what this screen has always shown at once.
+const LEDGER_PAGE = 50;
 
 // F7 (#47): manage flocks — create, correct identity fields, deplete, archive.
 // Archived flocks leave pickers and the dashboard; this screen still shows them
@@ -73,7 +78,6 @@ export function FlocksPage() {
 
   // bird ledger (#54): one flock's movements open at a time
   const [ledgerFlockId, setLedgerFlockId] = useState<string | null>(null);
-  const [movements, setMovements] = useState<BirdMovement[] | null>(null);
   const [mvDate, setMvDate] = useState(today);
   const [mvType, setMvType] = useState("Cull");
   const [mvQty, setMvQty] = useState(1);
@@ -199,29 +203,32 @@ export function FlocksPage() {
     if (ok) setEditingId(null);
   }
 
-  // Guards the async fetch: only the ledger currently open may write state,
-  // so a slow response for flock A can't render under flock B's heading.
-  const ledgerRequest = useRef<string | null>(null);
+  // #511 — the ledger is server-paged; the open flock IS the fetch identity, so
+  // "the user switched flocks" and "reload from the top" are one event and
+  // cannot drift apart. This replaces the hand-rolled ledgerRequest ref.
+  const fetchMovements = useCallback(
+    (offset: number, limit: number) =>
+      ledgerFlockId
+        ? listBirdMovements(ledgerFlockId, { limit, offset })
+        : Promise.resolve<BirdMovement[]>([]),
+    [ledgerFlockId],
+  );
+  const ledger = usePagedList<BirdMovement>({
+    fetchPage: fetchMovements,
+    pageSize: LEDGER_PAGE,
+    errorText: () => i18n.t("flocks:loadMovementsFailed"),
+  });
 
   const closeRecordMovement = () => { setRecording(false); errors.abandon("record-movement"); };
 
-  async function openLedger(id: string) {
+  function openLedger(id: string) {
     closeRecordMovement(); // a movement dialog belongs to the ledger that opened it
     if (ledgerFlockId === id) {
       setLedgerFlockId(null);
-      ledgerRequest.current = null;
       return;
     }
     setLedgerFlockId(id);
-    setMovements(null);
     setMvDate(today);
-    ledgerRequest.current = id;
-    try {
-      const rows = await listBirdMovements(id, { limit: 50 });
-      if (ledgerRequest.current === id) setMovements(rows);
-    } catch {
-      if (ledgerRequest.current === id) setPageError(i18n.t("flocks:loadMovementsFailed"));
-    }
   }
 
   async function onRecordMovement(e: FormEvent) {
@@ -229,12 +236,12 @@ export function FlocksPage() {
     if (!ledgerFlockId) return;
     const id = ledgerFlockId;
     const ok = await run(`movement:${id}`, "record-movement", async (key) => {
-      await recordBirdMovement(id, {
-        date: mvDate, type: mvType, quantity: mvQty,
-        note: mvNote || undefined,
-      }, key);
-      const rows = await listBirdMovements(id, { limit: 50 });
-      if (ledgerRequest.current === id) setMovements(rows);
+      await ledger.runWrite(async () => {
+        await recordBirdMovement(id, {
+          date: mvDate, type: mvType, quantity: mvQty,
+          note: mvNote || undefined,
+        }, key);
+      });
     });
     if (ok) {
       setMvQty(1);
@@ -468,9 +475,20 @@ export function FlocksPage() {
             </form>
           </Dialog>
 
-          {movements === null ? (
+          {/* #511 round 5 — the error renders BESIDE the rows, never instead of
+              them. usePagedList keeps `rows` and `hasMore` when an EXTENSION
+              fails (only a failed REPLACEMENT empties them), so a branch that
+              swapped the table for the message threw away everything the user
+              had paged to over one transient load-more failure. That is AC3:
+              a failed extension keeps already-loaded rows and permits retry.
+              CustomersPage had this right from the start — it is the shape
+              copied here. A failed REPLACEMENT still shows the message alone,
+              because the hook has emptied `rows` by then and the empty branch
+              below does not fire on `error`. */}
+          {ledger.error && <p className="error">{ledger.error}</p>}
+          {ledger.rows === null || ledger.reloading ? (
             <p className="muted">{tc("loading")}</p>
-          ) : movements.length === 0 ? (
+          ) : ledger.rows.length === 0 && !ledger.error ? (
             <p className="muted">{t("noMovementsMessage")}</p>
           ) : (
             <table className="data">
@@ -478,7 +496,7 @@ export function FlocksPage() {
                 <tr><th>{t("ledgerDateHeader")}</th><th>{t("ledgerTypeHeader")}</th><th>{t("ledgerBirdsHeader")}</th><th>{t("ledgerNoteHeader")}</th></tr>
               </thead>
               <tbody>
-                {movements.map((m) => (
+                {ledger.rows.map((m) => (
                   <tr key={m.id}>
                     <td>{m.date}</td>
                     <td>{flockMovementLabel(m.type)}</td>
@@ -488,6 +506,11 @@ export function FlocksPage() {
                 ))}
               </tbody>
             </table>
+          )}
+          {ledger.canLoadMore && (
+            <button className="link" onClick={() => void ledger.loadMore()}>
+              {t("loadMoreButton")}
+            </button>
           )}
         </div>
       )}
