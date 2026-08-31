@@ -668,6 +668,11 @@ describe("CustomersPage edit (#625)", () => {
     openEdit("New Name");
     await screen.findByRole("dialog", { name: "Edit New Name" });
 
+    // #625 review round 4 — the PRIOR attempt's refresh failure must not
+    // leak into this new session: closeEdit's errors.abandon("edit-customer")
+    // mutes it, so the reopened dialog starts with a clean slate.
+    expect(within(dialog()).queryByText(/Server error|boom/)).not.toBeInTheDocument();
+
     // The reopened form shows the NORMALIZED committed values — trimmed
     // required fields, whitespace-only optionals cleared to blank — not the
     // pre-write row and not the raw padded/whitespace input.
