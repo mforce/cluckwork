@@ -2,6 +2,12 @@ namespace Cluckwork.Application.Common;
 
 using Cluckwork.Domain.Catalog;
 
+public enum RefreshTokenRevocationOutcome
+{
+    OutOfScope,
+    InScope,
+}
+
 // Port — abstraction over ASP.NET Core Identity + JWT. Swap to Keycloak/Entra
 // in a future IIdentityProvider implementation without touching Application.
 public interface IIdentityProvider
@@ -24,11 +30,13 @@ public interface IIdentityProvider
         string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null);
 
     // When expectedAccountId is present, resolve the stored token's account and
-    // do nothing unless it matches. Logout uses this for the temporary shared
-    // legacy cookie: a browser may hold that cookie for one farm alongside a
-    // selected per-farm cookie for another. Null preserves the unconditional
-    // legacy-only logout contract.
-    Task RevokeRefreshTokenAsync(
+    // do nothing unless it matches. The outcome reflects the durable owner
+    // lookup, not the number of rows changed: an already-revoked retained row
+    // is still in scope, while an unknown or foreign row is not. Logout uses
+    // that distinction to decide whether its temporary legacy cookie belongs
+    // to the selected farm and may be cleared. Null preserves unconditional
+    // legacy-only revocation.
+    Task<RefreshTokenRevocationOutcome> RevokeRefreshTokenAsync(
         string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null);
 
     // #308/#336 review — record that THIS user logged out, independently of any

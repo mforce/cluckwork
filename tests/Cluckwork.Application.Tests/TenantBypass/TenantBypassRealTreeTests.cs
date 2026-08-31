@@ -34,6 +34,33 @@ public sealed class TenantBypassRealTreeTests
             "tenant-bypass guard failed:\n  " + string.Join("\n  ", failures));
     }
 
+    [Fact]
+    public void AtomicLogoutCte_BothUpdateArmsRetainOwnerScope()
+    {
+        const string symbol =
+            "Cluckwork.Infrastructure.Identity.IdentityProvider.ExecuteLineageFenceAsync(string currentHash, " +
+            "string[] ancestorHashes, Guid rootUserId, Guid rootAccountId, int rootIssuedEpoch, " +
+            "DateTimeOffset now, string rotatedStamp, CancellationToken ct)";
+        var report = GuardScanner.Scan(SrcRoot(), AllowListPath());
+        var occurrence = Assert.Single(report.Occurrences, candidate =>
+            candidate.Kind == BypassKind.RawSql
+            && candidate.EnclosingSymbol == symbol
+            && candidate.Detail == "IRawSqlCommandBuilder.Build");
+
+        Assert.DoesNotContain(report.RawSqlExecutionViolations, violation =>
+            violation.Contains(symbol, StringComparison.Ordinal));
+        Assert.False(string.IsNullOrWhiteSpace(occurrence.RawSqlText));
+
+        var violations = GuardScanner.FindScopedUpdateArmViolations(
+            occurrence.RawSqlText!,
+            expectedUpdateArmCount: 2,
+            ("UserId", "rootUserId"),
+            ("AccountId", "rootAccountId"),
+            ("IssuedEpoch", "rootIssuedEpoch"));
+        Assert.True(violations.Count == 0,
+            "atomic logout CTE owner-scope guard failed:\n  " + string.Join("\n  ", violations));
+    }
+
     // The filter-free-set leg against the REAL tree — a STABILITY test, not a
     // shape gate. The scanner finds every db.<Table> access where <Table> is a
     // filter-free entity carrying an AccountId column (a tenant table the

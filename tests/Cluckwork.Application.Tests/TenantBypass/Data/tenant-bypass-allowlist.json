@@ -35,6 +35,11 @@
     "justification": "Refresh-token rotation reads the account to verify it is active; scoped to the token's account id, IgnoreQueryFilters because TenantContext may be unresolved during the auth handshake."
   },
   {
+    "symbol": "Cluckwork.Infrastructure.Identity.IdentityProvider.ExecuteLineageFenceAsync(string currentHash, string[] ancestorHashes, Guid rootUserId, Guid rootAccountId, int rootIssuedEpoch, DateTimeOffset now, string rotatedStamp, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs",
+    "justification": "Low-level raw-SQL data-modifying CTE for logout lineage fencing. Both refresh-token UPDATE arms are explicitly constrained by UserId, AccountId, and IssuedEpoch; the dedicated atomic-logout CTE guard pins both arms and the builder-to-RelationalCommand execution seam."
+  },
+  {
     "symbol": "Cluckwork.Infrastructure.Jobs.DailyEntryLockSweep.RunAsync(CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Jobs/DailyEntryLockSweep.cs",
     "justification": "Background sweep releases stale locks across ALL tenants (it runs with no tenant resolved, under the single-leader gate #271). Every row it touches is re-checked against its own AccountId."
