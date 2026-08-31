@@ -518,4 +518,16 @@ describe("CustomersPage paging (#511)", () => {
       await i18n.changeLanguage("en");
     }
   });
+
+  it("renders the pager label under tl", async () => {
+    mockList.mockResolvedValueOnce(customerPage(100));
+    await i18n.changeLanguage("tl");
+    try {
+      renderWithProviders(<CustomersPage />, { token: WORKER });
+      await screen.findByRole("row", { name: /p customer 000/ });
+      expect(screen.getByRole("button", { name: "mag-load pa" })).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("en");
+    }
+  });
 });

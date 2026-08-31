@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act, waitFor, render } from "@testing-library/react";
+import { screen, within, fireEvent, act, waitFor, render, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { FlocksPage } from "./FlocksPage";
 import { renderWithProviders } from "../test/renderWithProviders";
@@ -850,5 +850,46 @@ describe("FlocksPage bird ledger paging (#511)", () => {
     // Both pages the user had loaded were re-read, not just page one.
     expect(await screen.findByText("refreshed oldest")).toBeInTheDocument();
     expect(screen.getByText("refreshed 000")).toBeInTheDocument();
+  });
+
+  // One test, two locales, per the round-2 runbook. Two adaptations from a
+  // literal read of the CustomersPage precedent, both reported: (1)
+  // renderReady() (via renderWithProviders/render) does not auto-unmount
+  // between calls — that only happens via afterEach BETWEEN tests — so an
+  // explicit cleanup() between the two locale checks is required or the
+  // second render's row query collides with the first's still-mounted tree;
+  // (2) openLedgerFor()'s hardcoded "birds" button name is English-only —
+  // flocks:openLedgerButton is itself translated ("aves"/"mga ibon"), so
+  // opening the ledger under es/tl needs the CURRENT locale's label, read
+  // via i18n.t rather than the helper.
+  it("renders the pager label from the active locale", async () => {
+    mockListMovements.mockResolvedValueOnce(movementPage(50));
+    await i18n.changeLanguage("es");
+    try {
+      await renderReady(ADMIN, [ACTIVE]);
+      const openLabel = i18n.t("flocks:openLedgerButton");
+      await act(async () => {
+        fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: openLabel }));
+      });
+      await screen.findByText("m note 000");
+      expect(screen.getByRole("button", { name: "cargar más" })).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("en");
+      cleanup();
+    }
+
+    mockListMovements.mockResolvedValueOnce(movementPage(50));
+    await i18n.changeLanguage("tl");
+    try {
+      await renderReady(ADMIN, [ACTIVE]);
+      const openLabel = i18n.t("flocks:openLedgerButton");
+      await act(async () => {
+        fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: openLabel }));
+      });
+      await screen.findByText("m note 000");
+      expect(screen.getByRole("button", { name: "mag-load pa" })).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("en");
+    }
   });
 });

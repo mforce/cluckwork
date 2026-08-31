@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
+import { screen, within, fireEvent, act, waitFor, cleanup } from "@testing-library/react";
 import { InventoryPage } from "./InventoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account, NO_RECORD_HISTORY } from "../test/fixtures";
@@ -1129,5 +1129,44 @@ describe("InventoryPage ledger paging (#511)", () => {
     // The late lots belong to the item the user has LEFT — they must not be
     // offered as this item's lots.
     expect(screen.queryByText(/A-1/)).not.toBeInTheDocument();
+  });
+
+  // One test, two locales, per the round-2 runbook. Two adaptations from a
+  // literal read of the CustomersPage precedent, both reported: (1)
+  // renderReady()/render doesn't auto-unmount between calls within one test
+  // — only afterEach does that between tests — so an explicit cleanup() is
+  // needed between the two locale checks; (2) openItem()'s hardcoded "open"
+  // button name is English-only — inventory:openButton is itself translated
+  // ("abrir"/"buksan") — so opening the item under es/tl needs the CURRENT
+  // locale's label, read via i18n.t rather than the helper.
+  it("renders the pager label from the active locale", async () => {
+    mockListMovements.mockResolvedValueOnce(invMovementPage(100));
+    await i18n.changeLanguage("es");
+    try {
+      await renderReady(ADMIN);
+      const openLabel = i18n.t("inventory:openButton");
+      await act(async () => {
+        fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: openLabel }));
+      });
+      await screen.findByText("im note 000");
+      expect(screen.getByRole("button", { name: "cargar más" })).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("en");
+      cleanup();
+    }
+
+    mockListMovements.mockResolvedValueOnce(invMovementPage(100));
+    await i18n.changeLanguage("tl");
+    try {
+      await renderReady(ADMIN);
+      const openLabel = i18n.t("inventory:openButton");
+      await act(async () => {
+        fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: openLabel }));
+      });
+      await screen.findByText("im note 000");
+      expect(screen.getByRole("button", { name: "mag-load pa" })).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("en");
+    }
   });
 });
