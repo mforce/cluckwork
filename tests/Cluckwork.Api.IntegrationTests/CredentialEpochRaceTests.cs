@@ -168,18 +168,18 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
     {
         var email = $"epoch-race-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
-        var stale = await factory.LoginAsync(email);
-        await factory.WithTenantScopeAsync(accountId, async db =>
-        {
-            var userId = await db.Users.Where(user => user.Email == email)
-                .Select(user => user.Id).SingleAsync();
-            var staleRow = await db.RefreshTokens.SingleAsync(token => token.UserId == userId);
-            staleRow.RevokedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync();
-        });
+        var client = factory.CreateClient();
+        var stale = await factory.LoginAsync(email); // P
+        var childResponse = await client.PostRefreshAsync(
+            stale.RefreshToken, expectedAccount: accountId.ToString()); // P -> C
+        childResponse.EnsureSuccessStatusCode();
+        var child = await TestHarness.ReadTokensAsync(childResponse);
+        var tipResponse = await client.PostRefreshAsync(
+            child.RefreshToken, expectedAccount: accountId.ToString()); // C -> D
+        tipResponse.EnsureSuccessStatusCode();
 
         factory.Barrier.Arm();
-        var replayTask = factory.CreateClient().PostRefreshAsync(stale.RefreshToken, expectedAccount: accountId.ToString());
+        var replayTask = client.PostRefreshAsync(stale.RefreshToken, expectedAccount: accountId.ToString());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await factory.Barrier.WaitUntilReachedAsync(timeout.Token);
 
