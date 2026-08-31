@@ -166,10 +166,19 @@ export function InventoryPage() {
   // the lots once per page. They keep their own read and their own guard.
   const lotsRequest = useRef(0);
 
+  // #511 round 2 — movements and lots were one `Promise.all` under one ticket
+  // before this slice split them. Two independent tickets can disagree about
+  // which item is open, and a stale lot list drives the Adjust dialog's lot
+  // <select> and default adjustLotId. The ticket alone is not enough: it
+  // orders THIS read against other lot reads, and says nothing about whether
+  // the item is still open.
+  const activeIdRef = useRef<string | null>(null);
+  activeIdRef.current = activeId;
+
   async function loadLots(itemId: string) {
     const req = ++lotsRequest.current;
     const lotRows = await listInventoryLots(itemId);
-    if (lotsRequest.current !== req) return;
+    if (lotsRequest.current !== req || activeIdRef.current !== itemId) return;
     setLots(lotRows);
     setAdjustLotId((prev) => lotRows.some((l) => l.id === prev) ? prev : (lotRows[0]?.id ?? ""));
   }
@@ -283,6 +292,10 @@ export function InventoryPage() {
     if (active === null || active.id !== i.id) {
       closePurchase();
       closeAdjust();
+      // A different item's lots must never be visible under this one, not even
+      // for the length of the fetch.
+      setLots([]);
+      setAdjustLotId("");
     }
     // #511 round 2 — the hook reloads only when `activeId` CHANGES, so
     // re-opening the item that is already open would leave the movement

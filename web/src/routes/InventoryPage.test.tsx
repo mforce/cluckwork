@@ -1100,4 +1100,34 @@ describe("InventoryPage ledger paging (#511)", () => {
     expect(await screen.findByText("fresh row")).toBeInTheDocument();
     expect(screen.queryByText("stale row")).not.toBeInTheDocument();
   });
+
+  it("never leaves the previous item's lots under the next item's panel", async () => {
+    mockListMovements.mockResolvedValue([]);
+    let releaseLots!: (rows: InventoryLot[]) => void;
+    mockListLots.mockReturnValueOnce(new Promise((r) => { releaseLots = r; }));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+
+    // Switch to the second item before the first item's lots settle.
+    mockListLots.mockResolvedValueOnce([]);
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "open" }));
+    });
+    await act(async () => {
+      // Corrected against InventoryLot's real shape (api/cluckwork.ts): the
+      // runbook literal used quantityRemaining (not a field) and omitted
+      // inventoryItemId/quantityReceived/unitCostCurrencyCode/
+      // unitCostCurrencyMinorUnit, all required.
+      releaseLots([{
+        id: "lotA", inventoryItemId: "it1", lotNumber: "A-1",
+        receivedDate: "2026-07-01", expiryDate: null,
+        quantityReceived: 5, quantityAvailable: 5,
+        unitCostMinorUnits: 100, unitCostCurrencyCode: "USD", unitCostCurrencyMinorUnit: 2,
+      } as InventoryLot]);
+    });
+
+    // The late lots belong to the item the user has LEFT — they must not be
+    // offered as this item's lots.
+    expect(screen.queryByText(/A-1/)).not.toBeInTheDocument();
+  });
 });
