@@ -190,4 +190,92 @@ public sealed class CustomerValidatorParityTests
         Assert.True((await _createValidator.ValidateAsync(ValidCreate())).IsValid);
         Assert.True((await _updateValidator.ValidateAsync(ValidUpdate())).IsValid);
     }
+
+    // Closure fix — Email/Address/Note are all optional, and each validator's
+    // rules must treat null, "", and whitespace-only as the SAME accepted
+    // "absent" input (Email's format/length rules are gated behind
+    // `.When(x => !string.IsNullOrWhiteSpace(x.Email))`; Address/Note carry
+    // no required rule at all, so MaximumLength alone must not reject an
+    // empty/null value). Both real validators, exact failure-set equality —
+    // same shape as the boundary theory above, just for the accepted side.
+    public static IEnumerable<object[]> SharedOptionalFieldEmptyVariants()
+    {
+        yield return new object[]
+        {
+            "EmailNull",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Email = null }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Email = null }),
+        };
+        yield return new object[]
+        {
+            "EmailEmpty",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Email = "" }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Email = "" }),
+        };
+        yield return new object[]
+        {
+            "EmailWhitespaceOnly",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Email = "   " }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Email = "   " }),
+        };
+        yield return new object[]
+        {
+            "AddressNull",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Address = null }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Address = null }),
+        };
+        yield return new object[]
+        {
+            "AddressEmpty",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Address = "" }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Address = "" }),
+        };
+        yield return new object[]
+        {
+            "AddressWhitespaceOnly",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Address = "   " }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Address = "   " }),
+        };
+        yield return new object[]
+        {
+            "NoteNull",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Note = null }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Note = null }),
+        };
+        yield return new object[]
+        {
+            "NoteEmpty",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Note = "" }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Note = "" }),
+        };
+        yield return new object[]
+        {
+            "NoteWhitespaceOnly",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Note = "   " }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Note = "   " }),
+        };
+    }
+
+    [Theory]
+    [MemberData(nameof(SharedOptionalFieldEmptyVariants))]
+    public async Task SharedOptionalField_NullEmptyOrWhitespace_AcceptedIdenticallyByBothValidators(
+        string caseName,
+        Func<CreateCustomerCommand, CreateCustomerCommand> mutateCreate,
+        Func<UpdateCustomerCommand, UpdateCustomerCommand> mutateUpdate)
+    {
+        var createResult = await _createValidator.ValidateAsync(mutateCreate(ValidCreate()));
+        var updateResult = await _updateValidator.ValidateAsync(mutateUpdate(ValidUpdate()));
+
+        Assert.True(createResult.IsValid,
+            $"create: {string.Join(",", createResult.Errors.Select(e => $"{e.PropertyName}:{e.ErrorCode}"))}");
+        Assert.True(updateResult.IsValid,
+            $"update: {string.Join(",", updateResult.Errors.Select(e => $"{e.PropertyName}:{e.ErrorCode}"))}");
+        // Both empty (IsValid already proved that) — the exact-set comparison
+        // is what the round-3 boundary theory established as the real parity
+        // proof; repeated here so this case can't silently start allowing a
+        // stray explicit failure that IsValid alone (only false on FluentValidation's
+        // own Severity.Error) would miss if a rule were ever downgraded to a warning.
+        Assert.Equal(ExplicitCodePairs(createResult), ExplicitCodePairs(updateResult));
+        _ = caseName;
+    }
 }
