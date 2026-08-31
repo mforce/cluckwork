@@ -46,6 +46,15 @@ from requiring shell access to invoke it, plus the audit trail it leaves.
 
 ## Procedure
 
+**Rehearsing this locally?** `recover-admin` is a run-then-exit verb, so against
+a local Aspire stack it gets none of Aspire's injected configuration and reaches
+the *Compose* database instead — it will report success having rotated an account
+in a database you were not looking at. Pass the AppHost's connection string
+explicitly, the same way
+[first-admin form 4](first-admin-provisioning.md#4-aspire-apphost-stack) does
+([#565](../decisions/565-aspire-local-orchestration.md)). Production is
+unaffected: there is no Aspire there.
+
 Run the API binary with the `recover-admin` verb on (or with network access to)
 the deployment's database. The command **performs the reset, prints the
 temporary password once, then exits** — Kestrel never starts. Unlike `seed`/

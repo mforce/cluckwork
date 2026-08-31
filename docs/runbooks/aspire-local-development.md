@@ -35,8 +35,9 @@ the AppHost configures the API resource for `Development`. Consequently Aspire
 loads the existing generated Postgres parameter from local user-secrets instead
 of replacing it. The API performs its normal development migrations and reads
 local credentials from user-secrets. Do not put secrets in a checked-in file. A
-fresh database has no administrator; use the
-[first-admin runbook](first-admin-provisioning.md) if you need one.
+fresh database has no administrator; use **form 4** of the
+[first-admin runbook](first-admin-provisioning.md#4-aspire-apphost-stack) if you
+need one — the other forms target the Compose database, not this one.
 
 ## Start and observe
 
@@ -60,8 +61,9 @@ assuming a port. The repository pins the four host ports below, but any of them
 can be overridden or returned to Aspire's random assignment, so the description
 is the authority for what this run is actually using. The Vite app receives the
 API target from Aspire, and binds its supplied port strictly, so calling
-`<web-endpoint>/api/...` exercises the development proxy. The dashboard URL and
-access mechanism are shown by the CLI; treat any dashboard token as a secret.
+`<web-endpoint>/api/...` exercises the development proxy. The dashboard URL is
+pinned too, but its access token is not; take the token from the CLI each run and
+treat it as a secret.
 
 ### Host ports
 
@@ -77,7 +79,14 @@ access mechanism are shown by the CLI; treat any dashboard token as a secret.
 
 `5432` and `6379` are deliberately avoided: `deploy/docker-compose.dev.yml`
 publishes those and keeps a separate data volume, so reusing one would either
-fail the launch or point this stack at the other stack's database.
+fail the launch or point this stack at the other stack's database. The API's
+own user-secrets `ConnectionStrings:Default` names `localhost:5432`, so sharing
+that port makes it mean "whichever stack is up" for every hand-run verb and IDE
+debug session. `AppHostConfigurationTests.Committed_appsettings_pins_every_local_port_to_a_usable_value`
+fails the build on a committed value of `5432` or `6379`
+([#565](../decisions/565-aspire-local-orchestration.md)) — so a machine that
+needs one of those ports uses an override below, never an edit to the committed
+file.
 
 A pinned port fails the launch when something else already holds it. Override
 per machine with user-secrets, per shell with an environment variable, or per
@@ -100,8 +109,30 @@ dotnet run --project src/Cluckwork.AppHost -- --LocalPorts:Api=
 Redis is served over TLS on its advertised endpoint, so a plaintext `redis-cli`
 against the pinned port gets no reply; use the TLS options as below.
 
-The dashboard and OTLP endpoints are not covered by these keys and still move
-between runs; take them from the CLI each time.
+### AppHost host endpoints
+
+The dashboard, its OTLP receiver and the resource service are AppHost host
+endpoints rather than resources, so `LocalPorts:*` cannot reach them. They are
+pinned in `src/Cluckwork.AppHost/Properties/launchSettings.json` instead:
+
+| Setting | Endpoint | Default |
+|---|---|---|
+| `applicationUrl` (`ASPNETCORE_URLS`) | Dashboard frontend | `http://localhost:18888` |
+| `ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL` | Dashboard OTLP receiver | `http://localhost:18889` |
+| `ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL` | Resource service | `http://localhost:18890` |
+
+All three are plaintext loopback, which Aspire refuses unless the profile also
+sets `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true`; moving any of them to `https://`
+is what retires that flag. Override one per machine without touching the repo by
+exporting the matching variable:
+
+```bash
+ASPNETCORE_URLS=http://localhost:18898 aspire run --apphost "$apphost"
+```
+
+The dashboard URL is stable across runs, but the access token in its query
+string is minted per run — take the token from the CLI each time and treat it as
+a secret.
 
 The CLI's resource display names are not log/telemetry query arguments. Use
 AppHost-targeted, unfiltered queries, then filter by the exact trace ID:
