@@ -117,6 +117,12 @@ public sealed class SimulationSeedCommandTests : IClassFixture<SimulationSeedCom
             var manifest = await ReadManifestAsync(manifestPath);
             Assert.True(manifest.Complete);
             Assert.False(string.IsNullOrWhiteSpace(manifest.Fingerprint));
+            // #627 — the on-disk manifest carries schema 2 and every exact
+            // over-cap band (12-day shallow HistoryDays: automatic mortality
+            // is 2 per operational flock over days 2..12 where d % 5 == 0,
+            // so birds = 4 + 51 = 55).
+            Assert.Equal(2, manifest.SchemaVersion);
+            AssertManifestBandsExact(manifest);
 
             using var scope = _factory.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -124,14 +130,18 @@ public sealed class SimulationSeedCommandTests : IClassFixture<SimulationSeedCom
             Assert.Equal(2, accountCount); // primary + the deterministic second sim account.
 
             // Idempotent through the SAME CLI path — a rerun converges (exit 0),
-            // never mints a third account, and re-writes an identical manifest.
+            // never mints a third account, and re-writes an identical manifest
+            // with the SAME exact bands and fingerprint.
             var (exitCode2, stdout2, stderr2) = await RunSeedCommandAsync(manifestPath: manifestPath);
             Assert.True(0 == exitCode2, $"expected exit 0 on rerun, got {exitCode2}. stdout={stdout2} stderr={stderr2}");
             var accountCountAfterRerun = await db.Accounts.IgnoreQueryFilters().CountAsync();
             Assert.Equal(2, accountCountAfterRerun);
 
             var manifestAfterRerun = await ReadManifestAsync(manifestPath);
+            Assert.Equal(2, manifestAfterRerun.SchemaVersion);
+            AssertManifestBandsExact(manifestAfterRerun);
             Assert.Equal(manifest.Fingerprint, manifestAfterRerun.Fingerprint);
+            Assert.Equal(manifest.Counts, manifestAfterRerun.Counts);
         }
         finally
         {
@@ -179,5 +189,22 @@ public sealed class SimulationSeedCommandTests : IClassFixture<SimulationSeedCom
         var manifest = await JsonSerializer.DeserializeAsync<SimulationManifest>(
             stream, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         return manifest ?? throw new InvalidOperationException($"Failed to deserialize manifest at {path}.");
+    }
+
+    // #627 — the exact bands the simulation seed must certify on disk at this
+    // fixture's shallow 12-day HistoryDays (automatic mortality: 2 per
+    // operational flock for d in 3..12 with d % 5 == 0).
+    private static void AssertManifestBandsExact(SimulationManifest manifest)
+    {
+        Assert.Equal(101, manifest.Counts.Customers);
+        Assert.Equal(102, manifest.Counts.Flocks);
+        Assert.Equal(100, manifest.LifecycleStates.Flocks.Active);
+        Assert.Equal(1, manifest.LifecycleStates.Flocks.Depleted);
+        Assert.Equal(1, manifest.LifecycleStates.Flocks.Archived);
+        Assert.Equal(55, manifest.Counts.BirdMovements);
+        Assert.Equal(122, manifest.Counts.InventoryMovementsTotal);
+        Assert.Equal(2 + 110, manifest.LifecycleStates.InventoryMovements.Adjustment
+            + manifest.LifecycleStates.InventoryMovements.Discard);
+        Assert.Equal(2 * 4, manifest.LifecycleStates.InventoryMovements.Usage);
     }
 }

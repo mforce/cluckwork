@@ -15,7 +15,10 @@ using Cluckwork.Application.Features.EggGrades;
 using Cluckwork.Application.Features.Expenses.CreateExpense;
 using Cluckwork.Application.Features.Expenses.CreateExpenseCategory;
 using Cluckwork.Application.Features.Flocks;
+using Cluckwork.Application.Features.Flocks.ArchiveFlock;
 using Cluckwork.Application.Features.Flocks.CreateFlock;
+using Cluckwork.Application.Features.Flocks.DepleteFlock;
+using Cluckwork.Application.Features.Flocks.RecordBirdMovement;
 using Cluckwork.Application.Features.Inventory;
 using Cluckwork.Application.Features.Inventory.CreateInventoryItem;
 using Cluckwork.Application.Features.Inventory.RecordAdjustment;
@@ -32,6 +35,7 @@ using Cluckwork.Application.Features.Users.CreateUser;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
+using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Identity;
@@ -114,6 +118,9 @@ public sealed class SimulationDataSeeder(
     RecordAdjustmentHandler recordAdjustment,
     RecordFeedUsageHandler recordFeedUsage,
     RecordWaterUsageHandler recordWaterUsage,
+    RecordBirdMovementHandler recordBirdMovement,
+    DepleteFlockHandler depleteFlock,
+    ArchiveFlockHandler archiveFlock,
     CreateExpenseCategoryHandler createExpenseCategory,
     CreateExpenseHandler createExpense,
     DailyEntryLockSweep lockSweep,
@@ -353,7 +360,12 @@ public sealed class SimulationDataSeeder(
             var (countsBeforeSeed, _) = await ComputeCountsAsync(accountId, ct);
 
             var cast = await SeedCastAsync(accountId, ownerActor, sim, ct);
+            // #627 — the topology stays EXACTLY the two operational houses.
+            // The picker catalog is a separate phase below: its rows must never
+            // reach the daily/feed/water/expense fanout that runs on flockIds.
             var flockIds = await SeedFlockTopologyAsync(accountId, today, cast, sim, ct);
+            await SeedFlockCatalogAsync(accountId, today, cast, sim, ct);
+            await SeedExplicitBirdMovementsAsync(accountId, today, flockIds, cast, sim, ct);
             // Timezone BEFORE any dated data exists (see SeedPrimaryTimeZoneAsync)
             // — production history below must see the account's real timezone.
             //
@@ -754,7 +766,7 @@ public sealed class SimulationDataSeeder(
         // placement date — SeedFlockHistoryAsync's entry-date range
         // (today.AddDays(-d) for d = 1..EffectiveHistoryDays(sim)) is the
         // SAME for every flock, so both placements need the identical floor.
-        var placementDate = today.AddDays(-(EffectiveHistoryDays(sim) + FlockPlacementMarginDays));
+        var placementDate = today.AddDays(-FlockPlacementLookbackDays(sim));
 
         (string Name, string Breed, DateOnly PlacementDate, int InitialCount)[] wanted =
         [
@@ -788,6 +800,151 @@ public sealed class SimulationDataSeeder(
             new CreateFlockCommand(name, breed, placementDate, initialCount), accountId, ct);
         Require(result, $"create flock {name}");
         return result.Value;
+    }
+
+    // #627 — the explicit bird-movement offsets run through 63, so the flock
+    // PLACEMENT (not the daily/feed/water/expense loop bounds — those keep
+    // EffectiveHistoryDays) needs at least 64 days of lookback: every explicit
+    // row must sit on/after its flock's placement date even in the shallowest
+    // fixture. For the 90-day default this is 97, exactly the pre-#627 value.
+    private static int FlockPlacementLookbackDays(SimulationOptions sim) =>
+        Math.Max(EffectiveHistoryDays(sim) + FlockPlacementMarginDays, 64);
+
+    // #627 — the independent picker catalog. Exactly 97 numbered Active rows
+    // ("Sim Z Flock Catalog 001".."097"), the Active page-two sentinel
+    // ("Sim Z Flock Page Two"), one row transitioned through
+    // DepleteFlockHandler ("Sim Z Flock Depleted"), and one through
+    // ArchiveFlockHandler ("Sim Z Flock Archived") — 100 Active / 1 Depleted
+    // / 1 Archived on top of the two operational houses, 102 flocks total
+    // (INV-5). None of these ids are ever returned to the caller, so no
+    // history fanout can reach them.
+    // #627 driver correction — every catalog row sorts AFTER the two
+    // operational houses: "Sim Z …" > "Sim House …". That is NOT the same as
+    // keeping all 100 catalog rows off page one of a 100-row default-limit
+    // picker — with the 101 non-archived seed rows, page one holds both houses
+    // plus the 98 earliest-sorting catalog rows, and only the lexically-last
+    // sentinel ("Sim Z Flock Page Two") falls onto page two. The guarantee is
+    // that the houses are INSIDE page one, not that the catalog is outside it.
+    private const string FlockCatalogNamePrefix = "Sim Z Flock Catalog ";
+    private const string FlockPageTwoSentinelName = "Sim Z Flock Page Two";
+    private const string FlockDepletedName = "Sim Z Flock Depleted";
+    private const string FlockArchivedName = "Sim Z Flock Archived";
+
+    private async Task SeedFlockCatalogAsync(
+        Guid accountId, DateOnly today, SimCast cast, SimulationOptions sim, CancellationToken ct)
+    {
+        var placementDate = today.AddDays(-FlockPlacementLookbackDays(sim));
+        var storeKeeper = Pick(cast.Managers, 1, cast.Owner, "Managers");
+        // Local actor state, not the previous phase's: Flock.Create is audited
+        // (#500), so every one of the 100 catalog creations must attribute to
+        // the store-keeper by THIS phase's own resolution, reorder-safe.
+        ActAs(storeKeeper);
+
+        for (var i = 1; i <= NumberedCatalogFlockCount; i++) // 97 numbered Active rows
+            await EnsureFlockAsync(
+                accountId,
+                $"{FlockCatalogNamePrefix}{i:000}",
+                "ISA Brown",
+                placementDate,
+                100,
+                ct);
+
+        await EnsureFlockAsync(
+            accountId, FlockPageTwoSentinelName, "ISA Brown", placementDate, 100, ct);
+
+        // Lifecycle rows: create, then transition through the real handlers —
+        // the same domain rules the SPA enforces (deplete only from Active,
+        // archive from Active or Depleted).
+        var depletedId = await EnsureFlockAsync(
+            accountId, FlockDepletedName, "Lohmann Brown", placementDate, 100, ct);
+        await TransitionFlockAsync(
+            depletedId, FlockDepletedName, FlockStatus.Depleted, storeKeeper,
+            flockId => depleteFlock.HandleAsync(flockId, ct), ct);
+
+        var archivedId = await EnsureFlockAsync(
+            accountId, FlockArchivedName, "Lohmann Brown", placementDate, 100, ct);
+        await TransitionFlockAsync(
+            archivedId, FlockArchivedName, FlockStatus.Archived, storeKeeper,
+            flockId => archiveFlock.HandleAsync(flockId, ct), ct);
+    }
+
+    // Rerun-safe lifecycle transition: a row already in the wanted status
+    // converges; a row in the WRONG status is drift the seed refuses to paper
+    // over (failing closed here rather than applying a second transition or
+    // silently accepting what the manifest's exact split would later reject).
+    private async Task TransitionFlockAsync(
+        Guid flockId, string name, FlockStatus wantedStatus, SimActor actor,
+        Func<Guid, Task<Result>> transition, CancellationToken ct)
+    {
+        var flock = await flocks.GetByIdAsync(flockId, ct)
+            ?? throw new InvalidOperationException(
+                $"Simulation seed: flock {name} was ensured but cannot be read back.");
+        if (flock.Status == wantedStatus) return;
+
+        ActAs(actor);
+        var result = await transition(flockId);
+        if (result.IsFailure)
+            throw new InvalidOperationException(
+                $"Simulation seed: flock {name} exists in status {flock.Status} but the " +
+                $"transition to {wantedStatus} failed ({result.Error.Code}: {result.Error.Description}). " +
+                "A lifecycle row drifted outside the seeder — fix its status or reset the fixture.");
+        Require(result, $"transition flock {name} to {wantedStatus}");
+    }
+
+    // #627 — the explicit bird-adjustment band: 51 date-distinct rows on the
+    // first operational flock (Sim House A), through RecordBirdMovementHandler
+    // so every row carries the audit actor and the ledger's real semantics.
+    //
+    // The natural key is (FlockId, Date) — never the free-text note. The 51
+    // offsets are the FIRST 51 positive day offsets not divisible by five, so
+    // no explicit row can land on a day SeedFlockHistoryAsync generates an
+    // automatic mortality row for (d % 5 == 0), and the last offset (63) is
+    // inside FlockPlacementLookbackDays' 64-day floor. The final row carries a
+    // stable sentinel note so the SPA ledger spec can prove the second page
+    // renders — but the note is DATA, not identity.
+    private const int ExplicitBirdMovementCount = 51;
+    private const string BirdMovementPageTwoSentinelNote = "Sim bird movement page two sentinel";
+
+    private async Task SeedExplicitBirdMovementsAsync(
+        Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimCast cast, SimulationOptions sim,
+        CancellationToken ct)
+    {
+        if (flockIds.Count == 0)
+            throw new InvalidOperationException(
+                "Simulation seed: no operational flocks exist to carry the explicit bird movements.");
+
+        var flockId = flockIds[0];
+        var storeKeeper = Pick(cast.Managers, 2, cast.Owner, "Managers");
+        ActAs(storeKeeper);
+
+        var offset = 0;
+        for (var d = 1; d <= FlockPlacementLookbackDays(sim) && offset < ExplicitBirdMovementCount; d++)
+        {
+            if (d % 5 == 0) continue; // automatic-mortality days stay unowned by this band
+            var date = today.AddDays(-d);
+            var isLast = offset == ExplicitBirdMovementCount - 1;
+            var note = isLast ? BirdMovementPageTwoSentinelNote : $"Simulation fixture explicit adjustment {d}";
+
+            var exists = await db.BirdMovements.AnyAsync(
+                m => m.FlockId == flockId && m.Date == date, ct);
+            if (!exists)
+            {
+                var result = await recordBirdMovement.HandleAsync(new RecordBirdMovementCommand(
+                    flockId, date, "Adjustment", 1, note), accountId, ct);
+                Require(result, $"record explicit bird movement for flock {flockId} on {date:yyyy-MM-dd}");
+            }
+            offset++;
+        }
+
+        // Fail closed rather than silently publish a short band: the probe
+        // above only skips rows that already exist, so a count short of 51
+        // means the dates stopped being distinct.
+        var count = await db.BirdMovements.CountAsync(
+            m => m.FlockId == flockId && m.Type == BirdMovementType.Adjustment, ct);
+        if (count < ExplicitBirdMovementCount)
+            throw new InvalidOperationException(
+                $"Simulation seed: only {count} explicit bird adjustments exist on the operational " +
+                $"flock; the fixture expects exactly {ExplicitBirdMovementCount} date-distinct rows.");
     }
 
     // --- Restrict exactly one worker to one (not all) flocks -----------
@@ -1029,6 +1186,13 @@ public sealed class SimulationDataSeeder(
         ("Sim Customer 3", "555-0203", "Simulation fixture customer"),
     ];
 
+    // #627 — over-cap customer band: the three lifecycle rows above stay the
+    // sales-order customers; 97 zero-padded fillers plus the lexically-last
+    // page-two sentinel bring the account total to exactly 101, so the
+    // customer list's 100-row page cannot reach the sentinel without Load more.
+    private const int CustomerFillerCount = 97;
+    private const string CustomerPageTwoSentinelName = "Sim Customer Z Page Two";
+
     // Modest relative to a single day's Large lot (baseline 320+ eggs/day,
     // ~55% Large) — small enough that every confirmed order below draws from
     // the SAME shallow pool of the oldest available Large lots (FIFO always
@@ -1153,6 +1317,28 @@ public sealed class SimulationDataSeeder(
             ids.Add(await EnsureCustomerAsync(
                 accountId, name, phone, note, Pick(cast.Sales, i, cast.Owner, "Sales"), ct));
         }
+
+        // #627 — the over-cap fillers and the lexically-last page-two sentinel.
+        // The three lifecycle customers above are the only ones orders touch;
+        // these rows are list volume, created through the same handler with
+        // the same name-probe idempotency.
+        for (var i = 1; i <= CustomerFillerCount; i++)
+            await EnsureCustomerAsync(
+                accountId,
+                $"Sim Customer Filler {i:000}",
+                $"555-03{i:00}",
+                "Simulation fixture customer",
+                Pick(cast.Sales, i, cast.Owner, "Sales"),
+                ct);
+
+        await EnsureCustomerAsync(
+            accountId,
+            CustomerPageTwoSentinelName,
+            "555-0299",
+            "Simulation fixture customer",
+            Pick(cast.Sales, CustomerFillerCount + 1, cast.Owner, "Sales"),
+            ct);
+
         return ids;
     }
 
@@ -1296,11 +1482,6 @@ public sealed class SimulationDataSeeder(
         Guid accountId, DateOnly today, IReadOnlyList<Guid> flockIds, SimCast cast, SimulationOptions sim,
         CancellationToken ct)
     {
-        // Received well before any usage date so FIFO always finds it on-hand
-        // as-of any usage day — same "older than everything it must cover"
-        // shape as the flock placement dates in SeedFlockTopologyAsync.
-        var openingDate = today.AddDays(-(EffectiveHistoryDays(sim) + 5));
-
         // #500 — stores and feeding are a manager's job. Of everything below only
         // InventoryItem.Adjust and Expense.Create write an audit row, but each
         // helper takes its actor explicitly anyway: the caller owning the choice
@@ -1308,8 +1489,137 @@ public sealed class SimulationDataSeeder(
         // Manager also matters functionally here — feed/water usage go through
         // FlockScopeGuard, which passes a Manager by role.
         var storeKeeper = Pick(cast.Managers, 0, cast.Owner, "Managers");
+        var (feedItemId, feedLotId, beddingItemId, beddingLotId) =
+            await SeedInventoryItemsAndOpeningPurchasesAsync(accountId, today, cast, sim, ct);
 
-        var itemIds = await SeedInventoryItemsAsync(accountId, storeKeeper, ct);
+        await SeedFeedUsageAsync(accountId, today, flockIds, feedItemId, storeKeeper, ct);
+
+        // The two original correction rows, kept on opening + 2 (see the
+        // opening-lookback note in SeedInventoryItemsAndOpeningPurchasesAsync).
+        // They run AFTER the feed usages for the same domain reason as the
+        // adjustment band below: a discard/correction is legal only once the
+        // lot has been drawn down below its received quantity.
+        var adjustmentDate = today.AddDays(-(InventoryOpeningLookbackDays(sim) - 2));
+        await EnsureAdjustmentAsync(
+            accountId, feedItemId, feedLotId, adjustmentDate, "Discard",
+            FeedDiscardQuantity, "Simulation fixture: torn bag spoiled in storage", storeKeeper, ct);
+        await EnsureAdjustmentAsync(
+            accountId, beddingItemId, beddingLotId, adjustmentDate, "Adjustment",
+            BeddingAdjustmentQuantity, "Simulation fixture: recount shrinkage", storeKeeper, ct);
+
+        // #627 — the over-cap band, after the usages too (same rule).
+        await SeedFeedAdjustmentsAsync(accountId, today, feedItemId, feedLotId, storeKeeper, sim, ct);
+
+        await SeedWaterUsageAsync(accountId, today, flockIds, storeKeeper, ct);
+        await SeedExpensesAsync(accountId, today, flockIds, cast, sim, ct);
+    }
+
+    // #627 — the over-cap inventory band: exactly 110 date-distinct +1
+    // Adjustment rows on the feed lot's OPENING lot. The item ends with ten
+    // other movements (one purchase, one discard, eight usages), so the band
+    // reaches exactly 120 on the feed item while the bedding item keeps its
+    // two, making the account-wide total exactly 122.
+    //
+    // Seeded AFTER the feed usages (which draw the lot down below its received
+    // quantity), never before: InventoryLot.Adjust refuses a correction that
+    // would leave a lot at or above what was received. The movement COUNT is
+    // order-independent (the ledger is append-only), so the final band is the
+    // same either way — only the legal order of the writes differs.
+    //
+    // Natural key (InventoryLotId, Date), never the free-text reason. Dates
+    // enumerate forward from opening + 1, skipping the existing discard at
+    // opening + 2, and stop after 110 rows — all on/after the lot's receipt
+    // and at least six days before the anchor. The oldest added row carries a
+    // stable sentinel reason so the SPA ledger spec can prove its second
+    // page renders; the reason is DATA, not identity.
+    private const int FeedAdjustmentCount = 110;
+    private const string FeedAdjustmentPageTwoSentinelReason = "Sim feed adjustment page two sentinel";
+
+    // Mirrors the openingDate note in
+    // SeedInventoryItemsAndOpeningPurchasesAsync — the two floors (the +5
+    // margin and the 117-day #627 floor) are one decision and live next to
+    // each other there.
+    private static int InventoryOpeningLookbackDays(SimulationOptions sim) =>
+        Math.Max(EffectiveHistoryDays(sim) + 5, 117);
+
+    private async Task SeedFeedAdjustmentsAsync(
+        Guid accountId, DateOnly today, Guid feedItemId, Guid feedLotId, SimActor actor,
+        SimulationOptions sim, CancellationToken ct)
+    {
+        ActAs(actor);
+
+        var added = 0;
+        for (var d = 1; d <= InventoryOpeningLookbackDays(sim) - 1 && added < FeedAdjustmentCount; d++)
+        {
+            if (d == 2) continue; // the existing discard owns opening + 2
+            var date = today.AddDays(-(InventoryOpeningLookbackDays(sim) - d));
+            var isOldest = added == 0; // first date enumerated == oldest == the sentinel
+            var reason = isOldest
+                ? FeedAdjustmentPageTwoSentinelReason
+                : $"Simulation fixture feed adjustment {added + 1}";
+
+            var exists = await db.InventoryMovements.AnyAsync(
+                m => m.InventoryLotId == feedLotId && m.Date == date, ct);
+            if (!exists)
+            {
+                var result = await recordAdjustment.HandleAsync(new RecordAdjustmentCommand(
+                    feedItemId, feedLotId, date, "Adjustment", 1m, reason), accountId, ct);
+                Require(result, $"record feed adjustment for lot {feedLotId} on {date:yyyy-MM-dd}");
+            }
+            added++;
+        }
+
+        // Fail closed rather than silently publish a short band (the probe
+        // above only skips rows that already exist, so shortness means the
+        // dates stopped being distinct).
+        var count = await db.InventoryMovements.CountAsync(
+            m => m.InventoryLotId == feedLotId && m.Type == InventoryMovementType.Adjustment, ct);
+        if (count < FeedAdjustmentCount)
+            throw new InvalidOperationException(
+                $"Simulation seed: only {count} feed-lot adjustment rows exist; the fixture " +
+                $"expects exactly {FeedAdjustmentCount} date-distinct rows.");
+    }
+
+    // #627 — extracted (behavior-identical) from SeedInventoryOperationsAsync
+    // so the phase owns the item + opening-lot ids its callers (the band,
+    // the correction rows, the usage loops) all need: the band's +1 rows and
+    // the original discard/correction rows are all LOT CHANGES, and
+    // InventoryLot.Adjust's domain rule (AdjustExceedsReceived) refuses any
+    // change that would leave the lot at or above its received quantity —
+    // so every one of them is legal only once the feed usages have drawn the
+    // lot down. SeedInventoryOperationsAsync therefore seeds the usages
+    // BEFORE those rows; the append-only ledger makes the movement COUNT
+    // order-independent, so the certified bands are the same either way. The
+    // opening purchase itself still precedes every usage, as before.
+    private async Task<(Guid FeedItemId, Guid FeedLotId, Guid BeddingItemId, Guid BeddingLotId)>
+        SeedInventoryItemsAndOpeningPurchasesAsync(
+        Guid accountId, DateOnly today, SimCast cast, SimulationOptions sim, CancellationToken ct)
+    {
+        var storeKeeper = Pick(cast.Managers, 0, cast.Owner, "Managers");
+
+        // Received well before any usage date so FIFO always finds it on-hand
+        // as-of any usage day — same "older than everything it must cover"
+        // shape as the flock placement dates in SeedFlockTopologyAsync.
+        //
+        // #627 — the feed lot's 110 deterministic adjustments need 116 distinct
+        // days of room on/after receipt (opening + 1 through opening + 116,
+        // minus the existing discard at opening + 2), so the opening lookback is
+        // floored at 117: the latest added date then lands at anchor day - 6,
+        // clear of the four recent feed-usage dates and any farm-today skew that
+        // trails the UTC anchor. #627 intentionally moves the 90-day default
+        // opening from 95 to 117 — the band needs the floor, not the history
+        // margin.
+        //
+        // The lot's received quantity (3000) is NOT sized for the band: the
+        // band's legality is ORDER, not headroom — the lot starts its life AT
+        // its received quantity, where InventoryLot.Adjust refuses even one +1
+        // (AdjustExceedsReceived), so the 144 kg of usages and the -15 discard
+        // must run BEFORE the 110 +1 rows, which then land at 2951 < 3000.
+        var openingDate = today.AddDays(-InventoryOpeningLookbackDays(sim));
+
+        var itemIds = new Dictionary<string, Guid>();
+        foreach (var (name, category, unit, cost) in InventoryItemsWanted)
+            itemIds[name] = await EnsureInventoryItemAsync(accountId, name, category, unit, cost, storeKeeper, ct);
         var feedItemId = itemIds["Sim Layer Feed"];
         var beddingItemId = itemIds["Sim Pine Shavings"];
 
@@ -1318,26 +1628,7 @@ public sealed class SimulationDataSeeder(
         var beddingLotId = await EnsureOpeningPurchaseAsync(
             accountId, beddingItemId, openingDate, BeddingOpeningPurchaseQuantity, storeKeeper, ct);
 
-        var adjustmentDate = openingDate.AddDays(2);
-        await EnsureAdjustmentAsync(
-            accountId, feedItemId, feedLotId, adjustmentDate, "Discard",
-            FeedDiscardQuantity, "Simulation fixture: torn bag spoiled in storage", storeKeeper, ct);
-        await EnsureAdjustmentAsync(
-            accountId, beddingItemId, beddingLotId, adjustmentDate, "Adjustment",
-            BeddingAdjustmentQuantity, "Simulation fixture: recount shrinkage", storeKeeper, ct);
-
-        await SeedFeedUsageAsync(accountId, today, flockIds, feedItemId, storeKeeper, ct);
-        await SeedWaterUsageAsync(accountId, today, flockIds, storeKeeper, ct);
-        await SeedExpensesAsync(accountId, today, flockIds, cast, sim, ct);
-    }
-
-    private async Task<IReadOnlyDictionary<string, Guid>> SeedInventoryItemsAsync(
-        Guid accountId, SimActor actor, CancellationToken ct)
-    {
-        var itemIds = new Dictionary<string, Guid>();
-        foreach (var (name, category, unit, cost) in InventoryItemsWanted)
-            itemIds[name] = await EnsureInventoryItemAsync(accountId, name, category, unit, cost, actor, ct);
-        return itemIds;
+        return (feedItemId, feedLotId, beddingItemId, beddingLotId);
     }
 
     private async Task<Guid> EnsureInventoryItemAsync(
@@ -1614,7 +1905,10 @@ public sealed class SimulationDataSeeder(
     // total). A bug that drops all-but-one row of any seeder-controlled band
     // now fails ValidateCounts instead of still certifying complete: true.
 
-    public const int ManifestSchemaVersion = 1;
+    // Bumped to 2 by #627: the persisted manifest GAINED Customers/BirdMovements
+    // count fields and a Flocks lifecycle split — a schema-1 reader must
+    // detect the reshape instead of silently misparsing it.
+    public const int ManifestSchemaVersion = 2;
 
     // Mirrors SeedFlockTopologyAsync's `wanted` array length. Kept as an
     // independent constant (not read off that array) so ComputeExpectedCounts
@@ -1622,6 +1916,44 @@ public sealed class SimulationDataSeeder(
     // still takes `today`/`farmToday` as plain DateOnly inputs (#279 Fix 2,
     // for the exact Locked/Submitted split below) but is otherwise pure.
     private const int FlockTopologyCount = 2;
+
+    // #627 — mirrors the picker catalog SeedFlockCatalogAsync creates:
+    // NumberedCatalogFlockCount is what the numbered loop iterates; the other
+    // three catalog rows (the page-two sentinel, the Depleted, the Archived)
+    // are fixed-name rows outside the loop. CatalogFlockBandCount is the
+    // 100-row catalog total the EXPECTED counts read — kept as an independent
+    // constant for the same reason FlockTopologyCount is: ComputeExpectedCounts
+    // states the seed's intent without a DB round-trip.
+    private const int NumberedCatalogFlockCount = 97;
+    private const int CatalogFlockBandCount = 100;
+
+    // #627 — the customer band SeedCustomersAsync creates on top of the three
+    // lifecycle customers above (97 zero-padded fillers + the page-two
+    // sentinel). Total customers is CustomersWanted.Length + this.
+    private const int CustomerBandCount = CustomerFillerCount + 1;
+
+    // #627 — mirrors SeedExplicitBirdMovementsAsync's explicit row count.
+    private const int ExplicitBirdMovementsCount = 51;
+
+    // #627 — mirrors SeedFeedAdjustmentsAsync' added adjustment rows on the
+    // feed lot (its ten pre-existing movements + this = exactly 120 on the
+    // feed item; the bedding item keeps its two, so account-wide is 122).
+    private const int FeedAdjustmentBandCount = 110;
+
+    // #627 — the automatic mortality baseline, derived the SAME way
+    // SeedFlockHistoryAsync generates it: one row per (operational flock, day)
+    // where d % 5 == 0 for d in DraftWindowDays+1..historyDays — only days
+    // that are actually SUBMITTED mint a mortality row. An explicit loop, not
+    // division: the Draft window is part of the rule, and the expected count
+    // must stay correct if it changes. (90-day history: 18 per flock, 36
+    // account-wide; 12-day: 2 per flock.)
+    private static int AutomaticMortalityPerFlock(int historyDays)
+    {
+        var count = 0;
+        for (var d = DraftWindowDays + 1; d <= historyDays; d++)
+            if (d % 5 == 0) count++;
+        return count;
+    }
 
     // Mirrors SeedFlockHistoryAsync's per-entry grade-quantity array literal
     // (Large/Medium/Small): SubmitDailyEntryHandler mints exactly one egg lot
@@ -1741,6 +2073,14 @@ public sealed class SimulationDataSeeder(
 
         var accountCount = await db.Accounts.IgnoreQueryFilters().CountAsync(ct);
         var flockCount = await db.Flocks.CountAsync(ct);
+        // #627 — the flock lifecycle split the manifest now certifies exactly
+        // (INV-5). Flock is tenant-filtered, like every other count here.
+        var flockActive = await db.Flocks.CountAsync(f => f.Status == FlockStatus.Active, ct);
+        var flockDepleted = await db.Flocks.CountAsync(f => f.Status == FlockStatus.Depleted, ct);
+        var flockArchived = await db.Flocks.CountAsync(f => f.Status == FlockStatus.Archived, ct);
+
+        var customerCount = await db.Customers.CountAsync(ct);
+        var birdMovementCount = await db.BirdMovements.CountAsync(ct);
 
         var dailyEntriesTotal = await db.DailyEntries.CountAsync(ct);
         var draftEntries = await db.DailyEntries.CountAsync(e => e.Status == DailyEntryStatus.Draft, ct);
@@ -1780,6 +2120,8 @@ public sealed class SimulationDataSeeder(
 
         var counts = new SimulationManifestCounts(
             Accounts: accountCount,
+            Customers: customerCount,
+            BirdMovements: birdMovementCount,
             Owners: ownerCount,
             Managers: managerCount,
             Sales: salesCount,
@@ -1801,6 +2143,7 @@ public sealed class SimulationDataSeeder(
 
         var states = new SimulationLifecycleStates(
             DailyEntries: new SimulationDailyEntryStates(draftEntries, submittedEntries, lockedEntries),
+            Flocks: new SimulationFlockStates(flockActive, flockDepleted, flockArchived),
             SalesOrders: new SimulationSalesOrderStates(
                 draftOrders, confirmedOrders, shippedOrders, invoicedOrders, cancelledOrders, voidedOrders),
             InventoryMovements: new SimulationInventoryMovementStates(
@@ -1834,8 +2177,14 @@ public sealed class SimulationDataSeeder(
         // plus one Usage movement per feed usage row — EnsureOpeningPurchaseAsync
         // creates exactly one lot per item, so FIFO in RecordFeedUsageHandler
         // never needs to split a single usage across more than one lot.
+        //
+        // #627 — plus the feed lot's explicit adjustment band (the bedding
+        // item is untouched by it): the feed item lands on exactly 10 +
+        // FeedAdjustmentBandCount = 120 movements, the bedding item keeps its
+        // 2, and the account-wide total below is 122 at the fixture scale.
         var inventoryMovementsTotal =
-            InventoryItemsWanted.Length + InventoryItemsWanted.Length + feedUsageRows;
+            InventoryItemsWanted.Length + InventoryItemsWanted.Length
+            + FeedAdjustmentBandCount + feedUsageRows;
 
         return new SimulationExpectedCounts(
             Accounts: 2, // primary + SecondAccountId — never a third on a re-run.
@@ -1845,7 +2194,18 @@ public sealed class SimulationDataSeeder(
             Workers: sim.Workers,
             ReadOnly: sim.ReadOnly,
             UsersTotal: 1 + sim.Managers + sim.Sales + sim.Workers + sim.ReadOnly,
-            Flocks: FlockTopologyCount,
+            // #627 — two operational houses + the exact picker catalog.
+            Flocks: FlockTopologyCount + CatalogFlockBandCount,
+            FlocksActive: FlockTopologyCount + NumberedCatalogFlockCount + 1,
+            FlocksDepleted: 1,
+            FlocksArchived: 1,
+            Customers: CustomersWanted.Length + CustomerBandCount,
+            // #627 — automatic mortality baseline (explicit day loop, per
+            // flock) plus the explicit adjustment band on the first
+            // operational flock. No other flock carries explicit rows, and no
+            // cull row is ever seeded, so this is the account-wide total.
+            BirdMovements: FlockTopologyCount * AutomaticMortalityPerFlock(historyDays)
+                + ExplicitBirdMovementsCount,
             DailyEntriesTotal: dailyEntriesTotal,
             DraftEntries: draftEntries,
             SubmittedEntries: submittedEntries,
@@ -1858,7 +2218,8 @@ public sealed class SimulationDataSeeder(
             InventoryItems: InventoryItemsWanted.Length,
             InventoryLots: InventoryItemsWanted.Length, // one opening lot per item.
             InventoryPurchaseMovements: InventoryItemsWanted.Length,
-            InventoryAdjustmentOrDiscardMovements: InventoryItemsWanted.Length, // one each.
+            InventoryAdjustmentOrDiscardMovements: InventoryItemsWanted.Length
+                + FeedAdjustmentBandCount, // one discard + the feed adjustment band
             InventoryUsageMovements: feedUsageRows,
             InventoryMovementsTotal: inventoryMovementsTotal,
             FeedUsageRows: feedUsageRows,
@@ -1897,6 +2258,22 @@ public sealed class SimulationDataSeeder(
         Check(counts.UsersTotal == expected.UsersTotal,
             $"users.total: expected {expected.UsersTotal}, got {counts.UsersTotal}");
         Check(counts.Flocks == expected.Flocks, $"flocks: expected {expected.Flocks}, got {counts.Flocks}");
+        // #627 — the flock lifecycle split, exact (INV-5) plus a reconciliation
+        // sum so the three bands cannot hide a fourth status the counts don't
+        // name.
+        Check(states.Flocks.Active == expected.FlocksActive,
+            $"flocks.active: expected {expected.FlocksActive}, got {states.Flocks.Active}");
+        Check(states.Flocks.Depleted == expected.FlocksDepleted,
+            $"flocks.depleted: expected {expected.FlocksDepleted}, got {states.Flocks.Depleted}");
+        Check(states.Flocks.Archived == expected.FlocksArchived,
+            $"flocks.archived: expected {expected.FlocksArchived}, got {states.Flocks.Archived}");
+        var flockStateSum = states.Flocks.Active + states.Flocks.Depleted + states.Flocks.Archived;
+        Check(flockStateSum == counts.Flocks,
+            $"flocks reconciliation: active+depleted+archived ({flockStateSum}) != total ({counts.Flocks})");
+        Check(counts.Customers == expected.Customers,
+            $"customers: expected {expected.Customers}, got {counts.Customers}");
+        Check(counts.BirdMovements == expected.BirdMovements,
+            $"birdMovements: expected {expected.BirdMovements}, got {counts.BirdMovements}");
         Check(counts.DailyEntriesTotal == expected.DailyEntriesTotal,
             $"dailyEntries.total: expected {expected.DailyEntriesTotal}, got {counts.DailyEntriesTotal}");
         Check(states.DailyEntries.Draft == expected.DraftEntries,
@@ -1984,8 +2361,13 @@ public sealed class SimulationDataSeeder(
     // the wall-clock-dependent integration path.
     internal static string ComputeFingerprint(int seed, SimulationManifestCounts counts, SimulationLifecycleStates states)
     {
+        // #627 — states.Flocks joins the canonical payload: nothing time-based
+        // moves a flock between Active/Depleted/Archived after the seeder
+        // writes it, so the split is exactly as stable as the other included
+        // states. states.DailyEntries stays deliberately EXCLUDED (the
+        // sweep-boundary flake the comment above documents).
         var canonical = JsonSerializer.Serialize(
-            new { seed, counts, states.SalesOrders, states.InventoryMovements }, FingerprintJsonOptions);
+            new { seed, counts, states.SalesOrders, states.InventoryMovements, states.Flocks }, FingerprintJsonOptions);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
     }
 
@@ -2021,13 +2403,18 @@ public sealed record SimulationSalesOrderStates(
 
 public sealed record SimulationInventoryMovementStates(int Purchase, int Usage, int Adjustment, int Discard);
 
+public sealed record SimulationFlockStates(int Active, int Depleted, int Archived);
+
 public sealed record SimulationLifecycleStates(
     SimulationDailyEntryStates DailyEntries,
     SimulationSalesOrderStates SalesOrders,
-    SimulationInventoryMovementStates InventoryMovements);
+    SimulationInventoryMovementStates InventoryMovements,
+    SimulationFlockStates Flocks);
 
 public sealed record SimulationManifestCounts(
     int Accounts,
+    int Customers,
+    int BirdMovements,
     int Owners,
     int Managers,
     int Sales,
@@ -2060,6 +2447,11 @@ public sealed record SimulationExpectedCounts(
     int ReadOnly,
     int UsersTotal,
     int Flocks,
+    int FlocksActive,
+    int FlocksDepleted,
+    int FlocksArchived,
+    int Customers,
+    int BirdMovements,
     int DailyEntriesTotal,
     int DraftEntries,
     int SubmittedEntries,
