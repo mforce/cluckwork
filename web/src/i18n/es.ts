@@ -758,6 +758,7 @@ export const es = {
     ledgerQuantityHeader: "Cantidad",
     ledgerNoteHeader: "Nota",
     noMovementsMessage: "Aún no hay movimientos — registre una compra arriba.",
+    loadMoreButton: "cargar más",
     closeButton: "cerrar",
 
     // Items table

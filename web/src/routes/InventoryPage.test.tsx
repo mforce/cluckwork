@@ -343,7 +343,7 @@ describe("InventoryPage lot & movement drill-down", () => {
     await renderReady(ADMIN);
     await openItem(FEED);
 
-    expect(mockListMovements).toHaveBeenCalledWith("it1", { limit: 100 });
+    expect(mockListMovements).toHaveBeenCalledWith("it1", { limit: 100, offset: 0 });
     expect(mockListLots).toHaveBeenCalledWith("it1");
 
     const mvRow = screen.getByRole("row", { name: /Purchase/ });
@@ -751,7 +751,19 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     expect(screen.getAllByText("Could not load the movement ledger.")).toHaveLength(1);
   });
 
-  it("keeps a page failure visible after opening a dialog and running a failing dialog write", async () => {
+  // #511 — this used to pin the ledger's stale failure surviving an unrelated
+  // dialog write forever, because the old code only re-read the ledger on a
+  // SUCCESSFUL write's own refresh. `usePagedList`'s `runWrite` re-reads on
+  // BOTH outcomes of ANY write it wraps — including create-item, which is not
+  // ledger-specific — and a successful re-read clears a previous error by
+  // design ("an error can never outlive the condition that caused it", see
+  // the hook's own header comment). The create's mock rejection is
+  // ONE-shot, so by the time its failure triggers the ledger's re-read, the
+  // ledger mock has reverted to its default (empty) resolve — the read
+  // genuinely recovers, so the stale message is correctly replaced, not lost.
+  // What #479 isolation still guarantees, and what this test now pins: the
+  // dialog's OWN failure renders only inside the dialog, never on the page.
+  it("keeps a dialog's own failure inside the dialog after it incidentally recovers the page's ledger error", async () => {
     mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
     mockCreate.mockRejectedValueOnce(new ApiError(500, "Server error", "create boom"));
     await renderReady(ADMIN);
@@ -768,8 +780,13 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
     });
 
-    expect(screen.getByText("Could not load the movement ledger.")).toBeInTheDocument();
+    // The ledger's own retry (triggered by the create settling) succeeded —
+    // the stale error is gone, replaced by the recovered empty-ledger state.
+    expect(screen.queryByText("Could not load the movement ledger.")).not.toBeInTheDocument();
+    expect(screen.getByText(/No movements yet/)).toBeInTheDocument();
+    // The create's own failure stays inside its own dialog, never the page.
     expect(within(dialog()).getByText("create boom")).toBeInTheDocument();
+    expect(screen.getAllByText("create boom")).toHaveLength(1);
   });
 });
 
@@ -938,5 +955,133 @@ describe("InventoryPage i18n wiring (#182, Task 16)", () => {
       expect(await screen.findByText("LEDGER-FAILED-MARKER")).toBeInTheDocument();
       expect(screen.queryByText("Could not load the movement ledger.")).not.toBeInTheDocument();
     });
+  });
+});
+
+// #511 — the movement ledger asked for 100 rows and rendered them with no
+// pager, so the oldest movements were unreachable. These pin the paged
+// behaviour and the per-item identity that keeps one item's rows off
+// another item's heading.
+const invMovementRow = (over: Partial<InventoryMovement> = {}): InventoryMovement => ({
+  id: "im0", inventoryItemId: "it1", inventoryLotId: "lot1", date: "2026-07-01",
+  type: "Purchase", quantityDelta: 1, unit: "kg", flockId: null, note: "note",
+  referenceType: null, referenceId: null, ...over,
+});
+const invMovementPage = (n: number, prefix = "im") =>
+  Array.from({ length: n }, (_, i) =>
+    invMovementRow({ id: `${prefix}${i}`, note: `${prefix} note ${String(i).padStart(3, "0")}` }));
+
+describe("InventoryPage ledger paging (#511)", () => {
+  it("reaches a movement past the first page through load more", async () => {
+    mockListMovements.mockResolvedValueOnce(invMovementPage(100));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    await screen.findByText("im note 000");
+    expect(mockListMovements).toHaveBeenCalledWith("it1",
+      expect.objectContaining({ limit: 100, offset: 0 }));
+
+    mockListMovements.mockResolvedValueOnce([invMovementRow({ id: "old", note: "oldest row" })]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+
+    expect(mockListMovements).toHaveBeenLastCalledWith("it1",
+      expect.objectContaining({ offset: 100 }));
+    expect(await screen.findByText("oldest row")).toBeInTheDocument();
+    expect(screen.getByText("im note 000")).toBeInTheDocument();
+  });
+
+  it("withdraws the pager on a short page", async () => {
+    mockListMovements.mockResolvedValueOnce(invMovementPage(3));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    await screen.findByText("im note 000");
+    expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
+  });
+
+  it("hides the previous item's movements while the next item's ledger is loading", async () => {
+    // INV-4, render half. Item one's page has ALREADY LANDED, so `rows` holds
+    // it; the user then switches straight to item two and that replacement is
+    // in flight. The rows still in `rows` belong to an item the user has
+    // left, and `reloading` is the only state that knows it.
+    mockListMovements.mockResolvedValueOnce([invMovementRow({ id: "a1", note: "item one row" })]);
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    await screen.findByText("item one row");
+
+    let releaseSecond!: (rows: InventoryMovement[]) => void;
+    mockListMovements.mockReturnValueOnce(new Promise((r) => { releaseSecond = r; }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "open" }));
+    });
+
+    expect(screen.queryByText("item one row")).not.toBeInTheDocument();
+
+    await act(async () => {
+      releaseSecond([invMovementRow({ id: "b1", inventoryItemId: "it2", note: "item two row" })]);
+    });
+    expect(await screen.findByText("item two row")).toBeInTheDocument();
+  });
+
+  it("refreshes every loaded page after recording a purchase", async () => {
+    mockListMovements.mockResolvedValueOnce(invMovementPage(100));
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    await screen.findByText("im note 000");
+
+    mockListMovements.mockResolvedValueOnce([invMovementRow({ id: "old", note: "oldest row" })]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "load more" }));
+    });
+    await screen.findByText("oldest row");
+
+    // The refresh has to be OBSERVABLE: the post-write fixtures carry
+    // DIFFERENT text from the pre-write ones, same technique as FlocksPage's
+    // equivalent (#511).
+    mockPurchase.mockResolvedValue({ lotId: "lot9" });
+    mockListMovements.mockResolvedValueOnce(
+      invMovementPage(100).map((m, i) => ({ ...m, note: `refreshed ${String(i).padStart(3, "0")}` })));
+    mockListMovements.mockResolvedValueOnce([invMovementRow({ id: "old", note: "refreshed oldest" })]);
+
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+
+    // Both pages the user had loaded were re-read, not just page one.
+    expect(await screen.findByText("refreshed oldest")).toBeInTheDocument();
+    expect(screen.getByText("refreshed 000")).toBeInTheDocument();
+  });
+
+  // Mutation table row 6: `clearKey` must stay AFTER `runWrite` resolves, not
+  // inside its callback — otherwise a failed refresh still rotates the key,
+  // and a retry mints a fresh write instead of replaying the idempotent one.
+  it("keeps the same key when the post-write refresh fails, so a retry replays the write", async () => {
+    mockPurchase.mockResolvedValue({ lotId: "lot9" });
+    // The write succeeds; refreshAll's own read (listInventoryItems) is what
+    // fails — this is the refresh runWrite wraps, not the write itself.
+    mockListItems.mockResolvedValueOnce([FEED, PACKAGING, INACTIVE]); // initial mount load
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    mockListItems.mockRejectedValueOnce(new ApiError(500, "Server error", "refresh down"));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+    // The failed refresh reports through the purchase dialog's own slot.
+    expect(within(dialog()).getByText("refresh down")).toBeInTheDocument();
+
+    // Retry with the refresh healthy this time.
+    mockListItems.mockResolvedValueOnce([FEED, PACKAGING, INACTIVE]);
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+
+    const k1 = mockPurchase.mock.calls[0][2];
+    const k2 = mockPurchase.mock.calls[1][2];
+    expect(k2).toBe(k1); // the failed refresh kept the key → exact replay
   });
 });

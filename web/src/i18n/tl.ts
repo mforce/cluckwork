@@ -782,6 +782,7 @@ export const tl = {
     ledgerQuantityHeader: "Dami",
     ledgerNoteHeader: "Tala",
     noMovementsMessage: "Wala pang galaw — magtala ng pagbili sa itaas.",
+    loadMoreButton: "mag-load pa",
     closeButton: "isara",
 
     // Items table

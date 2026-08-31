@@ -910,6 +910,7 @@ export const en = {
     ledgerQuantityHeader: "Quantity",
     ledgerNoteHeader: "Note",
     noMovementsMessage: "No movements yet — record a purchase above.",
+    loadMoreButton: "load more",
     closeButton: "close",
 
     // Items table

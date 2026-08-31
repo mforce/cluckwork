@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -15,6 +15,7 @@ import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
+import { usePagedList } from "../components/usePagedList";
 import { useDialogErrors } from "../components/useDialogErrors";
 import { usePendingAction } from "../components/usePendingAction";
 import { newId } from "../lib/ids";
@@ -35,6 +36,9 @@ function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
 }
+
+// The ledger's previous hard cap, kept as the page size.
+const LEDGER_PAGE = 100;
 
 // F15 (#66, PR 1): inventory catalog + receiving stock. Items define what and
 // how it's measured; lots carry quantities/cost; the movement ledger explains
@@ -77,7 +81,6 @@ export function InventoryPage() {
   // open item panel: purchase/adjust forms + ledger. Feed usage moved to its
   // own /feed page (#446) — the panel keeps only a deep link there.
   const [active, setActive] = useState<InventoryItem | null>(null);
-  const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [lots, setLots] = useState<InventoryLot[]>([]);
   // the open item's two capture dialogs
   const [purchasing, setPurchasing] = useState(false);
@@ -93,8 +96,25 @@ export function InventoryPage() {
   const [lotNumber, setLotNumber] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [purchaseNote, setPurchaseNote] = useState("");
-  // Guards stale ledger responses when switching items quickly.
-  const ledgerRequest = useRef(0);
+
+  // #511 — the movement ledger is server-paged; the OPEN ITEM is the fetch
+  // identity, so switching items reloads from the top and a late response for
+  // the previous item can never paint under this one's heading.
+  const activeId = active?.id ?? null;
+  const fetchMovements = useCallback(
+    (offset: number, limit: number) =>
+      activeId
+        ? listInventoryMovements(activeId, { limit, offset })
+        : Promise.resolve<InventoryMovement[]>([]),
+    [activeId],
+  );
+  const ledger = usePagedList<InventoryMovement>({
+    fetchPage: fetchMovements,
+    pageSize: LEDGER_PAGE,
+    // The LEDGER's own key, not the item list's: four existing ledger-failure
+    // tests assert this exact sentence, and `onOpen`'s catch used it too.
+    errorText: () => i18n.t("inventory:loadLedgerFailed"),
+  });
 
   // Stable idempotency keys per logical mutation, rotated only after the full
   // action (write + refresh) succeeds — same contract as the other screens.
@@ -137,18 +157,19 @@ export function InventoryPage() {
     if (target) {
       const stillThere = fresh.find((i) => i.id === target) ?? null;
       setActive(stillThere);
-      if (stillThere) await loadLedger(stillThere.id);
+      if (stillThere) await loadLots(stillThere.id);
     }
   }
 
-  async function loadLedger(itemId: string) {
-    const req = ++ledgerRequest.current;
-    const [rows, lotRows] = await Promise.all([
-      listInventoryMovements(itemId, { limit: 100 }),
-      listInventoryLots(itemId),
-    ]);
-    if (ledgerRequest.current !== req) return;
-    setMovements(rows);
+  // Lots are deliberately NOT folded into the paged ledger's `meta`: the hook
+  // sets meta from every page it fetches, so a window refresh would re-request
+  // the lots once per page. They keep their own read and their own guard.
+  const lotsRequest = useRef(0);
+
+  async function loadLots(itemId: string) {
+    const req = ++lotsRequest.current;
+    const lotRows = await listInventoryLots(itemId);
+    if (lotsRequest.current !== req) return;
     setLots(lotRows);
     setAdjustLotId((prev) => lotRows.some((l) => l.id === prev) ? prev : (lotRows[0]?.id ?? ""));
   }
@@ -161,10 +182,12 @@ export function InventoryPage() {
       errors.beginAttempt(errorScope);
       setMessage(null);
       try {
-        await action(keyFor(scope));
-        // The refresh must succeed before the key rotates: if it throws, the key
-        // survives and a retry replays the idempotent write instead of repeating it.
-        await refreshAll(openItemId);
+        await ledger.runWrite(async () => {
+          await action(keyFor(scope));
+          // The refresh must succeed before the key rotates: if it throws, the key
+          // survives and a retry replays the idempotent write instead of repeating it.
+          await refreshAll(openItemId);
+        });
         clearKey(scope);
         return true;
       } catch (err) {
@@ -250,9 +273,8 @@ export function InventoryPage() {
       closeAdjust();
     }
     setActive(i);
-    setMovements([]);
     try {
-      await loadLedger(i.id);
+      await loadLots(i.id);
     } catch {
       setPageError(i18n.t("inventory:loadLedgerFailed"));
     }
@@ -526,13 +548,19 @@ export function InventoryPage() {
             </form>
           </Dialog>
 
-          {movements.length > 0 ? (
+          {ledger.rows === null || ledger.reloading ? (
+            <p className="muted">{tc("loading")}</p>
+          ) : ledger.error ? (
+            <p className="error">{ledger.error}</p>
+          ) : ledger.rows.length === 0 ? (
+            <p className="muted">{t("noMovementsMessage")}</p>
+          ) : (
             <table className="data">
               <thead>
                 <tr><th>{t("ledgerDateHeader")}</th><th>{t("ledgerTypeHeader")}</th><th>{t("ledgerQuantityHeader")}</th><th>{t("ledgerNoteHeader")}</th></tr>
               </thead>
               <tbody>
-                {movements.map((m) => (
+                {ledger.rows.map((m) => (
                   <tr key={m.id}>
                     <td>{m.date}</td>
                     <td>{inventoryMovementLabel(m.type)}</td>
@@ -542,8 +570,11 @@ export function InventoryPage() {
                 ))}
               </tbody>
             </table>
-          ) : (
-            <p className="muted">{t("noMovementsMessage")}</p>
+          )}
+          {ledger.canLoadMore && (
+            <button className="link" onClick={() => void ledger.loadMore()}>
+              {t("loadMoreButton")}
+            </button>
           )}
           <div className="actions">
             <button className="link" onClick={() => setActive(null)}>{t("closeButton")}</button>
