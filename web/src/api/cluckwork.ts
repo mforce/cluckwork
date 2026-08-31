@@ -320,8 +320,12 @@ export interface SalesOrder extends RecordHistory {
   items: OrderItem[];
 }
 
-export const listCustomers = (params?: { limit?: number }) =>
-  apiGet<Customer[]>(`/customers${params?.limit ? `?limit=${params.limit}` : ""}`);
+export const listCustomers = (params?: { limit?: number; offset?: number }) => {
+  const q = new URLSearchParams();
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
+  return apiGet<Customer[]>(`/customers${q.size > 0 ? `?${q}` : ""}`);
+};
 
 export const createCustomer = (body: {
   name: string;

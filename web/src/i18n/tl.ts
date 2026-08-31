@@ -1392,6 +1392,7 @@ export const tl = {
     addressHeader: "Address",
     noteHeader: "Tala",
     outstandingHeader: "Nakabinbin",
+    loadMoreButton: "mag-load pa",
   },
 
   // machine-drafted (#182) — pending native review. Task 28 (B5): new

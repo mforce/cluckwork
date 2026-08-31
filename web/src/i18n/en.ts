@@ -1674,6 +1674,7 @@ export const en = {
     addressHeader: "Address",
     noteHeader: "Note",
     outstandingHeader: "Outstanding",
+    loadMoreButton: "load more",
   },
   // Daily-entry history — browse recorded entries with flock/date filters,
   // plus the admin-only adjust/void corrections (Task 27, #182, batch B5 —

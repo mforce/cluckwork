@@ -1347,6 +1347,7 @@ export const es = {
     addressHeader: "Dirección",
     noteHeader: "Nota",
     outstandingHeader: "Pendiente",
+    loadMoreButton: "cargar más",
   },
 
   // machine-drafted (#182) — pending native review. Task 28 (B5): new
