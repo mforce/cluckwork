@@ -187,7 +187,28 @@ export function InventoryPage() {
   // That gap is tracked as #631.
   async function loadLots(itemId: string) {
     const req = ++lotsRequest.current;
-    const lotRows = await listInventoryLots(itemId);
+    let lotRows: InventoryLot[];
+    try {
+      lotRows = await listInventoryLots(itemId);
+    } catch (err) {
+      // #511 round 6 — INV-1 applies to the failure path, but INV-6 still owns
+      // the live one, and the two are distinguishable by the same ticket that
+      // already guards the success path:
+      //   * SUPERSEDED (the ticket moved on): nobody is waiting for this and
+      //     the panel is showing a different item. Swallow it — neither report
+      //     nor throw. Painting it over a healthy view is the bug the hook's
+      //     own header calls "a superseded request's rejection is exactly as
+      //     stale as its response".
+      //   * CURRENT: rethrow, unchanged. `refreshAll` awaits this with no catch
+      //     of its own, so the throw reaches `run()`, which reports it into the
+      //     write's dialog and SKIPS clearKey — that is how a write whose
+      //     post-write refresh failed keeps its idempotency key for a replay.
+      // An earlier draft of this fix swallowed BOTH and would have reported
+      // such a write as successful. It is pinned now by "fails the write and
+      // keeps its key when the post-write LOTS re-read fails".
+      if (lotsRequest.current !== req) return;
+      throw err;
+    }
     if (lotsRequest.current !== req) return;
     setLots(lotRows);
     setAdjustLotId((prev) => lotRows.some((l) => l.id === prev) ? prev : (lotRows[0]?.id ?? ""));

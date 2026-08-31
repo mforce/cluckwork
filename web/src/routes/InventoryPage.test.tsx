@@ -1210,4 +1210,54 @@ describe("InventoryPage ledger paging (#511)", () => {
     expect(screen.getByText("im note 000")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "load more" })).toBeInTheDocument();
   });
+
+  it("does not report a superseded item's lots failure over the item now open", async () => {
+    // INV-1, failure path. The ticket already drops a stale SUCCESS; a stale
+    // REJECTION is exactly as stale and must not paint over a healthy panel.
+    mockListMovements.mockResolvedValue([]);
+    let failFirst!: (err: unknown) => void;
+    mockListLots.mockReturnValueOnce(new Promise((_, rej) => { failFirst = rej; }));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+
+    mockListLots.mockResolvedValueOnce([]);
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "open" }));
+    });
+
+    await act(async () => {
+      failFirst(new ApiError(500, "Server error", "lots down"));
+    });
+
+    expect(screen.queryByText("Could not load the item's lots.")).not.toBeInTheDocument();
+  });
+
+  it("fails the write and keeps its key when the post-write LOTS re-read fails", async () => {
+    // INV-6, via the lots branch specifically. The existing key-survival test
+    // drives refreshAll's fetchItems() failure; nothing drove its loadLots
+    // failure, which is exactly the gap that let round 5's proposed fix look
+    // safe. A live lots rejection must still fail the write.
+    mockListMovements.mockResolvedValue([]);
+    mockPurchase.mockResolvedValue({ lotId: "lot9" });
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    mockListLots.mockRejectedValueOnce(new ApiError(500, "Server error", "lots down"));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+
+    // The write is reported FAILED even though the POST succeeded, because its
+    // refresh did not: the dialog stays open carrying the failure.
+    expect(within(dialog()).getByText("lots down")).toBeInTheDocument();
+
+    // And the key survived, so a retry replays rather than repeats.
+    mockListLots.mockResolvedValueOnce([]);
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+    expect(mockPurchase.mock.calls[1][2]).toBe(mockPurchase.mock.calls[0][2]);
+  });
 });
