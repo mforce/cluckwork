@@ -659,7 +659,7 @@ public sealed class PerFarmRefreshCookieTests(CluckworkWebApplicationFactory fac
     {
         var email = $"569-retained-revoked-{Guid.NewGuid():N}@test.local";
         var loginClient = new TestBrowser(factory);
-        var (farm, selectedToken, _) = await LoginAsync(factory, loginClient, email);
+        var (farm, siblingToken, _) = await LoginAsync(factory, loginClient, email);
 
         var secondLogin = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
         {
@@ -679,18 +679,35 @@ public sealed class PerFarmRefreshCookieTests(CluckworkWebApplicationFactory fac
             AuthCookies.LegacyRefreshCookieName + "=" + retainedToken,
             expectedAccount: farm.ToString());
         Assert.Equal(HttpStatusCode.OK, rotation.StatusCode);
+        var childToken = TestHarness.ExtractRefreshCookie(rotation, farm);
+        Assert.False(string.IsNullOrEmpty(childToken));
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
         request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
         request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, farm.ToString());
-        request.Headers.Add(
-            "Cookie",
-            $"{AuthCookies.RefreshCookieNameFor(farm)}={selectedToken}; "
-            + $"{AuthCookies.LegacyRefreshCookieName}={retainedToken}");
+        request.Headers.Add("Cookie", AuthCookies.LegacyRefreshCookieName + "=" + retainedToken);
         var logout = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
         AssertClearsCookie(logout, AuthCookies.LegacyRefreshCookieName);
+
+        // Probe the unrelated session BEFORE presenting either cleared lineage
+        // node. Otherwise replay detection could revoke it and make a passing
+        // result say nothing about logout's own scope.
+        var siblingBeforeReplay = await client.PostRefreshAsync(
+            siblingToken, expectedAccount: farm.ToString());
+        Assert.Equal(HttpStatusCode.OK, siblingBeforeReplay.StatusCode);
+        var siblingChild = await TestHarness.ReadTokensAsync(siblingBeforeReplay);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(
+            childToken, expectedAccount: farm.ToString())).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(
+            retainedToken, expectedAccount: farm.ToString())).StatusCode);
+
+        // Both cleared nodes are inert tombstones, not theft evidence that may
+        // revoke a sibling login for the same user and credential epoch.
+        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(
+            siblingChild.RefreshToken, expectedAccount: farm.ToString())).StatusCode);
     }
 
     [Fact]
