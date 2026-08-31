@@ -65,15 +65,16 @@ export function CustomersPage() {
   const [editWriteInFlight, setEditWriteInFlight] = useState(false);
   const editDialogGeneration = useRef(0);
   const activeEdit = useRef<{ id: string; generation: number } | null>(null);
-  // Stable idempotency key per customer, rotated only after the write is
-  // CONFIRMED (before the refresh) — same contract as UsersPage's `keys`.
-  const editKeys = useRef(new Map<string, string>());
-  const editKeyFor = (id: string) => {
+  // Stable idempotency key per customer AND exact wire payload, rotated when
+  // either the Version/fields or omitted-optionals shape changes. A confirmed
+  // write still clears it immediately, before the refresh.
+  const editKeys = useRef(new Map<string, { key: string; fingerprint: string }>());
+  const editKeyFor = (id: string, fingerprint: string) => {
     const existing = editKeys.current.get(id);
-    if (existing) return existing;
-    const fresh = newId();
+    if (existing?.fingerprint === fingerprint) return existing.key;
+    const fresh = { key: newId(), fingerprint };
     editKeys.current.set(id, fresh);
-    return fresh;
+    return fresh.key;
   };
   const clearEditKey = (id: string) => editKeys.current.delete(id);
 
@@ -164,14 +165,15 @@ export function CustomersPage() {
       errors.beginAttempt("edit-customer");
       setEditWriteInFlight(true);
       try {
-        await updateCustomer(target.id, {
+        const body = {
           version: target.version,
           name: target.name,
           phone: target.phone,
           email: target.email || undefined,
           address: target.address || undefined,
           note: target.note || undefined,
-        }, editKeyFor(target.id));
+        };
+        await updateCustomer(target.id, body, editKeyFor(target.id, JSON.stringify(body)));
         // Clear the key the instant the WRITE is confirmed — before the
         // refresh — so a changed retry after a failed refresh cannot replay
         // this cached response (same contract as UsersPage's onUpdate/#163).

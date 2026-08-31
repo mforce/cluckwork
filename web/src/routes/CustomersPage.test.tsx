@@ -545,12 +545,14 @@ describe("CustomersPage edit (#625)", () => {
     // then have nowhere correct to land).
     assertDismissalBlocked();
 
-    await act(async () => resolveList([C1, C2].map((c) => (c.id === "c1" ? { ...c, name: "Server value" } : c))));
+    await act(async () => resolveList([C1, C2].map((c) => (
+      c.id === "c1" ? { ...c, name: "Server value", version: 7 } : c))));
 
     // Refresh SUCCEEDED here, so the dialog closes itself — dismissal is
     // moot on this instance. The failed-refresh variant below is what proves
     // dismissal actually re-enables on a dialog that stays open.
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByRole("row", { name: /Server value/ })).toBeInTheDocument();
   });
 
   it("keeps every dismissal path blocked through a failed post-write refresh, then restores it once settled", async () => {
@@ -708,7 +710,7 @@ describe("CustomersPage edit (#625)", () => {
   // not spend the idempotency key: a retry with unchanged fields is the
   // exact same logical request and must replay under the same key (same
   // contract as create's "replays the SAME create key after a failure").
-  it("reuses the SAME idempotency key on retry when the write itself fails", async () => {
+  it("reuses the SAME idempotency key when an unchanged payload is retried after the write fails", async () => {
     mockUpdate.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
     mockUpdate.mockResolvedValueOnce(undefined);
     renderWithProviders(<CustomersPage />, { token: WORKER });
@@ -731,6 +733,31 @@ describe("CustomersPage edit (#625)", () => {
     const key1 = mockUpdate.mock.calls[0][2];
     const key2 = mockUpdate.mock.calls[1][2];
     expect(key2).toBe(key1);
+  });
+
+  it("uses a different idempotency key when a changed payload is retried after the write fails", async () => {
+    mockUpdate.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+    mockUpdate.mockResolvedValueOnce(undefined);
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    await screen.findByRole("row", { name: /Acme Eggs/ });
+    openEdit("Acme Eggs");
+    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    await submitEdit();
+    expect(within(dialog()).getByText(/Server error|boom/)).toBeInTheDocument();
+
+    // The first request's email was populated. Clearing it changes both the
+    // payload value and the JSON wire shape because undefined optionals are
+    // omitted by the API client.
+    fireEvent.change(within(dialog()).getByLabelText("Email"), { target: { value: "" } });
+    await submitEdit();
+
+    expect(mockUpdate).toHaveBeenCalledTimes(2);
+    const firstBody = mockUpdate.mock.calls[0][1];
+    const secondBody = mockUpdate.mock.calls[1][1];
+    expect(firstBody.email).toBe("a@x.co");
+    expect(secondBody.email).toBeUndefined();
+    expect(secondBody).not.toEqual(firstBody);
+    expect(mockUpdate.mock.calls[1][2]).not.toBe(mockUpdate.mock.calls[0][2]);
   });
 
   it("issues a fresh idempotency key for the next save after a confirmed write but a failed refresh", async () => {

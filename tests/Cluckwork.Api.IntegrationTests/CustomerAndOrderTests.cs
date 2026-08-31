@@ -811,6 +811,28 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         Assert.Null(got.Note);
     }
 
+    [Fact]
+    public async Task Customer_Update_OmittedPopulatedOptionals_PersistsAsNull_AndBumpsVersion()
+    {
+        var (client, _, _, _, _) = await SetupAsync("Large");
+        var id = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = "Original", phone = "555-0000", email = "orig@example.com", address = "Orig Addr", note = "Orig Note" }));
+
+        var update = await client.PutWithKeyAsync(
+            $"/api/v1/customers/{id}", Guid.NewGuid().ToString(),
+            new { version = 0, name = "Updated", phone = "555-9999" });
+
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+        var got = await client.GetFromJsonAsync<CustomerDto>($"/api/v1/customers/{id}");
+        Assert.Equal("Updated", got!.Name);
+        Assert.Equal("555-9999", got.Phone);
+        Assert.Null(got.Email);
+        Assert.Null(got.Address);
+        Assert.Null(got.Note);
+        Assert.Equal(1, got.Version);
+    }
+
     // #625 review round 9 — CustomersPage seeds its edit dialog straight from
     // the LIST row (each row already carries every field the dialog needs —
     // see the design's own "atomic prefill" rationale), never a fresh by-id

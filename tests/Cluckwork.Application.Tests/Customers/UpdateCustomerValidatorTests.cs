@@ -79,8 +79,9 @@ public sealed class UpdateCustomerValidatorTests
     [Fact]
     public async Task EmailTooLong_Fails()
     {
-        var longLocal = new string('a', Customer.MaxEmailLength);
-        var result = await _validator.ValidateAsync(Valid() with { Email = $"{longLocal}@example.com" });
+        const string domain = "@example.com";
+        var email = new string('a', Customer.MaxEmailLength + 1 - domain.Length) + domain;
+        var result = await _validator.ValidateAsync(Valid() with { Email = email });
         Assert.Contains(result.Errors, e => e.ErrorCode == "Customer.Email.MaxLength");
     }
 

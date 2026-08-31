@@ -9,7 +9,7 @@ using FluentValidation.Results;
 // fields, and the design's own invariant is that the update validator
 // "mirrors every field" the create validator covers. This walks every
 // SHARED boundary through BOTH real validators and asserts the two produce
-// the EXACT SAME set of explicit (property, code) failures — not merely
+// the EXACT SAME multiset of explicit (property, code) failures — not merely
 // "each contains the one code under test" (round 2), which cannot see an
 // extra or missing failure alongside it. It also proves the boundary is not
 // off by one: a valid, AT-the-maximum value for each shared max-length field
@@ -31,17 +31,20 @@ public sealed class CustomerValidatorParityTests
         CustomerId: Guid.NewGuid(), Version: 0, Name: "Jane Farmer", Phone: "555-0100",
         Email: "jane@example.com", Address: "123 Coop Rd", Note: "Regular buyer");
 
-    private static HashSet<(string PropertyName, string Code)> ExplicitCodePairs(ValidationResult result) =>
+    private static List<(string PropertyName, string Code)> ExplicitCodePairs(ValidationResult result) =>
         result.Errors
             .Where(e => e.ErrorCode is not null && e.ErrorCode.Contains('.'))
             .Select(e => (e.PropertyName, e.ErrorCode!))
-            .ToHashSet();
+            .OrderBy(e => e.PropertyName, StringComparer.Ordinal)
+            .ThenBy(e => e.Item2, StringComparer.Ordinal)
+            .ToList();
 
     public static IEnumerable<object[]> SharedFieldBoundaries()
     {
         var longName = new string('a', Customer.MaxNameLength + 1);
         var longPhone = new string('1', Customer.MaxPhoneLength + 1);
-        var longEmailLocal = new string('a', Customer.MaxEmailLength);
+        const string emailDomain = "@example.com";
+        var longEmail = new string('a', Customer.MaxEmailLength + 1 - emailDomain.Length) + emailDomain;
         var longAddress = new string('a', Customer.MaxAddressLength + 1);
         var longNote = new string('a', Customer.MaxNoteLength + 1);
 
@@ -83,8 +86,8 @@ public sealed class CustomerValidatorParityTests
         yield return new object[]
         {
             "EmailTooLong",
-            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Email = $"{longEmailLocal}@example.com" }),
-            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Email = $"{longEmailLocal}@example.com" }),
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Email = longEmail }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Email = longEmail }),
             "Customer.Email.MaxLength",
         };
         yield return new object[]
@@ -105,7 +108,7 @@ public sealed class CustomerValidatorParityTests
 
     [Theory]
     [MemberData(nameof(SharedFieldBoundaries))]
-    public async Task SharedBoundary_ProducesTheExactSameErrorSet_OnBothValidators(
+    public async Task SharedBoundary_ProducesTheExactSameErrorMultiset_OnBothValidators(
         string caseName,
         Func<CreateCustomerCommand, CreateCustomerCommand> mutateCreate,
         Func<UpdateCustomerCommand, UpdateCustomerCommand> mutateUpdate,
@@ -119,7 +122,7 @@ public sealed class CustomerValidatorParityTests
 
         var expectedProperty = expectedCode.Split('.')[1];
         Assert.Contains((expectedProperty, expectedCode), createPairs);
-        // The EXACT set, not "update also contains it": a validator that adds
+        // The EXACT multiset, not "update also contains it": a validator that adds
         // (or drops) an unrelated explicit failure for the same mutation
         // would still pass a Contains-only check.
         Assert.Equal(createPairs, updatePairs);
@@ -196,7 +199,7 @@ public sealed class CustomerValidatorParityTests
     // "absent" input (Email's format/length rules are gated behind
     // `.When(x => !string.IsNullOrWhiteSpace(x.Email))`; Address/Note carry
     // no required rule at all, so MaximumLength alone must not reject an
-    // empty/null value). Both real validators, exact failure-set equality —
+    // empty/null value). Both real validators, exact failure-multiset equality —
     // same shape as the boundary theory above, just for the accepted side.
     public static IEnumerable<object[]> SharedOptionalFieldEmptyVariants()
     {
