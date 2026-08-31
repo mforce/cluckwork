@@ -166,18 +166,25 @@ export function InventoryPage() {
   // the lots once per page. They keep their own read and their own guard.
   const lotsRequest = useRef(0);
 
-  // #511 round 3 — an `activeIdRef.current !== itemId` guard was added here in
-  // round 2 and removed again, deliberately. It could not fire: every caller
-  // sets `active` to the same item immediately before calling this
-  // (`onOpen` does setActive(i) then loadLots(i.id); `refreshAll` does
-  // setActive(stillThere) then loadLots(stillThere.id)), so the ids always
-  // agree at call time, and any later switch bumps the ticket below, which
-  // already rejects the response. Deleting all of increment 7 left the whole
-  // InventoryPage suite green, which is how the redundancy was established
-  // rather than argued. What DOES matter is the setLots([]) clear in `onOpen`
-  // — that covers a different question, namely what is on screen while the
-  // NEXT item's lots are still in flight, and it is pinned by
-  // "clears the previous item's lots the moment a different item is opened".
+  // #511 round 4 — an `activeIdRef.current !== itemId` guard was added here in
+  // round 2 and removed again in round 3, deliberately. Why it was redundant,
+  // stated as the argument that actually holds:
+  //   * Both callers set `active` to the same item SYNCHRONOUSLY before
+  //     calling this — `onOpen` does setActive(i) then loadLots(i.id);
+  //     `refreshAll` does setActive(stillThere) then loadLots(stillThere.id) —
+  //     so the ids agree at call time and a call-time comparison is a no-op.
+  //   * A divergence can only appear AFTER the await, and that is exactly what
+  //     the `lotsRequest` ticket below rejects: opening any item bumps it.
+  //   * `usePendingAction`'s `busy` disables every row's open button for the
+  //     whole of a write, so the interleaving the ref form would have caught
+  //     cannot be produced from the UI.
+  // The round-3 comment justified this by saying the suite stayed green when
+  // the guard was deleted. That was the wrong evidence and is not repeated
+  // here: a green suite after a deletion proves no test REACHES the branch,
+  // which is a coverage fact, not an unreachability proof.
+  // The ticket is now the sole guard on this read, and it has no test of its
+  // own — measured, not assumed: disabling it leaves the whole suite green.
+  // That gap is tracked as #631.
   async function loadLots(itemId: string) {
     const req = ++lotsRequest.current;
     const lotRows = await listInventoryLots(itemId);
