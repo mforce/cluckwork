@@ -564,10 +564,15 @@ describe("CustomersPage edit (#625)", () => {
     expect(await within(dialog()).findByText(/Server error|boom/)).toBeInTheDocument();
 
     // Settled (failed) — dismissal AND every field are restored: Close/
-    // Cancel/fields re-enabled, and Escape now actually closes the dialog.
+    // Cancel/all five fields re-enabled, and Escape now actually closes the
+    // dialog.
     expect(within(dialog()).getByRole("button", { name: "Close" })).not.toBeDisabled();
     expect(within(dialog()).getByRole("button", { name: "Cancel" })).not.toBeDisabled();
     expect(within(dialog()).getByLabelText("Name *")).not.toBeDisabled();
+    expect(within(dialog()).getByLabelText("Phone *")).not.toBeDisabled();
+    expect(within(dialog()).getByLabelText("Email")).not.toBeDisabled();
+    expect(within(dialog()).getByLabelText("Address")).not.toBeDisabled();
+    expect(within(dialog()).getByLabelText("Note")).not.toBeDisabled();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -631,7 +636,7 @@ describe("CustomersPage edit (#625)", () => {
   // optimistic patch editForm gets, or a close+reopen silently resurrects
   // the exact stale-Version bug the round-1 fix closed for the "still open"
   // case.
-  it("keeps the committed Version after a failed refresh even through a close and reopen of the same row", async () => {
+  it("keeps the committed Version AND the normalized fields after a failed refresh even through a close and reopen of the same row", async () => {
     mockList.mockResolvedValueOnce([C1, C2]); // mount
     mockUpdate.mockResolvedValueOnce(undefined); // write #1 confirms
     mockList.mockRejectedValueOnce(new ApiError(500, "Server error", "boom")); // refresh #1 fails
@@ -639,19 +644,46 @@ describe("CustomersPage edit (#625)", () => {
     await screen.findByRole("row", { name: /Acme Eggs/ }); // C1.version === 0
     openEdit("Acme Eggs");
     await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+
+    // Change all five fields: padded required values, and both optionals
+    // cleared to whitespace-only (the Update() normalization case, not just
+    // an untouched field) — proves the optimistic snapshot mirrors
+    // Customer.Update exactly, not merely `target` verbatim.
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "  New Name  " } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "  555-9999  " } });
+    fireEvent.change(within(dialog()).getByLabelText("Email"), { target: { value: "   " } });
+    fireEvent.change(within(dialog()).getByLabelText("Address"), { target: { value: "  2 New St  " } });
+    fireEvent.change(within(dialog()).getByLabelText("Note"), { target: { value: "   " } });
     await submitEdit();
     await screen.findByText(/Server error|boom/);
 
     // Close (permitted now — the write+refresh cycle already settled) and
     // reopen the SAME row from its OWN Edit button, not a stale reference.
+    // The row's own displayed name is now "New Name" too — the optimistic
+    // patch updated the TABLE, not just the dialog that caused it.
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByRole("row", { name: /New Name/ })).toBeInTheDocument();
     mockUpdate.mockResolvedValueOnce(undefined);
-    openEdit("Acme Eggs");
-    await screen.findByRole("dialog", { name: "Edit Acme Eggs" });
+    openEdit("New Name");
+    await screen.findByRole("dialog", { name: "Edit New Name" });
+
+    // The reopened form shows the NORMALIZED committed values — trimmed
+    // required fields, whitespace-only optionals cleared to blank — not the
+    // pre-write row and not the raw padded/whitespace input.
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("New Name");
+    expect(within(dialog()).getByLabelText("Phone *")).toHaveValue("555-9999");
+    expect(within(dialog()).getByLabelText("Email")).toHaveValue("");
+    expect(within(dialog()).getByLabelText("Address")).toHaveValue("2 New St");
+    expect(within(dialog()).getByLabelText("Note")).toHaveValue("");
+
     await submitEdit();
 
-    expect(mockUpdate.mock.calls[1][1]).toMatchObject({ version: 1 }); // committed by write #1, not the stale 0
+    // Version+1, and the fields sent are the normalized committed ones, NOT
+    // reverted to C1's original values.
+    expect(mockUpdate.mock.calls[1][1]).toEqual({
+      version: 1, name: "New Name", phone: "555-9999", email: undefined, address: "2 New St", note: undefined,
+    });
   });
 
   // #625 review round 1 — the WRITE itself failing (not the refresh) must

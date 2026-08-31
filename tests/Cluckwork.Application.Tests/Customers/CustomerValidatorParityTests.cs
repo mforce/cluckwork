@@ -5,14 +5,19 @@ using Cluckwork.Application.Features.Customers.UpdateCustomer;
 using Cluckwork.Domain.Sales;
 using FluentValidation.Results;
 
-// #625 review round 2 — Create and Update accept the same five customer
+// #625 review round 2/3 — Create and Update accept the same five customer
 // fields, and the design's own invariant is that the update validator
 // "mirrors every field" the create validator covers. This walks every
-// SHARED boundary through BOTH real validators and asserts each produces the
-// SAME explicit error code — a drift (one validator's rule loosened, or
-// added to only one of the two) fails on the mismatch itself, rather than on
-// trusting two hand-authored literal lists to stay in sync. No production
-// abstraction: both validators are exercised exactly as shipped.
+// SHARED boundary through BOTH real validators and asserts the two produce
+// the EXACT SAME set of explicit (property, code) failures — not merely
+// "each contains the one code under test" (round 2), which cannot see an
+// extra or missing failure alongside it. It also proves the boundary is not
+// off by one: a valid, AT-the-maximum value for each shared max-length field
+// must pass both validators, so a unilateral tightening (one validator's
+// literal quietly shortened, or hardcoded instead of referencing the
+// Customer.Max*Length constant) fails on the validator that tightened.
+// No production abstraction: both validators are exercised exactly as
+// shipped.
 public sealed class CustomerValidatorParityTests
 {
     private readonly CreateCustomerValidator _createValidator = new();
@@ -26,11 +31,11 @@ public sealed class CustomerValidatorParityTests
         CustomerId: Guid.NewGuid(), Version: 0, Name: "Jane Farmer", Phone: "555-0100",
         Email: "jane@example.com", Address: "123 Coop Rd", Note: "Regular buyer");
 
-    private static HashSet<string> ExplicitCodes(ValidationResult result) =>
+    private static HashSet<(string PropertyName, string Code)> ExplicitCodePairs(ValidationResult result) =>
         result.Errors
-            .Select(e => e.ErrorCode)
-            .Where(code => code is not null && code.Contains('.'))
-            .ToHashSet()!;
+            .Where(e => e.ErrorCode is not null && e.ErrorCode.Contains('.'))
+            .Select(e => (e.PropertyName, e.ErrorCode!))
+            .ToHashSet();
 
     public static IEnumerable<object[]> SharedFieldBoundaries()
     {
@@ -100,7 +105,7 @@ public sealed class CustomerValidatorParityTests
 
     [Theory]
     [MemberData(nameof(SharedFieldBoundaries))]
-    public async Task SharedBoundary_ProducesTheSameExplicitCode_OnBothValidators(
+    public async Task SharedBoundary_ProducesTheExactSameErrorSet_OnBothValidators(
         string caseName,
         Func<CreateCustomerCommand, CreateCustomerCommand> mutateCreate,
         Func<UpdateCustomerCommand, UpdateCustomerCommand> mutateUpdate,
@@ -109,9 +114,74 @@ public sealed class CustomerValidatorParityTests
         var createResult = await _createValidator.ValidateAsync(mutateCreate(ValidCreate()));
         var updateResult = await _updateValidator.ValidateAsync(mutateUpdate(ValidUpdate()));
 
-        Assert.Contains(expectedCode, ExplicitCodes(createResult));
-        Assert.Contains(expectedCode, ExplicitCodes(updateResult));
+        var createPairs = ExplicitCodePairs(createResult);
+        var updatePairs = ExplicitCodePairs(updateResult);
+
+        var expectedProperty = expectedCode.Split('.')[1];
+        Assert.Contains((expectedProperty, expectedCode), createPairs);
+        // The EXACT set, not "update also contains it": a validator that adds
+        // (or drops) an unrelated explicit failure for the same mutation
+        // would still pass a Contains-only check.
+        Assert.Equal(createPairs, updatePairs);
         _ = caseName; // xUnit theory display name only
+    }
+
+    public static IEnumerable<object[]> SharedMaxLengthAtExactBoundary()
+    {
+        var nameAtMax = new string('a', Customer.MaxNameLength);
+        var phoneAtMax = new string('1', Customer.MaxPhoneLength);
+        var addressAtMax = new string('a', Customer.MaxAddressLength);
+        var noteAtMax = new string('a', Customer.MaxNoteLength);
+        const string domain = "@example.com";
+        var emailAtMax = new string('a', Customer.MaxEmailLength - domain.Length) + domain;
+
+        yield return new object[]
+        {
+            "NameAtMax",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Name = nameAtMax }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Name = nameAtMax }),
+        };
+        yield return new object[]
+        {
+            "PhoneAtMax",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Phone = phoneAtMax }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Phone = phoneAtMax }),
+        };
+        yield return new object[]
+        {
+            "EmailAtMax",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Email = emailAtMax }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Email = emailAtMax }),
+        };
+        yield return new object[]
+        {
+            "AddressAtMax",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Address = addressAtMax }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Address = addressAtMax }),
+        };
+        yield return new object[]
+        {
+            "NoteAtMax",
+            (Func<CreateCustomerCommand, CreateCustomerCommand>)(c => c with { Note = noteAtMax }),
+            (Func<UpdateCustomerCommand, UpdateCustomerCommand>)(c => c with { Note = noteAtMax }),
+        };
+    }
+
+    [Theory]
+    [MemberData(nameof(SharedMaxLengthAtExactBoundary))]
+    public async Task SharedMaxLength_AtExactBoundary_PassesBothValidators(
+        string caseName,
+        Func<CreateCustomerCommand, CreateCustomerCommand> mutateCreate,
+        Func<UpdateCustomerCommand, UpdateCustomerCommand> mutateUpdate)
+    {
+        var createResult = await _createValidator.ValidateAsync(mutateCreate(ValidCreate()));
+        var updateResult = await _updateValidator.ValidateAsync(mutateUpdate(ValidUpdate()));
+
+        Assert.True(createResult.IsValid,
+            $"create: {string.Join(",", createResult.Errors.Select(e => $"{e.PropertyName}:{e.ErrorCode}"))}");
+        Assert.True(updateResult.IsValid,
+            $"update: {string.Join(",", updateResult.Errors.Select(e => $"{e.PropertyName}:{e.ErrorCode}"))}");
+        _ = caseName;
     }
 
     [Fact]

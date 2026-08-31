@@ -188,13 +188,30 @@ export function CustomersPage() {
         // exact same stale-Version bug one level later, through a path that
         // isn't "still open", just "reopened before a later refresh ever
         // succeeded".
+        // Normalized exactly like Customer.Update on the server: required
+        // fields trimmed, optional fields trimmed-then-null-if-blank. Without
+        // this the optimistic snapshot would diverge from what the server
+        // actually persisted (padded input, or a whitespace-only optional
+        // that the server nulled but this patch would have kept as "   ").
         const committedVersion = target.version + 1;
+        const normalizeOptional = (v: string): string | null => {
+          const trimmed = v.trim();
+          return trimmed === "" ? null : trimmed;
+        };
+        const normalizedName = target.name.trim();
+        const normalizedPhone = target.phone.trim();
+        const normalizedEmail = normalizeOptional(target.email);
+        const normalizedAddress = normalizeOptional(target.address);
+        const normalizedNote = normalizeOptional(target.note);
         const committedFields: Customer = {
-          id: target.id, version: committedVersion, name: target.name, phone: target.phone,
-          email: target.email || null, address: target.address || null, note: target.note || null,
+          id: target.id, version: committedVersion, name: normalizedName, phone: normalizedPhone,
+          email: normalizedEmail, address: normalizedAddress, note: normalizedNote,
         };
         if (isCurrentDialog()) {
-          setEditForm((prev) => (prev && prev.id === target.id ? { ...prev, version: committedVersion } : prev));
+          setEditForm((prev) => (prev && prev.id === target.id ? {
+            ...prev, version: committedVersion, name: normalizedName, phone: normalizedPhone,
+            email: normalizedEmail ?? "", address: normalizedAddress ?? "", note: normalizedNote ?? "",
+          } : prev));
         }
         setCustomers((prev) => prev && prev.map((c) => (c.id === target.id ? committedFields : c)));
         // Not the page-level `load()` helper: it swallows its own rejection
