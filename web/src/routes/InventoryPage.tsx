@@ -284,7 +284,13 @@ export function InventoryPage() {
       closePurchase();
       closeAdjust();
     }
+    // #511 round 2 — the hook reloads only when `activeId` CHANGES, so
+    // re-opening the item that is already open would leave the movement
+    // ledger stale while the lots beside it refreshed. The pre-#511 code
+    // re-read the ledger on every Open click; `reload()` restores that.
+    const sameItem = active !== null && active.id === i.id;
     setActive(i);
+    if (sameItem) void ledger.reload();
     try {
       await loadLots(i.id);
     } catch {

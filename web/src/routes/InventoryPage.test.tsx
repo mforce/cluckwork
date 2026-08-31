@@ -1080,4 +1080,24 @@ describe("InventoryPage ledger paging (#511)", () => {
     const k2 = mockPurchase.mock.calls[1][2];
     expect(k2).toBe(k1); // the failed refresh kept the key → exact replay
   });
+
+  it("re-reads the ledger when the already-open item is opened again", async () => {
+    // Pre-#511 this screen re-read the ledger on EVERY open click. The hook
+    // only reloads when `activeId` CHANGES, so re-opening the same item is
+    // exactly the case that silently stopped refreshing.
+    mockListMovements.mockResolvedValueOnce([invMovementRow({ id: "a1", note: "stale row" })]);
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    await screen.findByText("stale row");
+    expect(mockListMovements).toHaveBeenCalledTimes(1);
+
+    mockListMovements.mockResolvedValueOnce([invMovementRow({ id: "a2", note: "fresh row" })]);
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "open" }));
+    });
+
+    expect(mockListMovements).toHaveBeenCalledTimes(2);
+    expect(await screen.findByText("fresh row")).toBeInTheDocument();
+    expect(screen.queryByText("stale row")).not.toBeInTheDocument();
+  });
 });
