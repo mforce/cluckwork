@@ -47,10 +47,15 @@ function testBlocks(source: string): { title: string; body: string }[] {
     boundary.lastIndex = start + match[0].length;
     const next = boundary.exec(source);
     const body = source.slice(start, next?.index ?? source.length);
-    // The first quoted string in the block is the case name for a plain `it`
-    // and the template name for an `it.each`; fall back to the line when a
-    // title is built some other way.
-    const title = /"((?:[^"\\]|\\.)*)"/.exec(body)?.[1]
+    // For a plain `it("…")` the title is the block's first quoted string. For
+    // `it.each([…])("…")` it is NOT: the first quoted string is the first case
+    // in the table, so that spelling has to skip past the array and take the
+    // string after the closing `)(`. Getting this wrong is invisible until the
+    // day the lint fires, and then it names the wrong test.
+    const isEach = match[0].includes(".each");
+    const title = (isEach
+      ? /\)\s*\(\s*"((?:[^"\\]|\\.)*)"/.exec(body)?.[1]
+      : /"((?:[^"\\]|\\.)*)"/.exec(body)?.[1])
       ?? `line ${source.slice(0, start).split("\n").length}`;
     blocks.push({ title, body });
   }

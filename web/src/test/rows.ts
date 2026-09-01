@@ -14,13 +14,19 @@ import { screen } from "@testing-library/react";
 //
 // So: match ONE cell's text (a single indexed text query) and walk up to its
 // row. Same row, same assertions afterwards, a fraction of the work.
+//
+// The selector is `td`, so a table whose first column is a `<th scope="row">`
+// — a legitimate a11y spelling none of this app's tables uses yet — will not be
+// found by these, and the failure reads as "text not present" rather than
+// "wrong selector". Widen the selector here rather than reaching back for the
+// role query if that day comes.
 
 function rowOf(cell: HTMLElement, text: string): HTMLElement {
   const row = cell.closest("tr");
   if (row === null) {
     throw new Error(`Found a cell with the text "${text}", but it has no <tr> ancestor.`);
   }
-  return row as HTMLElement;
+  return row as HTMLTableRowElement;
 }
 
 // The row whose cell reads exactly `text`, once it is on screen. Use when the
