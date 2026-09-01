@@ -126,7 +126,7 @@ An authorized user can follow a customer name from Customers or Dashboard into S
 - **FR-005**: Search and flock eligibility MUST be applied within the current tenant, flock-scope, and authorization boundaries before results are ordered or divided into groups.
 - **FR-006**: Results MUST be ordered consistently by name and then canonical identifier before paging.
 - **FR-007**: Picker result groups MUST contain at most 50 entities, and the picker MUST allow users to request subsequent groups until all matching results have been reached.
-- **FR-008**: The picker MUST wait approximately 250 milliseconds after typing settles before starting replacement discovery, while hiding rows from the prior raw query immediately.
+- **FR-008**: The picker MUST wait 250 milliseconds after typing settles before starting replacement discovery, while hiding rows from the prior raw query immediately.
 - **FR-009**: Flock discovery MUST support exactly three eligibility policies: Active only, Active and Depleted, and all statuses.
 - **FR-010**: When no explicit flock eligibility is supplied, the existing Active and Depleted behavior MUST remain unchanged.
 - **FR-011**: The existing archived-inclusion choice MUST continue to mean all statuses only when no explicit eligibility choice is supplied; combining both choices or supplying an unknown eligibility MUST be rejected as an invalid request.
@@ -212,7 +212,7 @@ An authorized user can follow a customer name from Customers or Dashboard into S
 - **SC-002**: Across Daily Entry, Feed, Water, Users, Sales, and Expenses, 100% of returned rows with an accessible reference display the current referenced name; zero rows fall back to an identifier fragment because the reference is outside loaded picker results.
 - **SC-003**: In delayed and out-of-order request tests, zero superseded successes, failures, or completion signals alter the newest visible results, loading state, errors, or committed selection.
 - **SC-004**: Keyboard-only users can search, load additional results, commit, cancel, clear where optional, and recover from both failure types on every picker without pointer input or focus loss.
-- **SC-005**: In all seven adopting pages, 100% of attempted writes during exploration are blocked until the user commits, cancels, or clears the pending exploration.
+- **SC-005**: In all six picker-backed write workflows—Daily Entry, Feed, Water, Users, Sales, and Expenses—100% of attempted writes during exploration are blocked until the user commits, cancels, or clears the pending exploration; History's picker remains a read-only list filter and does not block its unrelated adjustment actions.
 - **SC-006**: Direct links, reloads, edits, and browser Back/Forward produce matching Sales URL, customer identity, headings, and rows in 100% of navigation scenarios, with no stale rows visible after identity changes.
 - **SC-007**: Existing consumers that omit search and explicit eligibility pass all prior compatibility scenarios without changed default inclusion or paging behavior.
 - **SC-008**: In representative usability verification, first-time keyboard and pointer users complete a late-sorting flock selection, a late-sorting customer selection, and one error recovery without assistance or selecting the wrong entity.

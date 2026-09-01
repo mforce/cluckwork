@@ -132,7 +132,17 @@ Expected:
 
 This scenario is part of the existing quick smoke suite and therefore participates in the current pull-request smoke workflow without workflow changes.
 
-## 6. Full Gates
+## 6. First-Time User Usability Protocol
+
+Use the built SPA over the unchanged #627 fixture. Ask at least one keyboard participant and one pointer participant who did not implement the picker to complete these tasks without coaching:
+
+1. Find and commit `Sim Z Flock Page Two`.
+2. Find and commit `Sim Customer Z Page Two`.
+3. Recover from one replacement or extension failure using Retry.
+
+For each participant, record whether all three tasks were completed without assistance and whether any wrong entity was committed. SC-008 passes only when every observed pass completes all three tasks independently with zero wrong selections; an automated Playwright run does not substitute for this protocol.
+
+## 7. Full Gates
 
 ```bash
 dotnet build Cluckwork.sln
@@ -154,7 +164,7 @@ Expected:
 - The existing Playwright smoke suite passes over the unchanged fixture.
 - `git status --short` contains no generated schema, fixture, manifest, fingerprint, compose, bootstrap, or CI workflow changes for this feature.
 
-## 7. Caller Audit
+## 8. Caller Audit
 
 Before completion, read—not merely run—the legacy callers:
 
