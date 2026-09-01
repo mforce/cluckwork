@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { CustomersPage } from "./CustomersPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { findRowByCellText, getRowByCellText } from "../test/rows";
 import { createCustomer, listCustomerBalances, listCustomers, updateCustomer } from "../api/cluckwork";
 import type { Customer, CustomerBalances } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -831,7 +832,7 @@ describe("CustomersPage paging (#511)", () => {
   it("reaches a customer past the first server page through load more", async () => {
     mockList.mockResolvedValueOnce(customerPage(100));
     renderWithProviders(<CustomersPage />, { token: WORKER });
-    await screen.findByRole("row", { name: /p customer 000/ });
+    await findRowByCellText("p customer 000");
     expect(mockList).toHaveBeenCalledWith(expect.objectContaining({ limit: 100, offset: 0 }));
 
     mockList.mockResolvedValueOnce([
@@ -842,9 +843,9 @@ describe("CustomersPage paging (#511)", () => {
     });
 
     expect(mockList).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 100 }));
-    expect(await screen.findByRole("row", { name: /Zulu Farm/ })).toBeInTheDocument();
+    expect(await findRowByCellText("Zulu Farm")).toBeInTheDocument();
     // The first page is still on screen — this is an EXTENSION, not a replacement.
-    expect(screen.getByRole("row", { name: /p customer 000/ })).toBeInTheDocument();
+    expect(getRowByCellText("p customer 000")).toBeInTheDocument();
   });
 
   it("withdraws the pager on a short page and never offers it on an empty list", async () => {
@@ -857,7 +858,7 @@ describe("CustomersPage paging (#511)", () => {
   it("keeps the loaded window after a create instead of snapping back to page one", async () => {
     mockList.mockResolvedValueOnce(customerPage(100));
     renderWithProviders(<CustomersPage />, { token: WORKER });
-    await screen.findByRole("row", { name: /p customer 000/ });
+    await findRowByCellText("p customer 000");
 
     mockList.mockResolvedValueOnce([
       { id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null, version: 0 },
@@ -865,7 +866,7 @@ describe("CustomersPage paging (#511)", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "load more" }));
     });
-    await screen.findByRole("row", { name: /Zulu Farm/ });
+    await findRowByCellText("Zulu Farm");
 
     // The create's refresh must re-read BOTH pages the user has loaded.
     mockCreate.mockResolvedValue({ id: "c9" });
@@ -879,28 +880,22 @@ describe("CustomersPage paging (#511)", () => {
     await submit();
 
     // Still deep in the list: the row only page two carries is still rendered.
-    expect(await screen.findByRole("row", { name: /Zulu Farm/ })).toBeInTheDocument();
+    expect(await findRowByCellText("Zulu Farm")).toBeInTheDocument();
   });
 
   it("refreshes every loaded page after an edit instead of snapping back to page one", async () => {
     const zulu: Customer = {
       id: "zz", name: "Zulu Farm", phone: "555-z", email: null, address: null, note: null, version: 4,
     };
-    const findCustomerRow = async (name: string) => {
-      const cell = await screen.findByText(name, { selector: "td" });
-      const row = cell.closest("tr");
-      expect(row).not.toBeNull();
-      return row as HTMLElement;
-    };
     mockList.mockResolvedValueOnce(customerPage(100));
     renderWithProviders(<CustomersPage />, { token: WORKER });
-    await findCustomerRow("p customer 000");
+    await findRowByCellText("p customer 000");
 
     mockList.mockResolvedValueOnce([zulu]);
     await act(async () => {
       fireEvent.click(screen.getByText("load more", { selector: "button" }));
     });
-    const zuluRow = await findCustomerRow("Zulu Farm");
+    const zuluRow = await findRowByCellText("Zulu Farm");
 
     mockList.mockResolvedValueOnce(customerPage(100));
     mockList.mockResolvedValueOnce([{ ...zulu, name: "Zulu Farm Updated", version: 5 }]);
@@ -916,15 +911,15 @@ describe("CustomersPage paging (#511)", () => {
     });
 
     expect(mockList.mock.calls.slice(-2).map(([params]) => params?.offset)).toEqual([0, 100]);
-    expect(await findCustomerRow("Zulu Farm Updated")).toBeInTheDocument();
-    expect(screen.getByText("p customer 000", { selector: "td" })).toBeInTheDocument();
+    expect(await findRowByCellText("Zulu Farm Updated")).toBeInTheDocument();
+    expect(getRowByCellText("p customer 000")).toBeInTheDocument();
     expect(editDialog).not.toBeInTheDocument();
   });
 
   it("keeps the loaded rows when EXTENDING fails, and offers the retry", async () => {
     mockList.mockResolvedValueOnce(customerPage(100));
     renderWithProviders(<CustomersPage />, { token: WORKER });
-    await screen.findByRole("row", { name: /p customer 000/ });
+    await findRowByCellText("p customer 000");
 
     mockList.mockRejectedValueOnce(new ApiError(500, "Server.Error", "boom"));
     await act(async () => {
@@ -932,7 +927,7 @@ describe("CustomersPage paging (#511)", () => {
     });
 
     // A failed EXTENSION says nothing about the rows already on screen.
-    expect(screen.getByRole("row", { name: /p customer 000/ })).toBeInTheDocument();
+    expect(getRowByCellText("p customer 000")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "load more" })).toBeInTheDocument();
   });
 
@@ -941,7 +936,7 @@ describe("CustomersPage paging (#511)", () => {
     await i18n.changeLanguage("es");
     try {
       renderWithProviders(<CustomersPage />, { token: WORKER });
-      await screen.findByRole("row", { name: /p customer 000/ });
+      await findRowByCellText("p customer 000");
       expect(screen.getByRole("button", { name: "cargar más" })).toBeInTheDocument();
     } finally {
       await i18n.changeLanguage("en");
@@ -953,7 +948,7 @@ describe("CustomersPage paging (#511)", () => {
     await i18n.changeLanguage("tl");
     try {
       renderWithProviders(<CustomersPage />, { token: WORKER });
-      await screen.findByRole("row", { name: /p customer 000/ });
+      await findRowByCellText("p customer 000");
       expect(screen.getByRole("button", { name: "mag-load pa" })).toBeInTheDocument();
     } finally {
       await i18n.changeLanguage("en");
