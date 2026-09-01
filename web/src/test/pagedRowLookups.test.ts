@@ -49,10 +49,15 @@ const pageSizeFixture = /(?<!Length)(?<!Time)\(\s*100\s*\)|length:\s*100\b/;
 // The trailing `[:,}]` also accepts the SHORTHAND `{ name }`, which is not
 // hypothetical — six call sites in this suite already pass an accessible name
 // that way for `button`, `dialog` and `option` roles, so a row query written in
-// the house style would otherwise slip straight through. A quoted `{ "name": … }`
-// key costs nothing extra to accept. `{ nameish: 1 }` is still not matched: the
-// character after `name` has to be one of `:`, `,` or `}`.
-const rowByAccessibleName = /ByRole\(\s*["']row["']\s*,\s*\{[^}]*["']?\bname["']?\s*[:,}]/;
+// the house style would otherwise slip straight through. `{ nameish: 1 }` is
+// still not matched: the character after `name` has to be one of `:`, `,` or `}`.
+//
+// `name` is NOT allowed to be quoted here. Accepting a `{ "name": … }` key —
+// a spelling this codebase never uses — also made `{ description: "name" }`
+// match, because the closing quote of the VALUE then satisfied the key's
+// optional quote. The narrower pattern is the correct one: it costs a spelling
+// nobody writes and buys back a false positive.
+const rowByAccessibleName = /ByRole\(\s*["']row["']\s*,\s*\{[^}]*\bname\s*[:,}]/;
 
 // Slice a test file into one entry per test, each ending where the next test or
 // describe begins, so a fixture declared between blocks is not charged to the
