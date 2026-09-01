@@ -21,9 +21,15 @@ production history, in the database your IDE-run API is already pointed at.
 **Blast radius:** the target database's default account, permanently. The seed
 writes ~100 flocks, ~100 customers and `2 × HistoryDays` daily entries with
 their egg lots, orders and expenses, attributed to a generated cast of
-`sim-*@sim.local` users. It runs in **no transaction** and does **no
-partial-seed cleanup**, so a run that fails validation still leaves every row it
-wrote. The only way back is wiping the database.
+`sim-*` users at `Simulation__EmailDomain`. It runs in **no transaction** and
+does **no partial-seed cleanup**, so a run that fails validation still leaves
+every row it wrote, and **removing** the fixture means wiping the database.
+
+Note what that does *not* say. A failed run is not automatically a wipe: the
+`HistoryDays` ceiling in [step 2](#2-choose-your-depth) fails with the rows
+already correct and is cleared by re-running. Only a **polluted account** —
+[step 1](#1-confirm-the-target-database-is-clean-and-is-the-one-you-mean) —
+forces the destructive path.
 
 **Prerequisites:**
 
@@ -163,9 +169,14 @@ fails, and leaves its rows behind (see below).
 So a failed run gives you the volume anyway, at the cost of a red exit code, no
 `manifest.json`, and entries past the first 200 left `Submitted` instead of
 `Locked`. Harmless for hand debugging. Re-running the *identical* command locks
-the next batch, so repeating it also walks the database green in
-`ceil(2 × (HistoryDays − 7) ÷ 200)` runs — every pass locks 200 except the last,
-which locks the remainder.
+the next batch, so repeating it also walks the database green.
+
+Count the passes from what is **still unlocked**, not from the depth:
+`ceil((eligible − alreadyLocked) ÷ 200)`, where `eligible = 2 × (HistoryDays − 7)`.
+Every pass locks 200 except the last, which locks the remainder. Seeding 400 days
+into an empty database needs `ceil(786 ÷ 200)` = 4 passes (200, 200, 200, 186);
+reaching the same depth from an existing 90-day fixture does not, because those
+166 entries are already locked — see the drill.
 
 > Both recovery paths above are read off the code (the seeder's per-entity
 > idempotency, the durable anchor, and one sweep pass per invocation), not yet
@@ -240,7 +251,7 @@ as environment variables the separator is `__`.
 
 | Key | Default | What it does |
 |---|---|---|
-| `Simulation__CastPassword` | *(none — required)* | Shared password for every `sim-*@sim.local` cast member. Choose one at run time; never commit it. |
+| `Simulation__CastPassword` | *(none — required)* | Shared password for every `sim-*` cast member at whatever `Simulation__EmailDomain` is set to. Choose one at run time; never commit it. |
 | `Simulation__HistoryDays` | `90` | Depth of production history. See the table and the ceiling above. |
 | `Simulation__Managers` | `1` | Cast size, on top of the existing Owner. Managers place flocks and create products/categories/expenses. |
 | `Simulation__Sales` | `1` | Books the orders. |
@@ -305,8 +316,11 @@ Safe on a scratch database only.
    `dailyEntries.locked` / `dailyEntries.submitted`. Anything else mismatching
    means the account was not clean and this drill proved nothing.
 6. Run the identical `HistoryDays=400` command again, repeatedly. Expected: the
-   `locked` figure climbs by **up to** 200 a run — 786 are eligible at this
-   depth, so three full passes and a final partial one of 186 — until it exits
-   `0`. That is the recovery path in step 2's box.
+   `locked` figure climbs by **up to** 200 a run until it exits `0` — the
+   recovery path in step 2's box. Count from where step 5 left it, **not** from
+   the depth: step 3 already locked `2 × (90 − 7)` = 166, step 5's own sweep
+   locked 200 more, so of the `2 × (400 − 7)` = 786 eligible, 420 remain and
+   the reruns go **200, 200, 20**. The 186-entry final pass in step 2's box is
+   the *from-empty* case and does not apply here.
 7. Sign in and walk the four **Verify** checks.
 8. Update **Last drilled** above.
