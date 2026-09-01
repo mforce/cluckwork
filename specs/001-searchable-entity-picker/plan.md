@@ -22,7 +22,7 @@ Extend the existing flock and customer read contracts with literal name search, 
 
 **Project Type**: Layered web application with a .NET API and React SPA
 
-**Performance Goals**: Fixed 50-result picker pages; approximately 250 ms search debounce; stable `Name, Id` ordering; one scoped bulk reference lookup per returned row page; flock movement aggregation bounded to returned flock IDs; no per-row name requests
+**Performance Goals**: Fixed 50-result picker pages; 250 ms search debounce; stable `Name, Id` ordering; one scoped bulk reference lookup per returned row page; flock movement aggregation bounded to returned flock IDs; no per-row name requests
 
 **Constraints**: Preserve existing limit/offset clamps and optional query behavior; tenant/flock-scope filters execute before search/order/page; no `IgnoreQueryFilters`; no high-limit workaround; no new generic catalog/entity-link framework; no schema/index work without measurement; no #627 seed/count/manifest/fingerprint/harness changes; no new CI wiring
 

@@ -20,8 +20,8 @@
 
 **Purpose**: Establish the known-green baseline and preserve the non-CI callers and shared fixture that constrain the implementation.
 
-- [ ] T001 Run the pre-change focused API, frontend, and schema checks in `specs/001-searchable-entity-picker/quickstart.md`, and stop to diagnose any baseline failure before feature edits.
-- [ ] T002 [P] Read every `/flocks`, `/customers`, `listFlocks`, and `listCustomers` caller under `web/src/`, `tools/simulation/k6/`, `tools/simulation/ui/`, `tests/`, and `src/`; verify the compatibility and unchanged-fixture constraints recorded in `specs/001-searchable-entity-picker/contracts/http-api.md` and `specs/001-searchable-entity-picker/quickstart.md`.
+- [ ] T001 Run a pre-change baseline that only names existing assets: `dotnet build Cluckwork.sln`, the existing `tests/Cluckwork.Api.IntegrationTests/FlockManagementTests.cs`, `tests/Cluckwork.Api.IntegrationTests/CustomerAndOrderTests.cs`, and `tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs` suites, `web/src/api/listCustomers.test.ts`, the existing seven adopting-page tests under `web/src/routes/`, frontend typecheck, and `tools/schema-docs/generate.sh --check`; stop to diagnose any baseline failure before creating the new test files listed later in `specs/001-searchable-entity-picker/quickstart.md`.
+- [ ] T002 [P] Read every `/flocks`, `/customers`, `listFlocks`, and `listCustomers` caller under `web/src/`, `tools/simulation/k6/`, `tools/simulation/ui/`, `tests/`, and `src/`; verify compatibility against `specs/001-searchable-entity-picker/contracts/http-api.md`, and prove #627 is present by locating both page-two sentinels and their 102-flock/101-customer guards in `src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs`, `tests/Cluckwork.Api.IntegrationTests/SimulationSeederTests.cs`, and `tools/simulation/ui/specs/pagination.spec.ts` without changing them.
 
 ---
 
@@ -31,9 +31,9 @@
 
 **⚠️ CRITICAL**: Complete this phase before starting story implementation.
 
-- [ ] T003 Define the `FlockEligibility` read policy and scoped `FlockReference`/`CustomerReference` projections in `src/Cluckwork.Application/Features/Flocks/FlockEligibility.cs`, `src/Cluckwork.Application/Features/Flocks/IFlockRepository.cs`, and `src/Cluckwork.Application/Features/Customers/ICustomerRepository.cs` according to `specs/001-searchable-entity-picker/data-model.md`.
+- [ ] T003 [P] Define only the standalone `FlockEligibility`, `FlockReference`, and `CustomerReference` read types in `src/Cluckwork.Application/Features/Flocks/FlockEligibility.cs`, `src/Cluckwork.Application/Features/Flocks/FlockReference.cs`, and `src/Cluckwork.Application/Features/Customers/CustomerReference.cs`; defer repository interface members to the story tasks that implement them so this checkpoint compiles.
 - [ ] T004 [P] Add the shared picker transport, selection-transition, and `PickerSnapshot<T>` TypeScript contracts to `web/src/components/NamedEntityPicker.tsx`, exposing no generic catalog API beyond this component.
-- [ ] T005 [P] Add typed flock/customer list and exact-read request/response contracts, including the additive row fields, to `web/src/api/cluckwork.ts` without changing existing caller defaults.
+- [ ] T005 [P] Add only the typed flock/customer discovery and exact-read request contracts to `web/src/api/cluckwork.ts` without changing existing caller defaults or adding the six US4 row fields early.
 
 **Checkpoint**: Application and SPA contracts compile; no schema, lockfile, fixture, harness, or workflow file has changed.
 
@@ -51,16 +51,16 @@
 
 - [ ] T006 [P] [US1] Add failing real-Postgres discovery tests for blank/trimmed/case-insensitive literal search, escaped `%`/`_`/`\`, duplicate-name paging, eligibility-before-paging, invalid parameter combinations, legacy compatibility, tenant isolation, and Worker flock scope in `tests/Cluckwork.Api.IntegrationTests/NamedEntityDiscoveryTests.cs` and `tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs`.
 - [ ] T007 [P] [US1] Add failing client contract tests for 50-row flock/customer query serialization, offsets, search, eligibility, and unchanged legacy calls in `web/src/api/listFlocks.test.ts` and `web/src/api/listCustomers.test.ts`.
-- [ ] T008 [P] [US1] Add failing component tests for debounce-triggered discovery, stable append/deduplication, raw server-count cursor advancement, final empty-page termination, pointer/Enter commit, and committed-label retention in `web/src/components/NamedEntityPicker.test.tsx`.
+- [ ] T008 [P] [US1] Add failing component tests proving no replacement request at 249 ms and one request at 250 ms, plus stable append/deduplication, raw server-count cursor advancement, final empty-page termination, pointer/Enter commit, and committed-label retention in `web/src/components/NamedEntityPicker.test.tsx`.
 - [ ] T009 [P] [US1] Add failing adoption tests for the required eligibility/default/blank policies and late-page selection across `web/src/routes/DailyEntryPage.test.tsx`, `web/src/routes/HistoryPage.test.tsx`, `web/src/routes/FeedPage.test.tsx`, `web/src/routes/WaterPage.test.tsx`, `web/src/routes/UsersPage.test.tsx`, `web/src/routes/SalesPage.test.tsx`, and `web/src/routes/ExpensesPage.test.tsx`.
 
 ### Implementation for User Story 1
 
-- [ ] T010 [P] [US1] Parse `search`, the three exact eligibility values, nullable legacy `includeArchived`, and conflicting/unknown validation failures in `src/Cluckwork.Api/Endpoints/Flocks/FlockEndpoints.cs` while retaining existing limit/offset clamps and bare-array responses.
-- [ ] T011 [P] [US1] Implement scoped eligibility, trimmed literal three-argument `ILike`, escaped search patterns, stable `Name, Id` order, and server paging in `src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs` and `src/Cluckwork.Application/Features/Flocks/IFlockRepository.cs`.
+- [ ] T010 [P] [US1] Add the discovery member to `src/Cluckwork.Application/Features/Flocks/IFlockRepository.cs` and implement scoped eligibility, trimmed literal three-argument `ILike`, escaped search patterns, stable `Name, Id` order, and server paging in `src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs`.
+- [ ] T011 [US1] Parse `search`, the three exact eligibility values, nullable legacy `includeArchived`, and conflicting/unknown validation failures against the T010 repository contract in `src/Cluckwork.Api/Endpoints/Flocks/FlockEndpoints.cs` while retaining existing limit/offset clamps and bare-array responses.
 - [ ] T012 [P] [US1] Implement scoped trimmed literal customer search and stable `Name, Id` paging in `src/Cluckwork.Infrastructure/Repositories/CustomerRepository.cs`, `src/Cluckwork.Application/Features/Customers/ICustomerRepository.cs`, and `src/Cluckwork.Api/Endpoints/Customers/CustomerEndpoints.cs`.
 - [ ] T013 [US1] Implement the typed 50-row list helpers and compatibility-preserving query serialization in `web/src/api/cluckwork.ts`, making `web/src/api/listFlocks.test.ts` and `web/src/api/listCustomers.test.ts` pass.
-- [ ] T014 [US1] Implement the base debounced discovery, replacement paging, append/deduplication, Load more, active option, and commit behavior in `web/src/components/NamedEntityPicker.tsx` and style it with existing tokens in `web/src/styles.css`.
+- [ ] T014 [US1] Implement the fixed 250 ms discovery debounce, replacement paging, append/deduplication, Load more, active option, and commit behavior in `web/src/components/NamedEntityPicker.tsx` and style it with existing tokens in `web/src/styles.css`.
 - [ ] T015 [US1] Implement the fixed-policy typed adapters in `web/src/components/FlockPicker.tsx` and `web/src/components/CustomerPicker.tsx`, returning full typed committed entities and `PickerSnapshot<T>`.
 - [ ] T016 [P] [US1] Replace the Daily Entry capture and History filter flock selectors with `FlockPicker` using their specified eligibility/default/blank policies in `web/src/routes/DailyEntryPage.tsx` and `web/src/routes/HistoryPage.tsx`.
 - [ ] T017 [P] [US1] Replace the Feed capture and filter flock selectors with `FlockPicker` while leaving the inventory-item selector native in `web/src/routes/FeedPage.tsx`.
@@ -68,7 +68,7 @@
 - [ ] T019 [P] [US1] Replace the new-assignment flock selector with the Active-only `FlockPicker` while leaving the role selector native in `web/src/routes/UsersPage.tsx`.
 - [ ] T020 [P] [US1] Replace the new-order and optional filter customer selectors with `CustomerPicker` while leaving product/unit/payment/status selectors native in `web/src/routes/SalesPage.tsx`.
 - [ ] T021 [P] [US1] Replace the record/edit optional flock selectors with all-status `FlockPicker` while leaving category/month selectors native in `web/src/routes/ExpensesPage.tsx`.
-- [ ] T022 [US1] Run the US1-focused commands in sections 2 and 3 of `specs/001-searchable-entity-picker/quickstart.md`; confirm every new test is green and legacy `/flocks` and `/customers` forms remain unchanged.
+- [ ] T022 [US1] Run the US1-focused commands in sections 2 and 3 of `specs/001-searchable-entity-picker/quickstart.md`, then temporarily apply `IgnoreQueryFilters()` independently to the new discovery queries in `src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs` and `src/Cluckwork.Infrastructure/Repositories/CustomerRepository.cs`; prove the tenant and Worker-scope cases in `tests/Cluckwork.Api.IntegrationTests/NamedEntityDiscoveryTests.cs` go red for each bypass, restore the scoped implementation, rerun green, and confirm legacy `/flocks` and `/customers` forms remain unchanged.
 
 **Checkpoint**: Every adopting selector can reach and commit late-sorting eligible entities, but do not ship write forms until US2 is complete.
 
@@ -84,16 +84,16 @@
 
 > Write these tests first and confirm they fail for the intended missing behavior.
 
-- [ ] T023 [P] [US2] Add failing component tests for committed-versus-visible state, Arrow-only activation, Enter/click commit, Escape restore, optional clear, required/disabled semantics, native Home/End editing, and outside-write suppression in `web/src/components/NamedEntityPicker.test.tsx`.
+- [ ] T023 [P] [US2] Add failing component tests for committed-versus-visible state; visible label association; editable combobox/listbox roles; stable popup/option IDs; `aria-controls`, `aria-expanded`, `aria-selected`, and `aria-activedescendant`; Arrow-only activation; Down Arrow past the loaded end requesting extension; Enter/click commit; Escape restore; optional clear; required/disabled semantics; native Home/End editing; and outside-write suppression in `web/src/components/NamedEntityPicker.test.tsx`.
 - [ ] T024 [P] [US2] Add failing write-guard tests for Daily Entry, Feed, Water, and Users in `web/src/routes/DailyEntryPage.test.tsx`, `web/src/routes/FeedPage.test.tsx`, `web/src/routes/WaterPage.test.tsx`, and `web/src/routes/UsersPage.test.tsx`.
 - [ ] T025 [P] [US2] Add failing write-guard tests for Sales and Expenses, including direct submit-handler rejection when the visible button state is bypassed, in `web/src/routes/SalesPage.test.tsx` and `web/src/routes/ExpensesPage.test.tsx`.
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Implement independent committed text/entity state, exploration detection, keyboard activation, Escape/clear behavior, outside-write suppression, and derived `canSubmit` in `web/src/components/NamedEntityPicker.tsx`.
+- [ ] T026 [US2] Implement independent committed text/entity state, exploration detection, the complete labeled editable combobox/listbox and stable `aria-activedescendant` contract, Arrow activation with Down Arrow extension at the loaded end, native Home/End editing, Enter/click commit, Escape/clear behavior, outside-write suppression, and derived `canSubmit` in `web/src/components/NamedEntityPicker.tsx`.
 - [ ] T027 [P] [US2] Consume `PickerSnapshot.canSubmit` in both control disabled states and submit-handler guards for Daily Entry, Feed, and Water in `web/src/routes/DailyEntryPage.tsx`, `web/src/routes/FeedPage.tsx`, and `web/src/routes/WaterPage.tsx`.
 - [ ] T028 [P] [US2] Consume `PickerSnapshot.canSubmit` in both control disabled states and submit-handler guards for Users, Sales, and Expenses in `web/src/routes/UsersPage.tsx`, `web/src/routes/SalesPage.tsx`, and `web/src/routes/ExpensesPage.tsx`.
-- [ ] T029 [US2] Run the picker and seven adopting-page test commands in section 3 of `specs/001-searchable-entity-picker/quickstart.md`, including keyboard-only and outside-click write attempts.
+- [ ] T029 [US2] Run the picker and six picker-backed write-page test commands in section 3 of `specs/001-searchable-entity-picker/quickstart.md`, including keyboard-only and outside-click write attempts; run `web/src/routes/HistoryPage.test.tsx` separately to confirm its read-only flock filter does not block unrelated adjustment actions.
 
 **Checkpoint**: US1 + US2 is the minimum safely shippable picker slice; discovery is complete and write forms cannot use stale committed identifiers.
 
@@ -139,7 +139,7 @@
 
 > Write these tests first and confirm they fail for the intended missing behavior.
 
-- [ ] T042 [P] [US4] Add failing real-Postgres tests for all six additive row contracts, Archived/nullable cases, tenant and Worker scope, constant grouped-reference query count, one assignment left join, and bounded movement aggregation in `tests/Cluckwork.Api.IntegrationTests/NamedRowProjectionTests.cs` and `tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs`.
+- [ ] T042 [P] [US4] Add failing real-Postgres guard tests for all six additive row contracts, Archived/nullable cases, tenant and Worker scope, constant grouped-reference query count, one assignment left join, and bounded movement aggregation in `tests/Cluckwork.Api.IntegrationTests/NamedRowProjectionTests.cs` and `tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs`; T053 must adversarially prove the new scope and performance guards.
 - [ ] T043 [P] [US4] Add failing row-owned display/editability tests in `web/src/routes/DailyEntryPage.test.tsx`, `web/src/routes/HistoryPage.test.tsx`, `web/src/routes/FeedPage.test.tsx`, `web/src/routes/WaterPage.test.tsx`, `web/src/routes/UsersPage.test.tsx`, `web/src/routes/SalesPage.test.tsx`, `web/src/routes/ExpensesPage.test.tsx`, and `web/src/routes/Dashboard.test.tsx`.
 
 ### Implementation for User Story 4
@@ -150,10 +150,10 @@
 - [ ] T047 [P] [US4] Return nullable assignment `flockName` from one scoped left join while keeping the list unpaged in `src/Cluckwork.Application/Features/Users/IUserRoleAssignmentRepository.cs`, `src/Cluckwork.Infrastructure/Repositories/UserRoleAssignmentRepository.cs`, and `src/Cluckwork.Api/Endpoints/Users/UserEndpoints.cs`.
 - [ ] T048 [P] [US4] Implement scoped bulk customer references and add `customerName` to Sales list/detail responses in `src/Cluckwork.Application/Features/Customers/ICustomerRepository.cs`, `src/Cluckwork.Infrastructure/Repositories/CustomerRepository.cs`, and `src/Cluckwork.Api/Endpoints/Sales/SaleEndpoints.cs`.
 - [ ] T049 [P] [US4] Add nullable `flockName` to Expense list/detail/adjust responses through scoped grouped reads in `src/Cluckwork.Application/Features/Expenses/IExpenseRepositories.cs`, `src/Cluckwork.Infrastructure/Repositories/ExpenseRepositories.cs`, and `src/Cluckwork.Api/Endpoints/Expenses/ExpenseEndpoints.cs`.
-- [ ] T050 [US4] Finish the six additive frontend response types and remove any ID-fragment reference fallback from `web/src/api/cluckwork.ts`.
+- [ ] T050 [US4] Add all six required/nullable row-owned response fields to the frontend types and remove every ID-fragment reference fallback in `web/src/api/cluckwork.ts`.
 - [ ] T051 [P] [US4] Render row-owned names/status and evaluate History editability from each row's `flockStatus` in `web/src/routes/DailyEntryPage.tsx`, `web/src/routes/HistoryPage.tsx`, `web/src/routes/FeedPage.tsx`, and `web/src/routes/WaterPage.tsx`.
 - [ ] T052 [P] [US4] Render nullable/required row-owned names in Users, Sales, Expenses, and Dashboard and stop using picker/catalog results for display labels in `web/src/routes/UsersPage.tsx`, `web/src/routes/SalesPage.tsx`, `web/src/routes/ExpensesPage.tsx`, and `web/src/routes/Dashboard.tsx`.
-- [ ] T053 [US4] Temporarily introduce a per-row reference lookup and an unbounded movement aggregation in `src/Cluckwork.Api/Endpoints/DailyEntries/DailyEntryEndpoints.cs` and `src/Cluckwork.Infrastructure/Repositories/BirdMovementRepository.cs`; prove `tests/Cluckwork.Api.IntegrationTests/NamedRowProjectionTests.cs` goes red for each mutant, restore the grouped/bounded implementation, and rerun green.
+- [ ] T053 [US4] Independently mutate the new bulk-reference queries in `src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs` and `src/Cluckwork.Infrastructure/Repositories/CustomerRepository.cs` with `IgnoreQueryFilters()`, bypass the flock-scope side of the assignment left join in `src/Cluckwork.Infrastructure/Repositories/UserRoleAssignmentRepository.cs`, introduce a per-row reference lookup in `src/Cluckwork.Api/Endpoints/DailyEntries/DailyEntryEndpoints.cs`, and unbound movement aggregation in `src/Cluckwork.Infrastructure/Repositories/BirdMovementRepository.cs`; prove the matching tenant/Worker-scope—including the assignment-name case—query-count, and bounded-aggregation guards in `tests/Cluckwork.Api.IntegrationTests/NamedRowProjectionTests.cs` and `tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs` go red for each isolated mutant, restore the implementation after each mutation, and rerun green.
 - [ ] T054 [US4] Run the focused PostgreSQL and page suites in sections 2 and 3 of `specs/001-searchable-entity-picker/quickstart.md` and record no ID-fragment fallback or row-count-dependent query growth.
 
 **Checkpoint**: Historical rows are understandable and scoped independently of picker discovery, and the causal performance guards have survived their mutants.
@@ -191,9 +191,10 @@
 - [ ] T061 Update the Help page, in-app glossary, and product glossary in `web/src/routes/HelpPage.tsx`, `web/src/i18n/en.ts`, `web/src/i18n/es.ts`, `web/src/i18n/tl.ts`, and `specs/product/GLOSSARY.md` with synchronized user-facing terminology.
 - [ ] T062 Add one translated built-SPA scenario that reaches and commits the unchanged #627 late-sorting flock/customer sentinels and exercises one recovery path in `tools/simulation/ui/specs/named-entity-picker.spec.ts`, using `tools/simulation/ui/src/ax.ts` only for accessibility-tree or `inert` assertions.
 - [ ] T063 Register a focused pagination mutant in `tools/simulation/ui/src/mutants.ts` and `tools/simulation/ui/mutation-check.sh`; prove the baseline green, mutant red for the sentinel assertion, and restored baseline green without changing fixture, manifest, bootstrap, compose, or CI workflow files.
-- [ ] T064 Re-run the caller audit in section 7 of `specs/001-searchable-entity-picker/quickstart.md` and inspect `web/src/`, `tools/simulation/k6/`, `tools/simulation/ui/`, `tests/`, and `src/` to confirm legacy list forms, write contracts, and non-adopting native selectors remain unchanged.
-- [ ] T065 Run every static, focused, built-SPA, mutation, and full-gate command in `specs/001-searchable-entity-picker/quickstart.md`, including `dotnet test Cluckwork.sln`, frontend coverage/build/service-worker verification, schema-doc check, and the existing Playwright smoke suite.
-- [ ] T066 Inspect `git diff --check` and `git status --short` and verify there are no migration, schema-doc, package/lockfile, #627 fixture/count/manifest/fingerprint, simulation harness, CI workflow, generic framework, or unrelated refactor changes.
+- [ ] T064 Run the first-time-user protocol in `specs/001-searchable-entity-picker/quickstart.md` with at least one keyboard pass and one pointer pass by participants who did not implement the picker; record a non-PII pass/fail summary in the pull request verification notes stating whether each participant independently completed the late-sorting flock selection, late-sorting customer selection, and one recovery without selecting the wrong entity.
+- [ ] T065 Re-run the caller audit in section 8 of `specs/001-searchable-entity-picker/quickstart.md` and inspect `web/src/`, `tools/simulation/k6/`, `tools/simulation/ui/`, `tests/`, and `src/` to confirm legacy list forms, write contracts, and non-adopting native selectors remain unchanged.
+- [ ] T066 Run every static, focused, built-SPA, mutation, and full-gate command in `specs/001-searchable-entity-picker/quickstart.md`, including `dotnet test Cluckwork.sln`, frontend coverage/build/service-worker verification, schema-doc check, and the existing Playwright smoke suite.
+- [ ] T067 Inspect `git diff --check` and `git status --short` and verify there are no migration, schema-doc, package/lockfile, #627 fixture/count/manifest/fingerprint, simulation harness, CI workflow, generic framework, or unrelated refactor changes.
 
 ---
 
@@ -231,8 +232,8 @@ Full feature gate: US1 + US2 + US3 + US4 + US5
 
 ### Parallel Opportunities
 
-- T002, T004, and T005 can run while the baseline or other contract setup work proceeds because they inspect/change distinct paths.
-- In US1, T006-T009 can be authored in parallel; after the failing tests exist, T010-T012 can proceed in parallel; after T015, T016-T021 can proceed in parallel by page.
+- T002 can run while T001 executes because it is read-only; T003-T005 can run in parallel only after Phase 1 completes because they change distinct files and leave the repository compiling.
+- In US1, T006-T009 can be authored in parallel; after the failing tests exist, T010 and T012 can proceed in parallel, T011 follows T010, and after T015, T016-T021 can proceed in parallel by page.
 - In US2, component and route tests T023-T025 can be authored in parallel, then the two disjoint route groups T027-T028 can proceed after T026.
 - In US3, T030-T033 can be authored in parallel, and page lifecycle implementations T036-T039 can proceed in parallel after T034-T035.
 - US4 backend projection tasks T045-T049 are disjoint after T044 establishes shared reference reads; frontend tasks T051-T052 can then proceed in parallel.
