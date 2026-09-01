@@ -902,11 +902,12 @@ except Exception as exc:
                     *'{CORE_TEMPLATE}'*) ;;
                     *) echo "Error: wrap strategy missing {CORE_TEMPLATE} placeholder" >&2; return 2 ;;
                 esac
-                while [[ "$layer_content" == *'{CORE_TEMPLATE}'* ]]; do
-                    local before="${layer_content%%\{CORE_TEMPLATE\}*}"
-                    local after="${layer_content#*\{CORE_TEMPLATE\}}"
-                    layer_content="${before}${content}${after}"
+                local wrapped="" rest="$layer_content"
+                while [[ "$rest" == *'{CORE_TEMPLATE}'* ]]; do
+                    wrapped+="${rest%%\{CORE_TEMPLATE\}*}${content}"
+                    rest="${rest#*\{CORE_TEMPLATE\}}"
                 done
+                layer_content="${wrapped}${rest}"
                 content="$layer_content"
                 ;;
             *) echo "Error: unknown strategy '$strat'" >&2; return 2 ;;
