@@ -10,6 +10,7 @@ an accessibility fix on real assistive tech.
 | [First admin provisioning (`bootstrap-admin`)](first-admin-provisioning.md) | A fresh database has no Owner. |
 | [New farm provisioning (`provision-account`)](provisioning-a-new-farm.md) | Add another farm and its first Owner. |
 | [Break-glass account recovery (`recover-admin`)](break-glass-account-recovery.md) | An Owner exists but is locked out. |
+| [Simulation fixture on a dev database](simulation-fixture-on-a-dev-database.md) | A local debug database needs far more rows than `seed --profile demo` provides. |
 | [Backup & restore](backup-and-restore.md) | Disaster-recovery dump, and putting one back. |
 | [Screen-reader verification](screen-reader-verification.md) | An announcement change needs real assistive-tech confirmation (jsdom cannot). |
 
