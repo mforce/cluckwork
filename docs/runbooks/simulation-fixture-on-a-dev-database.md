@@ -56,7 +56,12 @@ inheriting it.
 
 ```bash
 docker ps --format '{{.Names}}\t{{.Ports}}' | grep -i postgres
-dotnet user-secrets --project src/Cluckwork.Api list | grep ConnectionStrings
+
+# Host/port/database only. Do NOT pipe the raw `user-secrets list` to the
+# terminal — the value carries the password, and scrollback keeps it.
+dotnet user-secrets --project src/Cluckwork.Api list \
+  | sed -n 's/^ConnectionStrings:Default = //p' \
+  | tr ';' '\n' | grep -iE '^(host|port|database)='
 ```
 
 **Whether it is clean.** `SimulationDataSeeder` validates **exact** row counts
@@ -72,11 +77,23 @@ short/partial and must NOT be marked complete: flocks: expected 102, got 105;
 customers: expected 101, got 104; dailyEntries.total: expected 1460, got 1708; …
 ```
 
-Every `got` above its `expected` is this, and only this. A **plain re-run at the
-same options** is safe — the seeder keeps a durable date anchor in
-`SimulationSeedState` and converges to `AlreadySeeded`.
+Every `got` above its `expected` is this, and only this — and **re-running does
+not clear it.** The seeder keeps a durable date anchor in `SimulationSeedState`,
+so a re-run against an *already clean and correctly seeded* database converges
+to `AlreadySeeded`; against a polluted one the foreign rows are still there and
+the same counts still overshoot. Only the lock-sweep mismatch in step 2 is
+recoverable by repetition. This one needs a wipe.
 
-If the account is not clean, wipe. **Destructive — this cannot be undone:**
+If the account is not clean, wipe.
+
+> **Destructive, and wider than the account you are fixing. This cannot be
+> undone.** `down -v` removes the stack's named volumes, so it destroys the
+> **entire `cluckwork-dev` PostgreSQL instance** — every farm, every user, every
+> row, not merely the default account's fixture. Run it only against a
+> throwaway development database. If anything in there matters, take a dump
+> first ([`backup-and-restore.md`](backup-and-restore.md)) — there is no
+> narrower reset, because the validation counts the whole account and a
+> hand-pruned database is exactly the polluted state it rejects.
 
 ```bash
 # Compose dev stack
@@ -146,8 +163,9 @@ fails, and leaves its rows behind (see below).
 So a failed run gives you the volume anyway, at the cost of a red exit code, no
 `manifest.json`, and entries past the first 200 left `Submitted` instead of
 `Locked`. Harmless for hand debugging. Re-running the *identical* command locks
-the next 200, so repeating it also walks the database green — roughly
-`2 × (HistoryDays − 7) ÷ 200` runs.
+the next batch, so repeating it also walks the database green in
+`ceil(2 × (HistoryDays − 7) ÷ 200)` runs — every pass locks 200 except the last,
+which locks the remainder.
 
 > Both recovery paths above are read off the code (the seeder's per-entity
 > idempotency, the durable anchor, and one sweep pass per invocation), not yet
@@ -175,8 +193,8 @@ Simulation data seeded (fingerprint <hex>).
 Note the `--` separator: it stops `dotnet run` consuming the arguments.
 
 `ASPNETCORE_ENVIRONMENT=Development` is **required twice over**: unset means
-Production, which fails the boot against a plaintext local Postgres (the
-#261/#262 TLS floor), and `SimulationDataSeeder` is registered only outside
+Production, which fails the boot against a plaintext local Postgres (the TLS
+floor, #261/#262), and `SimulationDataSeeder` is registered only outside
 Production, so a Production process refuses the profile outright with
 `Simulation seeding is not available in Production`.
 
@@ -245,9 +263,11 @@ be anything.
 
 Not "it exited 0" — log in and look:
 
-1. Sign in as `admin@sim.local` (the Owner you bootstrapped) or any
-   `sim-worker-1@sim.local` / `sim-manager-1@sim.local` / `sim-sales-1@sim.local`
-   with your `CastPassword`, plus the farm code.
+1. Sign in as the Owner — the address `bootstrap-admin` printed, which is
+   whatever you passed to its `--email`, **not** a `sim.local` one — or as any
+   cast member: `sim-worker-1@`, `sim-manager-1@`, `sim-sales-1@` at
+   `Simulation__EmailDomain` (default `sim.local`), with your `CastPassword`.
+   Either way you also need the farm code.
 2. Flocks list paginates — 102 rows, not 2.
 3. History shows entries across the whole window, in all three lifecycle states,
    with **two** provenance shapes: "created and last changed by the same person"
@@ -285,7 +305,8 @@ Safe on a scratch database only.
    `dailyEntries.locked` / `dailyEntries.submitted`. Anything else mismatching
    means the account was not clean and this drill proved nothing.
 6. Run the identical `HistoryDays=400` command again, repeatedly. Expected: the
-   `locked` figure climbs by 200 each run and it eventually exits `0` — the
-   recovery path in step 2's box.
+   `locked` figure climbs by **up to** 200 a run — 786 are eligible at this
+   depth, so three full passes and a final partial one of 186 — until it exits
+   `0`. That is the recovery path in step 2's box.
 7. Sign in and walk the four **Verify** checks.
 8. Update **Last drilled** above.
