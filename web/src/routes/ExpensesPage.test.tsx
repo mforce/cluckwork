@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { ExpensesPage } from "./ExpensesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { findRowByCellText, getRowByCellText } from "../test/rows";
 import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 import {
   adjustExpense, createExpense, createExpenseCategory, getExpense,
@@ -278,7 +279,7 @@ describe("ExpensesPage pagination", () => {
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
 
     // full first page loaded → hasMore (100 === PAGE) surfaces "load more"
-    await screen.findByRole("row", { name: /First page sentinel/ });
+    await findRowByCellText("First page sentinel");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "load more" }));
     });
@@ -286,8 +287,8 @@ describe("ExpensesPage pagination", () => {
     // second fetch pages in at the page boundary (offset 100), same month/filter
     expect(mockListExpenses.mock.calls.at(-1)![0]).toMatchObject({ offset: 100, limit: 100 });
     // appended, not replaced: a first-page AND a second-page row now coexist
-    expect(await screen.findByRole("row", { name: /Second page alpha/ })).toBeInTheDocument();
-    expect(screen.getByRole("row", { name: /First page sentinel/ })).toBeInTheDocument();
+    expect(await findRowByCellText("Second page alpha")).toBeInTheDocument();
+    expect(getRowByCellText("First page sentinel")).toBeInTheDocument();
   });
 });
 

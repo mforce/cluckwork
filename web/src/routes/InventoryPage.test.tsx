@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor, cleanup } from "@testing-library/react";
 import { InventoryPage } from "./InventoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { getRowByCellText } from "../test/rows";
 import { account, NO_RECORD_HISTORY } from "../test/fixtures";
 import {
   activateInventoryItem, createInventoryItem, deactivateInventoryItem, getAccount,
@@ -1151,7 +1152,7 @@ describe("InventoryPage ledger paging (#511)", () => {
       await renderReady(ADMIN);
       const openLabel = i18n.t("inventory:openButton");
       await act(async () => {
-        fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: openLabel }));
+        fireEvent.click(within(getRowByCellText("Layer Feed")).getByRole("button", { name: openLabel }));
       });
       await screen.findByText("im note 000");
       expect(screen.getByRole("button", { name: "cargar más" })).toBeInTheDocument();
@@ -1166,7 +1167,7 @@ describe("InventoryPage ledger paging (#511)", () => {
       await renderReady(ADMIN);
       const openLabel = i18n.t("inventory:openButton");
       await act(async () => {
-        fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: openLabel }));
+        fireEvent.click(within(getRowByCellText("Layer Feed")).getByRole("button", { name: openLabel }));
       });
       await screen.findByText("im note 000");
       expect(screen.getByRole("button", { name: "mag-load pa" })).toBeInTheDocument();
