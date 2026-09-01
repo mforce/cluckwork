@@ -18,6 +18,7 @@ Elsewhere in the repo:
 | [`../README.md`](../README.md) | What Cluckwork is, and running it |
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Local development, tests, branches, commits |
 | [`runbooks/aspire-local-development.md`](runbooks/aspire-local-development.md) | Local Aspire stack, persistence and safe reset |
+| [`runbooks/simulation-fixture-on-a-dev-database.md`](runbooks/simulation-fixture-on-a-dev-database.md) | Bulk fixture data in a local debug database (Compose or Aspire) |
 | [`../AGENTS.md`](../AGENTS.md) | The canonical rule set — every invariant, for humans and coding agents |
 | [`../SECURITY.md`](../SECURITY.md) | Reporting a vulnerability; what CI enforces |
 | [`../specs/product/`](../specs/product/) | Product & technical spec, phase plan, [glossary](../specs/product/GLOSSARY.md) |
