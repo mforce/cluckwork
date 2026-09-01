@@ -26,12 +26,26 @@ const routesDir = resolve(process.cwd(), "src/routes");
 
 // A fixture long enough to make a screen's pager appear: `customerPage(100)`,
 // `invMovementPage(100)`, `Array.from({ length: 100 }, …)`.
-const pageSizeFixture = /\(\s*100\s*\)|length:\s*100\b/;
+//
+// Deliberately broad, minus two spellings that can never be a fixture:
+// `toHaveLength(100)` and `advanceTimersByTime(100)`, which are an assertion
+// and a clock nudge. Anything else taking a bare 100 is treated as a possible
+// page-size fixture. The bias is on purpose — a false positive here costs a
+// reader half a minute, a false negative costs a returned flake — so this does
+// NOT narrow to a list of known fixture-builder names, which would go quiet the
+// day someone adds one under a new name.
+const pageSizeFixture = /(?<!Length)(?<!Time)\(\s*100\s*\)|length:\s*100\b/;
 
 // `getByRole("row", { name: … })` and every relative of it — get/find/query,
 // singular or All. No leading \b: the character before `ByRole` is always a
 // word character (`find`, `get`), so a word boundary there never matches.
-const rowByAccessibleName = /ByRole\(\s*"row"\s*,\s*\{\s*name/;
+//
+// `name` is matched ANYWHERE in the options object, not just as its first key:
+// `{ exact: true, name: /…/ }` costs exactly as much as `{ name: /…/ }` and an
+// option-order-sensitive pattern would wave it through. Both quote styles, for
+// the same reason. `[^}]*` cannot run past the object's own closing brace, so a
+// `name:` belonging to some later expression is not picked up.
+const rowByAccessibleName = /ByRole\(\s*["']row["']\s*,\s*\{[^}]*\bname\s*:/;
 
 // Slice a test file into one entry per test, each ending where the next test or
 // describe begins, so a fixture declared between blocks is not charged to the
