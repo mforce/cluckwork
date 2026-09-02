@@ -1264,3 +1264,68 @@ describe("InventoryPage ledger paging (#511)", () => {
     expect(mockPurchase.mock.calls[1][2]).toBe(mockPurchase.mock.calls[0][2]);
   });
 });
+
+describe("InventoryPage — the panel belongs to the user, not to the write (#630)", () => {
+  // `refreshAll` ends by re-activating the item the WRITE was about, from an id
+  // captured when the handler ran. The panel's own Close link carries no
+  // `disabled={busy}`, so it stays reachable for the whole flight — the same
+  // #480 virtual-cursor door the purchase-dialog guard above covers — and the
+  // write's refresh would then re-open a panel the user had already dismissed.
+  it("does not re-open a panel closed while the write was in flight", async () => {
+    const gate = deferred<{ lotId: string }>();
+    mockPurchase.mockReturnValue(gate.promise);
+    await renderReady(ADMIN);
+    await openItem(FEED);
+
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "close" }));
+    expect(screen.queryByRole("heading", { name: /Layer Feed/ })).not.toBeInTheDocument();
+
+    await act(async () => {
+      gate.resolve({ lotId: "lot9" });
+    });
+
+    expect(screen.queryByRole("heading", { name: /Layer Feed/ })).not.toBeInTheDocument();
+    // The list itself still refreshes — closing the panel withdraws the panel,
+    // not the write's re-read.
+    expect(mockListItems).toHaveBeenCalledTimes(2);
+  });
+
+  it("still re-reads the open item's lots when the panel was never closed", async () => {
+    mockListLots.mockResolvedValue([LOT]);
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    mockListLots.mockClear();
+
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+
+    expect(await screen.findByRole("heading", { name: /Layer Feed/ })).toBeInTheDocument();
+    expect(mockListLots).toHaveBeenCalledWith("it1");
+  });
+
+  it("closes the panel when the write's refresh shows the open item is gone", async () => {
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    // The refresh answers without the open item — deactivated elsewhere, or
+    // removed. The panel must not keep describing a row that no longer exists.
+    mockListItems.mockResolvedValueOnce([PACKAGING, INACTIVE]);
+
+    const form = openDialog("Record purchase");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: /Layer Feed/ })).not.toBeInTheDocument());
+  });
+});

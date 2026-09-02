@@ -693,3 +693,176 @@ describe("usePagedList — writes", () => {
     expect((seen[0] as Error).message).toBe("nope");
   });
 });
+
+describe("usePagedList — a write during an in-flight extension (#629)", () => {
+  it("re-walks the page the superseded load-more asked for, not just the settled cursor", async () => {
+    // The user clicked for page 2 and then submitted a write. The extension is
+    // superseded and its response discarded — correct — but the intent behind
+    // it was never withdrawn, so refreshing only to the cursor as it stood
+    // BEFORE that click silently swallows the page they asked for, and the
+    // record the write just created can land in the gap beyond it.
+    const extension = deferred<Row[]>();
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))   // first load
+      .mockReturnValueOnce(extension.promise)       // load-more, superseded
+      .mockResolvedValueOnce(rows("a", "b", "c"))   // post-write walk, page 1
+      .mockResolvedValueOnce(rows("d", "e", "n"));  // page 2, carrying the new row
+    render(<Host fetchPage={fetchPage} write={() => Promise.resolve()} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,n"));
+    expect(fetchPage.mock.calls.slice(2).map(([offset]) => offset)).toEqual([0, 3]);
+
+    // The abandoned extension is still stale when it finally answers.
+    await act(async () => { extension.resolve(rows("x", "y", "z")); });
+    expect(shown()).toBe("a,b,c,d,e,n");
+  });
+
+  it("resumes paging past the window the post-write walk rebuilt", async () => {
+    const extension = deferred<Row[]>();
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockReturnValueOnce(extension.promise)
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockResolvedValueOnce(rows("d", "e", "f"))
+      .mockResolvedValueOnce(rows("g", "h", "i"));
+    render(<Host fetchPage={fetchPage} write={() => Promise.resolve()} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f"));
+
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f,g,h,i"));
+    expect(fetchPage).toHaveBeenLastCalledWith(6, 3);
+  });
+
+  it("does not walk past a page the extension already failed to fetch", async () => {
+    // The user's ask stands only while it is still reachable: a load-more that
+    // came back an error is answered, and re-issuing it on every later write
+    // would turn one failed page into a permanent extra request that can also
+    // empty the window.
+    const extension = deferred<Row[]>();
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockReturnValueOnce(extension.promise)
+      .mockResolvedValueOnce(rows("a", "b", "c"));
+    render(<Host fetchPage={fetchPage} write={() => Promise.resolve()} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await act(async () => { extension.reject(new Error("page 2 blew up")); });
+    expect(shown()).toBe("a,b,c");
+
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(errorText()).toBe(""));
+    expect(fetchPage.mock.calls.slice(2).map(([offset]) => offset)).toEqual([0]);
+  });
+
+  it("forgets the abandoned ask once a filter change replaces the window", async () => {
+    const extension = deferred<Row[]>();
+    const fetchA = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockReturnValueOnce(extension.promise);
+    const fetchB = vi.fn().mockResolvedValue(rows("b1", "b2", "b3"));
+    const { rerender } = render(<Host fetchPage={fetchA} write={() => Promise.resolve()} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    rerender(<Host fetchPage={fetchB} write={() => Promise.resolve()} />);
+    await waitFor(() => expect(shown()).toBe("b1,b2,b3"));
+
+    fetchB.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(fetchB).toHaveBeenCalled());
+    // One page: the previous filter's abandoned load-more is not this
+    // filter's intent.
+    expect(fetchB.mock.calls.map(([offset]) => offset)).toEqual([0]);
+  });
+});
+
+describe("usePagedList — the abandoned ask after a failed refresh (#629)", () => {
+  it("drops the ask with the window the failed refresh emptied", async () => {
+    // The rows are gone and the cursor is back to zero, so the page the user
+    // once asked for is no longer part of any window — walking to it on the
+    // next write would fetch a page nothing is going to show.
+    const extension = deferred<Row[]>();
+    const fetchPage = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockReturnValueOnce(extension.promise)
+      .mockRejectedValueOnce(new Error("refresh blew up"))
+      .mockResolvedValueOnce(rows("a", "b", "c"));
+    render(<Host fetchPage={fetchPage} write={() => Promise.resolve()} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(shown()).toBe(""));
+    expect(errorText()).not.toBe("");
+
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+    expect(fetchPage.mock.calls.slice(3).map(([offset]) => offset)).toEqual([0]);
+  });
+});
+
+describe("usePagedList — a write that supersedes an unsettled replacement (#645 review)", () => {
+  it("walks the NEW filter only as deep as the new filter has been loaded", async () => {
+    // The previous filter's depth outlives the intent that earned it: `reload`
+    // starts the replacement but both cursors still describe filter A until
+    // its page lands. A write superseding that in-flight replacement would
+    // then walk filter B to filter A's depth — pages the user never asked for
+    // under a filter they have only just arrived at. The extra page is not
+    // merely wasted: if it fails, the walk's error path empties a window whose
+    // first page was perfectly good.
+    const pendingB = deferred<Row[]>();
+    const fetchA = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockResolvedValueOnce(rows("d", "e", "f"));
+    const fetchB = vi.fn()
+      .mockReturnValueOnce(pendingB.promise)          // filter B page 1, still in flight
+      .mockResolvedValue(rows("b1", "b2", "b3"));     // the post-write walk
+    const write = () => Promise.resolve();
+
+    const { rerender } = render(<Host fetchPage={fetchA} write={write} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f"));
+
+    rerender(<Host fetchPage={fetchB} write={write} />);
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(shown()).toBe("b1,b2,b3"));
+
+    expect(fetchB.mock.calls.map(([offset]) => offset)).toEqual([0, 0]);
+
+    await act(async () => { pendingB.resolve(rows("stale")); });
+    expect(shown()).toBe("b1,b2,b3");
+  });
+
+  it("does not empty the new filter's window when the retired depth's page fails", async () => {
+    // The consequence, stated as behaviour rather than as a request count.
+    const pendingB = deferred<Row[]>();
+    const fetchA = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockResolvedValueOnce(rows("d", "e", "f"));
+    const fetchB = vi.fn()
+      .mockReturnValueOnce(pendingB.promise)
+      .mockResolvedValueOnce(rows("b1", "b2", "b3"))
+      .mockRejectedValueOnce(new Error("page 2 blew up"));
+    const write = () => Promise.resolve();
+
+    const { rerender } = render(<Host fetchPage={fetchA} write={write} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f"));
+
+    rerender(<Host fetchPage={fetchB} write={write} />);
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(shown()).toBe("b1,b2,b3"));
+    expect(errorText()).toBe("");
+  });
+});

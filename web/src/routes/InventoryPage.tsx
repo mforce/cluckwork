@@ -101,6 +101,13 @@ export function InventoryPage() {
   // identity, so switching items reloads from the top and a late response for
   // the previous item can never paint under this one's heading.
   const activeId = active?.id ?? null;
+  // #630 — which item is open is the USER's answer, and it can change while a
+  // write is in flight: the panel's own Close link carries no `disabled={busy}`
+  // and stays reachable behind the dialog for the whole flight (#480). Read it
+  // through a ref so `refreshAll` compares against the panel as it stands when
+  // its re-read lands, not against the id its handler closed over.
+  const activeIdRef = useRef<string | null>(null);
+  activeIdRef.current = activeId;
   const fetchMovements = useCallback(
     (offset: number, limit: number) =>
       activeId
@@ -150,12 +157,21 @@ export function InventoryPage() {
   const closePurchase = () => { setPurchasing(false); errors.abandon("purchase"); };
   const closeAdjust = () => { setAdjusting(false); errors.abandon("adjust"); };
 
-  async function refreshAll(openItemId?: string) {
+  async function refreshAll() {
     const fresh = await fetchItems();
     setItems(fresh);
-    const target = openItemId ?? active?.id;
-    if (target) {
-      const stillThere = fresh.find((i) => i.id === target) ?? null;
+    // The list refresh above is the write's business and always applies; the
+    // PANEL is the user's. #630 — this used to re-activate the id its caller
+    // captured when the handler ran, so a write settling after the user closed
+    // the panel (its Close link carries no `disabled={busy}` and stays
+    // reachable behind the dialog for the whole flight, #480) put them back on
+    // an item they had already left. Reading which item is open NOW, rather
+    // than passing the write's own down, removes that staleness instead of
+    // testing for it. A `null` here is as authoritative as a row: the panel
+    // describes an item the refresh says is gone.
+    const openNow = activeIdRef.current;
+    if (openNow !== null) {
+      const stillThere = fresh.find((i) => i.id === openNow) ?? null;
       setActive(stillThere);
       if (stillThere) await loadLots(stillThere.id);
     }
@@ -225,7 +241,7 @@ export function InventoryPage() {
   // and could clear a standing ledger error the moment its incidental re-read
   // happened to succeed. FlocksPage already draws this line — only
   // onRecordMovement goes through ledger.runWrite there.
-  async function run(scope: string, errorScope: string | null, action: (key: string) => Promise<unknown>, openItemId?: string, touchesLedger = false): Promise<boolean> {
+  async function run(scope: string, errorScope: string | null, action: (key: string) => Promise<unknown>, touchesLedger = false): Promise<boolean> {
     const outcome = await runPending(scope, async () => {
       errors.beginAttempt(errorScope);
       setMessage(null);
@@ -234,7 +250,7 @@ export function InventoryPage() {
           await action(keyFor(scope));
           // The refresh must succeed before the key rotates: if it throws, the key
           // survives and a retry replays the idempotent write instead of repeating it.
-          await refreshAll(openItemId);
+          await refreshAll();
         };
         // A ledger write refreshes the whole loaded movement window (AC4); a
         // catalog write refreshes items and lots only.
@@ -364,7 +380,7 @@ export function InventoryPage() {
         lotNumber: lotNumber.trim() || undefined,
         expiryDate: expiryDate || undefined,
         note: purchaseNote.trim() || undefined,
-      }, key), active.id, true);
+      }, key), true);
     if (ok) {
       setPurchaseQty("");
       setPurchaseCost("");
@@ -398,7 +414,7 @@ export function InventoryPage() {
         type: adjustType,
         quantityDelta: adjustType === "Discard" ? -Math.abs(delta) : delta,
         reason: adjustReason.trim(),
-      }, key), active.id, true);
+      }, key), true);
     if (ok) {
       setAdjustQty("");
       setAdjustReason("");
