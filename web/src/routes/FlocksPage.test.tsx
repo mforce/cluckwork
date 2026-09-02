@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor, render, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { FlocksPage } from "./FlocksPage";
+import { getRowByCellText } from "../test/rows";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { AuthContext } from "../auth/AuthContext";
 import type { Role } from "../auth/claims";
@@ -209,7 +210,7 @@ describe("FlocksPage bird ledger", () => {
     mockListMovements.mockResolvedValue(MOVEMENTS);
     await renderReady(ADMIN, [ACTIVE]);
 
-    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+    fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "birds" }));
 
     const cullRow = await screen.findByRole("row", { name: /Cull/ });
     expect(mockListMovements).toHaveBeenCalledWith("f1", { limit: 50, offset: 0 });
@@ -228,7 +229,7 @@ describe("FlocksPage bird ledger", () => {
     mockRecordMovement.mockResolvedValue({ id: "mv9" });
     await renderReady(ADMIN, [ACTIVE]);
 
-    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+    fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "birds" }));
 
     // The movement form lives in its own dialog, opened from the ledger panel.
     fireEvent.click(await screen.findByRole("button", { name: "Record movement" }));
@@ -262,7 +263,7 @@ describe("FlocksPage dialog dismissal", () => {
 
   it("closes the edit dialog on Cancel without writing", async () => {
     await renderReady(ADMIN, [ACTIVE]);
-    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "edit" }));
+    fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "edit" }));
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
@@ -273,7 +274,7 @@ describe("FlocksPage dialog dismissal", () => {
   it("closes the movement dialog on Cancel without writing", async () => {
     mockListMovements.mockResolvedValue([]);
     await renderReady(ADMIN, [ACTIVE]);
-    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+    fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "birds" }));
     fireEvent.click(await screen.findByRole("button", { name: "Record movement" }));
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
@@ -305,7 +306,7 @@ describe("FlocksPage error placement (#479)", () => {
   it("shows a failed edit inside the dialog, not on the page behind it", async () => {
     mockUpdate.mockRejectedValue(new ApiError(409, "Conflict", "Someone else changed this flock."));
     await renderReady(ADMIN, [ACTIVE]);
-    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "edit" }));
+    fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "edit" }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
@@ -318,7 +319,7 @@ describe("FlocksPage error placement (#479)", () => {
     mockListMovements.mockResolvedValue([]);
     mockRecordMovement.mockRejectedValue(new ApiError(422, "Validation failed", "Quantity exceeds current birds."));
     await renderReady(ADMIN, [ACTIVE]);
-    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+    fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "birds" }));
     fireEvent.click(await screen.findByRole("button", { name: "Record movement" }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Record" }));
@@ -336,7 +337,7 @@ describe("FlocksPage error placement (#479)", () => {
   it("does not carry one flock's failed edit into another flock's dialog", async () => {
     mockUpdate.mockRejectedValue(new ApiError(409, "Conflict", "Someone else changed this flock."));
     await renderReady(ADMIN, [ACTIVE, DEPLETED]);
-    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "edit" }));
+    fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "edit" }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
@@ -359,7 +360,7 @@ describe("FlocksPage error placement (#479)", () => {
     openCreate();
 
     await act(async () => {
-      fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+      fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "birds" }));
     });
 
     const message = i18n.t("flocks:loadMovementsFailed");
@@ -376,7 +377,7 @@ describe("FlocksPage error placement (#479)", () => {
     await renderReady(ADMIN, [ACTIVE]);
 
     await act(async () => {
-      fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+      fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "birds" }));
     });
     const pageMessage = i18n.t("flocks:loadMovementsFailed");
     await screen.findByText(pageMessage);
@@ -401,7 +402,7 @@ describe("FlocksPage lifecycle", () => {
     await renderReady(ADMIN, [ACTIVE]);
 
     await act(async () => {
-      fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "deplete" }));
+      fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "deplete" }));
     });
 
     // The question names the flock, so a mis-clicked row is visible before it
@@ -417,7 +418,7 @@ describe("FlocksPage lifecycle", () => {
     await renderReady(ADMIN, [ACTIVE]);
 
     await act(async () => {
-      fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "deplete" }));
+      fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "deplete" }));
     });
 
     await answer("Cancel");
@@ -458,7 +459,7 @@ describe("FlocksPage pending states (#236)", () => {
     await renderReady(ADMIN, [ACTIVE, DEPLETED]);
 
     await act(async () => {
-      fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "archive" }));
+      fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "archive" }));
     });
     // Dialog buttons carry no busy state — the dialog settles before any I/O.
     await answer("Archive flock");
@@ -487,7 +488,7 @@ describe("FlocksPage pending states (#236)", () => {
     // present and re-enabled; where focus sits during the disabled window is
     // explicitly unasserted (design appendix — accepted limitation).
     await waitFor(() => {
-      expect(within(screen.getByRole("row", { name: /Hen House 1/ }))
+      expect(within(getRowByCellText("Hen House 1"))
         .getByRole("button", { name: "archive" })).toBeEnabled();
     });
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
@@ -554,7 +555,7 @@ describe("FlocksPage role gating", () => {
     mockListMovements.mockResolvedValue(MOVEMENTS);
     await renderReady(WORKER, [ACTIVE]);
 
-    fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+    fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "birds" }));
 
     await screen.findByRole("row", { name: /Cull/ }); // rows render read-only
     // No way in: the action that opens the movement dialog is admin-only.
@@ -702,7 +703,7 @@ describe("FlocksPage i18n wiring (#182, Task 19)", () => {
     await withOverride("flocks", "depleteConfirmTitle", "DEPLETE-MARKER {{name}} MARKER-END", async () => {
       await renderReady(ADMIN, [ACTIVE]);
       await act(async () => {
-        fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "deplete" }));
+        fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "deplete" }));
       });
       expect(screen.getByRole("dialog")).toHaveAccessibleName("DEPLETE-MARKER Hen House 1 MARKER-END");
     });
@@ -716,7 +717,7 @@ describe("FlocksPage i18n wiring (#182, Task 19)", () => {
     await withOverride("enums", "flockMovement.Cull", "CULL-MARKER", async () => {
       mockListMovements.mockResolvedValue(MOVEMENTS);
       await renderReady(ADMIN, [ACTIVE]);
-      fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: "birds" }));
+      fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "birds" }));
       const cullRow = await screen.findByRole("row", { name: /CULL-MARKER/ });
       expect(within(cullRow).getByText("CULL-MARKER")).toBeInTheDocument();
       expect(screen.queryByRole("row", { name: /^Cull\b/ })).not.toBeInTheDocument();
@@ -871,7 +872,7 @@ describe("FlocksPage bird ledger paging (#511)", () => {
       await renderReady(ADMIN, [ACTIVE]);
       const openLabel = i18n.t("flocks:openLedgerButton");
       await act(async () => {
-        fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: openLabel }));
+        fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: openLabel }));
       });
       await screen.findByText("m note 000");
       expect(screen.getByRole("button", { name: "cargar más" })).toBeInTheDocument();
@@ -886,7 +887,7 @@ describe("FlocksPage bird ledger paging (#511)", () => {
       await renderReady(ADMIN, [ACTIVE]);
       const openLabel = i18n.t("flocks:openLedgerButton");
       await act(async () => {
-        fireEvent.click(within(screen.getByRole("row", { name: /Hen House 1/ })).getByRole("button", { name: openLabel }));
+        fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: openLabel }));
       });
       await screen.findByText("m note 000");
       expect(screen.getByRole("button", { name: "mag-load pa" })).toBeInTheDocument();
