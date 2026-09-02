@@ -356,10 +356,44 @@ test.describe("#310 session races", () => {
     );
     try {
       await page.getByRole("button", { name: tEn("auth:signIn") }).click();
+      // #648 review — SYNCHRONISE ON THE PENDING LOCK, NOT ON THE CLICK.
+      // `Locator.click()` resolves when the click is dispatched; it does not
+      // wait for the page's own fetch, still less for a request deliberately
+      // not being sent yet. Releasing on the click alone lets a lock-bypass
+      // build win the ordering race by luck on a fast machine, so the assertion
+      // below would pass against the very defect it exists to catch. The real
+      // Web Locks API answers this directly: while the bootstrap refresh HOLDS
+      // the shared name, a queued sign-in is a PENDING entry on it.
+      //
+      // Best-effort on purpose. Against a bypass build no pending entry ever
+      // appears, and this wait must not be what fails — that would kill the
+      // mutant on a timeout instead of on the ordering assertion, a red for the
+      // wrong reason, which is the mistake PR #390 round 3 made here already.
+      await page
+        .waitForFunction(
+          async () => {
+            const snapshot = await navigator.locks.query();
+            const held = snapshot.held ?? [];
+            const pending = snapshot.pending ?? [];
+            return (
+              held.some((lock) => lock.name === "cluckwork.auth.refresh")
+              && pending.some((lock) => lock.name === "cluckwork.auth.refresh")
+            );
+          },
+          undefined,
+          { timeout: 5_000 },
+        )
+        .catch(() => undefined);
     } finally {
       releaseHeldRefresh();
     }
     await loginLanded;
+    // #648 review — wait for BOTH events before judging their order. Against a
+    // lock-bypass build the login lands first and the freed refresh answers
+    // after it, so asserting immediately kills the mutant on "the held refresh
+    // never settled" — a red, but for arrival rather than for ORDER, which is
+    // the guarantee under test.
+    await staleRefreshSettled;
 
     // #438 THE ORDERING GUARANTEE, in a real browser with the real Web Locks
     // API: the held refresh's response was observed BEFORE the login request
@@ -376,9 +410,8 @@ test.describe("#310 session races", () => {
     await expect(page.getByRole("navigation", { name: tEn("nav:primaryNavAriaLabel") }))
       .toBeVisible();
 
-    // The freed refresh has arrived, been discarded as stale, and its cookie
-    // revoke has completed — everything the reload's outcome depends on.
-    await staleRefreshSettled;
+    // The freed refresh has been discarded as stale and its cookie revoke has
+    // completed — everything the reload's outcome depends on.
     await revokeSettled;
 
     // THE GUARANTEE: this is the Sales session, and the Owner's has not been

@@ -292,6 +292,23 @@ async function performLogin(body: LoginRequest, generation: number): Promise<voi
   const abandonedAtDeadline = new Promise<never>((_, reject) => {
     abandon = () => {
       abandoned = true;
+      // #648 review — GIVE THE GENERATION BACK. The eager bump in `login()` is
+      // what makes the newest sign-in win, but a login that never sends has not
+      // superseded anything: leaving the bump in place makes an in-flight
+      // password change discard a response the SERVER ALREADY COMMITTED, revoke
+      // the cookie it just issued, and report failure to a user whose password
+      // did change. Failing closed is the right instinct for a write that might
+      // not have landed; this one has landed.
+      //
+      // Two conditions, and both are load-bearing. `sessionGeneration ===
+      // generation` means nothing bumped after us, so this rollback restores
+      // exactly the value every earlier flight captured. `refreshInFlight ===
+      // null` means no refresh can have captured OUR value while we waited —
+      // one that had would be discarded by the rollback and have its own valid
+      // cookie revoked, trading this bug for a forced re-auth. When either
+      // fails we keep the conservative behaviour rather than guess.
+      if (sessionGeneration === generation && refreshInFlight === null)
+        sessionGeneration = generation - 1;
       reject(
         new DOMException("Timed out waiting for the auth cookie lock.", "AbortError"),
       );

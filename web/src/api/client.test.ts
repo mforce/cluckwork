@@ -1577,12 +1577,16 @@ describe("cross-tab refresh coordination (#169)", () => {
       await changing;
       await vi.advanceTimersByTimeAsync(0);
       expect(callsTo(fetchMock, "/auth/login")).toHaveLength(0);
-      // The password change is discarded rather than committed: the abandoned
-      // login still bumped the session generation before it queued, and #310
-      // discards a token-store write whose generation moved under it. Failing
-      // closed is the right side to err on here — the user re-signs in — but it
-      // is a real consequence of the bump happening before the queue, not after.
-      expect(getAccessToken()).toBe(tokenBefore);
+      // #648 review — AND THE PASSWORD CHANGE STILL COMMITS. The abandoned login
+      // gives its generation back, because a login that never sent has not
+      // superseded anything. Leaving the bump in place discarded a response the
+      // server had already committed: the password was changed, the freshly
+      // issued cookie was revoked, and the user was told it failed. "Fails
+      // closed" is the right instinct for a write that might not have landed,
+      // and the wrong one for a write that has.
+      expect(getAccessToken()).toBe(claimfulToken("changed"));
+      expect(tokenBefore).not.toBe(claimfulToken("changed"));
+      expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0); // nothing revoked
     } finally {
       vi.useRealTimers();
     }
@@ -1687,6 +1691,53 @@ describe("cross-tab refresh coordination (#169)", () => {
     expect(changeSignal?.aborted).toBe(true);
     expect(await changing).toMatchObject({ name: "AbortError" });
     expect(getAccessToken()).toBeNull();
+  });
+
+  // #648 review — the other half of the rollback: it is conditional, and this
+  // pins the condition. A refresh started while the login waited may have
+  // captured the login's generation, so rolling back would discard that
+  // refresh's own valid result and revoke its cookie — trading a discarded
+  // password change for a forced re-auth. With a refresh in flight the
+  // conservative behaviour stands.
+  it("does not give the generation back when a refresh may have captured it (#438)", async () => {
+    vi.useFakeTimers();
+    try {
+      const changeGate = deferred<Response>();
+      const refreshGate = deferred<Response>();
+      setAccessToken(`tok-${crypto.randomUUID()}`);
+      fetchMock.mockImplementation(async (url: string) => {
+        if (url.endsWith("/auth/change-password")) return changeGate.promise;
+        if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+        if (url.endsWith("/auth/logout")) return new Response(null, { status: 204 });
+        throw new Error(`unexpected fetch: ${url}`);
+      });
+
+      const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+        .catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(0);
+
+      const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" })
+        .catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(0);
+      // A refresh enters the queue behind the login and captures the CURRENT
+      // generation — the one the login's bump produced.
+      const restoring = restoreSession().catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(0);
+
+      await vi.advanceTimersByTimeAsync(15_000); // the login is abandoned
+      expect(await loggingIn).toBeInstanceOf(DOMException);
+
+      changeGate.resolve(accessResponse(claimfulToken("changed")));
+      await changing;
+      refreshGate.resolve(accessResponse(claimfulToken("refreshed")));
+      await restoring;
+
+      // The refresh keeps the generation it captured, so it is not discarded
+      // out from under itself by the rollback.
+      expect(getAccessToken()).toBe(claimfulToken("refreshed"));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("a lock held under a DIFFERENT name does not block refresh (fake is name-scoped, like the real API)", async () => {
