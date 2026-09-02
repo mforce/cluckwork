@@ -300,7 +300,7 @@ run, not a degraded one.
 | Requirement | Where it comes from |
 |---|---|
 | Cast emails and their shared password | `Simulation__CastPassword`, `Simulation__EmailDomain` and the four cast counts must be **the values `bootstrap.sh` generated**, not the hand-chosen password [step 3a](#3a-form-a--compose-dev-database-api-run-from-the-ide--cli) tells you to pick |
-| An Owner at `admin@<EmailDomain>`, usable | `bootstrap-admin` at that exact address, **then rotated off `MustChangePassword`** — [step k3](#k3-owner-create-and-rotate) |
+| An Owner at `admin@<EmailDomain>`, usable | `bootstrap-admin` at that exact address, **then rotated off `MustChangePassword`** — [step k2](#k2-owner-create-and-rotate) |
 | `farmCode: "default-farm"` | Hardcoded in [`k6/auth.js`](../../tools/simulation/k6/auth.js). It is the default account's slug, set by the `AddAccountSlug` migration, so any base-seeded database already matches — nothing to do |
 | Rate limits raised past production values | [step k4](#k4-raise-the-rate-limits) |
 
@@ -331,7 +331,43 @@ runbook reads them the same way `reset.sh` does.
 env_val() { sed -n "s/^$1=//p" tools/simulation/.env.sim; }
 ```
 
-### k2. Seed with those values
+### k2. Owner: create and rotate
+
+**This runs before the seed, not after it.** `seed --profile simulation`
+refuses to write a row unless the default account already holds an Owner
+(#500), and `bootstrap-admin` creates only the *first* one — against an
+account that already has an Owner it is a silent no-op (#283), so an Owner
+minted at any other address permanently blocks the one k6 needs. Create it
+at the address `.sim-cast.json` carries, on a database whose default account
+has no Owner yet ([step 1](#1-confirm-the-target-database-is-clean-and-is-the-one-you-mean)
+leaves it that way). This is the order `reset.sh` uses.
+
+Then rotate off the printed one-time password — until you do,
+`MustChangePasswordMiddleware` 403s every request the Owner VU makes (#283),
+and the run fails with the fixture looking fine.
+
+```bash
+ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/Cluckwork.Api -- bootstrap-admin --email "$(env_val SIM_ADMIN_EMAIL)"
+```
+
+Under Aspire, prefix that with the same explicit `ConnectionStrings__Default`
+as above — it is a one-shot verb with exactly the #565 problem.
+
+`bootstrap-admin` prints `Temporary password: <value>` on stdout by design.
+**Do not echo it anywhere it will be retained** — a shell history or a CI log
+outlives the rotation (PR #392 review).
+
+Then, with the API *serving* against the same database, log in with the
+temporary password and change it to `SIM_ADMIN_PASSWORD`. That is exactly
+what `reset.sh` does after its own `bootstrap-admin` call — reuse the Python
+block there (`login` then `change-password`, `farmCode: "default-farm"`,
+`Idempotency-Key` on the write) rather than reimplementing it, pointing
+`APP_PORT` at whatever your dev API is listening on. Under Aspire the API
+`aspire run` launched is already serving against the right database; for the
+Compose form, start it yourself with an explicit `ASPNETCORE_URLS`.
+
+### k3. Seed with those values
 
 Run [step 3a](#3a-form-a--compose-dev-database-api-run-from-the-ide--cli) or
 [3b](#3b-form-b--aspire-apphost-stack) unchanged, except that every
@@ -361,34 +397,6 @@ The cast counts in `.env.sim` are `bootstrap.sh`'s copy of
 braces — but `Simulation__CastPassword` genuinely differs, and it is the one
 that decides whether k6 can log in.
 
-### k3. Owner: create and rotate
-
-The seed needs an Owner but never creates the one k6 wants. Create it at the
-address `.sim-cast.json` carries, then rotate off the printed one-time
-password — until you do, `MustChangePasswordMiddleware` 403s every request
-the Owner VU makes (#283), and the run fails with the fixture looking fine.
-
-```bash
-ASPNETCORE_ENVIRONMENT=Development \
-  dotnet run --project src/Cluckwork.Api -- bootstrap-admin --email "$(env_val SIM_ADMIN_EMAIL)"
-```
-
-Under Aspire, prefix that with the same explicit `ConnectionStrings__Default`
-as above — it is a one-shot verb with exactly the #565 problem.
-
-`bootstrap-admin` prints `Temporary password: <value>` on stdout by design.
-**Do not echo it anywhere it will be retained** — a shell history or a CI log
-outlives the rotation (PR #392 review).
-
-Then, with the API *serving* against the same database, log in with the
-temporary password and change it to `SIM_ADMIN_PASSWORD`. That is exactly
-what `reset.sh` does after its own `bootstrap-admin` call — reuse the Python
-block there (`login` then `change-password`, `farmCode: "default-farm"`,
-`Idempotency-Key` on the write) rather than reimplementing it, pointing
-`APP_PORT` at whatever your dev API is listening on. Under Aspire the API
-`aspire run` launched is already serving against the right database; for the
-Compose form, start it yourself with an explicit `ASPNETCORE_URLS`.
-
 ### k4. Raise the rate limits
 
 Production defaults are `Login` 10 per 900s, `Refresh` 60 per 900s,
@@ -413,6 +421,8 @@ box with no login limiter is not what you want to keep testing against:
 
 ```bash
 dotnet user-secrets --project src/Cluckwork.Api remove "RateLimiting:Login:PermitLimit"
+dotnet user-secrets --project src/Cluckwork.Api remove "RateLimiting:Refresh:PermitLimit"
+dotnet user-secrets --project src/Cluckwork.Api remove "RateLimiting:ClientErrors:PermitLimit"
 ```
 
 ### k5. Run k6
