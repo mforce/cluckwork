@@ -40,6 +40,7 @@ export const es = {
     none: "Ninguno",
     yes: "Sí",
     no: "No",
+    clearFiltersButton: "Borrar filtros",
   },
   auth: {
     title: "Cluckwork",

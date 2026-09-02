@@ -1107,6 +1107,27 @@ input.cell {
   font-weight: 700;
 }
 
+/* #655 — a list/table's empty branch: icon, one sentence, the primary action. */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.empty-state svg {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.empty-state p {
+  margin: 0;
+  max-width: 32rem;
+}
+
 /* Status badges — a pill with a tinted fill; screens map states to variants. */
 .badge {
   display: inline-flex;

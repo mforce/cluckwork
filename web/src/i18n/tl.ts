@@ -45,6 +45,8 @@ export const tl = {
     none: "Wala",
     yes: "Oo",
     no: "Hindi",
+    // machine-drafted, flagged for native review
+    clearFiltersButton: "I-clear ang mga filter",
   },
   auth: {
     title: "Cluckwork",

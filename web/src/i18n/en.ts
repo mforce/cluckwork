@@ -66,6 +66,11 @@ export const en = {
     none: "None",
     yes: "Yes",
     no: "No",
+    // #655 — EmptyState's "filtered to nothing" action, shared by every
+    // screen: it always means the same thing (reset this screen's own
+    // filters to their defaults), so it lives once here rather than once per
+    // namespace.
+    clearFiltersButton: "Clear filters",
   },
   auth: {
     title: "Cluckwork",
