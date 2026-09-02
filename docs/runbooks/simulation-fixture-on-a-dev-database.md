@@ -25,11 +25,10 @@ their egg lots, orders and expenses, attributed to a generated cast of
 does **no partial-seed cleanup**, so a run that fails validation still leaves
 every row it wrote, and **removing** the fixture means wiping the database.
 
-Note what that does *not* say. A failed run is not automatically a wipe: the
-`HistoryDays` ceiling in [step 2](#2-choose-your-depth) fails with the rows
-already correct and is cleared by re-running. Only a **polluted account** —
-[step 1](#1-confirm-the-target-database-is-clean-and-is-the-one-you-mean) —
-forces the destructive path.
+Note what that does *not* say. A failed run is not automatically a wipe — a
+prerequisite failure exits before writing a row at all. The one failure that
+does force the destructive path is a **polluted account**,
+[step 1](#1-confirm-the-target-database-is-clean-and-is-the-one-you-mean).
 
 **Prerequisites:**
 
@@ -122,7 +121,6 @@ it; the flock and customer bands do not.
 |---|---|---|---|---|---|---|
 | 12 (test fixture) | 24 | 100 | 6 | 5 | 102 | 101 |
 | 90 (default) | 180 | 880 | 17 | 16 | 102 | 101 |
-| **107 (see the ceiling below)** | 214 | 1050 | 20 | 19 | 102 | 101 |
 | 365 | 730 | 3630 | 56 | 55 | 102 | 101 |
 | 730 | 1460 | 7280 | 109 | 108 | 102 | 101 |
 
@@ -131,57 +129,19 @@ last two columns: **102 flocks and 101 customers ship at every depth**, so the
 default 90 already gives you those. Raise `HistoryDays` only when you need
 history — reports, exports, the lot ledger, an old slice of the sales window.
 
-> **Known ceiling: one seed cannot go past `HistoryDays = 107` from a clean
-> database.** `SeedAsync` calls the daily-entry lock sweep once, and that sweep
-> locks at most `BatchSize = 200` entries per run
-> ([`DailyEntryLockSweep.cs`](../../src/Cluckwork.Infrastructure/Jobs/DailyEntryLockSweep.cs)),
-> while `ExpectedLockedEntryCount` expects **every** eligible entry locked —
-> `2 flocks × (HistoryDays − 7)`. Those agree only up to
-> `HistoryDays = 107`. Above it the run ends with
-> `dailyEntries.locked`/`dailyEntries.submitted` mismatched and exit `1`.
->
-> This is a seeder defect, not a design limit — tracked in
-> [#638](https://github.com/mforce/cluckwork/issues/638). Do not work around it
-> by editing `BatchSize`; that is product code the background worker's behaviour
-> depends on.
+**There is no depth ceiling, and no ramping.** Ask for the depth you want in
+one run. Until #638 there was one at `HistoryDays = 107`: the seeder ran the
+daily-entry lock sweep once, that sweep locks at most `BatchSize` entries per
+pass ([`DailyEntryLockSweep.cs`](../../src/Cluckwork.Infrastructure/Jobs/DailyEntryLockSweep.cs)),
+and the completion check expects **every** eligible entry locked — so above
+that line the seed could not validate on any database, however clean. The
+seeder now drains the sweep instead, and
+`SimulationDeepSeedDrainTests` holds it there.
 
-**Getting past it: ramp the depth.** The ceiling is per *run*, not per database.
-Each run locks up to 200 entries, so a re-run at a deeper `HistoryDays` only has
-to lock what the increase newly made eligible — `2 × (new − old)`. Keep each
-step at **100 days or fewer** and every run converges green, on the same durable
-anchor, to the same history you would have wanted in one shot:
-
-```bash
-for days in 90 190 290 390 490 590 690 730; do
-  ASPNETCORE_ENVIRONMENT=Development \
-  Simulation__CastPassword='choose-a-20-char-password' \
-  Simulation__HistoryDays=$days \
-  Simulation__TimeZoneId=America/Chicago \
-    dotnet run --project src/Cluckwork.Api -- seed --profile simulation || break
-done
-```
-
-Start from a clean database, and do not skip a step — a jump wider than 100 days
-fails, and leaves its rows behind (see below).
-
-**If you do overshoot, the rows are still written.** The check runs in
-`EmitManifestAsync`, after everything is committed, and there is no transaction.
-So a failed run gives you the volume anyway, at the cost of a red exit code, no
-`manifest.json`, and entries past the first 200 left `Submitted` instead of
-`Locked`. Harmless for hand debugging. Re-running the *identical* command locks
-the next batch, so repeating it also walks the database green.
-
-Count the passes from what is **still unlocked**, not from the depth:
-`ceil((eligible − alreadyLocked) ÷ 200)`, where `eligible = 2 × (HistoryDays − 7)`.
-Every pass locks 200 except the last, which locks the remainder. Seeding 400 days
-into an empty database needs `ceil(786 ÷ 200)` = 4 passes (200, 200, 200, 186);
-reaching the same depth from an existing 90-day fixture does not, because those
-166 entries are already locked — see the drill.
-
-> Both recovery paths above are read off the code (the seeder's per-entity
-> idempotency, the durable anchor, and one sweep pass per invocation), not yet
-> observed on a real run — **Last drilled** is `not recorded`. The drill below
-> exercises them; update that field once you have.
+What is left is only cost. The production-history loop is
+O(`HistoryDays` × flocks) real handler round-trips, so a 730-day fixture takes
+appreciably longer to build than a 90-day one and every row of it lands in your
+debug database. Depth is free to ask for, not free to make.
 
 ### 3a. Form A — Compose dev database, API run from the IDE / CLI
 
@@ -291,7 +251,7 @@ Not "it exited 0" — log in and look:
 | Symptom | Cause |
 |---|---|
 | `expected N, got M` with every `M > N` | The account is not clean. Wipe — [step 1](#1-confirm-the-target-database-is-clean-and-is-the-one-you-mean). |
-| Only `dailyEntries.locked` / `dailyEntries.submitted` mismatch, on a clean database | The `HistoryDays > 107` ceiling. The rows are written anyway; see the box in step 2. |
+| Only `dailyEntries.locked` / `dailyEntries.submitted` mismatch, on a clean database | Was the pre-#638 depth ceiling; it should be unreachable now. If you see it, the seeder's lock-sweep drain has regressed — file it rather than ramping the depth around it, and do not raise `BatchSize`. |
 | `Simulation seed prerequisites missing: … no user in the Owner role` | Run `bootstrap-admin` first. |
 | `Simulation seed prerequisites missing: … Owner role is held only by DISABLED user(s)` | No in-product repair; the message names the direct database fix. |
 | `Simulation seeding is not available in Production` | `ASPNETCORE_ENVIRONMENT` unset or Production. |
@@ -311,16 +271,12 @@ Safe on a scratch database only.
    seeded (fingerprint …)`, exit `0`.
 4. Run the identical command again. Expected: `Simulation seed already present;
    converged (fingerprint …)`, exit `0`, the same fingerprint.
-5. Run it with `Simulation__HistoryDays=400` — a 310-day jump, well over the
-   100-day step. Expected: exit `1`, and the *only* mismatched lines are
-   `dailyEntries.locked` / `dailyEntries.submitted`. Anything else mismatching
-   means the account was not clean and this drill proved nothing.
-6. Run the identical `HistoryDays=400` command again, repeatedly. Expected: the
-   `locked` figure climbs by **up to** 200 a run until it exits `0` — the
-   recovery path in step 2's box. Count from where step 5 left it, **not** from
-   the depth: step 3 already locked `2 × (90 − 7)` = 166, step 5's own sweep
-   locked 200 more, so of the `2 × (400 − 7)` = 786 eligible, 420 remain and
-   the reruns go **200, 200, 20**. The 186-entry final pass in step 2's box is
-   the *from-empty* case and does not apply here.
-7. Sign in and walk the four **Verify** checks.
-8. Update **Last drilled** above.
+5. Run it with `Simulation__HistoryDays=400` — a 310-day jump, far past the
+   old ceiling, and past one sweep batch several times over. Expected: exit
+   `0`, a different fingerprint from step 4 (it covers the counts, which the
+   depth moves), and about `2 × (400 − 7) = 786` daily entries `Locked` rather
+   than 200 — a day either way, depending on how farm-local "today" skews
+   against the UTC seed anchor. This is the step that would have gone red
+   before #638.
+6. Sign in and walk the four **Verify** checks.
+7. Update **Last drilled** above.
