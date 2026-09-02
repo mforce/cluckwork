@@ -245,7 +245,7 @@ export const MUTANTS: Record<string, Mutant> = {
   },
 
   "stock-summary-broken": {
-    breaks: "the stock summary fetch, so the dashboard's stat tiles fall back to their em-dash",
+    breaks: "the stock summary fetch, so the dashboard's Stock panel degrades to its load error",
     caughtBy: "owner.spec.ts — dashboard shows real production, stock and sales data",
     apply: (page) =>
       json(page, "**/api/v1/stock**", 500, { title: "Server error", status: 500 }),

@@ -22,6 +22,8 @@ images are current. See the header of `specs-screenshots/screenshots.spec.ts`
 for the staleness contract and for why the Dashboard is deliberately not among
 them.
 
+**Run it on a freshly reset fixture.** `npm test` leaves its own rows behind — flocks and customers named `E2E …`, which sort ahead of the seeded `Sim …` ones — so a capture taken after a smoke run photographs test data and the daily-entry capture opens on an empty flock. `bash tools/simulation/reset.sh` first, then `npm run screenshots`, with no smoke run in between.
+
 **Playwright is never the load generator.** k6 stays the crowd.
 
 ## Quickstart

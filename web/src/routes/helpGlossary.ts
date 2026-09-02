@@ -42,6 +42,7 @@ const ENTRIES = [
   { key: "FlockScoping", group: "signingIn", spec: "Flock scoping" },
   { key: "DisabledUser", group: "signingIn", spec: "Disabled user" },
   // Flocks & daily entry
+  { key: "CaptureStatus", group: "flocksEntry", spec: "Capture status" },
   { key: "DailyEntry", group: "flocksEntry", spec: "Daily entry" },
   { key: "OperationalDay", group: "flocksEntry", spec: "Operational day" },
   { key: "LockedEntry", group: "flocksEntry", spec: "Daily entry lifecycle" },

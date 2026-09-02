@@ -28,6 +28,7 @@ import { GLOSSARY, GLOSSARY_GROUPS } from "./helpGlossary";
 const RAIL = [
   { labelKey: "railGroupStartHere", entries: [
     ["getting-around", "tocGettingAround"],
+    ["dashboard", "tocDashboard"],
     ["signing-in", "tocSigningIn"],
     ["daily-loop", "tocDailyLoop"],
     ["mistakes", "tocMistakes"],
@@ -74,6 +75,7 @@ const TOC: readonly RailEntry[] = RAIL.flatMap((g) => g.entries as readonly Rail
 // route the signed-in role's own navigation carries (nav.tsx is the one
 // place role gates live), so a Worker is never handed a door to a 403.
 const ROUTE_FOR: Readonly<Record<string, string>> = {
+  "dashboard": "/",
   "daily-entry": "/daily-entry",
   "flocks": "/flocks",
   "stock": "/stock",
@@ -306,6 +308,21 @@ export function HelpPage() {
         </li>
       </ul>
 
+      </section>
+
+      <section className="help-section" data-searchable="section">
+      <div className="help-section-head"><h3 id="dashboard">{t("dashboardHeading")}</h3>{openLink("dashboard")}</div>
+      <ul>
+        <li>
+          <Trans ns="help" i18nKey="dashboardTiles" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="dashboardTrend" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="dashboardStock" components={{ strong: <strong /> }} />
+        </li>
+      </ul>
       </section>
 
       <section className="help-section" data-searchable="section">

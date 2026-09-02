@@ -511,35 +511,34 @@ export const es = {
     loadFailed: "No se pudo cargar el panel. ¿Está la API activa?",
     panelLoadError: "No se pudo cargar.",
 
-    // Stat row
-    statEggsCollectedToday: "Huevos recolectados hoy",
-    statEggsAvailable: "Huevos disponibles",
-    statActiveFlocks: "Lotes activos",
-
-    // "Today" panel (per-flock production)
+    // Estado de captura (#654)
     todayPanelTitle: "Hoy",
     noFlocksMessage: "Aún no hay lotes — cree uno en la página de Registro diario.",
-    flockHeader: "Lote",
-    statusHeader: "Estado",
-    eggsHeader: "Huevos",
-    lossesHeader: "Pérdidas",
-    mortalityHeader: "Mortalidad",
     noEntryBadge: "sin registro",
+    todayEggsTotal: "{{total}} huevos hoy",
+    tileLinkLabel: "{{flock}}: abrir el registro de hoy",
+    tileLinkLabelMissing: "{{flock}}: sin registro todavía, abrir el registro de hoy",
+    recordTodayHint: "Registrar hoy",
+    moreFlocks_one: "{{total}} lote más",
+    moreFlocks_other: "{{total}} lotes más",
 
-    // "Stock" panel (by grade)
+    // Últimos 14 días (#654)
+    trendPanelTitle: "Últimos 14 días",
+    sparklineLabel: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}",
+    henDayCaption: "Postura {{pct}} · {{delta}} frente a los 7 días anteriores",
+    henDayDeltaUp: "+{{delta}} pts",
+    henDayDeltaDown: "−{{delta}} pts",
+
+    // Existencias (#654)
     stockPanelTitle: "Existencias",
     noStockMessage: "Aún no hay existencias — registre y envíe un registro diario.",
-    gradeHeader: "Grado",
-    availableHeader: "Disponible",
-    restrictedHeader: "Restringido",
-    eggsAvailableMessage: "{{total}} huevos disponibles.",
+    eggsAvailableMessage_one: "{{total}} huevo disponible.",
+    eggsAvailableMessage_other: "{{total}} huevos disponibles.",
+    stockCaptionRestricted: "{{restricted}} restringidos",
 
-    // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
+    // Ventas recientes (oculto para Solo lectura/Denegado, #127)
     salesPanelTitle: "Ventas recientes",
     noOrdersMessage: "Aún no hay pedidos.",
-    refHeader: "Ref.",
-    customerHeader: "Cliente",
-    totalHeader: "Total",
     rowCustomerUnavailable: "Este cliente ya no está disponible.",
   },
 
@@ -1815,6 +1814,7 @@ export const es = {
     glossaryGroupFarm: "Configuración e identidad de la granja",
 
     tocGettingAround: "Cómo moverse",
+    tocDashboard: "Panel",
     tocSigningIn: "Iniciar sesión",
     tocDailyLoop: "El ciclo diario",
     tocRoles: "Quién puede hacer qué",
@@ -1871,6 +1871,23 @@ export const es = {
       + "Una lista larga muestra <strong>Cargar más</strong>; una búsqueda o Cargar más que falle muestra "
       + "<strong>Reintentar</strong>. Si un nombre recordado o enlazado ya no se puede encontrar, el campo "
       + "muestra <strong>No disponible</strong> con Reintentar.",
+
+    dashboardHeading: "Panel",
+    dashboardTiles:
+      "<strong>Hoy</strong>: una tarjeta por lote activo con los huevos y el estado de hoy, primero los que "
+      + "no tienen registro. Una tarjeta marcada <strong>sin registro</strong> es la nave que nadie ha "
+      + "registrado todavía — tóquela para abrir el Registro diario de ese lote y ese día. Pasadas doce "
+      + "tarjetas, un enlace lleva al resto.",
+    dashboardTrend:
+      "<strong>Últimos 14 días</strong>: huevos por día del informe de producción, con el <strong>% de "
+      + "postura</strong> de los últimos 7 días completos y su variación frente a los 7 anteriores. La "
+      + "ventana es fija (desde ayer hacia atrás) y cuenta <strong>solo días enviados</strong> — un día "
+      + "aún en borrador se lee como cero hasta que se envía, a diferencia de Informes, donde usted elige "
+      + "el rango.",
+    dashboardStock:
+      "<strong>Existencias</strong>: una <strong>barra apilada</strong> de lo disponible por grado, con "
+      + "las cifras al lado; los huevos restringidos se anotan tras el total. Es el mismo total que "
+      + "muestra la pantalla de Existencias.",
 
     signingInHeading: "Iniciar sesión",
     signingInBasic:
@@ -2668,6 +2685,12 @@ export const es = {
 
     glossaryDailyEntryTerm: "Entrada diaria",
     glossaryDailyEntryDef: "El día de un lote: huevos por grado, pérdidas, muertes. Clasificar por encima del total lo eleva para igualarlo. Borrador hasta que se envía.",
+
+    glossaryCaptureStatusTerm: "Estado de captura",
+    glossaryCaptureStatusDef:
+      "Si cada lote activo tiene un registro diario de hoy. El panel lo muestra como una tarjeta por "
+      + "lote, primero los que faltan; \"sin registro\" es el estado de alarma y enlaza al Registro diario "
+      + "de ese lote y ese día.",
 
     glossaryEggLotTerm: "Lote de huevos",
     glossaryEggLotDef:

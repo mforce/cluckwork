@@ -1557,38 +1557,124 @@ label.check {
   align-items: flex-start;
 }
 
-/* ------------------------------------------- Stat cards (dashboard) */
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1.25rem;
-  margin: 0.5rem 0 1.75rem;
+.panel-wide {
+  flex-basis: 100%;
 }
 
-.stat {
+/* ------------------------------------------ Capture status (#654) */
+/* One tile per active flock, missing first, at most 12; a tile is a link to
+   that flock's day. Border only, no shadow (#651's direction), no caps
+   (#652's), no motion. */
+.capture-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+.capture-tile {
+  display: block;
+  color: inherit;
+  text-decoration: none;
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r-card);
-  box-shadow: var(--shadow-card);
-  padding: 1.5rem 1.75rem;
+  padding: 0.9rem 1rem;
 }
 
-.stat-value {
-  font-size: 2.6rem;
+.capture-tile:hover {
+  border-color: var(--stat-accent);
+}
+
+/* The alarm state — a house with no entry yet is the loudest thing on the screen. */
+.capture-tile.is-missing {
+  background: var(--tint-warn);
+  border-color: var(--warn);
+}
+
+.capture-tile-name {
+  font-weight: 600;
+}
+
+.capture-tile-eggs {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 1.9rem;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   line-height: 1;
-  color: var(--stat-accent);
   font-variant-numeric: tabular-nums;
+  color: var(--stat-accent);
 }
 
-.stat-label {
-  margin-top: 0.5rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
+/* A house with no entry has no figure to show. The dash marks the slot without
+   competing with the real counts on the tiles beside it — at the full figure
+   size it reads as a loading skeleton rather than as an absence. */
+.capture-tile.is-missing .capture-tile-eggs {
+  font-size: 1rem;
+  font-weight: 600;
   color: var(--muted);
+}
+
+/* Past the cap: "N more flocks", a quiet link under the grid. */
+.capture-more {
+  display: inline-block;
+  margin-top: 0.6rem;
+  color: var(--muted);
+}
+
+/* ------------------------------------------- Last 14 days (#654) */
+.sparkline {
+  display: block;
+  width: 100%;
+  height: 3.25rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.sparkline polyline {
+  fill: none;
+  stroke: var(--stat-accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* ---------------------------------------- Stock stacked bar (#654) */
+/* Sibling of .meter: several segments on one track. Taller than the 6px
+   single-fill meter on purpose; the 1px gap shows the track between
+   segments so grades past the opacity floor stay separable. */
+.meter-stack {
+  display: flex;
+  gap: 1px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.meter-stack > span {
+  display: block;
+  height: 100%;
+  background: var(--stat-accent);
+}
+
+/* --------------------------------------- Recent sales list (#654) */
+.dash-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.dash-list li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.dash-list .num {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 /* --------------------------------------------- Login — the hero moment */

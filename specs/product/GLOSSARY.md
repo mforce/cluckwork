@@ -92,6 +92,21 @@ as each screen's own inline error.
 eggs, loss counts (cracked / dirty / discarded), mortality count, and the
 graded breakdown of sellable eggs. One entry per flock per day (natural key).
 
+**Capture status (#654)** — whether each active flock has a daily entry for
+today. The dashboard's landing panel shows one tile per active flock with
+today's eggs and the entry's status, the flocks without an entry first; a tile
+reading **no entry** is the missed-capture alarm — the loudest element on the
+screen — and links to Daily entry for that flock and day. The grid shows at
+most twelve tiles and a "N more flocks" link for the rest, so a missing house
+is never behind the link while twelve or fewer are missing. A Voided entry
+does not count (it vacated its day, #82); a Draft does (captured, not yet
+submitted). Depleted and archived flocks appear only when they do have an
+entry today. Beside it the dashboard shows the last 14 days from the
+**Production report** (submitted days only, yesterday back — a fixed window,
+unlike Reports) with the report's own **Hen-day %** for the last 7 complete
+days against the 7 before, and stock as one stacked bar by grade whose total
+is the Stock screen's.
+
 **Daily entry steps (#134)** — the capture screen is two numbered panes side by
 side: **1 Egg counts** and **2 Grading**. Flock and date sit above them as
 context, not as a step — they say *which* day is being recorded, not part of

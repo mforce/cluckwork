@@ -613,41 +613,53 @@ export const en = {
     // Imperative message (promise callback — see CONTRIBUTING-i18n.md's
     // imperative i18n.t() pattern): every parallel fetch failed.
     loadFailed: "Could not load dashboard. Is the API up?",
-    // Shared across all three panels — each degrades independently on its own
+    // Shared across all panels — each degrades independently on its own
     // failed fetch.
     panelLoadError: "Could not load.",
 
-    // Stat row
-    statEggsCollectedToday: "Eggs collected today",
-    statEggsAvailable: "Eggs available",
-    statActiveFlocks: "Active flocks",
-
-    // "Today" panel (per-flock production)
+    // Capture status (#654): one tile per active flock, no-entry tiles first,
+    // at most 12 with a link carrying the rest. A flock with no entry yet — a
+    // bespoke warn badge, not a StatusBadge — is the loudest thing on the
+    // screen and links straight to Daily entry for that flock and day.
     todayPanelTitle: "Today",
     noFlocksMessage: "No flocks yet — create one on the Daily entry page.",
-    flockHeader: "Flock",
-    statusHeader: "Status",
-    eggsHeader: "Eggs",
-    lossesHeader: "Losses",
-    mortalityHeader: "Mortality",
-    // A flock with no entry yet — a bespoke warn badge, not a StatusBadge.
     noEntryBadge: "no entry",
+    // {{total}} is the farm-locale formatted figure (#650).
+    todayEggsTotal: "{{total}} eggs today",
+    // aria-label of a tile link; the visible tile shows name, eggs and status.
+    tileLinkLabel: "{{flock}}: open today's entry",
+    // The missing state has to be IN the accessible name: `aria-label` replaces
+    // the link's content, so the visible "no entry" badge is never announced.
+    // Shares the "open today's entry" suffix with the recorded label so a test
+    // matching tiles generically still matches both.
+    tileLinkLabelMissing: "{{flock}}: no entry yet, open today's entry",
+    // Hover text on a tile with no entry yet — the tile is already a link to
+    // that flock's day, and this says what tapping it is for.
+    recordTodayHint: "Record today",
+    // Past the 12-tile cap. {{total}} formatted; {{count}} raw for plural selection.
+    moreFlocks_one: "{{total}} more flock",
+    moreFlocks_other: "{{total}} more flocks",
 
-    // "Stock" panel (by grade)
+    // Last 14 days (#654): the production report's own figures — submitted
+    // days only, fixed window (yesterday back), hen-day % is the server's
+    // period figure for the last 7 complete days vs the 7 before.
+    trendPanelTitle: "Last 14 days",
+    sparklineLabel: "Eggs per day, last 14 days: lowest {{min}}, highest {{max}}, yesterday {{last}}",
+    henDayCaption: "Hen-day {{pct}} · {{delta}} vs the previous 7 days",
+    henDayDeltaUp: "+{{delta}} pts",
+    henDayDeltaDown: "−{{delta}} pts",
+
+    // Stock (#654): one stacked bar by grade; the caption is the text of record.
     stockPanelTitle: "Stock",
     noStockMessage: "No stock yet — record and submit a daily entry.",
-    gradeHeader: "Grade",
-    availableHeader: "Available",
-    restrictedHeader: "Restricted",
     // {{total}} is the farm-locale formatted figure (#650); {{count}} stays for plural selection.
-    eggsAvailableMessage: "{{total}} eggs available.",
+    eggsAvailableMessage_one: "{{total}} egg available.",
+    eggsAvailableMessage_other: "{{total}} eggs available.",
+    stockCaptionRestricted: "{{restricted}} restricted",
 
     // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
     salesPanelTitle: "Recent sales",
     noOrdersMessage: "No orders yet.",
-    refHeader: "Ref",
-    customerHeader: "Customer",
-    totalHeader: "Total",
     // #512 US4 (T048/T052) — an order row's own customerName came back null
     // (the customer left the caller's tenant scope between reads). Never a
     // raw id or a substituted catalog match.
@@ -2325,6 +2337,7 @@ export const en = {
     // SECTION itself (heading + 37-row table + closing note) is externalized
     // further down, near the end of this block (Task 33, B6b).
     tocGettingAround: "Getting around",
+    tocDashboard: "Dashboard",
     tocSigningIn: "Signing in",
     tocDailyLoop: "The daily loop",
     tocRoles: "Who can do what",
@@ -2383,6 +2396,22 @@ export const en = {
       + "<strong>Escape</strong> to cancel. A long list shows <strong>Load more</strong>; a search or Load "
       + "more that fails shows <strong>Retry</strong>. If a remembered or linked name can no longer be found, "
       + "the field shows <strong>Unavailable</strong> with Retry.",
+
+    // Dashboard (#654) — the landing screen's three questions.
+    dashboardHeading: "Dashboard",
+    dashboardTiles:
+      "<strong>Today</strong>: one tile per active flock with today's eggs and status, the ones without "
+      + "an entry first. A tile marked <strong>no entry</strong> is the house nobody has recorded yet — tap "
+      + "it to open Daily entry for that flock and day. Past twelve tiles, a link carries the rest.",
+    dashboardTrend:
+      "<strong>Last 14 days</strong>: eggs per day from the production report, with <strong>hen-day %"
+      + "</strong> for the last 7 complete days and how it moved against the 7 before. The window is "
+      + "fixed (yesterday back) and counts <strong>submitted days only</strong> — a day still in Draft "
+      + "reads as zero until it is submitted, unlike Reports where you choose the range.",
+    dashboardStock:
+      "<strong>Stock</strong>: one <strong>stacked bar</strong> of what is available by grade, with the "
+      + "figures beside it; restricted eggs are noted after the total. It is the same total the Stock "
+      + "screen shows.",
 
     // Signing in
     signingInHeading: "Signing in",
@@ -3150,6 +3179,11 @@ export const en = {
 
     glossaryDailyEntryTerm: "Daily entry",
     glossaryDailyEntryDef: "One flock's day: eggs by grade, losses, deaths. Grading past the total raises it to match. Draft until submitted.",
+
+    glossaryCaptureStatusTerm: "Capture status",
+    glossaryCaptureStatusDef:
+      "Whether each active flock has a daily entry for today. The dashboard shows it as one tile per "
+      + "flock, missing ones first; \"no entry\" is the alarm state and links to Daily entry for that flock and day.",
 
     glossaryEggLotTerm: "Egg lot",
     glossaryEggLotDef:
