@@ -1102,6 +1102,20 @@ describe("HelpPage visual pass (#657)", () => {
     expect(within(section).getByText(/submitted days only/i)).toBeInTheDocument();
     expect(within(section).getByText("stacked bar", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText("Capture status", { selector: "dt a" })).toBeInTheDocument();
+    // The section must READ the catalog, not carry a copy of it: swap the
+    // values and the rendered page has to follow.
+    const originalTiles = i18n.getResource("en", "help", "dashboardTiles") as string;
+    const originalTerm = i18n.getResource("en", "help", "glossaryCaptureStatusTerm") as string;
+    i18n.addResource("en", "help", "dashboardTiles", "DASHBOARD-TILES-MARKER");
+    i18n.addResource("en", "help", "glossaryCaptureStatusTerm", "CAPTURE-STATUS-TERM-MARKER");
+    try {
+      renderWithProviders(<HelpPage />, { token: { sub: "u1", role: "Worker" } });
+      expect(screen.getAllByText("DASHBOARD-TILES-MARKER").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("CAPTURE-STATUS-TERM-MARKER", { selector: "dt a" }).length).toBeGreaterThan(0);
+    } finally {
+      i18n.addResource("en", "help", "dashboardTiles", originalTiles);
+      i18n.addResource("en", "help", "glossaryCaptureStatusTerm", originalTerm);
+    }
     for (const catalog of [es, tl]) {
       expect(catalog.help.dashboardTiles).not.toBe(en.help.dashboardTiles);
       expect(catalog.help.glossaryCaptureStatusDef).not.toBe(en.help.glossaryCaptureStatusDef);

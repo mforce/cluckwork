@@ -218,10 +218,13 @@ describe("dashboard surfaces (#654, INV-8)", () => {
   const CSS_REL = "./styles.css";
   const css = readFileSync(fileURLToPath(new URL(CSS_REL, import.meta.url)), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, "");
-  const PREFIX = /^\s*(\.capture-|\.sparkline|\.meter-stack|\.dash-list|\.panel-wide)/;
+  // Any rule that APPLIES to a dashboard surface, not only one whose selector
+  // starts with it: `.unrelated, .capture-tile:hover { … }` reaches the tile
+  // just as surely, and an anchored match walked straight past it.
+  const TOUCHES = /(^|[\s,>+~])\.(capture-[a-z-]*|sparkline|meter-stack|dash-list|panel-wide)\b/;
   const blocks = Array.from(css.matchAll(/([^{}]+)\{([^{}]*)\}/g))
     .map((m) => ({ selector: m[1].trim(), body: m[2] }))
-    .filter((b) => PREFIX.test(b.selector));
+    .filter((b) => TOUCHES.test(b.selector));
   const bodyOf = (selector: string) => {
     const b = blocks.find((x) => x.selector === selector);
     expect(b, `${selector} must be declared`).toBeDefined();
@@ -237,7 +240,20 @@ describe("dashboard surfaces (#654, INV-8)", () => {
   it("carries no box-shadow, text-transform, transition, animation or literal colour on any of them", () => {
     for (const b of blocks) {
       expect(b.body, b.selector).not.toMatch(/box-shadow|text-transform|transition|animation/);
-      expect(b.body, `${b.selector} must use tokens, not literals`).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/);
+      // Enumerating colour syntaxes is a losing game (hex, rgb(), hsl(), named,
+      // oklch(), color-mix()), so require the opposite: every colour-valued
+      // declaration resolves through a token, or is one of the few keywords
+      // that carry no colour of their own.
+      for (const decl of b.body.split(";")) {
+        const [rawProp, ...rest] = decl.split(":");
+        const prop = rawProp.trim();
+        const value = rest.join(":").trim();
+        if (!value) continue;
+        if (!/(^|-)color$|^background(-color)?$|^border(-[a-z]+)?$|^stroke$|^fill$|^outline(-color)?$/.test(prop)) continue;
+        const tokenised = value.includes("var(--")
+          || /^(inherit|initial|unset|revert|none|transparent|currentColor)$/i.test(value);
+        expect(tokenised, `${b.selector}: "${prop}: ${value}" must resolve through a token`).toBe(true);
+      }
     }
   });
   it("keeps the tile on the card radius and the segments on the accent token", () => {

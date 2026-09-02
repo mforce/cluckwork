@@ -255,6 +255,15 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     expect(await screen.findByText("Could not load dashboard. Is the API up?")).toBeInTheDocument();
     expect(screen.queryByText("Could not load.")).not.toBeInTheDocument();
   });
+
+  it("every issued fetch failed for a ReadOnly user too — the inert sales placeholder does not count as a success", async () => {
+    for (const m of [mockFlocks, mockEntries, mockStock]) m.mockImplementation(boom);
+    mockReport.mockImplementation(boom);
+    renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "ReadOnly" } });
+    expect(await screen.findByText("Could not load dashboard. Is the API up?")).toBeInTheDocument();
+    expect(screen.queryByText("Could not load.")).not.toBeInTheDocument();
+    expect(mockOrders).not.toHaveBeenCalled();
+  });
 });
 
 // #127 — the customer/sales reads 403 for ReadOnly; the dashboard must not
@@ -290,6 +299,19 @@ describe("Dashboard recent sales rows (#512)", () => {
     expect(within(row).getByText("Draft")).toBeInTheDocument();
     expect(within(row).getByText("$10.00")).toBeInTheDocument();
   });
+  it("gives each row its own name and its own customer link, never the first row's", async () => {
+    mockOrders.mockResolvedValue([
+      { ...order("o-1", "SO-10", "First Farm") },
+      { ...order("o-2", "SO-11", "Second Farm"), customerId: "c2" },
+    ]);
+    renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
+
+    const first = await screen.findByRole("listitem", { name: /SO-10/ });
+    const second = screen.getByRole("listitem", { name: /SO-11/ });
+    expect(within(first).getByRole("link", { name: "First Farm" })).toHaveAttribute("href", "/sales?customerId=c1");
+    expect(within(second).getByRole("link", { name: "Second Farm" })).toHaveAttribute("href", "/sales?customerId=c2");
+    expect(within(second).queryByText("First Farm")).not.toBeInTheDocument();
+  });
   it("shows the translated unavailable label for a null customerName — never an id fragment", async () => {
     mockOrders.mockResolvedValue([order("o-gone", "SO-1", null)]);
     renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
@@ -319,6 +341,11 @@ describe("Dashboard follows the farm's day and locale", () => {
 
     const f1 = await screen.findByRole("link", { name: "Flock f1: open today's entry" });
     expect(f1).toHaveAttribute("href", `/daily-entry?flockId=f1&date=${farmToday}`);
+    // The tiles' own query must use the FARM's day too, not just the links and
+    // the report windows: with the clock frozen at 23:30Z a +14 farm is already
+    // on the 22nd while the browser is on the 21st, so a regression to
+    // browser-local todayIso() shows yesterday's entries under today's date.
+    expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500 });
     expect(mockReport).toHaveBeenCalledWith("2026-07-15", "2026-07-21");
     expect(mockReport).toHaveBeenCalledWith("2026-07-08", "2026-07-14");
     expect(screen.getByText(/1\.560 eggs available\./)).toBeInTheDocument();

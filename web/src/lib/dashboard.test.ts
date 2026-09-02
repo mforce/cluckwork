@@ -65,14 +65,19 @@ describe("visibleTiles (#654, INV-9 — the cap never hides a missing flock whil
     expect(TILE_CAP).toBe(12);
   });
   it("shows the first 12 — all three missing flocks included — and counts the rest", () => {
-    const { shown, hidden } = visibleTiles(tilesOf(3, 12));
-    expect(shown).toHaveLength(12);
+    const tiles = tilesOf(3, 12);
+    const { shown, hidden } = visibleTiles(tiles);
+    // The exact twelve, in order: keeping the count and the missing-first
+    // property while picking a different twelve is the wrong implementation
+    // this pins.
+    expect(shown.map((t) => t.flock.id)).toEqual(tiles.slice(0, 12).map((t) => t.flock.id));
     expect(shown.slice(0, 3).every((t) => t.entry === null)).toBe(true);
     expect(hidden).toBe(3);
   });
   it("with 13 missing flocks shows 12 of them and counts one hidden", () => {
-    const { shown, hidden } = visibleTiles(tilesOf(13, 0));
-    expect(shown).toHaveLength(12);
+    const tiles = tilesOf(13, 0);
+    const { shown, hidden } = visibleTiles(tiles);
+    expect(shown.map((t) => t.flock.id)).toEqual(tiles.slice(0, 12).map((t) => t.flock.id));
     expect(shown.every((t) => t.entry === null)).toBe(true);
     expect(hidden).toBe(1);
   });
@@ -149,6 +154,22 @@ describe("stockBar (#654, INV-4)", () => {
   it("floors the opacity at 0.35 for many grades", () => {
     const many = Array.from({ length: 8 }, (_, i) => ({ eggGradeId: `g${i}`, gradeName: `G${i}`, available: 10, restricted: 0 }));
     expect(stockBar(many).segments.map((s) => s.opacity)).toEqual([1, 0.87, 0.74, 0.61, 0.48, 0.35, 0.35, 0.35]);
+  });
+  it("indexes the opacity ladder by SURVIVING segment, not by the row's position among all rows", () => {
+    // Two empty grades, one leading and one in the middle: an implementation
+    // that read the ladder off the original row index would hand these
+    // segments 0.87 and 0.61 instead of 0.87 and 0.74.
+    const bar = stockBar([
+      { eggGradeId: "z0", gradeName: "Empty first", available: 0, restricted: 0 },
+      { eggGradeId: "g1", gradeName: "Large", available: 100, restricted: 0 },
+      { eggGradeId: "z1", gradeName: "Empty middle", available: 0, restricted: 0 },
+      { eggGradeId: "g2", gradeName: "Medium", available: 60, restricted: 0 },
+      { eggGradeId: "g3", gradeName: "Small", available: 40, restricted: 0 },
+    ]);
+    expect(bar.segments.map((s) => [s.gradeName, s.opacity])).toEqual([
+      ["Large", 1], ["Medium", 0.87], ["Small", 0.74],
+    ]);
+    expect(bar.segments.map((s) => s.pct)).toEqual([50, 30, 20]);
   });
   it("has no segments and zero available when nothing is available, but keeps the restricted total", () => {
     expect(stockBar([])).toEqual({ segments: [], totalAvailable: 0, totalRestricted: 0 });
