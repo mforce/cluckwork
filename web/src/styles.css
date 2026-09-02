@@ -1823,6 +1823,21 @@ label.check {
   pointer-events: none;
 }
 
+/* Night: the band and the field are two dark greys a hairline apart, so the
+   field becomes a recessed well — canvas-dark, with a light edge — and the
+   key hint gets an edge of its own. Light needs none of this: white on the
+   inset grey already reads as a field. */
+:root[data-theme="dark"] .help-search-field input {
+  background: var(--canvas);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+:root[data-theme="dark"] .help-search-field kbd {
+  background: var(--surface);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--ink);
+}
+
 .help-search-status {
   min-height: 1.4rem;
   margin: 0.5rem 0 0;
