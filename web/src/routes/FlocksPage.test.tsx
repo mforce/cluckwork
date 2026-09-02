@@ -132,6 +132,42 @@ describe("FlocksPage loading + list", () => {
     expect(await screen.findByText(/No flocks yet/)).toBeInTheDocument();
   });
 
+  // #655 — "nothing exists yet" variant: the create action moves into the
+  // empty state itself, and the page-head button is withheld so there is
+  // only ONE "New flock" button on screen (not two with the same name).
+  it("offers the New flock action from the empty state itself, not a duplicate page-head button", async () => {
+    mockListFlocks.mockResolvedValue([]);
+    renderWithProviders(<FlocksPage />, { token: ADMIN });
+    await screen.findByText(/No flocks yet/);
+    expect(screen.getAllByRole("button", { name: "New flock" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "New flock" }));
+    expect(dialog()).toBeInTheDocument();
+  });
+
+  // #655 — role-aware: a Worker gets the sentence alone, matching the
+  // page-head gate this reuses (isAdmin), never a re-derived check.
+  it("withholds the create action from a Worker's empty flock list", async () => {
+    mockListFlocks.mockResolvedValue([]);
+    renderWithProviders(<FlocksPage />, { token: WORKER });
+    await screen.findByText(/No flocks yet/);
+    expect(screen.queryByRole("button", { name: "New flock" })).not.toBeInTheDocument();
+  });
+
+  // #655 — "filtered to nothing" variant: every flock is archived and the
+  // toggle is off, so this is a filter result, not a truly empty book —
+  // Clear filters (not New flock) is the offered action.
+  it("offers Clear filters from the empty state when every flock is archived and hidden", async () => {
+    mockListFlocks.mockResolvedValue([ARCHIVED]);
+    renderWithProviders(<FlocksPage />, { token: ADMIN });
+    await screen.findByText(/No flocks yet/);
+    // The book isn't empty (the header's own New flock stays, unlike the
+    // truly-empty case above) — only ONE action is offered from the empty
+    // state itself, and it clears the filter rather than duplicating New flock.
+    expect(screen.getAllByRole("button", { name: "New flock" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(await screen.findByRole("row", { name: /Old Coop/ })).toBeInTheDocument();
+  });
+
   it("renders a flock's current-vs-initial birds and status", async () => {
     await renderReady(ADMIN, [ACTIVE]);
     const row = screen.getByRole("row", { name: /Hen House 1/ });

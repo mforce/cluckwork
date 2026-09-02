@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
+import { Egg, FilterX } from "lucide-react";
 import {
   getStock, listEggLotMovements, listEggLots, recordEggLotMovement,
 } from "../api/cluckwork";
@@ -11,6 +12,7 @@ import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
+import { EmptyState } from "../components/EmptyState";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -492,7 +494,9 @@ export function StockPage() {
       {errors.page && <p className="error" role="alert">{errors.page}</p>}
       {message && <p className="success" role="status">{message}</p>}
       {rows.length === 0 ? (
-        <p className="muted">{t("noStockMessage")}</p>
+        // No page-head create action on this screen — stock is derived from
+        // submitted daily entries, not directly creatable here.
+        <EmptyState icon={Egg} message={t("noStockMessage")} />
       ) : (
         <>
           <table className="data">
@@ -537,7 +541,13 @@ export function StockPage() {
                 </label>
               </div>
               {lots.length === 0 ? (
-                <p className="muted">{t("noLotsMessage")}</p>
+                // lotsFrom/lotsTo are this section's own filter, unrelated to
+                // any page-head action — "filtered to nothing" offers Clear
+                // filters only when a filter is actually set.
+                (lotsFrom || lotsTo)
+                  ? <EmptyState icon={FilterX} message={t("noLotsMessage")}
+                      action={{ label: tc("clearFiltersButton"), onClick: () => void changeLotsFilter("", "") }} />
+                  : <EmptyState icon={Egg} message={t("noLotsMessage")} />
               ) : (
                 <table className="data">
                   <thead>

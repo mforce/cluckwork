@@ -128,6 +128,24 @@ describe("ProductsPage loading + display", () => {
     renderWithProviders(<ProductsPage />, { token: ADMIN });
     expect(await screen.findByText("No products yet.")).toBeInTheDocument();
   });
+
+  // #655 — the create action moves into the empty state, and the page-head
+  // button is withheld so there is only ONE "New product" button on screen.
+  it("offers the New product action from the empty state itself, not a duplicate page-head button", async () => {
+    mockListProducts.mockResolvedValue([]);
+    renderWithProviders(<ProductsPage />, { token: ADMIN });
+    await screen.findByText("No products yet.");
+    expect(screen.getAllByRole("button", { name: "New product" })).toHaveLength(1);
+  });
+
+  // #655 — role-aware: a Worker gets the sentence alone, matching the
+  // page-head gate this reuses (isAdmin), never a re-derived check.
+  it("withholds the create action from a Worker's empty product list", async () => {
+    mockListProducts.mockResolvedValue([]);
+    renderWithProviders(<ProductsPage />, { token: WORKER });
+    await screen.findByText("No products yet.");
+    expect(screen.queryByRole("button", { name: "New product" })).not.toBeInTheDocument();
+  });
 });
 
 // F131: create/edit moved into dialogs — open first, same assertions after.

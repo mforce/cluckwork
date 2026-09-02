@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Users } from "lucide-react";
 import {
   createCustomer, listCustomerBalances, listCustomers, updateCustomer,
 } from "../api/cluckwork";
@@ -12,6 +12,7 @@ import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { EmptyState } from "../components/EmptyState";
 import { DialogError } from "../components/DialogError";
 import { usePagedList } from "../components/usePagedList";
 import { useDialogErrors } from "../components/useDialogErrors";
@@ -242,9 +243,14 @@ export function CustomersPage() {
     <section>
       <div className="page-head">
         <h2>{t("title")}</h2>
-        <button type="button" onClick={() => setCreating(true)}>
-          <Plus size={16} aria-hidden /> {t("newCustomerButton")}
-        </button>
+        {/* #655 — withheld while the empty state below is offering this exact
+            same action, so there is one "New customer" button on screen, not
+            two with an identical accessible name. */}
+        {customers !== null && customers.length > 0 && (
+          <button type="button" onClick={() => setCreating(true)}>
+            <Plus size={16} aria-hidden /> {t("newCustomerButton")}
+          </button>
+        )}
       </div>
 
       <Dialog open={creating} title={t("newCustomerButton")} onClose={closeCreate}>
@@ -335,7 +341,8 @@ export function CustomersPage() {
       {customers === null ? (
         <p className="muted">{tc("loading")}</p>
       ) : customers.length === 0 ? (
-        <p className="muted">{t("noCustomersMessage")}</p>
+        <EmptyState icon={Users} message={t("noCustomersMessage")}
+          action={{ label: t("newCustomerButton"), onClick: () => setCreating(true) }} />
       ) : (
         <table className="data">
           <thead>

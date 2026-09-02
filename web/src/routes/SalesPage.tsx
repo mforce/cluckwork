@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Plus } from "lucide-react";
+import { FilterX, Plus, ShoppingCart } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import {
@@ -19,6 +19,7 @@ import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { NumberField } from "../components/NumberField";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
+import { EmptyState } from "../components/EmptyState";
 import { ProvenanceCell } from "../components/ProvenanceCell";
 import { useDialogErrors } from "../components/useDialogErrors";
 import { useConfirm } from "../components/useConfirm";
@@ -681,7 +682,10 @@ export function SalesPage() {
     <section>
       <div className="page-head">
         <h2>{t("title")}</h2>
-        {customers.length > 0 && (
+        {/* #655 — also withheld exactly when the truly-empty state below is
+            offering this same action (never for the filtered-empty branch,
+            which offers "Clear filters" instead — no duplicate there). */}
+        {customers.length > 0 && !(orders.rows.length === 0 && !customerFilter) && (
           // Re-seeded on open, not only at mount: a tab left open across
           // farm-midnight would otherwise offer yesterday as the order date
           // while the picker's own ceiling had already moved on (codex review
@@ -1108,7 +1112,28 @@ export function SalesPage() {
       {(orders.reloading || customerFilterStale) ? (
         <p className="muted">{t("loading")}</p>
       ) : orders.rows.length === 0 ? (
-        <p className="muted">{t("noOrdersMatch")}</p>
+        customerFilter
+          ? <EmptyState icon={FilterX} message={t("noOrdersMatch")}
+              action={{
+                label: tc("clearFiltersButton"),
+                onClick: () => {
+                  const next = new URLSearchParams(searchParams);
+                  next.delete("customerId");
+                  setCustomerFilterEntity(null);
+                  setSearchParams(next);
+                },
+              }} />
+          // Same condition AND same handler as the page-head New order button
+          // above — a customer-less farm gets the sentence alone there too.
+          : <EmptyState icon={ShoppingCart} message={t("noOrdersMatch")}
+              action={customers.length > 0 ? {
+                label: t("newOrder"),
+                onClick: () => {
+                  setOrderDate(today);
+                  setNewOrderCustomerPickerOpen(true);
+                  setCreatingOrder(true);
+                },
+              } : undefined} />
       ) : (
         <>
           <table className="data">

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
+import { Receipt } from "lucide-react";
 import {
   adjustExpense, createExpense, createExpenseCategory, getExpense,
   listExpenseCategories, listExpenses, listFlocks, updateExpenseCategory,
@@ -12,6 +13,7 @@ import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { EmptyState } from "../components/EmptyState";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { DialogError } from "../components/DialogError";
@@ -738,7 +740,9 @@ export function ExpensesPage() {
       {expenses.rows === null || expenses.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : expenses.rows.length === 0 ? (
-        <p className="muted">{t("noExpensesMessage")}</p>
+        // The month picker is always set (never "cleared"), and expense
+        // capture is the inline form above — no filter/create action to offer.
+        <EmptyState icon={Receipt} message={t("noExpensesMessage")} />
       ) : (
         <table className="data">
           <thead>

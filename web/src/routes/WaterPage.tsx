@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { FilterX, Inbox } from "lucide-react";
 import { listFlocks, listWaterUsage, recordWaterUsage, updateWaterUsage } from "../api/cluckwork";
 import type { Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -8,6 +9,7 @@ import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
+import { EmptyState } from "../components/EmptyState";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { usePagedList } from "../components/usePagedList";
@@ -477,7 +479,14 @@ export function WaterPage() {
       {usage.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : usage.rows.length === 0 ? (
-        <p className="muted">{t("noRecordsMatch")}</p>
+        // No page-head create action — water capture is the inline form above.
+        (flockFilter || from || to)
+          ? <EmptyState icon={FilterX} message={t("noRecordsMatch")}
+              action={{
+                label: tc("clearFiltersButton"),
+                onClick: () => { setFlockFilter(""); setFlockFilterEntity(null); setFrom(""); setTo(""); },
+              }} />
+          : <EmptyState icon={Inbox} message={t("noRecordsMatch")} />
       ) : (
         <>
           <table className="data">
