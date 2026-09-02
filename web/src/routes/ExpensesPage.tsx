@@ -9,6 +9,7 @@ import {
 import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { FlockPicker } from "../components/FlockPicker";
@@ -745,7 +746,7 @@ export function ExpensesPage() {
           <tbody>
             {expenses.rows.map((x) => (
               <tr key={x.id}>
-                <td className="nowrap">{fmt.date(x.date)}</td>
+                <td className="nowrap"><FarmDate iso={x.date} /></td>
                 <td>{categoryName(x.expenseCategoryId)}</td>
                 <td>{x.description}</td>
                 <td className="num">{fmt.money(x.amountMinorUnits, x.currencyCode, x.currencyMinorUnit)}</td>

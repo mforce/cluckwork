@@ -11,6 +11,7 @@ import {
 import type { Customer, EggUnitConversion, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { CustomerPicker } from "../components/CustomerPicker";
@@ -791,7 +792,7 @@ export function SalesPage() {
                             quantity instead of going blank, so a unit/count
                             mix-up is visible mid-edit too. */}
                         <td className="num muted">{fmt.count(i.baseUnitFactor * editQty)}</td>
-                        <td><input className="cell" type="number" min={0}
+                        <td className="num"><input className="cell" type="number" min={0}
                           aria-label={t("editUnitPriceAriaLabel")}
                           step={10 ** -active.currencyMinorUnit} value={editPrice}
                           onChange={(e) => setEditPrice(e.target.value)} /></td>
@@ -917,7 +918,7 @@ export function SalesPage() {
                     {payments.items.map((p) => (
                       <tr key={p.id} className={p.voided ? "inactive" : undefined}
                         title={p.note ?? undefined}>
-                        <td className="nowrap">{fmt.date(p.paymentDate)}</td>
+                        <td className="nowrap"><FarmDate iso={p.paymentDate} /></td>
                         <td className="num">{fmt.money(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
                         <td>{t(`method${p.method as PaymentMethod}`)}</td>
                         <td>{p.referenceNumber ?? "—"}</td>
@@ -1118,7 +1119,7 @@ export function SalesPage() {
               {orders.rows.map((o) => (
                 <tr key={o.id}>
                   <td>{o.referenceNumber}</td>
-                  <td className="nowrap">{fmt.date(o.orderDate)}</td>
+                  <td className="nowrap"><FarmDate iso={o.orderDate} /></td>
                   <td>{rowCustomerName(o)}</td>
                   <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
                   <td className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>

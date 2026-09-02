@@ -1565,8 +1565,8 @@ export const tl = {
     moneyHeading: "Pera",
     salesRowLabel: "Benta",
     salesSummary:
-      "{{count}} kumpirmadong order — kita {{revenue}}, nabayaran {{paid}}, nakabinbin {{outstanding}}",
-    salesVoidedSuffix: " ({{count}} na-void)",
+      "{{confirmed}} kumpirmadong order — kita {{revenue}}, nabayaran {{paid}}, nakabinbin {{outstanding}}",
+    salesVoidedSuffix: " ({{voided}} na-void)",
     expensesRowLabel: "Gastos",
     expensesNone: "wala pang naitala",
     expensesTotalSuffix: " — kabuuan {{total}}",

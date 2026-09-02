@@ -11,6 +11,7 @@ import {
 import type { Account, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
@@ -654,7 +655,7 @@ export function InventoryPage() {
               <tbody>
                 {ledger.rows.map((m) => (
                   <tr key={m.id}>
-                    <td className="nowrap">{fmt.date(m.date)}</td>
+                    <td className="nowrap"><FarmDate iso={m.date} /></td>
                     <td>{inventoryMovementLabel(m.type)}</td>
                     <td className="num">{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)} {m.unit}</td>
                     <td>{m.note ?? ""}</td>

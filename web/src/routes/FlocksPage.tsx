@@ -10,6 +10,7 @@ import {
 import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -367,7 +368,7 @@ export function FlocksPage() {
               <tr key={f.id} className={f.status === "Archived" ? "inactive" : undefined}>
                 <td>{f.name}</td>
                 <td>{f.breed}</td>
-                <td className="nowrap">{fmt.date(f.placementDate)}</td>
+                <td className="nowrap"><FarmDate iso={f.placementDate} /></td>
                 <td className="num">{t("ageWeeksSuffix", { weeks: ageWeeks(f.placementDate) })}</td>
                 <td className="num">
                   {fmt.count(f.currentBirds)}
@@ -500,7 +501,7 @@ export function FlocksPage() {
               <tbody>
                 {ledger.rows.map((m) => (
                   <tr key={m.id}>
-                    <td className="nowrap">{fmt.date(m.date)}</td>
+                    <td className="nowrap"><FarmDate iso={m.date} /></td>
                     <td>{flockMovementLabel(m.type)}</td>
                     <td className="num">{m.quantity > 0 ? `−${fmt.count(m.quantity)}` : `+${fmt.count(-m.quantity)}`}</td>
                     <td>{m.note ?? "—"}</td>

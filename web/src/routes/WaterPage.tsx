@@ -5,6 +5,7 @@ import { listFlocks, listWaterUsage, recordWaterUsage, updateWaterUsage } from "
 import type { Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { FlockPicker } from "../components/FlockPicker";
@@ -482,7 +483,7 @@ export function WaterPage() {
             <tbody>
               {usage.rows.map((r) => (
                 <tr key={r.id}>
-                  <td className="nowrap">{fmt.date(r.date)}</td>
+                  <td className="nowrap"><FarmDate iso={r.date} /></td>
                   <td>{r.flockName ?? t("rowFlockUnavailable")}</td>
                   <td className="num">{fmt.count(r.quantity)} {waterUnitLabel(r.unit)}</td>
                   <td>{waterSourceLabel(r.source)}</td>

@@ -8,6 +8,7 @@ import {
 import type { Flock, InventoryItem } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
@@ -372,7 +373,7 @@ export function FeedPage() {
             <tbody>
               {usage.rows.map((r) => (
                 <tr key={r.id}>
-                  <td className="nowrap">{fmt.date(r.date)}</td>
+                  <td className="nowrap"><FarmDate iso={r.date} /></td>
                   <td>{r.flockName ?? t("rowFlockUnavailable")}</td>
                   <td>{itemName(r.inventoryItemId)}</td>
                   <td className="num">{fmt.count(r.quantity)} {r.unit}</td>

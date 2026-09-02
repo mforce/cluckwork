@@ -66,11 +66,20 @@ const TOKEN = /yyyy|yy|MMMM|MMM|MM|M|dddd|ddd|dd|d|'[^']*'|"[^"]*"|\\.|./g;
 // A farm-local calendar date (YYYY-MM-DD) is a calendar square, not an
 // instant: it is turned into a Date at UTC midnight and every Intl call reads
 // it back in UTC, so the runner's own zone can never roll it a day.
+//
+// setUTCFullYear, not Date.UTC: the latter reads a year 0–99 as 1900–1999.
+// Both silently normalise an impossible day (2026-02-30 → March 2), so the
+// components are read back and compared — a date that does not survive the
+// round trip is shown as it arrived rather than as a day the farm never had.
 export function formatDate(isoDate: string, locale: string, override: string | null): string {
   const m = ISO_DATE.exec(isoDate);
   if (!m) return isoDate;
   const [, y, mo, d] = m;
-  const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)));
+  const date = new Date(0);
+  date.setUTCFullYear(Number(y), Number(mo) - 1, Number(d));
+  if (date.getUTCFullYear() !== Number(y) || date.getUTCMonth() !== Number(mo) - 1 || date.getUTCDate() !== Number(d)) {
+    return isoDate;
+  }
 
   if (override === null || override.trim() === "") {
     return dateFormat(locale, { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);

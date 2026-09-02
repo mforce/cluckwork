@@ -8,6 +8,7 @@ import {
 import type { EggLotRow, EggMovementRow, StockRow } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { GlossaryLink } from "../components/GlossaryLink";
@@ -545,7 +546,7 @@ export function StockPage() {
                   <tbody>
                     {lots.map((l) => (
                       <tr key={l.id}>
-                        <td className="nowrap">{fmt.date(l.productionDate)}</td>
+                        <td className="nowrap"><FarmDate iso={l.productionDate} /></td>
                         <td className="num">{fmt.count(l.quantityProduced)}</td>
                         <td className="num">{fmt.count(l.quantityAvailable)}</td>
                         <td>

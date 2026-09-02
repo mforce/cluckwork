@@ -9,6 +9,7 @@ import {
 import type { DailyEntry, EggGrade, EggUnitConversion, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
@@ -740,7 +741,7 @@ export function HistoryPage() {
             <tbody>
               {entries.rows.map((e) => (
                 <tr key={e.id} className={e.status === "Voided" ? "inactive" : undefined}>
-                  <td className="nowrap">{fmt.date(e.date)}</td>
+                  <td className="nowrap"><FarmDate iso={e.date} /></td>
                   <td>{rowFlockName(e)}</td>
                   <td>{statusCell(e)}</td>
                   <td className="num">{fmt.count(e.totalEggs)}</td>
@@ -750,7 +751,7 @@ export function HistoryPage() {
                   <td>
                     {e.grades.length === 0
                       ? "—"
-                      : e.grades.map((g) => `${gradeName(g.eggGradeId)} ${g.quantity}`).join(", ")}
+                      : e.grades.map((g) => `${gradeName(g.eggGradeId)} ${fmt.count(g.quantity)}`).join(", ")}
                   </td>
                   <ProvenanceCell history={e} official="submitted" />
                   <td>

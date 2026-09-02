@@ -7,6 +7,7 @@ import {
 import type { DailyEntry, Flock, SalesOrder, StockRow } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../auth/useAuth";
 import { useFarmToday } from "../farm/useFarm";
@@ -103,7 +104,7 @@ export function Dashboard() {
   return (
     <section>
       <h2>{t("title")}</h2>
-      <p className="muted">{fmt.date(today)}</p>
+      <p className="muted"><FarmDate iso={today} /></p>
 
       <div className="stat-grid">
         <div className="stat">

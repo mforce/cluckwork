@@ -1515,8 +1515,8 @@ export const es = {
     moneyHeading: "Dinero",
     salesRowLabel: "Ventas",
     salesSummary:
-      "{{count}} pedido(s) confirmado(s) — ingresos {{revenue}}, pagado {{paid}}, pendiente {{outstanding}}",
-    salesVoidedSuffix: " ({{count}} anulado(s))",
+      "{{confirmed}} pedido(s) confirmado(s) — ingresos {{revenue}}, pagado {{paid}}, pendiente {{outstanding}}",
+    salesVoidedSuffix: " ({{voided}} anulado(s))",
     expensesRowLabel: "Gastos",
     expensesNone: "sin registrar",
     expensesTotalSuffix: " — total {{total}}",

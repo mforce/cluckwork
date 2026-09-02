@@ -1960,11 +1960,12 @@ export const en = {
     salesRowLabel: "Sales",
     // {{count}} is confirmedCount; {{revenue}}/{{paid}}/{{outstanding}} are
     // pre-formatted formatMoney() strings (DATA).
+    // {{confirmed}} / {{voided}} are the farm-locale formatted figures (#650);
+    // {{count}} is still passed (confirmedCount / voidedCount) for plural
+    // selection and is deliberately not rendered.
     salesSummary:
-      "{{count}} confirmed order(s) — revenue {{revenue}}, paid {{paid}}, outstanding {{outstanding}}",
-    // {{count}} is voidedCount — a second, independent {{count}} interpolation
-    // on the same screen, appended only when voidedCount > 0.
-    salesVoidedSuffix: " ({{count}} voided)",
+      "{{confirmed}} confirmed order(s) — revenue {{revenue}}, paid {{paid}}, outstanding {{outstanding}}",
+    salesVoidedSuffix: " ({{voided}} voided)",
     expensesRowLabel: "Expenses",
     expensesNone: "none recorded",
     // {{total}} is expenses.grandTotalMinorUnits, pre-formatted (DATA).

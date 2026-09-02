@@ -96,6 +96,14 @@ describe("formatDate", () => {
     expect(formatDate("2026-08-14", "en-US", "dd\\d MM")).toBe("14d 08");
   });
 
+  it("returns an impossible calendar date unchanged rather than normalising it", () => {
+    // Date.UTC would roll 2026-02-30 to March 2 and read year 0099 as 1999;
+    // neither is a day the farm recorded, so the input is shown as it came.
+    expect(formatDate("2026-02-30", "en-US", null)).toBe("2026-02-30");
+    expect(formatDate("2026-13-01", "en-US", "dd/MM/yyyy")).toBe("2026-13-01");
+    expect(formatDate("0099-01-01", "en-US", null)).toBe("01/01/99"); // not 1999
+  });
+
   it("returns a non-ISO input unchanged rather than inventing a date", () => {
     expect(formatDate("", "en-US", null)).toBe("");
     expect(formatDate("2026-08", "en-US", null)).toBe("2026-08");

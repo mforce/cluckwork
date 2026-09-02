@@ -8,6 +8,7 @@ import type {
 } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { daysBefore } from "../lib/dates";
 import { useFarmToday } from "../farm/useFarm";
 import { useAuth } from "../auth/useAuth";
@@ -122,7 +123,7 @@ export function ReportsPage() {
             <tbody>
               {production.days.map((d) => (
                 <tr key={d.date}>
-                  <td className="nowrap">{fmt.date(d.date)}</td>
+                  <td className="nowrap"><FarmDate iso={d.date} /></td>
                   <td className="num">{fmt.count(d.totalEggs)}</td>
                   <td className="num">{fmt.count(d.cracked)}/{fmt.count(d.dirty)}/{fmt.count(d.discarded)}</td>
                   <td className="num">{fmt.count(d.sellable)}</td>
@@ -165,11 +166,12 @@ export function ReportsPage() {
                 <td>
                   {t("salesSummary", {
                     count: sales.confirmedCount,
+                    confirmed: fmt.count(sales.confirmedCount),
                     revenue: fmt.money(sales.revenueMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
                     paid: fmt.money(sales.paidMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
                     outstanding: fmt.money(sales.outstandingMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
                   })}
-                  {sales.voidedCount > 0 ? t("salesVoidedSuffix", { count: sales.voidedCount }) : ""}
+                  {sales.voidedCount > 0 ? t("salesVoidedSuffix", { count: sales.voidedCount, voided: fmt.count(sales.voidedCount) }) : ""}
                 </td>
               </tr>
               <tr>
