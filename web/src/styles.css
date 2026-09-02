@@ -1605,6 +1605,15 @@ label.check {
   color: var(--stat-accent);
 }
 
+/* A house with no entry has no figure to show. The dash marks the slot without
+   competing with the real counts on the tiles beside it — at the full figure
+   size it reads as a loading skeleton rather than as an absence. */
+.capture-tile.is-missing .capture-tile-eggs {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 /* Past the cap: "N more flocks", a quiet link under the grid. */
 .capture-more {
   display: inline-block;

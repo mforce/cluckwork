@@ -137,6 +137,9 @@ export function Dashboard() {
                         className={entry ? "capture-tile" : "capture-tile is-missing"}
                         to={`/daily-entry?flockId=${flock.id}&date=${today}`}
                         aria-label={t("tileLinkLabel", { flock: flock.name })}
+                        // A house with an entry has nothing to record, so it gets no
+                        // hint; `undefined` omits the attribute rather than emptying it.
+                        title={entry ? undefined : t("recordTodayHint")}
                       >
                         <div className="capture-tile-name">{flock.name}</div>
                         <div className="capture-tile-eggs">{entry ? fmt.count(entry.totalEggs) : "—"}</div>

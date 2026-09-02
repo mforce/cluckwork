@@ -89,6 +89,12 @@ beforeEach(() => {
 const panel = async (title: string) =>
   (await screen.findByRole("heading", { name: title, level: 3 })).closest(".panel") as HTMLElement;
 
+function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
+  const original = i18n.getResource("en", ns, key) as string;
+  i18n.addResource("en", ns, key, value);
+  return Promise.resolve(run()).finally(() => { i18n.addResource("en", ns, key, original); });
+}
+
 describe("Dashboard capture status (#654)", () => {
   it("renders one tile per active flock, no-entry tiles first, each linking to that flock's entry for today", async () => {
     renderWithProviders(<Dashboard />);
@@ -111,6 +117,22 @@ describe("Dashboard capture status (#654)", () => {
       expect(within(tile).queryByText("999")).not.toBeInTheDocument();
     }
     expect(screen.getByRole("link", { name: "Flock f1: open today's entry" })).not.toHaveClass("is-missing");
+  });
+
+  it("offers 'Record today' on hover for a tile with no entry, and not on one that has an entry", async () => {
+    renderWithProviders(<Dashboard />);
+    const missing = await screen.findByRole("link", { name: "Flock f3: open today's entry" });
+    expect(missing).toHaveAttribute("title", "Record today");
+    // A recorded flock has nothing to record, so it carries no hint at all.
+    expect(screen.getByRole("link", { name: "Flock f1: open today's entry" })).not.toHaveAttribute("title");
+  });
+
+  it("reads the hover text from the catalog, not a hardcoded literal", async () => {
+    await withOverride("dashboard", "recordTodayHint", "RECORD-MARKER", async () => {
+      renderWithProviders(<Dashboard />);
+      const missing = await screen.findByRole("link", { name: "Flock f3: open today's entry" });
+      expect(missing).toHaveAttribute("title", "RECORD-MARKER");
+    });
   });
 
   it("sums today's eggs excluding the Voided entry — 178, never 1,177", async () => {
@@ -364,11 +386,6 @@ describe("Dashboard follows the farm's day and locale", () => {
 // i18n wiring: swap catalog values at runtime so each marker only renders if
 // the screen reads the catalog rather than a literal that happens to match.
 describe("Dashboard i18n wiring (#654)", () => {
-  function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
-    const original = i18n.getResource("en", ns, key) as string;
-    i18n.addResource("en", ns, key, value);
-    return Promise.resolve(run()).finally(() => { i18n.addResource("en", ns, key, original); });
-  }
   it("reads the heading, the trend title and the today total from the catalog", async () => {
     await withOverride("dashboard", "title", "TITLE-MARKER", async () => {
       renderWithProviders(<Dashboard />);

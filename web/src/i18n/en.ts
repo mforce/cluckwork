@@ -628,6 +628,9 @@ export const en = {
     todayEggsTotal: "{{total}} eggs today",
     // aria-label of a tile link; the visible tile shows name, eggs and status.
     tileLinkLabel: "{{flock}}: open today's entry",
+    // Hover text on a tile with no entry yet — the tile is already a link to
+    // that flock's day, and this says what tapping it is for.
+    recordTodayHint: "Record today",
     // Past the 12-tile cap. {{total}} formatted; {{count}} raw for plural selection.
     moreFlocks_one: "{{total}} more flock",
     moreFlocks_other: "{{total}} more flocks",

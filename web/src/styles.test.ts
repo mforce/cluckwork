@@ -232,10 +232,10 @@ describe("dashboard surfaces (#654, INV-8)", () => {
   };
 
   it("declares the tile, cap link, sparkline, stacked meter and list rules", () => {
-    for (const s of [".capture-grid", ".capture-tile", ".capture-tile.is-missing", ".capture-tile-eggs", ".capture-more",
+    for (const s of [".capture-grid", ".capture-tile", ".capture-tile.is-missing", ".capture-tile.is-missing .capture-tile-eggs", ".capture-tile-eggs", ".capture-more",
       ".sparkline", ".sparkline polyline", ".meter-stack", ".meter-stack > span", ".dash-list", ".dash-list li", ".panel-wide"])
       bodyOf(s);
-    expect(blocks.length).toBeGreaterThanOrEqual(12);
+    expect(blocks.length).toBeGreaterThanOrEqual(13);
   });
   it("carries no box-shadow, text-transform, transition, animation or literal colour on any of them", () => {
     for (const b of blocks) {
