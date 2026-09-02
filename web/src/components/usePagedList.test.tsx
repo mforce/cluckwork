@@ -809,3 +809,60 @@ describe("usePagedList — the abandoned ask after a failed refresh (#629)", () 
     expect(fetchPage.mock.calls.slice(3).map(([offset]) => offset)).toEqual([0]);
   });
 });
+
+describe("usePagedList — a write that supersedes an unsettled replacement (#645 review)", () => {
+  it("walks the NEW filter only as deep as the new filter has been loaded", async () => {
+    // The previous filter's depth outlives the intent that earned it: `reload`
+    // starts the replacement but both cursors still describe filter A until
+    // its page lands. A write superseding that in-flight replacement would
+    // then walk filter B to filter A's depth — pages the user never asked for
+    // under a filter they have only just arrived at. The extra page is not
+    // merely wasted: if it fails, the walk's error path empties a window whose
+    // first page was perfectly good.
+    const pendingB = deferred<Row[]>();
+    const fetchA = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockResolvedValueOnce(rows("d", "e", "f"));
+    const fetchB = vi.fn()
+      .mockReturnValueOnce(pendingB.promise)          // filter B page 1, still in flight
+      .mockResolvedValue(rows("b1", "b2", "b3"));     // the post-write walk
+    const write = () => Promise.resolve();
+
+    const { rerender } = render(<Host fetchPage={fetchA} write={write} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f"));
+
+    rerender(<Host fetchPage={fetchB} write={write} />);
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(shown()).toBe("b1,b2,b3"));
+
+    expect(fetchB.mock.calls.map(([offset]) => offset)).toEqual([0, 0]);
+
+    await act(async () => { pendingB.resolve(rows("stale")); });
+    expect(shown()).toBe("b1,b2,b3");
+  });
+
+  it("does not empty the new filter's window when the retired depth's page fails", async () => {
+    // The consequence, stated as behaviour rather than as a request count.
+    const pendingB = deferred<Row[]>();
+    const fetchA = vi.fn()
+      .mockResolvedValueOnce(rows("a", "b", "c"))
+      .mockResolvedValueOnce(rows("d", "e", "f"));
+    const fetchB = vi.fn()
+      .mockReturnValueOnce(pendingB.promise)
+      .mockResolvedValueOnce(rows("b1", "b2", "b3"))
+      .mockRejectedValueOnce(new Error("page 2 blew up"));
+    const write = () => Promise.resolve();
+
+    const { rerender } = render(<Host fetchPage={fetchA} write={write} />);
+    await waitFor(() => expect(shown()).toBe("a,b,c"));
+    fireEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(shown()).toBe("a,b,c,d,e,f"));
+
+    rerender(<Host fetchPage={fetchB} write={write} />);
+    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    await waitFor(() => expect(shown()).toBe("b1,b2,b3"));
+    expect(errorText()).toBe("");
+  });
+});

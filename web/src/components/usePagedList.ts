@@ -122,6 +122,19 @@ export function usePagedList<T extends { id: string }, M = never>({
   // says "the list has been reloaded", which is a lie when it has not).
   const load = useCallback(async (offset: number, seq: number): Promise<boolean> => {
     setLoadingOwned(seq, true, offset === 0);
+    if (offset === 0) {
+      // A replacement retires the previous window the moment it STARTS, not
+      // when it lands. Both cursors describe how deep the user went under the
+      // filter they have just left; leaving them standing lets a write that
+      // supersedes this in-flight replacement walk the NEW filter to the OLD
+      // filter's depth — pages nobody asked for, and a failure on one of them
+      // empties a window whose first page was good. The rows on screen are
+      // deliberately left alone: they are a presentation choice each screen
+      // makes via `reloading`, whereas these two are server cursors and the
+      // server has been asked to start over.
+      cursorRef.current = 0;
+      requestedCursorRef.current = 0;
+    }
     try {
       const result = await fetchPage(offset, pageSize);
       if (seq !== req.current) return false;
