@@ -338,6 +338,7 @@ export const es = {
     // #512 (T039)
     pickCustomerOption: "— elija un cliente —",
     rowCustomerUnavailable: "Este cliente ya no está disponible.",
+    filterCustomerUnavailable: "Este cliente ya no está disponible.",
     // #612
     farmWideAllocationNotice:
       "Este ajuste de la granja permite que tus confirmaciones de venta "

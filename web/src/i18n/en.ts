@@ -422,6 +422,10 @@ export const en = {
     // (the customer left the caller's tenant scope between reads). Never a
     // raw id or a substituted catalog match.
     rowCustomerUnavailable: "This customer is no longer available.",
+    // #512 US5 (T057, FR-049) — a well-formed `customerId` in the URL whose
+    // exact read failed (missing or inaccessible). Never a raw id, never
+    // rewritten to All; the picker's own Retry/Clear recover it.
+    filterCustomerUnavailable: "This customer is no longer available.",
     // #612 — persistent and generic on purpose: never names a flock, grade,
     // or quantity, since a restricted Worker cannot see farm-wide stock. This
     // notice only shows when AllFarmFlocks is on for a restricted Worker, so

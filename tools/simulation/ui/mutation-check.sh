@@ -68,6 +68,7 @@ declare -A SPEC_FOR=(
   [payment-never-settles]="specs/sales.spec.ts"
   [export-returns-nothing]="specs/owner.spec.ts"
   [language-persist-dropped]="specs/i18n.spec.ts"
+  [named-entity-picker-paging-broken]="specs/named-entity-picker.spec.ts"
   [a11y-inert-sweep-removed]="specs/a11y-live-regions.spec.ts"
   [a11y-announcer-duplicates-banner]="specs/a11y-live-regions.spec.ts"
   [a11y-announcer-renags-on-close]="specs/a11y-live-regions.spec.ts"
@@ -117,6 +118,7 @@ declare -A GREP_FOR=(
   [payment-never-settles]="takes an order from new customer"
   [export-returns-nothing]="export downloads a real file"
   [language-persist-dropped]="renders that language across the shell"
+  [named-entity-picker-paging-broken]="reaches and commits the page-two sentinel through paging"
   [a11y-inert-sweep-removed]="leave the accessibility tree|recorded browser facts"
   [a11y-announcer-duplicates-banner]="standing farm warning"
   [a11y-announcer-renags-on-close]="standing farm warning"
@@ -168,6 +170,7 @@ declare -A EXPECT_MSG_FOR=(
   [payment-never-settles]="so the payment did not settle the balance"
   [export-returns-nothing]="the export downloaded 0 bytes"
   [language-persist-dropped]="the es preference did not survive a reload"
+  [named-entity-picker-paging-broken]="the flock page-two sentinel never appeared after keyboard-paging to the loaded end"
   [a11y-inert-sweep-removed]="main.content > p.sr-only[aria-live=\"assertive\"] is still exposed to assistive technology with a dialog open
 #root > p.sr-only[aria-live=\"polite\"] is still exposed to assistive technology with a dialog open
 the injected probe is a body child but the modal sweep did not inert it"
@@ -191,7 +194,7 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            stock-pager-inert stock-summary-broken report-range-bound-removed
            refresh-always-fails logout-not-honoured
            nav-role-gate-bypassed payment-never-settles export-returns-nothing
-           language-persist-dropped
+           language-persist-dropped named-entity-picker-paging-broken
            a11y-inert-sweep-removed a11y-announcer-duplicates-banner
            a11y-announcer-renags-on-close a11y-announcer-writes-transiently
            a11y-announcer-writes-late a11y-inert-never-lifted

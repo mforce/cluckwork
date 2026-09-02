@@ -27,7 +27,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "../src/fixtures";
 import { castMember } from "../src/cast";
-import { selectOptionContaining } from "../src/dom";
+import { commitNamedPicker } from "../src/dom";
 import { farmToday } from "../src/farm";
 import { prefixOf, tEn } from "../src/i18n";
 
@@ -62,25 +62,19 @@ async function createFlock(page: Page, flockName: string, today: string): Promis
 // assertion afterwards proves the settle was APPLIED: the response existing
 // proves the effect ran and disabled the buttons, so enabled-after-response
 // can only be the post-reset state.
-async function openDailyEntryAwaitingPrefill(page: Page, flockId: string, today: string) {
+async function openDailyEntryAwaitingPrefill(page: Page, flockId: string, flockName: string, today: string) {
   const prefill = page.waitForResponse((r) =>
     r.url().includes("/daily-entries") && r.url().includes(flockId) && r.ok());
   await page.goto("/daily-entry");
   await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
-  const select = page.getByLabel(tEn("dailyEntry:flockLabel"));
-  // A missing option here is almost always FIXTURE EXHAUSTION, not a bug in the
-  // app or this spec, and the bare count assertion said none of that. The
-  // flocks endpoint defaults to 100 rows ordered BY NAME, and every run of this
-  // file leaves another "E2E ..." flock behind — they cluster alphabetically and
-  // the newest sorts last, so past ~100 accumulated runs the flock this test
-  // just created is the first one truncated away.
-  await expect(
-    select.locator(`option[value="${flockId}"]`),
-    `the flock this test just created is not in the Daily Entry dropdown. That list is the `
-      + `first 100 flocks BY NAME, and each run of this spec adds one — run reset.sh. If the `
-      + `fixture is fresh, this is a real regression in the flock list instead.`,
-  ).toHaveCount(1);
-  await select.selectOption(flockId);
+  // #512 — the flock field is a searchable picker, not a native <select>: the
+  // flock this test just created is reached by NAME (server-side literal
+  // search), not by scanning a capped option list, so the picker's own
+  // discovery cap does not resurrect the old "past ~100 accumulated runs, the
+  // newest flock is truncated away" hazard this comment used to warn about.
+  const committedId = await commitNamedPicker(page, tEn("dailyEntry:flockLabel"), flockName);
+  expect(committedId, "commitNamedPicker resolved a different flock id than the one this test created")
+    .toBe(flockId);
   await prefill;
   await expect(page.getByRole("button", { name: tEn("dailyEntry:submitButton") })).toBeEnabled();
 }
@@ -104,7 +98,7 @@ test.describe("Manager", () => {
     // Prefill-settle synchronization — see openDailyEntryAwaitingPrefill.
     // Without it the prefill wipes the fills and the spec submits an
     // all-zeros day (PR #464's CI-only 46.9s red, caught on video).
-    await openDailyEntryAwaitingPrefill(page, flockId, today);
+    await openDailyEntryAwaitingPrefill(page, flockId, flockName, today);
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("40");
     await page.getByLabel(tEn("dailyEntry:crackedLabel"), { exact: true }).fill("1");
     // #394: submit is refused unless grading exactly reconciles sellable eggs
@@ -132,7 +126,7 @@ test.describe("Manager", () => {
 
     // ---- 3. Review it on History, then ADJUST ------------------------------
     await page.goto("/history");
-    await selectOptionContaining(page.getByLabel(tEn("history:flockLabel")), flockName);
+    await commitNamedPicker(page, tEn("history:flockLabel"), flockName);
 
     const row = page.getByRole("row").filter({ hasText: flockName });
     await expect(row).toHaveCount(1);
@@ -213,7 +207,7 @@ test.describe("Manager", () => {
 
     const flockId = await createFlock(page, flockName, today);
 
-    await openDailyEntryAwaitingPrefill(page, flockId, today);
+    await openDailyEntryAwaitingPrefill(page, flockId, flockName, today);
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill(String(eggs));
     await page.getByLabel("Large", { exact: true }).fill(String(eggs));
     // The fills survived to the submit. #464's prefill can wipe them, and a

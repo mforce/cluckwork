@@ -15,11 +15,12 @@ import { screen } from "@testing-library/react";
 // So: match ONE cell's text (a single indexed text query) and walk up to its
 // row. Same row, same assertions afterwards, a fraction of the work.
 //
-// The selector is `td`, so a table whose first column is a `<th scope="row">`
-// — a legitimate a11y spelling none of this app's tables uses yet — will not be
-// found by these, and the failure reads as "text not present" rather than
-// "wrong selector". Widen the selector here rather than reaching back for the
-// role query if that day comes.
+// The selector is `td, td a` — a bare cell OR a link inside one (#512 US5:
+// Customer/Dashboard names became real Sales links) — so a table whose first
+// column is a `<th scope="row">` — a legitimate a11y spelling none of this
+// app's tables uses yet — will not be found by these, and the failure reads
+// as "text not present" rather than "wrong selector". Widen the selector
+// here rather than reaching back for the role query if that day comes.
 
 function rowOf(cell: HTMLElement, text: string): HTMLElement {
   const row = cell.closest("tr");
@@ -32,11 +33,11 @@ function rowOf(cell: HTMLElement, text: string): HTMLElement {
 // The row whose cell reads exactly `text`, once it is on screen. Use when the
 // row arrives from an async load, in place of `await screen.findByRole("row", …)`.
 export async function findRowByCellText(text: string): Promise<HTMLElement> {
-  return rowOf(await screen.findByText(text, { selector: "td" }), text);
+  return rowOf(await screen.findByText(text, { selector: "td, td a" }), text);
 }
 
 // The row whose cell reads exactly `text`, which must already be rendered. Use
 // in place of `screen.getByRole("row", …)`.
 export function getRowByCellText(text: string): HTMLElement {
-  return rowOf(screen.getByText(text, { selector: "td" }), text);
+  return rowOf(screen.getByText(text, { selector: "td, td a" }), text);
 }

@@ -29,7 +29,7 @@
 
 import { expect, test } from "../src/fixtures";
 import { castMember } from "../src/cast";
-import { selectOptionContaining } from "../src/dom";
+import { commitNamedPicker, selectOptionContaining } from "../src/dom";
 import { farmToday } from "../src/farm";
 import { tEn } from "../src/i18n";
 
@@ -76,7 +76,7 @@ test.describe("Sales", () => {
     await page.getByRole("button", { name: tEn("sales:newOrder") }).click();
 
     const orderDialog = page.getByRole("dialog", { name: tEn("sales:newOrder") });
-    await selectOptionContaining(orderDialog.getByLabel(tEn("sales:customer")), customerName);
+    await commitNamedPicker(orderDialog, tEn("sales:customer"), customerName);
     await orderDialog.getByLabel(tEn("sales:date")).fill(today);
     await orderDialog.getByRole("button", { name: tEn("sales:newDraftOrder") }).click();
     await expect(orderDialog).toBeHidden();

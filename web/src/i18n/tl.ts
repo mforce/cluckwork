@@ -354,6 +354,7 @@ export const tl = {
     // #512 (T039)
     pickCustomerOption: "— pumili ng customer —",
     rowCustomerUnavailable: "Hindi na available ang customer na ito.",
+    filterCustomerUnavailable: "Hindi na available ang customer na ito.",
     // #612
     farmWideAllocationNotice:
       "Pinapayagan ng setting na ito ng bukid na kumuha ng stock ang iyong "
