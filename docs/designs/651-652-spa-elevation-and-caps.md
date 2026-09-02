@@ -202,5 +202,5 @@ Anything beyond this stops and reports rather than absorbing more design.
 
 ## 10. Out of scope
 
-#653 (table layout), #655 (empty states), #656 (visual identity) — sibling slices with their own
-surfaces. A finding against one of those is filed there.
+Issues #653 (table layout), #655 (empty states) and #656 (visual identity) — sibling slices with
+their own surfaces. A finding against one of those is filed there.

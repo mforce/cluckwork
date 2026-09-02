@@ -533,7 +533,7 @@ git push -u origin feat/651-652-spa-elevation-and-caps
 Open the PR with `gh pr create`. **The title is the release note and becomes the squashed commit
 subject**, so it must be a conventional-commit subject. Use exactly:
 
-```
+```text
 feat(web): elevation hierarchy and sentence-case labels (#651, #652)
 ```
 
