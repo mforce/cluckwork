@@ -514,7 +514,7 @@ export const es = {
     // Estado de captura (#654)
     todayPanelTitle: "Hoy",
     noFlocksMessage: "Aún no hay lotes — cree uno en la página de Registro diario.",
-    noEntryBadge: "sin registro",
+    noEntryBadge: "Sin registro",
     todayEggsTotal: "{{total}} huevos hoy",
     tileLinkLabel: "{{flock}}: abrir el registro de hoy",
     tileLinkLabelMissing: "{{flock}}: sin registro todavía, abrir el registro de hoy",
@@ -697,7 +697,7 @@ export const es = {
     statusHeader: "Estado",
 
     // Saleable column's "yes" badge
-    saleableYesBadge: "sí",
+    saleableYesBadge: "Sí",
   },
 
   // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
@@ -1875,7 +1875,7 @@ export const es = {
     dashboardHeading: "Panel",
     dashboardTiles:
       "<strong>Hoy</strong>: una tarjeta por lote activo con los huevos y el estado de hoy, primero los que "
-      + "no tienen registro. Una tarjeta marcada <strong>sin registro</strong> es la nave que nadie ha "
+      + "no tienen registro. Una tarjeta marcada <strong>Sin registro</strong> es la nave que nadie ha "
       + "registrado todavía — tóquela para abrir el Registro diario de ese lote y ese día. Pasadas doce "
       + "tarjetas, un enlace lleva al resto.",
     dashboardTrend:
@@ -2689,7 +2689,7 @@ export const es = {
     glossaryCaptureStatusTerm: "Estado de captura",
     glossaryCaptureStatusDef:
       "Si cada lote activo tiene un registro diario de hoy. El panel lo muestra como una tarjeta por "
-      + "lote, primero los que faltan; \"sin registro\" es el estado de alarma y enlaza al Registro diario "
+      + "lote, primero los que faltan; \"Sin registro\" es el estado de alarma y enlaza al Registro diario "
       + "de ese lote y ese día.",
 
     glossaryEggLotTerm: "Lote de huevos",

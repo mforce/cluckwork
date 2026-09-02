@@ -536,7 +536,7 @@ export const tl = {
     // Katayuan ng pagtatala (#654)
     todayPanelTitle: "Ngayon",
     noFlocksMessage: "Wala pang kawan — gumawa ng isa sa page na Araw-araw na Tala.",
-    noEntryBadge: "walang tala",
+    noEntryBadge: "Walang tala",
     todayEggsTotal: "{{total}} itlog ngayon",
     tileLinkLabel: "{{flock}}: buksan ang tala ngayong araw",
     tileLinkLabelMissing: "{{flock}}: wala pang tala, buksan ang tala ngayong araw",
@@ -724,7 +724,7 @@ export const tl = {
     statusHeader: "Katayuan",
 
     // Saleable column's "yes" badge
-    saleableYesBadge: "oo",
+    saleableYesBadge: "Oo",
   },
 
   // machine-drafted (#182) — pending native review. Task CT3 (B3 catch-up):
@@ -1948,7 +1948,7 @@ export const tl = {
     dashboardHeading: "Dashboard",
     dashboardTiles:
       "<strong>Ngayon</strong>: isang tile bawat aktibong kawan na may itlog at katayuan ngayong araw, "
-      + "una ang mga walang tala. Ang tile na may <strong>walang tala</strong> ang bahay na wala pang "
+      + "una ang mga walang tala. Ang tile na may <strong>Walang tala</strong> ang bahay na wala pang "
       + "nagtatala — pindutin ito para buksan ang Araw-araw na Tala para sa kawan at araw na iyon. Lampas "
       + "sa labindalawang tile, isang link ang magdadala sa iba.",
     dashboardTrend:
@@ -2786,7 +2786,7 @@ export const tl = {
     glossaryCaptureStatusTerm: "Katayuan ng pagtatala",
     glossaryCaptureStatusDef:
       "Kung may araw-araw na tala ngayong araw ang bawat aktibong kawan. Ipinapakita ito ng dashboard "
-      + "bilang isang tile bawat kawan, una ang mga kulang; ang \"walang tala\" ang alarm state at "
+      + "bilang isang tile bawat kawan, una ang mga kulang; ang \"Walang tala\" ang alarm state at "
       + "nakalink sa Araw-araw na Tala para sa kawan at araw na iyon.",
 
     glossaryEggLotTerm: "Lote ng itlog",

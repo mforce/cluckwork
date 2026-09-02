@@ -1098,7 +1098,7 @@ describe("HelpPage visual pass (#657)", () => {
     // The section's Open link: ROUTE_FOR["dashboard"] = "/" resolved against the Worker's own nav.
     const section = screen.getByRole("heading", { name: "Dashboard", level: 3 }).closest("section")!;
     expect(within(section).getByRole("link", { name: "Open Dashboard" })).toHaveAttribute("href", "/");
-    expect(within(section).getByText("no entry", { selector: "strong" })).toBeInTheDocument();
+    expect(within(section).getByText("No entry", { selector: "strong" })).toBeInTheDocument();
     expect(within(section).getByText(/submitted days only/i)).toBeInTheDocument();
     expect(within(section).getByText("stacked bar", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText("Capture status", { selector: "dt a" })).toBeInTheDocument();
