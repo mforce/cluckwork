@@ -462,7 +462,7 @@ test.describe("Manager", () => {
     // A window that cannot contain this lot empties the table…
     await page.getByLabel(tEn("stock:fromLabel"), { exact: true }).fill("2000-01-01");
     await page.getByLabel(tEn("stock:toLabel"), { exact: true }).fill("2000-01-02");
-    await expect(page.getByText(tEn("stock:noLotsMessage"))).toBeVisible();
+    await expect(page.getByText(tEn("stock:noLotsMatch"))).toBeVisible();
     // …and narrowing to exactly today brings it back, corrected balance intact.
     await page.getByLabel(tEn("stock:fromLabel"), { exact: true }).fill(today);
     // Marked before the LAST fill, and matched on the window itself: each fill
