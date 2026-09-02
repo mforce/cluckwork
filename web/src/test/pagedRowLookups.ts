@@ -41,6 +41,49 @@
 // lookup exists. Outside a page-size fixture the role query is the RIGHT
 // spelling and is deliberately left alone.
 
+// Comments and string/template literals, blanked out — same length, so every
+// index still lines up with the original text.
+//
+// Everything below reads SOURCE, and source contains prose that looks exactly
+// like code: `usePagedList({ // pageSize: 50\n pageSize: 100 })` handed the
+// scanner the commented-out number, and a `"pageSize: 50"` literal did the
+// same, silently aiming the lint at half the screen's real threshold
+// (CodeRabbit review of #647). A commented-out `const PAGE = 999;` poisoned
+// constant resolution the same way. Blanking the two states that can hold
+// look-alike text kills the class rather than the two spellings reported.
+//
+// This also removes the caveat `callArguments` used to carry: a stray
+// parenthesis inside a string can no longer end an options window early.
+function maskProseAndLiterals(source: string): string {
+  const out = source.split("");
+  let state: "code" | "line" | "block" | '"' | "'" | "`" = "code";
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    const next = source[i + 1];
+    if (state === "code") {
+      if (char === "/" && next === "/") { state = "line"; out[i] = " "; }
+      else if (char === "/" && next === "*") { state = "block"; out[i] = " "; }
+      else if (char === '"' || char === "'" || char === "`") state = char;
+      continue;
+    }
+    if (state === "line") {
+      if (char === "\n") state = "code";
+      else out[i] = " ";
+      continue;
+    }
+    if (state === "block") {
+      if (char === "*" && next === "/") { out[i] = " "; out[i + 1] = " "; i += 1; state = "code"; }
+      else if (char !== "\n") out[i] = " ";
+      continue;
+    }
+    // Inside a string or template literal.
+    if (char === "\\") { out[i] = " "; out[i + 1] = " "; i += 1; continue; }
+    if (char === state) state = "code";
+    else if (char !== "\n") out[i] = " ";
+  }
+  return out.join("");
+}
+
 /** `const NAME = 123;` — the only constant form this resolves, on purpose. */
 const INT_CONST = /(?:^|\n)\s*const\s+([A-Za-z_$][\w$]*)\s*=\s*(\d+)\s*;/g;
 
@@ -139,7 +182,8 @@ export function comparableSizes(sizes: (number | null)[]): number[] {
 // deliberately NOT silently dropped: `pageSizes` returns it as `null` and the
 // coverage test below fails on it, so the lint cannot go quiet by failing to
 // understand a screen.
-export function pageSizes(source: string): (number | null)[] {
+export function pageSizes(rawSource: string): (number | null)[] {
+  const source = maskProseAndLiterals(rawSource);
   const constants = intConstants(source);
   // Scoped to the CALL, not to the file. A bare scan for `pageSize:` anywhere
   // in the source would let an unrelated `{ pageSize: 50 }` — a prop, a request

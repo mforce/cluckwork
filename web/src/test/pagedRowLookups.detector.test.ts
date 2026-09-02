@@ -99,6 +99,35 @@ describe("pageSizes — the threshold comes from the screen", () => {
       .toEqual([null]);
   });
 
+  it("ignores a pageSize written in a comment", () => {
+    // Source contains prose that looks exactly like code, and the scanner
+    // cannot tell them apart by shape (CodeRabbit review of #647).
+    expect(pageSizes("usePagedList({\n  // pageSize: 50\n  pageSize: 100,\n});")).toEqual([100]);
+    expect(pageSizes("usePagedList({\n  /* pageSize: 50 */\n  pageSize: 100,\n});")).toEqual([100]);
+  });
+
+  it("ignores a pageSize written inside a string literal", () => {
+    expect(pageSizes('usePagedList({\n  label: "pageSize: 50",\n  pageSize: 100,\n});')).toEqual([100]);
+    expect(pageSizes("usePagedList({\n  label: `pageSize: 50`,\n  pageSize: 100,\n});")).toEqual([100]);
+  });
+
+  it("ignores a constant declared inside a block comment", () => {
+    // Same class, one layer down: a commented-out `const PAGE = 999;` makes the
+    // name ambiguous and drops the real screen's page size. Written as a BLOCK
+    // comment on its own line on purpose — behind `//` the declaration never
+    // sat at the start of a line, so the line-anchored constant scan missed it
+    // anyway and the case passed whether or not masking was doing anything.
+    expect(pageSizes("const PAGE = 50;\n/*\nconst PAGE = 999;\n*/\nusePagedList({ pageSize: PAGE });"))
+      .toEqual([50]);
+  });
+
+  it("keeps reading past an escaped quote inside a literal", () => {
+    // Without escape handling the `\"` ends the string early and the rest of
+    // it is scanned as code, so the number in the prose wins again.
+    expect(pageSizes('usePagedList({\n  label: "a \\" pageSize: 50",\n  pageSize: 100,\n});'))
+      .toEqual([100]);
+  });
+
   it("does not read the import statement as a call site", () => {
     expect(pageSizes(`
       import { usePagedList } from "../components/usePagedList";
