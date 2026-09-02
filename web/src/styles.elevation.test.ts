@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import postcss from "postcss";
-import type { Rule } from "postcss";
+import type { AtRule, Node, Rule } from "postcss";
 
 // #651 — elevation encodes what floats; radius encodes nesting depth.
 //
@@ -73,6 +73,28 @@ function castsShadow(value: string): boolean {
 // A value that merely MENTIONS drop-shadow counts, which is what catches a
 // custom property defining one for a later var() to pick up. The shadow is
 // caught where it enters the stylesheet, not where it is used.
+// A @keyframes frame IS a rule — its selector is `from`, `to` or a percentage —
+// so the rule-parent check below does not exclude it, and walking every
+// declaration reaches inside animations. An animation that legitimately tweens
+// a shadow would otherwise put `from` into the set and fail a guard that is
+// about which SURFACES float. A keyframe is a point in time, not a surface.
+//
+// Found by review round 3 against increment 2's own fix: it does not let a
+// regression through, it blocks correct work, which is why it was latent —
+// no keyframe animates a shadow today.
+//
+// The name test is suffix-based so it covers `-webkit-keyframes` too, and it
+// walks the whole ancestor chain because a keyframes block can itself be
+// nested inside a @media.
+function insideKeyframes(node: Node | undefined): boolean {
+  let current: Node | undefined = node;
+  while (current !== undefined) {
+    if (current.type === "atrule" && /(^|-)keyframes$/i.test((current as AtRule).name)) return true;
+    current = current.parent as Node | undefined;
+  }
+  return false;
+}
+
 function selectorsCastingShadow(): string[] {
   const found = new Set<string>();
   root.walkDecls((d) => {
@@ -81,6 +103,7 @@ function selectorsCastingShadow(): string[] {
     // crash rather than a miss, so it is excluded explicitly.
     const parent = d.parent;
     if (parent === undefined || parent.type !== "rule") return;
+    if (insideKeyframes(parent)) return;
 
     const prop = d.prop.toLowerCase();
     const value = d.value.toLowerCase();

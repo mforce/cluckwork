@@ -11,8 +11,12 @@ the driver on head `2ca6b854`, each injected into `.panel` — a selector that m
 |---|---|---|
 | `Filter: drop-shadow(0 8px 24px rgba(0,0,0,.3));` | yes | **26/26 green** — missed |
 | `filter: DROP-SHADOW(0 8px 24px rgba(0,0,0,.3));` | yes | **26/26 green** — missed |
-| `filter: var(--leaky-shadow);` | yes | **26/26 green** — missed |
+| `filter: var(--leaky-shadow);` | no — the token is undefined, so it resolves to nothing | **26/26 green** — missed |
 | `filter: drop-shadow(0 8px 24px rgba(0,0,0,.3));` (control) | yes | 1 failed — caught |
+
+The var() row is the weakest of the three: it shows the guard does not read through a custom property,
+but the injected value rendered nothing because the token was never defined. M16 is the form that both
+renders and is caught.
 
 CSS property names and function names are both case-insensitive; `postcss`'s `walkDecls(prop, cb)` does an
 exact `child.prop === prop` string comparison, and `.includes("drop-shadow")` is a literal lowercase
@@ -129,7 +133,7 @@ Run with `cd web && npx vitest run src/styles.elevation.test.ts src/styles.caps.
 | M19 | `TEXT-TRANSFORM: UPPERCASE;` on `.badge` | RED | the uppercase selector set — the caps guard's twin defect |
 | M20 | `text-transform: capitalize;` on `.badge` | **GREEN** | capitalize is title case, not shouting; the invariant never claimed it |
 
-Four of the seven must stay GREEN. **If any of those four reddens, the fix overreaches and is wrong:
+Three of the seven must stay GREEN. **If any of those three reddens, the fix overreaches and is wrong:
 STOP and report rather than adjusting anything.**
 
 ## Step 4 — gates and commit
