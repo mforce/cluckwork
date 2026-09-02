@@ -20,6 +20,11 @@ const { executablePath } = resolveBrowser();
 
 export default defineConfig({
   testDir: "./specs-screenshots",
+  // #664 added palettes.spec.ts beside this file's spec, writing an
+  // uncommitted capture through its own sibling config
+  // (playwright.palettes.config.ts) — matched here so `npm run screenshots`
+  // does not also run it.
+  testMatch: /screenshots\.spec\.ts$/,
 
   // Same reasoning as the smoke config: the stack is owned by reset.sh, not by
   // Playwright. No webServer.
@@ -47,6 +52,10 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      // The dashboard capture runs in its own project below, at a taller
+      // frame (#660) — excluded here so this project's three images stay
+      // byte-identical to before.
+      grepInvert: /dashboard — the morning view/,
       use: {
         ...devices["Desktop Chrome"],
 
@@ -69,6 +78,22 @@ export default defineConfig({
         viewport: { width: 1280, height: 800 },
         deviceScaleFactor: 1,
 
+        launchOptions: executablePath ? { executablePath } : {},
+      },
+    },
+    {
+      name: "chromium-dashboard",
+      // #660: the 1280x800 frame showed only the alarm-state tile grid — the
+      // 14-day trend, stock, and recent-sales panels fell below the fold.
+      // 1280x1180, measured against the rendered page (content ends ~1115px):
+      // tall enough to clear the tile grid, "Last 14 days", "Stock" and the
+      // sales list, without so much trailing blank space below the sales
+      // panel that the shot reads as a screenshot of a scrollbar.
+      grep: /dashboard — the morning view/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1280, height: 1180 },
+        deviceScaleFactor: 1,
         launchOptions: executablePath ? { executablePath } : {},
       },
     },

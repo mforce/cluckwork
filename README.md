@@ -9,6 +9,8 @@ production, track egg lots from the hen through to the sale with full
 traceability, block medication-restricted lots, manage sales and customers, and
 see the numbers that matter (hen-day rate, saleable %, stock on hand).
 
+![The dashboard: today's capture-status tiles by flock, a 14-day production trend, stock on hand by grade, and recent sales orders](docs/images/dashboard.png)
+
 ![The daily entry screen: egg counts and grading for one flock on one day, with the sellable total derived from them](docs/images/daily-entry.png)
 
 - **Backend:** C# / .NET 10 (ASP.NET Core minimal APIs) · **Database:** PostgreSQL (EF Core)

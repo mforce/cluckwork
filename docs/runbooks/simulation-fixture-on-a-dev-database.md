@@ -483,6 +483,20 @@ Two honest options, and neither is "ignore it":
   clean checkout, so delete it when you are finished rather than leaving a
   built SPA loose in the working tree.
 
+## Working from a git worktree
+
+`tools/simulation/reset.sh` fails immediately in a worktree —
+`tools/simulation/.env.sim not found` — because that file and
+`tools/simulation/.sim-cast.json` are gitignored and exist only in the main
+checkout. Copy both into the worktree before running it there. `tools/simulation/ui/`
+also has no `node_modules` in a worktree: run its Playwright specs, including the
+screenshot captures, from the main checkout instead. That is safe because those
+specs drive the stack over HTTP — they capture whatever stack is actually
+running at their target URL, not whatever checkout they happen to execute from
+— so a spec edited in a worktree can be run from the main checkout against a
+stack built at the worktree's head, as long as the spec **file itself** (or an
+explicit `--config`) is the worktree's copy. (#662)
+
 ## Drill
 
 Safe on a scratch database only.
