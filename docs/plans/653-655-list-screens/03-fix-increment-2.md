@@ -6,7 +6,7 @@ Three sources: CI, CodeRabbit on head `3e58fc6b`, and the driver. **All verified
 
 `Playwright smoke over the simulation fixture` fails:
 
-```
+```text
 ✘ specs/manager.spec.ts:188 › Manager › writes off lost stock from its own lot...
   Error: expect(locator).toBeVisible() failed
   Locator: getByText('No lots for this grade yet.')

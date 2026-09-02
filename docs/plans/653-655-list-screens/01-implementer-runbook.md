@@ -53,7 +53,7 @@ You do not run Playwright; you **read** those specs to check callers, per #394.
 AuditPage's existing convention (UTC, trimmed to seconds) rather than the farm clock: these are audit
 instants, and the trail is displayed in UTC everywhere else it appears."* That came out of #494's review.
 
-#653 asks for relative time on the farm clock. Both are right, about different things, so:
+Issue #653 asks for relative time on the farm clock. Both are right, about different things, so:
 
 - **The relative phrase uses the farm clock.** "2 days ago" is a statement about *when, relative to the
   reader's day*, and a reader in the hen house means their farm's day. `useFarmToday()`
@@ -209,7 +209,7 @@ Check `tools/simulation/ui/specs/` for specs asserting the old empty-state text 
 
 G1 and G2 clean against the baseline. Push, and open the PR titled exactly:
 
-```
+```text
 feat(web): one-line provenance, bounded date filters, and empty states that invite action (#653, #655)
 ```
 

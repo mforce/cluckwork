@@ -23,7 +23,11 @@ to both branches:
 Both directions of the error are present, which is what makes it systematic rather than a slip.
 
 **Sales is the clearest case and the cheapest fix**: `noOrdersMessage: "No orders yet."` already exists,
-unused by the new code, three lines from the key that is being used for both.
+unused by the new code. **Correction, added after implementation:** it is NOT reusable for Sales —
+it lives in the `dashboard` namespace, and `t()` is namespace-typed, so `tsc -b` rejects it. A fresh
+`sales:noOrdersMessage` was needed, making **six** new keys rather than the five this table first
+claimed. The same trap nearly caught `stock:noLotsMatch`, where a same-named key exists in the
+unrelated `inventory` namespace.
 
 ## What exists and what is missing
 
@@ -83,7 +87,8 @@ and report** — do not edit `vite.config.ts`, do not pad.
 ## Commit
 
 ```bash
-git add web/src/routes/ web/src/i18n/ docs/plans/
+git add web/src/routes web/src/i18n/en.ts web/src/i18n/es.ts web/src/i18n/tl.ts \
+        docs/plans/653-655-list-screens/02-fix-increment-1.md
 git commit -m "fix(web): tell an empty screen apart from a filtered one in words, not just icons (#655)"
 git push origin feat/653-655-list-screens
 ```
