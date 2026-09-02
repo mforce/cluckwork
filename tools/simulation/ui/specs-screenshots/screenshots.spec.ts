@@ -76,10 +76,10 @@ test.describe("README screenshots", () => {
   // would be the anomaly, not this one. The alarm state is still what gets
   // photographed: on the current fixture the twelve leading tiles are all
   // catalog flocks with no entries (#627 seeds ~100), so the two real houses
-  // sit behind the "N more flocks" link and the trend and stock panels fall
-  // below the 1280x800 fold. That framing question is still open — the
-  // capture asserts the screen renders with real data, which is what this
-  // file is for; a follow-up decides how to frame an image worth publishing.
+  // sit behind the "N more flocks" link. #660 gave this test its own project
+  // in playwright.screenshots.config.ts at a taller 1280x1180 frame, so the
+  // trend, stock and recent-sales panels are captured below the tiles instead
+  // of falling off a 1280x800 fold.
 
   test("dashboard — the morning view: capture status, the fortnight, stock by grade", async ({ page, signIn }) => {
     await signIn(castMember("Manager"));
