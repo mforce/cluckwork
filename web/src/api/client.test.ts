@@ -1319,6 +1319,71 @@ describe("cross-tab refresh coordination (#169)", () => {
     expect(getAccessToken()).toBe(claimfulToken("at2"));
   });
 
+  // #438 — login did NOT take this lock. sessionGeneration and the token store
+  // are per-tab module state, so a login in Tab B is invisible to a refresh
+  // already in flight in Tab A: Tab A's completion sees its own untouched
+  // counter, looks uncontested, and its Set-Cookie can land AFTER Tab B's
+  // login's. Reloading Tab B then restores the PREVIOUS user. Ordering is the
+  // only fix a page-owned lock can give: make login queue behind any in-flight
+  // refresh so login's Set-Cookie is provably the last write.
+  it("login waits for another tab's in-flight refresh before sending, so its Set-Cookie is the last write (#438)", async () => {
+    const locks = fakeLockManager();
+    vi.stubGlobal("navigator", { locks });
+
+    // Another tab is mid-refresh: its rotated cookie has not arrived yet.
+    const otherTab = deferred<void>();
+    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/auth/login")
+        ? accessResponse(claimfulToken("login-b"))
+        : jsonResponse({ ok: true }),
+    );
+
+    const loggingIn = login({ farmCode: "default-farm", email: "b@b.co", password: "pw" });
+    await drain();
+
+    // Blocked behind the other tab: login has NOT reached the server yet, so
+    // its Set-Cookie cannot be overtaken by the refresh already in the air.
+    expect(callsTo(fetchMock, "/auth/login")).toHaveLength(0);
+
+    otherTab.resolve();
+    await loggingIn;
+
+    expect(callsTo(fetchMock, "/auth/login")).toHaveLength(1);
+    // The SHARED lock name — a per-tab name would serialize nothing cross-tab.
+    expect(sutLockName(locks)).toBe("cluckwork.auth.refresh");
+    expect(getAccessToken()).toBe(claimfulToken("login-b"));
+  });
+
+  // #438 — the pre-send generation check that comes with joining the lock. A
+  // login can now sit queued for as long as another tab's refresh takes, so a
+  // logout in between must make it inert BEFORE the credentials are sent, the
+  // way an already-queued password change is.
+  it("drops a queued login before any request when logout supersedes it (#438)", async () => {
+    const locks = fakeLockManager();
+    vi.stubGlobal("navigator", { locks });
+
+    const otherTab = deferred<void>();
+    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/auth/logout")) return new Response(null, { status: 204 });
+      if (url.endsWith("/auth/login")) return accessResponse(claimfulToken("post-logout-login"));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" })
+      .catch((err: unknown) => err);
+    await drain();
+    await logout();
+    otherTab.resolve();
+    await loggingIn;
+
+    expect(getAccessToken()).toBeNull();
+    expect(callsTo(fetchMock, "/auth/login")).toHaveLength(0);
+    expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(1);
+  });
+
   it("serializes password change after an in-flight refresh so stale credentials cannot win last", async () => {
     const locks = fakeLockManager();
     vi.stubGlobal("navigator", { locks });
@@ -1397,8 +1462,13 @@ describe("cross-tab refresh coordination (#169)", () => {
     const changing = changePassword({ currentPassword: "a", newPassword: "b" })
       .catch((err: unknown) => err);
     await drain();
-    await login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    // #438 — login now queues behind the in-flight auth-cookie operation, so
+    // it is started (bumping the session generation synchronously) and awaited
+    // AFTER the parked operation is released, not before.
+    const loggingIn = login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    await drain();
     otherTab.resolve();
+    await loggingIn;
     await changing;
 
     expect(getAccessToken()).toBe(claimfulToken("new-login-token"));
@@ -1422,8 +1492,10 @@ describe("cross-tab refresh coordination (#169)", () => {
     // The form is already inside the cookie lock, obtaining an access token.
     // A newer login must prevent that old form from borrowing the new bearer
     // when the now-stale refresh finishes.
-    await login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    const loggingIn = login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    await drain();
     refreshGate.resolve(accessResponse(claimfulToken("stale-refresh-token")));
+    await loggingIn;
     await changing;
 
     expect(getAccessToken()).toBe(claimfulToken("new-login-token"));
@@ -1452,13 +1524,72 @@ describe("cross-tab refresh coordination (#169)", () => {
     // Supersede the form while its first request is already on the wire, then
     // make that old request answer 401. Generic apiFetch behavior would refresh
     // the newer session and resend the old form body against it.
-    await login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    const loggingIn = login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    await drain();
     firstChange.resolve(jsonResponse({ title: "Unauthorized" }, 401));
+    await loggingIn;
     await changing;
 
     expect(getAccessToken()).toBe(claimfulToken("new-login-token"));
     expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(1);
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+  });
+
+  // #648 review — `withAuthCookieLock`'s timeout starts when the turn arrives,
+  // so it bounds the request and not the wait for the turn. changePassword holds
+  // this lock deliberately unbounded, and the lock name is global, so before
+  // this bound a stalled password change parked every later sign-in — in this
+  // tab and in any other tab on any farm — with no timeout and no error.
+  it("bounds a login waiting for its turn behind an unbounded password change, and the abandoned login never sends (#438)", async () => {
+    vi.useFakeTimers();
+    try {
+      const changeGate = deferred<Response>();
+      const tokenBefore = `tok-${crypto.randomUUID()}`;
+      setAccessToken(tokenBefore);
+      fetchMock.mockImplementation(async (url: string) => {
+        if (url.endsWith("/auth/change-password")) return changeGate.promise;
+        if (url.endsWith("/auth/login")) return accessResponse(claimfulToken("late-login"));
+        if (url.endsWith("/auth/logout")) return new Response(null, { status: 204 });
+        throw new Error(`unexpected fetch: ${url}`);
+      });
+
+      const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+        .catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callsTo(fetchMock, "/auth/change-password")).toHaveLength(1);
+
+      const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" })
+        .catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callsTo(fetchMock, "/auth/login")).toHaveLength(0); // queued behind it
+
+      // Past the cap, with the password change still hung: the caller is freed
+      // rather than left waiting on a request that may never settle.
+      await vi.advanceTimersByTimeAsync(15_000);
+      const settled = await loggingIn;
+      expect(settled).toBeInstanceOf(DOMException);
+      expect((settled as DOMException).name).toBe("AbortError");
+      expect(callsTo(fetchMock, "/auth/login")).toHaveLength(0);
+
+      // And the turn it eventually gets sends nothing: an abandoned sign-in must
+      // never put credentials on the wire or a cookie in the jar afterwards.
+      changeGate.resolve(accessResponse(claimfulToken("changed")));
+      await changing;
+      await vi.advanceTimersByTimeAsync(0);
+      expect(callsTo(fetchMock, "/auth/login")).toHaveLength(0);
+      // #648 review — AND THE PASSWORD CHANGE STILL COMMITS. The abandoned login
+      // gives its generation back, because a login that never sent has not
+      // superseded anything. Leaving the bump in place discarded a response the
+      // server had already committed: the password was changed, the freshly
+      // issued cookie was revoked, and the user was told it failed. "Fails
+      // closed" is the right instinct for a write that might not have landed,
+      // and the wrong one for a write that has.
+      expect(getAccessToken()).toBe(claimfulToken("changed"));
+      expect(tokenBefore).not.toBe(claimfulToken("changed"));
+      expect(callsTo(fetchMock, "/auth/logout")).toHaveLength(0); // nothing revoked
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not apply the refresh timeout to a non-replayable password change", async () => {
@@ -1560,6 +1691,53 @@ describe("cross-tab refresh coordination (#169)", () => {
     expect(changeSignal?.aborted).toBe(true);
     expect(await changing).toMatchObject({ name: "AbortError" });
     expect(getAccessToken()).toBeNull();
+  });
+
+  // #648 review — the other half of the rollback: it is conditional, and this
+  // pins the condition. A refresh started while the login waited may have
+  // captured the login's generation, so rolling back would discard that
+  // refresh's own valid result and revoke its cookie — trading a discarded
+  // password change for a forced re-auth. With a refresh in flight the
+  // conservative behaviour stands.
+  it("does not give the generation back when a refresh may have captured it (#438)", async () => {
+    vi.useFakeTimers();
+    try {
+      const changeGate = deferred<Response>();
+      const refreshGate = deferred<Response>();
+      setAccessToken(`tok-${crypto.randomUUID()}`);
+      fetchMock.mockImplementation(async (url: string) => {
+        if (url.endsWith("/auth/change-password")) return changeGate.promise;
+        if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+        if (url.endsWith("/auth/logout")) return new Response(null, { status: 204 });
+        throw new Error(`unexpected fetch: ${url}`);
+      });
+
+      const changing = changePassword({ currentPassword: "a", newPassword: "b" })
+        .catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(0);
+
+      const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" })
+        .catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(0);
+      // A refresh enters the queue behind the login and captures the CURRENT
+      // generation — the one the login's bump produced.
+      const restoring = restoreSession().catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(0);
+
+      await vi.advanceTimersByTimeAsync(15_000); // the login is abandoned
+      expect(await loggingIn).toBeInstanceOf(DOMException);
+
+      changeGate.resolve(accessResponse(claimfulToken("changed")));
+      await changing;
+      refreshGate.resolve(accessResponse(claimfulToken("refreshed")));
+      await restoring;
+
+      // The refresh keeps the generation it captured, so it is not discarded
+      // out from under itself by the rollback.
+      expect(getAccessToken()).toBe(claimfulToken("refreshed"));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("a lock held under a DIFFERENT name does not block refresh (fake is name-scoped, like the real API)", async () => {
@@ -1704,11 +1882,17 @@ describe("session generation (#310)", () => {
     const restoring = restoreSession(); // older bootstrap refresh in flight
     await drain();
 
-    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // a newer, explicit login completes first
-    expect(getAccessToken()).toBe(claimfulToken("newLoginToken"));
-    expect(onTokens).toHaveBeenCalledTimes(1);
+    const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // a newer, explicit login
+    await drain();
+    // #438 — the newer login no longer overtakes the bootstrap refresh on the
+    // wire; it queues behind it, which is exactly what makes its own
+    // Set-Cookie the last one the browser applies.
+    expect(callsTo(fetchMock, "/auth/login")).toHaveLength(0);
 
     refreshGate.resolve(accessResponse(claimfulToken("staleBootstrapToken"))); // the old refresh answers late
+    await loggingIn;
+    expect(getAccessToken()).toBe(claimfulToken("newLoginToken"));
+    expect(onTokens).toHaveBeenCalledTimes(1);
     await expect(restoring).resolves.toBe(false); // discarded, not adopted
 
     expect(getAccessToken()).toBe(claimfulToken("newLoginToken")); // untouched by the stale refresh
@@ -1733,10 +1917,12 @@ describe("session generation (#310)", () => {
     const fetching = apiGet<{ ok: boolean }>("/stock").catch((e: unknown) => e);
     await drain();
 
-    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the still-parked refresh
-    expect(getAccessToken()).toBe("freshLoginToken");
+    const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the still-parked refresh
+    await drain();
 
     refreshGate.resolve(jsonResponse({ title: "refresh token revoked" }, 401)); // stale refresh FAILS late
+    await loggingIn;
+    expect(getAccessToken()).toBe("freshLoginToken");
     const settled = await fetching;
 
     expect(getAccessToken()).toBe("freshLoginToken"); // untouched by the stale failure
@@ -1746,6 +1932,125 @@ describe("session generation (#310)", () => {
     // user is actually waiting on proceeds on it rather than failing with
     // "Discarded: superseded by…", which every screen would render verbatim.
     expect(settled).toEqual({ ok: true });
+  });
+
+  // #438 — the second half of the fix. Once login queues behind the same lock,
+  // it no longer completes "essentially immediately", so the synchronous
+  // getAccessToken() peek a parked request makes when its own refresh comes
+  // back StaleSessionError can run BEFORE the login that superseded it has
+  // committed anything. The parked request must AWAIT the in-flight login, not
+  // peek once and 401 the user out of a session that is about to exist.
+  it("a request parked on a superseded refresh awaits the QUEUED login's token instead of 401ing (#438)", async () => {
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) return Promise.resolve(accessResponse(claimfulToken("queued-login")));
+      if (url.endsWith("/stock")) return Promise.resolve(jsonResponse({ ok: true }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    // Parked on a silent refresh, which now holds the auth cookie lock.
+    const fetching = apiGet<{ ok: boolean }>("/stock").catch((e: unknown) => e);
+    await drain();
+
+    const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
+    await drain();
+    // Precondition: the login is QUEUED behind that refresh, not sent. This is
+    // the state the peek was never written for.
+    expect(callsTo(fetchMock, "/auth/login")).toHaveLength(0);
+    expect(getAccessToken()).toBeNull();
+
+    refreshGate.resolve(jsonResponse({ title: "refresh token revoked" }, 401));
+    await loggingIn;
+
+    expect(getAccessToken()).toBe(claimfulToken("queued-login"));
+    // The parked request rides the newer login rather than surfacing a 401 for
+    // a session that was superseded, not ended.
+    expect(await fetching).toEqual({ ok: true });
+    expect(onUnauth).not.toHaveBeenCalled();
+  });
+
+  // #648 review — CodeRabbit raised that `settledLogin()` snapshotted
+  // `loginInFlight` once, so an older login settling as stale could release a
+  // parked caller while a newer login was still queued. The helper now loops on
+  // identity instead, which is cheap and correct. But the scenario it describes
+  // is NOT reachable as described, and this test is why: the pre-send generation
+  // check means a login superseded while queued never sends and never produces a
+  // settlement a parked caller could mistake for an answer. At most one login is
+  // ever on the wire. If that check is ever relaxed, the loop stops being
+  // defensive and starts being load-bearing.
+  it("only the newest of several queued logins ever puts credentials on the wire (#438)", async () => {
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    const sent: string[] = [];
+    fetchMock.mockImplementation((url: string, init: RequestInit) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login")) {
+        sent.push(JSON.parse(String(init.body ?? "{}")).email);
+        return Promise.resolve(accessResponse(claimfulToken("newest-login")));
+      }
+      if (url.endsWith("/stock")) return Promise.resolve(jsonResponse({ ok: true }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    // A silent refresh holds the auth cookie lock; both sign-ins queue behind it.
+    const fetching = apiGet<{ ok: boolean }>("/stock").catch((e: unknown) => e);
+    await drain();
+    const supersededLogin = login({ farmCode: "farm-a", email: "first@b.co", password: "pw" })
+      .catch((e: unknown) => e);
+    await drain();
+    const newestLogin = login({ farmCode: "farm-a", email: "second@b.co", password: "pw" })
+      .catch((e: unknown) => e);
+    await drain();
+
+    refreshGate.resolve(jsonResponse({ title: "refresh token revoked" }, 401));
+    await supersededLogin;
+    await newestLogin;
+
+    // The superseded one never reached the server: its credentials are not on
+    // the wire, and it left no settled response for a parked caller to read.
+    expect(sent).toEqual(["second@b.co"]);
+    expect(getAccessToken()).toBe(claimfulToken("newest-login"));
+    // And the parked request still rides the login that actually committed.
+    expect(await fetching).toEqual({ ok: true });
+    expect(authOf(callsTo(fetchMock, "/stock").at(-1)!)).toBe(
+      `Bearer ${claimfulToken("newest-login")}`,
+    );
+  });
+
+  // The failure twin of the wait: a rejection settles the flight exactly as a
+  // success does, so the parked caller must re-read the token store rather than
+  // treat the rejection as its own answer — and must not hang on it either.
+  it("surfaces a plain 401 when the login a parked request waited for is REJECTED (#438)", async () => {
+    clearAccessToken();
+    const refreshGate = deferred<Response>();
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/auth/refresh")) return refreshGate.promise;
+      if (url.endsWith("/auth/login"))
+        return Promise.resolve(jsonResponse({ title: "Invalid email or password" }, 401));
+      if (url.endsWith("/stock")) return Promise.resolve(jsonResponse({ ok: true }));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const fetching = apiGet<{ ok: boolean }>("/stock").catch((e: unknown) => e);
+    await drain();
+    const failedLogin = login({ farmCode: "farm-a", email: "a@b.co", password: "wrong" })
+      .catch((e: unknown) => e);
+    await drain();
+
+    refreshGate.resolve(jsonResponse({ title: "refresh token revoked" }, 401));
+    const rejected = await failedLogin;
+
+    // The credential failure belongs to the sign-in form, unchanged.
+    expect(rejected).toBeInstanceOf(ApiError);
+    expect(rejected).toMatchObject({ status: 401, title: "Invalid email or password" });
+    // The parked request gets the honest answer — no session exists — and never
+    // the login's credential error or the internal discard marker.
+    const settled = await fetching;
+    expect(settled).toBeInstanceOf(ApiError);
+    expect(settled).toMatchObject({ status: 401, title: "NoSession" });
+    expect(getAccessToken()).toBeNull();
   });
 
   // #310 review — changePassword is a token-store writer too, and logout is
@@ -1793,8 +2098,10 @@ describe("session generation (#310)", () => {
       .catch((e: unknown) => e);
     await drain();
 
-    await login({ farmCode: "farm-c", email: "c@example.test", password: "pw" });
+    const loggingIn = login({ farmCode: "farm-c", email: "c@example.test", password: "pw" });
+    await drain();
     changeGate.resolve(accessResponse(jwtWithAccountId("acct-A", "changed")));
+    await loggingIn;
     await changing;
 
     const revokes = callsTo(fetchMock, "/auth/logout");
@@ -1857,8 +2164,10 @@ describe("session generation (#310)", () => {
       .catch((e: unknown) => e);
     await drain();
 
-    await login({ farmCode: "farm-c", email: "c@example.test", password: "pw" });
+    const loggingIn = login({ farmCode: "farm-c", email: "c@example.test", password: "pw" });
+    await drain();
     loginGate.resolve(accessResponse(jwtWithAccountId("acct-B", "stale-login")));
+    await loggingIn;
     await staleLogin;
 
     const revokes = callsTo(fetchMock, "/auth/logout");
@@ -1935,8 +2244,10 @@ describe("session generation (#310)", () => {
     const fetching = apiGet<{ value: number }>("/stock");
     await drain();
 
-    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
+    const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" });
+    await drain();
     refreshGate.resolve(accessResponse(claimfulToken("stale-token")));
+    await loggingIn;
 
     expect(await fetching).toEqual({ value: 7 });
   });
@@ -1977,8 +2288,10 @@ describe("session generation (#310)", () => {
     const downloading = apiGetBlob("/export/all");
     await drain();
 
-    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the parked refresh
+    const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the parked refresh
+    await drain();
     refreshGate.resolve(accessResponse(claimfulToken("stale-token")));
+    await loggingIn;
 
     const { blob } = await downloading;
     expect(blob.size).toBe(4); // "data" — served on the live login's token
@@ -2030,8 +2343,10 @@ describe("session generation (#310)", () => {
     const restoring = restoreSession();
     await drain();
 
-    await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the parked refresh
+    const loggingIn = login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }); // supersedes the parked refresh
+    await drain();
     refreshGate.resolve(accessResponse(jwtWithAccountId("acct-A", "stale-refresh")));
+    await loggingIn;
     await restoring;
 
     expect(getAccessToken()).toBe(jwtWithAccountId("acct-C", "new-login")); // the live login survives

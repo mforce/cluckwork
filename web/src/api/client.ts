@@ -222,25 +222,136 @@ async function revokeSupersededCookie(discardedAccessToken: string): Promise<voi
   }
 }
 
-export async function login(body: LoginRequest): Promise<void> {
-  // #310 — bump first: login is a NEWER session than anything already in
-  // flight (a bootstrap refresh, say), so its resolution must be the one that
-  // wins, and any earlier flight must see its captured generation go stale.
+// #438 — the settlement handle of the login currently in flight, or null. A
+// request parked on a refresh that came back superseded cannot simply peek at
+// the token store any more: since login joins the cross-tab cookie lock below,
+// the login that superseded that refresh may still be QUEUED behind it and
+// therefore hold nothing yet. The parked caller awaits this instead, the same
+// way concurrent 401s share refreshInFlight.
+let loginInFlight: Promise<void> | null = null;
+
+// #438 — resolve once there is no login still pending. Its FAILURE is the login
+// caller's to report; a parked request only needs to know no login is on its way
+// before it decides whether a session exists.
+//
+// #648 review — LOOP ON IDENTITY, not on a single snapshot. A snapshot returns
+// as soon as the login it happened to observe settles, and logins replace one
+// another: with A pending, B replacing it, and A then settling as stale, the
+// parked caller would resume while B is still queued, read no token, and 401 —
+// the same premature 401 this function exists to prevent, one layer out. Each
+// pass consumes exactly one settled flight, so this terminates; re-reading after
+// the await and comparing IDENTITY (never truthiness) is the same rule the
+// generation check follows. The identity guard on `loginInFlight`'s clear below
+// is what makes the re-read meaningful: without it a stale settle nulls a newer
+// flight's handle and this loop exits early on the `!flight` branch.
+async function settledLogin(): Promise<void> {
+  for (;;) {
+    const flight = loginInFlight;
+    if (!flight) return;
+    // A rejection is as much a settlement as a success, and just as stale: the
+    // caller must re-read rather than conclude anything from it.
+    await flight.catch(() => undefined);
+    if (loginInFlight === flight) return;
+  }
+}
+
+export function login(body: LoginRequest): Promise<void> {
+  // #310 — bump first, and SYNCHRONOUSLY, before this login queues for the
+  // lock: login is a NEWER session than anything already in flight (a
+  // bootstrap refresh, say), so its resolution must be the one that wins, and
+  // any earlier flight must see its captured generation go stale.
   const generation = ++sessionGeneration;
+  // #438 — published before the first await, so a request that parks while
+  // this login is still queued can find it.
+  const flight = performLogin(body, generation).finally(() => {
+    if (loginInFlight === flight) loginInFlight = null;
+  });
+  loginInFlight = flight;
+  return flight;
+}
+
+// #438 — login takes the SAME cross-tab cookie lock as refresh/changePassword.
+// sessionGeneration and the token store are per-tab module state, so a refresh
+// in another tab cannot see this login's generation bump: its completion looks
+// uncontested there and #393's stale branch never fires, leaving real network
+// arrival order to decide whose Set-Cookie survives. Ordering is the fix a
+// page-owned lock can actually give — any in-flight refresh settles, cookie
+// applied, before this login sends a byte, so login's cookie is provably last.
+async function performLogin(body: LoginRequest, generation: number): Promise<void> {
+  // #648 review — `withAuthCookieLock`'s own timeout starts when this login's
+  // TURN arrives, so it caps the request and not the wait for the turn. That was
+  // enough while every holder of this lock was itself bounded, but
+  // changePassword holds it deliberately unbounded (it cannot be replayed after
+  // an ambiguous commit), and the lock name is global — one stalled password
+  // change would otherwise park a sign-in forever, including one in another tab
+  // on another farm. So the clock starts HERE, at the call, and a turn that
+  // arrives past it sends nothing: an abandoned login must never put credentials
+  // on the wire or a cookie in the jar behind the user's back.
+  let abandoned = false;
+  let abandon!: () => void;
+  const abandonedAtDeadline = new Promise<never>((_, reject) => {
+    abandon = () => {
+      abandoned = true;
+      // #648 review — GIVE THE GENERATION BACK. The eager bump in `login()` is
+      // what makes the newest sign-in win, but a login that never sends has not
+      // superseded anything: leaving the bump in place makes an in-flight
+      // password change discard a response the SERVER ALREADY COMMITTED, revoke
+      // the cookie it just issued, and report failure to a user whose password
+      // did change. Failing closed is the right instinct for a write that might
+      // not have landed; this one has landed.
+      //
+      // Two conditions, and both are load-bearing. `sessionGeneration ===
+      // generation` means nothing bumped after us, so this rollback restores
+      // exactly the value every earlier flight captured. `refreshInFlight ===
+      // null` means no refresh can have captured OUR value while we waited —
+      // one that had would be discarded by the rollback and have its own valid
+      // cookie revoked, trading this bug for a forced re-auth. When either
+      // fails we keep the conservative behaviour rather than guess.
+      if (sessionGeneration === generation && refreshInFlight === null)
+        sessionGeneration = generation - 1;
+      reject(
+        new DOMException("Timed out waiting for the auth cookie lock.", "AbortError"),
+      );
+    };
+  });
+  const deadline = setTimeout(abandon, REFRESH_TIMEOUT_MS);
   // The server sets the HttpOnly refresh cookie; the body returns only the
   // access token, which lives in memory for this tab's lifetime.
-  const res = await raw<AccessTokenResponse>(
-    "/auth/login",
-    {
-      method: "POST",
-      body: JSON.stringify(body),
-    },
-    // #532 — login's response token is decoded to bind this tab to its farm.
-    // The REAL server token always carries the account_id claim (the
-    // cross-farm guard depends on it), so this is an attribution of a known
-    // token, not adoption of an unknown one — unlike a refresh, which must
-    // fail closed on an unattributable token.
-    "",
+  const queued = withAuthCookieLock(
+    (signal) =>
+      // Superseded while queued (a logout, or a newer login on another form) —
+      // never send the credentials at all, exactly as changePassword does.
+      sessionGeneration !== generation
+        ? Promise.reject(new StaleSessionError())
+        : abandoned
+          ? Promise.reject(
+              new DOMException("Abandoned before its turn on the auth cookie lock.", "AbortError"),
+            )
+          : raw<AccessTokenResponse>(
+            "/auth/login",
+            {
+              method: "POST",
+              body: JSON.stringify(body),
+              signal,
+            },
+            // #532 — login's response token is decoded to bind this tab to
+            // its farm. The REAL server token always carries the account_id
+            // claim (the cross-farm guard depends on it), so this is an
+            // attribution of a known token, not adoption of an unknown one —
+            // unlike a refresh, which must fail closed on an unattributable
+            // token.
+            "",
+          ),
+    // Login is replayable (the user simply signs in again), so it must not hold
+    // the cross-tab lock indefinitely on a hung request, unlike a password
+    // change. Same cap as refresh.
+    REFRESH_TIMEOUT_MS,
+  );
+  // The abandoned branch still settles the queued attempt later; nothing awaits
+  // it by then, and an unobserved rejection must not surface as an unhandled one.
+  queued.catch(() => undefined);
+  const res = await Promise.race([queued, abandonedAtDeadline]).finally(() =>
+    clearTimeout(deadline),
   );
   // Superseded while in flight (e.g. a logout landed before this resolved) —
   // do not resurrect a session the user already ended. The response already
@@ -756,6 +867,9 @@ export async function apiGetBlob(
     } catch (refreshErr) {
       // #310 review — same supersession handling as apiFetch.
       if (refreshErr instanceof StaleSessionError) {
+        // #438 — as in apiFetch: await the queued login before concluding
+        // there is no session to download on.
+        await settledLogin();
         const fresh = getAccessToken();
         if (fresh) return await rawBlob(path, fresh);
         throw err;
@@ -815,6 +929,9 @@ export async function apiFetch<T>(
       // Never let the internal marker reach the caller.
       if (refreshErr instanceof StaleSessionError) {
         if (heldAuthCookieLock) throw refreshErr;
+        // #438 — same wait as supersededToken: the login that superseded this
+        // refresh can still be queued behind it.
+        await settledLogin();
         const fresh = getAccessToken();
         if (fresh) return await raw<T>(path, init, fresh);
         throw err;
@@ -842,7 +959,7 @@ async function currentAccessToken(
     // superseded session: a newer login already committed its own token, or a
     // logout already tore everything down. Either way, this failure must not
     // touch the CURRENT session — no clearing, no onUnauthenticated navigate.
-    if (err instanceof StaleSessionError) return supersededToken();
+    if (err instanceof StaleSessionError) return await supersededToken(heldAuthCookieLock);
     onUnauthenticated?.(err instanceof ApiError ? err.title : undefined);
     throw new ApiError(401, "NoSession", "Not authenticated.");
   }
@@ -856,7 +973,19 @@ async function currentAccessToken(
 // here: it is an internal control marker, and every screen renders a non-
 // ApiError's `.message` verbatim, so letting it escape would show the user
 // "Discarded: superseded by..." in place of a real error.
-function supersededToken(): string {
+async function supersededToken(
+  heldAuthCookieLock?: HeldAuthCookieLock,
+): Promise<string> {
+  // #438 — the superseding login may still be QUEUED behind the very refresh
+  // that just failed, so a synchronous peek here would see an empty store and
+  // 401 the user out of a session that is about to exist. Wait for it first.
+  //
+  // NEVER wait when the caller HOLDS the auth cookie lock: that login is queued
+  // BEHIND the lock this caller owns, so waiting for it here deadlocks both.
+  // The only such caller is the non-replayable password change, which must fail
+  // closed on supersession anyway — apiFetch re-checks the generation the
+  // moment this returns and throws rather than borrowing the newer session.
+  if (!heldAuthCookieLock) await settledLogin();
   const fresh = getAccessToken();
   if (fresh) return fresh;
   throw new ApiError(401, "NoSession", "Not authenticated.");
