@@ -46,12 +46,32 @@ function castsShadow(value: string): boolean {
   return layers(value).some((layer) => !layer.startsWith("inset"));
 }
 
+// A shadow can be painted two ways. `box-shadow` is the obvious one;
+// `filter: drop-shadow(...)` renders the same thing and lives in a completely
+// different declaration, so a walk that visits only `box-shadow` reports a
+// clean stylesheet while a card floats on every screen. Review round 1 proved
+// that with a mutation the guard did not notice.
+//
+// Both mechanisms feed ONE set, so the SHADOW_ALLOWED equality below governs
+// both and a float that legitimately needs drop-shadow() is allow-listed
+// exactly like one that uses box-shadow.
+//
+// This targets drop-shadow, not `filter` wholesale: blur() and brightness()
+// are not shadows, and banning them would assert something the invariant never
+// claimed. The stylesheet declares no filter at all today.
+const SHADOW_PROPS = ["box-shadow", "filter", "-webkit-filter"];
+
 function selectorsCastingShadow(): string[] {
   const found = new Set<string>();
-  root.walkDecls("box-shadow", (d) => {
-    if (!castsShadow(d.value)) return;
-    for (const sel of (d.parent as Rule).selectors) found.add(clean(sel));
-  });
+  for (const prop of SHADOW_PROPS) {
+    root.walkDecls(prop, (d) => {
+      const casts = prop === "box-shadow"
+        ? castsShadow(d.value)
+        : d.value.includes("drop-shadow");
+      if (!casts) return;
+      for (const sel of (d.parent as Rule).selectors) found.add(clean(sel));
+    });
+  }
   return [...found].sort();
 }
 
