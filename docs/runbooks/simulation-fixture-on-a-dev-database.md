@@ -425,6 +425,16 @@ dotnet user-secrets --project src/Cluckwork.Api remove "RateLimiting:Refresh:Per
 dotnet user-secrets --project src/Cluckwork.Api remove "RateLimiting:ClientErrors:PermitLimit"
 ```
 
+**Then restart the API again — removing the keys is not enough.** The
+section is bound once, at service registration, and the numbers are baked
+into the policy objects right there
+([`CluckworkRateLimitingServiceCollectionExtensions.cs`](../../src/Cluckwork.Api/Hosting/CluckworkRateLimitingServiceCollectionExtensions.cs)
+ — `Get<RateLimitingOptions>()`, then `new DistributedIpFixedWindowPolicy(…,
+rateLimiting.Login.PermitLimit, …)`). Nothing re-reads them, so a process
+left running keeps serving the 1,000,000 limits off a user-secrets file
+that no longer mentions them — the worst version of this, because the
+configuration now looks clean.
+
 ### k5. Run k6
 
 `BASE_URL` is the only thing that moves. Start with the smoke script, which
@@ -493,3 +503,24 @@ Safe on a scratch database only.
    before #638.
 6. Sign in and walk the four **Verify** checks.
 7. Update **Last drilled** above.
+
+The k6 preparation path is a second drill, on its own scratch database — it
+needs the Owner at a *specific* address, so it cannot share step 2's admin:
+
+1. `down -v && up -d` as above, so the default account has **no** Owner.
+2. [k1](#k1-generate-the-cast--bootstrapsh) — `bash tools/simulation/bootstrap.sh --force`,
+   and define `env_val`. Then [k2](#k2-owner-create-and-rotate):
+   `bootstrap-admin --email "$(env_val SIM_ADMIN_EMAIL)"` and rotate. Expected:
+   a `Temporary password:` line, **not** `Admin already provisioned` — that
+   message means the database was not clean and the rest of this drill is void.
+3. [k3](#k3-seed-with-those-values). Expected: exit `0`.
+4. [k4](#k4-raise-the-rate-limits), then restart the API.
+5. `k6 run tools/simulation/k6/auth-smoke.js`. Expected: pass. It logs in as
+   the Owner and all nine cast members, so it is the check that k2's address
+   and k3's `CastPassword` actually agree.
+6. Run the k4 `remove` commands and restart the API again. Expected: a
+   re-run of `auth-smoke.js` now **fails** on 429s — `setup()` calls
+   `preflightCredentials` for all ten, then each VU logs in again, so one
+   run is ~20 logins from one IP against a restored `Login` budget of 10
+   per 900s. A pass here means the overrides are still live and you have
+   just proved the cleanup does not work.
