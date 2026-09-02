@@ -25,7 +25,7 @@ public static class CustomerEndpoints
         // out — matching the writes above and the money reads on /payments (#127).
         group.MapGet("/", ListCustomers)
             .WithName("ListCustomers")
-            .WithSummary("List the account's customers by name (paged).")
+            .WithSummary("List the account's customers by name (paged), optionally by literal name search.")
             .RequireAuthorization(AuthPolicies.SalesFlow);
 
         group.MapGet("/{id:guid}", GetCustomer)
@@ -83,14 +83,17 @@ public static class CustomerEndpoints
 
     private static async Task<IResult> ListCustomers(
         ICustomerRepository customers, TenantContext tenant, CancellationToken ct,
-        int? limit = null, int? offset = null)
+        string? search = null, int? limit = null, int? offset = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
 
-        var list = await customers.ListAsync(take, skip, ct);
+        // #512 — additive `search` only: trimming and the literal wildcard
+        // handling live in the repository, and every existing caller that
+        // omits it lands on the same query it always ran (#512 compatibility).
+        var list = await customers.SearchAsync(search, take, skip, ct);
         return Results.Ok(list.Select(ToResponse));
     }
 

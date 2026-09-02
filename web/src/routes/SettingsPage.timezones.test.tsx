@@ -12,7 +12,10 @@ import { render, screen } from "@testing-library/react";
 
 vi.mock("../api/cluckwork", async () => {
   const actual = await vi.importActual<typeof import("../api/cluckwork")>("../api/cluckwork");
-  return { ...actual, getFarmSettings: vi.fn().mockRejectedValue(new Error("not under test")) };
+  return { ...actual, getFarmSettings: vi.fn().mockRejectedValue(new Error("not under test")),
+    getFlock: vi.fn(),
+    getCustomer: vi.fn(),
+  };
 });
 
 afterEach(() => {

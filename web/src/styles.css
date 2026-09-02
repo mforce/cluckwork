@@ -2356,3 +2356,249 @@ button:disabled[aria-busy="true"] {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* #512 — the searchable named-entity picker (FlockPicker / CustomerPicker).
+   Uses existing form/focus/semantic/responsive tokens only. The combobox is a
+   text input with a listbox overlay; the committed label is a sibling above
+   the input, never inside the listbox (FR-018). */
+
+.named-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  position: relative;
+}
+
+.named-picker-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* The picker's closed-state trigger: a field-sized control that occupies the
+   normal form slot and swaps for the combobox while open. It takes on the
+   select's visual language so adopting a picker does not restyle the form. */
+.named-picker-trigger {
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-input, 4px);
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.named-picker-trigger:focus-visible {
+  outline: 2px solid var(--accent, #4a90d9);
+  outline-offset: 1px;
+}
+
+/* The committed-name retention label: a sibling of the input, shown while
+   the visible text differs from the committed name. */
+.named-picker-committed {
+  font-size: 0.82rem;
+  color: var(--muted);
+  padding: 0.15rem 0.7rem;
+  background: var(--surface-2);
+  border-radius: var(--r-input);
+}
+
+.named-picker-control {
+  position: relative;
+}
+
+.named-picker-control input {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-input);
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.named-picker-control input:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+  border-color: var(--focus);
+}
+
+.named-picker-control input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--surface-2);
+}
+
+/* The listbox overlay: positioned below the input, bounded, scrollable. */
+.named-picker-listbox {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 22rem;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-input);
+  box-shadow: var(--shadow-card);
+}
+
+.named-picker-option {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--ink);
+  cursor: pointer;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.named-picker-option:last-child {
+  border-bottom: none;
+}
+
+.named-picker-option:hover {
+  background: var(--row-hover);
+}
+
+.named-picker-option.active {
+  background: var(--tint-accent);
+}
+
+.named-picker-option[aria-selected="true"] {
+  font-weight: 600;
+}
+
+/* Meta row: loading status, no-results, Load more. */
+.named-picker-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.4rem;
+}
+
+.named-picker-status {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+/* US3 (T034): the stable aria-live region is visually hidden — it carries the
+   localized announcement for screen readers; the inline .named-picker-status
+   spans handle the visible state text. */
+.named-picker-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.named-picker-loadmore {
+  font-size: 0.85rem;
+  color: var(--link);
+  padding: 0.15rem 0.4rem;
+}
+
+.named-picker-loadmore:hover:not(:disabled) {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+/* Trigger button: the page-owned button that opens the picker. Uses the same
+   metrics as form inputs so it aligns with neighboring date/text fields.
+   The button.named-picker-trigger selectors below are the load-bearing ones:
+   pages give the trigger the shared `link` class, and `button.link`
+   (element+class, (0,1,1)) outranks bare `.named-picker-trigger` ((0,1,0)) —
+   without the element-qualified override the link's padding/font-size win
+   and the trigger's box comes out 12px shorter than its adjacent inputs, so
+   the form-grid's bottom alignment leaves its top edge sitting low. */
+button.named-picker-trigger {
+  /* The adjacent inputs sit inside <label> wrappers that set font-weight 500
+     (see the form-label rule); matching 500 keeps the trigger's line box —
+     and therefore its total height — identical, or the form-grid's bottom
+     alignment leaves a 2px top-edge drift at the same padding/border.
+     line-height: a native <input>'s normal line box is taller than a
+     <button>'s at identical font/padding/border (Chromium measures 40.59 vs
+     38.59px total); 1.35 (20.52px at .95rem) restores the input's line box
+     so the form-grid's bottom alignment lines the tops up within 1px. */
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+button.named-picker-trigger:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--link);
+  text-decoration: none;
+}
+
+button.named-picker-trigger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* The picker root matches form-grid's min-width (8rem) so the picker
+   trigger aligns with adjacent <label> + <input> pairs at all widths.
+   flex-basis 15rem (the open combobox's natural width) makes the CLOSED and
+   OPEN states occupy the same slot: the closed trigger is width:100% of the
+   wrapper, and without a fixed basis the open input's intrinsic sizing grows
+   the flex item (~128px → ~243px on History), shifting every sibling field.
+   max-width:100% + the explicit 8rem minimum keep it responsive (shrinks to
+   the floor on phones, never overflows); an explicit min-width also defeats
+   the input's auto intrinsic minimum. */
+.form-grid .named-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 0 1 15rem;
+  width: 15rem;
+  min-width: 8rem;
+  max-width: 100%;
+}
+
+/* Clear button (optional pickers only). */
+.named-picker-clear {
+  font-size: 0.82rem;
+  color: var(--muted);
+  padding: 0.1rem 0.3rem;
+}
+
+.named-picker-clear:hover:not(:disabled) {
+  color: var(--danger);
+  text-decoration: underline;
+}
+
+/* Disabled: the whole picker dims and is non-interactive. */
+.named-picker.disabled {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Narrow viewport: the listbox takes full width, options get a larger touch
+   target. */
+@media (max-width: 900px) {
+  .named-picker-listbox {
+    max-height: 18rem;
+  }
+
+  .named-picker-option {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.95rem;
+  }
+}

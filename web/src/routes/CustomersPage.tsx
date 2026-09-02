@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 import { Pencil, Plus } from "lucide-react";
 import {
   createCustomer, formatMoney, listCustomerBalances, listCustomers, updateCustomer,
@@ -43,7 +44,12 @@ export function CustomersPage() {
 
   // Balances are money data (#89): the column renders for admins only and the
   // API refuses workers regardless.
-  const { isAdmin } = useAuth();
+  const { isAdmin, role } = useAuth();
+  // #512 US5 (T058, FR-045) — customer names link into URL-filtered Sales,
+  // but only for a role that can actually SEE Sales (the same gate
+  // Dashboard's recent-sales panel already uses) — a ReadOnly/Denied user
+  // would just hit a 403, so their row stays plain text.
+  const canSeeSales = role !== "ReadOnly" && role !== "Denied";
   // #511 — the customer book is server-paged and unbounded; rendering one page
   // with no pager silently hid every alphabetically later customer. The empty
   // dep array is load-bearing: this list has no filter, so `fetchPage` keeps
@@ -340,7 +346,11 @@ export function CustomersPage() {
           <tbody>
             {customers.map((c) => (
               <tr key={c.id}>
-                <td>{c.name}</td>
+                <td>
+                  {canSeeSales
+                    ? <Link className="link" to={`/sales?customerId=${c.id}`}>{c.name}</Link>
+                    : c.name}
+                </td>
                 <td>{c.phone}</td>
                 <td>{c.email ?? "—"}</td>
                 <td>{c.address ?? "—"}</td>

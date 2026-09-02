@@ -20,7 +20,9 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     listCustomerBalances: vi.fn(),
     createCustomer: vi.fn(),
     updateCustomer: vi.fn(),
-  };
+    getFlock: vi.fn(),
+  getCustomer: vi.fn(),
+};
 });
 
 const mockList = vi.mocked(listCustomers);
@@ -65,6 +67,32 @@ describe("CustomersPage list", () => {
     mockList.mockResolvedValue([]);
     renderWithProviders(<CustomersPage />, { token: WORKER });
     expect(await screen.findByText(/No customers yet/)).toBeInTheDocument();
+  });
+});
+
+// #512 US5 (T056/T058, FR-045) — customer names link into URL-filtered
+// Sales by canonical id, but only for a role authorized to see Sales.
+describe("CustomersPage customer-name links (#512 US5)", () => {
+  it("links each customer's name to /sales?customerId=<canonical-id> for an authorized role", async () => {
+    renderWithProviders(<CustomersPage />, { token: WORKER });
+    const rowC1 = await screen.findByRole("row", { name: /Acme Eggs/ });
+    expect(within(rowC1).getByRole("link", { name: "Acme Eggs" }))
+      .toHaveAttribute("href", "/sales?customerId=c1");
+    const rowC2 = screen.getByRole("row", { name: /Bravo Co/ });
+    expect(within(rowC2).getByRole("link", { name: "Bravo Co" }))
+      .toHaveAttribute("href", "/sales?customerId=c2");
+  });
+
+  it("shows plain text, never a link, for a role that cannot see Sales (ReadOnly)", async () => {
+    renderWithProviders(<CustomersPage />, { token: { sub: "u1", role: "ReadOnly" } });
+    await screen.findByText("Acme Eggs");
+    expect(screen.queryByRole("link", { name: "Acme Eggs" })).not.toBeInTheDocument();
+  });
+
+  it("shows plain text, never a link, for Denied", async () => {
+    renderWithProviders(<CustomersPage />, { token: { sub: "u1", role: "Denied" } });
+    await screen.findByText("Acme Eggs");
+    expect(screen.queryByRole("link", { name: "Acme Eggs" })).not.toBeInTheDocument();
   });
 });
 

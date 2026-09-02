@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act } from "@testing-library/react";
+import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { HistoryPage } from "./HistoryPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
@@ -22,6 +22,8 @@ vi.mock("../api/cluckwork", () => ({
   getDailyEntry: vi.fn(),
   adjustDailyEntry: vi.fn(),
   voidDailyEntry: vi.fn(),
+  getFlock: vi.fn(),
+  getCustomer: vi.fn(),
 }));
 
 const mockListFlocks = vi.mocked(listFlocks);
@@ -47,9 +49,14 @@ const SUBMITTED: DailyEntry = {
   totalEggs: 100, crackedEggs: 2, dirtyEggs: 3, discardedEggs: 5, mortalityCount: 1, crackedGradeId: null, dirtyGradeId: null,
   grades: [{ eggGradeId: "gr1", quantity: 40 }, { eggGradeId: "gr2", quantity: 20 }],
   version: 1, adjustReason: null, voidReason: null, lockedAtUtc: null, adjustedFrom: null,
+  // #512 US4 (T045) — the row-owned identity the endpoint's scoped bulk read
+  // resolves; rows render this, never the picker's capped `flocks` list.
+  flockName: "Hen House 1", flockStatus: "Active",
 };
 const DRAFT: DailyEntry = { ...SUBMITTED, id: "de2", date: "2026-07-18", status: "Draft", grades: [] };
-const DRAFT_ARCHIVED: DailyEntry = { ...DRAFT, id: "de3", flockId: "f2" };
+const DRAFT_ARCHIVED: DailyEntry = {
+  ...DRAFT, id: "de3", flockId: "f2", flockName: "Old Coop", flockStatus: "Archived",
+};
 // The three statusCell states that carry their own bespoke badge + tooltip
 // (#182, Task 27) — a DISTINCT vocabulary from the shared enums:status family.
 const VOIDED: DailyEntry = { ...SUBMITTED, id: "de4", status: "Voided", voidReason: "spoiled" };
@@ -680,6 +687,16 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
 });
 
 describe("HistoryPage draft edit link", () => {
+  it("falls back to the loaded catalog name when an older server omits flockName", async () => {
+    mockListFlocks.mockResolvedValue([FLOCK]);
+    mockListDailyEntries.mockResolvedValue([{ ...DRAFT, flockName: undefined }]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /2026-07-18/ });
+    expect(within(row).getByText("Hen House 1")).toBeInTheDocument();
+    expect(within(row).queryByText(i18n.t("history:rowFlockUnavailable"))).not.toBeInTheDocument();
+  });
+
   it("links a draft row to the Daily entry screen with its flock and date in the query", async () => {
     mockListDailyEntries.mockResolvedValue([DRAFT]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
@@ -693,11 +710,43 @@ describe("HistoryPage draft edit link", () => {
     mockListDailyEntries.mockResolvedValue([DRAFT_ARCHIVED]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
 
-    // Wait for BOTH the row AND the flock metadata (the filter lists "Old Coop")
-    // so the missing link reflects the archived status — not an unrendered row or
-    // an unresolved flock (codex review of PR #122 / #86).
+    // Wait for BOTH the row AND its flock metadata (the row's own name cell
+    // resolves "Old Coop") so the missing link reflects the archived status
+    // — not an unrendered row or an unresolved flock (codex review of
+    // PR #122 / #86).
+    // #512 — the filter is a FlockPicker, not a native select: the archived
+    // flock is no longer a visible <option>; the row's own name cell proves
+    // the metadata landed.
     await screen.findByText("2026-07-18");
-    await screen.findByRole("option", { name: "Old Coop" });
+    await waitFor(() =>
+      expect(screen.getAllByText("Old Coop").length).toBeGreaterThan(0));
+    expect(screen.queryByRole("link", { name: "edit" })).not.toBeInTheDocument();
+  });
+
+  // #512 US4 (T043/T051, page-adoption.md: "editability uses row
+  // flockStatus") — the row's OWN flockStatus is authoritative, not the
+  // page's capped `flocks` catalog. The catalog either doesn't carry this
+  // id at all (a genuinely Active flock outside the 500-row window) or
+  // could disagree with the row's live snapshot; either way the row wins.
+  it("offers the edit link for a flock the capped catalog doesn't carry at all, when the ROW's own flockStatus says Active", async () => {
+    // The catalog omits f1 entirely — under the OLD catalog-only check,
+    // `flocks.find` would return undefined and silently hide a valid link.
+    mockListFlocks.mockResolvedValue([]);
+    mockListDailyEntries.mockResolvedValue([DRAFT]); // flockStatus: "Active" (inherited from SUBMITTED)
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    const link = await screen.findByRole("link", { name: "edit" });
+    expect(link).toHaveAttribute("href", "/daily-entry?flockId=f1&date=2026-07-18");
+  });
+
+  it("omits the edit link when the ROW's own flockStatus says Archived, even though the catalog still shows it Active", async () => {
+    // The catalog is STALE (still Active) — the row's own live snapshot
+    // must win, never the catalog.
+    mockListFlocks.mockResolvedValue([FLOCK]); // f1, status "Active"
+    mockListDailyEntries.mockResolvedValue([{ ...DRAFT, flockStatus: "Archived" }]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    await screen.findByText("2026-07-18");
     expect(screen.queryByRole("link", { name: "edit" })).not.toBeInTheDocument();
   });
 });

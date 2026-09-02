@@ -295,6 +295,27 @@ export const en = {
     reloading: "Reloading…",
     later: "Later",
   },
+  // #512 — the shared named-entity picker (flocks and customers). Only the
+  // picker-OWNED strings live here; the label and any page-specific
+  // unavailable explanation stay in the page's namespace (picker-ui.md).
+  namedEntityPicker: {
+    loadMore: "Load more",
+    loading: "Loading…",
+    noResults: "No matches found",
+    clear: "Clear",
+    // #512 T038 — the picker-owned unavailable explanation: a page-named
+    // identity its exact read (GET) could not resolve. The picker renders
+    // this beside the label + Retry; pages never show a raw ID for it.
+    unavailableExplanation: "This record is no longer available.",
+    // #512 US3 — recovery and state announcements (picker-ui.md). The
+    // unavailable EXPLANATION stays page-specific; these are the picker-owned
+    // labels and live-region announcements.
+    retry: "Retry",
+    unavailable: "Unavailable",
+    searchFailed: "Search failed",
+    loadMoreFailed: "Load more failed",
+    results: "{{count}} results",
+  },
   // The post-login splash (#179) — shown once per sign-in when the farm has a
   // banner set, before the authenticated shell.
   splash: {
@@ -392,6 +413,19 @@ export const en = {
 
     // Misc UI text
     addCustomerFirst: "Add a customer first (Customers page), then create an order.",
+    // #512 (T039) — the new-order CustomerPicker trigger's placeholder while
+    // no customer is committed yet (the dialog is gated on customers.length,
+    // so this only shows before the first-customer default's controlled
+    // generation lands, or after a clear).
+    pickCustomerOption: "— pick a customer —",
+    // #512 US4 (T048/T052) — an order row's own customerName came back null
+    // (the customer left the caller's tenant scope between reads). Never a
+    // raw id or a substituted catalog match.
+    rowCustomerUnavailable: "This customer is no longer available.",
+    // #512 US5 (T057, FR-049) — a well-formed `customerId` in the URL whose
+    // exact read failed (missing or inaccessible). Never a raw id, never
+    // rewritten to All; the picker's own Retry/Clear recover it.
+    filterCustomerUnavailable: "This customer is no longer available.",
     // #612 — persistent and generic on purpose: never names a flock, grade,
     // or quantity, since a restricted Worker cannot see farm-wide stock. This
     // notice only shows when AllFarmFlocks is on for a restricted Worker, so
@@ -466,6 +500,8 @@ export const en = {
     // Flock + date context row
     flockLabel: "Flock",
     noFlocksYetOption: "— no flocks yet —",
+    // #512 — the FlockPicker's closed-state trigger before a default lands.
+    selectFlockOption: "Select a flock",
     depletedFlockSuffix: " — depleted, backfill only",
     dateLabel: "Date",
     newFlockButton: "+ new flock",
@@ -610,6 +646,10 @@ export const en = {
     refHeader: "Ref",
     customerHeader: "Customer",
     totalHeader: "Total",
+    // #512 US4 (T048/T052) — an order row's own customerName came back null
+    // (the customer left the caller's tenant scope between reads). Never a
+    // raw id or a substituted catalog match.
+    rowCustomerUnavailable: "This customer is no longer available.",
   },
   // Water usage capture + correction screen (Task 13, #182, batch B2).
   // `water` is in TRANSLATED_NAMESPACES, same treatment as
@@ -638,6 +678,8 @@ export const en = {
 
     // Capture form labels
     flockLabel: "Flock",
+    // #512 — the FlockPicker's closed-state trigger before a default lands.
+    selectFlockOption: "Select a flock",
     depletedFlockSuffix: " — depleted, backfill only",
     itemLabel: "Item",
     // {{onHand}} is the item's current stock in {{unit}} — visible before
@@ -664,6 +706,16 @@ export const en = {
 
     // Records list — filters
     filterFlockLabel: "Filter by flock",
+    // #512 T038 — the row-owned identity the records list was filtered on
+    // (URL deep link) could not be resolved by its exact read. The filter is
+    // held EXACT (never substituted with another flock); retry re-issues the
+    // GET only.
+    filterFlockUnavailable:
+      "The recorded flock for these records is no longer available.",
+    // #512 US4 (T046/T051) — a RECORD row's own flockName came back null
+    // (the flock left the caller's tenant/flock scope between reads).
+    // Row-owned, independent of the filter's own unavailable state above.
+    rowFlockUnavailable: "This flock is no longer available.",
     inactiveItemSuffix: " — inactive, feeding out remaining stock",
     inactiveEmptyItemSuffix: " — inactive, no stock left",
     recordsHeading: "Records",
@@ -697,6 +749,8 @@ export const en = {
 
     // Capture form labels
     flockLabel: "Flock",
+    // #512 — the FlockPicker's closed-state trigger before a default lands.
+    selectFlockOption: "Select a flock",
     depletedFlockSuffix: " — depleted, backfill only",
     dateLabel: "Date",
     sourceLabel: "Source",
@@ -723,6 +777,17 @@ export const en = {
     recordCorrectedMessage: "Water record corrected.",
 
     // Records list — filters
+    filterFlockLabel: "Filter by flock",
+    // #512 T037 — the row-owned identity the records list was filtered on
+    // (URL deep link) could not be resolved by its exact read. The filter is
+    // held EXACT (never substituted with another flock); retry re-issues the
+    // GET only.
+    filterFlockUnavailable:
+      "The recorded flock for these records is no longer available.",
+    // #512 US4 (T046/T051) — a RECORD row's own flockName came back null
+    // (the flock left the caller's tenant/flock scope between reads).
+    // Row-owned, independent of the filter's own unavailable state above.
+    rowFlockUnavailable: "This flock is no longer available.",
     recordsHeading: "Records",
     fromLabel: "From",
     toLabel: "To",
@@ -1463,6 +1528,10 @@ export const en = {
     noAssignmentsMessage: "No assignments — account-wide access.",
     removeAssignmentButton: "remove",
     assignFlockButton: "Assign flock",
+    flockLabel: "Flock",
+    // #512 — the assignment picker is a FlockPicker: the closed trigger shows
+    // this until a flock is committed (or the blank = account-wide default).
+    selectFlockOption: "Select a flock",
     doneButton: "Done",
     // #612 — a promoted user keeps their rows, but only a plain Worker is
     // ever narrowed by them: the retained rows below are inert until (or
@@ -1472,6 +1541,12 @@ export const en = {
       + "assignments have no effect on their access. They can still be removed.",
     inactiveAssignmentLabel: "inactive",
     assignmentsWorkerOnlyHint: "Flock assignments only apply to a plain Worker.",
+    // #512 US4 (T051) — an assignment row's own two states: a deliberate
+    // `flockId === null` (account-wide) choice, versus a non-null flockId
+    // whose row-owned name came back null (the flock left the caller's
+    // scope between reads). Never a raw id fragment.
+    farmWideAssignmentLabel: "farm-wide",
+    assignmentFlockUnavailable: "This flock is no longer available.",
 
     // Edit-user dialog. {{email}} is DATA.
     editUserTitle: "Edit user — {{email}}",
@@ -1615,6 +1690,10 @@ export const en = {
     amountLabel: "Amount ({{code}})",
     flockOptionalLabel: "Flock (optional)", // shared by the add and edit forms
     noneOption: "— none —",
+    // #512 T038 — the correction's row-owned flock could not be resolved by
+    // its exact read. The value is held EXACT (never substituted with
+    // another flock); retry re-issues the GET only.
+    flockUnavailable: "This expense's flock is no longer available.",
     noteOptionalLabel: "Note (optional)", // shared by the add and edit forms
     recordExpenseButton: "Record expense",
     addCategoryFirstMessage: "Add a category first — every expense needs one.",
@@ -1779,6 +1858,10 @@ export const en = {
     allFlocksOption: "All flocks",
     fromLabel: "From",
     toLabel: "To",
+    // #512 US4 (T045/T051) — a row's OWN flockName came back null (the flock
+    // left the caller's tenant/flock scope between reads). Never a raw id or
+    // a substituted catalog match.
+    rowFlockUnavailable: "This flock is no longer available.",
 
     // Adjust dialog — title (two shapes: an entry bound vs. the fallback
     // before one is), the "previously adjusted" recap, and the form.
@@ -2263,6 +2346,18 @@ export const en = {
       + "— a list that would not load, say — it appears on the screen behind. So a form that refuses to save "
       + "always tells you why without closing. Closing the form drops its message: that attempt is over, and "
       + "anything the screen itself reported stays put.",
+    // #512 — the shared searchable pickers (flock/customer name fields). The
+    // three highlighted words (Load more, Retry, Unavailable) are the
+    // picker's OWN catalog vocabulary (namedEntityPicker) — quoted here, not
+    // paraphrased, so this guidance can never drift from what the control
+    // actually says.
+    gettingAroundSearchablePicker:
+      "Flock and customer name fields are <strong>searchable pickers</strong>: type to search, use the arrow "
+      + "keys or a pointer to look through results, and press <strong>Enter</strong> or click a result to pick "
+      + "it. Typing just explores — your previous choice stays in effect until you pick a new one or press "
+      + "<strong>Escape</strong> to cancel. A long list shows <strong>Load more</strong>; a search or Load "
+      + "more that fails shows <strong>Retry</strong>. If a remembered or linked name can no longer be found, "
+      + "the field shows <strong>Unavailable</strong> with Retry.",
 
     // Signing in
     signingInHeading: "Signing in",
@@ -2586,6 +2681,10 @@ export const en = {
     salesCustomerEdit:
       "A customer's details (name, phone, email, address, note) can be edited at any time from the "
       + "Customers page.",
+    // #512 US5 — the Customers page and dashboard customer-name links.
+    salesCustomerLink:
+      "A customer's name on the Customers page and on the dashboard is a link into Sales, filtered to "
+      + "that customer's orders.",
     salesDrafts:
       "Orders start as <strong>drafts</strong>: add lines by picking a <strong>product</strong>, a packed "
       + "unit (dozen, carton, …), a whole-number quantity, and a price per unit (prefilled from the "
@@ -2926,6 +3025,16 @@ export const en = {
     glossaryPageLoadingTerm: "Page loading",
     glossaryPageLoadingDef:
       "The brief message shown while Cluckwork opens a screen that has not loaded yet. Navigation remains available, and the message disappears when the screen is ready.",
+
+    // #512 — quotes the picker's own catalog vocabulary (namedEntityPicker),
+    // not a paraphrase, for the same reason as gettingAroundSearchablePicker.
+    glossarySearchablePickerTerm: "Searchable picker",
+    glossarySearchablePickerDef:
+      "The type-to-search control used for flock and customer name fields. Typing explores results without "
+      + "changing your current choice; press <strong>Enter</strong> or click a result to pick it, or "
+      + "<strong>Escape</strong> to cancel and keep the previous choice. <strong>Load more</strong> fetches "
+      + "further results, and <strong>Retry</strong> repeats a failed search or Load more. A remembered or "
+      + "linked name that can no longer be found shows as <strong>Unavailable</strong>.",
 
     glossaryOperationalDayTerm: "Operational day",
     glossaryOperationalDayDef:

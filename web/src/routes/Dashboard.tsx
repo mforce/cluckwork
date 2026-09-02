@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  formatMoney, getStock, listCustomers, listDailyEntries, listFlocks, listOrders,
+  formatMoney, getStock, listDailyEntries, listFlocks, listOrders,
 } from "../api/cluckwork";
-import type { Customer, DailyEntry, Flock, SalesOrder, StockRow } from "../api/cluckwork";
+import type { DailyEntry, Flock, SalesOrder, StockRow } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../auth/useAuth";
@@ -33,7 +33,6 @@ export function Dashboard() {
   const [entries, setEntries] = useState<DailyEntry[] | null>(null);
   const [stock, setStock] = useState<StockRow[] | null>(null);
   const [orders, setOrders] = useState<SalesOrder[] | null>(null);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,16 +48,18 @@ export function Dashboard() {
       listDailyEntries({ from: today, to: today, limit: MAX_PAGE }),
       getStock(),
       canSeeSales ? listOrders({ limit: RECENT_ORDERS }) : Promise.resolve<SalesOrder[]>([]),
-      canSeeSales ? listCustomers({ limit: MAX_PAGE }) : Promise.resolve<Customer[]>([]),
-    ]).then(([f, e, s, o, c]) => {
+    ]).then(([f, e, s, o]) => {
       if (f.status === "fulfilled") setFlocks(f.value);
       if (e.status === "fulfilled") setEntries(e.value);
       if (s.status === "fulfilled") setStock(s.value);
       if (o.status === "fulfilled") setOrders(o.value);
-      if (c.status === "fulfilled") setCustomers(c.value);
+      // #512 US5 (T058) — recent-sales rows render their OWN row-owned
+      // `customerName` (see rowCustomerName below); the 500-customer catalog
+      // fetch that used to name them is gone (page-adoption.md: "Dashboard no
+      // longer loads a 500-customer catalog solely to name Sales rows").
       // Only the fetches we actually issued count toward "everything failed":
-      // the two sales reads are inert placeholders when the role can't see them.
-      const issued = canSeeSales ? [f, e, s, o, c] : [f, e, s];
+      // the sales read is an inert placeholder when the role can't see it.
+      const issued = canSeeSales ? [f, e, s, o] : [f, e, s];
       if (issued.every((r) => r.status === "rejected")) {
         const reason = (issued[0] as PromiseRejectedResult).reason;
         setError(reason instanceof ApiError ? reason.message : i18n.t("dashboard:loadFailed"));
@@ -71,8 +72,14 @@ export function Dashboard() {
   // the flock's entry — a day with only voided rows counts as "no entry yet".
   const entryFor = (flockId: string) =>
     entries?.find((e) => e.flockId === flockId && e.status !== "Voided");
-  const customerName = (id: string) =>
-    customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
+  // #512 US4 (T048/T052) — a recent-sales row's own name, independent of the
+  // 500-customer catalog fetch below (that fetch's removal is US5/T056):
+  // the row-owned `customerName` the endpoint's scoped bulk read already
+  // resolved, or the translated unavailable label. Never an id fragment
+  // (contracts/http-api.md: "Required names are never replaced with
+  // identifier fragments").
+  const rowCustomerName = (o: { customerName?: string | null }) =>
+    o.customerName ?? t("rowCustomerUnavailable");
   // "no entry" is a missed-capture flag — only meaningful for active flocks.
   // Depleted/archived flocks stay visible only if they do have an entry today.
   const visibleFlocks = (flocks ?? []).filter((f) => f.status === "Active" || entryFor(f.id));
@@ -178,7 +185,15 @@ export function Dashboard() {
                 {orders.map((o) => (
                   <tr key={o.id}>
                     <td>{o.referenceNumber}</td>
-                    <td>{customerName(o.customerId)}</td>
+                    <td>
+                      {/* #512 US5 (T058, FR-045) — authorized (canSeeSales,
+                          the gate this whole panel is already behind) link
+                          into URL-filtered Sales by canonical id; the name
+                          itself is always row-owned (rowCustomerName). */}
+                      <Link className="link" to={`/sales?customerId=${o.customerId}`}>
+                        {rowCustomerName(o)}
+                      </Link>
+                    </td>
                     <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
                     <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   </tr>

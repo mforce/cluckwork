@@ -246,6 +246,19 @@ export const tl = {
     reloading: "Nire-reload…",
     later: "Mamaya",
   },
+  namedEntityPicker: {
+    loadMore: "Mag-load ng higit pa",
+    loading: "Naglo-load…",
+    noResults: "Walang natagpuang tugma",
+    clear: "Burahin",
+    // #512 US3 — pag-recover at mga announcement ng estado (picker-ui.md).
+    retry: "Subukan ulit",
+    unavailable: "Hindi available",
+    unavailableExplanation: "Hindi na available ang record na ito.",
+    searchFailed: "Hindi nakamag-search",
+    loadMoreFailed: "Hindi nakama-load ng higit pa",
+    results: "{{count}} resulta",
+  },
   splash: {
     continue: "Magpatuloy",
     bannerAlt: "Banner ng {{farmName}}",
@@ -338,6 +351,10 @@ export const tl = {
 
     // Misc UI text
     addCustomerFirst: "Magdagdag muna ng customer (Customers page), pagkatapos gumawa ng order.",
+    // #512 (T039)
+    pickCustomerOption: "— pumili ng customer —",
+    rowCustomerUnavailable: "Hindi na available ang customer na ito.",
+    filterCustomerUnavailable: "Hindi na available ang customer na ito.",
     // #612
     farmWideAllocationNotice:
       "Pinapayagan ng setting na ito ng bukid na kumuha ng stock ang iyong "
@@ -409,6 +426,8 @@ export const tl = {
     // Flock + date context row
     flockLabel: "Kawan",
     noFlocksYetOption: "— wala pang kawan —",
+    // #512 — pisked trigger ng FlockPicker bago ang default value.
+    selectFlockOption: "Pumili ng kawan",
     depletedFlockSuffix: " — naubos, para sa pagtatala ng lumang petsa lang",
     dateLabel: "Petsa",
     newFlockButton: "+ bagong kawan",
@@ -542,6 +561,7 @@ export const tl = {
     refHeader: "Ref.",
     customerHeader: "Customer",
     totalHeader: "Kabuuan",
+    rowCustomerUnavailable: "Hindi na available ang customer na ito.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
@@ -559,6 +579,8 @@ export const tl = {
       "Itala kung ano ang ipinakain sa bawat kawan. Ang stock ay kinukuha muna "
       + "mula sa pinakalumang mga binili at ang tantiyang gastos ay mula sa mga lot na iyon.",
     flockLabel: "Kawan",
+    // #512 — pisked trigger ng FlockPicker bago ang default value.
+    selectFlockOption: "Pumili ng kawan",
     depletedFlockSuffix: " — ubos na, backfill lamang",
     itemLabel: "Item",
     itemOption: "{{name}} ({{onHand}} {{unit}} na natitira)",
@@ -573,6 +595,11 @@ export const tl = {
       "Ang maling naitalang pagpapakain ay itinutuwid sa pamamagitan ng Inventory "
       + "adjustment sa apektadong lot — hindi kailanman ine-edit ang mga tala ng pakain.",
     filterFlockLabel: "Salain ayon sa kawan",
+    // #512 T038 — hindi na maibasa ang id ng fila; nananatili ang EXACT na
+    // filter (hindi papalitan) at ang retry ay naga-redo lang ng GET.
+    filterFlockUnavailable:
+      "Hindi na available ang kawan na nakarecord sa mga rekord na ito.",
+    rowFlockUnavailable: "Hindi na available ang kawan na ito.",
     inactiveItemSuffix: " — hindi aktibo, inuubos ang natitirang stock",
     inactiveEmptyItemSuffix: " — hindi aktibo, wala nang stock",
     recordsHeading: "Mga tala",
@@ -604,6 +631,7 @@ export const tl = {
 
     // Capture form labels
     flockLabel: "Kawan",
+    selectFlockOption: "Pumili ng kawan",
     depletedFlockSuffix: " — naubos, para sa pagtatala ng lumang petsa lang",
     dateLabel: "Petsa",
     sourceLabel: "Pinagmulan",
@@ -628,6 +656,10 @@ export const tl = {
     recordCorrectedMessage: "Naitama ang tala ng tubig.",
 
     // Records list — filters
+    filterFlockLabel: "Salain ayon sa kawan",
+    filterFlockUnavailable:
+      "Ang kalahi na kawan sa mga tala na ito ay hindi na available.",
+    rowFlockUnavailable: "Hindi na available ang kawan na ito.",
     recordsHeading: "Mga Tala",
     fromLabel: "Mula",
     toLabel: "Hanggang",
@@ -1235,6 +1267,8 @@ export const tl = {
     noAssignmentsMessage: "Walang assignment — access sa buong account.",
     removeAssignmentButton: "alisin",
     assignFlockButton: "Mag-assign ng kawan",
+    flockLabel: "Kawan",
+    selectFlockOption: "Pumili ng kawan",
     doneButton: "Tapos na",
     // #612
     retainedAssignmentsHint:
@@ -1242,6 +1276,8 @@ export const tl = {
       + "nakatalagang kawan na ito sa kanyang access. Puwede pa rin itong alisin.",
     inactiveAssignmentLabel: "inactive",
     assignmentsWorkerOnlyHint: "Ang pag-assign ng kawan ay para lang sa plain Worker.",
+    farmWideAssignmentLabel: "buong sakahan",
+    assignmentFlockUnavailable: "Hindi na available ang kawan na ito.",
 
     // Edit-user dialog
     editUserTitle: "I-edit ang user — {{email}}",
@@ -1346,6 +1382,9 @@ export const tl = {
     amountLabel: "Halaga ({{code}})",
     flockOptionalLabel: "Kawan (opsyonal)",
     noneOption: "— wala —",
+    // #512 T038 — the row-owned flock's exact read failed (machine draft,
+    // pending native review).
+    flockUnavailable: "Hindi na available ang kawan ng gastos na ito.",
     noteOptionalLabel: "Tala (opsyonal)",
     recordExpenseButton: "Itala ang gastos",
     addCategoryFirstMessage: "Magdagdag muna ng kategorya — kailangan nito ng bawat gastos.",
@@ -1450,6 +1489,7 @@ export const tl = {
     allFlocksOption: "Lahat ng kawan",
     fromLabel: "Mula",
     toLabel: "Hanggang",
+    rowFlockUnavailable: "Hindi na available ang kawan na ito.",
 
     // Adjust dialog
     adjustDialogTitle: "I-adjust ang entry",
@@ -1869,6 +1909,15 @@ export const tl = {
       + "ito sa screen sa likod. Kaya't ang isang form na ayaw mag-save ay laging nagsasabi kung bakit nang "
       + "hindi nagsasara. Kapag isinara mo ang form, nawawala ang mensahe nito: tapos na ang pagsubok na iyon, "
       + "at nananatili ang anumang iniulat ng screen mismo.",
+    gettingAroundSearchablePicker:
+      "<strong>Picker na may search</strong> ang mga field ng pangalan ng kawan at customer: mag-type para mag-search, gamitin "
+      + "ang arrow keys o pointer para tingnan ang mga resulta, at pindutin ang <strong>Enter</strong> o "
+      + "i-click ang isang resulta para piliin ito. Ang pag-type ay nag-e-explore lamang — nananatili ang "
+      + "dati mong napili hangga't wala kang bagong pinili o pinindot mo ang <strong>Escape</strong> para "
+      + "kanselahin. Ipinapakita ng mahabang listahan ang <strong>Mag-load ng higit pa</strong>; ipinapakita "
+      + "ng <strong>Subukan ulit</strong> ang isang search o load-more na nabigo. Kapag hindi na mahanap ang "
+      + "naalala o naka-link na pangalan, ipinapakita ng field ang <strong>Hindi available</strong> kasama "
+      + "ang Subukan ulit.",
 
     signingInHeading: "Pag-sign in",
     signingInBasic:
@@ -2221,6 +2270,9 @@ export const tl = {
     salesCustomerEdit:
       "Puwedeng i-edit anumang oras ang detalye ng customer (pangalan, telepono, email, address, tala) "
       + "mula sa Customers page.",
+    salesCustomerLink:
+      "Ang pangalan ng customer sa Customers page at sa dashboard ay isang link papunta sa Sales, "
+      + "naka-filter sa mga order ng customer na iyon.",
     salesDrafts:
       "Nagsisimula ang mga order bilang <strong>draft</strong>: magdagdag ng linya sa pamamagitan ng "
       + "pagpili ng <strong>produkto</strong>, isang packed unit (dosena, karton, …), isang buong bilang "
@@ -2575,6 +2627,16 @@ export const tl = {
     glossaryPageLoadingTerm: "Pag-load ng page",
     glossaryPageLoadingDef:
       "Ang maikling mensaheng ipinapakita habang binubuksan ng Cluckwork ang isang screen na hindi pa nalo-load. Magagamit pa rin ang navigation, at nawawala ang mensahe kapag handa na ang screen.",
+
+    glossarySearchablePickerTerm: "Picker na may search",
+    glossarySearchablePickerDef:
+      "Ang search-habang-nagta-type na control na ginagamit sa mga field ng pangalan ng kawan at customer. "
+      + "Ang pag-type ay nag-e-explore ng mga resulta nang hindi binabago ang kasalukuyan mong napili; "
+      + "pindutin ang <strong>Enter</strong> o i-click ang isang resulta para piliin ito, o "
+      + "<strong>Escape</strong> para kanselahin at panatilihin ang dating napili. Kumukuha ng karagdagang "
+      + "resulta ang <strong>Mag-load ng higit pa</strong>, at inuulit ng <strong>Subukan ulit</strong> ang "
+      + "isang search o load-more na nabigo. Ang naalala o naka-link na pangalang hindi na mahanap ay "
+      + "ipinapakita bilang <strong>Hindi available</strong>.",
 
     glossaryOperationalDayTerm: "Araw ng operasyon",
     glossaryOperationalDayDef:

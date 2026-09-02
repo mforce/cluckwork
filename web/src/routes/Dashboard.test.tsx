@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { Dashboard } from "./Dashboard";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
@@ -19,7 +19,9 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     getStock: vi.fn(),
     listOrders: vi.fn(),
     listCustomers: vi.fn(),
-  };
+    getFlock: vi.fn(),
+  getCustomer: vi.fn(),
+};
 });
 
 const mockFlocks = vi.mocked(listFlocks);
@@ -81,6 +83,50 @@ describe("Dashboard stat cards", () => {
 
 // #127 — the customer/sales reads now 403 for ReadOnly; the dashboard must not
 // fetch them or render the sales panel (it would blank with an error otherwise).
+// #512 US4 (T043/T052) — a recent-sales row's own customerName is null (the
+// customer left the caller's tenant scope between reads), even though the
+// SAME id is present in the page's own customer catalog fetch under a
+// DIFFERENT-looking name. The row must show the translated unavailable
+// label, never that catalog substitution and never a raw id fragment.
+describe("Dashboard recent sales row-owned customer name (#512 US4)", () => {
+  const order = (id: string, ref: string, customerName: string | null): SalesOrder => ({
+    ...NO_RECORD_HISTORY, id, customerId: "c1", customerName, referenceNumber: ref,
+    orderDate: "2026-07-21", status: "Draft", totalMinorUnits: 1000, currencyCode: "USD",
+    currencyMinorUnit: 2, voidReason: null, items: [],
+  });
+
+  it("a row whose own customerName is null shows the translated unavailable label — never the catalog's name for that id, never an id fragment", async () => {
+    mockOrders.mockResolvedValue([order("o-gone", "SO-1", null)]);
+    mockCustomers.mockResolvedValue([{ id: "c1", name: "Acme Eggs", phone: "", email: null, address: null, note: null, version: 1 }]);
+    renderWithProviders(<Dashboard />);
+
+    const row = await screen.findByRole("row", { name: /SO-1/ });
+    expect(within(row).getByText(i18n.t("dashboard:rowCustomerUnavailable"))).toBeInTheDocument();
+    expect(within(row).queryByText("Acme Eggs")).not.toBeInTheDocument();
+    expect(within(row).queryByText("c1")).not.toBeInTheDocument();
+  });
+
+  it("a row's own customerName renders directly — no catalog lookup needed", async () => {
+    mockOrders.mockResolvedValue([order("o-1", "SO-2", "Row-Owned Name")]);
+    mockCustomers.mockResolvedValue([]);
+    renderWithProviders(<Dashboard />);
+
+    const row = await screen.findByRole("row", { name: /SO-2/ });
+    expect(within(row).getByText("Row-Owned Name")).toBeInTheDocument();
+  });
+
+  // #512 US5 (T056/T058, FR-045) — the same row links into URL-filtered
+  // Sales by the order's canonical customerId (never the row's own id).
+  it("links the row's customer name to /sales?customerId=<canonical-id>", async () => {
+    mockOrders.mockResolvedValue([order("o-1", "SO-3", "Filtered Farm")]);
+    renderWithProviders(<Dashboard />);
+
+    const row = await screen.findByRole("row", { name: /SO-3/ });
+    expect(within(row).getByRole("link", { name: "Filtered Farm" }))
+      .toHaveAttribute("href", "/sales?customerId=c1");
+  });
+});
+
 describe("Dashboard sales panel role gate (#127)", () => {
   it("neither fetches nor shows sales for a ReadOnly user", async () => {
     renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "ReadOnly" } });
@@ -95,7 +141,9 @@ describe("Dashboard sales panel role gate (#127)", () => {
     renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
     expect(await screen.findByText("Recent sales")).toBeInTheDocument();
     expect(mockOrders).toHaveBeenCalled();
-    expect(mockCustomers).toHaveBeenCalled();
+    // #512 US5 (T058) — the 500-customer catalog fetch is gone entirely: rows
+    // render their own row-owned `customerName` now, never a catalog lookup.
+    expect(mockCustomers).not.toHaveBeenCalled();
   });
 });
 

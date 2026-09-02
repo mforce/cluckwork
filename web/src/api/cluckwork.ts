@@ -97,6 +97,15 @@ export interface DailyEntry extends RecordHistory {
   grades: GradeLine[];
   version: number;
   adjustReason: string | null;
+  /**
+   * #512 US4 — the flock's CURRENT name, carried by the entry itself so a
+   * row renders independently of the page's capped picker results.
+   * Additive: older servers omit it; callers fall back to their own
+   * resolution.
+   */
+  flockName?: string | null;
+  /** #512 US4 — the flock's CURRENT status (archived flocks are still named). */
+  flockStatus?: string | null;
   voidReason: string | null;
   lockedAtUtc: string | null;
   adjustedFrom: {
@@ -138,12 +147,33 @@ export const deactivateEggGrade = (id: string, key?: string) =>
 export const activateEggGrade = (id: string, key?: string) =>
   apiPost<void>(`/egg-grades/${id}/activate`, undefined, key);
 
-export const listFlocks = (params?: { limit?: number; includeArchived?: boolean }) => {
+// #512 — the three wire values `GET /flocks` accepts for `eligibility` (exact,
+// lowercase; unknown values 400 server-side). Omitted means active-and-depleted.
+// `includeArchived` is its legacy alias: `true` means `all` ONLY when
+// `eligibility` is absent, and the server rejects supplying both keys — so this
+// client refuses to serialize the combination at all.
+export type FlockEligibility = "active" | "active-and-depleted" | "all";
+
+export const listFlocks = (params?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  eligibility?: FlockEligibility;
+  includeArchived?: boolean;
+}) => {
   const q = new URLSearchParams();
+  if (params?.search) q.set("search", params.search);
+  if (params?.eligibility) q.set("eligibility", params.eligibility);
+  else if (params?.includeArchived) q.set("includeArchived", "true");
   if (params?.limit) q.set("limit", String(params.limit));
-  if (params?.includeArchived) q.set("includeArchived", "true");
-  return apiGet<Flock[]>(`/flocks${q.size > 0 ? `?${q}` : ""}`);
+  if (params?.offset) q.set("offset", String(params.offset));
+  return apiGet<Flock[]>(`/flocks${q.toString() !== "" ? `?${q}` : ""}`);
 };
+
+// #512 — exact resolution: the full flock or a 404. The picker adapters map a
+// 404/denial to the page's explicit unavailable state; they never substitute
+// the first discovery result.
+export const getFlock = (id: string) => apiGet<Flock>(`/flocks/${id}`);
 
 export const updateFlock = (id: string, body: {
   name: string;
@@ -319,14 +349,29 @@ export interface SalesOrder extends RecordHistory {
   currencyMinorUnit: number;
   voidReason: string | null;
   items: OrderItem[];
+  // #512 US4 (T048/T050) — the customer's CURRENT name, carried by the row
+  // so it renders independently of the page's capped picker results. Always
+  // present, but the value can be null when the customer fell out of the
+  // caller's tenant scope between reads (see contracts/http-api.md's
+  // "defensive null on a non-null id").
+  customerName: string | null;
 }
 
-export const listCustomers = (params?: { limit?: number; offset?: number }) => {
+export const listCustomers = (params?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}) => {
   const q = new URLSearchParams();
+  if (params?.search) q.set("search", params.search);
   if (params?.limit) q.set("limit", String(params.limit));
   if (params?.offset) q.set("offset", String(params.offset));
-  return apiGet<Customer[]>(`/customers${q.size > 0 ? `?${q}` : ""}`);
+  return apiGet<Customer[]>(`/customers${q.toString() !== "" ? `?${q}` : ""}`);
 };
+
+// #512 — exact resolution: the full customer or a 404 (SalesFlow-authorized).
+// Same unavailable-state contract as getFlock.
+export const getCustomer = (id: string) => apiGet<Customer>(`/customers/${id}`);
 
 export const createCustomer = (body: {
   name: string;
@@ -659,6 +704,13 @@ export interface FeedUsage {
   currencyMinorUnit: number;
   note: string | null;
   dailyEntryId: string | null;
+  // #512 US4 (T046/T050) — the flock's CURRENT name, carried by the row so
+  // it renders independently of the page's capped picker results. Always
+  // present in the response, but the value itself can be null when the
+  // referenced flock fell out of the caller's tenant/flock scope between the
+  // page read and the bulk reference read (see contracts/http-api.md's
+  // "defensive null on a non-null id").
+  flockName: string | null;
 }
 
 export const listFeedUsage = (params?: {
@@ -685,6 +737,14 @@ export const recordInventoryAdjustment = (itemId: string, body: {
 export interface WaterUsage {
   id: string;
   flockId: string;
+  // #512 US4 (T046/T050) — row-owned flock name — survives beyond the capped
+  // flock page load, so corrections of historic/archived flocks show the
+  // real name, not an ID. Always present, but the VALUE can be null (a
+  // flock that left the caller's tenant/flock scope between reads — see
+  // contracts/http-api.md's "defensive null on a non-null id"); the wire
+  // record itself is `string?`, so the frontend type must not claim
+  // non-null.
+  flockName: string | null;
   date: string;
   quantity: number;
   unit: string;
@@ -747,6 +807,10 @@ export const listUsers = () => apiGet<User[]>("/users");
 export interface FlockAssignment {
   id: string;
   flockId: string | null;
+  // #512 US4 (T047/T050) — the assigned flock's CURRENT name, resolved via a
+  // scoped left join. Null for a farm-wide assignment (`flockId === null`)
+  // or when the flock fell out of scope; never an ID fragment.
+  flockName: string | null;
 }
 
 export const listFlockAssignments = (userId: string) =>
@@ -1088,6 +1152,7 @@ export interface Expense extends RecordHistory {
   flockId: string | null;
   note: string | null;
   version: number;
+  flockName?: string | null;
 }
 
 export interface ExpenseList {

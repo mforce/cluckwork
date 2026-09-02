@@ -11,6 +11,7 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { FlockPicker } from "../components/FlockPicker";
 import { DialogError } from "../components/DialogError";
 import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
 import { NumberField } from "../components/NumberField";
@@ -63,6 +64,12 @@ export function HistoryPage() {
     farm?.defaultStepperUnit, me?.preferredStepperUnit, eggUnitConversions);
   const stepSize = stepperUnit.eggsPerUnit;
   const [flockFilter, setFlockFilter] = useState("");
+  // #512 (T038) — the filter's committed identity: always a genuine user
+  // pick (onCommit already hands over the full entity) — there is no
+  // external/deep-link source for this filter, so no unavailable state is
+  // reachable here (Opus review).
+  const [flockFilterEntity, setFlockFilterEntity] = useState<Flock | null>(null);
+  const [filterPickerOpen, setFilterPickerOpen] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   // #479 — one slot per PLACE a message can appear: the setup read and the
@@ -147,12 +154,41 @@ export function HistoryPage() {
     errorText: () => i18n.t("history:loadEntriesFailed"),
   });
 
-  const flockName = (id: string) => flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
+  const flockName = (id: string) => {
+    // #512 (T038) — the filter's committed identity is a genuine user pick
+    // (onCommit), always a full entity; there is no external/deep-link
+    // source that could name an id the picker's exact GET might fail to
+    // resolve (Opus review). Used ONLY for the filter trigger — never for a
+    // row (see rowFlockName below).
+    if (id === flockFilter && flockFilterEntity)
+      return flockFilterEntity.name;
+    return flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
+  };
+  // #512 US4 (T051) — a row's own name, independent of the picker/catalog
+  // entirely: the row-owned `flockName` the endpoint's scoped bulk read
+  // already resolved, or the translated unavailable label. Never the capped
+  // `flocks` list and never an id fragment (contracts/http-api.md: "Required
+  // names are never replaced with identifier fragments").
+  const rowFlockName = (e: { flockId: string; flockName?: string | null }) => {
+    if (e.flockName !== undefined)
+      return e.flockName ?? t("rowFlockUnavailable");
+    return flocks.find((f) => f.id === e.flockId)?.name ?? t("rowFlockUnavailable");
+  };
   // The Daily entry screen can't target archived flocks (capture excludes
   // them), so an edit link for one would silently fall back to a different
   // flock — worse than no link (codex review of #86).
-  const flockEditable = (id: string) => {
-    const f = flocks.find((x) => x.id === id);
+  // #512 US4 (T045/T051) — the ROW's own `flockStatus` is authoritative
+  // (page-adoption.md: "editability uses row flockStatus"): the capped
+  // `flocks` list can miss an out-of-window flock entirely (silently
+  // denying an edit that should be offered) or, for a scope-lost flock,
+  // can't say anything at all — the row already carries the CURRENT truth
+  // from the same scoped bulk read as its name. `flockStatus === undefined`
+  // (an older server that never sent the field) is the one case that falls
+  // back to the catalog; an explicit `null` (out of scope) is decided,
+  // fail-safe, without a guess.
+  const flockEditable = (e: { flockId: string; flockStatus?: string | null }) => {
+    if (e.flockStatus !== undefined) return e.flockStatus !== null && e.flockStatus !== "Archived";
+    const f = flocks.find((x) => x.id === e.flockId);
     return f !== undefined && f.status !== "Archived";
   };
   const gradeName = (id: string) => grades.find((g) => g.id === id)?.name ?? id.slice(0, 8);
@@ -390,7 +426,7 @@ export function HistoryPage() {
     // app's own dialog, so the required check is inline and the typed text
     // survives it — window.prompt validated only after it had closed.
     const voidReason = await askReason({
-      title: i18n.t("history:voidConfirmTitle", { date: e.date, flock: flockName(e.flockId) }),
+      title: i18n.t("history:voidConfirmTitle", { date: e.date, flock: rowFlockName(e) }),
       body: i18n.t("history:voidConfirmBody"),
       confirmLabel: i18n.t("history:voidConfirmLabel"),
       destructive: true,
@@ -476,12 +512,40 @@ export function HistoryPage() {
       )}
 
       <div className="form-grid">
-        <label>{t("flockLabel")}
-          <select value={flockFilter} onChange={(e) => setFlockFilter(e.target.value)}>
-            <option value="">{t("allFlocksOption")}</option>
-            {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        </label>
+        <div className="filter-flock">
+          {/* #512 (T038) — the read-only filter became an optional
+              eligibility=all FlockPicker: the filter keeps its exact id
+              ownership (the list fetches by `flockFilter`), and a row-owned
+              identity outside the capped discovery window resolves through
+              the exact GET with an explicit unavailable state. */}
+          <FlockPicker
+            label={t("flockLabel")}
+            eligibility="all"
+            required={false}
+            open={filterPickerOpen}
+            requestedId={flockFilter || null}
+            onSnapshot={(snap) => {
+              if (snap.committed) setFlockFilterEntity(snap.committed);
+            }}
+            onCommit={(f) => {
+              setFlockFilter(f.id);
+              setFlockFilterEntity(f);
+              setFilterPickerOpen(false);
+            }}
+            onClear={() => {
+              setFlockFilter("");
+              setFlockFilterEntity(null);
+            }}
+            onEscape={() => setFilterPickerOpen(false)}
+            onOutsideClick={() => setFilterPickerOpen(false)}
+            trigger={
+              <button type="button" className="named-picker-trigger"
+                onClick={() => setFilterPickerOpen(true)}>
+                {flockFilter === "" ? t("allFlocksOption") : flockName(flockFilter)}
+              </button>
+            }
+          />
+        </div>
         <label>{t("fromLabel")}
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </label>
@@ -493,7 +557,7 @@ export function HistoryPage() {
       <Dialog
         open={adjusting !== null}
         title={adjusting
-          ? t("adjustDialogTitleWithEntry", { date: adjusting.date, flock: flockName(adjusting.flockId) })
+          ? t("adjustDialogTitleWithEntry", { date: adjusting.date, flock: rowFlockName(adjusting) })
           : t("adjustDialogTitle")}
         onClose={closeAdjust}
         // Two panes side by side need the room; on a phone the dialog is a
@@ -674,7 +738,7 @@ export function HistoryPage() {
               {entries.rows.map((e) => (
                 <tr key={e.id} className={e.status === "Voided" ? "inactive" : undefined}>
                   <td>{e.date}</td>
-                  <td>{flockName(e.flockId)}</td>
+                  <td>{rowFlockName(e)}</td>
                   <td>{statusCell(e)}</td>
                   <td>{e.totalEggs}</td>
                   <td>{e.crackedEggs}/{e.dirtyEggs}/{e.discardedEggs}</td>
@@ -699,7 +763,7 @@ export function HistoryPage() {
                     )}
                     {/* Drafts are edited on the Daily entry screen (#85) —
                         open to workers too; adjust/void stay admin-only. */}
-                    {e.status === "Draft" && flockEditable(e.flockId) && (
+                    {e.status === "Draft" && flockEditable(e) && (
                       <Link className="link"
                         to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
                         {t("editButton")}

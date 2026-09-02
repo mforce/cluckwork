@@ -45,7 +45,7 @@ import type { Page } from "@playwright/test";
 import { restrictedWorker, unrestrictedWorker } from "../src/cast";
 import { farmToday } from "../src/farm";
 import { tEn } from "../src/i18n";
-import { selectOptionContaining } from "../src/dom";
+import { commitNamedPicker } from "../src/dom";
 
 /** The flock SimulationDataSeeder assigns to worker #1 (`flockIds[0]`). */
 const ASSIGNED_FLOCK = "Sim House A";
@@ -69,7 +69,7 @@ test.describe("Worker", () => {
     // fail as "could not fill the field", pointing nowhere near the cause.
     const today = farmToday(farm.timeZoneId);
     await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
-    await selectOptionContaining(page.getByLabel(tEn("dailyEntry:flockLabel")), ASSIGNED_FLOCK);
+    await commitNamedPicker(page, tEn("dailyEntry:flockLabel"), ASSIGNED_FLOCK);
 
     // NumberField renders a real <input type="number"> with the label wired via
     // htmlFor, so getByLabel reaches the input and not the −/+ buttons.
@@ -102,9 +102,8 @@ test.describe("Worker", () => {
     // and reaching the server guard without inventing an out-of-band session.
     await signIn(unrestrictedWorker());
     await page.goto("/daily-entry");
-    const unrestrictedSelect = page.getByLabel(tEn("dailyEntry:flockLabel"));
-    const assignedFlockId = await selectOptionContaining(unrestrictedSelect, ASSIGNED_FLOCK);
-    const unassignedFlockId = await selectOptionContaining(unrestrictedSelect, UNASSIGNED_FLOCK);
+    const assignedFlockId = await commitNamedPicker(page, tEn("dailyEntry:flockLabel"), ASSIGNED_FLOCK);
+    const unassignedFlockId = await commitNamedPicker(page, tEn("dailyEntry:flockLabel"), UNASSIGNED_FLOCK);
     expect(assignedFlockId).not.toBe("");
     expect(unassignedFlockId).not.toBe("");
 
@@ -122,10 +121,24 @@ test.describe("Worker", () => {
       && r.ok());
     await page.goto("/daily-entry");
     await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
-    const select = page.getByLabel(tEn("dailyEntry:flockLabel"));
-    await expect(select.locator(`option[value="${assignedFlockId}"]`)).toHaveCount(1);
-    await expect(select.locator("option").filter({ hasText: UNASSIGNED_FLOCK })).toHaveCount(0);
     await prefill;
+    // #512 — the restricted worker's picker auto-defaults to its one assigned
+    // flock (the closed trigger's accessible name is "<label> <current
+    // value>" via aria-labelledby), and its own server-side scope (#388) means
+    // the unassigned flock is unreachable even by an explicit search for it.
+    await expect(page.getByRole("button", { name: ASSIGNED_FLOCK })).toBeVisible();
+    await page.getByRole("button", { name: new RegExp(`^${tEn("dailyEntry:flockLabel")} `) }).click();
+    const combobox = page.getByRole("combobox", { name: tEn("dailyEntry:flockLabel") });
+    const unassignedSearch = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith("/api/v1/flocks")
+        && url.searchParams.get("search") === UNASSIGNED_FLOCK
+        && response.ok();
+    });
+    await combobox.fill(UNASSIGNED_FLOCK);
+    await unassignedSearch;
+    await expect(page.getByRole("option", { name: UNASSIGNED_FLOCK })).toHaveCount(0);
+    await combobox.press("Escape");
     await expect(page.getByRole("button", { name: tEn("dailyEntry:saveDraftButton") })).toBeEnabled();
 
     let rewrotePost = false;
@@ -169,7 +182,7 @@ test.describe("Worker", () => {
 
     const today = farmToday(farm.timeZoneId);
     await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
-    await selectOptionContaining(page.getByLabel(tEn("dailyEntry:flockLabel")), UNASSIGNED_FLOCK);
+    await commitNamedPicker(page, tEn("dailyEntry:flockLabel"), UNASSIGNED_FLOCK);
     await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("130");
     await clearSeededGrades(page);
     await page.getByRole("button", { name: tEn("dailyEntry:saveDraftButton") }).click();
@@ -196,13 +209,22 @@ test.describe("Worker", () => {
     await page.goto("/daily-entry");
 
     // The read boundary, asserted where the worker actually sees it: the
-    // picker offers the assigned flock and hides the unassigned one entirely.
-    await expect(
-      page.getByLabel(tEn("dailyEntry:flockLabel")).locator(`option:has-text("${ASSIGNED_FLOCK}")`),
-    ).toHaveCount(1);
-    await expect(
-      page.getByLabel(tEn("dailyEntry:flockLabel")).locator(`option:has-text("${UNASSIGNED_FLOCK}")`),
-    ).toHaveCount(0);
+    // #512 picker offers the assigned flock and hides the unassigned one
+    // entirely — server-side, so an explicit search for it still finds
+    // nothing (not merely "not on the unfiltered first page").
+    await page.getByRole("button", { name: new RegExp(`^${tEn("dailyEntry:flockLabel")} `) }).click();
+    const combobox = page.getByRole("combobox", { name: tEn("dailyEntry:flockLabel") });
+    await combobox.fill(ASSIGNED_FLOCK);
+    await expect(page.getByRole("option", { name: ASSIGNED_FLOCK })).toHaveCount(1);
+    const unassignedSearch = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith("/api/v1/flocks")
+        && url.searchParams.get("search") === UNASSIGNED_FLOCK
+        && response.ok();
+    });
+    await combobox.fill(UNASSIGNED_FLOCK);
+    await unassignedSearch;
+    await expect(page.getByRole("option", { name: UNASSIGNED_FLOCK })).toHaveCount(0);
 
     // The SPA has no flock-detail route (only the /flocks list — see App.tsx),
     // so the unassigned-detail 404 contract is pinned by the API integration

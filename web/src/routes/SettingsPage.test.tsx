@@ -40,7 +40,9 @@ vi.mock("../api/cluckwork", async () => {
     removeFarmBanner: vi.fn(),
     getFarmBanner: vi.fn(),
     listEggUnitConversions: vi.fn(),
-  };
+    getFlock: vi.fn(),
+  getCustomer: vi.fn(),
+};
 });
 
 const mockGetSettings = vi.mocked(getFarmSettings);

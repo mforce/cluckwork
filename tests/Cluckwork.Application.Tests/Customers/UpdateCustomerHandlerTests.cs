@@ -13,11 +13,26 @@ public sealed class UpdateCustomerHandlerTests
 
         public void Seed(Customer customer) => _store[customer.Id] = customer;
 
+        // #512 — the fake satisfies the interface for this handler's needs; the
+        // bulk display-name read is exercised by the integration suite, where a
+        // real tenant filter exists to test against.
+        public Task<IReadOnlyDictionary<Guid, CustomerReference>> GetDisplayNamesAsync(
+            IReadOnlyCollection<Guid> customerIds, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, CustomerReference>>(
+                _store.Values.Where(c => customerIds.Contains(c.Id))
+                    .ToDictionary(c => c.Id, c => new CustomerReference(c.Id, c.Name)));
+
         public Task<Customer?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
             Task.FromResult(_store.TryGetValue(id, out var c) ? c : null);
 
         public Task<IReadOnlyList<Customer>> ListAsync(int limit, int offset, CancellationToken ct = default) =>
             Task.FromResult((IReadOnlyList<Customer>)_store.Values.ToList());
+
+        // #512 interface addition; this fixture exercises the update handler
+        // only, so discovery is not part of what this fake is asked to do.
+        public Task<IReadOnlyList<Customer>> SearchAsync(
+            string? search, int limit, int offset, CancellationToken ct = default) =>
+            throw new NotSupportedException();
 
         public Task AddAsync(Customer entity, CancellationToken ct = default)
         {

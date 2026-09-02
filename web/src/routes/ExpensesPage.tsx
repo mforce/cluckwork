@@ -10,6 +10,8 @@ import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { FlockPicker } from "../components/FlockPicker";
+import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { DialogError } from "../components/DialogError";
 import { ProvenanceCell } from "../components/ProvenanceCell";
 import { useDialogErrors } from "../components/useDialogErrors";
@@ -59,7 +61,25 @@ export function ExpensesPage() {
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [flockId, setFlockId] = useState("");
+  // #512 (T028/T038) — the optional flock is committed through FlockPicker.
+  // A blank (account-wide) selection is VALID: the picker's `canSubmit` is
+  // the write guard (exploring/unavailable blocks it), never "must have a
+  // flock". `addFlock` mirrors the engine's committed entity via onCommit and
+  // is reset explicitly on success (the page never syncs it back — no
+  // controlled generation — so the picker's own discovery lifecycle is never
+  // disturbed).
+  const [addFlock, setAddFlock] = useState<Flock | null>(null);
+  // Bumped after the post-success reset so a later Escape cannot resurrect
+  // the just-saved flock (engine controlled-sync, US2).
+  const [addFlockGen, setAddFlockGen] = useState(0);
+  // The INITIAL snapshot is the page's own honest state: no committed entity
+  // and no exact read issued yet, so the write is withheld (canSubmit false)
+  // until the picker's real snapshot lands. The picker is OPTIONAL, so once
+  // it initializes the blank selection submits (a valid account-wide choice).
+  const [addFlockSnapshot, setAddFlockSnapshot] = useState<PickerSnapshot<Flock>>({
+    committed: null, selectionPhase: "uninitialized", exploring: false, canSubmit: false,
+  });
+  const [addFlockPickerOpen, setAddFlockPickerOpen] = useState(false);
   const [note, setNote] = useState("");
 
   // category management
@@ -73,7 +93,32 @@ export function ExpensesPage() {
   const [editCategory, setEditCategory] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editAmount, setEditAmount] = useState("");
-  const [editFlock, setEditFlock] = useState("");
+  // #512 (T028/T038) — the correction's flock is a ROW-OWNED identity: the
+  // picker's `requestedId` resolves it exactly (including archived flocks
+  // outside the discovery window), a failed exact read enters the explicit
+  // `unavailable` state (never a first-result substitution), and
+  // `editFlockSnapshot.canSubmit` gates BOTH the Save button and onSaveEdit.
+  // `editFlockEntity` is the FULL entity (committed from the mount list, from
+  // the exact GET, or from a user pick); `editFlockId` holds only an id that
+  // the picker has not resolved yet. A blank row owns neither (account-wide).
+  const [editFlockEntity, setEditFlockEntity] = useState<Flock | null>(null);
+  // The row-owned id while it is unresolved (archived / outside the window);
+  // null once committed, cleared, or when the row owns no flock.
+  const [editFlockId, setEditFlockId] = useState<string | null>(null);
+  // The row-owned id that startEdit handed over — the page-side mirror of
+  // `editFlockId`, frozen at open time: it keeps the engine's requestedId
+  // effect pinned to that exact identity even if the user's CLEAR commits a
+  // different flock in the meantime (the engine resolves the REQUESTED id,
+  // never the current selection).
+  const [editRequestedId, setEditRequestedId] = useState<string | null>(null);
+  const [editFlockGen, setEditFlockGen] = useState(0);
+  // HONEST initial state: a blank row's picker needs no exact read, so its
+  // optional blank is safe to save from the first render — canSubmit true.
+  // A row OWNING an id is withheld (canSubmit false) until its exact read
+  // commits or reports unavailable.
+  const [editFlockSnapshot, setEditFlockSnapshot] = useState<PickerSnapshot<Flock>>({
+    committed: null, selectionPhase: "uninitialized", exploring: false, canSubmit: true,
+  });
   const [editNote, setEditNote] = useState("");
 
   // Stable idempotency keys per logical mutation. Version-guarded edits rotate
@@ -169,8 +214,15 @@ export function ExpensesPage() {
 
   const categoryName = (id: string) =>
     categories.find((c) => c.id === id)?.name ?? id.slice(0, 8);
-  const flockName = (id: string | null) =>
-    id === null ? "—" : flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
+  // #512 US4 (T049/T051) — the row renders the flock name its OWN record
+  // carries (the endpoint's one scoped bulk read per page), never the
+  // picker's capped discovery results and never an id fragment
+  // (contracts/http-api.md: "Required names are never replaced with
+  // identifier fragments"). `flockId === null` is the deliberate
+  // account-wide expense; a non-null `flockId` with a null `flockName` is
+  // the defensive out-of-scope case.
+  const rowFlockName = (x: Expense) =>
+    x.flockId === null ? "—" : (x.flockName ?? t("flockUnavailable"));
   const activeCategories = categories.filter((c) => c.active);
   // The edit picker offers active categories plus the expense's own (possibly
   // deactivated) one — keeping it must stay legal (grandfathering).
@@ -216,6 +268,11 @@ export function ExpensesPage() {
 
   function onAdd(e: FormEvent) {
     e.preventDefault();
+    // #512 (T028) — canSubmit gates the write even though the selection is
+    // OPTIONAL: an exploring/uninitialized picker must not submit a stale or
+    // not-yet-committed flock even if the control is bypassed. A valid blank
+    // selection still submits (canSubmit is true for it).
+    if (busy || !addFlockSnapshot.canSubmit) return;
     void run("add", null, async () => {
       // runWrite claims the list's ticket before the POST, so a month or
       // category change made while it is in flight keeps the view (#469).
@@ -227,7 +284,9 @@ export function ExpensesPage() {
           // Guarded by the disabled submit below; asserted here because this
           // is the line that turns a typed string into stored money.
           amountMinorUnits: toMinorUnits(amount, currency!.minor),
-          flockId: flockId || null,
+          // #512 (T028) — the picker's committed entity IS the flock: a blank
+          // (account-wide) selection stays null.
+          flockId: addFlock?.id ?? null,
           note: note.trim() || null,
         }, keyFor("add"));
         // Reset BEFORE the refresh: if the reload fails after the write
@@ -236,6 +295,11 @@ export function ExpensesPage() {
         setDescription("");
         setAmount("");
         setNote("");
+        // The add form's optional flock resets to blank (account-wide); the
+        // bumped gen re-syncs the engine so a later Escape cannot resurrect
+        // the just-saved flock.
+        setAddFlock(null);
+        setAddFlockGen((g) => g + 1);
       });
       setMessage(i18n.t("expenses:expenseRecordedMessage"));
     });
@@ -257,7 +321,46 @@ export function ExpensesPage() {
     setEditCategory(x.expenseCategoryId);
     setEditDescription(x.description);
     setEditAmount((x.amountMinorUnits / 10 ** x.currencyMinorUnit).toFixed(x.currencyMinorUnit));
-    setEditFlock(x.flockId ?? "");
+    // #512 (T038) — the row-owned flock is committed EXACT, including an
+    // Archived row whose id is absent from the discovery window; a flock the
+    // mount read never listed resolves through the picker's exact GET.
+    const owned = x.flockId !== null
+      ? flocks.find((f) => f.id === x.flockId)
+      : undefined;
+    // #512 (T038) — the mount read (listFlocks limit 500) may not have landed
+    // yet when a correction is opened: an id it would have contained must
+    // still resolve EXACTLY through the picker's exact GET, never from a list
+    // that is still empty.
+    const listSettled = flocks.length > 0;
+    if (owned && listSettled) {
+      // Already a full entity from the page's own mount list: admitted via
+      // controlledCommitted, as-is. `editRequestedId` MUST be null here — the
+      // picker's requestedId effect fires independently of the controlled
+      // sync (same render, same generation bump), and a stale non-null id
+      // would issue a spurious exact GET for data the page already has.
+      setEditRequestedId(null);
+      setEditFlockEntity(owned);
+      setEditFlockId(null);
+      setEditFlockGen((g) => g + 1);
+      // Committed from the mount list: safe to save — no exact read is owed.
+      setEditFlockSnapshot({ committed: owned, selectionPhase: "committed", exploring: false, canSubmit: true });
+    } else {
+      // No full entity (archived / outside the window): hand the id to the
+      // picker's requestedId effect — it resolves exactly (or enters
+      // `unavailable`) — and withhold the write until it lands. A blank row
+      // owns no id: nothing is in flight and the optional blank is safe to
+      // save from the first render.
+      setEditRequestedId(x.flockId);
+      setEditFlockEntity(null);
+      setEditFlockId(x.flockId);
+      setEditFlockGen((g) => g + 1);
+      setEditFlockSnapshot({
+        committed: null,
+        selectionPhase: x.flockId === null ? "blank" : "uninitialized",
+        exploring: false,
+        canSubmit: x.flockId === null,
+      });
+    }
     setEditNote(x.note ?? "");
     setMessage(null);
     // F131: the correction form is a dialog now — it takes focus itself, so
@@ -267,6 +370,11 @@ export function ExpensesPage() {
   function closeEdit() {
     if (editing !== null) errors.abandon(`edit:${editing.id}`);
     setEditing(null);
+    setEditFlockEntity(null);
+    setEditFlockId(null);
+    setEditRequestedId(null);
+    setEditFlockGen((g) => g + 1);
+    setEditFlockSnapshot({ committed: null, selectionPhase: "uninitialized", exploring: false, canSubmit: true });
   }
 
   function closeAddCategory() {
@@ -277,6 +385,12 @@ export function ExpensesPage() {
   function onSaveEdit(e: FormEvent) {
     e.preventDefault();
     if (editing === null) return;
+    // #512 (T028) — the picker's canSubmit is the write guard, not the button's
+    // disabled attribute: an exploring/unavailable/uninitialized picker must
+    // not submit the row's stale flock even if the control is bypassed. A
+    // valid blank (account-wide) selection still saves (canSubmit true for
+    // optional blank), so the guard never blocks a legal edit.
+    if (busy || !editFlockSnapshot.canSubmit) return;
     const target = editing;
     const scope = `edit:${target.id}`;
     void run(scope, scope, async () => {
@@ -290,7 +404,9 @@ export function ExpensesPage() {
             date: editDate,
             description: editDescription.trim(),
             amountMinorUnits: toMinorUnits(editAmount, target.currencyMinorUnit),
-            flockId: editFlock || null,
+            // #512 (T028) — exact row-owned identity (possibly archived / out of
+            // the discovery window); a blank stays null (account-wide).
+            flockId: editFlockEntity?.id ?? null,
             note: editNote.trim() || null,
           }, keyFor(scope));
           setEditing(null);
@@ -460,20 +576,41 @@ export function ExpensesPage() {
             step="any" value={amount} required
             onChange={(e) => setAmount(e.target.value)} />
         </label>
-        <label>{t("flockOptionalLabel")}
-          <select value={flockId} onChange={(e) => setFlockId(e.target.value)}>
-            <option value="">{t("noneOption")}</option>
-            {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        </label>
+        <FlockPicker
+          label={t("flockOptionalLabel")}
+          eligibility="all"
+          required={false}
+          open={addFlockPickerOpen}
+          // Controlled sync only for the post-success reset (gen bump): the
+          // engine owns its discovery lifecycle otherwise, so a later Escape
+          // cannot resurrect the just-saved flock (US2).
+          controlledCommitted={addFlock}
+          controlledGeneration={addFlockGen}
+          onSnapshot={setAddFlockSnapshot}
+          onCommit={(f) => {
+            setAddFlock(f);
+            setAddFlockPickerOpen(false);
+          }}
+          onClear={() => setAddFlock(null)}
+          onEscape={() => setAddFlockPickerOpen(false)}
+          onOutsideClick={() => setAddFlockPickerOpen(false)}
+          trigger={
+            <button type="button" className="named-picker-trigger"
+              onClick={() => setAddFlockPickerOpen(true)}>
+              {addFlock ? addFlock.name : t("noneOption")}
+            </button>
+          }
+        />
         <label>{t("noteOptionalLabel")}
           <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
         </label>
         <div className="actions">
           {/* No known denomination means no recording: converting the typed
-              amount would have to guess the scale (#469 codex review). */}
+              amount would have to guess the scale (#469 codex review).
+              #512 (T028): the picker's canSubmit gates the write too — an
+              exploring/uninitialized picker must not submit a stale flock. */}
           <BusyButton type="submit" busy={isPending("add")}
-            disabled={busy || activeCategories.length === 0 || !scaleKnown}>
+            disabled={busy || activeCategories.length === 0 || !scaleKnown || !addFlockSnapshot.canSubmit}>
             {t("recordExpenseButton")}
           </BusyButton>
         </div>
@@ -521,12 +658,53 @@ export function ExpensesPage() {
                 step="any" value={editAmount} required
                 onChange={(e) => setEditAmount(e.target.value)} />
             </label>
-            <label>{t("flockOptionalLabel")}
-              <select value={editFlock} onChange={(e) => setEditFlock(e.target.value)}>
-                <option value="">{t("noneOption")}</option>
-                {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-              </select>
-            </label>
+            {/* #512 (T038) — the correction's flock is a ROW-OWNED identity:
+                requestedId resolves it exactly (archived / outside the
+                discovery window included), a failed exact read enters the
+                explicit unavailable state with a Retry, and the picker's
+                clear restores the account-wide (blank) choice. */}
+            <FlockPicker
+              label={t("flockOptionalLabel")}
+              eligibility="all"
+              required={false}
+              // #512 (T038) — the picker's discovery is OPEN-DRIVEN: the engine
+              // discovers only while `open`, and this dialog's picker never
+              // toggles its own open state (the dialog owns focus and
+              // dismissal). So it rides the dialog: while the dialog is up the
+              // picker is live and its requestedId effect can resolve the
+              // row-owned id (or report it unavailable); on close the dialog
+              // unmounts the form, so nothing lingers.
+              open={true}
+              controlledCommitted={editFlockEntity}
+              controlledGeneration={editFlockGen}
+              requestedId={editRequestedId}
+              onSnapshot={(snap) => {
+                setEditFlockSnapshot(snap);
+                if (snap.committed) {
+                  setEditFlockEntity(snap.committed);
+                  setEditFlockId(null);
+                }
+              }}
+              onCommit={(f) => {
+                setEditFlockEntity(f);
+                setEditFlockId(null);
+                setEditFlockGen((g) => g + 1);
+              }}
+              onClear={() => {
+                setEditFlockEntity(null);
+                setEditFlockId(null);
+                setEditFlockGen((g) => g + 1);
+              }}
+              onEscape={() => {}}
+              onOutsideClick={() => {}}
+              trigger={
+                <span className="named-picker-trigger">{editFlockEntity
+                    ? editFlockEntity.name
+                    : editFlockId !== null && editFlockSnapshot.selectionPhase === "unavailable"
+                      ? t("flockUnavailable")
+                      : t("noneOption")}</span>
+              }
+            />
             <label>{t("noteOptionalLabel")}
               <input value={editNote} maxLength={500} onChange={(e) => setEditNote(e.target.value)} />
             </label>
@@ -536,7 +714,10 @@ export function ExpensesPage() {
             <div className="dialog-foot">
               <button type="button" className="link" disabled={busy}
                 onClick={closeEdit}>{tc("cancel")}</button>
-              <BusyButton type="submit" busy={isPending(`edit:${editing.id}`)} disabled={busy}>
+              {/* #512 (T028): canSubmit also gates the visible control; the
+                  handler guard above is the real boundary. */}
+              <BusyButton type="submit" busy={isPending(`edit:${editing.id}`)}
+                disabled={busy || !editFlockSnapshot.canSubmit}>
                 {t("saveCorrectionButton")}
               </BusyButton>
             </div>
@@ -566,7 +747,7 @@ export function ExpensesPage() {
                 <td>{categoryName(x.expenseCategoryId)}</td>
                 <td>{x.description}</td>
                 <td>{formatMoney(x.amountMinorUnits, x.currencyCode, x.currencyMinorUnit)}</td>
-                <td>{flockName(x.flockId)}</td>
+                <td>{rowFlockName(x)}</td>
                 <td>{x.note ?? "—"}</td>
                 <ProvenanceCell history={x} />
                 <td>

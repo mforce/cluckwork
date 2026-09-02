@@ -30,7 +30,9 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     deactivateProduct: vi.fn(),
     activateProduct: vi.fn(),
     updateEggUnitConversion: vi.fn(),
-  };
+    getFlock: vi.fn(),
+  getCustomer: vi.fn(),
+};
 });
 
 const mockListProducts = vi.mocked(listProducts);

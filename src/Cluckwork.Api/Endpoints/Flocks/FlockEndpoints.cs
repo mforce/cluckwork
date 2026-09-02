@@ -18,6 +18,16 @@ public static class FlockEndpoints
     private const int DefaultPageSize = 100;
     private const int MaxPageSize = 500;
 
+    // #512 — the three wire values `eligibility` accepts. Parsed by hand rather
+    // than by Enum.TryParse because the contract is exact and case-SENSITIVE:
+    // `ALL` and `Active-And-Depleted` are unknown values, not synonyms, and a
+    // hyphen is not an identifier character. Parsing is ordinal and no-trim:
+    // the search parameter is trimmed, the policy parameter is not, so
+    // "all " is a rejected value rather than a tolerated one.
+    private const string ActiveEligibility = "active";
+    private const string ActiveAndDepletedEligibility = "active-and-depleted";
+    private const string AllEligibility = "all";
+
     // Code produced by Error.NotFound(nameof(Flock), ...).
     private static readonly string FlockNotFoundCode = $"{nameof(Flock)}.NotFound";
 
@@ -30,7 +40,9 @@ public static class FlockEndpoints
 
         group.MapGet("/", ListFlocks)
             .WithName("ListFlocks")
-            .WithSummary("List the current account's flocks (paged). Archived flocks only with includeArchived=true.");
+            .WithSummary("List the current account's flocks (paged), optionally by literal name "
+                + "search and flock eligibility. Archived flocks only with includeArchived=true "
+                + "or eligibility=all; supplying both is invalid.");
 
         group.MapGet("/{id:guid}", GetFlock)
             .WithName("GetFlock")
@@ -95,15 +107,77 @@ public static class FlockEndpoints
     private static async Task<IResult> ListFlocks(
         IFlockRepository flocks, IBirdMovementRepository movements, IAuditEventRepository audit,
         TenantContext tenant,
-        CancellationToken ct, int? limit = null, int? offset = null, bool includeArchived = false)
+        CancellationToken ct, string? search = null, string? eligibility = null,
+        bool? includeArchived = null, int? limit = null, int? offset = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
+
+        // #512 — both keys present is invalid EVEN when includeArchived=false,
+        // which is why the legacy parameter binds as nullable: a non-nullable
+        // bool cannot tell "absent" from "explicit false", and the contract
+        // rejects the combination either way.
+        if (eligibility is not null && includeArchived is not null)
+            return ValidationResponse.Problem(new Dictionary<string, string[]>
+            {
+                ["eligibility"] =
+                [
+                    "'eligibility' and 'includeArchived' are mutually exclusive; "
+                    + "send 'eligibility' alone ('active', 'active-and-depleted' or 'all').",
+                ],
+                ["includeArchived"] =
+                    ["'includeArchived' is the legacy alias of 'eligibility=all' and cannot be sent with it."],
+            });
+
+        // The query stays in parameter order — eligibility is parsed first
+        // because an unknown value is a client error, whereas includeArchived is
+        // only meaningful once no explicit policy was supplied.
+        FlockEligibility policy;
+        if (eligibility is not null)
+        {
+            // Unknown — including a case or hyphen variant, or an empty value —
+            // is rejected rather than defaulted: silently reading "ALL" as the
+            // default policy would hand a caller a narrower set than it asked
+            // for with no signal. "Unspecified" is expressed by OMITTING the
+            // parameter, which is why an empty value is unknown too.
+            if (eligibility is not (ActiveEligibility or ActiveAndDepletedEligibility or AllEligibility))
+                return ValidationResponse.Problem(new Dictionary<string, string[]>
+                {
+                    // The offending value is deliberately NOT echoed. It arrives
+                    // on a query string that proxies, access logs and the SPA's
+                    // own error rendering all see, and a caller typo can carry
+                    // control characters or an over-long token; the accepted set
+                    // is closed and three items long, so naming it adds nothing a
+                    // client cannot work out from the message.
+                    ["eligibility"] =
+                    [
+                        $"Unknown eligibility value. "
+                        + $"Expected '{ActiveEligibility}', '{ActiveAndDepletedEligibility}' or '{AllEligibility}'.",
+                    ],
+                });
+
+            policy = eligibility switch
+            {
+                ActiveEligibility => FlockEligibility.Active,
+                ActiveAndDepletedEligibility => FlockEligibility.ActiveAndDepleted,
+                _ => FlockEligibility.All,
+            };
+        }
+        else
+        {
+            // Omitted eligibility keeps today's behaviour exactly; the legacy
+            // alias maps to All only here, and `=false` is the default already.
+            policy = includeArchived == true ? FlockEligibility.All : FlockEligibility.ActiveAndDepleted;
+        }
 
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
 
-        var list = await flocks.ListAsync(take, skip, includeArchived, ct);
-        var removed = await movements.RemovedByFlockAsync(ct);
+        var list = await flocks.SearchAsync(search, policy, take, skip, ct);
+        // #512 T044 — the aggregate is bounded to the flocks this page returned.
+        // Unbounded it cost the account's whole visible movement history on every
+        // list request, which grows with the farm's age, not with the page (#311's
+        // shape, in the other hot path).
+        var removed = await movements.RemovedForFlocksAsync(list.Select(f => f.Id).ToList(), ct);
         var provenance = await audit.GetProvenanceAsync(
             nameof(Flock), list.Select(f => f.Id).ToList(), ct);
         return Results.Ok(list.Select(f =>

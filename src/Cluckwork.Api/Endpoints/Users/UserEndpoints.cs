@@ -122,8 +122,11 @@ public static class UserEndpoints
         Guid id, IUserRoleAssignmentRepository assignments, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
-        var list = await assignments.ListByUserAsync(id, ct);
-        return Results.Ok(list.Select(a => new FlockAssignmentResponse(a.Id, a.FlockId)));
+        // #512 T047 — the name comes from the repository's single scoped left
+        // join, not from a second per-row flock lookup here. A second round trip
+        // would be invisible in this file's shape and visible only in the guard.
+        var list = await assignments.ListByNameByUserAsync(id, ct);
+        return Results.Ok(list.Select(a => new FlockAssignmentResponse(a.Id, a.FlockId, a.FlockName)));
     }
 
     private static async Task<IResult> AssignFlock(
@@ -457,4 +460,9 @@ public sealed record UserResponse(
 
 public sealed record AssignFlockRequest(Guid FlockId);
 
-public sealed record FlockAssignmentResponse(Guid Id, Guid? FlockId);
+// FlockName (#512 US4): the assigned flock's CURRENT name. Null for a farm-wide
+// assignment (FlockId null) and, defensively, for a flock outside the caller's
+// scope — a scoped Worker cannot name a flock they are not assigned to, and the
+// row survives with a null name rather than being dropped, because dropping it
+// would hide the assignment itself.
+public sealed record FlockAssignmentResponse(Guid Id, Guid? FlockId, string? FlockName = null);

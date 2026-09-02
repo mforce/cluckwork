@@ -14,7 +14,9 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     ...actual,
     downloadExportCsv: vi.fn(),
     downloadFullBackup: vi.fn(),
-  };
+    getFlock: vi.fn(),
+  getCustomer: vi.fn(),
+};
 });
 
 const mockCsv = vi.mocked(downloadExportCsv);
