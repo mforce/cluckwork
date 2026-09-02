@@ -24,3 +24,7 @@ blob-report*/
 
 # Screenshots/videos the canary (#386) writes outside the report dir.
 artifacts/
+
+# The #664 palette x theme matrix — a visual-review capture, not a
+# documentation artefact, so it is never committed (unlike docs/images/).
+out-palettes/

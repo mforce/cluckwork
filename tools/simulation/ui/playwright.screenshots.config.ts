@@ -20,6 +20,11 @@ const { executablePath } = resolveBrowser();
 
 export default defineConfig({
   testDir: "./specs-screenshots",
+  // #664 added palettes.spec.ts beside this file's spec, writing an
+  // uncommitted capture through its own sibling config
+  // (playwright.palettes.config.ts) — matched here so `npm run screenshots`
+  // does not also run it.
+  testMatch: /screenshots\.spec\.ts$/,
 
   // Same reasoning as the smoke config: the stack is owned by reset.sh, not by
   // Playwright. No webServer.
