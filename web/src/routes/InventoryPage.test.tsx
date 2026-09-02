@@ -1329,3 +1329,43 @@ describe("InventoryPage — the panel belongs to the user, not to the write (#63
       expect(screen.queryByRole("heading", { name: /Layer Feed/ })).not.toBeInTheDocument());
   });
 });
+
+describe("InventoryPage — the lots read belongs to the item that is open (#631)", () => {
+  // `loadLots` rejects a response whose ticket has been superseded. #628's own
+  // mutation table measured that guard as unreachable from the suite: replacing
+  // the check with `if (false) return;` left all 54 tests here — and the whole
+  // SPA suite — green. The mechanism is sound by construction (`lotsRequest`
+  // only ever increments), but "sound by reading" is not the standard this repo
+  // holds a guard to, so here is the interleaving that makes it fail loudly.
+  it("does not paint a slow lots read over the item opened after it", async () => {
+    const slowFeedLots = deferred<InventoryLot[]>();
+    mockListLots
+      .mockReturnValueOnce(slowFeedLots.promise)  // Layer Feed, still in flight
+      .mockResolvedValueOnce([LOT2]);             // Egg Cartons, answers first
+    await renderReady(ADMIN);
+
+    // Open the first item; its lots never arrive yet, so no lot-bearing control
+    // is offered.
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ }))
+      .getByRole("button", { name: "open" }));
+    await screen.findByRole("heading", { name: /Layer Feed/ });
+    expect(screen.queryByRole("button", { name: "Correct stock" })).not.toBeInTheDocument();
+
+    // Switch to the second item, whose lots land.
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ }))
+        .getByRole("button", { name: "open" }));
+    });
+    await screen.findByRole("heading", { name: /Egg Cartons/ });
+
+    // The abandoned read answers last. Its rows belong to an item the user has
+    // left, and painting them here would offer a correction against the wrong
+    // item's lot — the adjustment posts `active.id` with a lot id from a
+    // different item.
+    await act(async () => { slowFeedLots.resolve([LOT]); });
+
+    const options = within(openDialog("Correct stock")).getByLabelText(/Lot/);
+    expect(options).toHaveTextContent("L-2");
+    expect(options).not.toHaveTextContent("L-1");
+  });
+});
