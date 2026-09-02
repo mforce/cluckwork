@@ -136,7 +136,9 @@ export function Dashboard() {
                         key={flock.id}
                         className={entry ? "capture-tile" : "capture-tile is-missing"}
                         to={`/daily-entry?flockId=${flock.id}&date=${today}`}
-                        aria-label={t("tileLinkLabel", { flock: flock.name })}
+                        aria-label={entry
+                          ? t("tileLinkLabel", { flock: flock.name })
+                          : t("tileLinkLabelMissing", { flock: flock.name })}
                         // A house with an entry has nothing to record, so it gets no
                         // hint; `undefined` omits the attribute rather than emptying it.
                         title={entry ? undefined : t("recordTodayHint")}

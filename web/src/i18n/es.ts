@@ -517,6 +517,7 @@ export const es = {
     noEntryBadge: "sin registro",
     todayEggsTotal: "{{total}} huevos hoy",
     tileLinkLabel: "{{flock}}: abrir el registro de hoy",
+    tileLinkLabelMissing: "{{flock}}: sin registro todavía, abrir el registro de hoy",
     recordTodayHint: "Registrar hoy",
     moreFlocks_one: "{{total}} lote más",
     moreFlocks_other: "{{total}} lotes más",

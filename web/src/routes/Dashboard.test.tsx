@@ -103,13 +103,13 @@ describe("Dashboard capture status (#654)", () => {
     expect(within(f1).getByText("178")).toBeInTheDocument();
     expect(within(f1).getByText("Submitted")).toBeInTheDocument();
     const names = screen.getAllByRole("link", { name: /open today's entry/ }).map((a) => a.getAttribute("aria-label"));
-    expect(names).toEqual(["Flock f2: open today's entry", "Flock f3: open today's entry", "Flock f1: open today's entry"]);
+    expect(names).toEqual(["Flock f2: no entry yet, open today's entry", "Flock f3: no entry yet, open today's entry", "Flock f1: open today's entry"]);
   });
 
   it("marks a flock with no entry — and one whose only entry is Voided — as missing (#82)", async () => {
     renderWithProviders(<Dashboard />);
-    const f2 = await screen.findByRole("link", { name: "Flock f2: open today's entry" });
-    const f3 = screen.getByRole("link", { name: "Flock f3: open today's entry" });
+    const f2 = await screen.findByRole("link", { name: "Flock f2: no entry yet, open today's entry" });
+    const f3 = screen.getByRole("link", { name: "Flock f3: no entry yet, open today's entry" });
     for (const tile of [f2, f3]) {
       expect(tile).toHaveClass("is-missing");
       expect(within(tile).getByText("no entry")).toBeInTheDocument();
@@ -121,16 +121,26 @@ describe("Dashboard capture status (#654)", () => {
 
   it("offers 'Record today' on hover for a tile with no entry, and not on one that has an entry", async () => {
     renderWithProviders(<Dashboard />);
-    const missing = await screen.findByRole("link", { name: "Flock f3: open today's entry" });
+    const missing = await screen.findByRole("link", { name: "Flock f3: no entry yet, open today's entry" });
     expect(missing).toHaveAttribute("title", "Record today");
     // A recorded flock has nothing to record, so it carries no hint at all.
     expect(screen.getByRole("link", { name: "Flock f1: open today's entry" })).not.toHaveAttribute("title");
   });
 
+  it("announces the missing state in the tile's accessible name, not only in its colour and badge", async () => {
+    renderWithProviders(<Dashboard />);
+    // `aria-label` overrides the link's inner content, so the visible "no entry"
+    // badge is NOT part of the accessible name — the name has to carry it.
+    expect(await screen.findByRole("link", { name: "Flock f3: no entry yet, open today's entry" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Flock f3: open today's entry" })).not.toBeInTheDocument();
+    // A recorded flock keeps the plain name.
+    expect(screen.getByRole("link", { name: "Flock f1: open today's entry" })).toBeInTheDocument();
+  });
+
   it("reads the hover text from the catalog, not a hardcoded literal", async () => {
     await withOverride("dashboard", "recordTodayHint", "RECORD-MARKER", async () => {
       renderWithProviders(<Dashboard />);
-      const missing = await screen.findByRole("link", { name: "Flock f3: open today's entry" });
+      const missing = await screen.findByRole("link", { name: "Flock f3: no entry yet, open today's entry" });
       expect(missing).toHaveAttribute("title", "RECORD-MARKER");
     });
   });
@@ -150,7 +160,7 @@ describe("Dashboard capture status (#654)", () => {
     const tiles = screen.getAllByRole("link", { name: /open today's entry/ });
     expect(tiles).toHaveLength(12);
     expect(tiles.slice(0, 3).map((t) => t.getAttribute("aria-label")))
-      .toEqual(["Flock f12: open today's entry", "Flock f13: open today's entry", "Flock f14: open today's entry"]);
+      .toEqual(["Flock f12: no entry yet, open today's entry", "Flock f13: no entry yet, open today's entry", "Flock f14: no entry yet, open today's entry"]);
     expect(tiles.slice(0, 3).every((t) => t.classList.contains("is-missing"))).toBe(true);
   });
 });

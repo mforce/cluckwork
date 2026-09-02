@@ -628,6 +628,11 @@ export const en = {
     todayEggsTotal: "{{total}} eggs today",
     // aria-label of a tile link; the visible tile shows name, eggs and status.
     tileLinkLabel: "{{flock}}: open today's entry",
+    // The missing state has to be IN the accessible name: `aria-label` replaces
+    // the link's content, so the visible "no entry" badge is never announced.
+    // Shares the "open today's entry" suffix with the recorded label so a test
+    // matching tiles generically still matches both.
+    tileLinkLabelMissing: "{{flock}}: no entry yet, open today's entry",
     // Hover text on a tile with no entry yet — the tile is already a link to
     // that flock's day, and this says what tapping it is for.
     recordTodayHint: "Record today",

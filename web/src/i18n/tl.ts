@@ -539,6 +539,7 @@ export const tl = {
     noEntryBadge: "walang tala",
     todayEggsTotal: "{{total}} itlog ngayon",
     tileLinkLabel: "{{flock}}: buksan ang tala ngayong araw",
+    tileLinkLabelMissing: "{{flock}}: wala pang tala, buksan ang tala ngayong araw",
     recordTodayHint: "Itala ngayon",
     moreFlocks_one: "{{total}} pang kawan",
     moreFlocks_other: "{{total}} pang kawan",
