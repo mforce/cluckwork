@@ -79,7 +79,10 @@ export function ReportsPage() {
     <section>
       <h2>{t("title")}</h2>
 
-      <div className="filters">
+      {/* #653 — the only controls on this screen are the date range, so the
+          whole bar is the toolbar (Reports has no other filter to keep
+          separate, unlike History/Feed/Water below). */}
+      <div className="toolbar">
         <label>{t("fromLabel")}
           <input type="date" value={from} max={to}
             onChange={(e) => setFrom(e.target.value)} />

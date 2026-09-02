@@ -1080,13 +1080,17 @@ describe("SalesPage record history column (#494)", () => {
     await renderReady();
 
     const historyRow = screen.getByRole("row", { name: /SO-HIST/ });
-    expect(within(historyRow).getByText(/ana@farm\.test/)).toBeInTheDocument();
-    expect(within(historyRow).getByText(/bo@farm\.test/)).toBeInTheDocument();
+    // #653 — the visible line shows the CHANGER (the more recent event);
+    // both facts still live in the title, unchanged from #494.
+    expect(within(historyRow).getByText(/bo/)).toBeInTheDocument();
+    expect((historyRow.querySelector("td.provenance-cell") as HTMLElement).title).toBe(
+      "Created by ana@farm.test on 2026-05-01 08:00:00\nLast changed by bo@farm.test on 2026-05-03 14:30:00",
+    );
 
     // The OTHER row must not carry the history row's data — this is what
     // catches every row being wired to the same object.
     const otherRow = screen.getByRole("row", { name: /SO-2/ });
-    expect(within(otherRow).queryByText(/ana@farm\.test/)).not.toBeInTheDocument();
+    expect(otherRow.querySelector("td.provenance-cell")).toBeNull();
   });
 });
 
@@ -1289,6 +1293,34 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
 
     await act(async () => { releaseB([{ ...DRAFT_TWO, id: "ob", referenceNumber: "SO-B", customerName: "Filtered Farm B" }]); });
     await screen.findByRole("row", { name: /SO-B/ });
+  });
+});
+
+describe("SalesPage empty states (#655)", () => {
+  // #655 — a customer filter narrowing the list to zero is "filtered to
+  // nothing" (offer Clear filters), distinct from the truly-empty "New
+  // order" state every other test in this file exercises by default.
+  it("offers Clear filters, not New order, when a customer filter matches no orders", async () => {
+    mockGetCustomer.mockResolvedValue(CUSTOMER_A);
+    renderWithProviders(<SalesPage />, { token: ADMIN, route: `/sales?customerId=${GUID_A}` });
+    await screen.findByRole("button", { name: /Filtered Farm A/ });
+
+    expect(await screen.findByText("No orders match.")).toBeInTheDocument();
+    // The book isn't empty (the header's own New order stays) — only ONE
+    // action comes from the empty state itself, and it clears the filter.
+    expect(screen.getAllByRole("button", { name: "New order" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: new RegExp(i18n.t("sales:allOption")) })).toBeInTheDocument());
+  });
+
+  // #655 — role/data-aware: the same condition AND handler as the page-head
+  // button (customers.length > 0), reused rather than re-derived — a
+  // customer-less farm sees the sentence alone here too.
+  it("withholds the create action when there are no customers to bill", async () => {
+    mockListCustomers.mockResolvedValue([]);
+    renderWithProviders(<SalesPage />, { token: ADMIN });
+    expect(await screen.findByText("No orders yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New order" })).not.toBeInTheDocument();
   });
 });
 

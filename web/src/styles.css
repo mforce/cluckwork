@@ -1046,13 +1046,14 @@ input.cell {
 }
 
 /* -------------------------------------------- Toolbar (inset filter bar) */
-/* NOT DEAD CODE, and not rendered yet either: nothing in web/src applies
-   `.toolbar` today. It is styled here ahead of #653, which moves the
-   date-range filters into a bounded toolbar and is the slice that adds the
-   consumers. Deleting it would make #653 re-derive the two decisions below.
-   Check `grep -rn toolbar web/src --include='*.tsx'` before assuming it is
-   still unused — the day #653 lands, this note is stale.
-   --r-panel likewise has this rule as its only consumer today.
+/* #653 — the bounded date-range filter bar: Reports (the whole filter row),
+   History/Feed/Water (nested beside the flock-picker form-grid field), and
+   Expenses (around the single month picker, beside the category select which
+   stays outside it — not a date control). Each date/month input inside is
+   capped by the `max-width` rule below, which is the fix #653 exists for: an
+   `<input type="date">` in a bare `.form-grid`/`.filters` div otherwise fills
+   the row (docs/images/reports.png, before this).
+   --r-panel likewise has this rule as its only consumer.
 
    Why it is inset rather than carded (#651): elevation encodes what floats,
    and a filter bar does not. Why it keeps a hairline border despite being
@@ -1077,6 +1078,13 @@ input.cell {
   margin: 0;
 }
 
+/* Two ten-character dates (or one "YYYY-MM") do not need the row's full
+   width — the bug #653 fixes (docs/images/reports.png: a ~950px date field). */
+.toolbar input[type="date"],
+.toolbar input[type="month"] {
+  max-width: 12rem;
+}
+
 /* ------------------------------------------------- Semantic text & badges */
 .muted {
   color: var(--muted);
@@ -1097,6 +1105,27 @@ input.cell {
 .warn {
   color: var(--warn);
   font-weight: 700;
+}
+
+/* #655 — a list/table's empty branch: icon, one sentence, the primary action. */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.empty-state svg {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.empty-state p {
+  margin: 0;
+  max-width: 32rem;
 }
 
 /* Status badges — a pill with a tinted fill; screens map states to variants. */
@@ -1489,6 +1518,16 @@ table.data td.num {
    like a number. */
 table.data td.nowrap {
   white-space: nowrap;
+}
+
+/* One-line provenance summary (#653): relative time + actor. Capped so this
+   column can never again be the widest thing in the table
+   (docs/images/sales.png, before #653) — the full three-fact stamp survives
+   in the cell's `title`, unchanged. */
+table.data td.provenance-cell {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 table.data th[scope="row"] {

@@ -170,13 +170,17 @@ describe("ExpensesPage record history column (#494)", () => {
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
 
     const historyRow = await screen.findByRole("row", { name: /Provenance expense/ });
-    expect(within(historyRow).getByText(/ana@farm\.test/)).toBeInTheDocument();
-    expect(within(historyRow).getByText(/bo@farm\.test/)).toBeInTheDocument();
+    // #653 — the visible line shows the CHANGER (the more recent event);
+    // both facts still live in the title, unchanged from #494.
+    expect(within(historyRow).getByText(/bo/)).toBeInTheDocument();
+    expect((historyRow.querySelector("td.provenance-cell") as HTMLElement).title).toBe(
+      "Created by ana@farm.test on 2026-05-01 08:00:00\nLast changed by bo@farm.test on 2026-05-03 14:30:00",
+    );
 
     // The OTHER row must not carry the history row's data — this is what
     // catches every row being wired to the same object.
     const otherRow = screen.getByRole("row", { name: /Layer feed/ });
-    expect(within(otherRow).queryByText(/ana@farm\.test/)).not.toBeInTheDocument();
+    expect(otherRow.querySelector("td.provenance-cell")).toBeNull();
   });
 });
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
+import { FilterX, Inbox } from "lucide-react";
 import {
   adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
   listFlocks, voidDailyEntry,
@@ -13,6 +14,7 @@ import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { EmptyState } from "../components/EmptyState";
 import { FlockPicker } from "../components/FlockPicker";
 import { DialogError } from "../components/DialogError";
 import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
@@ -550,12 +552,16 @@ export function HistoryPage() {
             }
           />
         </div>
-        <label>{t("fromLabel")}
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </label>
-        <label>{t("toLabel")}
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </label>
+        {/* #653 — the date range gets its own bounded toolbar; the flock
+            picker above stays a plain form-grid field. */}
+        <div className="toolbar">
+          <label>{t("fromLabel")}
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label>{t("toLabel")}
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+        </div>
       </div>
 
       <Dialog
@@ -721,7 +727,15 @@ export function HistoryPage() {
       {entries.rows === null || entries.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : entries.rows.length === 0 ? (
-        <p className="muted">{t("noEntriesMatch")}</p>
+        // No page-head create action on this screen (entries come from Daily
+        // Entry); with a filter set, the fix is clearing it back to "All".
+        (flockFilter || from || to)
+          ? <EmptyState icon={FilterX} message={t("noEntriesMatch")}
+              action={{
+                label: tc("clearFiltersButton"),
+                onClick: () => { setFlockFilter(""); setFlockFilterEntity(null); setFrom(""); setTo(""); },
+              }} />
+          : <EmptyState icon={Inbox} message={t("noEntriesMessage")} />
       ) : (
         <>
           <table className="data">

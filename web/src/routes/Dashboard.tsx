@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
+import { Bird, Egg, ShoppingCart } from "lucide-react";
 import {
   getProductionReport, getStock, listDailyEntries, listFlocks, listOrders,
 } from "../api/cluckwork";
@@ -9,6 +10,7 @@ import type { DailyEntry, Flock, ProductionReport, SalesOrder, StockRow } from "
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
+import { EmptyState } from "../components/EmptyState";
 import { StatusBadge } from "../components/StatusBadge";
 import { Sparkline } from "../components/Sparkline";
 import { StockBar } from "../components/StockBar";
@@ -127,7 +129,10 @@ export function Dashboard() {
             <>
               <p className="muted">{t("todayEggsTotal", { total: fmt.count(todaysEggs(entries)) })}</p>
               {tiles.shown.length === 0 ? (
-                <p className="muted">{t("noFlocksMessage")}</p>
+                // No action here: the panel's own h3 already links to
+                // /daily-entry, and there is no panel-local create handler to
+                // reuse without duplicating one.
+                <EmptyState icon={Bird} message={t("noFlocksMessage")} />
               ) : (
                 <>
                   <div className="capture-grid">
@@ -185,7 +190,7 @@ export function Dashboard() {
         <div className="panel">
           <h3><Link to="/stock">{t("stockPanelTitle")}</Link></h3>
           {bar === null || stock === null ? panelError : stock.length === 0 ? (
-            <p className="muted">{t("noStockMessage")}</p>
+            <EmptyState icon={Egg} message={t("noStockMessage")} />
           ) : (
             <>
               <StockBar data={bar} />
@@ -202,7 +207,7 @@ export function Dashboard() {
         <div className="panel">
           <h3><Link to="/sales">{t("salesPanelTitle")}</Link></h3>
           {orders === null ? panelError : orders.length === 0 ? (
-            <p className="muted">{t("noOrdersMessage")}</p>
+            <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")} />
           ) : (
             <ul className="dash-list">
               {orders.map((o) => (

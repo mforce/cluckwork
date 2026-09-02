@@ -148,6 +148,27 @@ describe("StockPage drill-down", () => {
     expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g2", limit: 50, offset: 0 });
   });
 
+  // #655 — the date range is this section's own filter: a zero-lot result
+  // AFTER narrowing it is "filtered to nothing" (offer Clear filters), not
+  // the same truly-empty state the unfiltered case above asserts.
+  it("offers Clear filters when a date-narrowed grade has no lots in range", async () => {
+    mockListEggLots.mockResolvedValue(LOTS);
+    await renderWithData();
+    const gradeA = screen.getByRole("row", { name: /Grade A\b/ });
+    fireEvent.click(within(gradeA).getByRole("button", { name: "lots" }));
+    await screen.findByRole("row", { name: /07\/01\/2026/ });
+
+    mockListEggLots.mockResolvedValue([]);
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-01-01" } });
+    await waitFor(() => expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g1", from: "2026-01-01", limit: 50, offset: 0 }));
+    expect(await screen.findByText(/No lots match/)).toBeInTheDocument();
+
+    mockListEggLots.mockResolvedValue(LOTS);
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    await screen.findByRole("row", { name: /07\/01\/2026/ });
+    expect(mockListEggLots).toHaveBeenLastCalledWith({ gradeId: "g1", limit: 50, offset: 0 });
+  });
+
   it("collapses the lots again on 'hide lots'", async () => {
     mockListEggLots.mockResolvedValue(LOTS);
     await renderWithData();

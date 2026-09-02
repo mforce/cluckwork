@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Plus } from "lucide-react";
+import { FilterX, Plus, ShoppingCart } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import {
@@ -19,6 +19,7 @@ import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { NumberField } from "../components/NumberField";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
+import { EmptyState } from "../components/EmptyState";
 import { ProvenanceCell } from "../components/ProvenanceCell";
 import { useDialogErrors } from "../components/useDialogErrors";
 import { useConfirm } from "../components/useConfirm";
@@ -115,6 +116,11 @@ export function SalesPage() {
   // absent, never sent to the server, URL left untouched.
   const [searchParams, setSearchParams] = useSearchParams();
   const customerFilter = normalizeCanonicalGuid(searchParams.get("customerId"));
+  // #655 fix increment 2 — the empty-state variant and its "Clear filters"
+  // reach must track every filter sent to the API (line ~289: status AND
+  // customerId), not customerFilter alone, or a status-only filter that
+  // matches nothing shows the truly-empty copy on a farm that has orders.
+  const hasActiveFilter = Boolean(customerFilter) || Boolean(statusFilter);
   // #512 US5 (T057, FR-049) — the filter's committed identity: the row-owned
   // entity the picker's exact GET resolved for a well-formed `customerId` (or
   // a genuine user pick). A failed exact read enters the picker's own
@@ -681,7 +687,10 @@ export function SalesPage() {
     <section>
       <div className="page-head">
         <h2>{t("title")}</h2>
-        {customers.length > 0 && (
+        {/* #655 — also withheld exactly when the truly-empty state below is
+            offering this same action (never for the filtered-empty branch,
+            which offers "Clear filters" instead — no duplicate there). */}
+        {customers.length > 0 && !(orders.rows.length === 0 && !hasActiveFilter) && (
           // Re-seeded on open, not only at mount: a tab left open across
           // farm-midnight would otherwise offer yesterday as the order date
           // while the picker's own ceiling had already moved on (codex review
@@ -921,7 +930,7 @@ export function SalesPage() {
                         <td className="nowrap"><FarmDate iso={p.paymentDate} /></td>
                         <td className="num">{fmt.money(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
                         <td>{t(`method${p.method as PaymentMethod}`)}</td>
-                        <td>{p.referenceNumber ?? "—"}</td>
+                        <td className="nowrap">{p.referenceNumber ?? "—"}</td>
                         <td>
                           {p.voided
                             ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>{statusLabel("Voided")}</span>
@@ -1108,7 +1117,29 @@ export function SalesPage() {
       {(orders.reloading || customerFilterStale) ? (
         <p className="muted">{t("loading")}</p>
       ) : orders.rows.length === 0 ? (
-        <p className="muted">{t("noOrdersMatch")}</p>
+        hasActiveFilter
+          ? <EmptyState icon={FilterX} message={t("noOrdersMatch")}
+              action={{
+                label: tc("clearFiltersButton"),
+                onClick: () => {
+                  const next = new URLSearchParams(searchParams);
+                  next.delete("customerId");
+                  setCustomerFilterEntity(null);
+                  setStatusFilter("");
+                  setSearchParams(next);
+                },
+              }} />
+          // Same condition AND same handler as the page-head New order button
+          // above — a customer-less farm gets the sentence alone there too.
+          : <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")}
+              action={customers.length > 0 ? {
+                label: t("newOrder"),
+                onClick: () => {
+                  setOrderDate(today);
+                  setNewOrderCustomerPickerOpen(true);
+                  setCreatingOrder(true);
+                },
+              } : undefined} />
       ) : (
         <>
           <table className="data">
@@ -1118,7 +1149,7 @@ export function SalesPage() {
             <tbody>
               {orders.rows.map((o) => (
                 <tr key={o.id}>
-                  <td>{o.referenceNumber}</td>
+                  <td className="nowrap">{o.referenceNumber}</td>
                   <td className="nowrap"><FarmDate iso={o.orderDate} /></td>
                   <td>{rowCustomerName(o)}</td>
                   <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>

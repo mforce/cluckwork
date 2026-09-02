@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
+import { FilterX, Inbox } from "lucide-react";
 import {
   listFeedUsage, listFlocks, listInventoryItems, recordFeedUsage,
 } from "../api/cluckwork";
@@ -10,6 +11,7 @@ import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
+import { EmptyState } from "../components/EmptyState";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { usePagedList } from "../components/usePagedList";
@@ -349,12 +351,16 @@ export function FeedPage() {
             }
           />
         </div>
-        <label>{t("fromLabel")}
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </label>
-        <label>{t("toLabel")}
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </label>
+        {/* #653 — the date range gets its own bounded toolbar; the flock
+            picker above stays a plain form-grid field. */}
+        <div className="toolbar">
+          <label>{t("fromLabel")}
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label>{t("toLabel")}
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+        </div>
       </div>
 
       {/* One window's rows must never sit under another window's controls,
@@ -363,7 +369,14 @@ export function FeedPage() {
       {usage.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : usage.rows.length === 0 ? (
-        <p className="muted">{t("noRecordsMatch")}</p>
+        // No page-head create action — feed capture is the inline form above.
+        (flockFilter || from || to)
+          ? <EmptyState icon={FilterX} message={t("noRecordsMatch")}
+              action={{
+                label: tc("clearFiltersButton"),
+                onClick: () => { setFlockFilter(""); setFlockFilterEntity(null); setFrom(""); setTo(""); },
+              }} />
+          : <EmptyState icon={Inbox} message={t("noRecordsMessage")} />
       ) : (
         <>
           <table className="data">

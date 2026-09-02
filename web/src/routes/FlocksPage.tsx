@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { Plus } from "lucide-react";
+import { Bird, FilterX, Plus } from "lucide-react";
 import {
   archiveFlock, createFlock, depleteFlock, listBirdMovements, listFlocks, reactivateFlock,
   recordBirdMovement, updateFlock,
@@ -14,6 +14,7 @@ import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
+import { EmptyState } from "../components/EmptyState";
 import { NumberField } from "../components/NumberField";
 import { ProvenanceCell } from "../components/ProvenanceCell";
 import { StatusBadge } from "../components/StatusBadge";
@@ -267,7 +268,10 @@ export function FlocksPage() {
     <section>
       <div className="page-head">
         <h2>{t("title")}</h2>
-        {isAdmin && (
+        {/* #655 — withheld exactly when the truly-empty state below is
+            offering this same action (never for the filtered-empty branch,
+            which offers "Clear filters" instead — no duplicate there). */}
+        {isAdmin && !(flocks.length === 0) && (
           <button type="button" onClick={() => { closeEdit(); setCreating(true); }}>
             <Plus size={16} aria-hidden /> {t("newFlockButton")}
           </button>
@@ -353,7 +357,16 @@ export function FlocksPage() {
       )}
 
       {visible.length === 0 ? (
-        <p className="muted">{t("noFlocksMessage")}</p>
+        // #655 — `visible` is already filtered by `showArchived`; when
+        // everything is archived and the toggle is off, this is "filtered to
+        // nothing" (offer to reveal them), never "nothing exists yet" (which
+        // needs `archivedCount === 0` too — the toggle can't be responsible
+        // for an empty `flocks` array in the first place).
+        archivedCount > 0
+          ? <EmptyState icon={FilterX} message={t("noFlocksMatch")}
+              action={{ label: tc("clearFiltersButton"), onClick: () => setShowArchived(true) }} />
+          : <EmptyState icon={Bird} message={t("noFlocksMessage")}
+              action={isAdmin ? { label: t("newFlockButton"), onClick: () => { closeEdit(); setCreating(true); } } : undefined} />
       ) : (
         <table className="data">
           <thead>

@@ -18,6 +18,13 @@ export const tl = {
     "recordHistory.viewHistoryLink": "Kasaysayan ng audit",
     "recordHistory.viewAdjustmentHistoryLink": "Kasaysayan ng pagsasaayos",
     recordHistoryHeader: "Kasaysayan",
+    "relativeTime.today": "Ngayon",
+    "relativeTime.yesterday": "Kahapon",
+    "relativeTime.daysAgo": "{{count}} araw ang nakalipas",
+    "relativeTime.weeksAgo": "{{count}} linggo ang nakalipas",
+    "relativeTime.weeksAgo_one": "{{count}} linggo ang nakalipas",
+    "relativeTime.monthsAgo": "{{count}} buwan ang nakalipas",
+    "relativeTime.monthsAgo_one": "{{count}} buwan ang nakalipas",
     cancel: "Kanselahin",
     save: "I-save",
     close: "Isara",
@@ -38,6 +45,8 @@ export const tl = {
     none: "Wala",
     yes: "Oo",
     no: "Hindi",
+    // machine-drafted, flagged for native review
+    clearFiltersButton: "I-clear ang mga filter",
   },
   auth: {
     title: "Cluckwork",
@@ -362,6 +371,7 @@ export const tl = {
       + "mga kumpirmasyon ng benta mula sa labas ng mga kawan na nakatalaga "
       + "sa iyo.",
     noOrdersMatch: "Walang tugmang order.",
+    noOrdersMessage: "Wala pang order.",
     voidingNeedsAdmin: "Kailangan ng admin para mag-void.",
     voidReasonLabel: "Dahilan ng pag-void: {{reason}}",
     orderTotal: "Kabuuan: {{amount}}",
@@ -609,6 +619,7 @@ export const tl = {
     fromLabel: "Mula",
     toLabel: "Hanggang",
     noRecordsMatch: "Walang tumutugmang tala ng pakain.",
+    noRecordsMessage: "Wala pang tala ng pakain — magtala ng isa sa itaas.",
     dateHeader: "Petsa",
     flockHeader: "Kawan",
     itemHeader: "Item",
@@ -667,6 +678,7 @@ export const tl = {
     fromLabel: "Mula",
     toLabel: "Hanggang",
     noRecordsMatch: "Walang tumugmang tala ng tubig.",
+    noRecordsMessage: "Wala pang tala ng tubig — magtala ng isa sa itaas.",
 
     // Records table
     dateHeader: "Petsa",
@@ -936,6 +948,7 @@ export const tl = {
     // Lots drill-down (per grade)
     lotsHeading: "Mga Lote",
     noLotsMessage: "Wala pang lote para sa grado na ito.",
+    noLotsMatch: "Walang tumutugmang lote — subukan ang ibang saklaw ng petsa.",
     producedOnHeader: "Petsa ng Produksyon",
     producedHeader: "Produksyon",
     historyButton: "history",
@@ -1019,6 +1032,7 @@ export const tl = {
     showArchivedLabel: "ipakita ang {{count}} naka-archive",
 
     noFlocksMessage: "Wala pang kawan.",
+    noFlocksMatch: "Walang tumutugmang kawan — lahat ng kawan ay naka-archive ngayon.",
 
     // Flocks table
     nameHeader: "Pangalan",
@@ -1506,6 +1520,7 @@ export const tl = {
     saveAdjustmentButton: "I-save ang pag-adjust",
 
     noEntriesMatch: "Walang tugmang entry — magtala ng isa sa Daily entry page.",
+    noEntriesMessage: "Wala pang entry — magtala ng isa sa Daily entry page.",
 
     // Entries table
     dateHeader: "Petsa",

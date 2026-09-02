@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus } from "lucide-react";
+import { Package, Plus } from "lucide-react";
 import {
   activateProduct, createProduct, deactivateProduct,
   getAccount, listEggGrades, listEggUnitConversions, listProducts,
@@ -14,6 +14,7 @@ import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
+import { EmptyState } from "../components/EmptyState";
 import { NumberField } from "../components/NumberField";
 import { StatusBadge } from "../components/StatusBadge";
 import { useDialogErrors } from "../components/useDialogErrors";
@@ -276,7 +277,9 @@ export function ProductsPage() {
     <section>
       <div className="page-head">
         <h2>{t("title")}</h2>
-        {isAdmin && (
+        {/* #655 — withheld while the empty state below is offering this exact
+            same action, so there is one "New product" button on screen. */}
+        {isAdmin && products.length > 0 && (
           <button type="button" onClick={() => { closeEdit(); closeEditConversion(); setCreating(true); }}>
             <Plus size={16} aria-hidden /> {t("newProductButton")}
           </button>
@@ -386,7 +389,8 @@ export function ProductsPage() {
       </Dialog>
 
       {products.length === 0 ? (
-        <p className="muted">{t("noProductsMessage")}</p>
+        <EmptyState icon={Package} message={t("noProductsMessage")}
+          action={isAdmin ? { label: t("newProductButton"), onClick: () => { closeEdit(); closeEditConversion(); setCreating(true); } } : undefined} />
       ) : (
         <table className="data">
           <thead>
