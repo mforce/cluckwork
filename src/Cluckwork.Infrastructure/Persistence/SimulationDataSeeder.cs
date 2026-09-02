@@ -394,7 +394,7 @@ public sealed class SimulationDataSeeder(
             // of seeding rather than waiting on the DurableJobWorker's 30s poll,
             // so the day-9 sentinel entry seeded above is already Locked by the
             // time SeedAsync returns.
-            await lockSweep.RunAsync(ct);
+            await DrainLockSweepAsync(sim, ct);
 
             // Completion manifest (#243 Task 3e) — always last: counts +
             // validates the whole fixture above, then (only when a manifest path
@@ -1897,6 +1897,13 @@ public sealed class SimulationDataSeeder(
     // fixture (HistoryDays=12) and the real 90-day default validate against
     // the SAME formulas.
     //
+    // #638 — that claim covers the EXPECTATIONS, and until #638 the SEEDING
+    // was not depth-robust to match: the lock sweep ran once, capped at
+    // DailyEntryLockSweep.BatchSize, so above HistoryDays 107 the Locked
+    // expectation below could not be met however clean the database. The
+    // seeding side is DrainLockSweepAsync's job; read the two together before
+    // widening either claim.
+    //
     // #279 review Fix 2 (Agent A + pi + codex, consensus): every count below
     // is asserted EXACTLY, not as a ">= 1" floor — including the
     // Draft/Submitted/Locked lifecycle split (Locked is derived by mirroring
@@ -1997,6 +2004,59 @@ public sealed class SimulationDataSeeder(
     private static int RecurringPointCount(int historyDays) =>
         historyDays < RecurringStartDay ? 0 : (historyDays - RecurringStartDay) / RecurringCadenceDays + 1;
 
+    // #638 — DRAIN the sweep; one pass is not enough at depth.
+    //
+    // DailyEntryLockSweep is built for the DurableJobWorker: one RunAsync pass
+    // locks at most DailyEntryLockSweep.BatchSize entries per account and
+    // returns, and the poll 30 seconds later takes the next batch. A
+    // run-then-exit seed verb has no poll behind it, so a single pass left
+    // every eligible entry past the first batch Submitted — while
+    // ExpectedLockedEntryCount (below) mirrors the sweep's CUTOFF rule and
+    // therefore expects every eligible entry Locked. Those two agree only
+    // while `FlockTopologyCount * (HistoryDays - LockAfterDays) <= BatchSize`,
+    // i.e. HistoryDays <= 107; above it the seed could never validate on any
+    // database, however clean.
+    //
+    // Fixed here rather than by raising BatchSize: that constant is sized for
+    // the serving-path background worker, and enlarging it to suit a seeder
+    // would move this ceiling rather than remove it.
+    //
+    // Terminates on a pass that locked nothing — the honest "no progress"
+    // signal (see DailyEntryLockSweep.RunAsync's own contract), which also
+    // covers the stuck-batch case a due-count terminator would spin on. The
+    // bound exists only so a future defect that makes a pass report progress
+    // without making any cannot hang a seed forever; it is derived from the
+    // same numbers the work itself is, so it can never be the thing that
+    // fails first on a legitimately deep fixture.
+    private async Task DrainLockSweepAsync(SimulationOptions sim, CancellationToken ct)
+    {
+        var maxPasses = MaxLockSweepPasses(sim.HistoryDays);
+        for (var pass = 1; pass <= maxPasses; pass++)
+            if (await lockSweep.RunAsync(ct) == 0)
+                return;
+
+        throw new InvalidOperationException(
+            $"Daily-entry lock sweep did not drain in {maxPasses} passes at "
+            + $"HistoryDays={sim.HistoryDays}; every pass still reported entries locked. "
+            + "This is a lock-sweep defect, not a seeding depth limit.");
+    }
+
+    // Upper bound on the passes DrainLockSweepAsync should ever need: enough
+    // to lock every seeded daily entry across the topology, plus the
+    // terminating pass that locks nothing, plus one of slack.
+    //
+    // Deliberately loose in two directions, because the bound must never be
+    // the thing that fails first on a legitimate fixture. It counts EVERY
+    // seeded entry as a candidate while only those past the lock cutoff are
+    // ever due; and it divides by one BatchSize per pass while a pass sweeps
+    // every account, so the real per-pass ceiling is higher still. It exists
+    // solely so a future defect that reports progress without making any
+    // cannot hang a seed forever.
+    private static int MaxLockSweepPasses(int historyDays) =>
+        (FlockTopologyCount * Math.Max(historyDays, 0) + DailyEntryLockSweep.BatchSize - 1)
+            / DailyEntryLockSweep.BatchSize
+        + 2;
+
     // Mirrors DailyEntryLockSweep.LockDueEntriesAsync's own cutoff
     // (`farmToday.AddDays(-LockAfterDays)`) entry-by-entry, so the manifest's
     // expected Locked count is a real derivation from the SAME rule the
@@ -2018,7 +2078,8 @@ public sealed class SimulationDataSeeder(
     {
         var (counts, states) = await ComputeCountsAsync(accountId, ct);
         // Same farm-local "today" lookup DailyEntryLockSweep itself just used
-        // (lockSweep.RunAsync already ran, above, in SeedAsync) — recomputing
+        // (DrainLockSweepAsync already ran it to exhaustion, above, in
+        // SeedAsync — #638) — recomputing
         // it here mirrors the sweep's OWN cutoff derivation exactly instead
         // of approximating it, at the cost of the same vanishingly small
         // UTC-midnight-mid-SeedAsync race the class header already documents

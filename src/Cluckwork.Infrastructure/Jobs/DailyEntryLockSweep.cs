@@ -18,9 +18,26 @@ public sealed class DailyEntryLockSweep(
     ILogger<DailyEntryLockSweep> logger)
 {
     public const int LockAfterDays = 7;
-    private const int BatchSize = 200;
 
-    public async Task RunAsync(CancellationToken ct)
+    // Public because #638's caller has to reason about it: one RunAsync pass
+    // locks at most this many entries PER ACCOUNT and returns, by design — the
+    // DurableJobWorker poll picks the rest up 30s later. A caller with no poll
+    // behind it (SimulationDataSeeder) must drain instead, and derives its own
+    // pass bound from this number rather than guessing one.
+    public const int BatchSize = 200;
+
+    /// <summary>
+    /// Runs one lock pass over every account.
+    /// </summary>
+    /// <returns>
+    /// How many entries this pass actually locked, across all accounts — at
+    /// most <see cref="BatchSize"/> per account. A non-zero return means there
+    /// may be more still due: re-invoke until it returns 0 to drain the
+    /// backlog. Zero means either nothing was due or nothing could be locked;
+    /// either way there is no progress left for a re-invoke to make, so it is
+    /// a safe loop terminator and cannot spin on a stuck batch.
+    /// </returns>
+    public async Task<int> RunAsync(CancellationToken ct)
     {
         // Accounts first (filter-free), then one tenant-resolved scope per
         // account so the query filter and stamp interceptor behave exactly as
@@ -38,11 +55,12 @@ public sealed class DailyEntryLockSweep(
                 .ToList();
         }
 
+        var lockedTotal = 0;
         foreach (var (accountId, timeZoneId) in accounts)
         {
             try
             {
-                await LockDueEntriesAsync(accountId, timeZoneId, ct);
+                lockedTotal += await LockDueEntriesAsync(accountId, timeZoneId, ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -51,13 +69,18 @@ public sealed class DailyEntryLockSweep(
             catch (Exception ex)
             {
                 // One account's failure (bad timezone id, transient DB error)
-                // must not starve the remaining accounts of their sweep.
+                // must not starve the remaining accounts of their sweep. It
+                // contributes 0 to the total, so a draining caller stops
+                // re-invoking on an account that can never make progress
+                // instead of looping on it.
                 logger.LogError(ex, "Lock sweep failed for account {AccountId}.", accountId);
             }
         }
+
+        return lockedTotal;
     }
 
-    private async Task LockDueEntriesAsync(Guid accountId, string timeZoneId, CancellationToken ct)
+    private async Task<int> LockDueEntriesAsync(Guid accountId, string timeZoneId, CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
         var tenant = scope.ServiceProvider.GetRequiredService<TenantContext>();
@@ -73,7 +96,7 @@ public sealed class DailyEntryLockSweep(
             .OrderBy(e => e.Date)
             .Take(BatchSize)
             .ToListAsync(ct);
-        if (due.Count == 0) return;
+        if (due.Count == 0) return 0;
 
         var lockedCount = 0;
         foreach (var entry in due)
@@ -103,5 +126,11 @@ public sealed class DailyEntryLockSweep(
         logger.LogInformation(
             "Locked {Count} submitted entries older than {Days} days for account {AccountId}.",
             lockedCount, LockAfterDays, accountId);
+        // Deliberately the count that was actually LOCKED, not due.Count: a
+        // batch that came back due but locked nothing (every Lock() failed, or
+        // a concurrent adjust won every Version race) has made no progress, and
+        // reporting it as progress would let a draining caller spin forever on
+        // the same batch.
+        return lockedCount;
     }
 }
