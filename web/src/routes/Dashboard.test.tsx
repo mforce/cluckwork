@@ -184,6 +184,14 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     expect(await screen.findByText(/· 12 restricted$/)).toBeInTheDocument();
   });
 
+  it("says '1 egg available.' — singular — when exactly one egg is in stock", async () => {
+    mockStock.mockResolvedValue([{ eggGradeId: "g1", gradeName: "Grade A", available: 1, restricted: 0 }]);
+    renderWithProviders(<Dashboard />);
+    const stock = await panel("Stock");
+    expect(within(stock).getByText(/^1 egg available\. · Grade A 1$/)).toBeInTheDocument();
+    expect(within(stock).queryByText(/1 eggs available/)).not.toBeInTheDocument();
+  });
+
   it("still renders a restricted-only stock (0 available, 4 restricted) — that is not the empty state", async () => {
     mockStock.mockResolvedValue([{ eggGradeId: "g1", gradeName: "Grade A", available: 0, restricted: 4 }]);
     renderWithProviders(<Dashboard />);

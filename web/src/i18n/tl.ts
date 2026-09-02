@@ -552,7 +552,11 @@ export const tl = {
     // Stock (#654)
     stockPanelTitle: "Stock",
     noStockMessage: "Wala pang stock — magtala at magsumite ng araw-araw na tala.",
-    eggsAvailableMessage: "{{total}} itlog ang available.",
+    // Tagalog does not inflect the noun for number here, so both forms are the
+    // same sentence; both keys still exist because the catalogs must carry an
+    // identical key set (catalogParity.test.ts).
+    eggsAvailableMessage_one: "{{total}} itlog ang available.",
+    eggsAvailableMessage_other: "{{total}} itlog ang available.",
     stockCaptionRestricted: "{{restricted}} restricted",
 
     // Mga kamakailang benta (nakatago para sa ReadOnly/Denied, #127)

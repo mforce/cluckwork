@@ -530,7 +530,8 @@ export const es = {
     // Existencias (#654)
     stockPanelTitle: "Existencias",
     noStockMessage: "Aún no hay existencias — registre y envíe un registro diario.",
-    eggsAvailableMessage: "{{total}} huevos disponibles.",
+    eggsAvailableMessage_one: "{{total}} huevo disponible.",
+    eggsAvailableMessage_other: "{{total}} huevos disponibles.",
     stockCaptionRestricted: "{{restricted}} restringidos",
 
     // Ventas recientes (oculto para Solo lectura/Denegado, #127)

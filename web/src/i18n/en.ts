@@ -645,7 +645,8 @@ export const en = {
     stockPanelTitle: "Stock",
     noStockMessage: "No stock yet — record and submit a daily entry.",
     // {{total}} is the farm-locale formatted figure (#650); {{count}} stays for plural selection.
-    eggsAvailableMessage: "{{total}} eggs available.",
+    eggsAvailableMessage_one: "{{total}} egg available.",
+    eggsAvailableMessage_other: "{{total}} eggs available.",
     stockCaptionRestricted: "{{restricted}} restricted",
 
     // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
