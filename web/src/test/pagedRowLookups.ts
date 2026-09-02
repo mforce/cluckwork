@@ -92,6 +92,38 @@ function callArguments(source: string, at: number): string | null {
   return null;
 }
 
+// A property of the OPTIONS OBJECT ITSELF, not of anything nested inside it.
+// Taking the first textual `pageSize:` in the call's arguments reads
+// `usePagedList({ fetchPage: () => list({ pageSize: 50 }), pageSize: 100 })` as
+// a screen that pages at 50 — the request's page size, not the hook's — and
+// aims the lint at a threshold half the real one (CodeRabbit review of #647,
+// against the previous round's own fix).
+//
+// Only BRACES are counted. A first draft also counted `()` and `[]`, on the
+// reasoning that an option's value can be an arrow function or an array — but
+// every such value opens a brace before it can contain a `key:` property, so
+// the extra counting changed no outcome and a mutation removing it stayed
+// green. Prose asserting a safeguard nothing enforces is the thing this file
+// exists to object to, so the claim went with the code.
+function topLevelProperty(options: string, key: string): string | null {
+  const open = options.indexOf("{");
+  if (open === -1) return null;
+  const property = new RegExp(`^${key}:\\s*([A-Za-z_$][\\w$]*|\\d+)`);
+  let depth = 0;
+  for (let i = open; i < options.length; i += 1) {
+    const char = options[i];
+    if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return null;
+    } else if (depth === 1 && !/[\w$]/.test(options[i - 1] ?? "")) {
+      const found = property.exec(options.slice(i));
+      if (found !== null) return found[1];
+    }
+  }
+  return null;
+}
+
 // The sizes a screen's fixtures are measured against: the resolved ones only.
 // An unresolved `pageSize` must NOT be quietly treated as "no page size" — that
 // is what the coverage test is for — but neither can it be compared against, so
@@ -123,9 +155,8 @@ export function pageSizes(source: string): (number | null)[] {
     .map((call) => callArguments(source, call.index + call[0].length))
     .filter((options): options is string => options !== null)
     .map((options) => {
-      const found = /\bpageSize:\s*([A-Za-z_$][\w$]*|\d+)/.exec(options);
-      if (found === null) return null;
-      const token = found[1];
+      const token = topLevelProperty(options, "pageSize");
+      if (token === null) return null;
       return /^\d+$/.test(token) ? Number(token) : constants.get(token) ?? null;
     });
 }

@@ -79,6 +79,26 @@ describe("pageSizes — the threshold comes from the screen", () => {
     `)).toEqual([100]);
   });
 
+  it("takes the hook's own pageSize, not a nested request's", () => {
+    // The first textual `pageSize:` inside the call is not necessarily the
+    // hook's: an option's value can be a call with its own paging argument, and
+    // reading that one aims the lint at half the real threshold (CodeRabbit
+    // review of #647, against the previous round's fix).
+    expect(pageSizes(`
+      usePagedList({
+        fetchPage: (offset, limit) => listThings({ pageSize: 50, offset, limit }),
+        pageSize: 100,
+      });
+    `)).toEqual([100]);
+  });
+
+  it("does not read a nested pageSize when the hook names none", () => {
+    // Unresolved, not "50": a screen that pages must contribute a size, and
+    // guessing one from a nested call is how the wrong threshold gets in.
+    expect(pageSizes("usePagedList({ fetchPage: () => listThings({ pageSize: 50 }) });"))
+      .toEqual([null]);
+  });
+
   it("does not read the import statement as a call site", () => {
     expect(pageSizes(`
       import { usePagedList } from "../components/usePagedList";
