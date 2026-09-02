@@ -71,7 +71,8 @@
     radial-gradient(50% 50% at 18% 90%, #f7e4ff 0%, transparent 60%),
     var(--lavender);
 
-  --r-input: 8px;
+  --r-input: 6px;
+  --r-panel: 10px;
   --r-card: 16px;
   --r-pill: 999px;
   --sidebar-w: 244px;
@@ -81,7 +82,6 @@
   --tabbar-h: 0px;
 
   --font: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --shadow-card: 0 1px 2px rgba(29, 21, 33, 0.04), 0 8px 24px rgba(29, 21, 33, 0.05);
   --scrim: rgba(29, 21, 33, 0.42);
   --shadow-dialog: 0 24px 64px rgba(29, 21, 33, 0.24);
   --shadow-bar: 0 -8px 24px rgba(29, 21, 33, 0.08);
@@ -206,7 +206,6 @@
     radial-gradient(55% 50% at 88% 12%, rgba(74, 21, 75, 0.6) 0%, transparent 60%),
     radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
     var(--canvas);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
   --scrim: rgba(0, 0, 0, 0.62);
   --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
   --shadow-bar: 0 -8px 24px rgba(0, 0, 0, 0.45);
@@ -1048,17 +1047,19 @@ input.cell {
   padding: 0;
 }
 
-/* -------------------------------------------- Toolbar (carded filter bar) */
+/* -------------------------------------------- Toolbar (inset filter bar) */
+/* --canvas and --surface-2 sit at 1.05-1.21:1 in every palette, so a
+   borderless fill would be invisible — the hairline border stays for that
+   reason, not because this is a floating card. */
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
   align-items: end;
   padding: 1rem 1.25rem;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-card);
-  box-shadow: var(--shadow-card);
+  border-radius: var(--r-panel);
   margin: 0.5rem 0 1.5rem;
 }
 
@@ -1519,7 +1520,6 @@ label.check {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r-card);
-  box-shadow: var(--shadow-card);
 }
 
 .panel {
@@ -2807,7 +2807,7 @@ button:disabled[aria-busy="true"] {
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-input, 4px);
+  border-radius: var(--r-input);
   padding: 0.55rem 0.7rem;
   text-align: left;
   cursor: pointer;
@@ -2877,7 +2877,7 @@ button:disabled[aria-busy="true"] {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r-input);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-dialog);
 }
 
 .named-picker-option {
