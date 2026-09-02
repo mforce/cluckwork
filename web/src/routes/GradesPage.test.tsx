@@ -61,7 +61,7 @@ describe("GradesPage display", () => {
   it("renders each grade with saleable + status columns", async () => {
     await renderReady(ADMIN);
     const rowA = screen.getByRole("row", { name: /Grade A/ });
-    expect(within(rowA).getByText("yes")).toBeInTheDocument(); // saleable
+    expect(within(rowA).getByText("Yes")).toBeInTheDocument(); // saleable
     expect(within(rowA).getByText("Active")).toBeInTheDocument();
     const rowOld = screen.getByRole("row", { name: /Legacy/ });
     // By cell, not by text: the record-history column (#494) also renders "—"
@@ -456,7 +456,7 @@ describe("GradesPage i18n wiring (#182, Task 14)", () => {
       await renderReady(ADMIN);
       const rowA = screen.getByRole("row", { name: /Grade A/ });
       expect(within(rowA).getByText("YES-MARKER")).toBeInTheDocument();
-      expect(within(rowA).queryByText("yes")).not.toBeInTheDocument();
+      expect(within(rowA).queryByText("Yes")).not.toBeInTheDocument();
     });
   });
 });

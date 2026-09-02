@@ -112,7 +112,7 @@ describe("Dashboard capture status (#654)", () => {
     const f3 = screen.getByRole("link", { name: "Flock f3: no entry yet, open today's entry" });
     for (const tile of [f2, f3]) {
       expect(tile).toHaveClass("is-missing");
-      expect(within(tile).getByText("no entry")).toBeInTheDocument();
+      expect(within(tile).getByText("No entry")).toBeInTheDocument();
       expect(within(tile).getByText("—")).toBeInTheDocument();
       expect(within(tile).queryByText("999")).not.toBeInTheDocument();
     }

@@ -623,7 +623,7 @@ export const en = {
     // screen and links straight to Daily entry for that flock and day.
     todayPanelTitle: "Today",
     noFlocksMessage: "No flocks yet — create one on the Daily entry page.",
-    noEntryBadge: "no entry",
+    noEntryBadge: "No entry",
     // {{total}} is the farm-locale formatted figure (#650).
     todayEggsTotal: "{{total}} eggs today",
     // aria-label of a tile link; the visible tile shows name, eggs and status.
@@ -879,7 +879,7 @@ export const en = {
 
     // Saleable column's "yes" badge — lowercase, distinct from common.yes
     // ("Yes"); same case-sensitive-variant treatment as sales:close.
-    saleableYesBadge: "yes",
+    saleableYesBadge: "Yes",
   },
   // Feed & inventory catalog + receiving/usage/correction screen (Task 16,
   // #182, batch B3 — the biggest B3 screen). `inventory` is in
@@ -2401,7 +2401,7 @@ export const en = {
     dashboardHeading: "Dashboard",
     dashboardTiles:
       "<strong>Today</strong>: one tile per active flock with today's eggs and status, the ones without "
-      + "an entry first. A tile marked <strong>no entry</strong> is the house nobody has recorded yet — tap "
+      + "an entry first. A tile marked <strong>No entry</strong> is the house nobody has recorded yet — tap "
       + "it to open Daily entry for that flock and day. Past twelve tiles, a link carries the rest.",
     dashboardTrend:
       "<strong>Last 14 days</strong>: eggs per day from the production report, with <strong>hen-day %"
@@ -3183,7 +3183,7 @@ export const en = {
     glossaryCaptureStatusTerm: "Capture status",
     glossaryCaptureStatusDef:
       "Whether each active flock has a daily entry for today. The dashboard shows it as one tile per "
-      + "flock, missing ones first; \"no entry\" is the alarm state and links to Daily entry for that flock and day.",
+      + "flock, missing ones first; \"No entry\" is the alarm state and links to Daily entry for that flock and day.",
 
     glossaryEggLotTerm: "Egg lot",
     glossaryEggLotDef:

@@ -71,7 +71,8 @@
     radial-gradient(50% 50% at 18% 90%, #f7e4ff 0%, transparent 60%),
     var(--lavender);
 
-  --r-input: 8px;
+  --r-input: 6px;
+  --r-panel: 10px;
   --r-card: 16px;
   --r-pill: 999px;
   --sidebar-w: 244px;
@@ -81,7 +82,6 @@
   --tabbar-h: 0px;
 
   --font: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --shadow-card: 0 1px 2px rgba(29, 21, 33, 0.04), 0 8px 24px rgba(29, 21, 33, 0.05);
   --scrim: rgba(29, 21, 33, 0.42);
   --shadow-dialog: 0 24px 64px rgba(29, 21, 33, 0.24);
   --shadow-bar: 0 -8px 24px rgba(29, 21, 33, 0.08);
@@ -206,7 +206,6 @@
     radial-gradient(55% 50% at 88% 12%, rgba(74, 21, 75, 0.6) 0%, transparent 60%),
     radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
     var(--canvas);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
   --scrim: rgba(0, 0, 0, 0.62);
   --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
   --shadow-bar: 0 -8px 24px rgba(0, 0, 0, 0.45);
@@ -732,10 +731,8 @@ input.cell {
   color: var(--stat-accent);
   font-size: 0.7rem;
   font-weight: 700;
-  /* The headings carry negative display tracking; this is a label, so it opens
-     up instead. */
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  /* Sentence case now — no tracking, no uppercase. */
+  letter-spacing: 0;
 }
 
 /* Flock + date sit above the two panes as context, not as a step. */
@@ -1048,17 +1045,30 @@ input.cell {
   padding: 0;
 }
 
-/* -------------------------------------------- Toolbar (carded filter bar) */
+/* -------------------------------------------- Toolbar (inset filter bar) */
+/* NOT DEAD CODE, and not rendered yet either: nothing in web/src applies
+   `.toolbar` today. It is styled here ahead of #653, which moves the
+   date-range filters into a bounded toolbar and is the slice that adds the
+   consumers. Deleting it would make #653 re-derive the two decisions below.
+   Check `grep -rn toolbar web/src --include='*.tsx'` before assuming it is
+   still unused — the day #653 lands, this note is stale.
+   --r-panel likewise has this rule as its only consumer today.
+
+   Why it is inset rather than carded (#651): elevation encodes what floats,
+   and a filter bar does not. Why it keeps a hairline border despite being
+   inset: --canvas and --surface-2 sit between 1.05:1 and 1.21:1 in every
+   palette and both modes — measured with the repo's own contrast() helper —
+   so a borderless fill is invisible on every one of them, not just the light
+   ones. */
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
   align-items: end;
   padding: 1rem 1.25rem;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-card);
-  box-shadow: var(--shadow-card);
+  border-radius: var(--r-panel);
   margin: 0.5rem 0 1.5rem;
 }
 
@@ -1096,10 +1106,9 @@ input.cell {
   gap: 0.3rem;
   padding: 0.16rem 0.6rem;
   border-radius: var(--r-pill);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  letter-spacing: 0;
   white-space: nowrap;
   background: var(--tint-muted);
   color: var(--muted);
@@ -1129,16 +1138,6 @@ input.cell {
 }
 
 .meter.is-warn > span { background: var(--warn); }
-
-/* Eyebrow caps pill (section labels) */
-.eyebrow {
-  display: inline-block;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
 
 /* ------------------------------------------------------- Sidebar shell */
 .shell {
@@ -1463,11 +1462,10 @@ table.data td {
 }
 
 table.data th {
-  color: var(--muted);
-  font-weight: 700;
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0;
 }
 
 table.data tbody tr:hover {
@@ -1519,7 +1517,6 @@ label.check {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r-card);
-  box-shadow: var(--shadow-card);
 }
 
 .panel {
@@ -2128,10 +2125,6 @@ dl.glossary {
 .help-toc {
   position: sticky;
   top: 1.5rem;
-}
-
-.help-toc .eyebrow {
-  padding: 0 0.6rem;
 }
 
 .help-toc ul {
@@ -2807,7 +2800,7 @@ button:disabled[aria-busy="true"] {
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-input, 4px);
+  border-radius: var(--r-input);
   padding: 0.55rem 0.7rem;
   text-align: left;
   cursor: pointer;
@@ -2877,7 +2870,7 @@ button:disabled[aria-busy="true"] {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r-input);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-dialog);
 }
 
 .named-picker-option {
