@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  formatMoney, getStock, listCustomers, listDailyEntries, listFlocks, listOrders,
+  formatMoney, getStock, listDailyEntries, listFlocks, listOrders,
 } from "../api/cluckwork";
-import type { Customer, DailyEntry, Flock, SalesOrder, StockRow } from "../api/cluckwork";
+import type { DailyEntry, Flock, SalesOrder, StockRow } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../auth/useAuth";
@@ -48,20 +48,18 @@ export function Dashboard() {
       listDailyEntries({ from: today, to: today, limit: MAX_PAGE }),
       getStock(),
       canSeeSales ? listOrders({ limit: RECENT_ORDERS }) : Promise.resolve<SalesOrder[]>([]),
-      canSeeSales ? listCustomers({ limit: MAX_PAGE }) : Promise.resolve<Customer[]>([]),
-    ]).then(([f, e, s, o, c]) => {
+    ]).then(([f, e, s, o]) => {
       if (f.status === "fulfilled") setFlocks(f.value);
       if (e.status === "fulfilled") setEntries(e.value);
       if (s.status === "fulfilled") setStock(s.value);
       if (o.status === "fulfilled") setOrders(o.value);
-      // #512 US4 (T052) — `c` (listCustomers) is no longer stored: recent-sales
-      // rows now render their OWN row-owned `customerName` (see
-      // rowCustomerName below), never a catalog lookup. The fetch itself is
-      // UNCHANGED here (still issued for a sales-visible role) — its removal
-      // is US5/T056's job, together with that task's own coverage.
+      // #512 US5 (T058) — recent-sales rows render their OWN row-owned
+      // `customerName` (see rowCustomerName below); the 500-customer catalog
+      // fetch that used to name them is gone (page-adoption.md: "Dashboard no
+      // longer loads a 500-customer catalog solely to name Sales rows").
       // Only the fetches we actually issued count toward "everything failed":
-      // the two sales reads are inert placeholders when the role can't see them.
-      const issued = canSeeSales ? [f, e, s, o, c] : [f, e, s];
+      // the sales read is an inert placeholder when the role can't see it.
+      const issued = canSeeSales ? [f, e, s, o] : [f, e, s];
       if (issued.every((r) => r.status === "rejected")) {
         const reason = (issued[0] as PromiseRejectedResult).reason;
         setError(reason instanceof ApiError ? reason.message : i18n.t("dashboard:loadFailed"));
@@ -187,7 +185,15 @@ export function Dashboard() {
                 {orders.map((o) => (
                   <tr key={o.id}>
                     <td>{o.referenceNumber}</td>
-                    <td>{rowCustomerName(o)}</td>
+                    <td>
+                      {/* #512 US5 (T058, FR-045) — authorized (canSeeSales,
+                          the gate this whole panel is already behind) link
+                          into URL-filtered Sales by canonical id; the name
+                          itself is always row-owned (rowCustomerName). */}
+                      <Link className="link" to={`/sales?customerId=${o.customerId}`}>
+                        {rowCustomerName(o)}
+                      </Link>
+                    </td>
                     <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
                     <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   </tr>

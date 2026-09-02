@@ -2348,6 +2348,39 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     expect(mockAssignFlock).toHaveBeenCalledWith("u-w", "fl1", expect.any(String), "grant-default");
   });
 
+  // #512 US4 (T043/T051) — a retained assignment's own flockName is null
+  // (the flock left the caller's tenant/flock scope between reads), even
+  // though the SAME id is present in the page's own display list under a
+  // DIFFERENT-looking name. The row must show the translated unavailable
+  // label, never that catalog substitution and never a raw id fragment.
+  it("a retained assignment whose own flockName is null shows the translated unavailable label — never the catalog's name for that id, never an id fragment", async () => {
+    mockListFlocks.mockImplementation(async () => [FLOCK_A, FLOCK_B]); // fl1 IS in the display list
+    // Bypass the beforeEach's own catalog-derived mock (it recomputes
+    // flockName from the SAME fixture flocks, which can never produce a
+    // genuinely out-of-scope null) — supply the exact server response.
+    mockListAssignments.mockResolvedValueOnce([{ id: "as1", flockId: "fl1", flockName: null }]);
+    await renderReady(ADMIN);
+
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
+    const panel = await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
+    const item = await within(panel).findByRole("listitem");
+    expect(within(item).getByText(i18n.t("users:assignmentFlockUnavailable"))).toBeInTheDocument();
+    expect(within(item).queryByText("Coop A")).not.toBeInTheDocument();
+    expect(within(item).queryByText("fl1")).not.toBeInTheDocument();
+  });
+
+  it("a retained farm-wide assignment (flockId null) shows the translated farm-wide label, never a raw id", async () => {
+    setAssignmentsFor("u-w", [{ id: "as1", flockId: null, flockName: null }]);
+    await renderReady(ADMIN);
+
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
+    const panel = await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
+    const item = await within(panel).findByRole("listitem");
+    expect(within(item).getByText(i18n.t("users:farmWideAssignmentLabel"))).toBeInTheDocument();
+  });
+
   it("never submits while exploring: the button disables and the HANDLER guard refuses a direct call", async () => {
     setAssignmentsFor("u-w", []);
     mockAssignFlock.mockResolvedValue({ id: "as-new" });

@@ -652,6 +652,34 @@ export const MUTANTS: Record<string, Mutant> = {
     },
   },
 
+  // --- named entity picker (#512) -------------------------------------------
+  "named-entity-picker-paging-broken": {
+    breaks:
+      "offset paging on the FlockPicker's discovery endpoint (#512) — every Load "
+      + "more request past the first page is rewritten to offset 0, so the picker "
+      + "re-serves the first 50 rows forever and the lexically-last page-two "
+      + "sentinel (row 101 of 101) is never reached, the same shape as "
+      + "stock-pager-inert but for the picker rather than the stock lot list",
+    caughtBy:
+      "named-entity-picker.spec.ts — Daily Entry's flock picker reaches and "
+      + "commits the page-two sentinel through paging",
+    apply: async (page) => {
+      await page.route("**/api/v1/flocks**", async (route) => {
+        const url = new URL(route.request().url());
+        // Scoped to the PICKER's own discovery calls (they always carry
+        // `eligibility`) and only to a genuine Load more request (`offset`
+        // present and non-zero) — never the legacy `/flocks` list callers,
+        // which pass neither.
+        const offset = url.searchParams.get("offset");
+        const eligibility = url.searchParams.get("eligibility");
+        if (!eligibility || offset === null || offset === "0") return route.fallback();
+        url.searchParams.set("offset", "0");
+        const response = await route.fetch({ url: url.toString() });
+        await route.fulfill({ response });
+      });
+    },
+  },
+
   // --- multi-step business flows -------------------------------------------
   "payment-never-settles": {
     breaks: "payment application, so a fully-paid order still reports an outstanding balance",

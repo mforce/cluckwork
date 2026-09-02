@@ -174,8 +174,18 @@ export function HistoryPage() {
   // The Daily entry screen can't target archived flocks (capture excludes
   // them), so an edit link for one would silently fall back to a different
   // flock — worse than no link (codex review of #86).
-  const flockEditable = (id: string) => {
-    const f = flocks.find((x) => x.id === id);
+  // #512 US4 (T045/T051) — the ROW's own `flockStatus` is authoritative
+  // (page-adoption.md: "editability uses row flockStatus"): the capped
+  // `flocks` list can miss an out-of-window flock entirely (silently
+  // denying an edit that should be offered) or, for a scope-lost flock,
+  // can't say anything at all — the row already carries the CURRENT truth
+  // from the same scoped bulk read as its name. `flockStatus === undefined`
+  // (an older server that never sent the field) is the one case that falls
+  // back to the catalog; an explicit `null` (out of scope) is decided,
+  // fail-safe, without a guess.
+  const flockEditable = (e: { flockId: string; flockStatus?: string | null }) => {
+    if (e.flockStatus !== undefined) return e.flockStatus !== null && e.flockStatus !== "Archived";
+    const f = flocks.find((x) => x.id === e.flockId);
     return f !== undefined && f.status !== "Archived";
   };
   const gradeName = (id: string) => grades.find((g) => g.id === id)?.name ?? id.slice(0, 8);
@@ -750,7 +760,7 @@ export function HistoryPage() {
                     )}
                     {/* Drafts are edited on the Daily entry screen (#85) —
                         open to workers too; adjust/void stay admin-only. */}
-                    {e.status === "Draft" && flockEditable(e.flockId) && (
+                    {e.status === "Draft" && flockEditable(e) && (
                       <Link className="link"
                         to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
                         {t("editButton")}

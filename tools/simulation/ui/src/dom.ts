@@ -1,6 +1,6 @@
 // tools/simulation/ui/src/dom.ts — small locator helpers.
 
-import { expect, type Locator } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Pick a `<select>` option by a SUBSTRING of its visible text, and return the
@@ -31,4 +31,45 @@ export async function selectOptionContaining(select: Locator, needle: string): P
   if (value === null) throw new Error(`The <option> matching "${needle}" has no value attribute.`);
   await select.selectOption(value);
   return value;
+}
+
+/**
+ * Commit a #512 searchable named-entity picker (FlockPicker/CustomerPicker) —
+ * NOT a native `<select>` — by typing a substring unique to the target's name
+ * and selecting the sole matching result. Returns the committed entity's id,
+ * parsed from the picker's own option element id (`{...}-opt-{entity.id}`):
+ * unlike a `<select>`, the picker has no `<option value>` to read directly.
+ *
+ * `root` should be scoped tightly enough that `labelText` is unambiguous —
+ * e.g. a dialog Locator, when the same label also names a page-level filter
+ * picker outside it (the Sales page's own Customer filter, for one).
+ *
+ * Opens the picker first if it is currently closed (a field-sized trigger
+ * button whose accessible name is "<label> <current value>" via
+ * aria-labelledby — matched on the stable label prefix, since the current
+ * value may already be a remembered/default entity rather than a blank
+ * placeholder). Pickers that are always open (e.g. a dialog-owned picker)
+ * skip that step.
+ */
+export async function commitNamedPicker(root: Locator | Page, labelText: string, needle: string): Promise<string> {
+  let combobox = root.getByRole("combobox", { name: labelText });
+  if ((await combobox.count()) === 0) {
+    await root.getByRole("button", { name: new RegExp(`^${labelText} `) }).click();
+    combobox = root.getByRole("combobox", { name: labelText });
+  }
+  await expect(combobox).toBeVisible();
+  await combobox.fill(needle);
+
+  const option = root.getByRole("option", { name: needle });
+  await expect(
+    option,
+    `no picker option containing "${needle}" for "${labelText}" — the list did not load, the fixture `
+      + `does not have it, or the name format changed`,
+  ).toHaveCount(1);
+
+  const optionId = await option.getAttribute("id");
+  const match = optionId?.match(/-opt-(.+)$/);
+  if (!match) throw new Error(`commitNamedPicker: could not parse an entity id from option id "${optionId}".`);
+  await option.click();
+  return match[1]!;
 }

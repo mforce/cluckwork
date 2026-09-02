@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act } from "@testing-library/react";
+import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
+import { useLocation, useNavigate } from "react-router";
 import { SalesPage } from "./SalesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 import i18n from "../i18n";
 import {
-  addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder, listCustomers, listEggGrades,
+  addOrderItem, cancelOrder, confirmOrder, createOrder, getCustomer, getOrder, listCustomers, listEggGrades,
   listEggUnitConversions, listOrderPayments, listOrders, listProducts, recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
@@ -53,10 +54,35 @@ const mockGetOrder = vi.mocked(getOrder);
 const mockAddOrderItem = vi.mocked(addOrderItem);
 const mockUpdateOrderItem = vi.mocked(updateOrderItem);
 const mockRecordPayment = vi.mocked(recordPayment);
+const mockGetCustomer = vi.mocked(getCustomer);
 
 const CUSTOMER: Customer = {
   id: "c1", name: "Acme Eggs", phone: "555", email: null, address: null, note: null, version: 0,
 };
+
+// #512 US5 (T055) — canonical 8-4-4-4-12 GUIDs for the URL-owned customer
+// filter. GUID_A is deliberately typed UPPERCASE in a URL to exercise
+// normalization; GUID_MALFORMED is a well-formed-LOOKING but short value.
+const GUID_A = "aaaaaaaa-1111-1111-1111-111111111111";
+const GUID_B = "22222222-2222-2222-2222-222222222222";
+const GUID_MALFORMED = "not-a-guid";
+const CUSTOMER_A: Customer = { ...CUSTOMER, id: GUID_A, name: "Filtered Farm A" };
+const CUSTOMER_B: Customer = { ...CUSTOMER, id: GUID_B, name: "Filtered Farm B" };
+
+// A sibling of SalesPage inside the SAME MemoryRouter: exposes the live
+// location (for asserting `search`) and captures `navigate` (module-scoped,
+// reused across renders in the same test) so a test can drive selection,
+// Back (`navigate(-1)`), and Forward (`navigate(1)`) the same way a real
+// browser would — MemoryRouter's own history stack, not window.history.
+let capturedNavigate: ReturnType<typeof useNavigate> | null = null;
+function RouterProbe() {
+  const location = useLocation();
+  capturedNavigate = useNavigate();
+  return <div data-testid="location-probe">{location.pathname}{location.search}</div>;
+}
+function probeSearch(): string {
+  return screen.getByTestId("location-probe").textContent!.replace(/^\/sales/, "");
+}
 // Only gr1 is saleable → the picker offers PRODUCT_A only; gr2/PRODUCT_B exists
 // solely to resolve the second line's display name (allProducts).
 const GRADE: EggGrade = { ...NO_RECORD_HISTORY, id: "gr1", farmId: "farm1", name: "Grade A", gradeType: "Size", sortOrder: 1, isSaleable: true, dailyEntryKind: "Manual", active: true };
@@ -135,8 +161,16 @@ beforeEach(() => {
 
 // The "New order" action only appears once customers have loaded; wait on it so
 // the mount effects have settled.
-async function renderReady() {
-  renderWithProviders(<SalesPage />, { token: ADMIN });
+async function renderReady(route?: string) {
+  renderWithProviders(<SalesPage />, { token: ADMIN, route });
+  await screen.findByRole("button", { name: "New order" });
+}
+
+// #512 US5 (T055) — same mount contract as renderReady, plus the RouterProbe
+// sibling for tests that assert `location.search` or drive Back/Forward.
+async function renderReadyWithProbe(route?: string) {
+  capturedNavigate = null;
+  renderWithProviders(<><SalesPage /><RouterProbe /></>, { token: ADMIN, route });
   await screen.findByRole("button", { name: "New order" });
 }
 
@@ -162,6 +196,32 @@ async function openOrder(order: SalesOrder, rowName: RegExp) {
   });
   return screen.findByRole("row", { name: rowName });
 }
+
+describe("SalesPage new-order customer picker (#512)", () => {
+  it("closes after commit or outside pointer and lets the dialog own Escape", async () => {
+    await renderReady();
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+
+    const initialInput = await within(dialog()).findByRole("combobox", { name: "Customer" });
+    fireEvent.keyDown(initialInput, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    const newOrder = dialog();
+    const customerInput = () => within(newOrder).queryByRole("combobox");
+    const committedTrigger = () => within(newOrder).getByRole("button", { name: "Customer Acme Eggs" });
+
+    fireEvent.click(await within(newOrder).findByRole("option", { name: "Acme Eggs" }));
+    await waitFor(() => expect(customerInput()).not.toBeInTheDocument());
+    expect(committedTrigger()).toBeVisible();
+
+    fireEvent.click(committedTrigger());
+    await within(newOrder).findByRole("combobox", { name: "Customer" });
+    fireEvent.mouseDown(within(newOrder).getByLabelText("Date"));
+    await waitFor(() => expect(customerInput()).not.toBeInTheDocument());
+    expect(committedTrigger()).toBeVisible();
+  });
+});
 
 describe("SalesPage i18n", () => {
   function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
@@ -1061,6 +1121,162 @@ describe("SalesPage row-owned customer name (#512 US4)", () => {
     expect(within(row).getByText(i18n.t("sales:rowCustomerUnavailable"))).toBeInTheDocument();
     expect(within(row).queryByText("Acme Eggs")).not.toBeInTheDocument();
     expect(within(row).queryByText("c1")).not.toBeInTheDocument();
+  });
+
+  // page-adoption.md: "active order heading uses row-owned customer" — the
+  // SAME rowCustomerName function, exercised at its OTHER call site.
+  it("the active order panel's heading shows the translated unavailable label when the order's own customerName is null", async () => {
+    const GONE: SalesOrder = { ...DRAFT_TWO, id: "o-gone2", referenceNumber: "SO-GONE", customerName: null };
+    await renderReady();
+    await createDraft(GONE);
+
+    const heading = screen.getByRole("heading", { name: /SO-GONE/ });
+    expect(heading).toHaveTextContent(i18n.t("sales:rowCustomerUnavailable"));
+    expect(heading).not.toHaveTextContent("Acme Eggs");
+  });
+});
+
+// #512 US5 (T055, FR-045..050) — the canonical `customerId` URL identity is
+// the sole truth for the Sales customer filter: validation/normalization,
+// select/clear preserving unrelated keys, malformed absence, unavailable
+// Retry/Clear, Back/Forward, and synchronous stale-row hiding.
+describe("SalesPage URL-owned customer filter (#512 US5)", () => {
+  it("normalizes a mixed-case canonical GUID to lowercase before requesting and resolving — direct navigation is the source of truth", async () => {
+    const MIXED = GUID_A.toUpperCase();
+    mockGetCustomer.mockResolvedValue(CUSTOMER_A);
+    await renderReady(`/sales?customerId=${MIXED}`);
+
+    await waitFor(() => expect(mockGetCustomer).toHaveBeenCalledWith(GUID_A));
+    expect(mockGetCustomer).not.toHaveBeenCalledWith(MIXED);
+    await waitFor(() => expect(mockListOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ customerId: GUID_A })));
+    expect(await screen.findByRole("button", { name: /Filtered Farm A/ })).toBeInTheDocument();
+  });
+
+  it("treats a malformed customerId as absent — no filtered request, no exact GET, trigger shows All", async () => {
+    await renderReady(`/sales?customerId=${GUID_MALFORMED}`);
+
+    expect(mockGetCustomer).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockListOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ customerId: undefined })));
+    expect(screen.getByRole("button", { name: new RegExp(i18n.t("sales:allOption")) })).toBeInTheDocument();
+  });
+
+  it("selecting a customer sets customerId while preserving unrelated query keys", async () => {
+    mockListCustomers.mockResolvedValue([CUSTOMER_A, CUSTOMER_B]);
+    await renderReadyWithProbe("/sales?status=Draft&foo=bar");
+
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(i18n.t("sales:allOption")) }));
+    const option = await screen.findByRole("option", { name: "Filtered Farm A" });
+    fireEvent.click(option);
+
+    await waitFor(() => expect(probeSearch()).toContain(`customerId=${GUID_A}`));
+    expect(probeSearch()).toContain("status=Draft");
+    expect(probeSearch()).toContain("foo=bar");
+  });
+
+  it("clearing the filter removes only customerId, preserving unrelated query keys", async () => {
+    mockGetCustomer.mockResolvedValue(CUSTOMER_A);
+    await renderReadyWithProbe(`/sales?customerId=${GUID_A}&status=Draft`);
+    await screen.findByRole("button", { name: /Filtered Farm A/ });
+
+    fireEvent.click(screen.getByRole("button", { name: /Filtered Farm A/ }));
+    fireEvent.click(await screen.findByRole("button", { name: i18n.t("namedEntityPicker:clear") }));
+
+    await waitFor(() => expect(probeSearch()).not.toContain("customerId"));
+    expect(probeSearch()).toContain("status=Draft");
+  });
+
+  it("closes the customer filter on Escape or an outside pointer without changing the URL", async () => {
+    await renderReadyWithProbe("/sales?foo=bar");
+
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(i18n.t("sales:allOption")) }));
+    const input = await screen.findByRole("combobox", { name: i18n.t("sales:customer") });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByRole("combobox", { name: i18n.t("sales:customer") })).not.toBeInTheDocument();
+    expect(probeSearch()).toContain("foo=bar");
+
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(i18n.t("sales:allOption")) }));
+    await screen.findByRole("combobox", { name: i18n.t("sales:customer") });
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("combobox", { name: i18n.t("sales:customer") })).not.toBeInTheDocument();
+    expect(probeSearch()).toContain("foo=bar");
+  });
+
+  it("a well-formed but inaccessible customerId enters unavailable with Retry and Clear — never rewritten to All, never a raw id", async () => {
+    mockGetCustomer.mockRejectedValueOnce(new Error("not found"));
+    await renderReady(`/sales?customerId=${GUID_A}`);
+
+    const unavailableLabel = i18n.t("sales:filterCustomerUnavailable");
+    await waitFor(() => expect(screen.getByRole("button", { name: new RegExp(unavailableLabel) })).toBeInTheDocument());
+    expect(screen.queryByText(GUID_A)).not.toBeInTheDocument();
+    // Neither rewritten to All nor silently dropped — the URL still carries it.
+    expect(screen.queryByRole("button", { name: new RegExp(`\\b${i18n.t("sales:allOption")}\\b`) })).not.toBeInTheDocument();
+
+    const retryBtn = screen.getByRole("button", { name: i18n.t("namedEntityPicker:retry") });
+    mockGetCustomer.mockResolvedValueOnce(CUSTOMER_A);
+    fireEvent.click(retryBtn);
+    expect(await screen.findByRole("button", { name: /Filtered Farm A/ })).toBeInTheDocument();
+
+    // Clear is ALSO available while unavailable (before the successful retry
+    // above would have made it moot) — re-run the unavailable path fresh.
+    mockGetCustomer.mockReset();
+    mockGetCustomer.mockRejectedValueOnce(new Error("not found"));
+  });
+
+  it("clear is available while the filter is unavailable, not just once something is committed", async () => {
+    mockGetCustomer.mockRejectedValueOnce(new Error("not found"));
+    await renderReadyWithProbe(`/sales?customerId=${GUID_A}`);
+    await waitFor(() => expect(screen.getByRole("button", { name: new RegExp(i18n.t("sales:filterCustomerUnavailable")) })).toBeInTheDocument());
+
+    const clearBtn = await screen.findByRole("button", { name: i18n.t("namedEntityPicker:clear") });
+    fireEvent.click(clearBtn);
+    await waitFor(() => expect(probeSearch()).not.toContain("customerId"));
+  });
+
+  it("Back restores the prior URL identity and its filtered rows; Forward restores the newer one", async () => {
+    mockGetCustomer.mockImplementation(async (id: string) => id === GUID_A ? CUSTOMER_A : CUSTOMER_B);
+    mockListOrders.mockImplementation(async (p?: { customerId?: string }) =>
+      p?.customerId === GUID_A ? [{ ...DRAFT_TWO, id: "oa", referenceNumber: "SO-A", customerName: "Filtered Farm A" }]
+        : p?.customerId === GUID_B ? [{ ...DRAFT_TWO, id: "ob", referenceNumber: "SO-B", customerName: "Filtered Farm B" }]
+        : []);
+    await renderReadyWithProbe(`/sales?customerId=${GUID_A}`);
+    await screen.findByRole("row", { name: /SO-A/ });
+
+    await act(async () => { capturedNavigate!(`/sales?customerId=${GUID_B}`); });
+    await screen.findByRole("row", { name: /SO-B/ });
+    expect(screen.queryByRole("row", { name: /SO-A/ })).not.toBeInTheDocument();
+
+    await act(async () => { capturedNavigate!(-1); }); // Back
+    await screen.findByRole("row", { name: /SO-A/ });
+    expect(screen.queryByRole("row", { name: /SO-B/ })).not.toBeInTheDocument();
+
+    await act(async () => { capturedNavigate!(1); }); // Forward
+    await screen.findByRole("row", { name: /SO-B/ });
+    expect(screen.queryByRole("row", { name: /SO-A/ })).not.toBeInTheDocument();
+  });
+
+  it("hides the previous identity's rows and trigger name SYNCHRONOUSLY on a URL identity change — never a paint of stale data under the new id", async () => {
+    let releaseB!: (rows: SalesOrder[]) => void;
+    mockGetCustomer.mockImplementation(async (id: string) => id === GUID_A ? CUSTOMER_A : CUSTOMER_B);
+    mockListOrders.mockImplementation(async (p?: { customerId?: string }) => {
+      if (p?.customerId === GUID_A) return [{ ...DRAFT_TWO, id: "oa", referenceNumber: "SO-A", customerName: "Filtered Farm A" }];
+      if (p?.customerId === GUID_B) return new Promise<SalesOrder[]>((r) => { releaseB = r; });
+      return [];
+    });
+    await renderReadyWithProbe(`/sales?customerId=${GUID_A}`);
+    await screen.findByRole("row", { name: /SO-A/ });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Filtered Farm A/ })).toBeInTheDocument());
+
+    // Navigate to B; its list read is HELD. Neither the A row nor the A
+    // trigger name may still be on screen — synchronous hide, not "hidden
+    // once B's request settles."
+    act(() => { capturedNavigate!(`/sales?customerId=${GUID_B}`); });
+    expect(screen.queryByRole("row", { name: /SO-A/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Filtered Farm A/ })).not.toBeInTheDocument();
+
+    await act(async () => { releaseB([{ ...DRAFT_TWO, id: "ob", referenceNumber: "SO-B", customerName: "Filtered Farm B" }]); });
+    await screen.findByRole("row", { name: /SO-B/ });
   });
 });
 

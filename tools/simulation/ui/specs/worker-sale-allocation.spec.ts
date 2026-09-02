@@ -42,7 +42,7 @@ import { expect, test } from "../src/fixtures";
 import { restrictedWorker } from "../src/cast";
 import { farmToday } from "../src/farm";
 import { tEn } from "../src/i18n";
-import { selectOptionContaining } from "../src/dom";
+import { commitNamedPicker, selectOptionContaining } from "../src/dom";
 
 const PRODUCT = "Sim Large Eggs";
 // No fixture stock — seeded, growing, or drawn down by other specs — could
@@ -69,7 +69,7 @@ test.describe("Worker sale allocation (#612)", () => {
       await page.goto("/sales");
       await page.getByRole("button", { name: tEn("sales:newOrder") }).click();
       const orderDialog = page.getByRole("dialog", { name: tEn("sales:newOrder") });
-      await selectOptionContaining(orderDialog.getByLabel(tEn("sales:customer")), customerName);
+      await commitNamedPicker(orderDialog, tEn("sales:customer"), customerName);
       await orderDialog.getByLabel(tEn("sales:date")).fill(today);
       await orderDialog.getByRole("button", { name: tEn("sales:newDraftOrder") }).click();
       await expect(orderDialog).toBeHidden();

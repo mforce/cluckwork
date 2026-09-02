@@ -114,6 +114,17 @@ describe("Dashboard recent sales row-owned customer name (#512 US4)", () => {
     const row = await screen.findByRole("row", { name: /SO-2/ });
     expect(within(row).getByText("Row-Owned Name")).toBeInTheDocument();
   });
+
+  // #512 US5 (T056/T058, FR-045) — the same row links into URL-filtered
+  // Sales by the order's canonical customerId (never the row's own id).
+  it("links the row's customer name to /sales?customerId=<canonical-id>", async () => {
+    mockOrders.mockResolvedValue([order("o-1", "SO-3", "Filtered Farm")]);
+    renderWithProviders(<Dashboard />);
+
+    const row = await screen.findByRole("row", { name: /SO-3/ });
+    expect(within(row).getByRole("link", { name: "Filtered Farm" }))
+      .toHaveAttribute("href", "/sales?customerId=c1");
+  });
 });
 
 describe("Dashboard sales panel role gate (#127)", () => {
@@ -130,7 +141,9 @@ describe("Dashboard sales panel role gate (#127)", () => {
     renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
     expect(await screen.findByText("Recent sales")).toBeInTheDocument();
     expect(mockOrders).toHaveBeenCalled();
-    expect(mockCustomers).toHaveBeenCalled();
+    // #512 US5 (T058) — the 500-customer catalog fetch is gone entirely: rows
+    // render their own row-owned `customerName` now, never a catalog lookup.
+    expect(mockCustomers).not.toHaveBeenCalled();
   });
 });
 

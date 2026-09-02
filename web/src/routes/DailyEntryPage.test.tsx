@@ -623,6 +623,21 @@ describe("DailyEntryPage draft badge", () => {
     expect(screen.queryByText("Editing draft")).toBeNull();
   });
 
+  // #512 US4 (T043/T051) — the entry's OWN flockName/flockStatus (added by
+  // the T045 projection) are a snapshot from when the entry was recorded;
+  // this page's picker is the LIVE authority for the flock currently being
+  // captured. A stale/differing snapshot on the prefilled entry must never
+  // leak into the trigger — the picker's own committed name wins.
+  it("ignores the prefilled entry's own (possibly stale) flockName/flockStatus — the picker's committed flock is the only display authority", async () => {
+    mockListDailyEntries.mockResolvedValue([
+      { ...draftFor(todayIso()), flockName: "Some Other Name", flockStatus: "Archived" },
+    ]);
+    await renderReady();
+
+    expect(screen.getByRole("button", { name: /Hen House 1/ })).toBeInTheDocument();
+    expect(screen.queryByText("Some Other Name")).not.toBeInTheDocument();
+  });
+
   it("appears as soon as a first draft is saved, not only after a reload", async () => {
     vi.mocked(recordDailyEntry).mockResolvedValue({ id: "e1" } as never);
     await renderReady();

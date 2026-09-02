@@ -712,6 +712,33 @@ describe("HistoryPage draft edit link", () => {
       expect(screen.getAllByText("Old Coop").length).toBeGreaterThan(0));
     expect(screen.queryByRole("link", { name: "edit" })).not.toBeInTheDocument();
   });
+
+  // #512 US4 (T043/T051, page-adoption.md: "editability uses row
+  // flockStatus") — the row's OWN flockStatus is authoritative, not the
+  // page's capped `flocks` catalog. The catalog either doesn't carry this
+  // id at all (a genuinely Active flock outside the 500-row window) or
+  // could disagree with the row's live snapshot; either way the row wins.
+  it("offers the edit link for a flock the capped catalog doesn't carry at all, when the ROW's own flockStatus says Active", async () => {
+    // The catalog omits f1 entirely — under the OLD catalog-only check,
+    // `flocks.find` would return undefined and silently hide a valid link.
+    mockListFlocks.mockResolvedValue([]);
+    mockListDailyEntries.mockResolvedValue([DRAFT]); // flockStatus: "Active" (inherited from SUBMITTED)
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    const link = await screen.findByRole("link", { name: "edit" });
+    expect(link).toHaveAttribute("href", "/daily-entry?flockId=f1&date=2026-07-18");
+  });
+
+  it("omits the edit link when the ROW's own flockStatus says Archived, even though the catalog still shows it Active", async () => {
+    // The catalog is STALE (still Active) — the row's own live snapshot
+    // must win, never the catalog.
+    mockListFlocks.mockResolvedValue([FLOCK]); // f1, status "Active"
+    mockListDailyEntries.mockResolvedValue([{ ...DRAFT, flockStatus: "Archived" }]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    await screen.findByText("2026-07-18");
+    expect(screen.queryByRole("link", { name: "edit" })).not.toBeInTheDocument();
+  });
 });
 
 describe("HistoryPage role gating", () => {

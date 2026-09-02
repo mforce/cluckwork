@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
   listCustomers, listEggGrades, listEggUnitConversions, listOrderPayments, listOrders,
@@ -51,6 +51,17 @@ function errText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+// #512 US5 (T057, FR-046/048) — the canonical 8-4-4-4-12 GUID shape,
+// case-insensitive on input, normalized to lowercase on output. A malformed
+// value (wrong shape, extra text, empty) is treated as absent — never sent to
+// the server and never used to name a filter — per FR-048; the URL itself is
+// left as the user typed it (not rewritten merely to clean it up).
+const CANONICAL_GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function normalizeCanonicalGuid(raw: string | null): string {
+  if (raw === null || !CANONICAL_GUID_RE.test(raw)) return "";
+  return raw.toLowerCase();
+}
+
 // A stored price as the decimal string the price field holds, at `scale` minor
 // units. Blank when the product carries no default, and blank rather than a
 // guess when the scale is not known yet — a wrong scale here is a price out by
@@ -92,13 +103,50 @@ export function SalesPage() {
 
   // list filters (#24: status/customer/paged)
   const [statusFilter, setStatusFilter] = useState("");
-  const [customerFilter, setCustomerFilter] = useState("");
+  // #512 US5 (T057) — `customerId` in the URL is the SOLE source of truth for
+  // the customer filter (FR-046): direct navigation, reload, edits, and
+  // browser Back/Forward all flow through `searchParams` (react-router keeps
+  // it live across all four). Derived fresh every render — no local copy to
+  // drift from the URL. Malformed values normalize to "" (FR-048): treated as
+  // absent, never sent to the server, URL left untouched.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const customerFilter = normalizeCanonicalGuid(searchParams.get("customerId"));
+  // #512 US5 (T057, FR-049) — the filter's committed identity: the row-owned
+  // entity the picker's exact GET resolved for a well-formed `customerId` (or
+  // a genuine user pick). A failed exact read enters the picker's own
+  // `unavailable` phase — Retry re-issues ONLY the GET, Clear removes
+  // `customerId` from the URL. Never a raw id, never a first-result
+  // substitution, never rewritten to All.
+  const [customerFilterEntity, setCustomerFilterEntity] = useState<Customer | null>(null);
+  const [customerFilterSnapshot, setCustomerFilterSnapshot] = useState<PickerSnapshot<Customer>>({
+    committed: null, selectionPhase: "uninitialized", exploring: false, canSubmit: true,
+  });
+  const [customerFilterPickerOpen, setCustomerFilterPickerOpen] = useState(false);
+  // #512 US5 (T057, FR-050) — a URL identity change must hide the previous
+  // identity's rows and the filter's own displayed name SYNCHRONOUSLY, before
+  // any effect/debounce/request — not one paint later, when `usePagedList`'s
+  // own reload effect would otherwise be the first thing to notice. Adjusting
+  // state during render (the React-documented pattern for "reset state when a
+  // prop changes") does both: `customerFilterEntity` clears so the trigger
+  // never flashes the OLD name, and `customerFilterStale` gates the table
+  // for exactly the render(s) between the URL changing and the new load's own
+  // `reloading` taking over (cleared once that load lands, in the effect
+  // below — never before, so a synchronously-hidden window isn't reshown by
+  // this render alone before the replacement is ready).
+  const lastCustomerFilterRef = useRef(customerFilter);
+  const [customerFilterStale, setCustomerFilterStale] = useState(false);
+  if (customerFilter !== lastCustomerFilterRef.current) {
+    lastCustomerFilterRef.current = customerFilter;
+    if (customerFilterEntity !== null) setCustomerFilterEntity(null);
+    if (!customerFilterStale) setCustomerFilterStale(true);
+  }
 
   // create-order form
   // F131: starting an order and taking a payment are discrete actions, not the
   // order builder itself — they open dialogs. Adding lines stays inline: the
   // draft panel IS the work surface.
   const [creatingOrder, setCreatingOrder] = useState(false);
+  const [newOrderCustomerPickerOpen, setNewOrderCustomerPickerOpen] = useState(false);
   const [paying, setPaying] = useState(false);
   const [orderDate, setOrderDate] = useState(today);
   // #512 (T039) — the new-order customer is committed through CustomerPicker.
@@ -243,6 +291,14 @@ export function SalesPage() {
     pageSize: PAGE,
     errorText: () => i18n.t("sales:loadOrdersFailed"),
   });
+
+  // #512 US5 (T057, FR-050) — the synchronous hide above lasts until the
+  // filter's OWN replacement load actually lands (`reloading` returns to
+  // false), not just until the next render — a load can still be in flight
+  // when this effect first sees the stale flag.
+  useEffect(() => {
+    if (customerFilterStale && !orders.reloading) setCustomerFilterStale(false);
+  }, [customerFilterStale, orders.reloading]);
 
   useEffect(() => {
     // includeInactive: existing order lines may reference deactivated
@@ -401,7 +457,10 @@ export function SalesPage() {
     setOpen(false);
     errors.abandon(scope);
   };
-  const closeNewOrder = () => dismiss("create-order", setCreatingOrder);
+  const closeNewOrder = () => {
+    setNewOrderCustomerPickerOpen(false);
+    dismiss("create-order", setCreatingOrder);
+  };
   const closePayment = () => dismiss("record-payment", setPaying);
 
   const onCreateOrder = () => run("create-order", async () => {
@@ -416,6 +475,7 @@ export function SalesPage() {
       setActive(await getOrder(created.id));
     });
     clearKey("create-order");
+    setNewOrderCustomerPickerOpen(false);
     setCreatingOrder(false); // only on success — a throw keeps the dialog up
   });
 
@@ -625,7 +685,9 @@ export function SalesPage() {
           <button type="button" onClick={() => {
             // Nothing to clear on the way in: #479 moved that onto the
             // dismissal, so the slot is already empty before a reopen.
-            setOrderDate(today); setCreatingOrder(true);
+            setOrderDate(today);
+            setNewOrderCustomerPickerOpen(true);
+            setCreatingOrder(true);
           }}>
             <Plus size={16} aria-hidden /> {t("newOrder")}
           </button>
@@ -652,28 +714,26 @@ export function SalesPage() {
           <CustomerPicker
             label={t("customer")}
             required
-            // #512 (T039) — the picker's discovery is open-driven: the engine
-            // discovers only while `open`, and this dialog's picker never
-            // toggles its own open state (the dialog owns focus and
-            // dismissal). So it rides the dialog: while the dialog is up the
-            // picker is live (discovery + the exact-read seam for an
-            // out-of-window external id); on close the form unmounts, so
-            // nothing lingers (US3, same contract as the Expenses edit
-            // picker).
-            open={true}
+            // Start open for immediate discovery, then close after commit so
+            // the absolutely-positioned listbox cannot cover the remaining
+            // dialog controls. The committed trigger can reopen it to change
+            // customer without discarding the draft fields.
+            open={newOrderCustomerPickerOpen}
             controlledCommitted={customer}
             controlledGeneration={customerGen}
             onSnapshot={setCustomerSnapshot}
             onCommit={(c) => {
               setCustomer(c);
               setCustomerGen((g) => g + 1);
+              setNewOrderCustomerPickerOpen(false);
             }}
-            onEscape={() => {}}
-            onOutsideClick={() => {}}
+            onEscape={() => setNewOrderCustomerPickerOpen(false)}
+            onOutsideClick={() => setNewOrderCustomerPickerOpen(false)}
             trigger={
-              <span className="named-picker-trigger">
+              <button type="button" className="named-picker-trigger"
+                onClick={() => setNewOrderCustomerPickerOpen(true)}>
                 {customer ? customer.name : t("pickCustomerOption")}
-              </span>
+              </button>
             }
           />
           <label>{t("date")}
@@ -972,19 +1032,73 @@ export function SalesPage() {
             <option value="Voided">{statusLabel("Voided")}</option>
           </select>
         </label>
-        <label>{t("customer")}
-          <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
-            <option value="">{t("allOption")}</option>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </label>
+        <div className="filter-customer">
+          {/* #512 US5 (T057) — `customerId` in the URL is the sole source of
+              truth (FR-046); select/clear clone the CURRENT URLSearchParams
+              and touch only `customerId` (FR-047), preserving every unrelated
+              key (`status` included, once it moves to the URL — none does
+              today, but the clone-and-set pattern costs nothing to get right
+              now). Malformed values never reach here (`requestedId` is ""),
+              so the picker shows blank/All for them, never an unavailable
+              state — a malformed id is absent, not inaccessible (FR-048). */}
+          <CustomerPicker
+            label={t("customer")}
+            required={false}
+            open={customerFilterPickerOpen}
+            requestedId={customerFilter || null}
+            onSnapshot={(snap) => {
+              setCustomerFilterSnapshot(snap);
+              if (snap.committed) setCustomerFilterEntity(snap.committed);
+            }}
+            onCommit={(c) => {
+              const next = new URLSearchParams(searchParams);
+              next.set("customerId", c.id);
+              setCustomerFilterEntity(c);
+              setSearchParams(next);
+              setCustomerFilterPickerOpen(false);
+            }}
+            onClear={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("customerId");
+              setCustomerFilterEntity(null);
+              setSearchParams(next);
+            }}
+            onEscape={() => setCustomerFilterPickerOpen(false)}
+            onOutsideClick={() => setCustomerFilterPickerOpen(false)}
+            trigger={
+              <button type="button" className="named-picker-trigger"
+                onClick={() => setCustomerFilterPickerOpen(true)}>
+                {customerFilter === ""
+                  ? t("allOption")
+                  : customerFilterEntity?.name ?? t("filterCustomerUnavailable")}
+              </button>
+            }
+          />
+          {/* FR-049 — an unavailable filter identity must offer Clear even
+              while the picker is closed (the generic engine's own Clear only
+              renders inside the open combobox, and only once something is
+              actually committed — never during `unavailable`, where nothing
+              is). This is the page-owned affordance that closes the gap. */}
+          {customerFilterSnapshot.selectionPhase === "unavailable" && (
+            <button type="button" className="link" onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("customerId");
+              setCustomerFilterEntity(null);
+              setSearchParams(next);
+            }}>
+              {i18n.t("namedEntityPicker:clear")}
+            </button>
+          )}
+        </div>
       </div>
       {/* The list's own failure, beside the workspace rather than instead of
           it — and self-healing on the next successful load (#469). */}
       {orders.error && <p className="error" role="alert">{orders.error}</p>}
       {/* One window's orders must never sit under another window's filters,
-          not even for the length of the request (#469). */}
-      {orders.reloading ? (
+          not even for the length of the request (#469). FR-050: `customerFilterStale`
+          extends the hide to cover the render(s) between a URL identity change
+          and `reloading` taking over — see its declaration above. */}
+      {(orders.reloading || customerFilterStale) ? (
         <p className="muted">{t("loading")}</p>
       ) : orders.rows.length === 0 ? (
         <p className="muted">{t("noOrdersMatch")}</p>

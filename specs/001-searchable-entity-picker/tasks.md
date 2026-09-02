@@ -140,7 +140,7 @@
 > Write these tests first and confirm they fail for the intended missing behavior.
 
 - [X] T042 [P] [US4] Add failing real-Postgres guard tests for all six additive row contracts, Archived/nullable cases, tenant and Worker scope, constant grouped-reference query count, one assignment left join, and bounded movement aggregation in `tests/Cluckwork.Api.IntegrationTests/NamedRowProjectionTests.cs` and `tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs`; T053 must adversarially prove the new scope and performance guards.
-- [ ] T043 [P] [US4] Add failing row-owned display/editability tests in `web/src/routes/DailyEntryPage.test.tsx`, `web/src/routes/HistoryPage.test.tsx`, `web/src/routes/FeedPage.test.tsx`, `web/src/routes/WaterPage.test.tsx`, `web/src/routes/UsersPage.test.tsx`, `web/src/routes/SalesPage.test.tsx`, `web/src/routes/ExpensesPage.test.tsx`, and `web/src/routes/Dashboard.test.tsx`.
+- [X] T043 [P] [US4] Add failing row-owned display/editability tests in `web/src/routes/DailyEntryPage.test.tsx`, `web/src/routes/HistoryPage.test.tsx`, `web/src/routes/FeedPage.test.tsx`, `web/src/routes/WaterPage.test.tsx`, `web/src/routes/UsersPage.test.tsx`, `web/src/routes/SalesPage.test.tsx`, `web/src/routes/ExpensesPage.test.tsx`, and `web/src/routes/Dashboard.test.tsx`.
 
 ### Implementation for User Story 4
 
@@ -150,11 +150,11 @@
 - [X] T047 [P] [US4] Return nullable assignment `flockName` from one scoped left join while keeping the list unpaged in `src/Cluckwork.Application/Features/Users/IUserRoleAssignmentRepository.cs`, `src/Cluckwork.Infrastructure/Repositories/UserRoleAssignmentRepository.cs`, and `src/Cluckwork.Api/Endpoints/Users/UserEndpoints.cs`.
 - [X] T048 [P] [US4] Implement scoped bulk customer references and add `customerName` to Sales list/detail responses in `src/Cluckwork.Application/Features/Customers/ICustomerRepository.cs`, `src/Cluckwork.Infrastructure/Repositories/CustomerRepository.cs`, and `src/Cluckwork.Api/Endpoints/Sales/SaleEndpoints.cs`.
 - [X] T049 [P] [US4] Add nullable `flockName` to Expense list/detail/adjust responses through scoped grouped reads in `src/Cluckwork.Application/Features/Expenses/IExpenseRepositories.cs`, `src/Cluckwork.Infrastructure/Repositories/ExpenseRepositories.cs`, and `src/Cluckwork.Api/Endpoints/Expenses/ExpenseEndpoints.cs`.
-- [ ] T050 [US4] Add all six required/nullable row-owned response fields to the frontend types and remove every ID-fragment reference fallback in `web/src/api/cluckwork.ts`.
-- [ ] T051 [P] [US4] Render row-owned names/status and evaluate History editability from each row's `flockStatus` in `web/src/routes/DailyEntryPage.tsx`, `web/src/routes/HistoryPage.tsx`, `web/src/routes/FeedPage.tsx`, and `web/src/routes/WaterPage.tsx`.
-- [ ] T052 [P] [US4] Render nullable/required row-owned names in Users, Sales, Expenses, and Dashboard and stop using picker/catalog results for display labels in `web/src/routes/UsersPage.tsx`, `web/src/routes/SalesPage.tsx`, `web/src/routes/ExpensesPage.tsx`, and `web/src/routes/Dashboard.tsx`.
+- [X] T050 [US4] Add all six required/nullable row-owned response fields to the frontend types and remove every ID-fragment reference fallback in `web/src/api/cluckwork.ts`.
+- [X] T051 [P] [US4] Render row-owned names/status and evaluate History editability from each row's `flockStatus` in `web/src/routes/DailyEntryPage.tsx`, `web/src/routes/HistoryPage.tsx`, `web/src/routes/FeedPage.tsx`, and `web/src/routes/WaterPage.tsx`.
+- [X] T052 [P] [US4] Render nullable/required row-owned names in Users, Sales, Expenses, and Dashboard and stop using picker/catalog results for display labels in `web/src/routes/UsersPage.tsx`, `web/src/routes/SalesPage.tsx`, `web/src/routes/ExpensesPage.tsx`, and `web/src/routes/Dashboard.tsx`.
 - [X] T053 [US4] Independently mutate the new bulk-reference queries in `src/Cluckwork.Infrastructure/Repositories/FlockRepository.cs` and `src/Cluckwork.Infrastructure/Repositories/CustomerRepository.cs` with `IgnoreQueryFilters()`, bypass the flock-scope side of the assignment left join in `src/Cluckwork.Infrastructure/Repositories/UserRoleAssignmentRepository.cs`, introduce a per-row reference lookup in `src/Cluckwork.Api/Endpoints/DailyEntries/DailyEntryEndpoints.cs`, and unbound movement aggregation in `src/Cluckwork.Infrastructure/Repositories/BirdMovementRepository.cs`; prove the matching tenant/Worker-scope—including the assignment-name case—query-count, and bounded-aggregation guards in `tests/Cluckwork.Api.IntegrationTests/NamedRowProjectionTests.cs` and `tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs` go red for each isolated mutant, restore the implementation after each mutation, and rerun green.
-- [ ] T054 [US4] Run the focused PostgreSQL and page suites in sections 2 and 3 of `specs/001-searchable-entity-picker/quickstart.md` and record no ID-fragment fallback or row-count-dependent query growth.
+- [X] T054 [US4] Run the focused PostgreSQL and page suites in sections 2 and 3 of `specs/001-searchable-entity-picker/quickstart.md` and record no ID-fragment fallback or row-count-dependent query growth.
 
 **Checkpoint**: Historical rows are understandable and scoped independently of picker discovery, and the causal performance guards have survived their mutants.
 
@@ -170,14 +170,14 @@
 
 > Write these tests first and confirm they fail for the intended missing behavior.
 
-- [ ] T055 [P] [US5] Add failing Sales tests for canonical GUID validation/normalization, URL source of truth, unrelated-query preservation, malformed absence, unavailable Retry/Clear, Back/Forward, and synchronous old-row/heading hiding in `web/src/routes/SalesPage.test.tsx`.
-- [ ] T056 [P] [US5] Add failing authorized customer-name link tests and Dashboard catalog-removal coverage in `web/src/routes/CustomersPage.test.tsx` and `web/src/routes/Dashboard.test.tsx`.
+- [X] T055 [P] [US5] Add failing Sales tests for canonical GUID validation/normalization, URL source of truth, unrelated-query preservation, malformed absence, unavailable Retry/Clear, Back/Forward, and synchronous old-row/heading hiding in `web/src/routes/SalesPage.test.tsx`.
+- [X] T056 [P] [US5] Add failing authorized customer-name link tests and Dashboard catalog-removal coverage in `web/src/routes/CustomersPage.test.tsx` and `web/src/routes/Dashboard.test.tsx`.
 
 ### Implementation for User Story 5
 
-- [ ] T057 [US5] Make canonical `customerId` in `URLSearchParams` the sole Sales filter identity, implement select/clear key preservation, malformed/unavailable handling, Retry, and synchronous row/heading invalidation in `web/src/routes/SalesPage.tsx`.
-- [ ] T058 [P] [US5] Link authorized customer names to `/sales?customerId=<canonical-id>` and remove Dashboard's 500-customer naming fetch in `web/src/routes/CustomersPage.tsx` and `web/src/routes/Dashboard.tsx`.
-- [ ] T059 [US5] Run `web/src/routes/SalesPage.test.tsx`, `web/src/routes/CustomersPage.test.tsx`, and `web/src/routes/Dashboard.test.tsx`, including simulated `popstate`/Back/Forward transitions and inaccessible customer responses.
+- [X] T057 [US5] Make canonical `customerId` in `URLSearchParams` the sole Sales filter identity, implement select/clear key preservation, malformed/unavailable handling, Retry, and synchronous row/heading invalidation in `web/src/routes/SalesPage.tsx`.
+- [X] T058 [P] [US5] Link authorized customer names to `/sales?customerId=<canonical-id>` and remove Dashboard's 500-customer naming fetch in `web/src/routes/CustomersPage.tsx` and `web/src/routes/Dashboard.tsx`.
+- [X] T059 [US5] Run `web/src/routes/SalesPage.test.tsx`, `web/src/routes/CustomersPage.test.tsx`, and `web/src/routes/Dashboard.test.tsx`, including simulated `popstate`/Back/Forward transitions and inaccessible customer responses.
 
 **Checkpoint**: Sales URL, picker, headings, and rows always agree, and customer navigation is shareable and history-safe.
 
@@ -189,12 +189,12 @@
 
 - [X] T060 Add failing Help and glossary coverage for search, exploration/commit, keyboard use, Load more, Retry, unavailable identities, and customer links in `web/src/routes/HelpPage.test.tsx` and `web/src/i18n/catalogParity.test.ts`.
 - [X] T061 Update the Help page, in-app glossary, and product glossary in `web/src/routes/HelpPage.tsx`, `web/src/i18n/en.ts`, `web/src/i18n/es.ts`, `web/src/i18n/tl.ts`, and `specs/product/GLOSSARY.md` with synchronized user-facing terminology.
-- [ ] T062 Add one translated built-SPA scenario that reaches and commits the unchanged #627 late-sorting flock/customer sentinels and exercises one recovery path in `tools/simulation/ui/specs/named-entity-picker.spec.ts`, using `tools/simulation/ui/src/ax.ts` only for accessibility-tree or `inert` assertions.
-- [ ] T063 Register a focused pagination mutant in `tools/simulation/ui/src/mutants.ts` and `tools/simulation/ui/mutation-check.sh`; prove the baseline green, mutant red for the sentinel assertion, and restored baseline green without changing fixture, manifest, bootstrap, compose, or CI workflow files.
+- [X] T062 Add one translated built-SPA scenario that reaches and commits the unchanged #627 late-sorting flock/customer sentinels and exercises one recovery path in `tools/simulation/ui/specs/named-entity-picker.spec.ts`, using `tools/simulation/ui/src/ax.ts` only for accessibility-tree or `inert` assertions.
+- [X] T063 Register a focused pagination mutant in `tools/simulation/ui/src/mutants.ts` and `tools/simulation/ui/mutation-check.sh`; prove the baseline green, mutant red for the sentinel assertion, and restored baseline green without changing fixture, manifest, bootstrap, compose, or CI workflow files.
 - [ ] T064 Run the first-time-user protocol in `specs/001-searchable-entity-picker/quickstart.md` with at least one keyboard pass and one pointer pass by participants who did not implement the picker; record a non-PII pass/fail summary in the pull request verification notes stating whether each participant independently completed the late-sorting flock selection, late-sorting customer selection, and one recovery without selecting the wrong entity.
-- [ ] T065 Re-run the caller audit in section 8 of `specs/001-searchable-entity-picker/quickstart.md` and inspect `web/src/`, `tools/simulation/k6/`, `tools/simulation/ui/`, `tests/`, and `src/` to confirm legacy list forms, write contracts, and non-adopting native selectors remain unchanged.
-- [ ] T066 Run every static, focused, built-SPA, mutation, and full-gate command in `specs/001-searchable-entity-picker/quickstart.md`, including `dotnet test Cluckwork.sln`, frontend coverage/build/service-worker verification, schema-doc check, and the existing Playwright smoke suite.
-- [ ] T067 Inspect `git diff --check` and `git status --short` and verify there are no migration, schema-doc, package/lockfile, #627 fixture/count/manifest/fingerprint, simulation harness, CI workflow, generic framework, or unrelated refactor changes.
+- [X] T065 Re-run the caller audit in section 8 of `specs/001-searchable-entity-picker/quickstart.md` and inspect `web/src/`, `tools/simulation/k6/`, `tools/simulation/ui/`, `tests/`, and `src/` to confirm legacy list forms, write contracts, and non-adopting native selectors remain unchanged.
+- [X] T066 Run every static, focused, built-SPA, mutation, and full-gate command in `specs/001-searchable-entity-picker/quickstart.md`, including `dotnet test Cluckwork.sln`, frontend coverage/build/service-worker verification, schema-doc check, and the existing Playwright smoke suite.
+- [X] T067 Inspect `git diff --check` and `git status --short` and verify there are no migration, schema-doc, package/lockfile, #627 fixture/count/manifest/fingerprint, simulation harness, CI workflow, generic framework, or unrelated refactor changes.
 
 ---
 
