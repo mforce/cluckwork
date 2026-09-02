@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { contrast, declaredKeys, luminance, resolveTokens, type Mode } from "./test/cssTokens";
 import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
 
@@ -199,4 +201,51 @@ it("pins every brand-scoped token a palette block can declare", () => {
   for (const token of [...DARK_REQUIRED, ...LIGHT_REQUIRED])
     if (token !== "--auth-bg" && token !== "--auth-card-shadow")
       expect(pinned).toContain(token);
+});
+
+// #654 — the dashboard's surfaces carry no shadow, no caps, no motion and no
+// literal colour: tiles inherit #651's elevation direction and #652's sentence
+// case, and the "no animated bars" acceptance is met by never animating.
+// Walks EVERY block whose selector starts with a dashboard prefix (a second
+// `.capture-tile` block or a `:hover` rule is walked too), rather than a list
+// of the blocks the author remembered.
+describe("dashboard surfaces (#654, INV-8)", () => {
+  // Relative path held in a variable, not an inline literal: Vite's
+  // import-analysis plugin statically pattern-matches
+  // `new URL("literal", import.meta.url)` and rewrites it to a dev-server
+  // asset URL under the jsdom test environment, which fileURLToPath() then
+  // rejects as "not scheme file" (see src/test/cssTokens.ts).
+  const CSS_REL = "./styles.css";
+  const css = readFileSync(fileURLToPath(new URL(CSS_REL, import.meta.url)), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+  const PREFIX = /^\s*(\.capture-|\.sparkline|\.meter-stack|\.dash-list|\.panel-wide)/;
+  const blocks = Array.from(css.matchAll(/([^{}]+)\{([^{}]*)\}/g))
+    .map((m) => ({ selector: m[1].trim(), body: m[2] }))
+    .filter((b) => PREFIX.test(b.selector));
+  const bodyOf = (selector: string) => {
+    const b = blocks.find((x) => x.selector === selector);
+    expect(b, `${selector} must be declared`).toBeDefined();
+    return b!.body;
+  };
+
+  it("declares the tile, cap link, sparkline, stacked meter and list rules", () => {
+    for (const s of [".capture-grid", ".capture-tile", ".capture-tile.is-missing", ".capture-tile-eggs", ".capture-more",
+      ".sparkline", ".sparkline polyline", ".meter-stack", ".meter-stack > span", ".dash-list", ".dash-list li", ".panel-wide"])
+      bodyOf(s);
+    expect(blocks.length).toBeGreaterThanOrEqual(12);
+  });
+  it("carries no box-shadow, text-transform, transition, animation or literal colour on any of them", () => {
+    for (const b of blocks) {
+      expect(b.body, b.selector).not.toMatch(/box-shadow|text-transform|transition|animation/);
+      expect(b.body, `${b.selector} must use tokens, not literals`).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/);
+    }
+  });
+  it("keeps the tile on the card radius and the segments on the accent token", () => {
+    expect(bodyOf(".capture-tile")).toMatch(/border-radius:\s*var\(--r-card\)/);
+    expect(bodyOf(".capture-tile")).toMatch(/border:\s*1px solid var\(--hairline\)/);
+    expect(bodyOf(".meter-stack > span")).toMatch(/background:\s*var\(--stat-accent\)/);
+  });
+  it("no longer declares the stat cards the dashboard stopped rendering", () => {
+    expect(css).not.toMatch(/^\.stat(-grid|-value|-label)?\s*\{/m);
+  });
 });
