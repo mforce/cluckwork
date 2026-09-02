@@ -19,11 +19,18 @@ const MODES: Mode[] = ["light", "dark"];
 // The sidebar and the More-sheet group dividers. Nothing else.
 const CAPS_ALLOWED = [".more-group-label", ".nav-group-label"].sort();
 
+// Same case-folding defect as the elevation guard, found in review round 2 and
+// fixed here rather than left as the twin of a hole we had just closed:
+// `TEXT-TRANSFORM: UPPERCASE` renders identically and postcss compares both
+// the property and the value as exact, case-sensitive strings.
 function selectorsUppercasing(): string[] {
   const found = new Set<string>();
-  root.walkDecls("text-transform", (d) => {
-    if (clean(d.value) !== "uppercase") return;
-    for (const sel of (d.parent as Rule).selectors) found.add(clean(sel));
+  root.walkDecls((d) => {
+    const parent = d.parent;
+    if (parent === undefined || parent.type !== "rule") return;
+    if (d.prop.toLowerCase() !== "text-transform") return;
+    if (clean(d.value).toLowerCase() !== "uppercase") return;
+    for (const sel of (parent as Rule).selectors) found.add(clean(sel));
   });
   return [...found].sort();
 }

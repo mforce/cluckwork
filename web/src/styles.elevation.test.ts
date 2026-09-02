@@ -59,19 +59,38 @@ function castsShadow(value: string): boolean {
 // This targets drop-shadow, not `filter` wholesale: blur() and brightness()
 // are not shadows, and banning them would assert something the invariant never
 // claimed. The stylesheet declares no filter at all today.
-const SHADOW_PROPS = ["box-shadow", "filter", "-webkit-filter"];
-
+// A shadow can be painted more ways than a list can keep up with. Round 1 of
+// review found `filter: drop-shadow()` escaping a walk that enumerated
+// `box-shadow`. Round 2 found `Filter:`, `DROP-SHADOW(` and
+// `filter: var(--token)` escaping a walk that enumerated three property names.
+// Two misses of the same shape mean the METHOD is wrong, so this walks EVERY
+// declaration and asks one question of each, rather than listing the
+// properties someone thought of.
+//
+// Case is folded on both sides: CSS property names and function names are
+// case-insensitive, and postcss compares them as exact strings.
+//
+// A value that merely MENTIONS drop-shadow counts, which is what catches a
+// custom property defining one for a later var() to pick up. The shadow is
+// caught where it enters the stylesheet, not where it is used.
 function selectorsCastingShadow(): string[] {
   const found = new Set<string>();
-  for (const prop of SHADOW_PROPS) {
-    root.walkDecls(prop, (d) => {
-      const casts = prop === "box-shadow"
-        ? castsShadow(d.value)
-        : d.value.includes("drop-shadow");
-      if (!casts) return;
-      for (const sel of (d.parent as Rule).selectors) found.add(clean(sel));
-    });
-  }
+  root.walkDecls((d) => {
+    // Walking everything reaches declarations inside @font-face, @property and
+    // @keyframes, whose parent is not a rule and has no selectors. That is a
+    // crash rather than a miss, so it is excluded explicitly.
+    const parent = d.parent;
+    if (parent === undefined || parent.type !== "rule") return;
+
+    const prop = d.prop.toLowerCase();
+    const value = d.value.toLowerCase();
+    const casts = prop === "box-shadow"
+      ? castsShadow(value)
+      : value.includes("drop-shadow");
+    if (!casts) return;
+
+    for (const sel of (parent as Rule).selectors) found.add(clean(sel));
+  });
   return [...found].sort();
 }
 
