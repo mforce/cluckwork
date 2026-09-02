@@ -5,7 +5,7 @@ import { renderWithProviders } from "../test/renderWithProviders";
 import { findRowByCellText, getRowByCellText } from "../test/rows";
 import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 import {
-  adjustExpense, createExpense, createExpenseCategory, getExpense,
+  adjustExpense, createExpense, createExpenseCategory, getExpense, getFlock,
   listExpenseCategories, listExpenses, listFlocks, updateExpenseCategory,
 } from "../api/cluckwork";
 import type { Expense, ExpenseCategory, ExpenseList, Flock } from "../api/cluckwork";
@@ -33,7 +33,9 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     adjustExpense: vi.fn(),
     createExpenseCategory: vi.fn(),
     updateExpenseCategory: vi.fn(),
-  };
+    getFlock: vi.fn(),
+  getCustomer: vi.fn(),
+};
 });
 
 const mockListCategories = vi.mocked(listExpenseCategories);
@@ -44,6 +46,7 @@ const mockCreateExpense = vi.mocked(createExpense);
 const mockAdjustExpense = vi.mocked(adjustExpense);
 const mockCreateCategory = vi.mocked(createExpenseCategory);
 const mockUpdateCategory = vi.mocked(updateExpenseCategory);
+const mockGetFlock = vi.mocked(getFlock);
 
 // A promise the test resolves by hand — holds a request open so the busy
 // window is asserted deterministically, no timing guesses (client.test.ts idiom).
@@ -88,15 +91,24 @@ beforeEach(() => {
   // Mount-load defaults (both effects): categories + flocks, then expenses.
   mockListCategories.mockResolvedValue([CAT_FEED, CAT_UTIL, CAT_OLD]);
   mockListFlocks.mockResolvedValue([FLOCK]);
+  // #512 T038 — the correction dialog resolves an out-of-window row-owned flock
+  // through the exact GET; the stub must resolve (never reject) by default so
+  // a row naming a listed flock still commits exactly.
+  mockGetFlock.mockResolvedValue(FLOCK);
   mockListExpenses.mockResolvedValue(emptyList("USD", 2));
 });
 
-// The add form's Category / Flock selects share their "Category"/"Flock" labels
-// with the filter and edit panels, so pick a combobox by an option unique to it
-// ("— pick —" only in the add-category select; "All categories" only in the
-// filter) rather than by an ambiguous label or a positional index.
+// The add form's Category select shares its "Category" label with the filter
+// and edit panels, so pick it by an option unique to it ("— pick —" only in
+// the add-category select; "All categories" only in the filter) rather than by
+// an ambiguous label or a positional index. The flock is a FlockPicker now
+// (#512 T038): `pickAddFlock` opens its trigger and commits the option.
 const comboWithOption = (name: RegExp) =>
   screen.getAllByRole("combobox").find((el) => within(el).queryByRole("option", { name }) !== null)!;
+const pickAddFlock = async (name: RegExp) => {
+  fireEvent.click(screen.getByRole("button", { name: /— none —/ }));
+  fireEvent.click(await screen.findByRole("option", { name }));
+};
 
 // Ready = both mount effects settled: the expenses load stamps the currency into
 // the amount label, and the categories load enables the (else-disabled) submit.
@@ -126,6 +138,22 @@ describe("ExpensesPage list + totals", () => {
     mockListExpenses.mockResolvedValue(emptyList("USD", 2));
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
     expect(await screen.findByText("No expenses for this month.")).toBeInTheDocument();
+  });
+
+  // #512 US4 (T043/T051) — a row's own flockName is null (the flock left the
+  // caller's tenant/flock scope between reads), even though the SAME id is
+  // present in the page's own capped `flocks` list (default fixture: "f1" /
+  // "Hen House 1"). The row must show the translated unavailable label,
+  // never that catalog substitution and never a raw id fragment.
+  it("a row whose own flockName is null shows the translated unavailable label — never the catalog's name for that id, never an id fragment", async () => {
+    const EXP_GONE_NAME: Expense = { ...EXP_BHD, id: "e-gone", flockId: "f1", flockName: null };
+    mockListExpenses.mockResolvedValue({ items: [EXP_GONE_NAME], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /Layer feed/ });
+    expect(within(row).getByText(i18n.t("expenses:flockUnavailable"))).toBeInTheDocument();
+    expect(within(row).queryByText("Hen House 1")).not.toBeInTheDocument();
+    expect(within(row).queryByText("f1")).not.toBeInTheDocument();
   });
 });
 
@@ -184,7 +212,7 @@ describe("ExpensesPage record expense", () => {
     fireEvent.change(comboWithOption(/pick/), { target: { value: "cat-feed" } });
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Layer feed" } });
     fireEvent.change(screen.getByLabelText(new RegExp(`Amount \\(${code}\\)`)), { target: { value: typed } });
-    fireEvent.change(comboWithOption(/none/), { target: { value: "f1" } });
+    await pickAddFlock(/Hen House 1/);
     fireEvent.change(screen.getByLabelText("Note (optional)"), { target: { value: "Bulk buy" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
@@ -977,5 +1005,155 @@ describe("ExpensesPage messages that had nowhere to land (#491)", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText("Could not reload categories.")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #512 T028/T038 — the flock is a FlockPicker now (not a native select):
+// canSubmit gates both write controls AND their submit handlers (a disabled
+// button is not the write-safety boundary), the edit dialog holds the
+// ROW-OWNED identity exactly (archived / outside the discovery window), and
+// a failed exact read enters the explicit unavailable state with a Retry.
+// ---------------------------------------------------------------------------
+
+describe("ExpensesPage flock picker (T028/T038)", () => {
+  const FLOCK2 = { ...FLOCK, id: "f2", name: "Old Coop", status: "Archived" } as Flock;
+
+  it("record expense: a valid BLANK optional selection still submits (flockId null)", async () => {
+    mockCreateExpense.mockResolvedValue({ id: "e-new" });
+    await renderReady("USD");
+    // No flock committed — the optional picker's blank IS the account-wide
+    // choice and must not be blocked.
+    fireEvent.change(comboWithOption(/pick/), { target: { value: "cat-feed" } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Feed" } });
+    fireEvent.change(screen.getByLabelText(/Amount \(USD\)/), { target: { value: "1.00" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
+    });
+    expect(mockCreateExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ expenseCategoryId: "cat-feed", flockId: null }),
+      expect.any(String));
+  });
+
+  it("record expense: a direct handler bypass (form submit event) is rejected while the picker is not safe to submit", async () => {
+    // The visible button is disabled while the picker is not ready; this test
+    // bypasses it by dispatching the form submit event DIRECTLY — the handler
+    // guard is the real boundary, and it must still refuse.
+    mockCreateExpense.mockResolvedValue({ id: "e-new" });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    // Before ANY snapshot has landed (uninitialized), the guard is closed.
+    const form = screen.getByRole("button", { name: "Record expense" }).closest("form")!;
+    fireEvent.submit(form);
+    expect(mockCreateExpense).not.toHaveBeenCalled();
+  });
+
+  it("correct: holds the row-owned flock EXACTLY, including an archived flock absent from the discovery window", async () => {
+    // Only f1 is in the mount list; the row names archived f2 — the picker's
+    // exact GET must resolve it (never substitute f1) and the body must carry
+    // f2.
+    mockListFlocks.mockResolvedValue([FLOCK]);
+    mockGetFlock.mockResolvedValue(FLOCK2);
+    const EXP_F2: Expense = { ...EXP_BHD, id: "e2", flockId: "f2", note: null };
+    mockListExpenses.mockResolvedValue({ items: [EXP_F2], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+    mockAdjustExpense.mockResolvedValue({ ...EXP_F2, version: 2 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /Layer feed/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    // The exact GET resolved the row-owned identity (f2, not the first result).
+    await waitFor(() => expect(mockGetFlock).toHaveBeenCalledWith("f2"));
+    // Save is withheld until the picker's snapshot commits the identity.
+    const save = await screen.findByRole("button", { name: "Save correction" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await act(async () => { fireEvent.click(save); });
+    expect(mockAdjustExpense).toHaveBeenCalledWith(
+      "e2", expect.objectContaining({ version: 1, flockId: "f2" }), expect.any(String));
+  });
+
+  // #512 T038 — when the row-owned flock is ALREADY a full entity in the
+  // page's own mount list (in-window, not archived-out), the picker admits it
+  // as-is (controlledCommitted). No exact GET is owed — issuing one anyway
+  // would be spurious network traffic for data the page already has.
+  it("correct: a row-owned flock already present as a full entity in the mount list is admitted as-is — no spurious exact GET", async () => {
+    mockListFlocks.mockResolvedValue([FLOCK]); // f1, in-window
+    const EXP_F1: Expense = { ...EXP_BHD, id: "e6", flockId: "f1", note: null };
+    mockListExpenses.mockResolvedValue({ items: [EXP_F1], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+    mockAdjustExpense.mockResolvedValue({ ...EXP_F1, version: 2 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /Layer feed/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+
+    // Admitted straight from the mount list — the trigger shows it immediately.
+    const dialog = screen.getByRole("dialog");
+    await screen.findByText("Hen House 1");
+    const save = within(dialog).getByRole("button", { name: "Save correction" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await act(async () => { fireEvent.click(save); });
+    expect(mockAdjustExpense).toHaveBeenCalledWith(
+      "e6", expect.objectContaining({ version: 1, flockId: "f1" }), expect.any(String));
+    // No exact GET was ever issued for data the page already had.
+    expect(mockGetFlock).not.toHaveBeenCalled();
+  });
+
+  it("correct: a row-owned flock that 404s on the exact GET enters explicit unavailable — Save disabled, no raw ID, Retry recovers", async () => {
+    mockListFlocks.mockResolvedValue([FLOCK]);
+    mockGetFlock.mockRejectedValueOnce(new Error("not found"));
+    const EXP_GONE: Expense = { ...EXP_BHD, id: "e3", flockId: "f-gone", note: null };
+    mockListExpenses.mockResolvedValue({ items: [EXP_GONE], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+    mockAdjustExpense.mockResolvedValue({ ...EXP_GONE, version: 2 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /Layer feed/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    // Explicit unavailable state: the translated alert, never the raw ID or a
+    // first-result substitution, and Save withheld.
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() =>
+      expect(within(dialog).getAllByRole("alert").some((el) => /no longer available/i.test(el.textContent ?? ""))).toBe(true));
+    expect(within(dialog).queryByText(/f-gone/)).not.toBeInTheDocument();
+    const save = within(dialog).getByRole("button", { name: "Save correction" });
+    expect(save).toBeDisabled();
+    // The handler guard too: bypass the disabled button and the write is
+    // refused.
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Save correction" }).closest("form")!);
+    expect(mockAdjustExpense).not.toHaveBeenCalled();
+    // Retry re-issues ONLY the exact GET; success commits the exact entity
+    // and re-enables Save.
+    const getFlockBefore = mockGetFlock.mock.calls.length;
+    mockGetFlock.mockResolvedValueOnce(FLOCK2);
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: /retry/i })); });
+    expect(mockGetFlock.mock.calls.length).toBe(getFlockBefore + 1);
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Save correction" })).toBeEnabled());
+  });
+
+  it("correct: a blank (account-wide) row still saves with flockId null — the guard never blocks a valid blank selection", async () => {
+    const EXP_NONE: Expense = { ...EXP_BHD, id: "e4", flockId: null, note: null };
+    mockListExpenses.mockResolvedValue({ items: [EXP_NONE], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+    mockAdjustExpense.mockResolvedValue({ ...EXP_NONE, version: 2 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /Layer feed/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    // No exact read is owed for a blank row (no id to resolve).
+    const save = await screen.findByRole("button", { name: "Save correction" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await act(async () => { fireEvent.click(save); });
+    expect(mockAdjustExpense).toHaveBeenCalledWith(
+      "e4", expect.objectContaining({ version: 1, flockId: null }), expect.any(String));
+    expect(mockGetFlock).not.toHaveBeenCalled();
+  });
+
+  it("renders the row's OWN flock name from the record's carried name, not the picker results", async () => {
+    // The row carries its own current name (the endpoint's per-page scoped
+    // read); even if the mount flock list resolves a DIFFERENT name for the
+    // same id, the row must show what IT carries.
+    const EXP_NAMED: Expense = { ...EXP_BHD, id: "e5", flockId: "f1", note: null, flockName: "Renamed Coop" };
+    mockListExpenses.mockResolvedValue({ items: [EXP_NAMED], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /Layer feed/ });
+    expect(within(row).getByText("Renamed Coop")).toBeInTheDocument();
+    expect(within(row).queryByText("Hen House 1")).not.toBeInTheDocument();
   });
 });

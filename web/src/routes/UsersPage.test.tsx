@@ -14,7 +14,7 @@ import { FarmContext } from "../farm/FarmContext";
 import { MeContext } from "../session/SessionContext";
 import type { Me } from "../api/cluckwork";
 import {
-  assignFlock, changeUserEmail, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments, listFlocks,
+  assignFlock, changeUserEmail, changeUserRole, createUser, disableUser, enableUser, getFlock, listFlockAssignments, listFlocks,
   listUsers, setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
@@ -44,6 +44,8 @@ vi.mock("../api/cluckwork", () => ({
   assignFlock: vi.fn(),
   unassignFlock: vi.fn(),
   listFlocks: vi.fn(),
+  getFlock: vi.fn(),
+  getCustomer: vi.fn(),
 }));
 
 // #308 — only stepUp is mocked; ApiError/STEP_UP_HEADER/apiPost etc. stay real
@@ -66,7 +68,17 @@ const mockListAssignments = vi.mocked(listFlockAssignments);
 const mockAssignFlock = vi.mocked(assignFlock);
 const mockUnassignFlock = vi.mocked(unassignFlock);
 const mockListFlocks = vi.mocked(listFlocks);
+const mockGetFlock = vi.mocked(getFlock);
 const mockStepUp = vi.mocked(stepUp);
+
+// #512 T047 — the assignment mock resolves each row's flockName from the
+// same fixture flocks; per-test overrides swap the ROWS only (the name join
+// is always live). `assignmentsFor` is seeded by the tests that need rows.
+const assignmentRows = new Map<string, FlockAssignment[]>();
+const ASSIGNMENTS_DEFAULT: FlockAssignment[] = [{ id: "as1", flockId: "fl1", flockName: "Coop A" }];
+const assignmentsFor = (userId: string) =>
+  assignmentRows.has(userId) ? assignmentRows.get(userId)! : ASSIGNMENTS_DEFAULT;
+const setAssignmentsFor = (userId: string, rows: FlockAssignment[]) => { assignmentRows.set(userId, rows); return rows; };
 
 const WORKER_USER: User = {
   id: "u-w", email: "worker@farm.test", displayName: "Wendy", role: "Worker", disabledAt: null,
@@ -101,7 +113,7 @@ const FLOCK_A = flock("fl1", "Coop A");
 const FLOCK_B = flock("fl2", "Coop B");
 const FLOCK_ARCHIVED = flock("fl3", "Old Coop", "Archived");
 
-const ASSIGN_1: FlockAssignment = { id: "as1", flockId: "fl1" };
+const ASSIGN_1: FlockAssignment = { id: "as1", flockId: "fl1", flockName: "Coop A" };
 
 // renderWithProviders seeds a decoded token so AuthProvider derives a role.
 // This screen never reads it (the admin gate is external — see role-gating
@@ -111,12 +123,34 @@ const WORKER = { sub: "u1" };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  assignmentRows.clear();
   localStorage.clear();
   // Mount fires Promise.all([listUsers(), listFlocks()]); listFlockAssignments
   // runs on the per-user drill-down. Seed safe defaults for all three.
   mockListUsers.mockResolvedValue([WORKER_USER, ADMIN_USER]);
-  mockListFlocks.mockResolvedValue([FLOCK_A, FLOCK_B, FLOCK_ARCHIVED]);
-  mockListAssignments.mockResolvedValue([]);
+  // #512 — the assignment FlockPicker discovers through the SAME listFlocks
+  // seam (eligibility-scoped); the default serves the full fixture list for
+  // any eligibility (the page's display list and the picker's discovery are
+  // both typed against these). The picker's exact-identity read (T038) looks
+  // the fixture up by id — so an archived retained identity resolves.
+  mockListFlocks.mockImplementation(async () => [FLOCK_A, FLOCK_B, FLOCK_ARCHIVED]);
+  mockGetFlock.mockImplementation(async (id: string) =>
+    [FLOCK_A, FLOCK_B, FLOCK_ARCHIVED].find((f) => f.id === id)
+    ?? Promise.reject(new ApiError(404, "Not found", `Unknown flock: ${id}`)));
+  mockListFlocks.mockImplementation(async (p?: { search?: string | null; eligibility?: string; limit?: number; offset?: number }) => {
+    const list = p?.eligibility === "active" ? [FLOCK_A, FLOCK_B] : [FLOCK_A, FLOCK_B, FLOCK_ARCHIVED];
+    const q = p?.search?.toLowerCase();
+    const filtered = q ? list.filter((f) => f.name.toLowerCase().includes(q)) : list;
+    return filtered.slice(p?.offset ?? 0, (p?.offset ?? 0) + (p?.limit ?? 50));
+  });
+  // #512 T047 — the assignment rows carry a row-owned flockName (the scoped
+  // left join), so retained identities render their EXACT name even when the
+  // capped display list does not carry the flock.
+  mockListAssignments.mockImplementation(async (userId: string) =>
+    assignmentsFor(userId).map((a) => ({
+      ...a,
+      flockName: [FLOCK_A, FLOCK_B, FLOCK_ARCHIVED].find((f) => f.id === a.flockId)?.name ?? null,
+    })));
   // #360 — every create/reset/role dialog now spends one fresh step-up grant;
   // the default grant keeps the non-step-up tests from hanging on issuance.
   mockStepUp.mockResolvedValue({ token: "grant-default", expiresAt: "2026-01-01T00:05:00Z" });
@@ -127,16 +161,17 @@ async function renderReady(token: Record<string, unknown>) {
   await screen.findByText("worker@farm.test");
 }
 
-// Two comboboxes coexist once a worker's panel is open (the create-form role
-// select + the assign-flock select). Identify the flock one unambiguously by
-// scoping to the assignment panel's inline-form row — the one holding the
-// "Assign flock" button — rather than matching on shared option text, which
-// would latch onto the wrong control if the markup grew another "Coop A".
-function flockSelect(): HTMLElement {
-  const row = screen.getByRole("button", { name: "Assign flock" }).closest(".inline-form");
-  if (!row) throw new Error("assign-flock panel not found");
-  return within(row as HTMLElement).getByRole("combobox");
+// #512 — the assignment flock is a FlockPicker, not a native select. The
+// closed state shows a "Flock <current>" trigger button; opening it renders
+// the searchable combobox, whose options are discovered through the
+// eligibility-scoped listFlocks seam (mocked above). Commit = click the
+// option (or Enter on the active one).
+async function pickFlock(name: string | RegExp) {
+  fireEvent.click(screen.getByRole("button", { name: /^Flock / }));
+  const option = await screen.findByRole("option", { name });
+  fireEvent.click(option);
 }
+const assignTrigger = () => screen.getByRole("button", { name: /^Flock / });
 
 // #606 — the flock dialog's shared current-password field, required before
 // either an assign or a remove.
@@ -1712,7 +1747,7 @@ describe("UsersPage flock scoping", () => {
     // worker's email (its accessible name).
     const panel = await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
     // The assignment's flock id resolves to a name via the loaded flocks list.
-    // Scope to the <li> so it doesn't collide with the dropdown's "Coop A" option.
+    // Scope to the <li> so it doesn't collide with the picker's "Coop A".
     const item = within(panel).getByRole("listitem");
     expect(within(item).getByText("Coop A")).toBeInTheDocument();
     expect(within(item).getByRole("button", { name: "remove" })).toBeInTheDocument();
@@ -1752,7 +1787,7 @@ describe("UsersPage flock scoping", () => {
   });
 
   it("shows the empty-assignments hint (account-wide access) and lists only ACTIVE flocks to assign", async () => {
-    mockListAssignments.mockResolvedValue([]);
+    setAssignmentsFor("u-w", []);
     await renderReady(ADMIN);
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
@@ -1761,14 +1796,16 @@ describe("UsersPage flock scoping", () => {
     });
 
     expect(await screen.findByText(/No assignments — account-wide access/)).toBeInTheDocument();
-    // Archived flocks are filtered out of the assignable dropdown (only Active).
-    expect(within(flockSelect()).getByRole("option", { name: "Coop A" })).toBeInTheDocument();
-    expect(within(flockSelect()).getByRole("option", { name: "Coop B" })).toBeInTheDocument();
-    expect(within(flockSelect()).queryByRole("option", { name: "Old Coop" })).toBeNull();
+    // #512 — the picker's discovery is eligibility-scoped to ACTIVE flocks:
+    // archived ones are never offered as a new assignment.
+    fireEvent.click(assignTrigger());
+    expect(await screen.findByRole("option", { name: "Coop A" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Coop B" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Old Coop" })).toBeNull();
   });
 
   it("assigns the SELECTED flock (off the default first) to the open worker with userId, flockId, and a key", async () => {
-    mockListAssignments.mockResolvedValue([]);
+    setAssignmentsFor("u-w", []);
     mockAssignFlock.mockResolvedValue({ id: "as-new" });
     await renderReady(ADMIN);
 
@@ -1779,7 +1816,7 @@ describe("UsersPage flock scoping", () => {
     await screen.findByText(/account-wide access/);
 
     // Default assign selection is the first active flock (fl1); choose fl2.
-    fireEvent.change(flockSelect(), { target: { value: "fl2" } });
+    await pickFlock("Coop B");
     fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
@@ -1796,7 +1833,7 @@ describe("UsersPage flock scoping", () => {
   });
 
   it("requests a fresh step-up token for a second assign, never reusing the first grant", async () => {
-    mockListAssignments.mockResolvedValue([]);
+    setAssignmentsFor("u-w", []);
     mockAssignFlock.mockResolvedValue({ id: "as-new" });
     mockStepUp
       .mockResolvedValueOnce({ token: "grant-1", expiresAt: "2026-01-01T00:05:00Z" })
@@ -1815,7 +1852,7 @@ describe("UsersPage flock scoping", () => {
     });
     expect(mockAssignFlock).toHaveBeenNthCalledWith(1, "u-w", "fl1", expect.any(String), "grant-1");
 
-    fireEvent.change(flockSelect(), { target: { value: "fl2" } });
+    await pickFlock("Coop B");
     fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
@@ -1826,7 +1863,7 @@ describe("UsersPage flock scoping", () => {
   });
 
   it("replays the SAME assign key after a failure, and rotates it after success", async () => {
-    mockListAssignments.mockResolvedValue([]);
+    setAssignmentsFor("u-w", []);
     mockAssignFlock.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
     mockAssignFlock.mockResolvedValue({ id: "as-new" });
     await renderReady(ADMIN);
@@ -1883,7 +1920,7 @@ describe("UsersPage flock scoping", () => {
   });
 
   it("resets the assign dropdown to the first active flock each time the dialog opens", async () => {
-    mockListAssignments.mockResolvedValue([]);
+    setAssignmentsFor("u-w", []);
     await renderReady(ADMIN);
 
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
@@ -1892,17 +1929,18 @@ describe("UsersPage flock scoping", () => {
       fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByRole("dialog", { name: /Flock access/ });
-    fireEvent.change(flockSelect(), { target: { value: "fl2" } });
-    expect(flockSelect()).toHaveValue("fl2");
+    await pickFlock("Coop B");
+    expect(assignTrigger()).toHaveAccessibleName("Flock Coop B");
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
 
-    // Reopen — the dropdown is back on the first active flock, not the stale fl2,
-    // so a distracted admin can't assign the previous worker's pick by accident.
+    // Reopen — the picker is back on the first active flock, not the stale
+    // fl2, so a distracted admin can't assign the previous worker's pick by
+    // accident.
     await act(async () => {
       fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByRole("dialog", { name: /Flock access/ });
-    expect(flockSelect()).toHaveValue("fl1");
+    expect(assignTrigger()).toHaveAccessibleName("Flock Coop A");
   });
 
   it("closes the flock dialog on Done", async () => {
@@ -1963,7 +2001,7 @@ describe("UsersPage flock scoping", () => {
   });
 
   it("surfaces an error when an assign fails, keeping the panel open", async () => {
-    mockListAssignments.mockResolvedValue([]);
+    setAssignmentsFor("u-w", []);
     mockAssignFlock.mockRejectedValue(new ApiError(409, "Conflict", "already assigned"));
     await renderReady(ADMIN);
 
@@ -1994,6 +2032,7 @@ describe("UsersPage flock scoping", () => {
     const grant = deferred<{ token: string; expiresAt: string }>();
     mockStepUp.mockReturnValue(grant.promise);
     mockAssignFlock.mockResolvedValue({ id: "as-new" });
+    setAssignmentsFor("u-w", []);
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     await act(async () => {
@@ -2042,6 +2081,7 @@ describe("UsersPage flock scoping", () => {
     const grant = deferred<{ token: string; expiresAt: string }>();
     mockStepUp.mockReturnValue(grant.promise);
     mockAssignFlock.mockResolvedValue({ id: "as-new" });
+    setAssignmentsFor("u-w", []);
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
     const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
@@ -2110,7 +2150,7 @@ describe("UsersPage flock scoping", () => {
   // be blocked for that window, proving no such close+reopen is reachable.
   it("blocks every dismissal path while an assign write is in flight, and allows closing once it settles", async () => {
     const write = deferred<{ id: string }>();
-    mockListAssignments.mockResolvedValue([]);
+    setAssignmentsFor("u-w", []);
     mockAssignFlock.mockReturnValue(write.promise);
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
@@ -2200,6 +2240,144 @@ describe("UsersPage flock scoping", () => {
   });
 });
 
+// #512 (T037/T028) — the assignment picker's dialog lifecycle: every open
+// issues a FRESH controlled generation (the active default, or a fresh blank
+// before the flock list resolves), and a reopen never retains the previous
+// open's exploration or selection. The US2 write guard (canSubmit on both
+// the button and the handler) and the archived/retained identity's exact
+// resolution ride on the same controlled transitions.
+describe("UsersPage assignment picker lifecycle (#512)", () => {
+  it("opens with a fresh BLANK default when no active flock has loaded, and stays unarmed", async () => {
+    // The account's flock list carries NO active flock (all archived): the
+    // page's display list is empty, so openAssignments' fresh controlled
+    // generation commits the BLANK (account-wide) — never a stale selection,
+    // never an archived identity. The trigger shows the uncommitted label
+    // and the Assign write is suppressed, whatever the step-up state.
+    mockListFlocks.mockImplementation(async () => [FLOCK_ARCHIVED]);
+    setAssignmentsFor("u-w", []);
+    await renderReady(ADMIN);
+
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => {
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    });
+    const panel = await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
+    // Fresh blank generation: the trigger shows the uncommitted label…
+    expect(within(panel).getByRole("button", { name: "Flock Select a flock" })).toBeInTheDocument();
+    // …and no write is armed, whatever the step-up state.
+    fillFlockPassword();
+    expect(screen.getByRole("button", { name: "Assign flock" })).toBeDisabled();
+  });
+
+  it("reopening a DIFFERENT worker resets the picker to the default and never retains the prior selection", async () => {
+    const WORKER_2: User = { id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null };
+    mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
+    setAssignmentsFor("u-w", []);
+    await renderReady(ADMIN);
+
+    const rowA = screen.getByRole("row", { name: /worker@farm\.test/ });
+    await act(async () => { fireEvent.click(within(rowA).getByRole("button", { name: "flocks" })); });
+    await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
+    // Worker A commits fl2 off the fl1 default…
+    await pickFlock("Coop B");
+    expect(assignTrigger()).toHaveAccessibleName("Flock Coop B");
+    // …and the dialog is closed and reopened for worker B.
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    const rowB = screen.getByRole("row", { name: /worker2@farm\.test/ });
+    await act(async () => { fireEvent.click(within(rowB).getByRole("button", { name: "flocks" })); });
+    const panelB = await screen.findByRole("dialog", { name: /Flock access — worker2@farm.test/ });
+    // B's fresh generation is back on the DEFAULT first active flock — A's
+    // pick never leaks into B's dialog.
+    expect(within(panelB).getByRole("button", { name: "Flock Coop A" })).toBeInTheDocument();
+    expect(within(panelB).queryByRole("button", { name: "Flock Coop B" })).not.toBeInTheDocument();
+  });
+
+  it("reopening the SAME worker does not retain prior EXPLORATION (typed query) either", async () => {
+    setAssignmentsFor("u-w", []);
+    await renderReady(ADMIN);
+
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
+    await screen.findByRole("dialog", { name: /Flock access/ });
+    // Explore (type) without committing, then close.
+    fireEvent.click(assignTrigger());
+    const combobox = await screen.findByRole("combobox");
+    fireEvent.change(combobox, { target: { value: "Coop B" } });
+    await new Promise((r) => setTimeout(r, 300)); // past the engine's 250 ms debounce
+    expect(screen.getByRole("option", { name: "Coop B" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    // Reopen: the fresh generation restores the committed default's label —
+    // the abandoned query text is gone, not retained.
+    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
+    await screen.findByRole("dialog", { name: /Flock access/ });
+    expect(assignTrigger()).toHaveAccessibleName("Flock Coop A");
+    fireEvent.click(assignTrigger());
+    const reopened = await screen.findByRole("combobox");
+    expect(reopened).toHaveValue("Coop A");
+  });
+
+  it("retains a RETAINED archived identity exactly — the row-owned name resolves it, never a first-result substitution", async () => {
+    // The retained row's identity is fl3 (Archived) — outside the picker's
+    // ACTIVE discovery AND outside the page's capped display list (the mock
+    // below strips it). The row's OWN flockName (the T047 scoped left join)
+    // must render the exact archived name; nothing on this screen may
+    // substitute a first discovery result for it.
+    mockListFlocks.mockImplementation(async () => [FLOCK_A, FLOCK_B]); // fl3 not in the display list
+    setAssignmentsFor("u-w", [{ id: "as1", flockId: "fl3", flockName: "Old Coop" }]);
+    mockAssignFlock.mockResolvedValue({ id: "as-new" });
+    await renderReady(ADMIN);
+
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
+    const panel = await screen.findByRole("dialog", { name: /Flock access — worker@farm.test/ });
+    // The retained row renders the EXACT archived name from its OWN row data
+    // (the display list does not even carry fl3 — a list lookup would have
+    // fallen back to the raw id slice).
+    const item = await within(panel).findByRole("listitem");
+    expect(within(item).getByText("Old Coop")).toBeInTheDocument();
+
+    // The picker's default is the first ACTIVE flock (fl1): the retained
+    // identity must never leak into the picker, and the picker's discovery
+    // must not substitute one.
+    expect(assignTrigger()).toHaveAccessibleName("Flock Coop A");
+    fillFlockPassword();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+    expect(mockAssignFlock).toHaveBeenCalledWith("u-w", "fl1", expect.any(String), "grant-default");
+  });
+
+  it("never submits while exploring: the button disables and the HANDLER guard refuses a direct call", async () => {
+    setAssignmentsFor("u-w", []);
+    mockAssignFlock.mockResolvedValue({ id: "as-new" });
+    await renderReady(ADMIN);
+
+    const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
+    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
+    await screen.findByRole("dialog", { name: /Flock access/ });
+
+    // Open the picker and TYPE (exploration) — the committed fl1 default is
+    // not what the admin is about to pick, so the write must be suppressed
+    // even though a committed entity exists.
+    fireEvent.click(assignTrigger());
+    const combobox = await screen.findByRole("combobox");
+    fireEvent.change(combobox, { target: { value: "Coop B" } });
+    await new Promise((r) => setTimeout(r, 300));
+    fillFlockPassword();
+    expect(screen.getByRole("button", { name: "Assign flock" })).toBeDisabled();
+
+    // Bypass the disabled button and fire the handler directly: the
+    // canSubmit guard inside onAssign is the real write-safety boundary —
+    // a disabled button alone is not.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
+    });
+    expect(mockAssignFlock).not.toHaveBeenCalled();
+    expect(mockStepUp).not.toHaveBeenCalled();
+  });
+});
+
 // #236 — busy state swapped for the shared usePendingAction. Held flights
 // (deferred promises, client.test.ts idiom) pin that exactly the clicked
 // trigger spins while every sibling verb merely disables.
@@ -2239,7 +2417,7 @@ describe("UsersPage pending states (#236)", () => {
   });
 
   it("spins only the removed assignment's own verb; the sibling rows and Assign merely disable", async () => {
-    const ASSIGN_2: FlockAssignment = { id: "as2", flockId: "fl2" };
+    const ASSIGN_2: FlockAssignment = { id: "as2", flockId: "fl2", flockName: "Coop B" };
     mockListAssignments.mockResolvedValue([ASSIGN_1, ASSIGN_2]);
     const gate = deferred<void>();
     mockUnassignFlock.mockReturnValue(gate.promise);
@@ -2265,10 +2443,10 @@ describe("UsersPage pending states (#236)", () => {
     const assignButton = screen.getByRole("button", { name: "Assign flock" });
     expect(assignButton).toBeDisabled();
     expect(assignButton).not.toHaveAttribute("aria-busy");
-    // The flock select embeds the selection in the assign scope: changing it
+    // The flock picker embeds the selection in the assign scope: changing it
     // mid-flight would re-point isPending at a scope nobody runs and drop
     // the spinner while the request is open — so it locks with the flight.
-    expect(screen.getByRole("combobox")).toBeDisabled();
+    expect(assignTrigger()).toBeDisabled();
 
     await act(async () => { gate.resolve(); });
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
@@ -2279,7 +2457,7 @@ describe("UsersPage pending states (#236)", () => {
     expect(screen.getByRole("button", { name: "Assign flock" })).toBeDisabled();
     fillFlockPassword();
     expect(screen.getByRole("button", { name: "Assign flock" })).toBeEnabled();
-    expect(screen.getByRole("combobox")).toBeEnabled();
+    expect(assignTrigger()).toBeEnabled();
   });
 });
 
@@ -2386,7 +2564,7 @@ describe("UsersPage i18n wiring (#182, Task 22)", () => {
   });
 
   it("reads the no-assignments message from the catalog, not a hardcoded literal", async () => {
-    mockListAssignments.mockResolvedValue([]);
+    setAssignmentsFor("u-w", []);
     await withOverride("users", "noAssignmentsMessage", "NO-ASSIGN-MARKER", async () => {
       await renderReady(ADMIN);
       const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });

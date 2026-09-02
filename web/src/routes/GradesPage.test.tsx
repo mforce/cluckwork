@@ -17,6 +17,8 @@ vi.mock("../api/cluckwork", () => ({
   updateEggGrade: vi.fn(),
   deactivateEggGrade: vi.fn(),
   activateEggGrade: vi.fn(),
+  getFlock: vi.fn(),
+  getCustomer: vi.fn(),
 }));
 
 const mockList = vi.mocked(listEggGrades);

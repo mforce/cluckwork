@@ -3,13 +3,15 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Ban, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
 import {
-  assignFlock, changeUserEmail, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments, listFlocks,
+  assignFlock as apiAssignFlock, changeUserEmail, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments, listFlocks,
   listUsers, setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
+import { FlockPicker } from "../components/FlockPicker";
+import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
 import { useDialogErrors } from "../components/useDialogErrors";
@@ -173,7 +175,20 @@ export function UsersPage() {
   // correctly), but the ref removes the trap for whoever edits this next.
   const openUserRef = useRef<string | null>(null);
   const [flocks, setFlocks] = useState<Flock[]>([]);
-  const [assignFlockId, setAssignFlockId] = useState("");
+  // #512 (T028/T037) — the assignment flock is committed through FlockPicker.
+  // `assignFlock` is the page-controlled committed entity (a full typed flock,
+  // so a retained archived identity is preserved EXACTLY); bumping
+  // `assignFlockGen` is the FRESH transition every open issues (the mount-time
+  // active default, or null for the account-wide blank) — a reopen must never
+  // retain the previous open's exploration/selection. `assignFlockSnapshot.canSubmit`
+  // gates BOTH the Assign button and onAssign itself (US2 write guard); the
+  // picker is optional, so the blank (no assignments) is submittable.
+  const [assignFlock, setAssignFlock] = useState<Flock | null>(null);
+  const [assignFlockGen, setAssignFlockGen] = useState(0);
+  const [assignFlockSnapshot, setAssignFlockSnapshot] = useState<PickerSnapshot<Flock>>({
+    committed: null, selectionPhase: "uninitialized", exploring: false, canSubmit: false,
+  });
+  const [assignPickerOpen, setAssignPickerOpen] = useState(false);
 
   // Stable idempotency keys per logical mutation, rotated only after the full
   // action (write + refresh) succeeds — same contract as the other screens.
@@ -203,12 +218,19 @@ export function UsersPage() {
     Promise.all([listUsers(), listFlocks()])
       .then(([u, f]) => {
         setUsers(u);
-        const active = f.filter((x) => x.status === "Active");
-        setFlocks(active);
-        // Initialize from the ACTIVE list the dropdown shows — an inactive
-        // first flock would preselect an id no option carries, and Assign
-        // would 404 (conventions review of #104).
-        if (active.length > 0) setAssignFlockId(active[0].id);
+        setFlocks(f);
+        // #512 (T037) — the capture default is committed as a full typed entity
+        // through the picker's controlled sync: the first ACTIVE flock, same
+        // choice the old dropdown initialized from (an inactive first flock
+        // would preselect an identity Assign refuses — conventions review of
+        // #104). The picker's own discovery is eligibility-scoped, so the
+        // display list here may be the full (incl. archived) one — display
+        // only; the picker owns which identities are selectable.
+        const firstActive = f.find((x) => x.status === "Active");
+        if (firstActive) {
+          setAssignFlock(firstActive);
+          setAssignFlockGen((g) => g + 1);
+        }
       })
       .catch((err) => setPageError(errText(err)));
   }, [setPageError]);
@@ -225,10 +247,16 @@ export function UsersPage() {
       const list = await listFlockAssignments(userId);
       if (!isCurrentDialog()) return; // superseded by another open/close
       setAssignments(list);
-      // Start every worker's dialog on the first active flock. Without this the
-      // dropdown keeps the last worker's pick — open A, choose fl2, close, open
-      // B, and B shows fl2 — so a distracted admin could assign the wrong flock.
-      setAssignFlockId(flocks[0]?.id ?? "");
+      // Start every worker's dialog on a FRESH controlled generation, never
+      // retaining the previous open's exploration or selection — open A, pick
+      // fl2, close, open B, and B would otherwise still show fl2, so a
+      // distracted admin could assign the wrong flock. The default is the
+      // first active flock when one is loaded; until the load resolves (or
+      // the account has none) it is a fresh BLANK (account-wide) — the
+      // optional picker admits the blank, so Assign is only ever armed once
+      // a real default exists.
+      setAssignFlock(flocks.find((f) => f.status === "Active") ?? null);
+      setAssignFlockGen((g) => g + 1);
       // Displacement only once the load actually succeeds and the dialog is
       // about to rebind. Abandoning up front (adversarial review of #491)
       // would fire even when THIS load fails and openUser's dialog never
@@ -252,18 +280,31 @@ export function UsersPage() {
     openUserRef.current = null;
     setOpenUser(null);
     setFlockStepUpPassword(""); // #308 — never leave a typed proof password behind
+    // A closed dialog must not keep a picker armed for a write that no dialog
+    // can present: the next open issues its own fresh generation (above), but
+    // until then the engine would still report canSubmit for whatever the
+    // last open committed.
+    setAssignPickerOpen(false);
+    setAssignFlock(null);
+    setAssignFlockGen((g) => g + 1);
     errors.abandon("flock-access");
   }
 
   async function onAssign() {
     const target = openUser;
     const dialog = activeUser.current;
-    if (!target || !assignFlockId || busy || dialog === null || dialog.targetId !== target) return;
+    const selectedFlock = assignFlock;
+    // US2 (T028) — canSubmit is the write-safety boundary, not the button:
+    // a disabled button alone is bypassable (a stale click, a suppressed
+    // render), so the handler refuses an uncommitted/exploring/unavailable
+    // selection itself.
+    if (!target || !selectedFlock || !assignFlockSnapshot.canSubmit
+      || busy || dialog === null || dialog.targetId !== target) return;
     const isCurrentDialog = () => activeUser.current?.generation === dialog.generation;
     errors.beginAttempt("flock-access");
     // One string serves as both the pending scope and the idempotency-key
     // scope here — payload-bound either way.
-    const scope = `assign:${target}:${assignFlockId}`;
+    const scope = `assign:${target}:${selectedFlock.id}`;
     await run(scope, async () => {
       try {
         // #606/#308 — read then clear before awaiting issuance; the grant is
@@ -275,7 +316,7 @@ export function UsersPage() {
 
         setFlockWriteInFlight(true);
         try {
-          await assignFlock(target, assignFlockId, keyFor(scope), stepUpToken);
+          await apiAssignFlock(target, selectedFlock.id, keyFor(scope), stepUpToken);
           const fresh = await listFlockAssignments(target);
           clearKey(scope);
           if (isCurrentDialog()) setAssignments(fresh);
@@ -320,8 +361,18 @@ export function UsersPage() {
     });
   }
 
-  const flockName = (id: string | null) =>
-    flocks.find((f) => f.id === id)?.name ?? (id ? id.slice(0, 8) : "farm-wide");
+  // #512 US4 (T047/T051) — a retained assignment's name comes ONLY from the
+  // ROW's OWN flockName (the scoped left join): a capped picker/catalog
+  // list is never consulted for a row label (it can substitute the WRONG
+  // flock, or simply not carry an archived/out-of-scope identity), and an id
+  // is never shown as a fragment. `flockId === null` is the deliberate
+  // farm-wide choice; a non-null `flockId` with a null `flockName` is the
+  // defensive out-of-scope case (see contracts/http-api.md) — both get their
+  // own translated label, never a raw id.
+  const flockName = (a: { flockId: string | null; flockName: string | null }) =>
+    a.flockId === null
+      ? t("farmWideAssignmentLabel")
+      : a.flockName ?? t("assignmentFlockUnavailable");
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -850,7 +901,7 @@ export function UsersPage() {
           <ul>
             {assignments.map((a) => (
               <li key={a.id}>
-                {flockName(a.flockId)}
+                {flockName(a)}
                 {!openUserIsWorker && <span className="muted"> ({t("inactiveAssignmentLabel")})</span>}{" "}
                 <BusyButton className="link" disabled={busy || !flockStepUpPassword}
                   busy={openUser !== null && isPending(`unassign:${openUser}:${a.flockId}`)}
@@ -867,16 +918,45 @@ export function UsersPage() {
             that as a 422. Removal above stays available regardless. */}
         {openUserIsWorker ? (
           <div className="inline-form">
-            {/* Disabled during any flight: the assign scope embeds the selected
-                flock id, so changing the selection mid-flight would re-point
-                isPending at a scope nobody is running and drop the spinner
-                while the request is still open (#242 review). */}
-            <select value={assignFlockId} disabled={busy}
-              onChange={(e) => setAssignFlockId(e.target.value)}>
-              {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-            </select>
-            <BusyButton disabled={busy || !assignFlockId || !flockStepUpPassword}
-              busy={openUser !== null && isPending(`assign:${openUser}:${assignFlockId}`)}
+            {/* #512 (T028/T037) — the assignment flock commits through
+                FlockPicker. Optional: the blank means "no assignments yet"
+                (account-wide) and is submittable; a committed flock —
+                possibly an archived retained identity, resolved through the
+                picker's exact read — is the write payload. Disabled during
+                any flight: the assign scope embeds the selected flock id, so
+                changing the selection mid-flight would re-point isPending at
+                a scope nobody is running and drop the spinner while the
+                request is still open (#242 review). */}
+            <FlockPicker
+              label={t("flockLabel")}
+              eligibility="active"
+              required={false}
+              disabled={busy}
+              open={assignPickerOpen}
+              controlledCommitted={assignFlock}
+              controlledGeneration={assignFlockGen}
+              onSnapshot={setAssignFlockSnapshot}
+              onCommit={(f) => {
+                setAssignFlock(f);
+                setAssignFlockGen((g) => g + 1);
+                setAssignPickerOpen(false);
+              }}
+              onClear={() => {
+                setAssignFlock(null);
+                setAssignFlockGen((g) => g + 1);
+              }}
+              onEscape={() => setAssignPickerOpen(false)}
+              onOutsideClick={() => setAssignPickerOpen(false)}
+              trigger={
+                <button type="button" className="named-picker-trigger"
+                  disabled={busy}
+                  onClick={() => setAssignPickerOpen(true)}>
+                  {assignFlock ? assignFlock.name : t("selectFlockOption")}
+                </button>
+              }
+            />
+            <BusyButton disabled={busy || !assignFlock || !assignFlockSnapshot.canSubmit || !flockStepUpPassword}
+              busy={openUser !== null && isPending(`assign:${openUser}:${assignFlock?.id ?? ""}`)}
               onClick={() => void onAssign()}>
               {t("assignFlockButton")}
             </BusyButton>

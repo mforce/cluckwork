@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent, act, within } from "@testing-library/react";
+import { screen, fireEvent, act, within, waitFor } from "@testing-library/react";
 import { FeedPage } from "./FeedPage";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { listFlocks, listInventoryItems, listFeedUsage, recordFeedUsage } from "../api/cluckwork";
+import { listFlocks, listInventoryItems, listFeedUsage, recordFeedUsage, getFlock } from "../api/cluckwork";
 import type { Flock, InventoryItem, FeedUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
@@ -16,7 +16,9 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     listInventoryItems: vi.fn(),
     listFeedUsage: vi.fn(),
     recordFeedUsage: vi.fn(),
-  };
+    getFlock: vi.fn(),
+    getCustomer: vi.fn(),
+};
 });
 const mockListFlocks = vi.mocked(listFlocks);
 const mockListItems = vi.mocked(listInventoryItems);
@@ -43,6 +45,7 @@ function usageRow(overrides: Partial<FeedUsage> = {}): FeedUsage {
     id: "u1", flockId: "f1", inventoryItemId: "i1", date: "2026-08-07",
     quantity: 18, unit: "kg", estimatedCostMinorUnits: 45_000,
     currencyCode: "USD", currencyMinorUnit: 2, note: "morning feed", dailyEntryId: null,
+    flockName: "Barn A",
     ...overrides,
   };
 }
@@ -51,7 +54,15 @@ const ADMIN = { sub: "u1", role: "Admin" };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockListFlocks.mockResolvedValue([FLOCK]);
+  // #512 — the FlockPicker's discovery uses the SAME listFlocks seam (typed
+  // eligibility query). The default fixture serves the full list for any
+  // eligibility; the picker's exact-identity read (T038) resolves the
+  // fixture flock.
+  mockListFlocks.mockImplementation(
+    async (p?: { search?: string | null; eligibility?: string; limit?: number; offset?: number }) =>
+      [FLOCK].slice(p?.offset ?? 0, (p?.offset ?? 0) + (p?.limit ?? 50)),
+  );
+  vi.mocked(getFlock).mockImplementation(async () => FLOCK);
   mockListItems.mockResolvedValue([item()]);
   mockListUsage.mockResolvedValue([]);
 });
@@ -161,11 +172,15 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
     expect(screen.getByText("page 2")).toBeInTheDocument();
 
     mockListUsage.mockResolvedValueOnce([]);
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText("Filter by flock"), { target: { value: "f1" } });
-    });
-    expect(mockListUsage).toHaveBeenLastCalledWith(
-      expect.objectContaining({ flockId: "f1", offset: 0 }));
+    // #512 — the filter flock is now a FlockPicker, not a native select.
+    // Open the picker (trigger), pick the option, and the picker commits.
+    // The records list re-queries with the EXACT committed flockId.
+    const filterTrigger = screen.getByRole("button", { name: /All/ });
+    fireEvent.click(filterTrigger);
+    const option = await screen.findByRole("option", { name: /Barn A/ });
+    fireEvent.click(option);
+    await waitFor(() => expect(mockListUsage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ flockId: "f1", offset: 0 })));
   });
 
   it("withdraws load-more for the duration of its own flight", async () => {
@@ -315,7 +330,62 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
     await renderReady("/feed?flockId=f1&from=2026-08-01&to=2026-08-01");
     expect(mockListUsage).toHaveBeenCalledWith(expect.objectContaining(
       { flockId: "f1", from: "2026-08-01", to: "2026-08-01" }));
-    expect(screen.getByLabelText("Filter by flock")).toHaveValue("f1");
+    // #512 — the filter picker's trigger shows the EXACT row-owned identity's
+    // name (resolved via the exact GET, T038), not a raw id. The capture
+    // picker's trigger ALSO shows "Barn A" (the default), so scope to the
+    // filter's own trigger (the one inside the .filter-flock container).
+    const filterTrigger = screen.getByLabelText("Filter by flock");
+    expect(filterTrigger).toBeInTheDocument();
+    expect(filterTrigger).toHaveTextContent(/Barn A/);
+  });
+
+  // #512 US4 (T043/T051) — a record row's own flockName is null (the flock
+  // left the caller's tenant/flock scope between reads), even though the
+  // SAME id is present in the page's own capped `flocks` list under a
+  // DIFFERENT-looking name. The row must show the translated unavailable
+  // label, never that catalog substitution and never a raw id fragment.
+  it("a record row whose own flockName is null shows the translated unavailable label — never the catalog's name for that id, never an id fragment", async () => {
+    mockListUsage.mockResolvedValue([usageRow({ id: "u-gone", flockId: "f1", flockName: null })]);
+    await renderReady();
+
+    const dataRow = await screen.findByRole("row", { name: /morning feed/ });
+    expect(within(dataRow).getByText(i18n.t("feed:rowFlockUnavailable"))).toBeInTheDocument();
+    expect(within(dataRow).queryByText("Barn A")).not.toBeInTheDocument();
+    expect(within(dataRow).queryByText("f1")).not.toBeInTheDocument();
+  });
+
+  // #512 US3 remediation — the deep-linked filter's picker mounts CLOSED
+  // (`filterPickerOpen` starts false); before this fix a failed exact GET for
+  // that row-owned id had no adjacent recovery until the user opened the
+  // picker themselves. Now the translated unavailable status and a
+  // keyboard-reachable Retry render right beside the trigger, closed or not.
+  it("a deep-linked flock filter whose exact GET fails renders unavailable with an adjacent Retry, closed — never a first-result substitution, and Retry is GET-only and can recover", async () => {
+    vi.mocked(getFlock).mockRejectedValueOnce(new Error("not found"));
+    await renderReady("/feed?flockId=f-gone&from=2026-08-01&to=2026-08-01");
+
+    // The list stays scoped to the EXACT requested id — never dropped or
+    // substituted with "all flocks" / the first discovery result.
+    await waitFor(() => expect(mockListUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ flockId: "f-gone", from: "2026-08-01", to: "2026-08-01" })));
+    await waitFor(() => expect(screen.getByLabelText("Filter by flock"))
+      .toHaveTextContent(i18n.t("feed:filterFlockUnavailable")));
+    const filterTrigger = screen.getByLabelText("Filter by flock");
+    expect(filterTrigger).not.toHaveTextContent("Barn A"); // never the first result
+
+    // The engine's own adjacent recovery — translated, visible without
+    // opening the picker.
+    const unavailableLabel = i18n.t("namedEntityPicker:unavailable");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(unavailableLabel));
+    const retryLabel = i18n.t("namedEntityPicker:retry");
+    const retryBtn = screen.getByRole("button", { name: retryLabel });
+
+    // Retry re-issues ONLY the exact GET; success commits the exact entity.
+    const getFlockCallsBefore = vi.mocked(getFlock).mock.calls.length;
+    vi.mocked(getFlock).mockResolvedValueOnce(FLOCK);
+    fireEvent.click(retryBtn);
+    await waitFor(() => expect(vi.mocked(getFlock).mock.calls.length).toBe(getFlockCallsBefore + 1));
+    await waitFor(() => expect(screen.getByLabelText("Filter by flock")).toHaveTextContent("Barn A"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("keeps the capture form usable when the history read fails", async () => {

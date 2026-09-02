@@ -34,7 +34,9 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     recordFeedUsage: vi.fn(),
     recordInventoryAdjustment: vi.fn(),
     listInventoryMovements: vi.fn(),
-  };
+    getFlock: vi.fn(),
+  getCustomer: vi.fn(),
+};
 });
 
 const mockListItems = vi.mocked(listInventoryItems);

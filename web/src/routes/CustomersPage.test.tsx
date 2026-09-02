@@ -20,7 +20,9 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     listCustomerBalances: vi.fn(),
     createCustomer: vi.fn(),
     updateCustomer: vi.fn(),
-  };
+    getFlock: vi.fn(),
+  getCustomer: vi.fn(),
+};
 });
 
 const mockList = vi.mocked(listCustomers);

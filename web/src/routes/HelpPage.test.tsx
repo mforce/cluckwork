@@ -757,3 +757,104 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     expect(guidance).toHaveTextContent(/no confirmation email is sent/i);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Searchable picker guidance (#512 T060/T061)
+// ---------------------------------------------------------------------------
+
+// FR-051: user help and the in-app glossary must explain searchable paged
+// pickers, keyboard selection, Load more, Retry, and customer-name links into
+// filtered Sales, in English, Spanish, and Tagalog.
+describe("HelpPage searchable picker guidance (#512)", () => {
+  it("explains searchable pickers in Getting around: search, exploration vs commit, keyboard, Load more, Retry, and unavailable identities", () => {
+    render(<HelpPage />);
+    const item = screen.getByText(/searchable pickers/i).closest("li")!;
+    // Search + exploration-vs-commit.
+    expect(item).toHaveTextContent(/type to search/i);
+    expect(item).toHaveTextContent(/Enter/);
+    expect(item).toHaveTextContent(/previous choice stays/i);
+    expect(item).toHaveTextContent(/Escape/);
+    // Load more / Retry — the picker's own catalog vocabulary (namedEntityPicker),
+    // never a paraphrase, so the guidance can never drift from what the control
+    // actually says.
+    expect(item).toHaveTextContent("Load more");
+    expect(item).toHaveTextContent("Retry");
+    // Unavailable identities.
+    expect(item).toHaveTextContent("Unavailable");
+
+    for (const catalog of [es, tl]) {
+      expect(catalog.help.gettingAroundSearchablePicker).toBeTruthy();
+      expect(catalog.help.gettingAroundSearchablePicker).not.toBe(en.help.gettingAroundSearchablePicker);
+    }
+  });
+
+  it("reads the searchable-picker guidance from the catalog, not a hardcoded literal", () => {
+    const original = i18n.getResource("en", "help", "gettingAroundSearchablePicker") as string;
+    i18n.addResource("en", "help", "gettingAroundSearchablePicker", "PICKER-GUIDANCE-MARKER");
+    try {
+      render(<HelpPage />);
+      expect(screen.getByText(/PICKER-GUIDANCE-MARKER/)).toBeInTheDocument();
+      expect(screen.queryByText(/searchable pickers/i)).not.toBeInTheDocument();
+    } finally {
+      i18n.addResource("en", "help", "gettingAroundSearchablePicker", original);
+    }
+  });
+
+  it("documents customer-name links into filtered Sales, in every catalog (#512 US5)", () => {
+    render(<HelpPage />);
+    const item = screen.getByText(/link into|links into/i).closest("li")!;
+    expect(item).toHaveTextContent(/Customers/);
+    expect(item).toHaveTextContent(/Sales/);
+
+    for (const catalog of [es, tl]) {
+      expect(catalog.help.salesCustomerLink).toBeTruthy();
+      expect(catalog.help.salesCustomerLink).not.toBe(en.help.salesCustomerLink);
+    }
+  });
+
+  it("defines the Searchable picker term in the in-app glossary, covering keyboard, Load more, Retry, and unavailable identities", () => {
+    render(<HelpPage />);
+    expect(screen.getByRole("rowheader", { name: "Searchable picker" })).toBeInTheDocument();
+    const def = screen.getByRole("rowheader", { name: "Searchable picker" }).closest("tr")!;
+    expect(def).toHaveTextContent(/Enter/);
+    expect(def).toHaveTextContent(/Escape/);
+    expect(def).toHaveTextContent("Load more");
+    expect(def).toHaveTextContent("Retry");
+    expect(def).toHaveTextContent("Unavailable");
+
+    for (const catalog of [es, tl]) {
+      expect(catalog.help.glossarySearchablePickerTerm).toBeTruthy();
+      expect(catalog.help.glossarySearchablePickerTerm).not.toBe(en.help.glossarySearchablePickerTerm);
+      expect(catalog.help.glossarySearchablePickerDef).toBeTruthy();
+      expect(catalog.help.glossarySearchablePickerDef).not.toBe(en.help.glossarySearchablePickerDef);
+    }
+  });
+
+  it("reads the Searchable picker glossary row from the catalog, not a hardcoded literal", () => {
+    const originalTerm = i18n.getResource("en", "help", "glossarySearchablePickerTerm") as string;
+    const originalDef = i18n.getResource("en", "help", "glossarySearchablePickerDef") as string;
+    i18n.addResource("en", "help", "glossarySearchablePickerTerm", "SEARCHABLE-PICKER-TERM-MARKER");
+    i18n.addResource("en", "help", "glossarySearchablePickerDef", "SEARCHABLE-PICKER-DEF-MARKER");
+    try {
+      render(<HelpPage />);
+      expect(screen.getByRole("rowheader", { name: "SEARCHABLE-PICKER-TERM-MARKER" })).toBeInTheDocument();
+      expect(screen.getByText("SEARCHABLE-PICKER-DEF-MARKER")).toBeInTheDocument();
+    } finally {
+      i18n.addResource("en", "help", "glossarySearchablePickerTerm", originalTerm);
+      i18n.addResource("en", "help", "glossarySearchablePickerDef", originalDef);
+    }
+  });
+
+  // The picker's own strings (namedEntityPicker.loadMore/retry/unavailable) are
+  // the load-bearing vocabulary: the Help guidance and glossary definition must
+  // never paraphrase them into different English, or a user reading Help
+  // wouldn't recognize the control they are looking at.
+  it("uses the picker's own Load more, Retry, and Unavailable vocabulary, not a paraphrase", () => {
+    expect(en.help.gettingAroundSearchablePicker).toContain(en.namedEntityPicker.loadMore);
+    expect(en.help.gettingAroundSearchablePicker).toContain(en.namedEntityPicker.retry);
+    expect(en.help.gettingAroundSearchablePicker).toContain(en.namedEntityPicker.unavailable);
+    expect(en.help.glossarySearchablePickerDef).toContain(en.namedEntityPicker.loadMore);
+    expect(en.help.glossarySearchablePickerDef).toContain(en.namedEntityPicker.retry);
+    expect(en.help.glossarySearchablePickerDef).toContain(en.namedEntityPicker.unavailable);
+  });
+});

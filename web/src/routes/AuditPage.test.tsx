@@ -20,6 +20,8 @@ import i18n from "../i18n";
 // here, only routing).
 vi.mock("../api/cluckwork", () => ({
   listAuditEvents: vi.fn(),
+  getFlock: vi.fn(),
+  getCustomer: vi.fn(),
 }));
 
 const mockListAuditEvents = vi.mocked(listAuditEvents);

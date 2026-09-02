@@ -10,6 +10,8 @@ import type { EggGrade, EggUnitConversion, FeedUsage, Flock, WaterUsage } from "
 import { ApiError } from "../api/client";
 import { readAccountScoped, writeAccountScoped } from "../lib/accountStorage";
 import { BusyButton } from "../components/BusyButton";
+import { FlockPicker } from "../components/FlockPicker";
+import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
@@ -64,6 +66,29 @@ export function DailyEntryPage() {
 
   const [flockId, setFlockId] = useState("");
   const [date, setDate] = useState(today);
+  // #512 (T027/T036) — the capture flock is committed through FlockPicker.
+  // `pickerFlock` is the page-controlled committed entity; bumping
+  // `pickerFlockGen` makes the engine re-sync its committed state (deep link,
+  // remembered, default, new-flock create — every external reset goes through
+  // here so an Escape or later exploration can never resurrect a stale ID).
+  // `flockSnapshot.canSubmit` gates BOTH the visible save controls AND the
+  // save handlers — a disabled button alone is not the write-safety boundary.
+  //
+  // INITIAL STATE: `canSubmit: true`. The picker's snapshot effect fires on
+  // mount and replaces this with the engine's truth (committed → true,
+  // exploring/unavailable → false). The save buttons are ALSO gated on
+  // `!flockId` (no id = no write), so the brief window before the first
+  // snapshot (flockId empty, canSubmit true) is inert: the handler's own
+  // `!selectedFlock` and `!flockSnapshot.canSubmit` checks both hold. A
+  // test that asserts the save button is disabled before the first snapshot
+  // would be asserting a transient render, not a safety property — the write
+  // guard is the handler's `!flockSnapshot.canSubmit` check, which reads the
+  // LIVE snapshot at call time, not this initial.
+  const [pickerFlock, setPickerFlock] = useState<Flock | null>(null);
+  const [pickerFlockGen, setPickerFlockGen] = useState(0);
+  const [flockSnapshot, setFlockSnapshot] = useState<PickerSnapshot<Flock>>({
+    committed: null, selectionPhase: "uninitialized", exploring: false, canSubmit: true,
+  });
   const [totalEggs, setTotalEggs] = useState(0);
   const [cracked, setCracked] = useState(0);
   const [dirty, setDirty] = useState(0);
@@ -163,9 +188,22 @@ export function DailyEntryPage() {
         // Default prefers an ACTIVE flock — depleted ones are backfill targets
         // you pick deliberately, not a default.
         const firstActive = f.find((x) => x.status === "Active") ?? f[0];
+        // #512 (T036) — the picker's committed entity is set HERE, in the same
+        // mount-time effect that resolves the deep-link/remembered/default
+        // precedence. Bumping `pickerFlockGen` makes the engine's controlled
+        // sync effect fire, committing the entity and flipping canSubmit.
+        const targetFlock = deepLinked
+          ? f.find((x) => x.id === wantedFlock)
+          : remembered && f.some((x) => x.id === remembered)
+            ? f.find((x) => x.id === remembered)
+            : firstActive;
         if (deepLinked) retarget(() => setFlockId(wantedFlock!));
         else if (remembered && f.some((x) => x.id === remembered)) retarget(() => setFlockId(remembered));
         else if (firstActive) retarget(() => setFlockId(firstActive.id));
+        if (targetFlock) {
+          setPickerFlock(targetFlock);
+          setPickerFlockGen((g) => g + 1);
+        }
       })
       .catch(() => setLoadError(i18n.t("dailyEntry:loadFlocksGradesFailed")))
       .finally(() => setLoading(false));
@@ -229,6 +267,13 @@ export function DailyEntryPage() {
     if (flockId) writeAccountScoped(LAST_FLOCK_KEY, flockId);
   }, [flockId]);
 
+  // #512 (T036) — GET-only post-create hydration. A freshly created flock is
+  // admitted as-is (the POST already returned the full typed entity, so the
+  // engine commits it without a read). If a subsequent exact read for that id
+  // fails (the picker's unavailable state), the picker's own Retry re-issues
+  // ONLY the GET (the create POST is never repeated) via its internal
+  // `retryUnavailable`, wired to the unavailable-state Retry button.
+
   // #446 — see the daySupport state comment for why this effect is isolated.
   useEffect(() => {
     if (!flockId || !date) { setDaySupport(null); return; }
@@ -278,7 +323,11 @@ export function DailyEntryPage() {
   const stepperUnit = resolveStepperUnit(
     farm?.defaultStepperUnit, me?.preferredStepperUnit, eggUnitConversions);
   const stepSize = stepperUnit.eggsPerUnit;
-  const selectedFlock = flocks.find((f) => f.id === flockId);
+  // #512 (T027) — the picker's open state is page-owned; commit/Escape/
+  // outside-click all close it. The capture flock is required: the trigger is
+  // the closed-state control and the combobox occupies the same form slot.
+  const [flockPickerOpen, setFlockPickerOpen] = useState(false);
+  const selectedFlock = pickerFlock ?? flocks.find((f) => f.id === flockId);
   const entryLocked = existingStatus !== null && existingStatus !== "Draft";
   // The prefill found a draft for this flock+date: the form is EDITING it,
   // not starting fresh, and nothing said so before (#134).
@@ -342,6 +391,20 @@ export function DailyEntryPage() {
     apply();
   }
 
+  // #512 (T036) — post-create hydration lands here. The engine resolves
+  // `requestedId` (the created id, since `pickerFlock` was left null) through
+  // its own exact GET and reports the resolved entity via `committed`; this
+  // mirrors it onto `pickerFlock` so the closed-state trigger — which reads
+  // `pickerFlock` directly, not the snapshot — shows it. Scoped to the id the
+  // page is actually targeting, so a stale/superseded snapshot can never
+  // resurrect a flock the page has since moved on from.
+  function handleFlockSnapshot(s: PickerSnapshot<Flock>) {
+    setFlockSnapshot(s);
+    if (s.committed && s.committed.id === flockId && s.committed.id !== pickerFlock?.id) {
+      setPickerFlock(s.committed);
+    }
+  }
+
   // NumberField owns its own input, so the row label points at it by id.
   const fieldId = useId();
   const idFor = (name: string) => `${fieldId}-${name}`;
@@ -403,14 +466,30 @@ export function DailyEntryPage() {
           initialCount: newFlockCount,
         }, flockKey.current);
         flockKey.current = newId();
-        const refreshed = capturable(await listFlocks());
-        setFlocks(refreshed);
         // Through `retarget` like the pickers: creating a flock switches the
         // captured day too, and nothing stops the dialog being opened while the
         // remainder gesture is armed (#403 round 4). Without it, the render
         // after the create shows the NEW flock's rows armed over the previous
         // flock's remainder — the picker bug reached by a different door.
         retarget(() => setFlockId(created.id));
+        // #512 (T036) — createFlock's response is `Created` ({ id }) only, not
+        // a full Flock, so the page cannot fabricate the committed entity.
+        // Commit only the row-owned id: `pickerFlock` goes to null so
+        // `requestedId` (derived below) becomes `created.id`, which drives
+        // FlockPicker's real `getFlock` exact-GET read. `handleFlockSnapshot`
+        // mirrors that resolved entity onto `pickerFlock` once it lands. A
+        // failed exact read enters the picker's own unavailable state, whose
+        // built-in Retry re-issues ONLY that GET — the create POST already
+        // succeeded and is never repeated.
+        setPickerFlock(null);
+        setPickerFlockGen((g) => g + 1);
+        // Best-effort refresh of the picker's eligible-list rows; its failure
+        // must never block the exact-GET hydration above.
+        try {
+          setFlocks(capturable(await listFlocks()));
+        } catch {
+          // requestedId-driven hydration (above) is independent of this list.
+        }
         setShowNewFlock(false);
         setNewFlockName("");
         setNewFlockBreed("");
@@ -423,7 +502,10 @@ export function DailyEntryPage() {
   }
 
   async function onSave(submit: boolean) {
-    if (busy || !selectedFlock || prefillFailed || prefillPending) return;
+    // #512 (T027) — the picker's safety state is the write guard, not the
+    // button's disabled attribute: an exploring or unavailable picker must not
+    // submit a stale committed ID even if the visible control is bypassed.
+    if (busy || !selectedFlock || prefillFailed || prefillPending || !flockSnapshot.canSubmit) return;
     // One-way action (#59): submit freezes the day and creates egg lots.
     if (submit) {
       const ok = await confirm({
@@ -501,17 +583,36 @@ export function DailyEntryPage() {
           being recorded, it is not part of recording it. The two steps below
           are the work, and they reconcile against each other. */}
       <div className="form-grid entry-context">
-        <label>
-          {t("flockLabel")}
-          <select value={flockId} onChange={(e) => retarget(() => setFlockId(e.target.value))}>
-            {flocks.length === 0 && <option value="">{t("noFlocksYetOption")}</option>}
-            {flocks.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name} ({f.breed}){f.status === "Depleted" ? t("depletedFlockSuffix") : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+        <FlockPicker
+          label={t("flockLabel")}
+          eligibility="active-and-depleted"
+          required
+          open={flockPickerOpen}
+          controlledCommitted={pickerFlock}
+          controlledGeneration={pickerFlockGen}
+          requestedId={pickerFlock ? null : flockId || null}
+          onSnapshot={handleFlockSnapshot}
+          onCommit={(f) => retarget(() => {
+            setFlockId(f.id);
+            setPickerFlock(f);
+            setPickerFlockGen((g) => g + 1);
+          })}
+          onEscape={() => setFlockPickerOpen(false)}
+          onOutsideClick={() => setFlockPickerOpen(false)}
+          trigger={
+            <button
+              type="button"
+              className="named-picker-trigger"
+              onClick={() => setFlockPickerOpen(true)}
+            >
+              {pickerFlock
+                ? `${pickerFlock.name} (${pickerFlock.breed})${pickerFlock.status === "Depleted" ? t("depletedFlockSuffix") : ""}`
+                : flocks.length === 0
+                  ? t("noFlocksYetOption")
+                  : t("selectFlockOption")}
+            </button>
+          }
+        />
         <label>{t("dateLabel")}
           <input type="date" value={date} max={today}
             onChange={(e) => retarget(() => setDate(e.target.value))} />
@@ -756,14 +857,14 @@ export function DailyEntryPage() {
                 than round-trip to find out. `tone === "over"` already covers
                 the lossesExceedTotal case too (see lib/grading). */}
             <BusyButton busy={isPending("save")}
-              disabled={busy || !flockId || grading.tone === "over" || entryLocked || prefillFailed || prefillPending}
+              disabled={busy || !flockId || !flockSnapshot.canSubmit || grading.tone === "over" || entryLocked || prefillFailed || prefillPending}
               onClick={() => onSave(false)}>{t("saveDraftButton")}</BusyButton>
             {/* #394: submit requires grading to reconcile EXACTLY — the same
                 "done" state the chip and footer already show, so the gate can
                 never say one thing and disable another. A draft may stay
                 partially (or entirely un-)graded; only submit is gated. */}
             <BusyButton busy={isPending("submit")}
-              disabled={busy || !flockId || grading.tone !== "done" || entryLocked || prefillFailed || prefillPending}
+              disabled={busy || !flockId || !flockSnapshot.canSubmit || grading.tone !== "done" || entryLocked || prefillFailed || prefillPending}
               onClick={() => onSave(true)}>
               {t("submitButton")}
             </BusyButton>

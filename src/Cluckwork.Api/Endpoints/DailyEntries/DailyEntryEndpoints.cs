@@ -3,6 +3,7 @@ namespace Cluckwork.Api.Endpoints.DailyEntries;
 using System.Text.Json;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry;
+using Cluckwork.Application.Features.Flocks;
 using Cluckwork.Application.Features.DailyEntries.RecordDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry;
 using Cluckwork.Application.Features.DailyEntries.VoidDailyEntry;
@@ -55,6 +56,7 @@ public static class DailyEntryEndpoints
         Guid id,
         Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository entries,
         Cluckwork.Application.Features.Audit.IAuditEventRepository audit,
+        Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
         TenantContext tenant,
         CancellationToken ct)
     {
@@ -63,12 +65,18 @@ public static class DailyEntryEndpoints
         if (entry is null) return Results.NotFound();
         var provenance = await audit.GetProvenanceAsync(
             nameof(Cluckwork.Domain.Eggs.DailyEntry), [id], ct);
-        return Results.Ok(ToResponse(entry, provenance.GetValueOrDefault(id)));
+        // One detail row is a page of one: the same bulk read, one id, so detail
+        // and list answer identically (the contract requires it) and the route does
+        // not grow a second, divergent path to the same name.
+        var flock = (await flocks.GetDisplayNamesAsync([entry.FlockId], ct))
+            .GetValueOrDefault(entry.FlockId);
+        return Results.Ok(ToResponse(entry, provenance.GetValueOrDefault(id), flock));
     }
 
     private static async Task<IResult> ListDailyEntries(
         Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository entries,
         Cluckwork.Application.Features.Audit.IAuditEventRepository audit,
+        Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
         TenantContext tenant,
         CancellationToken ct,
         Guid? flockId = null,
@@ -85,12 +93,20 @@ public static class DailyEntryEndpoints
         var list = await entries.ListAsync(flockId, from, to, take, skip, ct);
         var provenance = await audit.GetProvenanceAsync(
             nameof(Cluckwork.Domain.Eggs.DailyEntry), list.Select(e => e.Id).ToList(), ct);
-        return Results.Ok(list.Select(e => ToResponse(e, provenance.GetValueOrDefault(e.Id))));
+        // #512 T045 — ONE scoped bulk read for the whole page's flock references,
+        // never one per row. A key missing from the map means the flock left this
+        // caller's scope (or was deleted) between the page read and this one; the
+        // row then carries a null name rather than an id fragment, because a
+        // fabricated label is a wrong fact and a null is a missing one.
+        var names = await flocks.GetDisplayNamesAsync(list.Select(e => e.FlockId).ToList(), ct);
+        return Results.Ok(list.Select(e => ToResponse(
+            e, provenance.GetValueOrDefault(e.Id), names.GetValueOrDefault(e.FlockId))));
     }
 
     private static DailyEntryResponse ToResponse(
         Cluckwork.Domain.Eggs.DailyEntry e,
-        Cluckwork.Application.Features.Audit.EntityProvenance? p) => new(
+        Cluckwork.Application.Features.Audit.EntityProvenance? p,
+        FlockReference? flock = null) => new(
         e.Id, e.FarmId, e.HouseId, e.FlockId, e.Date, e.Status.ToString(),
         e.TotalEggs, e.CrackedEggs, e.DirtyEggs, e.DiscardedEggs, e.MortalityCount,
         // #396 — which grade each condition counter resolved to when this entry
@@ -103,7 +119,8 @@ public static class DailyEntryEndpoints
         // The audit snapshot is stored as JSON; embed it as an object, not a string.
         e.AdjustedFromJson is null ? null : JsonSerializer.Deserialize<JsonElement>(e.AdjustedFromJson),
         p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc,
-        p?.MadeOfficialAtUtc);
+        p?.MadeOfficialAtUtc,
+        flock?.Name, flock?.Status.ToString());
 
     private static async Task<IResult> AdjustDailyEntry(
         Guid id,
@@ -249,7 +266,15 @@ public sealed record DailyEntryResponse(
     // #494 — when the entry was submitted, i.e. when its eggs entered stock.
     // Carried separately because a self-submit is excluded from LastChanged*,
     // and the entry itself stores no SubmittedAt.
-    DateTimeOffset? MadeOfficialAtUtc);
+    DateTimeOffset? MadeOfficialAtUtc,
+    // #512 US4 — the flock's CURRENT name and status, so a list row is readable
+    // without the SPA owning a flock table. Additive: existing fields keep their
+    // meaning. Null only when the flock is outside the caller's scope, which the
+    // FlockScope guard says is unreachable on this route; the endpoint fails
+    // explicitly rather than substituting an id fragment. FlockStatus is the
+    // CURRENT status — a historical row naming an Archived flock is still named,
+    // which is why it travels alongside the name.
+    string? FlockName = null, string? FlockStatus = null);
 
 public sealed record GradeLineResponse(Guid EggGradeId, int Quantity);
 

@@ -16,6 +16,36 @@ public sealed class UserRoleAssignmentRepository(AppDbContext db) : IUserRoleAss
             .OrderBy(a => a.Id)
             .ToListAsync(ct);
 
+
+    public async Task<IReadOnlyList<UserFlockAssignment>> ListByNameByUserAsync(
+        Guid userId, CancellationToken ct = default)
+    {
+        // ONE statement. The shape here is load-bearing and is asserted, not
+        // trusted: the obvious-looking `Select(a => db.Flocks.Where(...).FirstOrDefault())`
+        // projects a CORRELATED SCALAR SUBQUERY — a per-row lookup folded into the
+        // projection, which is the N+1 in the exact place the contract forbids it.
+        // It returns identical data, so no response assertion can tell the two
+        // apart; the statement can. An explicit join (join…into…DefaultIfEmpty)
+        // renders LEFT JOIN and costs one pass over the flock primary keys for the
+        // whole list.
+        //
+        // The join target is the FILTERED DbSet, so the model's `AccountId AND
+        // flock-scope` filter decides which names this caller may see (#613);
+        // IgnoreQueryFilters() here is what the Worker-scope guard reddens.
+        // A GroupJoin with DefaultIfEmpty is what renders LEFT JOIN; an inner Join
+        // would drop the farm-wide row (FlockId null) entirely, which reads as
+        // missing data rather than as account-wide access.
+        var rows = await (
+            from a in db.UserRoleAssignments.AsNoTracking().Where(x => x.UserId == userId)
+            join f in db.Flocks.AsNoTracking() on a.FlockId equals f.Id into matched
+            from f in matched.DefaultIfEmpty()
+            orderby a.Id
+            select new UserFlockAssignment(a.Id, a.FlockId, f == null ? null : f.Name))
+            .TagWith(ReferenceMarkers.AssignmentProjection)
+            .ToListAsync(ct);
+        return rows;
+    }
+
     public async Task<IReadOnlyList<UserRoleAssignment>> ListAllAsync(CancellationToken ct = default) =>
         await db.UserRoleAssignments.AsNoTracking().ToListAsync(ct);
 

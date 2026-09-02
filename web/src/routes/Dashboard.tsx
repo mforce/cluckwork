@@ -33,7 +33,6 @@ export function Dashboard() {
   const [entries, setEntries] = useState<DailyEntry[] | null>(null);
   const [stock, setStock] = useState<StockRow[] | null>(null);
   const [orders, setOrders] = useState<SalesOrder[] | null>(null);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,7 +54,11 @@ export function Dashboard() {
       if (e.status === "fulfilled") setEntries(e.value);
       if (s.status === "fulfilled") setStock(s.value);
       if (o.status === "fulfilled") setOrders(o.value);
-      if (c.status === "fulfilled") setCustomers(c.value);
+      // #512 US4 (T052) — `c` (listCustomers) is no longer stored: recent-sales
+      // rows now render their OWN row-owned `customerName` (see
+      // rowCustomerName below), never a catalog lookup. The fetch itself is
+      // UNCHANGED here (still issued for a sales-visible role) — its removal
+      // is US5/T056's job, together with that task's own coverage.
       // Only the fetches we actually issued count toward "everything failed":
       // the two sales reads are inert placeholders when the role can't see them.
       const issued = canSeeSales ? [f, e, s, o, c] : [f, e, s];
@@ -71,8 +74,14 @@ export function Dashboard() {
   // the flock's entry — a day with only voided rows counts as "no entry yet".
   const entryFor = (flockId: string) =>
     entries?.find((e) => e.flockId === flockId && e.status !== "Voided");
-  const customerName = (id: string) =>
-    customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
+  // #512 US4 (T048/T052) — a recent-sales row's own name, independent of the
+  // 500-customer catalog fetch below (that fetch's removal is US5/T056):
+  // the row-owned `customerName` the endpoint's scoped bulk read already
+  // resolved, or the translated unavailable label. Never an id fragment
+  // (contracts/http-api.md: "Required names are never replaced with
+  // identifier fragments").
+  const rowCustomerName = (o: { customerName?: string | null }) =>
+    o.customerName ?? t("rowCustomerUnavailable");
   // "no entry" is a missed-capture flag — only meaningful for active flocks.
   // Depleted/archived flocks stay visible only if they do have an entry today.
   const visibleFlocks = (flocks ?? []).filter((f) => f.status === "Active" || entryFor(f.id));
@@ -178,7 +187,7 @@ export function Dashboard() {
                 {orders.map((o) => (
                   <tr key={o.id}>
                     <td>{o.referenceNumber}</td>
-                    <td>{customerName(o.customerId)}</td>
+                    <td>{rowCustomerName(o)}</td>
                     <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
                     <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   </tr>
