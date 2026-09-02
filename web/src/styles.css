@@ -731,10 +731,8 @@ input.cell {
   color: var(--stat-accent);
   font-size: 0.7rem;
   font-weight: 700;
-  /* The headings carry negative display tracking; this is a label, so it opens
-     up instead. */
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  /* Sentence case now — no tracking, no uppercase. */
+  letter-spacing: 0;
 }
 
 /* Flock + date sit above the two panes as context, not as a step. */
@@ -1097,10 +1095,9 @@ input.cell {
   gap: 0.3rem;
   padding: 0.16rem 0.6rem;
   border-radius: var(--r-pill);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  letter-spacing: 0;
   white-space: nowrap;
   background: var(--tint-muted);
   color: var(--muted);
@@ -1130,16 +1127,6 @@ input.cell {
 }
 
 .meter.is-warn > span { background: var(--warn); }
-
-/* Eyebrow caps pill (section labels) */
-.eyebrow {
-  display: inline-block;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
 
 /* ------------------------------------------------------- Sidebar shell */
 .shell {
@@ -1464,11 +1451,10 @@ table.data td {
 }
 
 table.data th {
-  color: var(--muted);
-  font-weight: 700;
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0;
 }
 
 table.data tbody tr:hover {
@@ -2128,10 +2114,6 @@ dl.glossary {
 .help-toc {
   position: sticky;
   top: 1.5rem;
-}
-
-.help-toc .eyebrow {
-  padding: 0 0.6rem;
 }
 
 .help-toc ul {
