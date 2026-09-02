@@ -86,6 +86,27 @@ Rules:
 - Required names are never replaced with identifier fragments.
 - Existing fields, paging envelopes, status codes, and write bodies are unchanged.
 
+### The defensive `null` name on a non-null id
+
+`flockName`/`customerName` are declared nullable in the response records even where
+the table above says `string`, and that is a repository fact rather than a claim
+about this API's HTTP behaviour. The bulk reference read resolves ids through the
+same tenant + flock-scope filter that guards the list routes (#613), so a key can
+legitimately be absent while the referring row is still returned — a flock that
+left the caller's scope between the page read and the reference read, for
+instance. The read returns a missing key; it does not fabricate a label, and the
+endpoint renders the resulting `null`.
+
+On the routes themselves this is unreachable, and deliberately so: every flock-
+naming list route is already behind the scope the reference read re-applies, so a
+Worker never receives a row whose flock is out of scope, and an Owner or Manager is
+scope-unrestricted. The `null` therefore describes a defensive repository case that
+the guards pin at the repository (`FlockReferenceRead_RespectsFlockScopeForAWorker`,
+`BulkReferenceReads_AreTenantScopedNotResponseScoped`), not an HTTP state an SPA
+can be routed into. An SPA may treat a required name as present; if one ever
+arrives `null`, that is a scope defect at the read, and the correct SPA behaviour
+is the explicit unavailable state — never an identifier fragment.
+
 ## Error and Paging Semantics
 
 - A 50-row picker request with 50 results may be followed by one additional request; an empty additional page ends paging.
