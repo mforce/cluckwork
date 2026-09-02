@@ -59,14 +59,17 @@ Relationships:
 
 | Response | Added fields | Null meaning |
 |---|---|---|
-| Daily Entry | `flockName: string`, `flockStatus: string` | Not nullable |
-| Feed Usage | `flockName: string` | Not nullable |
-| Water Usage | `flockName: string` | Not nullable |
-| Flock Assignment | `flockName: string?` | Farm-wide assignment when `flockId` is null; a scoped projection never substitutes an ID fragment |
-| Sales Order | `customerName: string` | Not nullable |
-| Expense | `flockName: string?` | No flock when `flockId` is null |
+| Daily Entry | `flockName: string?`, `flockStatus: string?` | Null only when the scoped reference read cannot resolve a non-null row reference |
+| Feed Usage | `flockName: string?` | Null only when the scoped reference read cannot resolve a non-null row reference |
+| Water Usage | `flockName: string?` | Null only when the scoped reference read cannot resolve a non-null row reference |
+| Flock Assignment | `flockName: string?` | Farm-wide when `flockId` is null; defensive unavailable display when a non-null reference is inaccessible |
+| Sales Order | `customerName: string?` | Null only when the scoped reference read cannot resolve a non-null row reference |
+| Expense | `flockName: string?` | No flock when `flockId` is null; defensive unavailable display when a non-null reference is inaccessible |
 
-Required references must be resolved through scoped bulk reads. If referential/scoping invariants unexpectedly prevent a required name from resolving, the response path must fail explicitly rather than inventing a label or using an identifier fragment.
+Required references are resolved through scoped bulk reads. If a referential or
+scoping race unexpectedly leaves a required name unresolved, the response keeps
+the canonical ID and returns a defensive null name; the SPA renders its explicit
+unavailable label. Neither layer invents a label or exposes an identifier fragment.
 
 ## Picker Transport Models
 

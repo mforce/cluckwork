@@ -68,12 +68,12 @@ Foreign-tenant, flock-scoped-out, missing, or unauthorized identities never retu
 
 | Route/response | Added JSON fields |
 |---|---|
-| Daily Entry list/detail response | `flockName: string`, `flockStatus: string` |
-| Feed usage list response | `flockName: string` |
-| Water usage list response | `flockName: string` |
-| User flock assignment response | `flockName: string | null` |
-| Sales order list/detail response | `customerName: string` |
-| Expense list/detail/adjust response | `flockName: string | null` |
+| Daily Entry list/detail response | `flockName: string \| null`, `flockStatus: string \| null` |
+| Feed usage list response | `flockName: string \| null` |
+| Water usage list response | `flockName: string \| null` |
+| User flock assignment response | `flockName: string \| null` |
+| Sales order list/detail response | `customerName: string \| null` |
+| Expense list/detail/adjust response | `flockName: string \| null` |
 
 Rules:
 
@@ -81,31 +81,31 @@ Rules:
 - Each returned page resolves distinct referenced IDs in one scoped bulk operation.
 - Flock movement aggregation for the flock list is restricted to returned flock IDs.
 - User assignments remain unpaged and resolve assignment/flock name in one scoped left-join projection.
-- `null` assignment name pairs with `flockId=null` for farm-wide scope.
-- `null` Expense flock name pairs with `flockId=null` for None.
+- `flockId=null` with a null assignment name means farm-wide scope; a non-null
+  ID with a null name is the defensive inaccessible-reference state.
+- `flockId=null` with a null Expense name means None; a non-null ID with a
+  null name is the defensive inaccessible-reference state.
 - Required names are never replaced with identifier fragments.
 - Existing fields, paging envelopes, status codes, and write bodies are unchanged.
 
 ### The defensive `null` name on a non-null id
 
-`flockName`/`customerName` are declared nullable in the response records even where
-the table above says `string`, and that is a repository fact rather than a claim
-about this API's HTTP behaviour. The bulk reference read resolves ids through the
+`flockName`/`customerName` are nullable in the response records as a defensive
+HTTP state, not as the normal result for a valid accessible reference. The bulk
+reference read resolves ids through the
 same tenant + flock-scope filter that guards the list routes (#613), so a key can
 legitimately be absent while the referring row is still returned — a flock that
 left the caller's scope between the page read and the reference read, for
 instance. The read returns a missing key; it does not fabricate a label, and the
 endpoint renders the resulting `null`.
 
-On the routes themselves this is unreachable, and deliberately so: every flock-
-naming list route is already behind the scope the reference read re-applies, so a
-Worker never receives a row whose flock is out of scope, and an Owner or Manager is
-scope-unrestricted. The `null` therefore describes a defensive repository case that
-the guards pin at the repository (`FlockReferenceRead_RespectsFlockScopeForAWorker`,
-`BulkReferenceReads_AreTenantScopedNotResponseScoped`), not an HTTP state an SPA
-can be routed into. An SPA may treat a required name as present; if one ever
-arrives `null`, that is a scope defect at the read, and the correct SPA behaviour
-is the explicit unavailable state — never an identifier fragment.
+Normally every flock-naming list route is already behind the scope the reference
+read re-applies, so a Worker does not receive a row whose flock is out of scope,
+and an Owner or Manager is scope-unrestricted. The `null` nevertheless preserves
+the fail-closed result of a scope/referential race. The guards pin the repository
+boundary (`FlockReferenceRead_RespectsFlockScopeForAWorker`,
+`BulkReferenceReads_AreTenantScopedNotResponseScoped`), and the SPA renders a
+defensive null as the explicit unavailable state — never an identifier fragment.
 
 ## Error and Paging Semantics
 

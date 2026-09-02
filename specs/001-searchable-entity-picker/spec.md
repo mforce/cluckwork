@@ -68,7 +68,7 @@ A user sees clear translated feedback while results are loading, when there are 
 
 A user reviewing daily entries, feed usage, water usage, worker assignments, sales orders, or expenses always sees the referenced current display name, and relevant flock status, regardless of which picker results happen to be loaded.
 
-**Why this priority**: Historical records must remain understandable even when their referenced flock or customer is archived, inaccessible to new selection, or outside the current result group.
+**Why this priority**: Historical records must remain understandable even when their referenced flock or customer is ineligible for new selection or outside the current result group. Access to the reference's identifying data remains governed by tenant, flock-scope, and role policy.
 
 **Independent Test**: Return rows referencing names outside the first 50 selectable results and verify that every row displays its scoped name and required status without identifier fragments or one-request-per-row behavior.
 
@@ -78,6 +78,7 @@ A user reviewing daily entries, feed usage, water usage, worker assignments, sal
 2. **Given** a historical row references an Archived or Depleted flock, **When** the row is displayed, **Then** the flock remains named even if it cannot be newly selected in that workflow.
 3. **Given** a farm-wide worker assignment or an expense with no flock, **When** it is displayed, **Then** the absence of a flock is represented as the workflow's intended blank value rather than as an error.
 4. **Given** a daily-entry row is displayed, **When** editability is evaluated, **Then** it uses the row's own flock status rather than the status of any loaded picker option.
+5. **Given** a returned row's non-null reference cannot be resolved within the caller's display scope, **When** the row is displayed, **Then** it shows the explicit unavailable label and never an identifier fragment or an out-of-scope catalog name.
 
 ---
 
@@ -110,7 +111,7 @@ An authorized user can follow a customer name from Customers or Dashboard into S
 - Required pickers cannot be cleared; optional pickers can be cleared to their workflow-specific blank meaning.
 - Disabled pickers remain non-interactive while retaining a fully named existing value, including an Archived flock on an existing Water edit.
 - The user can recover from both replacement and extension failures using only a keyboard, and focus returns to the picker input after Retry.
-- Tenant, flock-scope, and role restrictions continue to exclude inaccessible entities from search, exact resolution, and row display.
+- Tenant, flock-scope, and role restrictions continue to exclude inaccessible entities from search and exact resolution; a returned row whose reference cannot be displayed uses an explicit unavailable label without identifying data.
 - Existing callers that do not request search or explicit eligibility continue to receive their current results and paging limits.
 
 ## Requirements *(mandatory)*
@@ -169,11 +170,15 @@ An authorized user can follow a customer name from Customers or Dashboard into S
 
 #### Row-Owned Display Data
 
+For an accessible reference, the fields below contain the current scoped name
+and status. A defensive null caused by an unresolved or scope-lost non-null
+reference is rendered as the explicit unavailable label, never an identifier.
+
 - **FR-039**: Visible Daily Entry rows MUST carry and display the referenced flock's current name and status independently of picker results.
 - **FR-040**: Visible Feed usage and Water usage rows MUST carry and display the referenced flock's current name independently of picker results.
-- **FR-041**: Visible User assignments MUST carry and display a nullable flock name, with null representing a farm-wide assignment.
+- **FR-041**: Visible User assignments MUST carry and display a nullable flock name; a null ID/name pair represents a farm-wide assignment, while a non-null ID with a null name renders unavailable.
 - **FR-042**: Visible Sales orders MUST carry and display the referenced customer's current name independently of picker results.
-- **FR-043**: Visible Expenses MUST carry and display a nullable flock name, with null representing no flock.
+- **FR-043**: Visible Expenses MUST carry and display a nullable flock name; a null ID/name pair represents no flock, while a non-null ID with a null name renders unavailable.
 - **FR-044**: Each returned page of rows MUST resolve its distinct referenced names within existing scope in one grouped lookup, without per-row requests or identifier-fragment fallbacks; flock movement summaries MUST be bounded to the flocks in the returned group; the existing unpaged assignment list MUST remain unpaged and resolve assignments and names together.
 
 #### Customer Links and Sales URL State

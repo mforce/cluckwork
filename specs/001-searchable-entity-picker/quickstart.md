@@ -77,7 +77,7 @@ Expected picker proof:
 - 250 ms debounce and immediate old-query hiding;
 - replacement versus extension errors and retry;
 - stale success/error/finally rejection;
-- raw server cursor advancement, dedupe, and final empty page;
+- raw server-count offset advancement, dedupe, and final empty page;
 - exact/default/lifecycle generation races;
 - committed label retention and unavailable identity;
 - exploration blocks writes, including outside-click submission;
@@ -95,13 +95,17 @@ GET /api/v1/flocks?search=%25&eligibility=all&limit=50&offset=0
 GET /api/v1/flocks?eligibility=all&includeArchived=false
 GET /api/v1/customers?search=page%20two&limit=50&offset=0
 GET /api/v1/customers?search=page%20two&limit=50&offset=50
+GET /api/v1/flocks/<late-sorting-flock-id>
+GET /api/v1/flocks/<missing-or-ineligible-flock-id>
+GET /api/v1/customers/<late-sorting-customer-id>
+GET /api/v1/customers/<missing-customer-id>
 ```
 
 Expected:
 
 - Matches are literal and stably ordered.
 - The conflicting flock request returns 400.
-- Exact GETs retain names outside the visible result group.
+- Exact GETs retain names outside the visible result group; missing or inaccessible IDs return 404 without identifying data.
 - Legacy calls without new parameters remain unchanged.
 
 ## 5. Built-SPA Scenario Over #627 Fixture

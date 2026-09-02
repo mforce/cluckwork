@@ -5,7 +5,7 @@ Eleven picker instances are adopted across seven pages. Other native selectors r
 | Page / picker | Discovery | Blank/default | Exact/lifecycle rules | Row display |
 |---|---|---|---|---|
 | Daily Entry capture | Active + Depleted | First Active, then first Depleted | Atomic deep link beats remembered ID, which beats default; all retargets retain `retarget()` grading disarm; create success hydrates returned ID by GET-only retry | `DailyEntry.flockName` and `flockStatus` |
-| History filter | All statuses | Blank = All | External filter ID resolves exactly; Archived remains admissible | Rows use `flockName`; editability uses row `flockStatus` |
+| History filter | All statuses | Blank = All | Selection is user-committed only; no external/deep-link ID is owned by this filter; Archived remains admissible | Rows use `flockName`; editability uses row `flockStatus` |
 | Feed capture | Active + Depleted | First Active, then first Depleted | Preserve current mount/lifecycle behavior | `FeedUsage.flockName` |
 | Feed filter | All statuses | Blank = All | Existing mount-time URL behavior remains; URL ownership is not expanded here | `FeedUsage.flockName` |
 | Water capture | Active + Depleted | First Active, then first Depleted | Existing edit exact-resolves and retains Archived while picker is disabled; reset starts a new default transition | `WaterUsage.flockName` |

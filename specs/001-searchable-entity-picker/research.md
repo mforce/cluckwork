@@ -6,7 +6,7 @@ All technical-context questions are resolved. No `NEEDS CLARIFICATION` items rem
 
 **Decision**: Add optional `search` to `GET /api/v1/flocks` and `GET /api/v1/customers`; add optional `eligibility` only to flocks; retain the bare-array response and existing `limit`/`offset` clamps.
 
-**Rationale**: Both endpoints already provide stable `Name, Id` paging and exact-by-id routes. Extending them preserves existing callers and avoids duplicate picker-only endpoints. A bare array lets the adapters infer `hasMore` from a full 50-row page; a final empty request after an exact-full last page is acceptable.
+**Rationale**: Both endpoints already provide stable `Name, Id` paging and exact-by-id routes. Extending them preserves existing callers and avoids duplicate picker-only endpoints. A bare array lets the adapters infer `hasMore` from a full 50-row page; a final empty request after an exact-full last page is acceptable. The no-repeat/no-skip guarantee applies while the ordered matching result set is unchanged between requests; concurrent inserts, deletes, or renames do not receive snapshot semantics from offset paging.
 
 **Alternatives considered**:
 
