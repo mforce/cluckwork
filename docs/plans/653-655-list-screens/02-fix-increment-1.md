@@ -4,7 +4,7 @@ Driver review of the #655 dispatch.
 
 ## The finding
 
-#655's acceptance: **"Filtered-empty vs truly-empty distinguished on the screens that have filters."**
+Per #655's acceptance: **"Filtered-empty vs truly-empty distinguished on the screens that have filters."**
 
 The two variants are distinguished by **icon and action** — `FilterX` + "Clear filters" versus the
 screen's icon + its create action. They are **not** distinguished by the sentence, and the sentence is
@@ -32,14 +32,17 @@ correct and not a duplicate.
 
 | Needed | Status |
 |---|---|
-| `noOrdersMatch` / `noOrdersMessage` | **both exist** — just use the right one per branch |
+| `noOrdersMatch` (sales, filtered) | exists; **`noOrdersMessage` missing in the `sales` namespace** — a key of that name exists, but in `dashboard`, for the unrelated panel |
 | `noFlocksMessage` (truly-empty) | exists; **`noFlocksMatch` missing** |
 | `noRecordsMatch` (filtered, feed + water namespaces) | exists; **`noRecordsMessage` missing in both** |
 | `noLotsMessage` (truly-empty) | exists; **`noLotsMatch` missing** |
 | `noEntriesMatch` (filtered) | exists; **`noEntriesMessage` missing** |
 
-So: **five new keys** (`noFlocksMatch`, `noRecordsMessage` ×2 namespaces, `noLotsMatch`,
-`noEntriesMessage`), in `en`, `es` and `tl`.
+So: **six new keys** (`sales:noOrdersMessage`, `noFlocksMatch`, `noRecordsMessage` ×2 namespaces,
+`noLotsMatch`, `noEntriesMessage`), in `en`, `es` and `tl`. The `sales:noOrdersMessage` one is the trap:
+`en.ts` already had a key of that exact name, so a name-only check reads as "exists" — it lives in the
+`dashboard` namespace for the "Recent sales" panel, a different screen entirely, and `sales` had no key
+of its own until this fix added it.
 
 ## Copy
 
@@ -89,5 +92,5 @@ Then update PR #668's body: this finding, what changed, and the guard.
 
 ## Report back
 
-Commit SHA, the five new keys with their `en` copy, confirmation that the new guard assertion failed
+Commit SHA, the six new keys with their `en` copy, confirmation that the new guard assertion failed
 before the fix, `git status --short`, and G1/G2 with the four coverage numbers.
