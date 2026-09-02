@@ -507,7 +507,8 @@ Safe on a scratch database only.
 The k6 preparation path is a second drill, on its own scratch database — it
 needs the Owner at a *specific* address, so it cannot share step 2's admin:
 
-1. `down -v && up -d` as above, so the default account has **no** Owner.
+1. `docker compose -f deploy/docker-compose.dev.yml down -v && docker compose -f deploy/docker-compose.dev.yml up -d`,
+   so the default account has **no** Owner.
 2. [k1](#k1-generate-the-cast--bootstrapsh) — `bash tools/simulation/bootstrap.sh --force`,
    and define `env_val`. Then [k2](#k2-owner-create-and-rotate):
    `bootstrap-admin --email "$(env_val SIM_ADMIN_EMAIL)"` and rotate. Expected:
@@ -515,11 +516,16 @@ needs the Owner at a *specific* address, so it cannot share step 2's admin:
    message means the database was not clean and the rest of this drill is void.
 3. [k3](#k3-seed-with-those-values). Expected: exit `0`.
 4. [k4](#k4-raise-the-rate-limits), then restart the API.
-5. `k6 run tools/simulation/k6/auth-smoke.js`. Expected: pass. It logs in as
-   the Owner and all nine cast members, so it is the check that k2's address
-   and k3's `CastPassword` actually agree.
-6. Run the k4 `remove` commands and restart the API again. Expected: a
-   re-run of `auth-smoke.js` now **fails** on 429s — `setup()` calls
+5. `BASE_URL=http://127.0.0.1:8080 k6 run tools/simulation/k6/auth-smoke.js`,
+   with `BASE_URL` pointing at **your dev API**. Set it explicitly: it
+   defaults to `http://127.0.0.1:8081`
+   ([`config.js`](../../tools/simulation/k6/config.js)), which is the sim
+   stack, so an unset `BASE_URL` drills a database this runbook never
+   touched. Expected: pass. It logs in as the Owner and all nine cast
+   members, so it is the check that k2's address and k3's `CastPassword`
+   actually agree.
+6. Run the k4 `remove` commands and restart the API again. Expected: the
+   same `BASE_URL=… k6 run …auth-smoke.js` now **fails** on 429s — `setup()` calls
    `preflightCredentials` for all ten, then each VU logs in again, so one
    run is ~20 logins from one IP against a restored `Login` budget of 10
    per 900s. A pass here means the overrides are still live and you have
