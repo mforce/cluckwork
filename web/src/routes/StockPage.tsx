@@ -632,7 +632,7 @@ export function StockPage() {
       {/* #406 — the write-off dialog. Also gated on isAdmin so a mid-session
           demotion can't leave a stale dialog open. */}
       {writeOffLot !== null && (
-        <Dialog open={isAdmin} title={t("writeOffDialogTitle", { date: writeOffLot.productionDate })}
+        <Dialog open={isAdmin} title={t("writeOffDialogTitle", { date: fmt.date(writeOffLot.productionDate) })}
           onClose={closeWriteOff}>
           <form className="form-grid" onSubmit={(e) => void onWriteOff(e)}>
             <label>{t("writeOffTypeLabel")}

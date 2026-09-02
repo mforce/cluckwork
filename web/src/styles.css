@@ -2283,6 +2283,16 @@ dl.glossary {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* The rail above is sticky too, at a higher z-index: a heading sticking at
+     top: 0 would sit behind it. Stick just under the rail's rendered height. */
+  .glossary-group h4 {
+    top: 3rem;
+  }
+
+  .glossary-entry {
+    scroll-margin-top: 6.5rem; /* rail + heading */
+  }
+
   .panel {
     min-width: 0;
     flex: 1 1 100%;

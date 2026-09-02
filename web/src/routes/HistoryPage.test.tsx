@@ -794,7 +794,7 @@ describe("HistoryPage void — reason dialog", () => {
     await openVoid();
 
     expect(voidDialog()).toHaveAccessibleName(
-      "Void the 2026-07-19 entry for Hen House 1?");
+      "Void the 07/19/2026 entry for Hen House 1?"); // farm-formatted (#650)
     expect(vi.mocked(voidDailyEntry)).not.toHaveBeenCalled();
   });
 
@@ -1043,7 +1043,7 @@ describe("HistoryPage i18n wiring (#182, Task 27)", () => {
     await withOverride("history", "adjustDialogTitleWithEntry", "ADJUST-MARKER {{date}} / {{flock}} END", async () => {
       mockListDailyEntries.mockResolvedValue([SUBMITTED]);
       await openAdjustPanel();
-      expect(screen.getByRole("dialog")).toHaveAccessibleName("ADJUST-MARKER 2026-07-19 / Hen House 1 END");
+      expect(screen.getByRole("dialog")).toHaveAccessibleName("ADJUST-MARKER 07/19/2026 / Hen House 1 END");
     });
   });
 
@@ -1055,7 +1055,7 @@ describe("HistoryPage i18n wiring (#182, Task 27)", () => {
       mockListDailyEntries.mockResolvedValue([SUBMITTED]);
       renderWithProviders(<HistoryPage />, { token: ADMIN });
       fireEvent.click(await screen.findByRole("button", { name: "void" }));
-      expect(screen.getByRole("dialog")).toHaveAccessibleName("VOID-MARKER 2026-07-19 / Hen House 1 END");
+      expect(screen.getByRole("dialog")).toHaveAccessibleName("VOID-MARKER 07/19/2026 / Hen House 1 END");
     });
   });
 

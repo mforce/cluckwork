@@ -533,7 +533,7 @@ describe("StockPage error placement (#479)", () => {
     const lotRow2 = screen.getByRole("row", { name: /07\/02\/2026/ });
     fireEvent.click(within(lotRow2).getByRole("button", { name: "write off" }));
     // The dialog really swapped lots — its title names the new lot's date.
-    expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/07\/02\/2026/); // farm-formatted (#650)
     expect(screen.queryByText("network down")).not.toBeInTheDocument();
   });
 
@@ -558,7 +558,7 @@ describe("StockPage error placement (#479)", () => {
 
     const lotRow2 = screen.getByRole("row", { name: /07\/02\/2026/ });
     fireEvent.click(within(lotRow2).getByRole("button", { name: "write off" }));
-    expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/07\/02\/2026/); // farm-formatted (#650)
 
     await act(async () => {
       resolveFirst({
@@ -571,7 +571,7 @@ describe("StockPage error placement (#479)", () => {
     // Still open, still lot B — a success about lot A did not sweep it away.
     // (Lot A's row correctly patches to 42 available either way — that is
     // the write landing, not the bug; the bug is the dialog closing.)
-    expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/07\/02\/2026/); // farm-formatted (#650)
     expect(screen.queryByText(i18n.t("stock:writeOffRecordedMessage", { available: 42 }))).not.toBeInTheDocument();
   });
 

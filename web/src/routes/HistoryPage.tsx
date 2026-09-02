@@ -430,7 +430,7 @@ export function HistoryPage() {
     // app's own dialog, so the required check is inline and the typed text
     // survives it — window.prompt validated only after it had closed.
     const voidReason = await askReason({
-      title: i18n.t("history:voidConfirmTitle", { date: e.date, flock: rowFlockName(e) }),
+      title: i18n.t("history:voidConfirmTitle", { date: fmt.date(e.date), flock: rowFlockName(e) }),
       body: i18n.t("history:voidConfirmBody"),
       confirmLabel: i18n.t("history:voidConfirmLabel"),
       destructive: true,
@@ -561,7 +561,7 @@ export function HistoryPage() {
       <Dialog
         open={adjusting !== null}
         title={adjusting
-          ? t("adjustDialogTitleWithEntry", { date: adjusting.date, flock: rowFlockName(adjusting) })
+          ? t("adjustDialogTitleWithEntry", { date: fmt.date(adjusting.date), flock: rowFlockName(adjusting) })
           : t("adjustDialogTitle")}
         onClose={closeAdjust}
         // Two panes side by side need the room; on a phone the dialog is a

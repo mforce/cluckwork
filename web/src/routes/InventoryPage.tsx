@@ -427,7 +427,7 @@ export function InventoryPage() {
   }
 
   const lotLabel = (l: InventoryLot) =>
-    `${l.receivedDate}${l.lotNumber ? ` · ${l.lotNumber}` : ""} — ${l.quantityAvailable}/${l.quantityReceived}`;
+    `${fmt.date(l.receivedDate)}${l.lotNumber ? ` · ${l.lotNumber}` : ""} — ${fmt.count(l.quantityAvailable)}/${fmt.count(l.quantityReceived)}`;
 
   const costText = (i: InventoryItem) =>
     i.defaultCostMinorUnits !== null && i.defaultCostCurrencyCode

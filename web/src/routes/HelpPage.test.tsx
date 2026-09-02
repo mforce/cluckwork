@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { GLOSSARY } from "./helpGlossary";
 import { HelpPage } from "./HelpPage";
 import i18n from "../i18n";
 import { en } from "../i18n/en";
@@ -879,7 +880,7 @@ describe("HelpPage glossary + search (#657)", () => {
       expect(terms).toEqual([...terms].sort((a, b) => a.localeCompare(b, "en")));
       entries += terms.length;
     }
-    expect(entries).toBe(51);
+    expect(entries).toBe(GLOSSARY.length);
     expect(container.querySelector("table.data th[scope=\"row\"]")).toBeNull();
   });
 
@@ -1044,6 +1045,18 @@ describe("HelpPage visual pass (#657)", () => {
     const groups = Array.from(container.querySelectorAll(".glossary-group h4")).map((h) => `#${h.id}`);
     expect(hrefs).toEqual(groups);
     expect(hrefs.length).toBe(7);
+  });
+
+  it("folds the glossary jump bar away while a search is active", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HelpPage />);
+    expect(screen.getByRole("navigation", { name: "Glossary groups" })).toBeVisible();
+    await user.type(screen.getByRole("searchbox", { name: "Search the guide" }), "fifo");
+    // A hidden element has no accessible name (accname step 2A), so the folded
+    // bar is reached by class rather than by role.
+    expect(container.querySelector(".glossary-jump")).not.toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(screen.getByRole("navigation", { name: "Glossary groups" })).toBeVisible();
   });
 
   it("renders Fixing mistakes as a mistake → fix list, not a table", () => {

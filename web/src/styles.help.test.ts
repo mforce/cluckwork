@@ -43,9 +43,17 @@ describe("rail on a phone", () => {
   const MQ = "(max-width: 900px)";
   it("pins the rail under the head as one horizontal strip", () => {
     expect(decls(".help-toc", MQ).get("position")).toBe("sticky");
-    expect(decls(".help-toc ul", MQ).get("flex-wrap")).toBe("nowrap");
+    const ul = decls(".help-toc ul", MQ);
+    expect(ul.get("flex-wrap")).toBe("nowrap");
+    // flex-wrap means nothing unless the list IS a flex container — the
+    // desktop rule sets it, so the check reads the base rule.
+    expect(decls(".help-toc ul", null).get("display")).toBe("flex");
   });
   it("collapses the entries back to one row (no group columns)", () => {
     expect(decls(".help-toc-group", MQ).get("display")).toBe("none");
+  });
+  it("sticks the glossary group heading below the pinned rail, not behind it", () => {
+    expect(decls(".glossary-group h4", MQ).get("top")).not.toBe("0");
+    expect(decls(".glossary-group h4", MQ).get("top")).toMatch(/rem$/);
   });
 });

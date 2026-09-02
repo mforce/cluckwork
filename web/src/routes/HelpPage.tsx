@@ -790,7 +790,8 @@ export function HelpPage() {
 
       <section className="help-section" data-searchable="glossary">
       <div className="help-section-head"><h3 id="glossary">{t("glossaryHeading")}</h3>{openLink("glossary")}</div>
-      <nav className="glossary-jump" aria-label={t("glossaryJumpAriaLabel")}>
+      {/* Hidden during a search: a folded group has no heading to jump to. */}
+      <nav className="glossary-jump" aria-label={t("glossaryJumpAriaLabel")} hidden={query !== ""}>
         <ul>
           {GLOSSARY_GROUPS.map((group) => (
             <li key={group.key}><a href={`#glossary-group-${group.key}`}>{t(group.labelKey)}</a></li>
