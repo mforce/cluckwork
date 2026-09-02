@@ -86,6 +86,14 @@ export function usePagedList<T extends { id: string }, M = never>({
   // unique rows would then never move again, walling off exactly the older
   // records paging exists to reach (codex review).
   const cursorRef = useRef(0);
+  // How far the USER has asked to reach, which is not the same question. A
+  // load-more superseded by a write never withdraws the click that started it,
+  // and refreshing only to the settled cursor drops that page silently — the
+  // written record can then land in the gap beyond the rebuilt window (#629).
+  // Only an ask that is still reachable counts: a page the server refused is
+  // answered, and re-issuing it on every later write would make one failed
+  // fetch permanent.
+  const requestedCursorRef = useRef(0);
   const loadingRef = useRef(false);
   // Held in a ref, deliberately NOT a dep of `load`: screens pass an inline
   // arrow (`errorText: () => t("…")`) whose identity changes every render, and
@@ -130,6 +138,9 @@ export function usePagedList<T extends { id: string }, M = never>({
         return next;
       });
       cursorRef.current = offset === 0 ? page.length : cursorRef.current + page.length;
+      // The ask this load answers is now served — and a replacement retires
+      // any older window's ask outright.
+      requestedCursorRef.current = cursorRef.current;
       setHasMore(page.length === pageSize);
       setError(null);
       return true;
@@ -149,6 +160,7 @@ export function usePagedList<T extends { id: string }, M = never>({
         setMeta(null);
         setHasMore(false);
       }
+      requestedCursorRef.current = cursorRef.current;
       return false;
     } finally {
       // The same `replace` this load claimed with: a completed replacement is
@@ -186,8 +198,9 @@ export function usePagedList<T extends { id: string }, M = never>({
   const loadMore = useCallback(async () => {
     if (loadingRef.current) return;
     const seq = ++req.current;
+    requestedCursorRef.current = cursorRef.current + pageSize;
     await load(cursorRef.current, seq);
-  }, [load]);
+  }, [load, pageSize]);
 
   // Re-fetch every page the user currently has, not just the newest one. A
   // reader who paged deeper to reach an old row and then corrected it must
@@ -199,7 +212,7 @@ export function usePagedList<T extends { id: string }, M = never>({
     seq: number,
     preserveRowsOnError = false,
   ): Promise<WindowRefreshOutcome> => {
-    const target = Math.max(cursorRef.current, 1);
+    const target = Math.max(cursorRef.current, requestedCursorRef.current, 1);
     let consumed = 0;
     const window = new Map<string, T>();
     let lastPageFull = false;
@@ -220,6 +233,7 @@ export function usePagedList<T extends { id: string }, M = never>({
         setError(formatErrorRef.current(err));
         rowsRef.current = [];
         cursorRef.current = 0;
+        requestedCursorRef.current = 0;
         setRows([]);
         setMeta(null);
         setHasMore(false);
