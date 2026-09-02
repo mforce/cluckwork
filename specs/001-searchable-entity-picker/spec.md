@@ -170,9 +170,10 @@ An authorized user can follow a customer name from Customers or Dashboard into S
 
 #### Row-Owned Display Data
 
-For an accessible reference, the fields below contain the current scoped name
-and status. A defensive null caused by an unresolved or scope-lost non-null
-reference is rendered as the explicit unavailable label, never an identifier.
+For an accessible reference, the fields below contain the current scoped name.
+Flock rows also contain current status where required. A defensive null caused
+by an unresolved or scope-lost non-null reference is rendered as the explicit
+unavailable label, never an identifier.
 
 - **FR-039**: Visible Daily Entry rows MUST carry and display the referenced flock's current name and status independently of picker results.
 - **FR-040**: Visible Feed usage and Water usage rows MUST carry and display the referenced flock's current name independently of picker results.
