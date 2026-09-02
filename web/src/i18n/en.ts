@@ -31,6 +31,19 @@ export const en = {
     // shared "Audit history" label above.
     "recordHistory.viewAdjustmentHistoryLink": "Adjustment history",
     recordHistoryHeader: "History",
+    // #653 — ProvenanceCell's one-line relative phrase, on the FARM's
+    // calendar (relativeTime.ts). "Today"/"Yesterday" have no count; the rest
+    // route through i18next's own plural resolution, count 1 landing on
+    // `_one` and falling back to the base key otherwise (the repo's
+    // established form — see equalsEggs_one above). `daysAgo` never receives
+    // count 1 (that's "Yesterday"), so it carries no `_one` variant.
+    "relativeTime.today": "Today",
+    "relativeTime.yesterday": "Yesterday",
+    "relativeTime.daysAgo": "{{count}} days ago",
+    "relativeTime.weeksAgo": "{{count}} weeks ago",
+    "relativeTime.weeksAgo_one": "{{count}} week ago",
+    "relativeTime.monthsAgo": "{{count}} months ago",
+    "relativeTime.monthsAgo_one": "{{count}} month ago",
     cancel: "Cancel",
     save: "Save",
     close: "Close",
