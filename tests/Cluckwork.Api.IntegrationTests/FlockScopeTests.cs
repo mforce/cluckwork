@@ -913,7 +913,7 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
             Assert.All(workerRows, f => Assert.Equal(fix.FlockA, f.Id));
 
             var asOwner = await fix.Owner.GetAsync("/api/v1/flocks" + query);
-            Assert.NotNull(asOwner);
+            Assert.Equal(HttpStatusCode.OK, asOwner.StatusCode);
             var ownerRows = await asOwner.Content
                 .ReadFromJsonAsync<List<FlockDiscoveryRow>>();
             Assert.NotNull(ownerRows);

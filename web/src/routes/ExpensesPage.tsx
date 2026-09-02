@@ -353,8 +353,13 @@ export function ExpensesPage() {
       setEditRequestedId(x.flockId);
       setEditFlockEntity(null);
       setEditFlockId(x.flockId);
-      if (x.flockId !== null)
-        setEditFlockSnapshot({ committed: null, selectionPhase: "uninitialized", exploring: false, canSubmit: false });
+      setEditFlockGen((g) => g + 1);
+      setEditFlockSnapshot({
+        committed: null,
+        selectionPhase: x.flockId === null ? "blank" : "uninitialized",
+        exploring: false,
+        canSubmit: x.flockId === null,
+      });
     }
     setEditNote(x.note ?? "");
     setMessage(null);

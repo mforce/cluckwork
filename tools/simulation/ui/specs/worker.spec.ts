@@ -129,7 +129,14 @@ test.describe("Worker", () => {
     await expect(page.getByRole("button", { name: ASSIGNED_FLOCK })).toBeVisible();
     await page.getByRole("button", { name: new RegExp(`^${tEn("dailyEntry:flockLabel")} `) }).click();
     const combobox = page.getByRole("combobox", { name: tEn("dailyEntry:flockLabel") });
+    const unassignedSearch = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith("/api/v1/flocks")
+        && url.searchParams.get("search") === UNASSIGNED_FLOCK
+        && response.ok();
+    });
     await combobox.fill(UNASSIGNED_FLOCK);
+    await unassignedSearch;
     await expect(page.getByRole("option", { name: UNASSIGNED_FLOCK })).toHaveCount(0);
     await combobox.press("Escape");
     await expect(page.getByRole("button", { name: tEn("dailyEntry:saveDraftButton") })).toBeEnabled();
@@ -209,7 +216,14 @@ test.describe("Worker", () => {
     const combobox = page.getByRole("combobox", { name: tEn("dailyEntry:flockLabel") });
     await combobox.fill(ASSIGNED_FLOCK);
     await expect(page.getByRole("option", { name: ASSIGNED_FLOCK })).toHaveCount(1);
+    const unassignedSearch = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith("/api/v1/flocks")
+        && url.searchParams.get("search") === UNASSIGNED_FLOCK
+        && response.ok();
+    });
     await combobox.fill(UNASSIGNED_FLOCK);
+    await unassignedSearch;
     await expect(page.getByRole("option", { name: UNASSIGNED_FLOCK })).toHaveCount(0);
 
     // The SPA has no flock-detail route (only the /flocks list — see App.tsx),

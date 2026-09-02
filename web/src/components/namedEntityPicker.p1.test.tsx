@@ -124,7 +124,7 @@ describe("#512 P1-1: independent discovery / selection-transition generations", 
     render(<FlockPicker label="Pick" eligibility="active" required open />);
     const input = screen.getByRole("combobox");
     await waitFor(() => { expect(screen.getByRole("option", { name: "Flock 01" })).toBeInTheDocument(); });
-    // 2 calls so far: the initial unfiltered discovery.
+    // 1 call so far: the initial unfiltered discovery.
     expect(mockListFlocks).toHaveBeenCalledTimes(1);
     // Selection transition: commit an option.
     fireEvent.click(screen.getByRole("option", { name: "Flock 01" }));

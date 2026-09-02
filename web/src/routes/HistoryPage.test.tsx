@@ -687,6 +687,16 @@ describe("HistoryPage adjust — mirrored daily-entry layout", () => {
 });
 
 describe("HistoryPage draft edit link", () => {
+  it("falls back to the loaded catalog name when an older server omits flockName", async () => {
+    mockListFlocks.mockResolvedValue([FLOCK]);
+    mockListDailyEntries.mockResolvedValue([{ ...DRAFT, flockName: undefined }]);
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    const row = await screen.findByRole("row", { name: /2026-07-18/ });
+    expect(within(row).getByText("Hen House 1")).toBeInTheDocument();
+    expect(within(row).queryByText(i18n.t("history:rowFlockUnavailable"))).not.toBeInTheDocument();
+  });
+
   it("links a draft row to the Daily entry screen with its flock and date in the query", async () => {
     mockListDailyEntries.mockResolvedValue([DRAFT]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });

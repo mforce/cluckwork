@@ -2380,14 +2380,18 @@ button:disabled[aria-busy="true"] {
    select's visual language so adopting a picker does not restyle the form. */
 .named-picker-trigger {
   font: inherit;
-  color: inherit;
-  background: var(--surface-2, transparent);
-  border: 1px solid var(--border, #ccc);
-  border-radius: 0.4rem;
-  padding: 0.45rem 0.6rem;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-input, 4px);
+  padding: 0.55rem 0.7rem;
   text-align: left;
   cursor: pointer;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
+  box-sizing: border-box;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2499,7 +2503,7 @@ button:disabled[aria-busy="true"] {
   padding: 0;
   margin: -1px;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }
@@ -2523,20 +2527,6 @@ button:disabled[aria-busy="true"] {
    without the element-qualified override the link's padding/font-size win
    and the trigger's box comes out 12px shorter than its adjacent inputs, so
    the form-grid's bottom alignment leaves its top edge sitting low. */
-.named-picker-trigger {
-  font-size: 0.95rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-input, 4px);
-  background: var(--surface);
-  color: var(--ink);
-  text-align: left;
-  cursor: pointer;
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
-
 button.named-picker-trigger {
   /* The adjacent inputs sit inside <label> wrappers that set font-weight 500
      (see the form-label rule); matching 500 keeps the trigger's line box —
@@ -2548,13 +2538,7 @@ button.named-picker-trigger {
      so the form-grid's bottom alignment lines the tops up within 1px. */
   font-weight: 500;
   line-height: 1.35;
-  font-size: 0.95rem;
   letter-spacing: 0;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-input, 4px);
-  background: var(--surface);
-  color: var(--ink);
 }
 
 button.named-picker-trigger:hover:not(:disabled) {
@@ -2569,7 +2553,7 @@ button.named-picker-trigger:disabled {
   cursor: default;
 }
 
-/* The .form-field wrapper matches form-grid's min-width (8rem) so the picker
+/* The picker root matches form-grid's min-width (8rem) so the picker
    trigger aligns with adjacent <label> + <input> pairs at all widths.
    flex-basis 15rem (the open combobox's natural width) makes the CLOSED and
    OPEN states occupy the same slot: the closed trigger is width:100% of the
@@ -2578,7 +2562,7 @@ button.named-picker-trigger:disabled {
    max-width:100% + the explicit 8rem minimum keep it responsive (shrinks to
    the floor on phones, never overflows); an explicit min-width also defeats
    the input's auto intrinsic minimum. */
-.form-field {
+.form-grid .named-picker {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;

@@ -1144,6 +1144,30 @@ describe("ExpensesPage flock picker (T028/T038)", () => {
     expect(mockGetFlock).not.toHaveBeenCalled();
   });
 
+  it("switching directly from an unavailable flock correction to an account-wide row clears the previous picker state", async () => {
+    const EXP_F1: Expense = { ...EXP_BHD, id: "e-flock", description: "Flock expense", flockId: "f-gone" };
+    const EXP_NONE: Expense = { ...EXP_BHD, id: "e-none", description: "Farm expense", flockId: null };
+    mockListExpenses.mockResolvedValue({
+      items: [EXP_F1, EXP_NONE], totalMinorUnits: 3000, currencyCode: "BHD", currencyMinorUnit: 3,
+    });
+    mockAdjustExpense.mockResolvedValue({ ...EXP_NONE, version: 2 });
+    mockGetFlock.mockRejectedValueOnce(new Error("not found"));
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+    const flockRow = await screen.findByRole("row", { name: /Flock expense/ });
+    const farmRow = screen.getByRole("row", { name: /Farm expense/ });
+    fireEvent.click(within(flockRow).getByRole("button", { name: "correct" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save correction" })).toBeDisabled());
+
+    fireEvent.click(within(farmRow).getByRole("button", { name: "correct" }));
+    const save = screen.getByRole("button", { name: "Save correction" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await act(async () => { fireEvent.click(save); });
+
+    expect(mockAdjustExpense).toHaveBeenCalledWith(
+      "e-none", expect.objectContaining({ flockId: null }), expect.any(String));
+  });
+
   it("renders the row's OWN flock name from the record's carried name, not the picker results", async () => {
     // The row carries its own current name (the endpoint's per-page scoped
     // read); even if the mount flock list resolves a DIFFERENT name for the

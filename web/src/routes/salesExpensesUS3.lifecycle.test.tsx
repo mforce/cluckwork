@@ -36,8 +36,9 @@ describe("T039: first-customer default via controlled admission (FR-019)", () =>
     // Acme is in the discovery window → admitted as-is, NO exact GET.
     await screen.findByText("Acme Eggs");
     await waitFor(() => {
-      expect(mockGetCustomer).not.toHaveBeenCalled();
+      expect(screen.getByRole("combobox")).toHaveValue("Acme Eggs");
     });
+    expect(mockGetCustomer).not.toHaveBeenCalled();
   });
 
   it("a requestedId NOT in the window resolves via the exact GET (row-owned identity)", async () => {

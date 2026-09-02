@@ -1070,7 +1070,10 @@ export function SalesPage() {
                 onClick={() => setCustomerFilterPickerOpen(true)}>
                 {customerFilter === ""
                   ? t("allOption")
-                  : customerFilterEntity?.name ?? t("filterCustomerUnavailable")}
+                  : customerFilterEntity?.name
+                    ?? (customerFilterSnapshot.selectionPhase === "unavailable"
+                      ? t("filterCustomerUnavailable")
+                      : i18n.t("namedEntityPicker:loading"))}
               </button>
             }
           />

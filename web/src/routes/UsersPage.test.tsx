@@ -133,7 +133,6 @@ beforeEach(() => {
   // any eligibility (the page's display list and the picker's discovery are
   // both typed against these). The picker's exact-identity read (T038) looks
   // the fixture up by id — so an archived retained identity resolves.
-  mockListFlocks.mockImplementation(async () => [FLOCK_A, FLOCK_B, FLOCK_ARCHIVED]);
   mockGetFlock.mockImplementation(async (id: string) =>
     [FLOCK_A, FLOCK_B, FLOCK_ARCHIVED].find((f) => f.id === id)
     ?? Promise.reject(new ApiError(404, "Not found", `Unknown flock: ${id}`)));
@@ -2303,8 +2302,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     fireEvent.click(assignTrigger());
     const combobox = await screen.findByRole("combobox");
     fireEvent.change(combobox, { target: { value: "Coop B" } });
-    await new Promise((r) => setTimeout(r, 300)); // past the engine's 250 ms debounce
-    expect(screen.getByRole("option", { name: "Coop B" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Coop B" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
 
     // Reopen: the fresh generation restores the committed default's label —
@@ -2396,7 +2394,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     fireEvent.click(assignTrigger());
     const combobox = await screen.findByRole("combobox");
     fireEvent.change(combobox, { target: { value: "Coop B" } });
-    await new Promise((r) => setTimeout(r, 300));
+    await screen.findByRole("option", { name: "Coop B" });
     fillFlockPassword();
     expect(screen.getByRole("button", { name: "Assign flock" })).toBeDisabled();
 

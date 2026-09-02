@@ -62,7 +62,8 @@ beforeEach(() => {
     async (p?: { search?: string | null; eligibility?: string; limit?: number; offset?: number }) =>
       [FLOCK].slice(p?.offset ?? 0, (p?.offset ?? 0) + (p?.limit ?? 50)),
   );
-  vi.mocked(getFlock).mockImplementation(async () => FLOCK);
+  vi.mocked(getFlock).mockImplementation(async (id: string) =>
+    id === FLOCK.id ? FLOCK : Promise.reject(new Error(`Unknown flock: ${id}`)));
   mockListItems.mockResolvedValue([item()]);
   mockListUsage.mockResolvedValue([]);
 });
@@ -381,7 +382,7 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
 
     // Retry re-issues ONLY the exact GET; success commits the exact entity.
     const getFlockCallsBefore = vi.mocked(getFlock).mock.calls.length;
-    vi.mocked(getFlock).mockResolvedValueOnce(FLOCK);
+    vi.mocked(getFlock).mockResolvedValueOnce({ ...FLOCK, id: "f-gone" });
     fireEvent.click(retryBtn);
     await waitFor(() => expect(vi.mocked(getFlock).mock.calls.length).toBe(getFlockCallsBefore + 1));
     await waitFor(() => expect(screen.getByLabelText("Filter by flock")).toHaveTextContent("Barn A"));

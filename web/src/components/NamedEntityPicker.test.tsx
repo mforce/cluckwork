@@ -306,7 +306,8 @@ describe("loading and no-results visibility", () => {
     await screen.findByText("Flock 01");
     const input = screen.getByRole("combobox");
     fireEvent.change(input, { target: { value: "zzzzz" } });
-    await waitFor(() => expect(screen.getAllByText(/no matches/i).length).toBeGreaterThan(0));
+    await waitFor(() =>
+      expect(screen.getAllByText(i18n.t("namedEntityPicker:noResults")).length).toBeGreaterThan(0));
   });
 });
 
@@ -1196,6 +1197,37 @@ describe("T035: exact-ID transitions and admission (FR-019/FR-033)", () => {
     const last = onSnapshot.mock.calls.at(-1)?.[0];
     expect(last.committed).toBeNull();
     expect(last.canSubmit).toBe(false);
+  });
+
+  it("clearing requestedId with the same controlled generation invalidates the exact read and resets unavailable state", async () => {
+    let rejectExact!: (reason?: unknown) => void;
+    mockGetFlock.mockReturnValue(new Promise((_resolve, reject) => { rejectExact = reject; }));
+    const onSnapshot = vi.fn();
+    const view = (requestedId: string | null) => (
+      <FlockPicker label="Pick" eligibility="all" open={false}
+        requestedId={requestedId} controlledGeneration={1} onSnapshot={onSnapshot}
+        trigger={<button type="button">trigger</button>} />
+    );
+    const r = render(view("f-stale"));
+    await waitFor(() => expect(mockGetFlock).toHaveBeenCalledWith("f-stale"));
+    await waitFor(() => {
+      const last = onSnapshot.mock.calls.at(-1)?.[0];
+      expect(last.selectionPhase).toBe("resolving");
+      expect(last.canSubmit).toBe(false);
+    });
+
+    r.rerender(view(null));
+    await waitFor(() => {
+      const last = onSnapshot.mock.calls.at(-1)?.[0];
+      expect(last.selectionPhase).toBe("blank");
+      expect(last.committed).toBeNull();
+      expect(last.canSubmit).toBe(true);
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    await act(async () => { rejectExact(new Error("late 404")); });
+    expect(onSnapshot.mock.calls.at(-1)?.[0]?.selectionPhase).toBe("blank");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("an initial requestedId exact success commits with the resolved name visible and no exploration — the write identity is the resolved entity", async () => {

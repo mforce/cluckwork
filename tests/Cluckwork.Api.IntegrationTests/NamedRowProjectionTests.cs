@@ -759,11 +759,11 @@ public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>,
     public async Task FlockReferences_AreReadOncePerPageOnEveryRoute(string route)
     {
         var (client, _) = await SeedAsync();
-        await GetRows<WaterRow>(client, route);       // warm (shape-agnostic: only the
+        await GetRows<FlockNamedRow>(client, route);  // warm (shape-agnostic: only the
                                                       // request matters here)
 
         using var probe = Probe.Arm(ShapeProbe.FlockReference);
-        var rows = await GetRows<WaterRow>(client, route);
+        var rows = await GetRows<FlockNamedRow>(client, route);
         Assert.NotNull(rows);
 
         Assert.Single(probe.Marked);
@@ -998,6 +998,7 @@ public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>,
         Guid Id, Guid FlockId, string FlockName, string FlockStatus);
     private sealed record FeedRow(Guid Id, Guid FlockId, string FlockName);
     private sealed record WaterRow(Guid Id, Guid FlockId, string FlockName);
+    private sealed record FlockNamedRow(Guid Id, Guid FlockId, string FlockName);
     private sealed record AssignmentRow(Guid Id, Guid? FlockId, string? FlockName);
     // CustomerName non-null on purpose: every order here has a nameable customer, so
     // an unresolved reference fails instead of satisfying a nullable comparison.

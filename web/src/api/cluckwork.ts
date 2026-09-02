@@ -167,7 +167,7 @@ export const listFlocks = (params?: {
   else if (params?.includeArchived) q.set("includeArchived", "true");
   if (params?.limit) q.set("limit", String(params.limit));
   if (params?.offset) q.set("offset", String(params.offset));
-  return apiGet<Flock[]>(`/flocks${q.size > 0 ? `?${q}` : ""}`);
+  return apiGet<Flock[]>(`/flocks${q.toString() !== "" ? `?${q}` : ""}`);
 };
 
 // #512 — exact resolution: the full flock or a 404. The picker adapters map a
@@ -366,7 +366,7 @@ export const listCustomers = (params?: {
   if (params?.search) q.set("search", params.search);
   if (params?.limit) q.set("limit", String(params.limit));
   if (params?.offset) q.set("offset", String(params.offset));
-  return apiGet<Customer[]>(`/customers${q.size > 0 ? `?${q}` : ""}`);
+  return apiGet<Customer[]>(`/customers${q.toString() !== "" ? `?${q}` : ""}`);
 };
 
 // #512 — exact resolution: the full customer or a 404 (SalesFlow-authorized).

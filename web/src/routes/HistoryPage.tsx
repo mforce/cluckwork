@@ -169,8 +169,11 @@ export function HistoryPage() {
   // already resolved, or the translated unavailable label. Never the capped
   // `flocks` list and never an id fragment (contracts/http-api.md: "Required
   // names are never replaced with identifier fragments").
-  const rowFlockName = (e: { flockName?: string | null }) =>
-    e.flockName ?? t("rowFlockUnavailable");
+  const rowFlockName = (e: { flockId: string; flockName?: string | null }) => {
+    if (e.flockName !== undefined)
+      return e.flockName ?? t("rowFlockUnavailable");
+    return flocks.find((f) => f.id === e.flockId)?.name ?? t("rowFlockUnavailable");
+  };
   // The Daily entry screen can't target archived flocks (capture excludes
   // them), so an edit link for one would silently fall back to a different
   // flock — worse than no link (codex review of #86).

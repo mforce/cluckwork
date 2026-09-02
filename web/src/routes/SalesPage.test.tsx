@@ -1141,6 +1141,18 @@ describe("SalesPage row-owned customer name (#512 US4)", () => {
 // select/clear preserving unrelated keys, malformed absence, unavailable
 // Retry/Clear, Back/Forward, and synchronous stale-row hiding.
 describe("SalesPage URL-owned customer filter (#512 US5)", () => {
+  it("shows a neutral loading label while a URL customer is still resolving", async () => {
+    let resolveCustomer!: (customer: Customer) => void;
+    mockGetCustomer.mockReturnValue(new Promise((resolve) => { resolveCustomer = resolve; }));
+    await renderReady(`/sales?customerId=${GUID_A}`);
+
+    expect(screen.getByRole("button", { name: new RegExp(i18n.t("namedEntityPicker:loading")) })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: i18n.t("sales:filterCustomerUnavailable") })).not.toBeInTheDocument();
+
+    await act(async () => { resolveCustomer(CUSTOMER_A); });
+    expect(await screen.findByRole("button", { name: /Filtered Farm A/ })).toBeInTheDocument();
+  });
+
   it("normalizes a mixed-case canonical GUID to lowercase before requesting and resolving — direct navigation is the source of truth", async () => {
     const MIXED = GUID_A.toUpperCase();
     mockGetCustomer.mockResolvedValue(CUSTOMER_A);
@@ -1203,7 +1215,7 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
     expect(probeSearch()).toContain("foo=bar");
   });
 
-  it("a well-formed but inaccessible customerId enters unavailable with Retry and Clear — never rewritten to All, never a raw id", async () => {
+  it("a well-formed but inaccessible customerId enters unavailable with Retry — never rewritten to All, never a raw id", async () => {
     mockGetCustomer.mockRejectedValueOnce(new Error("not found"));
     await renderReady(`/sales?customerId=${GUID_A}`);
 
@@ -1218,10 +1230,6 @@ describe("SalesPage URL-owned customer filter (#512 US5)", () => {
     fireEvent.click(retryBtn);
     expect(await screen.findByRole("button", { name: /Filtered Farm A/ })).toBeInTheDocument();
 
-    // Clear is ALSO available while unavailable (before the successful retry
-    // above would have made it moot) — re-run the unavailable path fresh.
-    mockGetCustomer.mockReset();
-    mockGetCustomer.mockRejectedValueOnce(new Error("not found"));
   });
 
   it("clear is available while the filter is unavailable, not just once something is committed", async () => {

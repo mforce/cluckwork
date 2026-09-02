@@ -163,10 +163,10 @@ public sealed class ShapeProbe : DbCommandInterceptor
         if (window is null) return;
 
         var text = command.CommandText;
-        // .ToList() FIRST: iterating command.Parameters while enumerating lazily
-        // detaches the collection on the first MoveNext, so a second read of it sees
-        // an empty set — which would make every "how many ids were bound" assertion
-        // compare against nothing and pass vacuously.
+        // Materialize the parameter values once before any later read: iterating
+        // command.Parameters lazily can detach the collection on the first MoveNext,
+        // so a second read sees an empty set and makes every "how many ids were bound"
+        // assertion compare against nothing and pass vacuously.
         // Only an ARRAY parameter is a bounded id set. A scalar (a tenant id, a
         // timestamp, a page size) is not part of any bound, and counting it as one
         // would make "the bound equals the page's keys" depend on how many unrelated

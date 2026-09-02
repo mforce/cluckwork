@@ -299,6 +299,12 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   // The debounce timer is owned by the engine, not by `commit`, so commit can
   // cancel a pending replacement without a forward-reference.
   const debounceRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+  }, []);
   // The committed label, retained independently of the editable text (FR-018).
   // Only a commit writes it; typing never does.
   const [committedText, setCommittedText] = useState<string | null>(null);
@@ -821,12 +827,23 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   // full entity for (not in the discovery window, not the current committed
   // selection). Resolved through the exact read; a failure enters
   // `unavailable` (never a first-result substitution). Generation-owned.
-  const requestedIdRef = useRef(requestedId ?? null);
-  requestedIdRef.current = requestedId ?? null;
-  const lastRequestedGenRef = useRef(-1);
+  const previousRequestedIdRef = useRef(requestedId ?? null);
   useEffect(() => {
     const reqId = requestedId ?? null;
-    if (!reqId || !fetchExactRef.current) return;
+    const previousRequestedId = previousRequestedIdRef.current;
+    previousRequestedIdRef.current = reqId;
+    if (!reqId) {
+      if (previousRequestedId === null) return;
+      const gen = ++selectionGenRef.current;
+      setCommittedText(null);
+      setState((prev) => ({
+        ...prev,
+        selection: { entity: null, requestedId: null, phase: "blank", transitionGeneration: gen },
+        discovery: { ...prev.discovery, rawQuery: "", activeId: null },
+      }));
+      return;
+    }
+    if (!fetchExactRef.current) return;
     // Already committed to this exact id, or it is in the window: admit as-is.
     const inWindow = stateRef.current.discovery.items.some((x) => x.id === reqId);
     const alreadyCommitted = stateRef.current.selection.entity?.id === reqId;
@@ -835,7 +852,11 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
     // double-fire; the read is owned by the SELECTION-transition generation
     // (it never gates discovery requests).
     const gen = ++selectionGenRef.current;
-    lastRequestedGenRef.current = gen;
+    setCommittedText(null);
+    setState((prev) => ({
+      ...prev,
+      selection: { entity: null, requestedId: reqId, phase: "resolving", transitionGeneration: gen },
+    }));
     void fetchExactRef.current(reqId).then((resolved) => {
       if (selectionGenRef.current !== gen) return;
       // Sync the discovery window to the resolved identity (same contract as
