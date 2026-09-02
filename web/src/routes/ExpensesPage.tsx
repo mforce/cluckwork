@@ -482,10 +482,15 @@ export function ExpensesPage() {
       <h2>{t("title")}</h2>
 
       <div className="filters">
-        <label>{t("monthLabel")}
-          <input type="month" value={month} max={today.slice(0, 7)}
-            onChange={(e) => setMonth(e.target.value)} />
-        </label>
+        {/* #653 — the month picker is this screen's date-range filter (one
+            input standing for a whole calendar month); the category filter
+            beside it is not a date control and stays outside the toolbar. */}
+        <div className="toolbar">
+          <label>{t("monthLabel")}
+            <input type="month" value={month} max={today.slice(0, 7)}
+              onChange={(e) => setMonth(e.target.value)} />
+          </label>
+        </div>
         <label>{t("categoryLabel")}
           <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
             <option value="">{t("allCategoriesOption")}</option>

@@ -921,7 +921,7 @@ export function SalesPage() {
                         <td className="nowrap"><FarmDate iso={p.paymentDate} /></td>
                         <td className="num">{fmt.money(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
                         <td>{t(`method${p.method as PaymentMethod}`)}</td>
-                        <td>{p.referenceNumber ?? "—"}</td>
+                        <td className="nowrap">{p.referenceNumber ?? "—"}</td>
                         <td>
                           {p.voided
                             ? <span className="badge badge-danger" title={p.voidReason ?? undefined}>{statusLabel("Voided")}</span>
@@ -1118,7 +1118,7 @@ export function SalesPage() {
             <tbody>
               {orders.rows.map((o) => (
                 <tr key={o.id}>
-                  <td>{o.referenceNumber}</td>
+                  <td className="nowrap">{o.referenceNumber}</td>
                   <td className="nowrap"><FarmDate iso={o.orderDate} /></td>
                   <td>{rowCustomerName(o)}</td>
                   <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>

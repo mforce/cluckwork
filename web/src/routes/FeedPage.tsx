@@ -349,12 +349,16 @@ export function FeedPage() {
             }
           />
         </div>
-        <label>{t("fromLabel")}
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </label>
-        <label>{t("toLabel")}
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </label>
+        {/* #653 — the date range gets its own bounded toolbar; the flock
+            picker above stays a plain form-grid field. */}
+        <div className="toolbar">
+          <label>{t("fromLabel")}
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label>{t("toLabel")}
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+        </div>
       </div>
 
       {/* One window's rows must never sit under another window's controls,
