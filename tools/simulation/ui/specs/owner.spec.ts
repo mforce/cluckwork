@@ -23,54 +23,30 @@ test.describe("Owner", () => {
   test("dashboard shows real production, stock and sales data", async ({ page }) => {
     await expect(page.getByRole("heading", { name: tEn("dashboard:title") })).toBeVisible();
 
-    // The three stat tiles render "—" when their fetch FAILED, and a number when
-    // it succeeded. So "not —" is the actual guarantee: the data arrived. A
-    // presence check on the tile would pass in exactly the case worth catching.
-    // `exact: true` is load-bearing, not tidiness. The stock panel's footer
-    // renders `dashboard:eggsAvailableMessage` ("{{count}} eggs available"), so a
-    // substring match on "Eggs available" resolves to the stat tile AND that
-    // panel — and the panel legitimately contains "—" in its Restricted column,
-    // so the loose selector fails on correct data. Matching the label element
-    // exactly, then stepping to its tile, keeps the assertion on the tile alone.
-    for (const key of [
-      "dashboard:statEggsCollectedToday",
-      "dashboard:statEggsAvailable",
-      "dashboard:statActiveFlocks",
-    ] as const) {
-      const tile = page.getByText(tEn(key), { exact: true }).locator("xpath=..");
-      await expect(tile, `stat tile "${tEn(key)}" fell back to "—" (its fetch failed)`)
-        .not.toContainText("—");
-    }
+    // #654 — every panel degrades to `dashboard:panelLoadError` on its own
+    // failed read, and the page to `dashboard:loadFailed` when every read
+    // failed. "No error text anywhere" is the guarantee that every read
+    // arrived; a presence check on a heading would pass in exactly the case
+    // worth catching.
+    await expect(page.getByText(tEn("dashboard:loadFailed"))).toHaveCount(0);
+    await expect(page.getByText(tEn("dashboard:panelLoadError"))).toHaveCount(0);
 
-    // Locate tables by a column header rather than by container structure —
-    // resilient to the panels being re-laid-out, and it names what the reader
-    // of a failure needs to know (which table).
-    const todayTable = page
-      .getByRole("table")
-      .filter({ has: page.getByRole("columnheader", { name: tEn("dashboard:flockHeader") }) });
-    // `tbody tr`, NOT getByRole("row") — the role selector counts the HEADER row
-    // too, so `not.toHaveCount(0)` was satisfied by a table with nothing in it
-    // (PR #390 review). Deleting every rendered body row while keeping the
-    // headers left this green, which is the exact failure this spec exists to
-    // catch. Asserting ">= 1 body row" rather than an exact count is still
-    // deliberate: the seeder's flock count is configurable (Simulation__Flocks),
-    // and pinning it would make a fixture retune look like a UI regression.
-    await expect(todayTable.locator("tbody tr")).not.toHaveCount(0);
+    // Capture status: at least one tile (the seeder's flock count is
+    // configurable, so ">= 1", never an exact count), and the empty state hidden.
+    // `.capture-tile` is a class locator, not English — the tile's accessible
+    // name interpolates the flock's name, which this spec does not know.
+    await expect(page.locator(".capture-tile").first()).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noFlocksMessage"))).toBeHidden();
 
-    const stockTable = page
-      .getByRole("table")
-      .filter({ has: page.getByRole("columnheader", { name: tEn("dashboard:gradeHeader") }) });
-    await expect(stockTable.locator("tbody tr")).not.toHaveCount(0);
+    // Stock: the stacked bar has at least one segment (a grade with available
+    // eggs), and the caption — the text of record — is the availability sentence.
+    await expect(page.locator(".meter-stack > span").first()).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noStockMessage"))).toBeHidden();
 
     // The test's name promises sales data, so it has to actually look at it.
     // Without this, deleting the Sales panel outright left the spec green — it
     // asserted production and stock and called that "and sales" (PR #390 review).
-    const salesTable = page
-      .getByRole("table")
-      .filter({ has: page.getByRole("columnheader", { name: tEn("dashboard:refHeader") }) });
-    await expect(salesTable.locator("tbody tr")).not.toHaveCount(0);
+    await expect(page.locator(".dash-list li").first()).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noOrdersMessage"))).toBeHidden();
   });
 

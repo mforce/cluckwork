@@ -47,10 +47,7 @@ const SCREENS = [
   {
     name: "dashboard",
     path: "/",
-    ready: (page: CanaryPage) =>
-      page.getByRole("table").filter({
-        has: page.getByRole("columnheader", { name: tEn("dashboard:flockHeader") }),
-      }),
+    ready: (page: CanaryPage) => page.locator(".capture-tile").first(),
     emptyMessageKey: "dashboard:noFlocksMessage",
     // The dashboard is a pure readout — it has no control to press. Left null
     // rather than inventing an interaction (a theme toggle, say) that no farmer
