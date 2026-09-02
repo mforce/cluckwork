@@ -64,6 +64,17 @@ sidebar or bottom navigation stays available. The message disappears when the
 screen is ready, and a failed page chunk uses the existing **"Something went
 wrong" screen** instead of blanking the app.
 
+**Searchable picker (#512)** — the type-to-search control used for flock and
+customer name fields app-wide. Typing explores the results without changing
+the current choice — the previous committed name/entity stays in effect until
+the user picks a new result (Enter or click) or presses **Escape** to cancel
+and restore it. Arrow keys move the active option; **Down Arrow** past the
+last loaded row requests more results. A long list shows **Load more**; a
+failed search or Load more shows **Retry**, which repeats only the failed
+operation. A remembered or linked name that the picker's own lookup cannot
+resolve (deleted, out of scope, or otherwise inaccessible) shows
+**Unavailable** rather than silently falling back to the first search result.
+
 **"Something went wrong" screen** — the error-boundary fallback. If a screen
 throws while rendering, the app catches it and shows this — a short message,
 **Reload**, and **Back to the dashboard** — instead of unmounting to a blank
@@ -387,7 +398,10 @@ and feed.
 **Customer** — name + phone required; email/address/note optional, all
 **editable in place** after creation via `PUT /customers/{id}` (Version-guarded
 optimistic concurrency, shipped #625) — no delete/archive/deactivate, no
-duplicate merge. No payments and balances (spec §10.11, shipped #89).
+duplicate merge. No payments and balances (spec §10.11, shipped #89). A
+customer's name on the Customers page and on the dashboard is a link into
+Sales, filtered to that customer's orders via a canonical `customerId` URL
+parameter (#512).
 
 **Sales order lifecycle** — `Draft → Confirmed → Voided` (or `Draft →
 Cancelled`): drafts are fully editable (add/edit/remove lines, cancel);

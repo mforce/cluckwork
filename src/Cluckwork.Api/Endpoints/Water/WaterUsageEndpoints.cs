@@ -78,7 +78,9 @@ public static class WaterUsageEndpoints
     }
 
     private static async Task<IResult> ListWaterUsage(
-        IWaterUsageRepository waterUsages, TenantContext tenant, CancellationToken ct,
+        IWaterUsageRepository waterUsages,
+        Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
+        TenantContext tenant, CancellationToken ct,
         Guid? flockId = null, DateOnly? from = null, DateOnly? to = null,
         int? limit = null, int? offset = null)
     {
@@ -86,9 +88,13 @@ public static class WaterUsageEndpoints
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
         var list = await waterUsages.ListAsync(flockId, from, to, take, skip, ct);
+        // #512 T046 — one scoped bulk flock read for the page; null name only when
+        // the flock left the caller's scope, never an id fragment.
+        var names = await flocks.GetDisplayNamesAsync(list.Select(u => u.FlockId).ToList(), ct);
         return Results.Ok(list.Select(u => new WaterUsageResponse(
             u.Id, u.FlockId, u.Date, u.Quantity, u.Unit, u.Source.ToString(),
-            u.MeterStart, u.MeterEnd, u.Note, u.Version, u.DailyEntryId)));
+            u.MeterStart, u.MeterEnd, u.Note, u.Version, u.DailyEntryId,
+            names.GetValueOrDefault(u.FlockId)?.Name)));
     }
 
     private static IResult MapFailure(Cluckwork.Domain.Common.Error error)
@@ -106,9 +112,12 @@ public static class WaterUsageEndpoints
 // the mismatch → 409 contract (stale form never silently overwrites).
 // DailyEntryId (#446): best-effort record-time provenance — see
 // FeedUsageResponse's comment; corrections never change it.
+// FlockName (#512 US4): the flock's CURRENT name, additive; null only when the
+// flock is outside the caller's scope.
 public sealed record WaterUsageResponse(
     Guid Id, Guid FlockId, DateOnly Date, decimal Quantity, string Unit, string Source,
-    decimal? MeterStart, decimal? MeterEnd, string? Note, int Version, Guid? DailyEntryId);
+    decimal? MeterStart, decimal? MeterEnd, string? Note, int Version, Guid? DailyEntryId,
+    string? FlockName = null);
 
 public sealed record RecordWaterUsageRequest(
     Guid FlockId, DateOnly Date, decimal? Quantity, string? Unit, string Source,

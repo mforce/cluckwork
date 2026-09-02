@@ -3,7 +3,7 @@ import { screen, within, fireEvent, waitFor, act } from "@testing-library/react"
 import { WaterPage } from "./WaterPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
-  listFlocks, listWaterUsage, recordWaterUsage, updateWaterUsage,
+  listFlocks, listWaterUsage, recordWaterUsage, updateWaterUsage, getFlock,
 } from "../api/cluckwork";
 import type { Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
@@ -21,6 +21,8 @@ vi.mock("../api/cluckwork", () => ({
   listWaterUsage: vi.fn(),
   recordWaterUsage: vi.fn(),
   updateWaterUsage: vi.fn(),
+  getFlock: vi.fn(),
+  getCustomer: vi.fn(),
 }));
 
 const mockListFlocks = vi.mocked(listFlocks);
@@ -38,13 +40,13 @@ const FLOCK_B: Flock = { ...FLOCK_A, id: "f2", name: "Coop 2" };
 // Direct-quantity record (meterStart null → the "—" meters cell, edit fills the
 // quantity field). version 3 is the base a correction must send back.
 const ROW: WaterUsage = {
-  id: "w1", flockId: "f1", date: "2026-07-10", quantity: 12, unit: "L",
+  id: "w1", flockId: "f1", flockName: "Hen House 1", date: "2026-07-10", quantity: 12, unit: "L",
   source: "Well", meterStart: null, meterEnd: null, note: "morning", version: 3,
   dailyEntryId: null,
 };
 // Meter-backed record: quantity is the delta, and the meters cell renders it.
 const METER_ROW: WaterUsage = {
-  id: "w2", flockId: "f1", date: "2026-07-11", quantity: 74.75, unit: "L",
+  id: "w2", flockId: "f1", flockName: "Hen House 1", date: "2026-07-11", quantity: 74.75, unit: "L",
   source: "Municipal", meterStart: 100.5, meterEnd: 175.25, note: null, version: 1,
   dailyEntryId: null,
 };
@@ -99,6 +101,21 @@ describe("WaterPage loading + list", () => {
 
     expect(await screen.findByText("No water records match.")).toBeInTheDocument();
   });
+
+  // #512 US4 (T043/T051) — a record row's own flockName is null (the flock
+  // left the caller's tenant/flock scope between reads), even though the
+  // SAME id is present in the page's own capped `flocks` list under a
+  // DIFFERENT-looking name. The row must show the translated unavailable
+  // label, never that catalog substitution and never a raw id fragment.
+  it("a record row whose own flockName is null shows the translated unavailable label — never the catalog's name for that id, never an id fragment", async () => {
+    mockListWaterUsage.mockResolvedValue([{ ...ROW, id: "w-gone", flockId: "f1", flockName: null }]);
+    renderWithProviders(<WaterPage />, { token: WORKER });
+
+    const dataRow = await screen.findByRole("row", { name: /morning/ });
+    expect(within(dataRow).getByText(i18n.t("water:rowFlockUnavailable"))).toBeInTheDocument();
+    expect(within(dataRow).queryByText("Hen House 1")).not.toBeInTheDocument();
+    expect(within(dataRow).queryByText("f1")).not.toBeInTheDocument();
+  });
 });
 
 describe("WaterPage record water", () => {
@@ -110,8 +127,10 @@ describe("WaterPage record water", () => {
     fireEvent.change(screen.getByLabelText("Unit"), { target: { value: "gal" } });
     fireEvent.change(screen.getByLabelText(/Quantity/), { target: { value: "12.5" } });
     fireEvent.change(screen.getByLabelText("Note"), { target: { value: "  morning top-up  " } });
-    // first "Flock" combobox is the capture picker (the second is the list filter)
-    fireEvent.change(screen.getAllByLabelText("Flock")[0], { target: { value: "f2" } });
+    // #512 — the capture flock is a FlockPicker: open the trigger, commit the
+    // option by pointer.
+    fireEvent.click(screen.getByRole("button", { name: /Hen House 1/ }));
+    fireEvent.click(await screen.findByRole("option", { name: "Coop 2" }));
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Record water" }));
@@ -198,8 +217,9 @@ describe("WaterPage correct (edit/update)", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "correct" }));
 
-    // flock + date are fixed once recorded → the capture pickers lock in edit mode
-    expect(screen.getAllByLabelText("Flock")[0]).toBeDisabled();
+    // flock + date are fixed once recorded → the capture pickers lock in edit
+    // mode; the row-owned flock value is preserved exactly (T037).
+    expect(screen.getByRole("button", { name: /Hen House 1/ })).toBeDisabled();
     expect(screen.getByLabelText("Date")).toBeDisabled();
     const saveBtn = screen.getByRole("button", { name: "Save correction" });
 
@@ -260,8 +280,10 @@ describe("WaterPage list filter", () => {
     // Drive all three filters. The date inputs are queried by their <label> text
     // (accessible name), not a fragile positional index, so a broken from/to
     // propagation can't slip past a flockId-only assertion.
-    // Second "Flock" combobox is the list filter (the first is the capture picker).
-    fireEvent.change(screen.getAllByLabelText("Flock")[1], { target: { value: "f2" } });
+    // #512 — the filter flock is now a FlockPicker: open the trigger ("All"),
+    // commit the option, and the list re-queries with the committed id.
+    fireEvent.click(screen.getByRole("button", { name: /All/ }));
+    fireEvent.click(await screen.findByRole("option", { name: "Coop 2" }));
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-07-31" } });
 
@@ -390,6 +412,190 @@ describe("WaterPage i18n wiring (#182, Task 13)", () => {
       expect(await screen.findByText("RECORDED-MARKER")).toBeInTheDocument();
       expect(screen.queryByText("Water recorded.")).not.toBeInTheDocument();
     });
+  });
+});
+
+// #512 (T031/T037) — lifecycle: the row-owned capture identity of a disabled
+// edit must be EXACT (the row's real flock, resolved through the exact GET
+// when the loaded list does not carry it — never a fabricated splice of the
+// row's name onto another flock), and reset must start a FRESH default.
+describe("WaterPage lifecycle (#512 T031/T037)", () => {
+  // An Archived flock the active/depleted discovery window never carries —
+  // only the full list (includeArchived) and the exact GET know it.
+  const ARCHIVED: Flock = {
+    ...FLOCK_A, id: "fx", name: "Old Coop", breed: "Lohmann",
+    currentBirds: 0, status: "Archived",
+  };
+  // Distinct metadata so a fabricated entity is impossible to confuse with
+  // the row's own flock: every field but id/date differs from FLOCK_A.
+  const ARCHIVED_ROW: WaterUsage = {
+    id: "wArch", flockId: "fx", flockName: "Old Coop", date: "2026-07-05",
+    quantity: 30, unit: "L", source: "Tank", meterStart: null, meterEnd: null,
+    note: "last haul", version: 2, dailyEntryId: null,
+  };
+
+  // i18n-derived trigger selector: the capture flock trigger's accessible name
+  // is "<flockLabel> <flockName>" (label + value span via aria-labelledby).
+  const flockTriggerName = (flockName: string | null) => new RegExp(
+    `${i18n.t("water:flockLabel").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*${flockName}`,
+  );
+
+  // The row's flock IS in the page's loaded (includeArchived) list: startEdit
+  // must admit that FULL loaded object as-is — no exact GET (an id-only or
+  // fabricated path would have requested one) and no spliced entity. The test
+  // waits for the includeArchived list to resolve before clicking correct, so
+  // startEdit sees the populated flocks array.
+  it("edit of a row whose flock is in the loaded list admits that full entity as-is — no exact GET, no fabricated splice", async () => {
+    mockListWaterUsage.mockResolvedValue([ARCHIVED_ROW]);
+    // The page's includeArchived load carries both the active default and the
+    // row's archived flock. No filler needed — two flocks suffice.
+    mockListFlocks.mockImplementation(async (p?: { offset?: number; limit?: number; includeArchived?: boolean }) => {
+      const all = [FLOCK_A, ARCHIVED];
+      if (p?.includeArchived) return all;
+      // Picker discovery (active-and-depleted): only the Active flock.
+      return [FLOCK_A];
+    });
+    renderWithProviders(<WaterPage />, { token: ADMIN });
+
+    // Wait for BOTH mount loads to settle: the water list (row visible) AND
+    // the flock list (flocks state populated). The "correct" button appears
+    // when the water list resolves; the trigger's default flock name appears
+    // when the flock list resolves. Waiting for the default trigger proves
+    // the includeArchived list has landed.
+    const correctBtn = await screen.findByRole("button", { name: i18n.t("water:correctButton") });
+    // The capture trigger shows the default (first Active) flock once the
+    // flock list resolves — this is the signal that flocks state is set.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: flockTriggerName(FLOCK_A.name) })).toBeInTheDocument();
+    });
+
+    // Now click correct: startEdit sees flocks populated, finds ARCHIVED by
+    // id, and commits the FULL loaded entity as-is.
+    fireEvent.click(correctBtn);
+
+    // The trigger renders the row's own flock name (the loaded entity's name)
+    // (accessible name = label + value, so the catalog label leads it)
+    const trigger = await screen.findByRole("button", { name: flockTriggerName(ARCHIVED_ROW.flockName) });
+    // … without the depleted suffix — a fabricated Active/Depleted-shaped
+    // entity wearing that name is ruled out — and the control is disabled:
+    // a disabled edit preserves the exact row-owned value, cannot re-select.
+    expect(trigger).not.toHaveTextContent(i18n.t("water:depletedFlockSuffix"));
+    expect(trigger).toBeDisabled();
+
+    // The FULL loaded entity was admitted as-is: no exact read was issued, and
+    // the save guard reads the committed entity, not a placeholder.
+    expect(vi.mocked(getFlock)).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: i18n.t("water:saveCorrectionButton") })).toBeEnabled();
+  });
+
+  // The row's flock is NOT in the page's loaded list at all (it fell off the
+  // archived window): startEdit must pass its id through the exact GET, keep
+  // captureFlock null (NO fabricated entity), and show only the row's own
+  // flockName while the read is in flight. The late list resolution must NOT
+  // replace the row-owned transition; reset restores the active default; and
+  // a held exact GET resolving late cannot resurrect the row's flock.
+  it("a late list load after an off-list edit cannot replace the row-owned transition, and reset restores the fresh default", async () => {
+    mockListWaterUsage.mockResolvedValue([ARCHIVED_ROW]);
+    // The page's includeArchived load returns ONLY the active default — the
+    // row's archived flock is absent, so startEdit takes the requestedId
+    // exact-GET path. Both reads are deferred: the page's list load must land
+    // AFTER the off-list transition (its setFlocks + default commit used to
+    // overwrite exactly that transition), and the exact GET is held so the
+    // RESET, not its landing, decides the end state.
+    let releaseFlocks!: (all: Flock[]) => void;
+    mockListFlocks.mockImplementation(() => new Promise<Flock[]>((r) => { releaseFlocks = r; }));
+    const getFlockMock = vi.mocked(getFlock);
+    let resolveExact!: (f: Flock) => void;
+    getFlockMock.mockImplementation(async () => new Promise<Flock>((r) => { resolveExact = r; }));
+
+    renderWithProviders(<WaterPage />, { token: ADMIN });
+    // The row is already on screen (the water list resolves independently);
+    // the flock list is still held — click correct while it is unknown.
+    fireEvent.click(await screen.findByRole("button", { name: i18n.t("water:correctButton") }));
+
+    // The off-list transition is committed: the exact GET was requested for
+    // the row-owned id, exactly once.
+    expect(getFlockMock).toHaveBeenCalledTimes(1);
+    expect(getFlockMock).toHaveBeenCalledWith("fx"); // the row-owned id, exactly
+
+    // The LATE page list load now resolves (still without the row's flock).
+    // Without the guard, its mount default would replace the row-owned
+    // off-list transition with the first Active flock here.
+    await act(async () => { releaseFlocks([FLOCK_A]); });
+
+    // The row-owned transition SURVIVES the late list load: the trigger still
+    // shows the row's own flockName (display-only) — not the default's.
+    expect(screen.getByRole("button", {
+      name: flockTriggerName(ARCHIVED_ROW.flockName),
+    })).toBeInTheDocument();
+
+    // Cancel the edit BEFORE the exact GET settles.
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("water:cancelEditButton") }));
+
+    // The committed capture is now a FRESH active/default generation — the
+    // default flock, not the row's flock (the row's display-only name is
+    // gone with editingId cleared).
+    const defaultName = FLOCK_A.name;
+    expect(await screen.findByRole("button", { name: flockTriggerName(defaultName) })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: flockTriggerName(ARCHIVED_ROW.flockName) })).not.toBeInTheDocument();
+    // Form is genuinely in capture mode again.
+    expect(screen.getByRole("button", { name: i18n.t("water:recordWaterButton") })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: i18n.t("water:saveCorrectionButton") })).not.toBeInTheDocument();
+
+    // Now the held exact GET settles: a superseded transition (the reset
+    // bumped the controlled generation AND dropped the page's requestedId)
+    // must NOT commit the row's flock over the fresh default.
+    await act(async () => { resolveExact(ARCHIVED); });
+    expect(screen.getByRole("button", { name: flockTriggerName(defaultName) })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: flockTriggerName(ARCHIVED_ROW.flockName) })).not.toBeInTheDocument();
+  });
+
+  // #512 US3 remediation — the capture picker is DISABLED during an edit
+  // (`disabled={editingId !== null}`) AND its trigger is itself disabled, so
+  // the user cannot open it to see the generic engine's (pre-fix) open-only
+  // unavailable/Retry. Before the fix, a row-owned id whose exact GET failed
+  // during an edit had NO recovery at all. Now the translated unavailable
+  // status and a GET-only Retry render adjacent to the trigger regardless.
+  it("an off-list row-owned flock whose exact GET fails during a DISABLED edit still shows unavailable + adjacent Retry — Save is blocked, Retry is GET-only and can recover", async () => {
+    mockListWaterUsage.mockResolvedValue([ARCHIVED_ROW]);
+    // "fx" (the row's flock) is absent from BOTH lists — startEdit must take
+    // the requestedId exact-GET path.
+    mockListFlocks.mockResolvedValue([FLOCK_A]);
+    const getFlockMock = vi.mocked(getFlock);
+    getFlockMock.mockRejectedValueOnce(new Error("not found"));
+
+    renderWithProviders(<WaterPage />, { token: ADMIN });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: flockTriggerName(FLOCK_A.name) })).toBeInTheDocument();
+    });
+    fireEvent.click(await screen.findByRole("button", { name: i18n.t("water:correctButton") }));
+
+    // The exact GET was issued for the row-owned id.
+    await waitFor(() => expect(getFlockMock).toHaveBeenCalledWith("fx"));
+    // The trigger stays disabled (edit-locked) and shows only the row's own
+    // flockName — never a fabricated entity, never the default.
+    const trigger = screen.getByRole("button", { name: flockTriggerName(ARCHIVED_ROW.flockName) });
+    expect(trigger).toBeDisabled();
+
+    // Adjacent recovery renders even though the picker is disabled and was
+    // never opened.
+    const unavailableLabel = i18n.t("namedEntityPicker:unavailable");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(unavailableLabel));
+    const retryLabel = i18n.t("namedEntityPicker:retry");
+    const retryBtn = screen.getByRole("button", { name: retryLabel });
+
+    // Save is withheld while unavailable.
+    const save = screen.getByRole("button", { name: i18n.t("water:saveCorrectionButton") });
+    expect(save).toBeDisabled();
+
+    // Retry is exempt from `disabled` — it re-resolves the FIXED identity —
+    // and repeats ONLY the exact GET, never a write.
+    getFlockMock.mockResolvedValueOnce(ARCHIVED);
+    fireEvent.click(retryBtn);
+    await waitFor(() => expect(getFlockMock).toHaveBeenCalledTimes(2));
+    expect(mockUpdateWaterUsage).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("water:saveCorrectionButton") })).toBeEnabled());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 

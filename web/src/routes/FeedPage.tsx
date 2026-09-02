@@ -8,6 +8,8 @@ import {
 import type { Flock, InventoryItem } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
+import { FlockPicker } from "../components/FlockPicker";
+import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { useFarmToday } from "../farm/useFarm";
@@ -47,7 +49,17 @@ export function FeedPage() {
   const { busy, run } = usePendingAction();
 
   // capture form
-  const [flockId, setFlockId] = useState("");
+  // #512 (T027/T038) — the capture flock is committed through FlockPicker.
+  // `captureFlock` is the page-controlled committed entity; bumping
+  // `captureFlockGen` re-syncs the engine's committed state after an external
+  // reset (the mount-time default) so a later Escape cannot resurrect a stale
+  // ID. `flockSnapshot.canSubmit` gates BOTH the Record button and onSubmit.
+  const [captureFlock, setCaptureFlock] = useState<Flock | null>(null);
+  const [captureFlockGen, setCaptureFlockGen] = useState(0);
+  const [captureFlockSnapshot, setCaptureFlockSnapshot] = useState<PickerSnapshot<Flock>>({
+    committed: null, selectionPhase: "uninitialized", exploring: false, canSubmit: false,
+  });
+  const [capturePickerOpen, setCapturePickerOpen] = useState(false);
   const [itemId, setItemId] = useState("");
   const [date, setDate] = useState(today);
   const [quantity, setQuantity] = useState("");
@@ -55,7 +67,23 @@ export function FeedPage() {
 
   // list filters — initialized from the URL so the Daily Entry strip's
   // "Feed: N records" link lands on exactly the day it was describing.
+  // #512 (T038) — the URL-named flock is a ROW-OWNED identity: the list is
+  // filtered by its EXACT id, and its name is resolved through the picker's
+  // exact GET (never substituted with the first discovery result). A scoped
+  // 404/transport failure enters the explicit `unavailable` state: the filter
+  // keeps the exact id, the name shows the translated unavailable label, and
+  // Retry re-issues ONLY the GET.
   const [flockFilter, setFlockFilter] = useState(() => searchParams.get("flockId") ?? "");
+  // #512 (T038) — the row-owned identity's committed entity (set when the
+  // picker's requestedId effect resolves it via the exact GET, or when the
+  // user commits a new filter through the picker). The trigger shows
+  // `flockFilterEntity?.name` (the exact name) or the translated unavailable
+  // label (when the snapshot's phase is `unavailable`).
+  const [flockFilterEntity, setFlockFilterEntity] = useState<Flock | null>(null);
+  const [flockFilterSnapshot, setFlockFilterSnapshot] = useState<PickerSnapshot<Flock>>({
+    committed: null, selectionPhase: "uninitialized", exploring: false, canSubmit: true,
+  });
+  const [filterPickerOpen, setFilterPickerOpen] = useState(false);
   const [from, setFrom] = useState(() => searchParams.get("from") ?? "");
   const [to, setTo] = useState(() => searchParams.get("to") ?? "");
 
@@ -99,9 +127,15 @@ export function FeedPage() {
       .then(([allFlocks, allItems]) => {
         setFlocks(allFlocks);
         setItems(allItems);
+        // The capture default is committed as a full typed entity through the
+        // picker's controlled sync — the engine admits an entity that is in
+        // the discovery window as-is (no spurious exact GET).
         const firstActive = allFlocks.find((f) => f.status === "Active")
           ?? allFlocks.find((f) => f.status === "Depleted");
-        if (firstActive) setFlockId(firstActive.id);
+        if (firstActive) {
+          setCaptureFlock(firstActive);
+          setCaptureFlockGen((g) => g + 1);
+        }
         const feedable = allItems.filter(
           (x) => FEEDABLE_CATEGORIES.includes(x.category)
             && (x.active || x.quantityOnHand > 0));
@@ -123,9 +157,28 @@ export function FeedPage() {
   }, []);
 
 
-  const flockName = (id: string) => flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
+  // #512 (T038) — the filter's displayed name prefers the EXACT committed
+  // entity (the row-owned identity, resolved by GET even when it is outside
+  // the capped list); a not-yet-resolved id falls back to the full list's
+  // name, and an unresolved one shows the explicit unavailable label.
+  const flockName = (id: string) => {
+    if (id === flockFilter && flockFilterSnapshot.selectionPhase === "unavailable")
+      return t("filterFlockUnavailable");
+    if (id === flockFilter && flockFilterEntity)
+      return flockFilterEntity.name;
+    return flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
+  };
+
+  // #512 (T038) — the filter's unavailable state is owned by the picker's
+  // engine (the `requestedId` effect resolves the row-owned id via the exact
+  // GET, and a failure enters the engine's `unavailable` phase, which renders
+  // the translated label + a keyboard-reachable Retry). The Retry re-issues
+  // ONLY the GET (the engine's own `retryUnavailable`), never the records
+  // list and never a first-result substitution. The page's `flockName` reads
+  // the snapshot's `selectionPhase` to render the explicit unavailable label
+  // in the records table's flock column; `flockFilterEntity` holds the exact
+  // committed entity once the GET resolves.
   const itemName = (id: string) => items.find((x) => x.id === id)?.name ?? id.slice(0, 8);
-  const pickableFlocks = flocks.filter((f) => f.status !== "Archived");
   // Deactivation only stops NEW stock from arriving — an inactive item's
   // remaining feed still gets eaten out, exactly as the server allows, so it
   // stays pickable while stock remains (quality review of #446: the old
@@ -141,7 +194,10 @@ export function FeedPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (busy) return;
+    // #512 (T027) — the picker's canSubmit is the write guard, not the
+    // button's disabled attribute: an exploring/unavailable picker must not
+    // submit a stale committed flock even if the control is bypassed.
+    if (busy || !captureFlockSnapshot.canSubmit || !captureFlock) return;
     setError(null);
     setMessage(null);
     const parsed = parseFloat(quantity);
@@ -150,7 +206,7 @@ export function FeedPage() {
       setError(i18n.t("feed:quantityMustBePositive"));
       return;
     }
-    const scope = `record:${itemId}:${flockId}:${date}`;
+    const scope = `record:${itemId}:${captureFlock.id}:${date}`;
     await run(scope, async () => {
       try {
         // runWrite claims the list's ticket BEFORE the POST, so a filter
@@ -159,7 +215,7 @@ export function FeedPage() {
         // filter's rows over it (#469 — this screen had it backwards).
         await usage.runWrite(async () => {
           await recordFeedUsage(itemId,
-            { flockId, date, quantity: parsed, note: note.trim() || undefined },
+            { flockId: captureFlock.id, date, quantity: parsed, note: note.trim() || undefined },
             keyFor(scope));
           setMessage(i18n.t("feed:recordedMessage"));
           // The picker's "(N kg on hand)" is the user's pre-submit sanity
@@ -184,15 +240,33 @@ export function FeedPage() {
       <p className="muted">{t("intro")}</p>
 
       <form className="form-grid" onSubmit={onSubmit}>
-        <label>{t("flockLabel")}
-          <select value={flockId} onChange={(e) => setFlockId(e.target.value)}>
-            {pickableFlocks.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}{f.status === "Depleted" ? t("depletedFlockSuffix") : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+        <FlockPicker
+          label={t("flockLabel")}
+          eligibility="active-and-depleted"
+          required
+          open={capturePickerOpen}
+          controlledCommitted={captureFlock}
+          controlledGeneration={captureFlockGen}
+          onSnapshot={setCaptureFlockSnapshot}
+          onCommit={(f) => {
+            setCaptureFlock(f);
+            setCaptureFlockGen((g) => g + 1);
+            setCapturePickerOpen(false);
+          }}
+          onEscape={() => setCapturePickerOpen(false)}
+          onOutsideClick={() => setCapturePickerOpen(false)}
+          trigger={
+            <button
+              type="button"
+              className="named-picker-trigger"
+              onClick={() => setCapturePickerOpen(true)}
+            >
+              {captureFlock
+                ? `${captureFlock.name}${captureFlock.status === "Depleted" ? t("depletedFlockSuffix") : ""}`
+                : t("selectFlockOption")}
+            </button>
+          }
+        />
         <label>{t("itemLabel")}
           <select value={itemId} onChange={(e) => setItemId(e.target.value)}>
             {pickableItems.map((x) => (
@@ -219,7 +293,8 @@ export function FeedPage() {
         <label>{t("noteLabel")}
           <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} />
         </label>
-        <BusyButton type="submit" busy={busy} disabled={!flockId || !itemId}>
+        <BusyButton type="submit" busy={busy}
+          disabled={!captureFlock || !captureFlockSnapshot.canSubmit || !itemId}>
           {t("recordFeedButton")}
         </BusyButton>
       </form>
@@ -236,12 +311,41 @@ export function FeedPage() {
           usable through a transient history read failure (review of #446). */}
       {usage.error && <p className="error">{usage.error}</p>}
       <div className="form-grid">
-        <label>{t("filterFlockLabel")}
-          <select value={flockFilter} onChange={(e) => setFlockFilter(e.target.value)}>
-            <option value="">{tc("all")}</option>
-            {flocks.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        </label>
+        <div className="filter-flock">
+          <FlockPicker
+            label={t("filterFlockLabel")}
+            eligibility="all"
+            required={false}
+            open={filterPickerOpen}
+            requestedId={flockFilter || null}
+            onSnapshot={(snap) => {
+              setFlockFilterSnapshot(snap);
+              // The engine's requestedId effect commits the resolved entity
+              // (or enters the unavailable phase). Track the committed
+              // entity so the trigger and the records table's flock column
+              // can render the EXACT name (never a first-result
+              // substitution).
+              if (snap.committed) setFlockFilterEntity(snap.committed);
+            }}
+            onCommit={(f) => {
+              setFlockFilter(f.id);
+              setFlockFilterEntity(f);
+              setFilterPickerOpen(false);
+            }}
+            onClear={() => {
+              setFlockFilter("");
+              setFlockFilterEntity(null);
+            }}
+            onEscape={() => setFilterPickerOpen(false)}
+            onOutsideClick={() => setFilterPickerOpen(false)}
+            trigger={
+              <button type="button" className="named-picker-trigger"
+                onClick={() => setFilterPickerOpen(true)}>
+                {flockFilter === "" ? tc("all") : flockName(flockFilter)}
+              </button>
+            }
+          />
+        </div>
         <label>{t("fromLabel")}
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </label>
@@ -267,7 +371,7 @@ export function FeedPage() {
               {usage.rows.map((r) => (
                 <tr key={r.id}>
                   <td>{r.date}</td>
-                  <td>{flockName(r.flockId)}</td>
+                  <td>{r.flockName ?? t("rowFlockUnavailable")}</td>
                   <td>{itemName(r.inventoryItemId)}</td>
                   <td>{r.quantity} {r.unit}</td>
                   <td>{formatMoney(r.estimatedCostMinorUnits, r.currencyCode, r.currencyMinorUnit)}</td>

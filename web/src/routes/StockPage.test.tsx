@@ -17,6 +17,8 @@ vi.mock("../api/cluckwork", () => ({
   listEggLots: vi.fn(),
   listEggLotMovements: vi.fn(),
   recordEggLotMovement: vi.fn(),
+  getFlock: vi.fn(),
+  getCustomer: vi.fn(),
 }));
 
 const mockGetStock = vi.mocked(getStock);

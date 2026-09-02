@@ -852,6 +852,227 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
         });
     }
 
+    // #512 — the flock-scope half of INV-1 has to survive the NEW read
+    // predicates (`search`, `eligibility`) rather than being applied to the
+    // legacy list only. #613 makes the combined `AccountId AND flock-scope`
+    // filter a structural invariant of the model, so a discovery query that
+    // reaches Flocks through anything other than the filtered DbSet would keep
+    // this suite green by accident; the direct-EF twin below closes that hole.
+    //
+    // Flocks A (Active) and B (Depleted) already exist; add one Archived B flock
+    // so `eligibility=all` has a B row to leak. Every query shape is then run as
+    // both the scoped Worker and the Owner: the Worker must never see a B row and
+    // must never see nothing (a substitute result would look like filtering),
+    // while the Owner control proves the same query CAN reach B — so an empty
+    // Worker answer is the filter working, not a fixture that failed to seed.
+    [Fact]
+    public async Task ScopedWorker_FlockDiscovery_NeverReachesUnassignedFlock()
+    {
+        var fix = await SeedAsync();
+        var archivedB = await RenameDiscoveryFlocksAsync(fix);
+
+        // Six shapes whose result set CONTAINS the assigned flock, so the Worker's
+        // answer must be non-empty AND all-A: an empty list would otherwise let a
+        // query that filtered everything away — or a fixture that failed to seed —
+        // read as scope enforcement.
+        var shapes = new[]
+        {
+            "?search=zzz&limit=500",                            // literal search, default policy
+            "?search=zzz&eligibility=all&limit=500",            // literal search + widest policy
+            "?search=zzz&includeArchived=true&limit=500",       // legacy alias + search
+            "?search=zzz&eligibility=active&limit=500",         // narrowest policy
+            "?eligibility=all&limit=500&offset=0",              // policy only
+            "?limit=500&offset=0",                              // legacy list, unchanged
+        };
+        // Deliberately separate: windows narrowed past A's single row, where an
+        // empty Worker answer is correct and only "never B" is honest.
+        var pastA = new[] { "?limit=1&offset=1", "?limit=2&offset=5" };
+
+        foreach (var query in shapes)
+        {
+            var asWorker = await fix.Worker.GetAsync("/api/v1/flocks" + query);
+            Assert.Equal(HttpStatusCode.OK, asWorker.StatusCode);
+            var workerRows = await asWorker.Content.ReadFromJsonAsync<List<FlockDiscoveryRow>>();
+            Assert.NotNull(workerRows);
+            Assert.NotEmpty(workerRows);
+            Assert.All(workerRows, f => Assert.Equal(fix.FlockA, f.Id));
+
+            var asOwner = await fix.Owner.GetAsync("/api/v1/flocks" + query);
+            Assert.Equal(HttpStatusCode.OK, asOwner.StatusCode);
+            var ownerRows = await asOwner.Content.ReadFromJsonAsync<List<FlockDiscoveryRow>>();
+            Assert.NotNull(ownerRows);
+            Assert.Contains(ownerRows, f => f.Id == fix.FlockB || f.Id == archivedB);
+        }
+
+        foreach (var query in pastA)
+        {
+            var asWorker = await fix.Worker.GetAsync("/api/v1/flocks" + query);
+            Assert.Equal(HttpStatusCode.OK, asWorker.StatusCode);
+            var workerRows = await asWorker.Content.ReadFromJsonAsync<List<FlockDiscoveryRow>>();
+            Assert.NotNull(workerRows);
+            Assert.All(workerRows, f => Assert.Equal(fix.FlockA, f.Id));
+
+            var asOwner = await fix.Owner.GetAsync("/api/v1/flocks" + query);
+            Assert.NotNull(asOwner);
+            var ownerRows = await asOwner.Content
+                .ReadFromJsonAsync<List<FlockDiscoveryRow>>();
+            Assert.NotNull(ownerRows);
+            // The unscoped account-wide walk at that offset is non-empty — the account
+            // has more than one flock — so an empty Worker page is the filter and not
+            // the end of the data. Deliberately no B-contains here: the ordering IS
+            // already Name,Id, but this suite's un-renamed flocks are named
+            // `Flock-<guid>` by the shared harness (#512 renames only A and B, to
+            // "Zzz …"), so which two of the remaining GUID-named flocks a 1-or-2-row
+            // unscoped window returns carries no meaning to assert. Non-emptiness is
+            // the part worth pinning.
+        }
+
+        // A search naming the UNASSIGNED flocks specifically is EMPTY for the
+        // Worker — never silently satisfied by the assigned neighbour. This is
+        // the one place an empty answer is the assertion, and it is why A does
+        // not carry these two exact names.
+        foreach (var name in new[] { "zzz%20bravo%20alpha%20shared", "zzz%20bravo%20archived" })
+        {
+            var rows = await (await fix.Worker.GetAsync(
+                $"/api/v1/flocks?search={name}&eligibility=all&limit=500"))
+                .Content.ReadFromJsonAsync<List<FlockDiscoveryRow>>();
+            Assert.NotNull(rows);
+            Assert.Empty(rows);
+        }
+
+        // The premise of that loop: A carries the broad `zzz` marker — which is
+        // what makes the six shapes above non-empty — but NOT either of the two
+        // exact names, which is what makes an empty answer honest here. Both
+        // halves are load-bearing, so both are asserted.
+        var asWorkerWide = await fix.Worker.GetAsync(
+            "/api/v1/flocks?search=zzz&eligibility=all&limit=500");
+        var wideRows = await asWorkerWide.Content
+            .ReadFromJsonAsync<List<FlockDiscoveryRow>>();
+        Assert.NotNull(wideRows);
+        Assert.Single(wideRows);
+        Assert.Equal(fix.FlockA, wideRows[0].Id);
+        Assert.Equal("Zzz Alpha Assigned", wideRows[0].Name);
+    }
+
+    // Shared by the HTTP test and the direct-EF twin below: the two run against
+    // the same fixture data, so they must apply the SAME mutation or one of them
+    // asserts against rows the other already renamed. Returns the Archived B id.
+    //
+    // The names are the test's own data, not the harness's: SeedFlockAsync names
+    // a flock `Flock-xxxxxxxx`, which no search shape here could match, so the
+    // whole suite would silently degenerate into "nothing matches, as expected".
+    //  * A (assigned, Active) = `Zzz Alpha Assigned` — the bare `zzz` marker with
+    //    no `bravo`, so every `search=zzz` shape has an honest NON-EMPTY Worker
+    //    answer, while A matches neither of the two exact B names below.
+    //  * B (unassigned, Active) = `Zzz Bravo Alpha Shared` — matched by the broad
+    //    `zzz` and by `zzz alpha` (both words appear), but by NEITHER of the two
+    //    exact names. Its Active status matters: an unassigned row that
+    //    eligibility removes anyway would make the scope assertion vacuous.
+    //  * Archived B = `Zzz Bravo Archived`, so `eligibility=all` has an
+    //    unassigned Archived row to leak.
+    private async Task<Guid> RenameDiscoveryFlocksAsync(Fixture fix)
+    {
+        var archivedB = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(fix.AccountId, async db =>
+        {
+            var a = await db.Flocks.FirstAsync(f => f.Id == fix.FlockA);
+            Assert.True(a.Update("Zzz Alpha Assigned", a.Breed, a.PlacementDate, a.InitialCount).IsSuccess);
+            var b = await db.Flocks.FirstAsync(f => f.Id == fix.FlockB);
+            // "Alpha" is in B's name on purpose. A bare `search=zzz alpha` would
+            // reach A (`Zzz Alpha Assigned`) and NOT this row — B's second word
+            // is Bravo — so the scoped "only A" assertion would pass with the
+            // flock filter deleted and the test would prove nothing. Every shape
+            // here therefore uses the broad `zzz`, which DOES reach B.
+            Assert.True(b.Update("Zzz Bravo Alpha Shared", b.Breed, b.PlacementDate, b.InitialCount).IsSuccess);
+            // B is seeded Active; say so, because the EF twin's control depends
+            // on it surviving the Active-or-Depleted eligibility predicate.
+            Assert.Equal(FlockStatus.Active, b.Status);
+            var ab = Cluckwork.Domain.Flocks.Flock.Create(
+                archivedB, fix.AccountId, fix.FarmId, Guid.NewGuid(),
+                "Zzz Bravo Archived", "Test Breed", new DateOnly(2026, 1, 1), 50);
+            ab.Deplete(new DateOnly(2026, 2, 1));
+            ab.Archive(new DateOnly(2026, 3, 1));
+            db.Flocks.Add(ab);
+            await db.SaveChangesAsync();
+        });
+        return archivedB;
+    }
+
+    // The repository-layer twin: the same predicate set under a hand-built
+    // Worker scope, straight against the filtered DbSet. If a future discovery
+    // query bypasses the model filter, the HTTP assertion above can still pass
+    // behind an upstream guard — this one cannot.
+    [Fact]
+    public async Task FlockDiscoveryPredicate_UnderWorkerScope_ExcludesUnassignedFlock()
+    {
+        var fix = await SeedAsync();
+        var archivedB = await RenameDiscoveryFlocksAsync(fix);
+
+        // Eligibility → literal search → Name, Id → window, with the escape
+        // argument, exactly as the repository builds it (#512 T010). The search
+        // is the broad `zzz`, which BOTH A and B carry, so the predicate is
+        // satisfied either way and only the scope clause can decide the answer —
+        // a search that merely matched nothing would make the scoped assertion
+        // below vacuous, which is exactly the wrong-guard failure this file's
+        // twin was reviewed for.
+        static IQueryable<Flock> Discovery(IQueryable<Flock> q) => q
+            .Where(f => f.Status == FlockStatus.Active || f.Status == FlockStatus.Depleted)
+            .Where(f => EF.Functions.ILike(f.Name, "%zzz%", "\\"))
+            .OrderBy(f => f.Name).ThenBy(f => f.Id);
+
+        var tenant = new TenantContext();
+        tenant.Resolve(fix.AccountId);
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(factory.ConnectionString)
+            .Options;
+
+        // Control: the SAME query with ONLY the flock half of the filter
+        // bypassed reaches both. `IgnoreQueryFilters` drops the AccountId clause
+        // too — the whole collection shares this database — so the tenant clause
+        // is re-imposed explicitly, and this stays a flock-filter-only delta.
+        // That is what makes the scoped assertion below causal: it proves both
+        // rows are findable by this predicate, in this tenant, once the scope
+        // clause is gone.
+        var unscopedScope = new FlockScope();
+        unscopedScope.Resolve(true, []);
+        await using (var unscoped = new AppDbContext(options, tenant, unscopedScope))
+        {
+            var reachable = await Discovery(
+                    unscoped.Flocks.IgnoreQueryFilters().AsNoTracking()
+                        .Where(f => f.AccountId == fix.AccountId))
+                .Skip(0).Take(50)
+                .ToListAsync();
+            Assert.Contains(reachable, f => f.Id == fix.FlockA);
+            Assert.Contains(reachable, f => f.Id == fix.FlockB);
+        }
+
+        // Scoped to flock A: non-empty, and ONLY flock A.
+        var scope = new FlockScope();
+        scope.Resolve(false, [fix.FlockA]);
+        await using (var db = new AppDbContext(options, tenant, scope))
+        {
+            var eligible = await Discovery(db.Flocks.AsNoTracking())
+                .Skip(0).Take(50).ToListAsync();
+            Assert.NotEmpty(eligible);
+            Assert.All(eligible, f => Assert.Equal(fix.FlockA, f.Id));
+            Assert.DoesNotContain(eligible, f => f.Id == fix.FlockB);
+
+            // And the same holds with the Archived rows admitted: the Archived
+            // B flock is unassigned too, so `eligibility=all` must still answer
+            // with A alone.
+            var wide = await db.Flocks.AsNoTracking()
+                .Where(f => EF.Functions.ILike(f.Name, "%zzz%", "\\"))
+                .OrderBy(f => f.Name).ThenBy(f => f.Id)
+                .Skip(0).Take(50)
+                .ToListAsync();
+            Assert.NotEmpty(wide);
+            Assert.All(wide, f => Assert.Equal(fix.FlockA, f.Id));
+            Assert.DoesNotContain(wide, f => f.Id == archivedB);
+        }
+    }
+
+    private sealed record FlockDiscoveryRow(Guid Id, string Name, string Status);
+
     private sealed record RecordedDto(Guid Id);
 
     private sealed record Fixture(

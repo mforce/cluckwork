@@ -14,6 +14,7 @@ using Cluckwork.Application.Features.Sales.VoidSale;
 using FluentValidation;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
+using Cluckwork.Application.Features.Customers;
 
 public static class SaleEndpoints
 {
@@ -184,18 +185,23 @@ public static class SaleEndpoints
     }
 
     private static async Task<IResult> GetSalesOrder(
-        Guid id, ISalesOrderRepository orders, IAuditEventRepository audit,
-        TenantContext tenant, CancellationToken ct)
+        Guid id, ISalesOrderRepository orders, ICustomerRepository customers,
+        IAuditEventRepository audit, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var order = await orders.GetReadOnlyAsync(id, ct);
         if (order is null) return Results.NotFound();
         var provenance = await audit.GetProvenanceAsync(nameof(SalesOrder), [id], ct);
-        return Results.Ok(ToResponse(order, provenance.GetValueOrDefault(id)));
+        // Detail and list must answer identically (#512): same read, one id.
+        var customer = (await customers.GetDisplayNamesAsync([order.CustomerId], ct))
+            .GetValueOrDefault(order.CustomerId);
+        return Results.Ok(ToResponse(order, provenance.GetValueOrDefault(id), customer));
     }
 
     private static async Task<IResult> ListSalesOrders(
-        ISalesOrderRepository orders, IAuditEventRepository audit,
+        ISalesOrderRepository orders,
+        Cluckwork.Application.Features.Customers.ICustomerRepository customers,
+        IAuditEventRepository audit,
         TenantContext tenant, CancellationToken ct,
         string? status = null, Guid? customerId = null,
         DateOnly? from = null, DateOnly? to = null,
@@ -222,10 +228,18 @@ public static class SaleEndpoints
         var list = await orders.ListAsync(statusFilter, customerId, from, to, take, skip, ct);
         var provenance = await audit.GetProvenanceAsync(
             nameof(SalesOrder), list.Select(o => o.Id).ToList(), ct);
-        return Results.Ok(list.Select(o => ToResponse(o, provenance.GetValueOrDefault(o.Id))));
+        // #512 T048 — one scoped bulk customer read for the page, not one per
+        // order. A missing key means the customer left this tenant, which the
+        // tenant filter makes unreachable on a scoped route; the row then carries
+        // a null name rather than an identifier fragment.
+        var names = await customers.GetDisplayNamesAsync(
+            list.Select(o => o.CustomerId).ToList(), ct);
+        return Results.Ok(list.Select(o => ToResponse(
+            o, provenance.GetValueOrDefault(o.Id), names.GetValueOrDefault(o.CustomerId))));
     }
 
-    private static SalesOrderResponse ToResponse(SalesOrder o, EntityProvenance? p) => new(
+    private static SalesOrderResponse ToResponse(
+        SalesOrder o, EntityProvenance? p, CustomerReference? customer = null) => new(
         o.Id, o.CustomerId, o.ReferenceNumber, o.OrderDate, o.Status.ToString(),
         o.TotalAmount.MinorUnits, o.TotalAmount.CurrencyCode, o.TotalAmount.CurrencyMinorUnit,
         o.VoidReason,
@@ -234,7 +248,8 @@ public static class SaleEndpoints
             i.Quantity, i.QuantityBase,
             i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit)).ToList(),
         p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc,
-        p?.MadeOfficialAtUtc);
+        p?.MadeOfficialAtUtc,
+        customer?.Name);
 
     private static async Task<IResult> VoidSale(
         Guid id,
@@ -324,7 +339,11 @@ public sealed record SalesOrderResponse(
     string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc,
     // #494 — when the order was confirmed, i.e. when its stock was allocated.
     // Carried separately because a self-confirm is excluded from LastChanged*.
-    DateTimeOffset? MadeOfficialAtUtc);
+    DateTimeOffset? MadeOfficialAtUtc,
+    // #512 US4 — the customer's CURRENT name, additive, so a sales list row reads
+    // as a customer rather than an id. Null only when the customer is outside the
+    // caller's tenant.
+    string? CustomerName = null);
 
 public sealed record CreateSalesOrderRequest(Guid CustomerId, DateOnly OrderDate);
 

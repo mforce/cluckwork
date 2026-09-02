@@ -116,6 +116,10 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="gettingAroundWhereMessagesAppear" components={{ strong: <strong /> }} />
         </li>
+        <li>
+          {/* #512 — the shared searchable pickers (flock/customer name fields). */}
+          <Trans ns="help" i18nKey="gettingAroundSearchablePicker" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       <h3 id="signing-in">{t("signingInHeading")}</h3>
@@ -337,6 +341,7 @@ export function HelpPage() {
       <h3 id="sales">{t("salesHeading")}</h3>
       <ul>
         <li>{t("salesCustomerEdit")}</li>
+        <li>{t("salesCustomerLink")}</li>
         <li>
           <Trans ns="help" i18nKey="salesDrafts" components={{ strong: <strong /> }} />
         </li>
@@ -552,6 +557,9 @@ export function HelpPage() {
             <td>{t("glossaryNavigationDef")}</td></tr>
           <tr><th scope="row">{t("glossaryPageLoadingTerm")}</th>
             <td>{t("glossaryPageLoadingDef")}</td></tr>
+          {/* #512 — the shared searchable pickers (flock/customer name fields). */}
+          <tr><th scope="row">{t("glossarySearchablePickerTerm")}</th>
+            <td><Trans ns="help" i18nKey="glossarySearchablePickerDef" components={{ strong: <strong /> }} /></td></tr>
           <tr><th scope="row">{t("glossaryOperationalDayTerm")}</th>
             <td>{t("glossaryOperationalDayDef")}</td></tr>
           <tr><th scope="row">{t("glossaryInstallToHomeScreenTerm")}</th>

@@ -114,6 +114,7 @@ public static class ExpenseEndpoints
 
     private static async Task<IResult> ListExpenses(
         IExpenseRepository expenses,
+        Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
         IAccountRepository accounts,
         IAuditEventRepository audit,
         TenantContext tenant,
@@ -136,23 +137,33 @@ public static class ExpenseEndpoints
         var account = await accounts.GetCurrentAsync(ct);
         var provenance = await audit.GetProvenanceAsync(
             nameof(Expense), list.Select(e => e.Id).ToList(), ct);
+        // #512 T048 — one scoped bulk read for the page's flock references. A
+        // nullable reference needs the map, not a First(): a naive per-row
+        // projection throws on the (common) null-flock row, and a First() per row
+        // is the N+1 the contract forbids. Nulls are filtered before the read so a
+        // page of unattributed expenses costs no reference query at all.
+        var names = await flocks.GetDisplayNamesAsync(
+            list.Where(e => e.FlockId.HasValue).Select(e => e.FlockId!.Value).ToList(), ct);
 
         return Results.Ok(new ExpenseListResponse(
-            list.Select(e => ToResponse(e, provenance.GetValueOrDefault(e.Id))).ToList(),
+            list.Select(e => ToResponse(e, provenance.GetValueOrDefault(e.Id),
+                e.FlockId is null ? null : names.GetValueOrDefault(e.FlockId.Value)?.Name)).ToList(),
             total,
             account?.DefaultCurrencyCode ?? "",
             account?.DefaultCurrencyMinorUnit ?? 2));
     }
 
     private static async Task<IResult> GetExpense(
-        Guid id, IExpenseRepository expenses, IAuditEventRepository audit,
-        TenantContext tenant, CancellationToken ct)
+        Guid id, IExpenseRepository expenses,
+        Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
+        IAuditEventRepository audit, TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var expense = await expenses.GetByIdAsync(id, ct);
         if (expense is null) return Results.NotFound();
         var provenance = await audit.GetProvenanceAsync(nameof(Expense), [id], ct);
-        return Results.Ok(ToResponse(expense, provenance.GetValueOrDefault(id)));
+        return Results.Ok(ToResponse(expense, provenance.GetValueOrDefault(id),
+            await FlockNameAsync(flocks, expense.FlockId, ct)));
     }
 
     private static async Task<IResult> CreateExpense(
@@ -184,6 +195,7 @@ public static class ExpenseEndpoints
         AdjustExpenseHandler handler,
         IValidator<AdjustExpenseCommand> validator,
         IExpenseRepository expenses,
+        Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
         IAuditEventRepository audit,
         TenantContext tenant,
         CancellationToken ct)
@@ -207,7 +219,10 @@ public static class ExpenseEndpoints
         var updated = await expenses.GetByIdAsync(id, ct);
         if (updated is null) return Results.NotFound();
         var provenance = await audit.GetProvenanceAsync(nameof(Expense), [id], ct);
-        return Results.Ok(ToResponse(updated, provenance.GetValueOrDefault(id)));
+        // The corrected row is rebound by the SPA, so it carries the name too — a
+        // response missing it would put the edit form back on a nameless row.
+        return Results.Ok(ToResponse(updated, provenance.GetValueOrDefault(id),
+            await FlockNameAsync(flocks, updated.FlockId, ct)));
     }
 
     private static IResult MapFailure(Cluckwork.Domain.Common.Error error)
@@ -223,11 +238,28 @@ public static class ExpenseEndpoints
     private static ExpenseCategoryResponse ToResponse(ExpenseCategory c) =>
         new(c.Id, c.FarmId, c.Name, c.Active);
 
-    private static ExpenseResponse ToResponse(Expense e, EntityProvenance? p) =>
+    // FlockName is null for BOTH "this expense is not flock-attributed" (FlockId
+    // null) and "the flock left the caller's scope". The first is the common case
+    // and the contract's null; the second is unreachable on a scoped route and
+    // guarded rather than assumed.
+    // A detail row is a page of one. Null flock id means "not flock-attributed"
+    // and costs no query at all; a set of one keeps the same read as the list
+    // route so the two can never answer differently.
+    private static async Task<string?> FlockNameAsync(
+        Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
+        Guid? flockId, CancellationToken ct) =>
+        flockId is null
+            ? null
+            : (await flocks.GetDisplayNamesAsync([flockId.Value], ct))
+                .GetValueOrDefault(flockId.Value)?.Name;
+
+    private static ExpenseResponse ToResponse(
+        Expense e, EntityProvenance? p, string? flockName = null) =>
         new(e.Id, e.FarmId, e.ExpenseCategoryId, e.Date, e.Description,
             e.AmountMinorUnits, e.CurrencyCode, e.CurrencyMinorUnit,
             e.FlockId, e.Note, e.Version,
-            p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc);
+            p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc,
+            flockName);
 }
 
 public sealed record ExpenseCategoryResponse(Guid Id, Guid FarmId, string Name, bool Active);
@@ -241,7 +273,10 @@ public sealed record ExpenseResponse(
     // #494 provenance, derived from the audit trail: null together for a
     // record created before that shipped (no backfill).
     string? CreatedByEmail, DateTimeOffset? CreatedAtUtc,
-    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc);
+    string? LastChangedByEmail, DateTimeOffset? LastChangedAtUtc,
+    // #512 US4 — CURRENT flock name for a flock-attributed expense; null when the
+    // expense is not flock-attributed. Additive.
+    string? FlockName = null);
 
 public sealed record ExpenseListResponse(
     List<ExpenseResponse> Items, long TotalMinorUnits, string CurrencyCode, int CurrencyMinorUnit);

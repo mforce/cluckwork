@@ -242,7 +242,8 @@ public static class InventoryEndpoints
     }
 
     private static async Task<IResult> ListFeedUsage(
-        IFeedUsageRepository usages, TenantContext tenant, CancellationToken ct,
+        IFeedUsageRepository usages, Cluckwork.Application.Features.Flocks.IFlockRepository flocks,
+        TenantContext tenant, CancellationToken ct,
         Guid? flockId = null, DateOnly? from = null, DateOnly? to = null,
         int? limit = null, int? offset = null)
     {
@@ -250,10 +251,13 @@ public static class InventoryEndpoints
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
         var list = await usages.ListAsync(flockId, from, to, take, skip, ct);
+        // #512 T046 — one scoped bulk flock read for the page. Null name only if
+        // the flock left the caller's scope; never an id fragment.
+        var names = await flocks.GetDisplayNamesAsync(list.Select(u => u.FlockId).ToList(), ct);
         return Results.Ok(list.Select(u => new FeedUsageResponse(
             u.Id, u.FlockId, u.InventoryItemId, u.Date, u.Quantity, u.Unit,
             u.EstimatedCost.MinorUnits, u.EstimatedCost.CurrencyCode, u.EstimatedCost.CurrencyMinorUnit,
-            u.Note, u.DailyEntryId)));
+            u.Note, u.DailyEntryId, names.GetValueOrDefault(u.FlockId)?.Name)));
     }
 
     private static IResult MapFailure(Cluckwork.Domain.Common.Error error)
@@ -306,7 +310,9 @@ public sealed record RecordAdjustmentRequest(
 // DailyEntryId (#446): the non-voided daily entry that existed for the
 // flock's (farm, house, flock, date) when the row was recorded — best-effort
 // provenance, null when the day's entry didn't exist yet, never backfilled.
+// FlockName (#512 US4): the flock's CURRENT name for this usage row, additive.
+// Null only when the flock is outside the caller's scope.
 public sealed record FeedUsageResponse(
     Guid Id, Guid FlockId, Guid InventoryItemId, DateOnly Date, decimal Quantity, string Unit,
     long EstimatedCostMinorUnits, string CurrencyCode, int CurrencyMinorUnit, string? Note,
-    Guid? DailyEntryId);
+    Guid? DailyEntryId, string? FlockName = null);

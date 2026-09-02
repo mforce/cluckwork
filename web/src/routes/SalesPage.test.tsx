@@ -37,7 +37,9 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     voidOrder: vi.fn(),
     recordPayment: vi.fn(),
     voidPayment: vi.fn(),
-  };
+    getFlock: vi.fn(),
+  getCustomer: vi.fn(),
+};
 });
 
 const mockListCustomers = vi.mocked(listCustomers);
@@ -74,7 +76,7 @@ const PRODUCT_B: Product = {
 function draftEmpty(currencyMinorUnit: number, currencyCode: string, id = "o1"): SalesOrder {
   return {
     ...NO_RECORD_HISTORY,
-    id, customerId: "c1", referenceNumber: "SO-1", orderDate: "2026-07-20",
+    id, customerId: "c1", customerName: "Acme Eggs", referenceNumber: "SO-1", orderDate: "2026-07-20",
     status: "Draft", totalMinorUnits: 0, currencyCode, currencyMinorUnit, voidReason: null, items: [],
   };
 }
@@ -1041,6 +1043,24 @@ describe("SalesPage audit history link (#493)", () => {
     renderWithProviders(<SalesPage />, { token: { sub: "u1", role: "Sales" } });
     await screen.findByRole("row", { name: /SO-2/ });
     expect(screen.queryByRole("link", { name: "Audit history" })).not.toBeInTheDocument();
+  });
+});
+
+// #512 US4 (T043/T052) — an order row's own customerName is null (the
+// customer left the caller's tenant scope between reads), even though the
+// SAME id is present in the page's own capped customer catalog under a
+// DIFFERENT-looking name. The row must show the translated unavailable
+// label, never that catalog substitution and never a raw id fragment.
+describe("SalesPage row-owned customer name (#512 US4)", () => {
+  it("a row whose own customerName is null shows the translated unavailable label — never the catalog's name for that id, never an id fragment", async () => {
+    const GONE: SalesOrder = { ...DRAFT_TWO, id: "o-gone", customerName: null };
+    mockListOrders.mockResolvedValue([GONE]);
+    await renderReady();
+
+    const row = screen.getByRole("row", { name: /SO-2/ });
+    expect(within(row).getByText(i18n.t("sales:rowCustomerUnavailable"))).toBeInTheDocument();
+    expect(within(row).queryByText("Acme Eggs")).not.toBeInTheDocument();
+    expect(within(row).queryByText("c1")).not.toBeInTheDocument();
   });
 });
 

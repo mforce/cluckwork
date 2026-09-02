@@ -12,6 +12,8 @@ import type { Customer, EggUnitConversion, OrderPayments, Product, SalesOrder } 
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
+import { CustomerPicker } from "../components/CustomerPicker";
+import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { NumberField } from "../components/NumberField";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -98,8 +100,27 @@ export function SalesPage() {
   // draft panel IS the work surface.
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [paying, setPaying] = useState(false);
-  const [customerId, setCustomerId] = useState("");
   const [orderDate, setOrderDate] = useState(today);
+  // #512 (T039) — the new-order customer is committed through CustomerPicker.
+  // `customer` is the page-controlled committed entity; bumping
+  // `customerGen` makes the engine re-sync its committed state (the explicit
+  // first-customer default, a genuine pick, or a clear) so an Escape or later
+  // exploration can never resurrect a stale id. `customerSnapshot.canSubmit`
+  // gates BOTH the visible create control AND the create handler — a
+  // disabled button alone is not the write-safety boundary. INITIAL STATE:
+  // `canSubmit: false` — the dialog is inert until the engine's first
+  // snapshot (or the mount-time default's controlled generation) commits an
+  // entity, so a click in the brief pre-snapshot window ships nothing.
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customerGen, setCustomerGen] = useState(0);
+  const [customerSnapshot, setCustomerSnapshot] = useState<PickerSnapshot<Customer>>({
+    committed: null, selectionPhase: "uninitialized", exploring: false, canSubmit: false,
+  });
+  // The dialog's picker is open-driven like the dialog's own focus: while the
+  // dialog is up the picker is live (discovery + the requestedId seam for an
+  // out-of-window external id); on close the form unmounts, so nothing
+  // lingers (US3, same contract as the Expenses edit picker).
+
   // active draft being built
   const [active, setActive] = useState<SalesOrder | null>(null);
   const [productId, setProductId] = useState("");
@@ -172,7 +193,14 @@ export function SalesPage() {
   const [payRef, setPayRef] = useState("");
   const [payNote, setPayNote] = useState("");
 
-  const customerName = (id: string) => customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
+  // #512 US4 (T048/T052) — an order's own name, independent of the picker's
+  // capped customer list: the row-owned `customerName` the endpoint's scoped
+  // bulk read already resolved, or the translated unavailable label. Never
+  // the catalog `customers` list and never an id fragment
+  // (contracts/http-api.md: "Required names are never replaced with
+  // identifier fragments").
+  const rowCustomerName = (o: { customerName?: string | null }) =>
+    o.customerName ?? t("rowCustomerUnavailable");
   const productName = (id: string) => allProducts.find((p) => p.id === id)?.name ?? id.slice(0, 8);
 
   // #445 — eggs per PACKED selling unit. null when no active definition
@@ -234,7 +262,16 @@ export function SalesPage() {
         const sellable = p.filter(
           (x) => x.active && x.eggGradeId !== null && saleableGrades.has(x.eggGradeId));
         setProducts(sellable);
-        if (c.length > 0) setCustomerId(c[0].id);
+        if (c.length > 0) {
+          // #512 (T039) — the explicit first-customer default (FR-037): the
+          // exact first customer from the page's own read, committed through
+          // a controlled generation the moment the setup read settles. The
+          // engine admits an entity it already knows as-is (no spurious
+          // exact GET), and the create handler ships `customer.id` — never a
+          // raw id the picker has not committed.
+          setCustomer(c[0]);
+          setCustomerGen((g) => g + 1);
+        }
         if (sellable.length > 0) {
           const first = sellable[0];
           setProductId(first.id);
@@ -368,10 +405,14 @@ export function SalesPage() {
   const closePayment = () => dismiss("record-payment", setPaying);
 
   const onCreateOrder = () => run("create-order", async () => {
+    // #512 (T039) — the handler's own guard: canSubmit is the write-safety
+    // boundary (a disabled button alone is not). An exploring/uninitialized
+    // or unavailable picker must not ship a stale committed id.
+    if (!customer || !customerSnapshot.canSubmit) return;
     // runWrite claims the list ticket before the POST, so a filter change
     // made while it is in flight keeps the view (#469).
     await orders.runWrite(async () => {
-      const created = await createOrder({ customerId, orderDate }, keyFor("create-order"));
+      const created = await createOrder({ customerId: customer.id, orderDate }, keyFor("create-order"));
       setActive(await getOrder(created.id));
     });
     clearKey("create-order");
@@ -608,11 +649,33 @@ export function SalesPage() {
           screen's own money messages (codex review of #132). */}
       <Dialog open={creatingOrder} title={t("newOrder")} onClose={closeNewOrder}>
         <div className="form-grid">
-          <label>{t("customer")}
-            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
+          <CustomerPicker
+            label={t("customer")}
+            required
+            // #512 (T039) — the picker's discovery is open-driven: the engine
+            // discovers only while `open`, and this dialog's picker never
+            // toggles its own open state (the dialog owns focus and
+            // dismissal). So it rides the dialog: while the dialog is up the
+            // picker is live (discovery + the exact-read seam for an
+            // out-of-window external id); on close the form unmounts, so
+            // nothing lingers (US3, same contract as the Expenses edit
+            // picker).
+            open={true}
+            controlledCommitted={customer}
+            controlledGeneration={customerGen}
+            onSnapshot={setCustomerSnapshot}
+            onCommit={(c) => {
+              setCustomer(c);
+              setCustomerGen((g) => g + 1);
+            }}
+            onEscape={() => {}}
+            onOutsideClick={() => {}}
+            trigger={
+              <span className="named-picker-trigger">
+                {customer ? customer.name : t("pickCustomerOption")}
+              </span>
+            }
+          />
           <label>{t("date")}
             <input type="date" value={orderDate} max={today}
               onChange={(e) => setOrderDate(e.target.value)} />
@@ -627,7 +690,8 @@ export function SalesPage() {
           <DialogError errors={errors} scope="create-order" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeNewOrder}>{tc("cancel")}</button>
-            <BusyButton disabled={busy || !customerId} busy={isPending("create-order")}
+            <BusyButton disabled={busy || !customer || !customerSnapshot.canSubmit}
+              busy={isPending("create-order")}
               onClick={onCreateOrder}>{t("newDraftOrder")}</BusyButton>
           </div>
         </div>
@@ -636,7 +700,7 @@ export function SalesPage() {
       {active && (
         <div className="order-panel">
           <h3>
-            {active.referenceNumber} — {customerName(active.customerId)}{" "}
+            {active.referenceNumber} — {rowCustomerName(active)}{" "}
             <span className={active.status === "Draft" ? "muted" : "warn"}>
               [{statusLabel(active.status)}]
             </span>
@@ -935,7 +999,7 @@ export function SalesPage() {
                 <tr key={o.id}>
                   <td>{o.referenceNumber}</td>
                   <td>{o.orderDate}</td>
-                  <td>{customerName(o.customerId)}</td>
+                  <td>{rowCustomerName(o)}</td>
                   <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
                   <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   <ProvenanceCell history={o} official="confirmed" />

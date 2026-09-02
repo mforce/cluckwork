@@ -235,6 +235,19 @@ export const es = {
     reloading: "Recargando…",
     later: "Más tarde",
   },
+  namedEntityPicker: {
+    loadMore: "Cargar más",
+    loading: "Cargando…",
+    noResults: "No hay coincidencias",
+    clear: "Borrar",
+    // #512 US3 — recuperación y anuncios de estado (picker-ui.md).
+    retry: "Reintentar",
+    unavailable: "No disponible",
+    unavailableExplanation: "Este registro ya no está disponible.",
+    searchFailed: "La búsqueda falló",
+    loadMoreFailed: "Falló la carga adicional",
+    results: "{{count}} resultados",
+  },
   splash: {
     continue: "Continuar",
     bannerAlt: "Banner de {{farmName}}",
@@ -322,6 +335,9 @@ export const es = {
 
     // Misc UI text
     addCustomerFirst: "Agregue un cliente primero (Customers page) y luego cree un pedido.",
+    // #512 (T039)
+    pickCustomerOption: "— elija un cliente —",
+    rowCustomerUnavailable: "Este cliente ya no está disponible.",
     // #612
     farmWideAllocationNotice:
       "Este ajuste de la granja permite que tus confirmaciones de venta "
@@ -392,6 +408,8 @@ export const es = {
     // Flock + date context row
     flockLabel: "Lote",
     noFlocksYetOption: "— aún no hay lotes —",
+    // #512 — trigger cerrado del FlockPicker antes del valor por defecto.
+    selectFlockOption: "Seleccionar lote",
     depletedFlockSuffix: " — agotado, solo para registrar fechas pasadas",
     dateLabel: "Fecha",
     newFlockButton: "+ nuevo lote",
@@ -520,6 +538,7 @@ export const es = {
     refHeader: "Ref.",
     customerHeader: "Cliente",
     totalHeader: "Total",
+    rowCustomerUnavailable: "Este cliente ya no está disponible.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
@@ -537,6 +556,8 @@ export const es = {
       "Registre lo que se alimentó a cada parvada. El inventario se descuenta "
       + "de las compras más antiguas primero y el costo estimado proviene de esos lotes.",
     flockLabel: "Parvada",
+    // #512 — trigger cerrado del FlockPicker antes del valor por defecto.
+    selectFlockOption: "Seleccionar parvada",
     depletedFlockSuffix: " — agotada, solo registro retroactivo",
     itemLabel: "Artículo",
     itemOption: "{{name}} ({{onHand}} {{unit}} disponibles)",
@@ -551,6 +572,11 @@ export const es = {
       "Una alimentación mal ingresada se corrige con un ajuste de Inventario en el "
       + "lote afectado — los registros de alimento nunca se editan.",
     filterFlockLabel: "Filtrar por parvada",
+    // #512 T038 — la identidad de la fila no se pudo resolver; el filtro se
+    // mantiene EXACTO (nunca se sustituye) y el reintento reemite solo el GET.
+    filterFlockUnavailable:
+      "La parvada registrada en estos registros ya no está disponible.",
+    rowFlockUnavailable: "Esta parvada ya no está disponible.",
     inactiveItemSuffix: " — inactivo, consumiendo existencias restantes",
     inactiveEmptyItemSuffix: " — inactivo, sin existencias",
     recordsHeading: "Registros",
@@ -582,6 +608,7 @@ export const es = {
 
     // Capture form labels
     flockLabel: "Lote",
+    selectFlockOption: "Seleccionar lote",
     depletedFlockSuffix: " — agotado, solo para registrar fechas pasadas",
     dateLabel: "Fecha",
     sourceLabel: "Fuente",
@@ -606,6 +633,10 @@ export const es = {
     recordCorrectedMessage: "Registro de agua corregido.",
 
     // Records list — filters
+    filterFlockLabel: "Filtrar por lote",
+    filterFlockUnavailable:
+      "El lote registrado en estos registros ya no está disponible.",
+    rowFlockUnavailable: "Este lote ya no está disponible.",
     recordsHeading: "Registros",
     fromLabel: "Desde",
     toLabel: "Hasta",
@@ -1191,6 +1222,8 @@ export const es = {
     noAssignmentsMessage: "Sin asignaciones — acceso a toda la cuenta.",
     removeAssignmentButton: "quitar",
     assignFlockButton: "Asignar lote",
+    flockLabel: "Lote",
+    selectFlockOption: "Seleccionar lote",
     doneButton: "Listo",
     // #612
     retainedAssignmentsHint:
@@ -1198,6 +1231,8 @@ export const es = {
       + "asignaciones de lote retenidas no afectan su acceso. Aún pueden quitarse.",
     inactiveAssignmentLabel: "inactivo",
     assignmentsWorkerOnlyHint: "Las asignaciones de lote solo aplican a un Trabajador sencillo.",
+    farmWideAssignmentLabel: "toda la granja",
+    assignmentFlockUnavailable: "Este lote ya no está disponible.",
 
     // Edit-user dialog
     editUserTitle: "Editar usuario — {{email}}",
@@ -1301,6 +1336,9 @@ export const es = {
     amountLabel: "Monto ({{code}})",
     flockOptionalLabel: "Lote (opcional)",
     noneOption: "— ninguno —",
+    // #512 T038 — the row-owned flock's exact read failed (machine draft,
+    // pending native review).
+    flockUnavailable: "El lote de este gasto ya no está disponible.",
     noteOptionalLabel: "Nota (opcional)",
     recordExpenseButton: "Registrar gasto",
     addCategoryFirstMessage: "Agregue una categoría primero — todo gasto necesita una.",
@@ -1405,6 +1443,7 @@ export const es = {
     allFlocksOption: "Todos los lotes",
     fromLabel: "Desde",
     toLabel: "Hasta",
+    rowFlockUnavailable: "Este lote ya no está disponible.",
 
     // Adjust dialog
     adjustDialogTitle: "Ajustar entrada",
@@ -1800,6 +1839,14 @@ export const es = {
       + "fue la pantalla misma — una lista que no cargó, por ejemplo — aparece en la pantalla de atrás. Así, "
       + "un formulario que se niega a guardar siempre le dice por qué sin cerrarse. Al cerrar el formulario se "
       + "descarta su mensaje: ese intento terminó, y lo que informó la pantalla misma se queda.",
+    gettingAroundSearchablePicker:
+      "Los campos de nombre de parvada y de cliente son <strong>selectores de búsqueda</strong>: escriba para "
+      + "buscar, use las flechas del teclado o el puntero para explorar los resultados, y presione "
+      + "<strong>Entrar</strong> o haga clic en un resultado para elegirlo. Escribir solo explora: su elección "
+      + "anterior sigue vigente hasta que elija una nueva o presione <strong>Escape</strong> para cancelar. "
+      + "Una lista larga muestra <strong>Cargar más</strong>; una búsqueda o Cargar más que falle muestra "
+      + "<strong>Reintentar</strong>. Si un nombre recordado o enlazado ya no se puede encontrar, el campo "
+      + "muestra <strong>No disponible</strong> con Reintentar.",
 
     signingInHeading: "Iniciar sesión",
     signingInBasic:
@@ -2139,6 +2186,9 @@ export const es = {
     salesCustomerEdit:
       "Los datos de un cliente (nombre, teléfono, correo electrónico, dirección, nota) se pueden editar en "
       + "cualquier momento desde la página Clientes.",
+    salesCustomerLink:
+      "El nombre de un cliente en la página Clientes y en el panel es un enlace a Ventas, filtrado a los "
+      + "pedidos de ese cliente.",
     salesDrafts:
       "Los pedidos comienzan como <strong>borradores</strong>: agregue líneas eligiendo un "
       + "<strong>producto</strong>, una unidad empacada (docena, cartón, …), una cantidad entera, y un "
@@ -2482,6 +2532,15 @@ export const es = {
     glossaryPageLoadingTerm: "Carga de página",
     glossaryPageLoadingDef:
       "El breve mensaje que aparece mientras Cluckwork abre una pantalla que aún no se ha cargado. La navegación sigue disponible y el mensaje desaparece cuando la pantalla está lista.",
+
+    glossarySearchablePickerTerm: "Selector de búsqueda",
+    glossarySearchablePickerDef:
+      "El control de escribir-para-buscar que se usa en los campos de nombre de parvada y de cliente. "
+      + "Escribir explora resultados sin cambiar su elección actual; presione <strong>Entrar</strong> o haga "
+      + "clic en un resultado para elegirlo, o <strong>Escape</strong> para cancelar y conservar la elección "
+      + "anterior. <strong>Cargar más</strong> obtiene más resultados, y <strong>Reintentar</strong> repite "
+      + "una búsqueda o Cargar más que haya fallado. Un nombre recordado o enlazado que ya no se puede "
+      + "encontrar se muestra como <strong>No disponible</strong>.",
 
     glossaryOperationalDayTerm: "Día operativo",
     glossaryOperationalDayDef:

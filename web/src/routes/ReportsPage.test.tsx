@@ -24,7 +24,9 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     getSalesSummary: vi.fn(),
     getExpenseSummary: vi.fn(),
     getProfitReport: vi.fn(),
-  };
+    getFlock: vi.fn(),
+  getCustomer: vi.fn(),
+};
 });
 
 const mockGetProductionReport = vi.mocked(getProductionReport);

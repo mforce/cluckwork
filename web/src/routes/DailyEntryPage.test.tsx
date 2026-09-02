@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router";
 import { DailyEntryPage } from "./DailyEntryPage";
 import {
   listFlocks, listEggGrades, listEggUnitConversions, listDailyEntries, createFlock,
-  listFeedUsage, listWaterUsage, recordDailyEntry, submitDailyEntry,
+  listFeedUsage, listWaterUsage, recordDailyEntry, submitDailyEntry, getFlock,
 } from "../api/cluckwork";
 import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
@@ -43,7 +43,9 @@ vi.mock("../api/cluckwork", async (importOriginal) => {
     recordDailyEntry: vi.fn(),
     submitDailyEntry: vi.fn(),
     createFlock: vi.fn(),
-  };
+    getFlock: vi.fn(),
+  getCustomer: vi.fn(),
+};
 });
 
 const mockListFlocks = vi.mocked(listFlocks);
@@ -78,7 +80,22 @@ beforeEach(() => {
   // resets it, so a bind leaks into later tests. Clear it so each test is unbound.
   clearBoundAccount();
   localStorage.clear();
-  mockListFlocks.mockResolvedValue([FLOCK]);
+  // #512 — the FlockPicker's discovery uses the SAME listFlocks seam (typed
+  // eligibility query). The default fixture serves the capturable list for any
+  // eligibility; a test that cares about eligibility-specific behavior
+  // overrides with its own implementation. The page's own initial load calls
+  // listFlocks() with NO params — the default must serve the full list for
+  // that call too, or the page's loadFlocksGradesFailed error path fires and
+  // the whole screen is blocked. The picker's own discovery passes `search`
+  // (possibly null/undefined) AND `eligibility`; the default serves the
+  // fixture list for both the page's bare call and the picker's typed call.
+  mockListFlocks.mockImplementation(
+    async (p?: { search?: string | null; eligibility?: string; limit?: number; offset?: number }) =>
+      [FLOCK].slice(p?.offset ?? 0, (p?.offset ?? 0) + (p?.limit ?? 50)),
+  );
+  // #512 (T038) — the picker's exact-identity read. Default: resolve the
+  // fixture flock; tests that care about unavailable/404 override.
+  vi.mocked(getFlock).mockImplementation(async () => FLOCK);
   mockListEggGrades.mockResolvedValue(GRADES);
   // #444 — the seeded defaults every real account carries; Individual keeps
   // every pre-existing test's +1/-1 stepper arithmetic unchanged.
@@ -118,8 +135,13 @@ async function renderReady(isAdmin?: boolean) {
   if (isAdmin !== undefined) auth.isAdmin = isAdmin;
   render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
   await screen.findByLabelText("Grade A"); // mount load done, grades rendered
-  // wait out the prefill fetch (it gates the save buttons via prefillPending)
-  await waitFor(() => expect(saveDraftBtn()).toBeEnabled());
+  // wait out the prefill fetch (it gates the save buttons via prefillPending).
+  // #512 — the save button is ALSO gated on the picker's canSubmit; the
+  // controlled sync (mount-time default) commits the flock and the snapshot
+  // effect fires, flipping canSubmit to true. A generous timeout absorbs the
+  // picker's own discovery round-trip (a single listFocks call for the
+  // trigger's initial state).
+  await waitFor(() => expect(saveDraftBtn()).toBeEnabled(), { timeout: 5000 });
   expect(mockListDailyEntries).toHaveBeenCalled(); // prefill really ran
 }
 
@@ -330,7 +352,11 @@ describe("DailyEntryPage new-flock dialog", () => {
     const CREATED: Flock = { ...FLOCK, id: "f2", name: "Rhode Reds", breed: "Rhode Island Red" };
     await renderReady();
     // the refresh after the create must return the new flock so it can be selected
-    mockListFlocks.mockResolvedValue([FLOCK, CREATED]);
+    mockListFlocks.mockImplementation(
+      async (p?: { search?: string | null; eligibility?: string; limit?: number; offset?: number }) =>
+        [FLOCK, CREATED].slice(p?.offset ?? 0, (p?.offset ?? 0) + (p?.limit ?? 50)),
+    );
+    vi.mocked(getFlock).mockImplementation(async (id: string) => id === "f2" ? CREATED : FLOCK);
     openNewFlock();
 
     // every field off its default (placed = today, birds = 100, name/breed = "")
@@ -348,8 +374,12 @@ describe("DailyEntryPage new-flock dialog", () => {
     });
     expect(mockCreateFlock.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
-    // the freshly created flock becomes the capture target
-    expect(screen.getByLabelText("Flock")).toHaveValue("f2");
+    // the freshly created flock becomes the capture target — the trigger
+    // shows the EXACT created entity's name (T036 created-ID retention).
+    // #512 — the picker's closed-state trigger is a button, not a select, so
+    // the assertion is on the button's accessible name (the committed flock's
+    // name + breed), not on a select's value.
+    expect(screen.getByRole("button", { name: /Rhode Reds \(Rhode Island Red\)/ })).toBeInTheDocument();
   });
 
   it("creates exactly one flock when double-submitted mid-flight (#236 — this form had no guard)", async () => {
@@ -374,6 +404,57 @@ describe("DailyEntryPage new-flock dialog", () => {
     await act(async () => resolveCreate({ id: "f2" }));
     expect(mockCreateFlock).toHaveBeenCalledTimes(1); // still exactly one after settle
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // the one create succeeded
+  });
+
+  // #512 (T036) — the POST already returns the full typed entity. A failure
+  // in the UNRELATED background refresh (the picker's own eligible-list
+  // reload) must never block committing what the API just created, and must
+  // never tempt a second POST — the create succeeded and stays succeeded.
+  // #512 (T036) — createFlock's response is `Created` ({ id }) only, so the
+  // page cannot fabricate the full entity; hydration is a REAL exact GET
+  // (FlockPicker's requestedId path), and a failed GET must recover through
+  // the picker's own built-in unavailable/Retry — never a second POST.
+  it("hydrates the created flock via a real GET; a failed GET recovers via the picker's own GET-only Retry, never repeating the POST", async () => {
+    mockCreateFlock.mockResolvedValue({ id: "f2" });
+    const CREATED: Flock = { ...FLOCK, id: "f2", name: "Rhode Reds", breed: "Rhode Island Red" };
+    await renderReady();
+    // The exact GET for the just-created id fails once, then succeeds.
+    vi.mocked(getFlock).mockImplementation(async (id: string) => {
+      if (id !== "f2") return FLOCK;
+      throw new Error("network");
+    });
+    openNewFlock();
+
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Rhode Reds" } });
+    fireEvent.change(within(dialog()).getByLabelText("Breed"), { target: { value: "Rhode Island Red" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Create flock" }));
+    });
+
+    expect(mockCreateFlock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    expect(vi.mocked(getFlock)).toHaveBeenCalledWith("f2"); // real exact GET, id-only response can't fabricate the entity
+
+    // Open the picker: the failed GET left it unavailable, with the
+    // engine's own Retry (never the page's).
+    const selectOption = i18n.t("dailyEntry:selectFlockOption");
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(selectOption) }));
+    const unavailableLabel = i18n.t("namedEntityPicker:unavailable");
+    await screen.findByText(new RegExp(unavailableLabel));
+
+    // Retry re-issues ONLY the GET; the create POST is never repeated.
+    vi.mocked(getFlock).mockImplementation(async (id: string) => id === "f2" ? CREATED : FLOCK);
+    const retryLabel = i18n.t("namedEntityPicker:retry");
+    fireEvent.click(screen.getByRole("button", { name: retryLabel }));
+
+    await waitFor(() => expect(vi.mocked(getFlock)).toHaveBeenCalledTimes(2));
+    expect(mockCreateFlock).toHaveBeenCalledTimes(1); // still exactly one
+
+    const input = screen.getByRole("combobox");
+    fireEvent.keyDown(input, { key: "Escape" });
+    // Committed, from the resolved GET — the trigger, which reads pickerFlock
+    // directly, shows the recovered entity's name+breed.
+    expect(screen.getByRole("button", { name: /Rhode Reds \(Rhode Island Red\)/ })).toBeInTheDocument();
   });
 
   it("closes on Cancel without creating anything", async () => {
@@ -826,15 +907,26 @@ describe("DailyEntryPage assign the remainder", () => {
   // check can be walked around — one runtime test per picker, so neither rests
   // on the other (#403 round 5).
   it("drops the row targets in the same render as a change of flock", async () => {
-    mockListFlocks.mockResolvedValue([FLOCK, { ...FLOCK, id: "f2", name: "Second Coop" }]);
+    const FLOCK2 = { ...FLOCK, id: "f2", name: "Second Coop" };
+    mockListFlocks.mockImplementation(
+      async (p?: { search?: string | null; eligibility?: string; limit?: number; offset?: number }) =>
+        [FLOCK, FLOCK2].slice(p?.offset ?? 0, (p?.offset ?? 0) + (p?.limit ?? 50)),
+    );
+    vi.mocked(getFlock).mockImplementation(async (id: string) => id === "f2" ? FLOCK2 : FLOCK);
     await readyWithRemainder();
     fireEvent.click(arm());
     expect(screen.getByRole("button", { name: "Put all 60 remaining in Grade A" })).toBeInTheDocument();
 
-    const picker = screen.getByLabelText("Flock") as HTMLSelectElement;
-    const setValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
-    setValue.call(picker, "f2");
-    picker.dispatchEvent(new Event("change", { bubbles: true }));
+    // #512 — the flock picker is now a FlockPicker, not a native select. The
+    // trigger opens the picker; the user picks an option; the picker commits.
+    // The disarm must land in the SAME render as the commit (the picker's
+    // onCommit is routed through retarget, so the disarm is synchronous).
+    // The picker's discovery is async (a listFocks call), so the option is
+    // not in the DOM until the discovery resolves. Wait for it.
+    const trigger = screen.getByRole("button", { name: /Hen House 1/ });
+    fireEvent.click(trigger);
+    const option = await screen.findByRole("option", { name: /Second Coop/ });
+    fireEvent.click(option);
 
     expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
     expect(document.querySelector(".entry-row.taking")).toBeNull();
@@ -850,7 +942,11 @@ describe("DailyEntryPage assign the remainder", () => {
     fireEvent.click(arm());
     expect(screen.getByRole("button", { name: "Put all 60 remaining in Grade A" })).toBeInTheDocument();
 
-    mockListFlocks.mockResolvedValue([FLOCK, { ...FLOCK, id: "f2", name: "Rhode Reds" }]);
+    const CREATED = { ...FLOCK, id: "f2", name: "Rhode Reds" };
+    mockListFlocks.mockResolvedValue([FLOCK, CREATED]);
+    // #512 (T036) — createFlock returns { id } only; the trigger's name comes
+    // from the picker's own exact GET for the created id, not this list.
+    vi.mocked(getFlock).mockImplementation(async (id: string) => id === "f2" ? CREATED : FLOCK);
     fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
     const dlg = screen.getByRole("dialog");
     fireEvent.change(within(dlg).getByLabelText("Name"), { target: { value: "Rhode Reds" } });
@@ -859,7 +955,9 @@ describe("DailyEntryPage assign the remainder", () => {
       fireEvent.click(within(dlg).getByRole("button", { name: "Create flock" }));
     });
 
-    expect(screen.getByLabelText("Flock")).toHaveValue("f2");
+    // #512 — the picker's trigger shows the EXACT created entity's name,
+    // hydrated via the picker's own exact GET (fixture breed ISA).
+    await waitFor(() => expect(screen.getByRole("button", { name: /Rhode Reds \(ISA\)/ })).toBeInTheDocument());
     expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
   });
 
@@ -884,13 +982,22 @@ describe("DailyEntryPage assign the remainder", () => {
 
     // Every call site, in or out of an effect. The mount path cannot be armed
     // yet, but it is routed anyway so the rule has no exceptions to remember.
+    // #512 — the picker's onCommit is one of those call sites; it is routed
+    // through retarget so the disarm lands in the same event as the commit.
     for (const setter of ["setFlockId", "setDate"]) {
       const calls = [...source.matchAll(new RegExp(`${setter}\\(`, "g"))];
       expect(calls.length, `${setter} call sites`).toBeGreaterThan(0);
       for (const call of calls) {
-        const before = source.slice(Math.max(0, call.index - 40), call.index);
+        // #512 — the picker's onCommit is a multi-line arrow
+        // (retarget(() => { setFlockId(...); setPickerFlock(...); ... })),
+        // so the 60-char prefix shows `retarget(() => {` but NOT the trailing
+        // `setFlockId(` on the same line. The rule is still "inside
+        // retarget(...)" — the prefix just needs to END with the retarget
+        // opener. Accept `retarget(() => ` (single line) or `retarget(() => {`
+        // (multi-line block) as the prefix's tail.
+        const before = source.slice(Math.max(0, call.index - 60), call.index);
         expect(before, `${setter} at index ${call.index} must be inside retarget(...)`)
-          .toMatch(/retarget\(\(\) =>\s*$/);
+          .toMatch(/retarget\(\(\) =>\s*(\{|$)/);
       }
     }
 
@@ -1188,10 +1295,11 @@ describe("DailyEntryPage feed/water day summary (#446)", () => {
     id: "fu1", flockId: "f1", inventoryItemId: "i1", date: todayIso(),
     quantity: 18, unit: "kg", estimatedCostMinorUnits: 45_000,
     currencyCode: "USD", currencyMinorUnit: 2, note: null, dailyEntryId: null,
+    flockName: "Hen House 1",
     ...over,
   });
   const waterRow = (over: object = {}) => ({
-    id: "wu1", flockId: "f1", date: todayIso(), quantity: 250, unit: "L",
+    id: "wu1", flockId: "f1", flockName: "Flock 1", date: todayIso(), quantity: 250, unit: "L",
     source: "Well", meterStart: null, meterEnd: null, note: null, version: 1,
     dailyEntryId: null,
     ...over,
@@ -1263,7 +1371,11 @@ describe("DailyEntryPage account-scoped flock memory", () => {
 
   it("reads the namespaced key, never the bare key, and writes the namespaced key when a flock is chosen", async () => {
     bindAccount(GUID);
-    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
+    mockListFlocks.mockImplementation(
+      async (p?: { search?: string | null; eligibility?: string; limit?: number; offset?: number }) =>
+        [FLOCK, FLOCK2].slice(p?.offset ?? 0, (p?.offset ?? 0) + (p?.limit ?? 50)),
+    );
+    vi.mocked(getFlock).mockImplementation(async (id: string) => id === "f2" ? FLOCK2 : FLOCK);
     const getSpy = vi.spyOn(Storage.prototype, "getItem");
 
     await renderReady();
@@ -1273,8 +1385,14 @@ describe("DailyEntryPage account-scoped flock memory", () => {
     const bareReads = getSpy.mock.calls.filter(([k]) => k === "cluckwork.lastFlockId");
     expect(bareReads).toHaveLength(0);
 
-    // selecting a flock writes the NAMESPACED key (not the bare one)
-    fireEvent.change(screen.getByLabelText("Flock"), { target: { value: "f2" } });
+    // selecting a flock writes the NAMESPACED key (not the bare one).
+    // #512 — the picker's open state is page-owned; the trigger opens it,
+    // the user picks an option, and the picker commits. The picker's
+    // discovery is async, so the option is not in the DOM until the
+    // listFocks call resolves.
+    fireEvent.click(screen.getByRole("button", { name: /Hen House 1/ }));
+    const option = await screen.findByRole("option", { name: /Rhode Reds/ });
+    fireEvent.click(option);
     await waitFor(() => expect(localStorage.getItem(NS_KEY)).toBe("f2"));
     expect(localStorage.getItem("cluckwork.lastFlockId")).toBeNull();
   });
@@ -1286,12 +1404,18 @@ describe("DailyEntryPage account-scoped flock memory", () => {
   // pass via the default's first-active-flock fallback.
   it("actually selects the remembered flock", async () => {
     bindAccount(GUID);
-    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
+    mockListFlocks.mockImplementation(
+      async (p?: { search?: string | null; eligibility?: string; limit?: number; offset?: number }) =>
+        [FLOCK, FLOCK2].slice(p?.offset ?? 0, (p?.offset ?? 0) + (p?.limit ?? 50)),
+    );
+    vi.mocked(getFlock).mockImplementation(async (id: string) => id === "f2" ? FLOCK2 : FLOCK);
     localStorage.setItem(NS_KEY, "f2");
 
     await renderReady();
 
-    expect(screen.getByLabelText("Flock")).toHaveValue("f2");
+    // #512 — the remembered id is committed through the picker; the trigger
+    // shows the exact remembered flock's name (not the default's).
+    expect(screen.getByRole("button", { name: /Rhode Reds/ })).toBeInTheDocument();
   });
 
   // #535 review round 1 — cross-account isolation was only INFERRED from the
@@ -1306,13 +1430,65 @@ describe("DailyEntryPage account-scoped flock memory", () => {
     const GUID_B = "88888888-8888-8888-8888-888888888888";
     bindAccount(GUID);
     localStorage.setItem(`cluckwork.lastFlockId:${GUID}`, "f2");
-    mockListFlocks.mockResolvedValue([FLOCK, FLOCK2]);
+    mockListFlocks.mockImplementation(
+      async (p?: { search?: string | null; eligibility?: string; limit?: number; offset?: number }) =>
+        [FLOCK, FLOCK2].slice(p?.offset ?? 0, (p?.offset ?? 0) + (p?.limit ?? 50)),
+    );
+    vi.mocked(getFlock).mockImplementation(async (id: string) => id === "f2" ? FLOCK2 : FLOCK);
 
     bindAccount(GUID_B);
     await renderReady();
 
     // farm B has no remembered flock of its own -> falls back to the first
     // active flock (f1).
-    expect(screen.getByLabelText("Flock")).toHaveValue("f1");
+    expect(screen.getByRole("button", { name: /Hen House 1/ })).toBeInTheDocument();
+  });
+});
+
+// #512 (T031) — mount-time precedence must stay atomic even once a
+// LOWER-priority async result (the picker's own discovery fetch) lands after
+// the higher-priority deep-link commit has already landed.
+describe("DailyEntryPage picker lifecycle races (#512 T031)", () => {
+  const GUID2 = "77777777-7777-7777-7777-777777777777";
+  const NS_KEY2 = `cluckwork.lastFlockId:${GUID2}`;
+  const FLOCK2: Flock = { ...FLOCK, id: "f2", name: "Second Coop", breed: "RIR" };
+
+  function withQuery(query: string) {
+    const restore = window.location.href;
+    window.history.pushState({}, "", `/daily-entry${query}`);
+    return () => window.history.pushState({}, "", restore);
+  }
+
+  it("deep-link flock wins over remembered and active default even when a lower-priority async result lands later", async () => {
+    bindAccount(GUID2);
+    localStorage.setItem(NS_KEY2, "f2"); // remembered points at f2
+    mockListFlocks.mockImplementation(
+      async (p?: { search?: string | null; eligibility?: string; limit?: number; offset?: number }) =>
+        [FLOCK, FLOCK2].slice(p?.offset ?? 0, (p?.offset ?? 0) + (p?.limit ?? 50)),
+    );
+    vi.mocked(getFlock).mockImplementation(async (id: string) => id === "f2" ? FLOCK2 : FLOCK);
+    // Deep link names f1 — the highest-priority source — while remembered
+    // (f2) and the active default (f1 too, here, so widen the field by
+    // seeding f2 as remembered instead) would both disagree.
+    const restore = withQuery(`?flockId=f1&date=${todayIso()}`);
+    try {
+      await renderReady();
+      // Deep link (f1) already won atomically at mount.
+      expect(screen.getByRole("button", { name: /Hen House 1/ })).toBeInTheDocument();
+
+      // The picker's own discovery round-trip is the lower-priority async
+      // result: it fetches the eligible list only once opened, AFTER the
+      // deep-linked commit already landed. Its later arrival must never
+      // re-resolve the committed selection back toward remembered/default.
+      fireEvent.click(screen.getByRole("button", { name: /Hen House 1/ }));
+      await screen.findByRole("option", { name: /Second Coop/ });
+      expect(screen.getByRole("option", { name: /Hen House 1/ })).toBeInTheDocument();
+
+      const input = screen.getByRole("combobox");
+      fireEvent.keyDown(input, { key: "Escape" });
+      expect(screen.getByRole("button", { name: /Hen House 1/ })).toBeInTheDocument();
+    } finally {
+      restore();
+    }
   });
 });
