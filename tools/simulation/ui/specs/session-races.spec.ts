@@ -246,7 +246,17 @@ test.describe("#310 session races", () => {
     ).toHaveURL(/\/login/);
   });
 
-  test("an explicit login beats a pending bootstrap refresh, and the newer login wins", async ({
+  // #438 CHANGED WHAT "BEATS" MEANS HERE, and the change is the point of this
+  // test now. `login()` used to be issued immediately, overtaking a bootstrap
+  // refresh already in the air, and which `Set-Cookie` the browser kept was
+  // then real network arrival order — unobservable from JS, and cross-tab
+  // invisible (the other tab's generation counter is a different module
+  // instance). Login now QUEUES on the same cross-tab cookie lock as refresh,
+  // so the pending refresh settles — cookie applied — before the login request
+  // is sent, and the login's cookie is provably written last. The user-visible
+  // outcome is unchanged and still asserted below: the newer login's session is
+  // the one on screen.
+  test("an explicit login queues behind a pending bootstrap refresh, and the newer login still wins (#438)", async ({
     page,
     signIn,
     nav,
@@ -290,41 +300,46 @@ test.describe("#310 session races", () => {
     // sessions are then distinguishable on screen, so the assertion can name
     // which one won instead of inferring it.
     const sales = castMember("Sales");
+    // #438 — the ordering evidence. Recording the auth traffic in arrival order
+    // lets the assertion below say WHICH came first without a sleep: an
+    // absence-of-request check needs a window to be absent in, and a fixed
+    // window is exactly the timer this file's header refuses.
+    const authTraffic: string[] = [];
+    page.on("request", (r) => {
+      if (r.url().includes("/api/v1/auth/login")) authTraffic.push("login:request");
+    });
+    page.on("response", (r) => {
+      if (r.url().includes("/api/v1/auth/refresh")) authTraffic.push("refresh:response");
+    });
     await page.getByLabel(tEn("auth:farmCode")).fill("default-farm");
     await page.getByLabel(tEn("auth:email")).fill(sales.email);
     await page.getByLabel(tEn("auth:password")).fill(sales.password);
     const loginLanded = page.waitForResponse(
       (r) => r.url().includes("/api/v1/auth/login") && r.request().method() === "POST",
     );
-    // RELEASE THE INSTANT THE LOGIN RESPONSE LANDS — before any assertion, and
-    // in a `finally`. Both halves are load-bearing, and each fixes a separate
-    // defect found in round 3's own first attempt:
+    // #438 — RELEASE WITHOUT WAITING FOR THE LOGIN RESPONSE. It cannot land
+    // while this refresh is held: the login now queues on the same cross-tab
+    // cookie lock, so awaiting it before releasing deadlocks the spec against
+    // the very ordering it is asserting. (That deadlock is how this contract
+    // change was caught — the pre-#438 form of this test timed out at 45s on
+    // the first CI run of the fix.) The ordering the test is named for is
+    // asserted directly from the recorded traffic instead of being implied by
+    // the release point.
+    //
+    // Still in a `finally`, and still BEFORE the nav assertion, for the two
+    // reasons round 3 of #390 established:
     //
     //   * BEFORE the nav assertion, and this is REQUIRED, not a preference.
     //     Nothing on the login path cancels the held bootstrap refresh, so while
     //     it is held AuthContext's `isLoading` stays set and `Login.tsx` never
     //     navigates — the nav simply is not there to assert on. Releasing here
-    //     is what lets the shell render at all.
-    //
-    //     (Precisely, on the timing: the refresh does eventually self-abort on
-    //     `REFRESH_TIMEOUT_MS = 15_000`, so `isLoading` is not stuck forever —
-    //     but the `expect` timeout is 10s, so the assertion loses that race. An
-    //     earlier comment here said `isLoading` "never clears", which is wrong
-    //     and is the kind of detail that gets re-derived incorrectly.)
-    //
-    //     The first version released three lines later, after asserting the
-    //     shell had rendered. Against a build carrying the since-reverted login
-    //     abort, that ordering made a mutant die on the nav timeout rather than
-    //     on the guarantee, and "the mutant failed" was read as "the guarantee
-    //     is covered" — a red for the wrong reason, which is exactly what the
-    //     mutation harness exists to refuse (PR #390 review rounds 3 and 4).
+    //     is what lets the shell render at all. (On the timing: the refresh does
+    //     eventually self-abort on `REFRESH_TIMEOUT_MS = 15_000`, so `isLoading`
+    //     is not stuck forever — but the `expect` timeout is 10s, so the
+    //     assertion loses that race.)
     //   * In a `finally`. The route handler awaits this promise and nothing else
     //     resolves it, so an assertion throwing before the release strands the
     //     interception and buries the real error under a timeout.
-    //
-    // Releasing here still satisfies the ordering the test is named for: the
-    // login response has landed, so its `Set-Cookie` is already applied, and the
-    // freed refresh can only write on top of it.
     // Registered BEFORE the click (so before the release in the finally
     // below): the freed stale refresh settles, and the client's reaction to
     // discarding it is the unconditional #393/#433 cookie revoke — a POST to
@@ -341,10 +356,22 @@ test.describe("#310 session races", () => {
     );
     try {
       await page.getByRole("button", { name: tEn("auth:signIn") }).click();
-      await loginLanded;
     } finally {
       releaseHeldRefresh();
     }
+    await loginLanded;
+
+    // #438 THE ORDERING GUARANTEE, in a real browser with the real Web Locks
+    // API: the held refresh's response was observed BEFORE the login request
+    // was issued. Without the lock, login is sent immediately on click and this
+    // reverses — which is the whole cross-tab hazard, since the other tab's
+    // refresh would then be free to write its cookie after this login's.
+    expect(authTraffic, "no login request was observed at all").toContain("login:request");
+    expect(authTraffic, "the held refresh never settled").toContain("refresh:response");
+    expect(
+      authTraffic.indexOf("refresh:response"),
+      "the login request went out before the held bootstrap refresh settled — login is not queueing on the cross-tab cookie lock (#438)",
+    ).toBeLessThan(authTraffic.indexOf("login:request"));
 
     await expect(page.getByRole("navigation", { name: tEn("nav:primaryNavAriaLabel") }))
       .toBeVisible();
@@ -371,33 +398,28 @@ test.describe("#310 session races", () => {
     await expect(nav.link("nav:sales")).toBeVisible();
     await expect(nav.link("nav:customers")).toBeVisible();
 
-    // Reload to pin the DURABLE half of the contract — which CHANGED in
-    // #393/#433. A discarded stale flight's cookie is now revoked
-    // UNCONDITIONALLY: network arrival order decides which Set-Cookie the
-    // browser kept, JS cannot observe it, and the HttpOnly cookie can't be
-    // read back — so the revoke deliberately accepts catching the newer
-    // session's own cookie rather than ever leaving the PREVIOUS user's
-    // cookie live (the wrong-session hole #393 closed). In the race this
-    // test manufactures, that worst case is certain: the freed Owner
-    // refresh is always discarded as stale, so the jar's cookie — whichever
-    // of the two it is — is dead by the time of this reload.
+    // The DURABLE half of the contract, and #438 CHANGED IT — for the better.
     //
-    // The documented outcome (Help → Signing in, multi-tab resync; #455) is
-    // a forced fresh sign-in, and that is the SAFE outcome this asserts: the
-    // reload restores NOBODY — not the old Owner session, and not a Sales
-    // session riding a cookie the client no longer trusts. Before #433 this
-    // block asserted the Sales session survived the reload; that assertion
-    // described the pre-#433 contract and broke the day the fix merged
-    // (silently — this suite is workflow_dispatch-only, the #370 trap).
+    // Before, the two Set-Cookie writes genuinely raced. JS cannot observe
+    // which one the browser kept and cannot read the HttpOnly cookie back, so
+    // #393/#433 revoked the discarded flight's cookie UNCONDITIONALLY, accepting
+    // that it might catch the newer session's own. In this manufactured race
+    // that worst case was certain, and the documented outcome was a forced
+    // fresh sign-in: the reload restored nobody.
+    //
+    // Now the ordering is decided rather than raced. The freed bootstrap refresh
+    // settles, is discarded as stale, and its revoke completes INSIDE the cookie
+    // lock — all before the queued login is allowed to send. The login's
+    // Set-Cookie is therefore written last and is the only live one, so the
+    // reload restores the session the user actually signed into.
+    //
+    // The security guarantee is unchanged and still asserted: the restored
+    // session is Sales's, never the Owner's that the stale refresh carried.
     await page.reload();
-    await expect(page.getByLabel(tEn("auth:email"))).toBeVisible();
-
-    // And the forced re-auth is a plain re-auth, not a wedged account:
-    // Sales signs straight back in and lands in a Sales-shaped shell.
-    await page.getByLabel(tEn("auth:farmCode")).fill("default-farm");
-    await page.getByLabel(tEn("auth:email")).fill(sales.email);
-    await page.getByLabel(tEn("auth:password")).fill(sales.password);
-    await page.getByRole("button", { name: tEn("auth:signIn") }).click();
+    await expect(
+      page.getByLabel(tEn("auth:email")),
+      "the reload stranded the user at sign-in — the login's cookie did not win",
+    ).toBeHidden();
     await expect(nav.link("nav:sales")).toBeVisible();
     await expect(nav.link("nav:audit")).toBeHidden();
   });
