@@ -62,15 +62,49 @@ async function capture(page: Page, name: string): Promise<void> {
 }
 
 test.describe("README screenshots", () => {
-  // ================== WHY THERE IS NO DASHBOARD SHOT ==================
+  // ================== THE DASHBOARD SHOT (#654) ==================
   //
-  // The obvious hero image is the Dashboard, and it was captured first. Its
-  // "Today" panel is EMPTY in every fixture capture — the simulation seeds
-  // history up to a few days back, so both flocks read "no entry" and "eggs
-  // collected today" is 0. True of the fixture, misleading about the product,
-  // and unfixable from here without the capture writing today's entries into
-  // the shared database. The three screens below each evidence a specific
-  // claim the README makes, with data.
+  // #549 left the Dashboard out because its Today panel was empty in every
+  // fixture capture. Since #654 that emptiness IS the feature: a house with
+  // no entry is the alarm state the screen exists to show, so the tiles are
+  // captured as the fixture leaves them — twelve "no entry" tiles and the
+  // "N more flocks" link (the fixture seeds ~100 active flocks for the picker
+  // catalog, #627). One fixture artefact remains and is accepted: the seeder
+  // keeps the last two days per flock as Draft (SimulationDataSeeder.
+  // DraftWindowDays), so the 14-day line ends in two zero points — true of
+  // the fixture, not of the product.
+
+  test("dashboard — the morning view: capture status, the fortnight, stock by grade", async ({ page, signIn }) => {
+    await signIn(castMember("Manager"));
+    await page.goto("/");
+
+    // The page has ONE loading gate over six reads (Promise.allSettled), so
+    // nothing below renders half-loaded — but every panel degrades on its own
+    // failed read, so an errored panel would be photographed as if it were
+    // the product. Assert the absence of both error texts first.
+    await expect(page.getByText(tEn("dashboard:loadFailed"))).toHaveCount(0);
+    await expect(page.getByText(tEn("dashboard:panelLoadError"))).toHaveCount(0);
+
+    // Tiles: at least one rendered. Class locator — the tile's accessible
+    // name interpolates a flock name this spec does not know.
+    await expect(page.locator(".capture-tile").first()).toBeVisible();
+
+    // Trend: the sparkline is there AND not flat — the fixture seeds 90 days
+    // of production, so a flat line means the report did not arrive.
+    const line = page.locator("svg.sparkline");
+    await expect(line).toBeVisible();
+    const ys = (await line.locator("polyline").getAttribute("points"))!.split(" ").map((p) => p.split(",")[1]);
+    expect(new Set(ys).size).toBeGreaterThan(1);
+
+    // Stock: at least one segment on the bar.
+    await expect(page.locator(".meter-stack > span").first()).toBeVisible();
+
+    // Sales: a Manager sees the panel and the fixture has orders — scoped to
+    // the sales list, never the shell's own list items.
+    await expect(page.locator(".dash-list li").first()).toBeVisible();
+
+    await capture(page, "dashboard.png");
+  });
 
   test("daily entry — a recorded day, by grade", async ({ page, signIn, farm }) => {
     await signIn(castMember("Manager"));
