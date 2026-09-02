@@ -1880,6 +1880,7 @@ export const tl = {
     glossaryGroupFarm: "Mga setting at branding ng farm",
 
     tocGettingAround: "Pag-navigate",
+    tocDashboard: "Dashboard",
     tocSigningIn: "Pag-sign in",
     tocDailyLoop: "Ang pang-araw-araw na siklo",
     tocRoles: "Sino ang puwedeng gumawa ng ano",
@@ -1937,6 +1938,23 @@ export const tl = {
       + "ng <strong>Subukan ulit</strong> ang isang search o load-more na nabigo. Kapag hindi na mahanap ang "
       + "naalala o naka-link na pangalan, ipinapakita ng field ang <strong>Hindi available</strong> kasama "
       + "ang Subukan ulit.",
+
+    dashboardHeading: "Dashboard",
+    dashboardTiles:
+      "<strong>Ngayon</strong>: isang tile bawat aktibong kawan na may itlog at katayuan ngayong araw, "
+      + "una ang mga walang tala. Ang tile na may <strong>walang tala</strong> ang bahay na wala pang "
+      + "nagtatala — pindutin ito para buksan ang Araw-araw na Tala para sa kawan at araw na iyon. Lampas "
+      + "sa labindalawang tile, isang link ang magdadala sa iba.",
+    dashboardTrend:
+      "<strong>Huling 14 araw</strong>: itlog bawat araw mula sa report ng produksyon, na may "
+      + "<strong>hen-day %</strong> para sa huling 7 kumpletong araw at kung paano ito gumalaw kumpara "
+      + "sa 7 araw bago nito. Nakapirmi ang window (mula kahapon pabalik) at binibilang lang ang "
+      + "<strong>mga naisumiteng araw</strong> — ang araw na Draft pa ay mababasang zero hanggang "
+      + "maisumite, hindi tulad sa Mga Report kung saan pinipili mo ang saklaw.",
+    dashboardStock:
+      "<strong>Stock</strong>: isang <strong>stacked bar</strong> ng available bawat grado, na may mga "
+      + "bilang sa tabi; ang restricted na itlog ay nakatala pagkatapos ng kabuuan. Ito rin ang kabuuang "
+      + "ipinapakita ng screen ng Stock.",
 
     signingInHeading: "Pag-sign in",
     signingInBasic:
@@ -2758,6 +2776,12 @@ export const tl = {
 
     glossaryDailyEntryTerm: "Araw-araw na Tala",
     glossaryDailyEntryDef: "Ang araw ng isang kawan: itlog ayon sa grado, nawala, namatay. Ang pag-grade nang lampas sa kabuuan ay nagpapataas nito para tumugma. Draft hanggang isumite.",
+
+    glossaryCaptureStatusTerm: "Katayuan ng pagtatala",
+    glossaryCaptureStatusDef:
+      "Kung may araw-araw na tala ngayong araw ang bawat aktibong kawan. Ipinapakita ito ng dashboard "
+      + "bilang isang tile bawat kawan, una ang mga kulang; ang \"walang tala\" ang alarm state at "
+      + "nakalink sa Araw-araw na Tala para sa kawan at araw na iyon.",
 
     glossaryEggLotTerm: "Lote ng itlog",
     glossaryEggLotDef:

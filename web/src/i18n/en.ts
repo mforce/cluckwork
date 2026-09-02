@@ -2328,6 +2328,7 @@ export const en = {
     // SECTION itself (heading + 37-row table + closing note) is externalized
     // further down, near the end of this block (Task 33, B6b).
     tocGettingAround: "Getting around",
+    tocDashboard: "Dashboard",
     tocSigningIn: "Signing in",
     tocDailyLoop: "The daily loop",
     tocRoles: "Who can do what",
@@ -2386,6 +2387,22 @@ export const en = {
       + "<strong>Escape</strong> to cancel. A long list shows <strong>Load more</strong>; a search or Load "
       + "more that fails shows <strong>Retry</strong>. If a remembered or linked name can no longer be found, "
       + "the field shows <strong>Unavailable</strong> with Retry.",
+
+    // Dashboard (#654) — the landing screen's three questions.
+    dashboardHeading: "Dashboard",
+    dashboardTiles:
+      "<strong>Today</strong>: one tile per active flock with today's eggs and status, the ones without "
+      + "an entry first. A tile marked <strong>no entry</strong> is the house nobody has recorded yet — tap "
+      + "it to open Daily entry for that flock and day. Past twelve tiles, a link carries the rest.",
+    dashboardTrend:
+      "<strong>Last 14 days</strong>: eggs per day from the production report, with <strong>hen-day %"
+      + "</strong> for the last 7 complete days and how it moved against the 7 before. The window is "
+      + "fixed (yesterday back) and counts <strong>submitted days only</strong> — a day still in Draft "
+      + "reads as zero until it is submitted, unlike Reports where you choose the range.",
+    dashboardStock:
+      "<strong>Stock</strong>: one <strong>stacked bar</strong> of what is available by grade, with the "
+      + "figures beside it; restricted eggs are noted after the total. It is the same total the Stock "
+      + "screen shows.",
 
     // Signing in
     signingInHeading: "Signing in",
@@ -3153,6 +3170,11 @@ export const en = {
 
     glossaryDailyEntryTerm: "Daily entry",
     glossaryDailyEntryDef: "One flock's day: eggs by grade, losses, deaths. Grading past the total raises it to match. Draft until submitted.",
+
+    glossaryCaptureStatusTerm: "Capture status",
+    glossaryCaptureStatusDef:
+      "Whether each active flock has a daily entry for today. The dashboard shows it as one tile per "
+      + "flock, missing ones first; \"no entry\" is the alarm state and links to Daily entry for that flock and day.",
 
     glossaryEggLotTerm: "Egg lot",
     glossaryEggLotDef:

@@ -1089,4 +1089,22 @@ describe("HelpPage visual pass (#657)", () => {
     render(<HelpPage />);
     expect(screen.queryByRole("link", { name: /^Open / })).not.toBeInTheDocument();
   });
+
+  it("documents the dashboard's capture status, trend and stock bar, with an Open link to / (#654)", () => {
+    renderWithProviders(<HelpPage />, { token: { sub: "u1", role: "Worker" } });
+    expect(screen.getByRole("heading", { name: "Dashboard", level: 3 })).toBeInTheDocument();
+    const toc = screen.getByRole("navigation", { name: "Help contents" });
+    expect(within(toc).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "#dashboard");
+    // The section's Open link: ROUTE_FOR["dashboard"] = "/" resolved against the Worker's own nav.
+    const section = screen.getByRole("heading", { name: "Dashboard", level: 3 }).closest("section")!;
+    expect(within(section).getByRole("link", { name: "Open Dashboard" })).toHaveAttribute("href", "/");
+    expect(within(section).getByText("no entry", { selector: "strong" })).toBeInTheDocument();
+    expect(within(section).getByText(/submitted days only/i)).toBeInTheDocument();
+    expect(within(section).getByText("stacked bar", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText("Capture status", { selector: "dt a" })).toBeInTheDocument();
+    for (const catalog of [es, tl]) {
+      expect(catalog.help.dashboardTiles).not.toBe(en.help.dashboardTiles);
+      expect(catalog.help.glossaryCaptureStatusDef).not.toBe(en.help.glossaryCaptureStatusDef);
+    }
+  });
 });

@@ -1811,6 +1811,7 @@ export const es = {
     glossaryGroupFarm: "Configuración e identidad de la granja",
 
     tocGettingAround: "Cómo moverse",
+    tocDashboard: "Panel",
     tocSigningIn: "Iniciar sesión",
     tocDailyLoop: "El ciclo diario",
     tocRoles: "Quién puede hacer qué",
@@ -1867,6 +1868,23 @@ export const es = {
       + "Una lista larga muestra <strong>Cargar más</strong>; una búsqueda o Cargar más que falle muestra "
       + "<strong>Reintentar</strong>. Si un nombre recordado o enlazado ya no se puede encontrar, el campo "
       + "muestra <strong>No disponible</strong> con Reintentar.",
+
+    dashboardHeading: "Panel",
+    dashboardTiles:
+      "<strong>Hoy</strong>: una tarjeta por lote activo con los huevos y el estado de hoy, primero los que "
+      + "no tienen registro. Una tarjeta marcada <strong>sin registro</strong> es la nave que nadie ha "
+      + "registrado todavía — tóquela para abrir el Registro diario de ese lote y ese día. Pasadas doce "
+      + "tarjetas, un enlace lleva al resto.",
+    dashboardTrend:
+      "<strong>Últimos 14 días</strong>: huevos por día del informe de producción, con el <strong>% de "
+      + "postura</strong> de los últimos 7 días completos y su variación frente a los 7 anteriores. La "
+      + "ventana es fija (desde ayer hacia atrás) y cuenta <strong>solo días enviados</strong> — un día "
+      + "aún en borrador se lee como cero hasta que se envía, a diferencia de Informes, donde usted elige "
+      + "el rango.",
+    dashboardStock:
+      "<strong>Existencias</strong>: una <strong>barra apilada</strong> de lo disponible por grado, con "
+      + "las cifras al lado; los huevos restringidos se anotan tras el total. Es el mismo total que "
+      + "muestra la pantalla de Existencias.",
 
     signingInHeading: "Iniciar sesión",
     signingInBasic:
@@ -2664,6 +2682,12 @@ export const es = {
 
     glossaryDailyEntryTerm: "Entrada diaria",
     glossaryDailyEntryDef: "El día de un lote: huevos por grado, pérdidas, muertes. Clasificar por encima del total lo eleva para igualarlo. Borrador hasta que se envía.",
+
+    glossaryCaptureStatusTerm: "Estado de captura",
+    glossaryCaptureStatusDef:
+      "Si cada lote activo tiene un registro diario de hoy. El panel lo muestra como una tarjeta por "
+      + "lote, primero los que faltan; \"sin registro\" es el estado de alarma y enlaza al Registro diario "
+      + "de ese lote y ese día.",
 
     glossaryEggLotTerm: "Lote de huevos",
     glossaryEggLotDef:
