@@ -21,16 +21,16 @@ namespace Cluckwork.Infrastructure.Repositories;
 internal static class ReferenceMarkers
 {
     // The scoped bulk flock display-name read (FlockRepository).
-    public const string FlockReference = "cluckwork512-flock-reference";
+    public const string FlockReference = "cluckwork-flock-reference";
 
     // The scoped bulk customer display-name read (CustomerRepository).
-    public const string CustomerReference = "cluckwork512-customer-reference";
+    public const string CustomerReference = "cluckwork-customer-reference";
 
     // Net-birds-per-flock aggregate bounded to returned flock ids
     // (BirdMovementRepository).
-    public const string MovementAggregate = "cluckwork512-movement-aggregate";
+    public const string MovementAggregate = "cluckwork-movement-aggregate";
 
     // The assignment-to-flock left-join projection
     // (UserRoleAssignmentRepository).
-    public const string AssignmentProjection = "cluckwork512-assignment-projection";
+    public const string AssignmentProjection = "cluckwork-assignment-projection";
 }

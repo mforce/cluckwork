@@ -35,10 +35,10 @@ public sealed class ShapeProbe : DbCommandInterceptor
     // assembly cannot see an internal of Infrastructure, so the literals are
     // repeated here; ProbeSeesEveryTaggedRead reddens a drift between
     // the two copies, so the duplication is guarded rather than trusted.
-    public const string FlockReference = "cluckwork512-flock-reference";
-    public const string CustomerReference = "cluckwork512-customer-reference";
-    public const string MovementAggregate = "cluckwork512-movement-aggregate";
-    public const string AssignmentProjection = "cluckwork512-assignment-projection";
+    public const string FlockReference = "cluckwork-flock-reference";
+    public const string CustomerReference = "cluckwork-customer-reference";
+    public const string MovementAggregate = "cluckwork-movement-aggregate";
+    public const string AssignmentProjection = "cluckwork-assignment-projection";
 
     private Window? _active;
 
