@@ -702,8 +702,13 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
         window.clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
-      selectionGenRef.current += 1;
-      const committed = stateRef.current.selection.entity;
+      const selection = stateRef.current.selection;
+      // Closing only cancels exploration. A fixed requested-ID read belongs
+      // to the page's selection intent and must still be allowed to settle.
+      if (selection.phase !== "resolving" || selection.requestedId === null) {
+        selectionGenRef.current += 1;
+      }
+      const committed = selection.entity;
       setState((prev) => ({
         ...prev,
         discovery: {
@@ -901,8 +906,13 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
           window.clearTimeout(debounceRef.current);
           debounceRef.current = null;
         }
-        selectionGenRef.current += 1;
-        const committed = stateRef.current.selection.entity;
+        const selection = stateRef.current.selection;
+        // Outside-click closes exploration, not the page-owned requested-ID
+        // intent. Keep that exact read live while the picker is closed.
+        if (selection.phase !== "resolving" || selection.requestedId === null) {
+          selectionGenRef.current += 1;
+        }
+        const committed = selection.entity;
         setState((prev) => ({
           ...prev,
           discovery: {

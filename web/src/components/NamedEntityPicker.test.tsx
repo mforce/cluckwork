@@ -1230,6 +1230,65 @@ describe("T035: exact-ID transitions and admission (FR-019/FR-033)", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("Escape while requestedId resolution is pending closes the picker without stranding the exact read", async () => {
+    let resolveExact!: (flock: Flock) => void;
+    mockGetFlock.mockReturnValue(new Promise((resolve) => { resolveExact = resolve; }));
+    const onSnapshot = vi.fn();
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <FlockPicker label="Pick" eligibility="all" required open={open}
+          requestedId="f-escape" controlledGeneration={1} onSnapshot={onSnapshot}
+          onEscape={() => setOpen(false)} trigger={<button type="button">Open picker</button>} />
+      );
+    }
+
+    render(<Harness />);
+    await waitFor(() => expect(mockGetFlock).toHaveBeenCalledWith("f-escape"));
+    await waitFor(() => expect(onSnapshot.mock.calls.at(-1)?.[0]?.selectionPhase).toBe("resolving"));
+
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("combobox")).toBeNull());
+
+    const exact = F("f-escape", "Escape Row Flock", "Archived");
+    await act(async () => { resolveExact(exact); });
+
+    await waitFor(() => expect(onSnapshot.mock.calls.at(-1)?.[0]?.committed).toBe(exact));
+    expect(onSnapshot.mock.calls.at(-1)?.[0]?.selectionPhase).toBe("committed");
+    expect(mockGetFlock).toHaveBeenCalledTimes(1);
+  });
+
+  it("outside click while requestedId resolution is pending closes the picker without stranding the exact read", async () => {
+    let resolveExact!: (flock: Flock) => void;
+    mockGetFlock.mockReturnValue(new Promise((resolve) => { resolveExact = resolve; }));
+    const onSnapshot = vi.fn();
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <FlockPicker label="Pick" eligibility="all" required open={open}
+          requestedId="f-outside" controlledGeneration={1} onSnapshot={onSnapshot}
+          onOutsideClick={() => setOpen(false)} trigger={<button type="button">Open picker</button>} />
+      );
+    }
+
+    render(<Harness />);
+    await waitFor(() => expect(mockGetFlock).toHaveBeenCalledWith("f-outside"));
+    await waitFor(() => expect(onSnapshot.mock.calls.at(-1)?.[0]?.selectionPhase).toBe("resolving"));
+
+    const outside = document.createElement("div");
+    document.body.appendChild(outside);
+    fireEvent.mouseDown(outside);
+    outside.remove();
+    await waitFor(() => expect(screen.queryByRole("combobox")).toBeNull());
+
+    const exact = F("f-outside", "Outside Row Flock", "Archived");
+    await act(async () => { resolveExact(exact); });
+
+    await waitFor(() => expect(onSnapshot.mock.calls.at(-1)?.[0]?.committed).toBe(exact));
+    expect(onSnapshot.mock.calls.at(-1)?.[0]?.selectionPhase).toBe("committed");
+    expect(mockGetFlock).toHaveBeenCalledTimes(1);
+  });
+
   it("an initial requestedId exact success commits with the resolved name visible and no exploration — the write identity is the resolved entity", async () => {
     // Causal guard: the requestedId success path must synchronize the discovery
     // window to the resolved identity. If it only sets committedText and
