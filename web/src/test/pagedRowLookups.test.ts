@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  intConstants, mountsAPageSizeFixture, pageSizes, rowByAccessibleName, sharedPrelude, testBlocks,
+  comparableSizes, intConstants, mountsAPageSizeFixture, pageSizes, rowByAccessibleName,
+  sharedPrelude, testBlocks,
 } from "./pagedRowLookups";
 
 // The lint itself. Its rules, and the reasoning behind each one, live in
@@ -33,7 +34,7 @@ const offenders = pagedScreens.flatMap(({ file, sizes }) => {
   } catch {
     return [];
   }
-  const resolved = sizes.filter((size): size is number => size !== null);
+  const resolved = comparableSizes(sizes);
   const constants = intConstants(testSource);
   const blocks = testBlocks(testSource);
   const prelude = sharedPrelude(testSource, blocks);

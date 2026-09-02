@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  intConstants, mountsAPageSizeFixture, pageSizes, rowByAccessibleName, sharedPrelude, testBlocks,
+  comparableSizes, intConstants, mountsAPageSizeFixture, pageSizes, rowByAccessibleName,
+  sharedPrelude, testBlocks,
 } from "./pagedRowLookups";
 
 // #637 — the lint's own behaviour, pinned against synthetic sources.
@@ -49,12 +50,67 @@ describe("pageSizes — the threshold comes from the screen", () => {
     expect(pageSizes("usePagedList({ pageSize: IMPORTED_PAGE })")).toEqual([null]);
   });
 
+  it("ignores a pageSize that is not usePagedList's", () => {
+    // An unrelated `{ pageSize: 50 }` — a prop, a request body, a config —
+    // would otherwise lower the threshold for a list that pages at 100, or
+    // fail the unresolved assertion for a property this lint has no business
+    // reading (CodeRabbit review of #647).
+    expect(pageSizes(`
+      const PAGE = 100;
+      fetchThings({ pageSize: 50 });
+      const rows = usePagedList({ fetchPage, pageSize: PAGE });
+    `)).toEqual([100]);
+    expect(pageSizes("fetchThings({ pageSize: whateverTheCallerPassed });")).toEqual([]);
+  });
+
+  it("reads a page size through nested calls in the options object", () => {
+    // The real shape on ExpensesPage: the options object nests three calls deep
+    // before naming its page size, so a window that ends at the first `})`
+    // stops before reaching it.
+    expect(pageSizes(`
+      const PAGE = 100;
+      const rows = usePagedList<Expense, Meta>({
+        fetchPage: useCallback(async (offset, limit) => {
+          const list = await listExpenses({ from, to, limit, offset });
+          return { items: list.items, meta: list.meta };
+        }, [month]),
+        pageSize: PAGE,
+      });
+    `)).toEqual([100]);
+  });
+
+  it("does not read the import statement as a call site", () => {
+    expect(pageSizes(`
+      import { usePagedList } from "../components/usePagedList";
+      export function StaticPage() { return null; }
+    `)).toEqual([]);
+  });
+
   it("finds nothing on a screen that does not page", () => {
     expect(pageSizes("export function StaticPage() { return null; }")).toEqual([]);
   });
 });
 
 describe("intConstants", () => {
+  it("refuses a name declared twice with different values, rather than taking the last", () => {
+    // This scan has no notion of scope, and `DailyEntryPage` already declares a
+    // `const PAGE` inside a function body. Taking the last one seen would
+    // resolve a `pageSize:` to a number nobody chose — silently wrong, which is
+    // worse than unresolved, because unresolved fails the coverage test loudly.
+    // Shaped like the real thing: `DailyEntryPage` declares its inner `PAGE` on
+    // its own indented line, which is exactly what this line-anchored scan sees.
+    // (An inline `{ const PAGE = 999; }` is invisible to it — a narrower reach
+    // than the finding assumed, and worth knowing rather than papering over.)
+    const found = intConstants("const PAGE = 50;\nfunction inner() {\n    const PAGE = 999;\n}");
+    expect(found.has("PAGE")).toBe(false);
+    expect(pageSizes("const PAGE = 50;\nusePagedList({ pageSize: PAGE });\nfunction f() {\n  const PAGE = 999;\n}"))
+      .toEqual([null]);
+  });
+
+  it("keeps a name repeated with the SAME value", () => {
+    expect(intConstants("const PAGE = 50;\nconst PAGE = 50;").get("PAGE")).toBe(50);
+  });
+
   it("reads integer constants and ignores everything else", () => {
     const found = intConstants(`
       const PAGE = 50;
@@ -71,8 +127,8 @@ describe("mountsAPageSizeFixture — a fixture as long as the screen's page", ()
   const noConstants = new Map<string, number>();
 
   it("catches a 50-row fixture on a screen that pages at 50", () => {
-    // The whole point of #637: the literal-100 scan was blind to this, and
-    // seven screens page at 50.
+    // The whole point of #637: the literal-100 scan was blind to this, and five
+    // of the nine paged screens page at 50.
     expect(mountsAPageSizeFixture("Array.from({ length: 50 }, mk)", [50], noConstants)).toBe(true);
   });
 
@@ -104,6 +160,30 @@ describe("mountsAPageSizeFixture — a fixture as long as the screen's page", ()
     expect(mountsAPageSizeFixture("vi.advanceTimersByTime(90)", [50], noConstants)).toBe(false);
     expect(mountsAPageSizeFixture("formatMoney(9900)", [50], noConstants)).toBe(false);
     expect(mountsAPageSizeFixture("await waitFor(cb, { timeout: 3000 })", [50], noConstants)).toBe(false);
+  });
+
+  it("ignores a length property outside an Array.from fixture", () => {
+    // `mockResult({ length: 50 })` describes a response, not fifty rows, and
+    // counting it made an unrelated test with a row query fail the lint
+    // (CodeRabbit review of #647). Summing made this worse, not better.
+    expect(mountsAPageSizeFixture("mockResult({ length: 50 })", [50], noConstants)).toBe(false);
+    expect(mountsAPageSizeFixture("expect(page).toMatchObject({ length: 50 })", [50], noConstants))
+      .toBe(false);
+  });
+
+  it("counts a fixture assembled from pieces", () => {
+    // `[...batch(25), ...batch(25)]` mounts exactly as many rows as one
+    // 50-row builder call, and costs the accessible-name walk exactly as much.
+    expect(mountsAPageSizeFixture(
+      "const rows = [...Array.from({ length: 25 }, mk), ...Array.from({ length: 25 }, mk)];",
+      [50], noConstants,
+    )).toBe(true);
+  });
+
+  it("measures against the SMALLEST page on a screen with two paged lists", () => {
+    // A screen paging a 50-row list beside a 100-row one still mounts an
+    // expensive table at 50; measuring against the larger would suppress it.
+    expect(mountsAPageSizeFixture("lotPage(50)", [50, 100], noConstants)).toBe(true);
   });
 
   it("finds nothing when the screen does not page", () => {
@@ -161,5 +241,19 @@ describe("group", () => {
     expect(prelude).toContain("beforeEach");
     expect(prelude).not.toContain('it("first"');
     expect(mountsAPageSizeFixture(prelude, [100], new Map())).toBe(true);
+  });
+});
+
+describe("comparableSizes — what a fixture can be measured against", () => {
+  it("drops the sizes it could not resolve and keeps the rest", () => {
+    // Unresolved is reported by the lint's coverage test, not silently treated
+    // as "this screen does not page" — but it cannot be compared against.
+    expect(comparableSizes([50, null, 100])).toEqual([50, 100]);
+  });
+
+  it("leaves nothing to measure when NO size resolved", () => {
+    expect(comparableSizes([null, null])).toEqual([]);
+    expect(mountsAPageSizeFixture("customerPage(100)", comparableSizes([null]), new Map()))
+      .toBe(false);
   });
 });

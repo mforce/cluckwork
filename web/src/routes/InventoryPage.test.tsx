@@ -1341,7 +1341,10 @@ describe("InventoryPage — the lots read belongs to the item that is open (#631
     const slowFeedLots = deferred<InventoryLot[]>();
     mockListLots
       .mockReturnValueOnce(slowFeedLots.promise)  // Layer Feed, still in flight
-      .mockResolvedValueOnce([LOT2]);             // Egg Cartons, answers first
+      // Item-scoped: `LOT2` inherits `inventoryItemId: "it1"` from `LOT`, and a
+      // Feed lot standing in for Egg Cartons' would model the very mismatch
+      // this test exists to prevent (CodeRabbit review of #647).
+      .mockResolvedValueOnce([{ ...LOT2, inventoryItemId: "it2" }]);
     await renderReady(ADMIN);
 
     // Open the first item; its lots never arrive yet, so no lot-bearing control
