@@ -71,12 +71,15 @@ test.describe("README screenshots", () => {
   // "N more flocks" link (the fixture seeds ~100 active flocks for the picker
   // catalog, #627).
   //
-  // The image is NOT committed yet and the README does not embed it: on the
-  // current fixture the twelve leading tiles are all catalog flocks with no
-  // entries (#627 seeds ~100), so the two real houses sit behind the "N more
-  // flocks" link and the trend and stock panels fall below the 1280x800 fold.
-  // The capture stays here — it asserts the screen renders with real data —
-  // and a follow-up decides how to frame an image worth publishing.
+  // The image IS committed and the README embeds it (#660, #663) — all four
+  // captures this file produces are now tracked, so an untracked fifth image
+  // would be the anomaly, not this one. The alarm state is still what gets
+  // photographed: on the current fixture the twelve leading tiles are all
+  // catalog flocks with no entries (#627 seeds ~100), so the two real houses
+  // sit behind the "N more flocks" link and the trend and stock panels fall
+  // below the 1280x800 fold. That framing question is still open — the
+  // capture asserts the screen renders with real data, which is what this
+  // file is for; a follow-up decides how to frame an image worth publishing.
 
   test("dashboard — the morning view: capture status, the fortnight, stock by grade", async ({ page, signIn }) => {
     await signIn(castMember("Manager"));
