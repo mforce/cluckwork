@@ -159,7 +159,7 @@ describe("FlocksPage loading + list", () => {
   it("offers Clear filters from the empty state when every flock is archived and hidden", async () => {
     mockListFlocks.mockResolvedValue([ARCHIVED]);
     renderWithProviders(<FlocksPage />, { token: ADMIN });
-    await screen.findByText(/No flocks yet/);
+    await screen.findByText(/No flocks match/);
     // The book isn't empty (the header's own New flock stays, unlike the
     // truly-empty case above) — only ONE action is offered from the empty
     // state itself, and it clears the filter rather than duplicating New flock.

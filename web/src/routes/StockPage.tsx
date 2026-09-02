@@ -545,7 +545,7 @@ export function StockPage() {
                 // any page-head action — "filtered to nothing" offers Clear
                 // filters only when a filter is actually set.
                 (lotsFrom || lotsTo)
-                  ? <EmptyState icon={FilterX} message={t("noLotsMessage")}
+                  ? <EmptyState icon={FilterX} message={t("noLotsMatch")}
                       action={{ label: tc("clearFiltersButton"), onClick: () => void changeLotsFilter("", "") }} />
                   : <EmptyState icon={Egg} message={t("noLotsMessage")} />
               ) : (

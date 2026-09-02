@@ -1319,7 +1319,7 @@ describe("SalesPage empty states (#655)", () => {
   it("withholds the create action when there are no customers to bill", async () => {
     mockListCustomers.mockResolvedValue([]);
     renderWithProviders(<SalesPage />, { token: ADMIN });
-    expect(await screen.findByText("No orders match.")).toBeInTheDocument();
+    expect(await screen.findByText("No orders yet.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New order" })).not.toBeInTheDocument();
   });
 });

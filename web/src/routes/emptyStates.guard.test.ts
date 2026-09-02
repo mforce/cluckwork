@@ -33,3 +33,29 @@ describe("classified empty-state sites render through EmptyState, not a bare mut
     expect(source).toMatch(/import \{ EmptyState \} from "\.\.\/components\/EmptyState";/);
   });
 });
+
+// Fix increment 1 (docs/plans/653-655-list-screens/02-fix-increment-1.md) —
+// icon and action alone distinguish the two variants; the sentence must too,
+// since it's the part that tells a user WHY the screen is empty. Every
+// two-variant screen is `cond ? <EmptyState icon={FilterX} message={t("KEY_A")}
+// ... : <EmptyState icon={...} message={t("KEY_B")}`; this pins KEY_A !== KEY_B.
+const TWO_VARIANT_FILES = [
+  "SalesPage.tsx",
+  "FlocksPage.tsx",
+  "FeedPage.tsx",
+  "WaterPage.tsx",
+  "StockPage.tsx",
+  "HistoryPage.tsx",
+];
+
+describe("the filtered-empty and truly-empty variants say different things", () => {
+  it.each(TWO_VARIANT_FILES)("%s: filtered branch and truly-empty branch use different message keys", (file) => {
+    const source = readFileSync(path.join(__dirname, file), "utf8");
+    const match = source.match(
+      /icon=\{FilterX\}\s+message=\{t\("([^"]+)"\)[\s\S]*?:\s*<EmptyState icon=\{[A-Za-z]+\}\s+message=\{t\("([^"]+)"\)/,
+    );
+    expect(match, `${file}: expected a FilterX-branch EmptyState followed by its truly-empty sibling`).not.toBeNull();
+    const [, filteredKey, emptyKey] = match!;
+    expect(filteredKey).not.toBe(emptyKey);
+  });
+});

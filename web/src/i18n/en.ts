@@ -454,6 +454,7 @@ export const en = {
       "This farm setting allows your sale confirmations to draw stock from "
       + "outside your assigned flocks.",
     noOrdersMatch: "No orders match.",
+    noOrdersMessage: "No orders yet.",
     voidingNeedsAdmin: "Voiding needs an admin.",
     voidReasonLabel: "Void reason: {{reason}}",
     orderTotal: "Total: {{amount}}",
@@ -754,6 +755,7 @@ export const en = {
     fromLabel: "From",
     toLabel: "To",
     noRecordsMatch: "No feed records match.",
+    noRecordsMessage: "No feed records yet — capture one above.",
 
     // Records table
     dateHeader: "Date",
@@ -824,6 +826,7 @@ export const en = {
     fromLabel: "From",
     toLabel: "To",
     noRecordsMatch: "No water records match.",
+    noRecordsMessage: "No water records yet — capture one above.",
 
     // Records table
     dateHeader: "Date",
@@ -1158,6 +1161,7 @@ export const en = {
     // Lots drill-down (per grade)
     lotsHeading: "Lots",
     noLotsMessage: "No lots for this grade yet.",
+    noLotsMatch: "No lots match — try a different date range.",
     producedOnHeader: "Produced on",
     producedHeader: "Produced",
     historyButton: "history",
@@ -1255,6 +1259,7 @@ export const en = {
     showArchivedLabel: "show {{count}} archived",
 
     noFlocksMessage: "No flocks yet.",
+    noFlocksMatch: "No flocks match — every flock is archived right now.",
 
     // Flocks table — separate keys from the form labels above even where the
     // English text coincides (same treatment as water:flockLabel/
@@ -1917,6 +1922,7 @@ export const en = {
     saveAdjustmentButton: "Save adjustment",
 
     noEntriesMatch: "No entries match — record one on the Daily entry page.",
+    noEntriesMessage: "No entries yet — record one on the Daily entry page.",
 
     // Entries table
     dateHeader: "Date",

@@ -1125,7 +1125,7 @@ export function SalesPage() {
               }} />
           // Same condition AND same handler as the page-head New order button
           // above — a customer-less farm gets the sentence alone there too.
-          : <EmptyState icon={ShoppingCart} message={t("noOrdersMatch")}
+          : <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")}
               action={customers.length > 0 ? {
                 label: t("newOrder"),
                 onClick: () => {

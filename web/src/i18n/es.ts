@@ -353,6 +353,7 @@ export const es = {
       "Este ajuste de la granja permite que tus confirmaciones de venta "
       + "tomen stock de fuera de tus parvadas asignadas.",
     noOrdersMatch: "Ningún pedido coincide.",
+    noOrdersMessage: "Aún no hay pedidos.",
     voidingNeedsAdmin: "Anular requiere un administrador.",
     voidReasonLabel: "Motivo de anulación: {{reason}}",
     orderTotal: "Total: {{amount}}",
@@ -592,6 +593,7 @@ export const es = {
     fromLabel: "Desde",
     toLabel: "Hasta",
     noRecordsMatch: "Ningún registro de alimento coincide.",
+    noRecordsMessage: "Aún no hay registros de alimento — capture uno arriba.",
     dateHeader: "Fecha",
     flockHeader: "Parvada",
     itemHeader: "Artículo",
@@ -650,6 +652,7 @@ export const es = {
     fromLabel: "Desde",
     toLabel: "Hasta",
     noRecordsMatch: "Ningún registro de agua coincide.",
+    noRecordsMessage: "Aún no hay registros de agua — capture uno arriba.",
 
     // Records table
     dateHeader: "Fecha",
@@ -912,6 +915,7 @@ export const es = {
     // Lots drill-down (per grade)
     lotsHeading: "Lotes",
     noLotsMessage: "Aún no hay lotes para este grado.",
+    noLotsMatch: "Ningún lote coincide — pruebe un rango de fechas diferente.",
     producedOnHeader: "Fecha de producción",
     producedHeader: "Producido",
     historyButton: "historial",
@@ -991,6 +995,7 @@ export const es = {
     showArchivedLabel: "mostrar {{count}} archivado(s)",
 
     noFlocksMessage: "Aún no hay lotes.",
+    noFlocksMatch: "Ningún lote coincide — todos están archivados por ahora.",
 
     // Flocks table
     nameHeader: "Nombre",
@@ -1466,6 +1471,7 @@ export const es = {
     saveAdjustmentButton: "Guardar ajuste",
 
     noEntriesMatch: "Ninguna entrada coincide — registre una en la página Daily entry.",
+    noEntriesMessage: "Aún no hay entradas — registre una en la página Daily entry.",
 
     // Entries table
     dateHeader: "Fecha",

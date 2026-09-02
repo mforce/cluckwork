@@ -735,7 +735,7 @@ export function HistoryPage() {
                 label: tc("clearFiltersButton"),
                 onClick: () => { setFlockFilter(""); setFlockFilterEntity(null); setFrom(""); setTo(""); },
               }} />
-          : <EmptyState icon={Inbox} message={t("noEntriesMatch")} />
+          : <EmptyState icon={Inbox} message={t("noEntriesMessage")} />
       ) : (
         <>
           <table className="data">

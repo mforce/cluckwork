@@ -376,7 +376,7 @@ export function FeedPage() {
                 label: tc("clearFiltersButton"),
                 onClick: () => { setFlockFilter(""); setFlockFilterEntity(null); setFrom(""); setTo(""); },
               }} />
-          : <EmptyState icon={Inbox} message={t("noRecordsMatch")} />
+          : <EmptyState icon={Inbox} message={t("noRecordsMessage")} />
       ) : (
         <>
           <table className="data">

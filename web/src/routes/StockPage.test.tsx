@@ -161,7 +161,7 @@ describe("StockPage drill-down", () => {
     mockListEggLots.mockResolvedValue([]);
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-01-01" } });
     await waitFor(() => expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g1", from: "2026-01-01", limit: 50, offset: 0 }));
-    expect(await screen.findByText(/No lots for this grade yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/No lots match/)).toBeInTheDocument();
 
     mockListEggLots.mockResolvedValue(LOTS);
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));

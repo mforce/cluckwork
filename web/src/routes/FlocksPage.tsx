@@ -363,7 +363,7 @@ export function FlocksPage() {
         // needs `archivedCount === 0` too — the toggle can't be responsible
         // for an empty `flocks` array in the first place).
         archivedCount > 0
-          ? <EmptyState icon={FilterX} message={t("noFlocksMessage")}
+          ? <EmptyState icon={FilterX} message={t("noFlocksMatch")}
               action={{ label: tc("clearFiltersButton"), onClick: () => setShowArchived(true) }} />
           : <EmptyState icon={Bird} message={t("noFlocksMessage")}
               action={isAdmin ? { label: t("newFlockButton"), onClick: () => { closeEdit(); setCreating(true); } } : undefined} />

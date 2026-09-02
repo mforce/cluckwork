@@ -95,11 +95,11 @@ describe("WaterPage loading + list", () => {
     expect(within(row2).getByText("100.5 → 175.25")).toBeInTheDocument(); // meter delta shown
   });
 
-  it("shows the empty state when no records match", async () => {
+  it("shows the truly-empty state when there are no records and no filter", async () => {
     mockListWaterUsage.mockResolvedValue([]);
     renderWithProviders(<WaterPage />, { token: WORKER });
 
-    expect(await screen.findByText("No water records match.")).toBeInTheDocument();
+    expect(await screen.findByText("No water records yet — capture one above.")).toBeInTheDocument();
   });
 
   // #512 US4 (T043/T051) — a record row's own flockName is null (the flock
