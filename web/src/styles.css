@@ -1797,7 +1797,9 @@ label.check {
 
 .help-search-field svg {
   position: absolute;
+  top: 50%;
   left: 0.9rem;
+  transform: translateY(-50%);
   color: var(--muted);
   pointer-events: none;
 }
@@ -1812,7 +1814,9 @@ label.check {
 
 .help-search-field kbd {
   position: absolute;
+  top: 50%;
   right: 0.7rem;
+  transform: translateY(-50%);
   padding: 0.1rem 0.45rem;
   border: 1px solid var(--hairline);
   border-radius: 4px;
