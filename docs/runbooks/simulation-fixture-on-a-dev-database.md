@@ -214,7 +214,7 @@ as environment variables the separator is `__`.
 | Key | Default | What it does |
 |---|---|---|
 | `Simulation__CastPassword` | *(none — required)* | Shared password for every `sim-*` cast member at whatever `Simulation__EmailDomain` is set to. Choose one at run time; never commit it. |
-| `Simulation__HistoryDays` | `90` | Depth of production history. See the table and the ceiling above. |
+| `Simulation__HistoryDays` | `90` | Depth of production history. See the table above; there is no ceiling, only the build cost. |
 | `Simulation__Managers` | `1` | Cast size, on top of the existing Owner. Managers place flocks and create products/categories/expenses. |
 | `Simulation__Sales` | `1` | Books the orders. |
 | `Simulation__Workers` | `3` | Records the daily entries. One is deliberately restricted to a single flock (#500). |
