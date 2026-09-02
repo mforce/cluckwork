@@ -37,7 +37,7 @@ committed file.
 
 Driver-verified just now:
 
-```
+```text
 $ sed -n '12p' README.md
 ![The dashboard: today's capture-status tiles by flock, a 14-day production trend,
   stock on hand by grade, and recent sales orders](docs/images/dashboard.png)
@@ -56,7 +56,7 @@ the four changes are markdown and the fourth is runbook prose.
 ## Commit and push
 
 ```bash
-git add docs/plans/
+git add docs/plans/screenshot-pipeline-and-conventions/03-fix-increment-2.md
 git commit -m "docs: narrow the image-restore step and fix markdown lint (#665 review)"
 git push origin chore/screenshot-pipeline-and-conventions
 ```

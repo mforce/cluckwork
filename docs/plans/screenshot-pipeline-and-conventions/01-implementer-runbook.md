@@ -145,7 +145,9 @@ rather than fixing it — a visual defect here is a finding for the driver to ro
 ## 2c. Commit
 
 ```bash
-git add tools/simulation/ui/ .gitignore
+git add tools/simulation/ui/playwright.palettes.config.ts \
+        tools/simulation/ui/specs-screenshots/palettes.spec.ts \
+        tools/simulation/ui/package.json tools/simulation/ui/.gitignore
 git commit -m "test(sim): capture the palette and theme matrix for visual review (#664)"
 ```
 

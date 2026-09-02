@@ -23,7 +23,7 @@ actually in frame.
 
 ## The fix
 
-#660 offers three routes and names the first itself: *"give the capture a taller viewport (its own project
+Issue #660 offers three routes and names the first itself: *"give the capture a taller viewport (its own project
 entry in `playwright.screenshots.config.ts`) so tiles + trend + stock + sales are all in frame."*
 
 Take that one. Do **not** attempt the second route (a dedicated seed profile so the tiles show real
@@ -67,7 +67,9 @@ profile to force a prettier picture.
 ## Commit
 
 ```bash
-git add tools/simulation/ui/ docs/images/dashboard.png README.md docs/plans/
+git add tools/simulation/ui/playwright.screenshots.config.ts \
+        tools/simulation/ui/README.md docs/images/dashboard.png README.md \
+        docs/plans/screenshot-pipeline-and-conventions/02-fix-increment-1.md
 git commit -m "docs: capture the dashboard at a taller viewport so the whole screen is in frame (#660)"
 git push origin chore/screenshot-pipeline-and-conventions
 ```
