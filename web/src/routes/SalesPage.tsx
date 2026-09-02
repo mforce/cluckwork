@@ -116,6 +116,11 @@ export function SalesPage() {
   // absent, never sent to the server, URL left untouched.
   const [searchParams, setSearchParams] = useSearchParams();
   const customerFilter = normalizeCanonicalGuid(searchParams.get("customerId"));
+  // #655 fix increment 2 — the empty-state variant and its "Clear filters"
+  // reach must track every filter sent to the API (line ~289: status AND
+  // customerId), not customerFilter alone, or a status-only filter that
+  // matches nothing shows the truly-empty copy on a farm that has orders.
+  const hasActiveFilter = Boolean(customerFilter) || Boolean(statusFilter);
   // #512 US5 (T057, FR-049) — the filter's committed identity: the row-owned
   // entity the picker's exact GET resolved for a well-formed `customerId` (or
   // a genuine user pick). A failed exact read enters the picker's own
@@ -685,7 +690,7 @@ export function SalesPage() {
         {/* #655 — also withheld exactly when the truly-empty state below is
             offering this same action (never for the filtered-empty branch,
             which offers "Clear filters" instead — no duplicate there). */}
-        {customers.length > 0 && !(orders.rows.length === 0 && !customerFilter) && (
+        {customers.length > 0 && !(orders.rows.length === 0 && !hasActiveFilter) && (
           // Re-seeded on open, not only at mount: a tab left open across
           // farm-midnight would otherwise offer yesterday as the order date
           // while the picker's own ceiling had already moved on (codex review
@@ -1112,7 +1117,7 @@ export function SalesPage() {
       {(orders.reloading || customerFilterStale) ? (
         <p className="muted">{t("loading")}</p>
       ) : orders.rows.length === 0 ? (
-        customerFilter
+        hasActiveFilter
           ? <EmptyState icon={FilterX} message={t("noOrdersMatch")}
               action={{
                 label: tc("clearFiltersButton"),
@@ -1120,6 +1125,7 @@ export function SalesPage() {
                   const next = new URLSearchParams(searchParams);
                   next.delete("customerId");
                   setCustomerFilterEntity(null);
+                  setStatusFilter("");
                   setSearchParams(next);
                 },
               }} />
