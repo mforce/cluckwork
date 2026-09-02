@@ -511,35 +511,31 @@ export const es = {
     loadFailed: "No se pudo cargar el panel. ¿Está la API activa?",
     panelLoadError: "No se pudo cargar.",
 
-    // Stat row
-    statEggsCollectedToday: "Huevos recolectados hoy",
-    statEggsAvailable: "Huevos disponibles",
-    statActiveFlocks: "Lotes activos",
-
-    // "Today" panel (per-flock production)
+    // Estado de captura (#654)
     todayPanelTitle: "Hoy",
     noFlocksMessage: "Aún no hay lotes — cree uno en la página de Registro diario.",
-    flockHeader: "Lote",
-    statusHeader: "Estado",
-    eggsHeader: "Huevos",
-    lossesHeader: "Pérdidas",
-    mortalityHeader: "Mortalidad",
     noEntryBadge: "sin registro",
+    todayEggsTotal: "{{total}} huevos hoy",
+    tileLinkLabel: "{{flock}}: abrir el registro de hoy",
+    moreFlocks_one: "{{total}} lote más",
+    moreFlocks_other: "{{total}} lotes más",
 
-    // "Stock" panel (by grade)
+    // Últimos 14 días (#654)
+    trendPanelTitle: "Últimos 14 días",
+    sparklineLabel: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}",
+    henDayCaption: "Postura {{pct}} · {{delta}} frente a los 7 días anteriores",
+    henDayDeltaUp: "+{{delta}} pts",
+    henDayDeltaDown: "−{{delta}} pts",
+
+    // Existencias (#654)
     stockPanelTitle: "Existencias",
     noStockMessage: "Aún no hay existencias — registre y envíe un registro diario.",
-    gradeHeader: "Grado",
-    availableHeader: "Disponible",
-    restrictedHeader: "Restringido",
     eggsAvailableMessage: "{{total}} huevos disponibles.",
+    stockCaptionRestricted: "{{restricted}} restringidos",
 
-    // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
+    // Ventas recientes (oculto para Solo lectura/Denegado, #127)
     salesPanelTitle: "Ventas recientes",
     noOrdersMessage: "Aún no hay pedidos.",
-    refHeader: "Ref.",
-    customerHeader: "Cliente",
-    totalHeader: "Total",
     rowCustomerUnavailable: "Este cliente ya no está disponible.",
   },
 

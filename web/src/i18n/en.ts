@@ -613,41 +613,44 @@ export const en = {
     // Imperative message (promise callback — see CONTRIBUTING-i18n.md's
     // imperative i18n.t() pattern): every parallel fetch failed.
     loadFailed: "Could not load dashboard. Is the API up?",
-    // Shared across all three panels — each degrades independently on its own
+    // Shared across all panels — each degrades independently on its own
     // failed fetch.
     panelLoadError: "Could not load.",
 
-    // Stat row
-    statEggsCollectedToday: "Eggs collected today",
-    statEggsAvailable: "Eggs available",
-    statActiveFlocks: "Active flocks",
-
-    // "Today" panel (per-flock production)
+    // Capture status (#654): one tile per active flock, no-entry tiles first,
+    // at most 12 with a link carrying the rest. A flock with no entry yet — a
+    // bespoke warn badge, not a StatusBadge — is the loudest thing on the
+    // screen and links straight to Daily entry for that flock and day.
     todayPanelTitle: "Today",
     noFlocksMessage: "No flocks yet — create one on the Daily entry page.",
-    flockHeader: "Flock",
-    statusHeader: "Status",
-    eggsHeader: "Eggs",
-    lossesHeader: "Losses",
-    mortalityHeader: "Mortality",
-    // A flock with no entry yet — a bespoke warn badge, not a StatusBadge.
     noEntryBadge: "no entry",
+    // {{total}} is the farm-locale formatted figure (#650).
+    todayEggsTotal: "{{total}} eggs today",
+    // aria-label of a tile link; the visible tile shows name, eggs and status.
+    tileLinkLabel: "{{flock}}: open today's entry",
+    // Past the 12-tile cap. {{total}} formatted; {{count}} raw for plural selection.
+    moreFlocks_one: "{{total}} more flock",
+    moreFlocks_other: "{{total}} more flocks",
 
-    // "Stock" panel (by grade)
+    // Last 14 days (#654): the production report's own figures — submitted
+    // days only, fixed window (yesterday back), hen-day % is the server's
+    // period figure for the last 7 complete days vs the 7 before.
+    trendPanelTitle: "Last 14 days",
+    sparklineLabel: "Eggs per day, last 14 days: lowest {{min}}, highest {{max}}, yesterday {{last}}",
+    henDayCaption: "Hen-day {{pct}} · {{delta}} vs the previous 7 days",
+    henDayDeltaUp: "+{{delta}} pts",
+    henDayDeltaDown: "−{{delta}} pts",
+
+    // Stock (#654): one stacked bar by grade; the caption is the text of record.
     stockPanelTitle: "Stock",
     noStockMessage: "No stock yet — record and submit a daily entry.",
-    gradeHeader: "Grade",
-    availableHeader: "Available",
-    restrictedHeader: "Restricted",
     // {{total}} is the farm-locale formatted figure (#650); {{count}} stays for plural selection.
     eggsAvailableMessage: "{{total}} eggs available.",
+    stockCaptionRestricted: "{{restricted}} restricted",
 
     // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
     salesPanelTitle: "Recent sales",
     noOrdersMessage: "No orders yet.",
-    refHeader: "Ref",
-    customerHeader: "Customer",
-    totalHeader: "Total",
     // #512 US4 (T048/T052) — an order row's own customerName came back null
     // (the customer left the caller's tenant scope between reads). Never a
     // raw id or a substituted catalog match.

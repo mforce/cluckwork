@@ -533,35 +533,31 @@ export const tl = {
     loadFailed: "Hindi na-load ang dashboard. Gumagana ba ang API?",
     panelLoadError: "Hindi na-load.",
 
-    // Stat row
-    statEggsCollectedToday: "Itlog na Nakolekta Ngayon",
-    statEggsAvailable: "Available na Itlog",
-    statActiveFlocks: "Aktibong Kawan",
-
-    // "Today" panel (per-flock production)
+    // Katayuan ng pagtatala (#654)
     todayPanelTitle: "Ngayon",
     noFlocksMessage: "Wala pang kawan — gumawa ng isa sa page na Araw-araw na Tala.",
-    flockHeader: "Kawan",
-    statusHeader: "Katayuan",
-    eggsHeader: "Itlog",
-    lossesHeader: "Nawala",
-    mortalityHeader: "Pagkamatay",
     noEntryBadge: "walang tala",
+    todayEggsTotal: "{{total}} itlog ngayon",
+    tileLinkLabel: "{{flock}}: buksan ang tala ngayong araw",
+    moreFlocks_one: "{{total}} pang kawan",
+    moreFlocks_other: "{{total}} pang kawan",
 
-    // "Stock" panel (by grade)
+    // Huling 14 araw (#654)
+    trendPanelTitle: "Huling 14 araw",
+    sparklineLabel: "Itlog bawat araw, huling 14 araw: pinakamababa {{min}}, pinakamataas {{max}}, kahapon {{last}}",
+    henDayCaption: "Hen-day {{pct}} · {{delta}} kumpara sa nakaraang 7 araw",
+    henDayDeltaUp: "+{{delta}} pts",
+    henDayDeltaDown: "−{{delta}} pts",
+
+    // Stock (#654)
     stockPanelTitle: "Stock",
     noStockMessage: "Wala pang stock — magtala at magsumite ng araw-araw na tala.",
-    gradeHeader: "Grado",
-    availableHeader: "Available",
-    restrictedHeader: "Restricted",
     eggsAvailableMessage: "{{total}} itlog ang available.",
+    stockCaptionRestricted: "{{restricted}} restricted",
 
-    // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
+    // Mga kamakailang benta (nakatago para sa ReadOnly/Denied, #127)
     salesPanelTitle: "Mga Kamakailang Benta",
     noOrdersMessage: "Wala pang order.",
-    refHeader: "Ref.",
-    customerHeader: "Customer",
-    totalHeader: "Kabuuan",
     rowCustomerUnavailable: "Hindi na available ang customer na ito.",
   },
 
