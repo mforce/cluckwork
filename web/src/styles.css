@@ -1474,6 +1474,25 @@ table.data tbody tr:hover {
   background: var(--row-hover);
 }
 
+/* Numeric cells (#650): a column of figures reads as a column only when the
+   digits line up — right-aligned under a right-aligned header, tabular
+   figures, and never a wrap inside a number or a money string. Screens mark
+   both the th and its td; a header left over its right-aligned column reads
+   as a different column. */
+table.data th.num,
+table.data td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A calendar date is one token: "2026-08-" / "14" across two lines is not a
+   date (docs/images/sales.png before #650). Left-aligned like text, unwrapped
+   like a number. */
+table.data td.nowrap {
+  white-space: nowrap;
+}
+
 table.data th[scope="row"] {
   color: var(--ink);
   font-size: 1rem;
@@ -1738,8 +1757,271 @@ label.check {
   margin-bottom: 1.75rem;
 }
 
-.help-head .eyebrow {
-  margin-bottom: 0.35rem;
+/* Sentence-case kicker above the title and the rail (#657): a label, not a
+   tracked caps eyebrow — the caps convention leaves the app with #652. */
+.help-kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Head band (#657): kicker, title, lead and the search in one inset band,
+   so the page opens on the thing a reader came to do. */
+.help-hero {
+  background: var(--surface-2);
+  border-radius: var(--r-card);
+  padding: 1.75rem 2rem 1.25rem;
+  margin: 0 0 2rem;
+}
+
+.help-hero .help-head {
+  margin-bottom: 1.25rem;
+}
+
+/* Search (#657): one box over the guide and the glossary; the status line
+   under it is the live region that says how much matched. */
+.help-search {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 40rem;
+}
+
+.help-search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 0;
+}
+
+.help-search-field svg {
+  position: absolute;
+  top: 50%;
+  left: 0.9rem;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.help-search-field input {
+  width: 100%;
+  height: 2.9rem;
+  padding: 0 3rem 0 2.6rem;
+  font-size: 1rem;
+  background: var(--surface);
+}
+
+.help-search-field kbd {
+  position: absolute;
+  top: 50%;
+  right: 0.7rem;
+  transform: translateY(-50%);
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: var(--surface-2);
+  pointer-events: none;
+}
+
+/* Night: the band and the field are two dark greys a hairline apart, so the
+   field becomes a recessed well — canvas-dark, with a light edge — and the
+   key hint gets an edge of its own. Light needs none of this: white on the
+   inset grey already reads as a field. */
+:root[data-theme="dark"] .help-search-field input {
+  background: var(--canvas);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+:root[data-theme="dark"] .help-search-field kbd {
+  background: var(--surface);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--ink);
+}
+
+.help-search-status {
+  min-height: 1.4rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* Section head (#657): the heading and, where the section describes a
+   screen the reader can reach, the door to it. */
+.help-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 2.5rem 0 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.help-body .help-section-head h3 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.help-open {
+  flex: none;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--link);
+  text-decoration: none;
+}
+
+.help-open:hover {
+  border-color: var(--link);
+  text-decoration: none;
+}
+
+/* Glossary jump bar (#657): one chip per group, under the heading. */
+.glossary-jump ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0.5rem;
+  padding: 0;
+}
+
+.glossary-jump a {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  font-size: 0.85rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.glossary-jump a:hover {
+  border-color: var(--brand);
+  text-decoration: none;
+}
+
+/* Fixing mistakes (#657): a mistake → fix list, the mistake in ink and the
+   fix beside it, instead of a two-column data table. */
+dl.mistakes {
+  margin: 0.5rem 0 0;
+}
+
+.mistake {
+  display: grid;
+  grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
+  gap: 0.3rem 1.5rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.mistake dt {
+  margin: 0;
+  font-weight: 600;
+}
+
+.mistake dd {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.mistake dd strong {
+  color: var(--ink);
+}
+
+.help-toc-group {
+  margin: 0.9rem 0 0.15rem;
+  padding: 0 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Glossary (#657): a dictionary grid — the term in its own column, the
+   definition beside it, a hairline between entries, the group heading
+   sticking while its entries scroll past. */
+.glossary-group h4 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 1.5rem 0 0;
+  padding: 0.6rem 0 0.4rem;
+  font-size: 1.05rem;
+  background: var(--canvas);
+  scroll-margin-top: 1.5rem;
+}
+
+dl.glossary {
+  margin: 0;
+}
+
+.glossary-entry {
+  display: grid;
+  grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr);
+  gap: 0.35rem 1.5rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--hairline);
+  scroll-margin-top: 3.5rem; /* clears the sticky group heading */
+}
+
+.glossary-entry:target {
+  background: var(--tint-accent);
+  box-shadow: 0 0 0 0.6rem var(--tint-accent);
+  border-radius: 4px;
+}
+
+.glossary-entry dt {
+  margin: 0;
+  font-weight: 600;
+}
+
+.glossary-entry dt a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.glossary-entry dt a:hover {
+  color: var(--link);
+  text-decoration: underline;
+}
+
+.glossary-entry dd {
+  margin: 0;
+  max-width: 60ch;
+  line-height: 1.6;
+}
+
+/* The "?" beside a column header (#657): a small ring, muted until hovered. */
+.help-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-left: 0.35rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--muted);
+  text-decoration: none;
+  vertical-align: middle;
+}
+
+.help-link:hover {
+  color: var(--link);
+  border-color: var(--link);
+  text-decoration: none;
 }
 
 .help-lead {
@@ -1815,7 +2097,7 @@ label.check {
   scroll-margin-top: 1.5rem;
 }
 
-.help-body h3:first-child {
+.help-body > .help-section:first-child > .help-section-head {
   margin-top: 0;
   padding-top: 0;
   border-top: none;
@@ -1941,19 +2223,74 @@ label.check {
     gap: 1rem;
   }
 
+  /* #657 — the rail becomes one horizontal strip pinned under the head:
+     the group labels fold away and every entry is a pill, scrolled sideways. */
   .help-toc {
-    position: static;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin: 0 -1.15rem;
+    padding: 0.5rem 1.15rem;
+    overflow-x: auto;
+    background: var(--canvas);
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .help-toc > div {
+    display: contents;
+  }
+
+  .help-toc .help-kicker,
+  .help-toc-group {
+    display: none;
   }
 
   .help-toc ul {
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.3rem;
+    margin: 0;
   }
 
   .help-toc li a {
     border: 1px solid var(--hairline);
     border-radius: var(--r-pill);
+    white-space: nowrap;
+  }
+
+  .help-hero {
+    padding: 1.25rem 1.15rem 1rem;
+  }
+
+  /* No keyboard to press "/" on. */
+  .help-search-field kbd {
+    display: none;
+  }
+
+  .help-search-field input {
+    padding-right: 1rem;
+  }
+
+  .help-section-head {
+    flex-wrap: wrap;
+  }
+
+  .glossary-entry,
+  .mistake {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* The rail above is sticky too, at a higher z-index: a heading sticking at
+     top: 0 would sit behind it. Stick just under the rail's rendered height. */
+  .glossary-group h4 {
+    top: 3rem;
+  }
+
+  .glossary-entry {
+    scroll-margin-top: 6.5rem; /* rail + heading */
   }
 
   .panel {

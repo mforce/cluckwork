@@ -1325,7 +1325,7 @@ describe("DailyEntryPage feed/water day summary (#446)", () => {
     mockListWaterUsage.mockResolvedValue([waterRow()]);
     await renderReady();
 
-    expect(await screen.findByText("Feed: 2 records (est. 500.00 USD)")).toBeInTheDocument();
+    expect(await screen.findByText("Feed: 2 records (est. $500.00)")).toBeInTheDocument();
     expect(screen.getByText("Water: 1 record")).toBeInTheDocument();
     // Context rides along: the link lands filtered to this flock and day.
     expect(screen.getByRole("link", { name: /Feed: 2 records/ }))
@@ -1362,7 +1362,7 @@ describe("DailyEntryPage feed/water day summary (#446)", () => {
     mockListFeedUsage.mockResolvedValueOnce([feedRow({ id: "fu-tail", estimatedCostMinorUnits: 500 })]);
     await renderReady();
 
-    expect(await screen.findByText("Feed: 101 records (est. 105.00 USD)")).toBeInTheDocument();
+    expect(await screen.findByText("Feed: 101 records (est. $105.00)")).toBeInTheDocument();
     expect(mockListFeedUsage).toHaveBeenCalledWith(expect.objectContaining({ offset: 100 }));
   });
 

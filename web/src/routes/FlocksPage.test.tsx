@@ -215,7 +215,7 @@ describe("FlocksPage bird ledger", () => {
     const cullRow = await screen.findByRole("row", { name: /Cull/ });
     expect(mockListMovements).toHaveBeenCalledWith("f1", { limit: 50, offset: 0 });
     expect(screen.getByRole("heading", { name: /Bird ledger — Hen House 1/ })).toBeInTheDocument();
-    expect(within(cullRow).getByText("2026-03-15")).toBeInTheDocument();
+    expect(within(cullRow).getByText("03/15/2026")).toBeInTheDocument();
     expect(within(cullRow).getByText("−2")).toBeInTheDocument(); // positive qty renders as a cull (−2)
     expect(within(cullRow).getByText("sick")).toBeInTheDocument();
 

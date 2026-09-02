@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { listFlocks, listWaterUsage, recordWaterUsage, updateWaterUsage } from "../api/cluckwork";
 import type { Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { FlockPicker } from "../components/FlockPicker";
@@ -32,6 +34,7 @@ function errText(err: unknown): string {
 // stock behind them); flock and date stay fixed once recorded.
 export function WaterPage() {
   const { t } = useTranslation("water");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
@@ -475,16 +478,16 @@ export function WaterPage() {
         <>
           <table className="data">
             <thead>
-              <tr><th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th>{t("amountHeader")}</th><th>{t("sourceHeader")}</th><th>{t("metersHeader")}</th><th>{t("noteHeader")}</th><th></th></tr>
+              <tr><th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th className="num">{t("amountHeader")}</th><th>{t("sourceHeader")}</th><th className="num">{t("metersHeader")}</th><th>{t("noteHeader")}</th><th></th></tr>
             </thead>
             <tbody>
               {usage.rows.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.date}</td>
+                  <td className="nowrap"><FarmDate iso={r.date} /></td>
                   <td>{r.flockName ?? t("rowFlockUnavailable")}</td>
-                  <td>{r.quantity} {waterUnitLabel(r.unit)}</td>
+                  <td className="num">{fmt.count(r.quantity)} {waterUnitLabel(r.unit)}</td>
                   <td>{waterSourceLabel(r.source)}</td>
-                  <td>{r.meterStart !== null ? `${r.meterStart} → ${r.meterEnd}` : "—"}</td>
+                  <td className="num">{r.meterStart !== null ? `${fmt.count(r.meterStart)} → ${r.meterEnd === null ? "" : fmt.count(r.meterEnd)}` : "—"}</td>
                   <td>{r.note ?? ""}</td>
                   <td>
                     {isAdmin && (

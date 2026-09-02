@@ -9,6 +9,8 @@ import {
 } from "../api/cluckwork";
 import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
@@ -40,6 +42,7 @@ const LEDGER_PAGE = 50;
 // behind a toggle. Current bird count math is the mortality slice, not this one.
 export function FlocksPage() {
   const { t } = useTranslation("flocks");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
@@ -355,8 +358,8 @@ export function FlocksPage() {
         <table className="data">
           <thead>
             <tr>
-              <th>{t("nameHeader")}</th><th>{t("breedHeader")}</th><th>{t("placedHeader")}</th><th>{t("ageHeader")}</th>
-              <th>{t("birdsHeader")}</th><th>{t("statusHeader")}</th>
+              <th>{t("nameHeader")}</th><th>{t("breedHeader")}</th><th>{t("placedHeader")}</th><th className="num">{t("ageHeader")}</th>
+              <th className="num">{t("birdsHeader")}</th><th>{t("statusHeader")}</th>
               <th>{tc("recordHistoryHeader")}</th><th></th>
             </tr>
           </thead>
@@ -365,12 +368,12 @@ export function FlocksPage() {
               <tr key={f.id} className={f.status === "Archived" ? "inactive" : undefined}>
                 <td>{f.name}</td>
                 <td>{f.breed}</td>
-                <td>{f.placementDate}</td>
-                <td>{t("ageWeeksSuffix", { weeks: ageWeeks(f.placementDate) })}</td>
-                <td>
-                  {f.currentBirds}
+                <td className="nowrap"><FarmDate iso={f.placementDate} /></td>
+                <td className="num">{t("ageWeeksSuffix", { weeks: ageWeeks(f.placementDate) })}</td>
+                <td className="num">
+                  {fmt.count(f.currentBirds)}
                   {f.currentBirds !== f.initialCount &&
-                    <span className="muted"> / {f.initialCount}</span>}
+                    <span className="muted"> / {fmt.count(f.initialCount)}</span>}
                 </td>
                 <td><StatusBadge status={f.status} label={statusLabel(f.status)} /></td>
                 <ProvenanceCell history={f} />
@@ -493,14 +496,14 @@ export function FlocksPage() {
           ) : (
             <table className="data">
               <thead>
-                <tr><th>{t("ledgerDateHeader")}</th><th>{t("ledgerTypeHeader")}</th><th>{t("ledgerBirdsHeader")}</th><th>{t("ledgerNoteHeader")}</th></tr>
+                <tr><th>{t("ledgerDateHeader")}</th><th>{t("ledgerTypeHeader")}</th><th className="num">{t("ledgerBirdsHeader")}</th><th>{t("ledgerNoteHeader")}</th></tr>
               </thead>
               <tbody>
                 {ledger.rows.map((m) => (
                   <tr key={m.id}>
-                    <td>{m.date}</td>
+                    <td className="nowrap"><FarmDate iso={m.date} /></td>
                     <td>{flockMovementLabel(m.type)}</td>
-                    <td>{m.quantity > 0 ? `−${m.quantity}` : `+${-m.quantity}`}</td>
+                    <td className="num">{m.quantity > 0 ? `−${fmt.count(m.quantity)}` : `+${fmt.count(-m.quantity)}`}</td>
                     <td>{m.note ?? "—"}</td>
                   </tr>
                 ))}

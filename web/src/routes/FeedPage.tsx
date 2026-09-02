@@ -3,10 +3,12 @@ import type { FormEvent } from "react";
 import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  formatMoney, listFeedUsage, listFlocks, listInventoryItems, recordFeedUsage,
+  listFeedUsage, listFlocks, listInventoryItems, recordFeedUsage,
 } from "../api/cluckwork";
 import type { Flock, InventoryItem } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
@@ -35,6 +37,7 @@ function errText(err: unknown): string {
 // corrected with a compensating Inventory ADJUSTMENT, not an edit here.
 export function FeedPage() {
   const { t } = useTranslation("feed");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local (#35/#123): the API judges "future date"
   // against the FARM's day, so the picker's ceiling must agree.
@@ -365,16 +368,16 @@ export function FeedPage() {
         <>
           <table className="data">
             <thead>
-              <tr><th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th>{t("itemHeader")}</th><th>{t("amountHeader")}</th><th>{t("estimatedCostHeader")}</th><th>{t("noteHeader")}</th></tr>
+              <tr><th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th>{t("itemHeader")}</th><th className="num">{t("amountHeader")}</th><th className="num">{t("estimatedCostHeader")}</th><th>{t("noteHeader")}</th></tr>
             </thead>
             <tbody>
               {usage.rows.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.date}</td>
+                  <td className="nowrap"><FarmDate iso={r.date} /></td>
                   <td>{r.flockName ?? t("rowFlockUnavailable")}</td>
                   <td>{itemName(r.inventoryItemId)}</td>
-                  <td>{r.quantity} {r.unit}</td>
-                  <td>{formatMoney(r.estimatedCostMinorUnits, r.currencyCode, r.currencyMinorUnit)}</td>
+                  <td className="num">{fmt.count(r.quantity)} {r.unit}</td>
+                  <td className="num">{fmt.money(r.estimatedCostMinorUnits, r.currencyCode, r.currencyMinorUnit)}</td>
                   <td>{r.note ?? ""}</td>
                 </tr>
               ))}

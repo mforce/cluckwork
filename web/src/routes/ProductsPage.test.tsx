@@ -49,7 +49,7 @@ const GRADE_A: EggGrade = { ...NO_RECORD_HISTORY, id: "g1", farmId: "f", name: "
 const GRADE_B: EggGrade = { ...NO_RECORD_HISTORY, id: "g2", farmId: "f", name: "Grade B", gradeType: "Size", sortOrder: 2, isSaleable: true, dailyEntryKind: "Manual", active: true };
 
 // KWD (3 decimals) throughout so a hard-coded 2-decimal money path fails: 500
-// minor units renders "0.500 KWD" and typed "0.5" parses to 500 (not 50).
+// minor units renders "KWD 0.500" and typed "0.5" parses to 500 (not 50).
 const ACCOUNT: Account = account({ name: "Farm", currencyCode: "KWD", currencyMinorUnit: 3 });
 
 const P1: Product = {
@@ -114,7 +114,7 @@ describe("ProductsPage loading + display", () => {
     const rowP1 = screen.getByRole("row", { name: /Grade A Dozen/ });
     expect(within(rowP1).getByText("Grade A")).toBeInTheDocument(); // grade name resolved by id
     expect(within(rowP1).getByText("Dozen")).toBeInTheDocument();   // sold-per unit
-    expect(within(rowP1).getByText("0.500 KWD")).toBeInTheDocument(); // 500 @ scale 3 — not "5.00"
+    expect(within(rowP1).getByText("KWD 0.500")).toBeInTheDocument(); // 500 @ scale 3 — not "5.00"
     expect(within(rowP1).getByText("Active")).toBeInTheDocument();
 
     const rowP2 = screen.getByRole("row", { name: /Legacy Tray/ });
@@ -492,7 +492,7 @@ describe("ProductsPage role gating", () => {
   it("still renders product and price data for a non-admin (read-only view keeps the money column)", async () => {
     await renderReady(WORKER);
     const rowP1 = screen.getByRole("row", { name: /Grade A Dozen/ });
-    expect(within(rowP1).getByText("0.500 KWD")).toBeInTheDocument();
+    expect(within(rowP1).getByText("KWD 0.500")).toBeInTheDocument();
   });
 });
 

@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
+import { GlossaryLink } from "../components/GlossaryLink";
+import { renderWithProviders } from "../test/renderWithProviders";
+import { GLOSSARY } from "./helpGlossary";
 import { HelpPage } from "./HelpPage";
 import i18n from "../i18n";
 import { en } from "../i18n/en";
@@ -32,7 +37,7 @@ describe("HelpPage", () => {
     expect(within(toc).getByRole("link", { name: "The daily loop" })).toHaveAttribute("href", "#daily-loop");
 
     expect(screen.getByRole("heading", { name: "The daily loop", level: 3 })).toBeInTheDocument();
-    expect(screen.getByRole("rowheader", { name: "FIFO" })).toBeInTheDocument();
+    expect(screen.getByText("FIFO", { selector: "dt a" })).toBeInTheDocument();
   });
 
   it("keeps the contents rail and the sections in step, in document order", () => {
@@ -55,16 +60,16 @@ describe("HelpPage", () => {
   it("documents farm settings, the currency lock and the logo (#123)", () => {
     render(<HelpPage />);
     expect(screen.getByRole("heading", { name: "Farm settings (admin)", level: 3 })).toBeInTheDocument();
-    expect(screen.getByRole("rowheader", { name: "Farm settings" })).toBeInTheDocument();
-    expect(screen.getByRole("rowheader", { name: "Currency lock" })).toBeInTheDocument();
-    expect(screen.getByRole("rowheader", { name: "Farm logo" })).toBeInTheDocument();
+    expect(screen.getByText("Farm settings", { selector: "dt a" })).toBeInTheDocument();
+    expect(screen.getByText("Currency lock", { selector: "dt a" })).toBeInTheDocument();
+    expect(screen.getByText("Farm logo", { selector: "dt a" })).toBeInTheDocument();
   });
 
   it("documents page loading in Getting around and the in-app glossary (#595)", () => {
     render(<HelpPage />);
     expect(screen.getByText(/first time you open a screen after starting or updating Cluckwork/i))
       .toBeInTheDocument();
-    expect(screen.getByRole("rowheader", { name: "Page loading" })).toBeInTheDocument();
+    expect(screen.getByText("Page loading", { selector: "dt a" })).toBeInTheDocument();
 
     for (const catalog of [es, tl]) {
       expect(catalog.help.gettingAroundPageLoading).toBeTruthy();
@@ -226,7 +231,7 @@ describe("HelpPage", () => {
     // as lost work. Dropping it would leave a user re-entering a range they
     // never lost.
     expect(screen.getByText(/Nothing was recorded and nothing was lost/i)).toBeInTheDocument();
-    expect(screen.getByRole("rowheader", { name: "Too many reports at once" })).toBeInTheDocument();
+    expect(screen.getByText("Too many reports at once", { selector: "dt a" })).toBeInTheDocument();
   });
 
   it("renders the report-throttle bullet through <Trans>, so its <strong> tags are real elements", () => {
@@ -267,7 +272,8 @@ describe("HelpPage", () => {
     // Scoped to this row's cell: the "must add up to ... exactly" clause is
     // deliberately echoed in glossaryAdjustEntryDef too (same fact, two
     // places), which an unscoped getByText would match twice.
-    const adjustFixCell = screen.getByRole("cell", { name: /Save adjustment/ });
+    // The fix is a <dd> whose text (partly in <strong>) carries the phrase.
+    const adjustFixCell = screen.getByText((_, el) => el?.tagName === "DD" && /Save adjustment/.test(el.textContent ?? ""));
     expect(
       within(adjustFixCell).getByText(/The corrected grades must add up to the corrected sellable count exactly/),
     ).toBeInTheDocument();
@@ -324,7 +330,7 @@ describe("HelpPage", () => {
     i18n.addResource("en", "help", "glossaryFarmProvisioningDef", "PROVISIONING-DEF-MARKER");
     try {
       render(<HelpPage />);
-      expect(screen.getByRole("rowheader", { name: "PROVISIONING-TERM-MARKER" })).toBeInTheDocument();
+      expect(screen.getByText("PROVISIONING-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
       expect(screen.getByText("PROVISIONING-DEF-MARKER")).toBeInTheDocument();
     } finally {
       i18n.addResource("en", "help", "glossaryFarmProvisioningTerm", originalTerm);
@@ -379,7 +385,7 @@ describe("HelpPage", () => {
 
   it("documents the Disabled user term in the in-app glossary (#356)", () => {
     render(<HelpPage />);
-    expect(screen.getByRole("rowheader", { name: "Disabled user" })).toBeInTheDocument();
+    expect(screen.getByText("Disabled user", { selector: "dt a" })).toBeInTheDocument();
     expect(screen.getByText(/Revoked access, not deletion/i)).toBeInTheDocument();
   });
 
@@ -491,7 +497,7 @@ describe("HelpPage i18n wiring (#182, Task 32)", () => {
   it("reads a 'Fixing mistakes' table cell from the catalog, not a hardcoded literal", () => {
     withOverride("mistakesRow1Mistake", "MISTAKE-ROW-MARKER", () => {
       render(<HelpPage />);
-      expect(screen.getByRole("cell", { name: "MISTAKE-ROW-MARKER" })).toBeInTheDocument();
+      expect(screen.getByText("MISTAKE-ROW-MARKER", { selector: "dt" })).toBeInTheDocument();
       expect(screen.queryByText(/depleted or archived the wrong flock/i)).not.toBeInTheDocument();
     });
   });
@@ -576,9 +582,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryFifoTerm", "FIFO-TERM-MARKER", () => {
       withOverride("glossaryFifoDef", "FIFO-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByRole("rowheader", { name: "FIFO-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("FIFO-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
         expect(screen.getByText("FIFO-DEF-MARKER")).toBeInTheDocument();
-        expect(screen.queryByRole("rowheader", { name: "FIFO" })).not.toBeInTheDocument();
+        expect(screen.queryByText("FIFO", { selector: "dt a" })).not.toBeInTheDocument();
         expect(screen.queryByText(/first in, first out/i)).not.toBeInTheDocument();
       });
     });
@@ -588,7 +594,7 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryPageLoadingTerm", "PAGE-LOADING-TERM-MARKER", () => {
       withOverride("glossaryPageLoadingDef", "PAGE-LOADING-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByRole("rowheader", { name: "PAGE-LOADING-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("PAGE-LOADING-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
         expect(screen.getByText("PAGE-LOADING-DEF-MARKER")).toBeInTheDocument();
       });
     });
@@ -598,9 +604,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryFlockScopingTerm", "FLOCK-SCOPE-TERM-MARKER", () => {
       withOverride("glossaryFlockScopingDef", "FLOCK-SCOPE-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByRole("rowheader", { name: "FLOCK-SCOPE-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("FLOCK-SCOPE-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
         expect(screen.getByText("FLOCK-SCOPE-DEF-MARKER")).toBeInTheDocument();
-        expect(screen.queryByRole("rowheader", { name: "Flock scoping" })).not.toBeInTheDocument();
+        expect(screen.queryByText("Flock scoping", { selector: "dt a" })).not.toBeInTheDocument();
       });
     });
   });
@@ -609,9 +615,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryTooManyReportsTerm", "REPORT-THROTTLE-TERM-MARKER", () => {
       withOverride("glossaryTooManyReportsDef", "REPORT-THROTTLE-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByRole("rowheader", { name: "REPORT-THROTTLE-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("REPORT-THROTTLE-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
         expect(screen.getByText("REPORT-THROTTLE-DEF-MARKER")).toBeInTheDocument();
-        expect(screen.queryByRole("rowheader", { name: "Too many reports at once" })).not.toBeInTheDocument();
+        expect(screen.queryByText("Too many reports at once", { selector: "dt a" })).not.toBeInTheDocument();
       });
     });
   });
@@ -621,9 +627,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryWorkerSaleAllocationTerm", "WORKER-SALE-ALLOCATION-TERM-MARKER", () => {
       withOverride("glossaryWorkerSaleAllocationDef", "WORKER-SALE-ALLOCATION-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByRole("rowheader", { name: "WORKER-SALE-ALLOCATION-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("WORKER-SALE-ALLOCATION-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
         expect(screen.getByText("WORKER-SALE-ALLOCATION-DEF-MARKER")).toBeInTheDocument();
-        expect(screen.queryByRole("rowheader", { name: "Worker sale allocation" })).not.toBeInTheDocument();
+        expect(screen.queryByText("Worker sale allocation", { selector: "dt a" })).not.toBeInTheDocument();
       });
     });
   });
@@ -634,9 +640,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryDisabledUserTerm", "DISABLED-USER-TERM-MARKER", () => {
       withOverride("glossaryDisabledUserDef", "DISABLED-USER-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByRole("rowheader", { name: "DISABLED-USER-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("DISABLED-USER-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
         expect(screen.getByText("DISABLED-USER-DEF-MARKER")).toBeInTheDocument();
-        expect(screen.queryByRole("rowheader", { name: "Disabled user" })).not.toBeInTheDocument();
+        expect(screen.queryByText("Disabled user", { selector: "dt a" })).not.toBeInTheDocument();
       });
     });
   });
@@ -648,9 +654,9 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     withOverride("glossaryStepUpAuthTerm", "STEP-UP-TERM-MARKER", () => {
       withOverride("glossaryStepUpAuthDef", "STEP-UP-DEF-MARKER", () => {
         render(<HelpPage />);
-        expect(screen.getByRole("rowheader", { name: "STEP-UP-TERM-MARKER" })).toBeInTheDocument();
+        expect(screen.getByText("STEP-UP-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
         expect(screen.getByText("STEP-UP-DEF-MARKER")).toBeInTheDocument();
-        expect(screen.queryByRole("rowheader", { name: "Step-up authentication" })).not.toBeInTheDocument();
+        expect(screen.queryByText("Step-up authentication", { selector: "dt a" })).not.toBeInTheDocument();
         // "re-enter your current password" also appears in the unrelated Signing-in
         // prose (signingInStepUp) — assert against phrasing unique to the glossary
         // def so this doesn't false-pass against that other section.
@@ -733,7 +739,7 @@ describe("HelpPage glossary i18n wiring (#182, Task 33)", () => {
     i18n.addResource("en", "help", "glossaryLoginEmailDef", "LOGIN-EMAIL-DEF-MARKER");
     try {
       render(<HelpPage />);
-      expect(screen.getByRole("rowheader", { name: "LOGIN-EMAIL-TERM-MARKER" })).toBeInTheDocument();
+      expect(screen.getByText("LOGIN-EMAIL-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
       expect(screen.getByText("LOGIN-EMAIL-DEF-MARKER")).toBeInTheDocument();
     } finally {
       i18n.addResource("en", "help", "glossaryLoginEmailTerm", originalTerm);
@@ -814,8 +820,8 @@ describe("HelpPage searchable picker guidance (#512)", () => {
 
   it("defines the Searchable picker term in the in-app glossary, covering keyboard, Load more, Retry, and unavailable identities", () => {
     render(<HelpPage />);
-    expect(screen.getByRole("rowheader", { name: "Searchable picker" })).toBeInTheDocument();
-    const def = screen.getByRole("rowheader", { name: "Searchable picker" }).closest("tr")!;
+    expect(screen.getByText("Searchable picker", { selector: "dt a" })).toBeInTheDocument();
+    const def = screen.getByText("Searchable picker", { selector: "dt a" }).closest(".glossary-entry")!;
     expect(def).toHaveTextContent(/Enter/);
     expect(def).toHaveTextContent(/Escape/);
     expect(def).toHaveTextContent("Load more");
@@ -837,7 +843,7 @@ describe("HelpPage searchable picker guidance (#512)", () => {
     i18n.addResource("en", "help", "glossarySearchablePickerDef", "SEARCHABLE-PICKER-DEF-MARKER");
     try {
       render(<HelpPage />);
-      expect(screen.getByRole("rowheader", { name: "SEARCHABLE-PICKER-TERM-MARKER" })).toBeInTheDocument();
+      expect(screen.getByText("SEARCHABLE-PICKER-TERM-MARKER", { selector: "dt a" })).toBeInTheDocument();
       expect(screen.getByText("SEARCHABLE-PICKER-DEF-MARKER")).toBeInTheDocument();
     } finally {
       i18n.addResource("en", "help", "glossarySearchablePickerTerm", originalTerm);
@@ -856,5 +862,231 @@ describe("HelpPage searchable picker guidance (#512)", () => {
     expect(en.help.glossarySearchablePickerDef).toContain(en.namedEntityPicker.loadMore);
     expect(en.help.glossarySearchablePickerDef).toContain(en.namedEntityPicker.retry);
     expect(en.help.glossarySearchablePickerDef).toContain(en.namedEntityPicker.unavailable);
+  });
+});
+
+// #657 — grouped, searchable, deep-linkable glossary; guide reordered around
+// the tasks people come for.
+describe("HelpPage glossary + search (#657)", () => {
+  it("renders the glossary as grouped definition lists, alphabetical within each group", () => {
+    const { container } = render(<HelpPage />);
+    const groups = Array.from(container.querySelectorAll(".glossary-group"));
+    expect(groups.length).toBeGreaterThanOrEqual(5);
+    let entries = 0;
+    for (const g of groups) {
+      expect(g.querySelector("h4")).not.toBeNull();
+      const terms = Array.from(g.querySelectorAll("dl.glossary dt")).map((dt) => dt.textContent ?? "");
+      expect(terms.length).toBeGreaterThan(0);
+      expect(terms).toEqual([...terms].sort((a, b) => a.localeCompare(b, "en")));
+      entries += terms.length;
+    }
+    expect(entries).toBe(GLOSSARY.length);
+    expect(container.querySelector("table.data th[scope=\"row\"]")).toBeNull();
+  });
+
+  it("gives every term a stable anchor that links to itself", () => {
+    const { container } = render(<HelpPage />);
+    const entry = container.querySelector("#glossary-egg-lot");
+    expect(entry).not.toBeNull();
+    expect(entry!.querySelector("dt a")).toHaveAttribute("href", "#glossary-egg-lot");
+    expect(entry!.querySelector("dt")).toHaveTextContent("Egg lot");
+    for (const e of Array.from(container.querySelectorAll(".glossary-entry"))) {
+      expect(e.id).toMatch(/^glossary-/);
+      expect(e.querySelector("dt a")).toHaveAttribute("href", `#${e.id}`);
+    }
+  });
+
+  it("puts Fixing mistakes straight after The daily loop", () => {
+    const { container } = render(<HelpPage />);
+    const ids = Array.from(container.querySelectorAll("h3[id]")).map((h) => h.id);
+    expect(ids.indexOf("mistakes")).toBe(ids.indexOf("daily-loop") + 1);
+  });
+
+  it("groups the contents rail under labels, in the same order as the sections", () => {
+    const { container } = render(<HelpPage />);
+    const toc = screen.getByRole("navigation", { name: "Help contents" });
+    expect(within(toc).getAllByText((_, el) => el?.classList.contains("help-toc-group") ?? false).length).toBeGreaterThanOrEqual(5);
+    const linked = within(toc).getAllByRole("link").map((a) => a.getAttribute("href")?.slice(1));
+    const sections = Array.from(container.querySelectorAll("h3[id]")).map((h) => h.id);
+    expect(linked).toEqual(sections);
+  });
+
+  it("filters guide sections and glossary terms by the search text, and says how many matched", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HelpPage />);
+    await user.type(screen.getByRole("searchbox", { name: "Search the guide" }), "fifo");
+
+    expect(screen.getByText("FIFO", { selector: "dt a" })).toBeVisible();
+    expect(container.querySelector("#glossary-ui-language")).not.toBeVisible();
+    // hidden: true — a `hidden` section leaves the accessibility tree, which is the point.
+    expect(screen.getByRole("heading", { name: "Install on a phone", level: 3, hidden: true })).not.toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(/“fifo”/);
+    expect(screen.getByRole("status")).toHaveTextContent(/2 in the glossary/); // FIFO itself + "Feed usage" (drains lots FIFO)
+
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(screen.getByRole("searchbox", { name: "Search the guide" })).toHaveValue("");
+    expect(container.querySelector("#glossary-ui-language")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Install on a phone", level: 3 })).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent("");
+  });
+
+  it("says so when nothing matches", async () => {
+    const user = userEvent.setup();
+    render(<HelpPage />);
+    await user.type(screen.getByRole("searchbox", { name: "Search the guide" }), "zzqxv");
+    expect(screen.getByRole("status")).toHaveTextContent("Nothing matches “zzqxv”.");
+    expect(screen.getByText("FIFO", { selector: "dt a" })).not.toBeVisible();
+  });
+
+  it("scrolls to the term named in the URL hash when the hash changes after mount", () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    window.location.hash = "";
+    try {
+      const { container } = render(<HelpPage />);
+      expect(scroll).not.toHaveBeenCalled();
+      window.location.hash = "#glossary-fifo";
+      act(() => { window.dispatchEvent(new HashChangeEvent("hashchange")); });
+      expect(scroll).toHaveBeenCalledTimes(1);
+      expect(scroll.mock.instances[0]).toBe(container.querySelector("#glossary-fifo"));
+    } finally {
+      window.location.hash = "";
+    }
+  });
+
+  it("follows a router navigation to a term's anchor (a GlossaryLink click)", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const user = userEvent.setup();
+    const { container } = render(
+      <MemoryRouter initialEntries={["/help"]}>
+        <GlossaryLink term="EggLot" />
+        <HelpPage />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole("link", { name: "What does “Egg lot” mean?" }));
+    expect(scroll).toHaveBeenCalled();
+    expect(scroll.mock.instances[scroll.mock.calls.length - 1]).toBe(container.querySelector("#glossary-egg-lot"));
+  });
+
+  it("clears an active search before following a hash, so the target is not hidden", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const user = userEvent.setup();
+    window.location.hash = "";
+    try {
+      const { container } = render(<HelpPage />);
+      await user.type(screen.getByRole("searchbox", { name: "Search the guide" }), "fifo");
+      expect(container.querySelector("#glossary-egg-lot")).not.toBeVisible();
+      window.location.hash = "#glossary-egg-lot";
+      act(() => { window.dispatchEvent(new HashChangeEvent("hashchange")); });
+      expect(screen.getByRole("searchbox", { name: "Search the guide" })).toHaveValue("");
+      expect(container.querySelector("#glossary-egg-lot")).toBeVisible();
+      expect(scroll).toHaveBeenCalledTimes(1);
+      expect(scroll.mock.instances[0]).toBe(container.querySelector("#glossary-egg-lot"));
+    } finally {
+      window.location.hash = "";
+    }
+  });
+
+  it("ignores a malformed URL fragment instead of throwing", () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    window.location.hash = "#%E0%A4%A"; // truncated percent-encoding: decodeURIComponent throws URIError
+    try {
+      expect(() => render(<HelpPage />)).not.toThrow();
+      expect(scroll).not.toHaveBeenCalled();
+    } finally {
+      window.location.hash = "";
+    }
+  });
+
+  it("scrolls to the term named in the URL hash on mount", () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    window.location.hash = "#glossary-egg-lot";
+    try {
+      const { container } = render(<HelpPage />);
+      expect(scroll).toHaveBeenCalledTimes(1);
+      expect(scroll.mock.instances[0]).toBe(container.querySelector("#glossary-egg-lot"));
+    } finally {
+      window.location.hash = "";
+    }
+  });
+});
+
+// #657 visual pass — head band, glossary grid with a jump bar, section
+// "Open <screen>" links, mistakes as a two-column list, "/" to search.
+describe("HelpPage visual pass (#657)", () => {
+  it("holds kicker, title, lead and the search in one head band", () => {
+    const { container } = render(<HelpPage />);
+    const hero = container.querySelector(".help-hero");
+    expect(hero).not.toBeNull();
+    expect(within(hero as HTMLElement).getByRole("heading", { name: "Help", level: 2 })).toBeInTheDocument();
+    expect(within(hero as HTMLElement).getByRole("searchbox", { name: "Search the guide" })).toBeInTheDocument();
+  });
+
+  it("focuses the search on / unless the user is already typing somewhere", async () => {
+    const user = userEvent.setup();
+    render(<HelpPage />);
+    const search = screen.getByRole("searchbox", { name: "Search the guide" });
+    expect(search).not.toHaveFocus();
+    await user.keyboard("/");
+    expect(search).toHaveFocus();
+    expect(search).toHaveValue(""); // the shortcut key itself is not typed
+    await user.keyboard("fifo/");
+    expect(search).toHaveValue("fifo/"); // inside the box, "/" is just a character
+  });
+
+  it("offers a jump bar to every glossary group", () => {
+    const { container } = render(<HelpPage />);
+    const jump = screen.getByRole("navigation", { name: "Glossary groups" });
+    const hrefs = within(jump).getAllByRole("link").map((a) => a.getAttribute("href"));
+    const groups = Array.from(container.querySelectorAll(".glossary-group h4")).map((h) => `#${h.id}`);
+    expect(hrefs).toEqual(groups);
+    expect(hrefs.length).toBe(7);
+  });
+
+  it("folds the glossary jump bar away while a search is active", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HelpPage />);
+    expect(screen.getByRole("navigation", { name: "Glossary groups" })).toBeVisible();
+    await user.type(screen.getByRole("searchbox", { name: "Search the guide" }), "fifo");
+    // A hidden element has no accessible name (accname step 2A), so the folded
+    // bar is reached by class rather than by role.
+    expect(container.querySelector(".glossary-jump")).not.toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(screen.getByRole("navigation", { name: "Glossary groups" })).toBeVisible();
+  });
+
+  it("renders Fixing mistakes as a mistake → fix list, not a table", () => {
+    const { container } = render(<HelpPage />);
+    const section = container.querySelector("#mistakes")!.closest("section")!;
+    expect(section.querySelector("table")).toBeNull();
+    const entries = section.querySelectorAll("dl.mistakes .mistake");
+    expect(entries.length).toBe(10);
+    for (const e of Array.from(entries)) {
+      expect(e.querySelector("dt")).not.toBeNull();
+      expect(e.querySelector("dd")).not.toBeNull();
+    }
+  });
+
+  it("links each screen section to its screen, only for screens the role can reach", () => {
+    renderWithProviders(<HelpPage />, { token: { sub: "u1", role: "Admin" } });
+    expect(screen.getByRole("link", { name: "Open Stock" })).toHaveAttribute("href", "/stock");
+    expect(screen.getByRole("link", { name: "Open Users" })).toHaveAttribute("href", "/users");
+    expect(screen.queryByRole("link", { name: /^Open .*daily loop/i })).not.toBeInTheDocument();
+  });
+
+  it("hides a section's Open link from a role that cannot reach the screen", () => {
+    renderWithProviders(<HelpPage />, { token: { sub: "u2" } }); // plain Worker
+    expect(screen.getByRole("link", { name: "Open Daily entry" })).toHaveAttribute("href", "/daily-entry");
+    expect(screen.queryByRole("link", { name: "Open Users" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open Expenses" })).not.toBeInTheDocument(); // admin-only in nav.tsx
+  });
+
+  it("offers no Open links outside a session (bare render)", () => {
+    render(<HelpPage />);
+    expect(screen.queryByRole("link", { name: /^Open / })).not.toBeInTheDocument();
   });
 });

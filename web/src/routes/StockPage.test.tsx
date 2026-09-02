@@ -125,7 +125,7 @@ describe("StockPage drill-down", () => {
     const gradeA = screen.getByRole("row", { name: /Grade A\b/ });
     fireEvent.click(within(gradeA).getByRole("button", { name: "lots" }));
 
-    const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+    const lotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
     // #465: the page asks for an explicit first page rather than leaning on
     // the API's silent default.
     expect(mockListEggLots).toHaveBeenCalledWith({ gradeId: "g1", limit: 50, offset: 0 });
@@ -153,9 +153,9 @@ describe("StockPage drill-down", () => {
     await renderWithData();
     const gradeA = screen.getByRole("row", { name: /Grade A\b/ });
     fireEvent.click(within(gradeA).getByRole("button", { name: "lots" }));
-    await screen.findByText("2026-07-01");
+    await screen.findByText("07/01/2026");
     fireEvent.click(within(gradeA).getByRole("button", { name: "hide lots" }));
-    expect(screen.queryByText("2026-07-01")).not.toBeInTheDocument();
+    expect(screen.queryByText("07/01/2026")).not.toBeInTheDocument();
   });
 
   it("expands a lot into its movement ledger on 'history'", async () => {
@@ -164,9 +164,9 @@ describe("StockPage drill-down", () => {
     await renderWithData();
 
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
-    await screen.findByText("2026-07-01");
+    await screen.findByText("07/01/2026");
     // the lot row's history button
-    const lotRow = screen.getByRole("row", { name: /2026-07-01/ });
+    const lotRow = screen.getByRole("row", { name: /07\/01\/2026/ });
     fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
 
     const mvRow = await screen.findByRole("row", { name: /Production/ });
@@ -183,7 +183,7 @@ describe("StockPage drill-down", () => {
     mockListEggLotMovements.mockRejectedValue(new Error("movements down"));
     await renderWithData();
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
-    const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+    const lotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
     fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
     expect(await screen.findByText(/Could not load the lot's movements/)).toBeInTheDocument();
   });
@@ -227,7 +227,7 @@ describe("StockPage i18n wiring (#182, Task 18)", () => {
       render(<StockPage />);
       await screen.findByText("Grade A");
       fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
-      const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+      const lotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
       expect(within(lotRow).getByRole("link", { name: "ADJUSTMENT-MARKER" })).toBeInTheDocument();
       expect(within(lotRow).queryByRole("link", { name: "Adjustment history" })).not.toBeInTheDocument();
     });
@@ -287,7 +287,7 @@ describe("StockPage i18n wiring (#182, Task 18)", () => {
       render(<StockPage />);
       await screen.findByText("Grade A");
       fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
-      const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+      const lotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
       fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
       expect(await screen.findByText("PRODUCTION-MARKER")).toBeInTheDocument();
       expect(screen.queryByText("Production")).not.toBeInTheDocument();
@@ -325,7 +325,7 @@ describe("StockPage write-off (#406)", () => {
     render(<StockPage />, token);
     await screen.findByText("Grade A");
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
-    return await screen.findByRole("row", { name: /2026-07-01/ });
+    return await screen.findByRole("row", { name: /07\/01\/2026/ });
   }
 
   function fillAndSubmit({ qty = "7", reason = "dropped a tray" }: { qty?: string; reason?: string } = {}) {
@@ -483,7 +483,7 @@ describe("StockPage error placement (#479)", () => {
     render(<StockPage />);
     await screen.findByText("Grade A");
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
-    return await screen.findByRole("row", { name: /2026-07-01/ });
+    return await screen.findByRole("row", { name: /07\/01\/2026/ });
   }
 
   function fillAndSubmit({ qty = "7", reason = "dropped a tray" }: { qty?: string; reason?: string } = {}) {
@@ -525,15 +525,15 @@ describe("StockPage error placement (#479)", () => {
     render(<StockPage />);
     await screen.findByText("Grade A");
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
-    const lotRow1 = await screen.findByRole("row", { name: /2026-07-01/ });
+    const lotRow1 = await screen.findByRole("row", { name: /07\/01\/2026/ });
     fireEvent.click(within(lotRow1).getByRole("button", { name: "write off" }));
     fillAndSubmit();
     await screen.findByText("network down");
 
-    const lotRow2 = screen.getByRole("row", { name: /2026-07-02/ });
+    const lotRow2 = screen.getByRole("row", { name: /07\/02\/2026/ });
     fireEvent.click(within(lotRow2).getByRole("button", { name: "write off" }));
     // The dialog really swapped lots — its title names the new lot's date.
-    expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/07\/02\/2026/); // farm-formatted (#650)
     expect(screen.queryByText("network down")).not.toBeInTheDocument();
   });
 
@@ -552,13 +552,13 @@ describe("StockPage error placement (#479)", () => {
     render(<StockPage />);
     await screen.findByText("Grade A");
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
-    const lotRow1 = await screen.findByRole("row", { name: /2026-07-01/ });
+    const lotRow1 = await screen.findByRole("row", { name: /07\/01\/2026/ });
     fireEvent.click(within(lotRow1).getByRole("button", { name: "write off" }));
     fillAndSubmit(); // lot A's submit is left pending
 
-    const lotRow2 = screen.getByRole("row", { name: /2026-07-02/ });
+    const lotRow2 = screen.getByRole("row", { name: /07\/02\/2026/ });
     fireEvent.click(within(lotRow2).getByRole("button", { name: "write off" }));
-    expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/07\/02\/2026/); // farm-formatted (#650)
 
     await act(async () => {
       resolveFirst({
@@ -571,7 +571,7 @@ describe("StockPage error placement (#479)", () => {
     // Still open, still lot B — a success about lot A did not sweep it away.
     // (Lot A's row correctly patches to 42 available either way — that is
     // the write landing, not the bug; the bug is the dialog closing.)
-    expect(screen.getByRole("dialog")).toHaveAccessibleName(/2026-07-02/);
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/07\/02\/2026/); // farm-formatted (#650)
     expect(screen.queryByText(i18n.t("stock:writeOffRecordedMessage", { available: 42 }))).not.toBeInTheDocument();
   });
 
@@ -673,8 +673,8 @@ describe("StockPage lot paging + date filter (#465)", () => {
 
     // The older lot appears BELOW the still-present first page (dates repeat
     // across the 50 generated lots, so "at least one" is the right shape).
-    expect(await screen.findByText("2026-06-01")).toBeInTheDocument();
-    expect(screen.getAllByText("2026-07-01").length).toBeGreaterThan(0);
+    expect(await screen.findByText("06/01/2026")).toBeInTheDocument();
+    expect(screen.getAllByText("07/01/2026").length).toBeGreaterThan(0);
     expect(mockListEggLots).toHaveBeenLastCalledWith({ gradeId: "g1", limit: PAGE, offset: PAGE });
     // The second page was short — nothing further to load.
     expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
@@ -693,11 +693,11 @@ describe("StockPage lot paging + date filter (#465)", () => {
     await expandGradeA();
 
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
-    expect(await screen.findByText("2026-07-02")).toBeInTheDocument();
+    expect(await screen.findByText("07/02/2026")).toBeInTheDocument();
     expect(mockListEggLots).toHaveBeenLastCalledWith(
       { gradeId: "g1", from: "2026-07-02", to: undefined, limit: PAGE, offset: 0 });
     // The filtered view REPLACES the unfiltered pages.
-    expect(screen.queryByText("2026-07-05")).not.toBeInTheDocument();
+    expect(screen.queryByText("07/05/2026")).not.toBeInTheDocument();
   });
 
   it("clears the filter when switching to another grade", async () => {
@@ -726,9 +726,9 @@ describe("StockPage lot paging + date filter (#465)", () => {
       .mockResolvedValue(makeLots(PAGE));
     await expandGradeA();
     fireEvent.click(await screen.findByRole("button", { name: "load more" }));
-    await screen.findByText("2026-06-01");
+    await screen.findByText("06/01/2026");
 
-    const lotRow = screen.getAllByRole("row", { name: /2026-07-01/ })[0];
+    const lotRow = screen.getAllByRole("row", { name: /07\/01\/2026/ })[0];
     fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
@@ -756,15 +756,15 @@ describe("StockPage lot paging + date filter (#465)", () => {
 
     // Newer (From+To) settles first with the narrow hit…
     pending[1]([{ ...LOTS[0], id: "hit", productionDate: "2026-07-02" }]);
-    await screen.findByText("2026-07-02");
+    await screen.findByText("07/02/2026");
     // …then the stale From-only response arrives late and must be dropped.
     // act() flushes the state update the settle would trigger — without it a
     // buggy overwrite renders after the assertions and the test lies green.
     await act(async () => {
       pending[0](makeLots(40));
     });
-    expect(screen.getByText("2026-07-02")).toBeInTheDocument();
-    expect(screen.queryByText("2026-07-15")).not.toBeInTheDocument();
+    expect(screen.getByText("07/02/2026")).toBeInTheDocument();
+    expect(screen.queryByText("07/15/2026")).not.toBeInTheDocument();
   });
 
   it("rolls the filter inputs back when the filter request fails (codex round 2)", async () => {
@@ -778,7 +778,7 @@ describe("StockPage lot paging + date filter (#465)", () => {
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
     await screen.findByText(/Could not load the grade's lots/);
     expect(screen.getByLabelText("From")).toHaveValue("");
-    expect(screen.getByText("2026-07-01")).toBeInTheDocument();
+    expect(screen.getByText("07/01/2026")).toBeInTheDocument();
   });
 
   it("abandons the post-write ledger refresh once a newer ledger intent exists (codex round 10)", async () => {
@@ -802,7 +802,7 @@ describe("StockPage lot paging + date filter (#465)", () => {
       Promise.resolve([{ ...MOVEMENTS[0], id: `mv-${id}`, reason: `marker-${id}` }]));
     await expandGradeA();
 
-    const rowA = screen.getByRole("row", { name: /2026-07-01/ });
+    const rowA = screen.getByRole("row", { name: /07\/01\/2026/ });
     fireEvent.click(within(rowA).getByRole("button", { name: "history" }));
     await screen.findByText("marker-lot1");
 
@@ -813,7 +813,7 @@ describe("StockPage lot paging + date filter (#465)", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
 
     // Refresh hangs on getStock; the user switches the ledger to lot B.
-    const rowB = screen.getByRole("row", { name: /2026-06-15/ });
+    const rowB = screen.getByRole("row", { name: /06\/15\/2026/ });
     fireEvent.click(within(rowB).getByRole("button", { name: "history" }));
     await screen.findByText("marker-lot2");
 
@@ -847,7 +847,7 @@ describe("StockPage lot paging + date filter (#465)", () => {
     });
     await expandGradeA();
 
-    const rowA = screen.getByRole("row", { name: /2026-07-01/ });
+    const rowA = screen.getByRole("row", { name: /07\/01\/2026/ });
     fireEvent.click(within(rowA).getByRole("button", { name: "history" }));
     await screen.findByText("marker-lot1");
 
@@ -860,7 +860,7 @@ describe("StockPage lot paging + date filter (#465)", () => {
     // The refresh's ledger fetch (call 2) hangs; the user opens lot B's
     // History, which lands successfully...
     await waitFor(() => expect(call).toBe(2));
-    fireEvent.click(within(screen.getByRole("row", { name: /2026-06-15/ }))
+    fireEvent.click(within(screen.getByRole("row", { name: /06\/15\/2026/ }))
       .getByRole("button", { name: "history" }));
     await screen.findByText("marker-lot2");
 
@@ -949,7 +949,7 @@ describe("StockPage lot paging + date filter (#465)", () => {
     await act(async () => {
       releaseFilter([{ ...LOTS[0] }]); // pre-mutation snapshot: 99
     });
-    const lotRow = screen.getByRole("row", { name: /2026-07-01/ });
+    const lotRow = screen.getByRole("row", { name: /07\/01\/2026/ });
     expect(within(lotRow).getByText("92")).toBeInTheDocument();
     expect(within(lotRow).queryByText("99")).not.toBeInTheDocument();
   });
@@ -998,14 +998,14 @@ describe("StockPage lot paging + date filter (#465)", () => {
     // and lands successfully.
     await waitFor(() => expect(mockListEggLots).toHaveBeenCalledTimes(2));
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
-    await screen.findByText("2026-07-02");
+    await screen.findByText("07/02/2026");
 
     await act(async () => {
       rejectWalk(new Error("stale fetch died"));
     });
     await screen.findByText(/92 now available/);
     expect(screen.queryByText(/Could not load stock/)).not.toBeInTheDocument();
-    expect(screen.getByText("2026-07-02")).toBeInTheDocument();
+    expect(screen.getByText("07/02/2026")).toBeInTheDocument();
   });
 
   it("restores the applied filter when a failing write-off superseded a pending filter (codex round 6)", async () => {
@@ -1028,7 +1028,7 @@ describe("StockPage lot paging + date filter (#465)", () => {
     await screen.findByText(/network down/);
 
     expect(screen.getByLabelText("From")).toHaveValue("");
-    expect(screen.getByText("2026-07-01")).toBeInTheDocument();
+    expect(screen.getByText("07/01/2026")).toBeInTheDocument();
   });
 
   it("commits the filter its refresh walk applied, so a later rollback targets it (codex round 6)", async () => {
@@ -1080,7 +1080,7 @@ describe("StockPage lot paging + date filter (#465)", () => {
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
     expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
 
-    const lotRow = screen.getAllByRole("row", { name: /2026-07-01/ })[0];
+    const lotRow = screen.getAllByRole("row", { name: /07\/01\/2026/ })[0];
     fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
@@ -1125,7 +1125,7 @@ describe("StockPage lot paging + date filter (#465)", () => {
       });
     });
     await screen.findByText(/92 now available/);
-    const lotRow = screen.getByRole("row", { name: /2026-07-01/ });
+    const lotRow = screen.getByRole("row", { name: /07\/01\/2026/ });
     expect(within(lotRow).getByText("92")).toBeInTheDocument();
     expect(within(lotRow).queryByText("99")).not.toBeInTheDocument();
   });
@@ -1164,7 +1164,7 @@ describe("StockPage lot paging + date filter (#465)", () => {
     fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
     await screen.findByText(/Could not load the grade's lots/);
     expect(screen.getByLabelText("From")).toHaveValue("");
-    expect(screen.getByText("2026-07-01")).toBeInTheDocument();
+    expect(screen.getByText("07/01/2026")).toBeInTheDocument();
   });
 
   it("rolls back to the last APPLIED filter, not the previous optimistic input (codex round 3)", async () => {
@@ -1205,7 +1205,7 @@ describe("StockPage lot paging + date filter (#465)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "history" }));
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
-    await screen.findByText("2026-07-02");
+    await screen.findByText("07/02/2026");
 
     await act(async () => {
       releaseMovements(MOVEMENTS);
@@ -1240,14 +1240,14 @@ describe("StockPage lot paging + date filter (#465)", () => {
 
     // While the refresh's getStock() hangs, the user switches to Grade B.
     fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
-    await screen.findByText("2026-03-03");
+    await screen.findByText("03/03/2026");
 
     await act(async () => {
       releaseStock(ROWS);
     });
     // Grade B's rows survive; the abandoned refresh issued no third lot fetch.
-    expect(screen.getByText("2026-03-03")).toBeInTheDocument();
-    expect(screen.queryByText("2026-07-01")).not.toBeInTheDocument();
+    expect(screen.getByText("03/03/2026")).toBeInTheDocument();
+    expect(screen.queryByText("07/01/2026")).not.toBeInTheDocument();
     expect(mockListEggLots).toHaveBeenCalledTimes(2);
   });
 
@@ -1262,8 +1262,8 @@ describe("StockPage lot paging + date filter (#465)", () => {
     await expandGradeA();
 
     fireEvent.click(await screen.findByRole("button", { name: "load more" }));
-    await screen.findByText("2026-04-04");
-    expect(screen.getAllByText("2026-05-05")).toHaveLength(1);
+    await screen.findByText("04/04/2026");
+    expect(screen.getAllByText("05/05/2026")).toHaveLength(1);
   });
 
   it("closes an open movement ledger when the filter changes (codex P2)", async () => {
@@ -1278,7 +1278,7 @@ describe("StockPage lot paging + date filter (#465)", () => {
     await screen.findByText(/Movement ledger/);
 
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
-    await screen.findByText("2026-07-02");
+    await screen.findByText("07/02/2026");
     expect(screen.queryByText(/Movement ledger/)).not.toBeInTheDocument();
   });
 
@@ -1291,12 +1291,12 @@ describe("StockPage lot paging + date filter (#465)", () => {
       .mockRejectedValueOnce(new Error("boom"));
     await expandGradeA();
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-02" } });
-    await screen.findByText("2026-07-02");
+    await screen.findByText("07/02/2026");
 
     fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
     await screen.findByText(/Could not load the grade's lots/);
     expect(screen.getByLabelText("From")).toHaveValue("2026-07-02");
-    expect(screen.getByText("2026-07-02")).toBeInTheDocument();
+    expect(screen.getByText("07/02/2026")).toBeInTheDocument();
   });
 
   it("dedupes overlapping pages in the post-write-off window walk", async () => {
@@ -1314,17 +1314,17 @@ describe("StockPage lot paging + date filter (#465)", () => {
       .mockResolvedValueOnce([shifted, { ...LOTS[0], id: "older", productionDate: "2026-04-04" }]);
     await expandGradeA();
     fireEvent.click(await screen.findByRole("button", { name: "load more" }));
-    await screen.findByText("2026-06-01");
+    await screen.findByText("06/01/2026");
 
-    const lotRow = screen.getAllByRole("row", { name: /2026-07-01/ })[0];
+    const lotRow = screen.getAllByRole("row", { name: /07\/01\/2026/ })[0];
     fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
     fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "dropped a tray" } });
     fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
 
-    await screen.findByText("2026-04-04");
-    expect(screen.getAllByText("2026-05-05")).toHaveLength(1);
+    await screen.findByText("04/04/2026");
+    expect(screen.getAllByText("05/05/2026")).toHaveLength(1);
   });
 
   it("stops walking refresh pages once a newer load supersedes it", async () => {
@@ -1343,9 +1343,9 @@ describe("StockPage lot paging + date filter (#465)", () => {
       .mockImplementation(() => new Promise<EggLotRow[]>((r) => pending.push(r)));
     await expandGradeA();
     fireEvent.click(await screen.findByRole("button", { name: "load more" }));
-    await screen.findByText("2026-06-01");
+    await screen.findByText("06/01/2026");
 
-    const lotRow = screen.getAllByRole("row", { name: /2026-07-01/ })[0];
+    const lotRow = screen.getAllByRole("row", { name: /07\/01\/2026/ })[0];
     fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "7" } });
@@ -1390,7 +1390,7 @@ describe("StockPage audit history link (#493)", () => {
     render(<StockPage />);
     await screen.findByText("Grade A");
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
-    const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+    const lotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
 
     // The link navigates to the entity-scoped audit trail — never opens
     // anything in place.
@@ -1418,7 +1418,7 @@ describe("StockPage audit history link (#493)", () => {
     render(<StockPage />, WORKER);
     await screen.findByText("Grade A");
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
-    const lotRow = await screen.findByRole("row", { name: /2026-07-01/ });
+    const lotRow = await screen.findByRole("row", { name: /07\/01\/2026/ });
     expect(within(lotRow).queryByRole("link", { name: "Adjustment history" })).not.toBeInTheDocument();
   });
 });

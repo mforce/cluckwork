@@ -38,7 +38,7 @@ const C2: Customer = {
 };
 // c1 owes 500; c2 has no confirmed orders → absent from the balance list.
 // KWD (3 decimals) so the assertion pins formatMoney's currency scale — 500
-// renders "0.500 KWD", which a hard-coded 2-decimal formatter could not produce.
+// renders "KWD 0.500", which a hard-coded 2-decimal formatter could not produce.
 const BALANCES: CustomerBalances = {
   items: [{ customerId: "c1", confirmedTotalMinorUnits: 1000, paidMinorUnits: 500, outstandingMinorUnits: 500 }],
   currencyCode: "KWD", currencyMinorUnit: 3,
@@ -288,10 +288,10 @@ describe("CustomersPage outstanding balances (admin)", () => {
 
     const rowC1 = await screen.findByRole("row", { name: /Acme Eggs/ });
     // balances load in a separate effect → await the cell (not a sync getByText)
-    expect(await within(rowC1).findByText("0.500 KWD")).toBeInTheDocument(); // 500 @ scale 3
+    expect(await within(rowC1).findByText("KWD 0.500")).toBeInTheDocument(); // 500 @ scale 3
     // c2 is absent from the balance list → outstandingFor returns an explicit 0
     const rowC2 = screen.getByRole("row", { name: /Bravo Co/ });
-    expect(await within(rowC2).findByText("0.000 KWD")).toBeInTheDocument();
+    expect(await within(rowC2).findByText("KWD 0.000")).toBeInTheDocument();
   });
 
   it("shows a placeholder in the outstanding cell until balances load", async () => {
@@ -303,7 +303,7 @@ describe("CustomersPage outstanding balances (admin)", () => {
     expect(within(rowC1).getByText("…")).toBeInTheDocument();
     await act(async () => resolve(BALANCES));
     // placeholder → real value once balances resolve
-    expect(await within(rowC1).findByText("0.500 KWD")).toBeInTheDocument();
+    expect(await within(rowC1).findByText("KWD 0.500")).toBeInTheDocument();
   });
 });
 

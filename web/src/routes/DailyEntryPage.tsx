@@ -3,11 +3,12 @@ import type { FormEvent } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  createFlock, formatMoney, listDailyEntries, listEggGrades, listEggUnitConversions,
+  createFlock, listDailyEntries, listEggGrades, listEggUnitConversions,
   listFeedUsage, listFlocks, listWaterUsage, recordDailyEntry, submitDailyEntry,
 } from "../api/cluckwork";
 import type { EggGrade, EggUnitConversion, FeedUsage, Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
 import { readAccountScoped, writeAccountScoped } from "../lib/accountStorage";
 import { BusyButton } from "../components/BusyButton";
 import { FlockPicker } from "../components/FlockPicker";
@@ -47,6 +48,7 @@ function errorMessage(err: unknown): string {
 // turns grade lines into egg lots (stock).
 export function DailyEntryPage() {
   const { t } = useTranslation("dailyEntry");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
@@ -711,7 +713,7 @@ export function DailyEntryPage() {
                 : oneCurrency
                   ? t("daySupportFeed", {
                       count: daySupport.feed.length,
-                      cost: formatMoney(
+                      cost: fmt.money(
                         daySupport.feed.reduce((a, r) => a + r.estimatedCostMinorUnits, 0),
                         daySupport.feed[0].currencyCode, daySupport.feed[0].currencyMinorUnit),
                     })

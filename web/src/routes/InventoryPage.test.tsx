@@ -163,7 +163,7 @@ describe("InventoryPage loading & display", () => {
   it("renders each item's formatted default cost and active/inactive status", async () => {
     // Give the displayed feed a 3-decimal currency snapshot (BHD) so the assertion
     // exercises the item's OWN scale via the REAL formatMoney: 1500 minor @ 3dp →
-    // "1.500 BHD". A hard-coded ÷100 (a 2dp assumption) would render "15.00" and
+    // "BHD 1.500". A hard-coded ÷100 (a 2dp assumption) would render "15.00" and
     // fail, so this pins the scale-aware formatting.
     const bhdFeed: InventoryItem = {
       ...FEED, defaultCostMinorUnits: 1500,
@@ -176,7 +176,7 @@ describe("InventoryPage loading & display", () => {
     expect(mockListItems).toHaveBeenCalledWith({ includeInactive: true });
 
     const feedRow = screen.getByRole("row", { name: /Layer Feed/ });
-    expect(within(feedRow).getByText("1.500 BHD")).toBeInTheDocument();
+    expect(within(feedRow).getByText("BHD 1.500")).toBeInTheDocument();
     expect(within(feedRow).getByText("Active")).toBeInTheDocument();
     expect(within(feedRow).getByText("200 kg")).toBeInTheDocument();
 
@@ -350,7 +350,7 @@ describe("InventoryPage lot & movement drill-down", () => {
     expect(mockListLots).toHaveBeenCalledWith("it1");
 
     const mvRow = screen.getByRole("row", { name: /Purchase/ });
-    expect(within(mvRow).getByText("2026-07-01")).toBeInTheDocument();
+    expect(within(mvRow).getByText("07/01/2026")).toBeInTheDocument();
     expect(within(mvRow).getByText("+100 kg")).toBeInTheDocument(); // signed positive delta
     expect(within(mvRow).getByText("initial receive")).toBeInTheDocument();
   });

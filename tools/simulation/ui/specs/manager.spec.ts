@@ -28,7 +28,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../src/fixtures";
 import { castMember } from "../src/cast";
 import { commitNamedPicker } from "../src/dom";
-import { farmToday } from "../src/farm";
+import { farmCount, farmToday } from "../src/farm";
 import { prefixOf, tEn } from "../src/i18n";
 
 // Creates a flock through the UI and returns its id, captured from the POST
@@ -283,9 +283,12 @@ test.describe("Manager", () => {
       .getByRole("button", { name: tEn("stock:lotsButton") })
       .click();
 
+    // #650 — the visible date is the farm's own format (locale short form or
+    // its Settings override), so the row is picked by the ISO day the cell's
+    // <time datetime> carries, never by the rendered label.
     const todayRows = page
       .getByRole("row")
-      .filter({ has: page.getByRole("cell", { name: today, exact: true }) });
+      .filter({ has: page.locator(`time[datetime="${today}"]`) });
 
     // Produced (td 2) and available (td 3) for every same-day row, read
     // positionally. `filter({ has: cell })` cannot express this: two clauses
@@ -393,11 +396,14 @@ test.describe("Manager", () => {
       // rendered count must equal the sum of the pages fetched. StockPage
       // dedupes by id on append, so a SHORTFALL means offsets drifted — worth
       // failing on rather than waiting out.
+      // A lot row is one whose first cell is a date — read from the <time
+      // datetime> the cell carries (#650), never from the label, which is the
+      // farm's own date format.
       const lotRowsOnScreen = async () =>
         page.getByRole("row").evaluateAll((rows) =>
           rows.filter((row) => {
-            const first = row.querySelector("td");
-            return first !== null && /^\d{4}-\d{2}-\d{2}$/.test(first.textContent?.trim() ?? "");
+            const first = row.querySelector("td:first-child time[datetime]");
+            return first !== null && /^\d{4}-\d{2}-\d{2}$/.test(first.getAttribute("datetime") ?? "");
           }).length);
 
       const fetched = pages().reduce((total, p) => total + p.size, 0);
@@ -416,7 +422,7 @@ test.describe("Manager", () => {
         .poll(async () => {
           const rows = await balances();
           const hits = rows
-            .map(([produced], index) => (produced === String(eggs) ? index : -1))
+            .map(([produced], index) => (produced === farmCount(eggs, farm.locale) ? index : -1))
             .filter((index) => index >= 0);
           at = hits.length === 1 ? hits[0]! : -1;
           return hits.length;
@@ -450,7 +456,7 @@ test.describe("Manager", () => {
     // Produced is unchanged, which is the point: the write-off moved the
     // balance without restating the day's laying.
     const afterWriteOff = await ourLotIndex(submittedWriteOff, WHOLE_HISTORY);
-    expect((await balances())[afterWriteOff]).toEqual([String(eggs), String(eggs - 2)]);
+    expect((await balances())[afterWriteOff]).toEqual([farmCount(eggs, farm.locale), farmCount(eggs - 2, farm.locale)]);
 
     // ---- #465: the date filter reaches lots server-side -------------------
     // A window that cannot contain this lot empties the table…
@@ -469,7 +475,7 @@ test.describe("Manager", () => {
     expect(
       (await balances())[afterFilter],
       "narrowing the window to today did not bring back the corrected lot",
-    ).toEqual([String(eggs), String(eggs - 2)]);
+    ).toEqual([farmCount(eggs, farm.locale), farmCount(eggs - 2, farm.locale)]);
   });
 
   test("can reach the admin destinations a Worker cannot", async ({ signIn, nav }) => {

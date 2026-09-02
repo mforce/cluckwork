@@ -67,7 +67,7 @@ const FLOCK: Flock = {
 
 // A BHD (3-decimal) expense whose snapshot currency differs from the current
 // account/list currency — the exact case the code comments call out. 1500 minor
-// units @ 3dp renders "1.500 BHD" (a 2dp formatter could not produce it).
+// units @ 3dp renders "BHD 1.500" (a 2dp formatter could not produce it).
 const EXP_BHD: Expense = {
   ...NO_RECORD_HISTORY,
   id: "e1", farmId: "farm1", expenseCategoryId: "cat-feed", date: "2026-07-05",
@@ -128,10 +128,10 @@ describe("ExpensesPage list + totals", () => {
     await act(async () => resolve({ items: [EXP_BHD], totalMinorUnits: 12345, currencyCode: "BHD", currencyMinorUnit: 3 }));
 
     const row = await screen.findByRole("row", { name: /Layer feed/ });
-    expect(within(row).getByText("1.500 BHD")).toBeInTheDocument(); // 1500 @ 3dp, not "15.00"
-    // month total is its own value (12345), rendered at 3dp → "12.345 BHD"; a
+    expect(within(row).getByText("BHD 1.500")).toBeInTheDocument(); // 1500 @ 3dp, not "15.00"
+    // month total is its own value (12345), rendered at 3dp → "BHD 12.345"; a
     // hard-coded 2dp formatter would read "123.45", so this pins the scale.
-    expect(screen.getByText(/Month total: 12\.345 BHD/)).toBeInTheDocument();
+    expect(screen.getByText(/Month total: BHD 12\.345/)).toBeInTheDocument();
   });
 
   it("shows the empty-state hint when the month has no expenses", async () => {
@@ -622,12 +622,12 @@ describe("ExpensesPage i18n wiring (#182, Task 23)", () => {
   // Proves the month-total copy template reads from the catalog while still
   // interpolating formatMoney's already-formatted total (farm-locale DATA) —
   // a hardcoded literal, or one that dropped the interpolation, would fail
-  // this even though "12.345 BHD" itself is unaffected by the marker.
+  // this even though "BHD 12.345" itself is unaffected by the marker.
   it("interpolates formatMoney's total into the month-total label from the catalog", async () => {
     mockListExpenses.mockResolvedValue({ items: [], totalMinorUnits: 12345, currencyCode: "BHD", currencyMinorUnit: 3 });
     await withOverride("expenses", "monthTotalLabel", "TOTAL-MARKER {{amount}} END", async () => {
       renderWithProviders(<ExpensesPage />, { token: ADMIN });
-      expect(await screen.findByText("TOTAL-MARKER 12.345 BHD END")).toBeInTheDocument();
+      expect(await screen.findByText("TOTAL-MARKER BHD 12.345 END")).toBeInTheDocument();
       expect(screen.queryByText(/Month total:/)).not.toBeInTheDocument();
     });
   });
@@ -747,7 +747,7 @@ describe("ExpensesPage list failures (#469)", () => {
       items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2,
     });
     await renderReady();
-    expect(screen.getByText(/Month total: 999\.00 USD/)).toBeInTheDocument();
+    expect(screen.getByText(/Month total: \$999\.00/)).toBeInTheDocument();
 
     mockListExpenses.mockRejectedValueOnce(new Error("boom"));
     await act(async () => {
@@ -756,7 +756,7 @@ describe("ExpensesPage list failures (#469)", () => {
     });
 
     // Neither the old month's rows nor its money may describe the new one.
-    expect(screen.queryByText(/999\.00 USD/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$999\.00/)).not.toBeInTheDocument();
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
@@ -772,20 +772,20 @@ describe("ExpensesPage list failures (#469)", () => {
     await act(async () => {
       fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
     });
-    expect(screen.getByText(/Month total: 5\.00 USD/)).toBeInTheDocument();
+    expect(screen.getByText(/Month total: \$5\.00/)).toBeInTheDocument();
 
     await act(async () => {
       releaseStale({ items: [], totalMinorUnits: 88800, currencyCode: "USD", currencyMinorUnit: 2 });
     });
-    expect(screen.getByText(/Month total: 5\.00 USD/)).toBeInTheDocument();
-    expect(screen.queryByText(/888\.00 USD/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Month total: \$5\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/\$888\.00/)).not.toBeInTheDocument();
   });
 });
 
 describe("ExpensesPage currency scale (#469, codex P1)", () => {
   // The form used to take its decimal scale from the LIST response, so a
   // failed load cleared it and silently fell back to 2 decimals while the
-  // form stayed enabled. On a 3-decimal currency that converts 1.000 BHD to
+  // form stayed enabled. On a 3-decimal currency that converts BHD 1.000 to
   // 100 minor units instead of 1000 — a wrong number stored against the
   // account's real scale. The account is the authority; the list is not.
   it("converts at the account's scale even after the list load fails", async () => {
@@ -890,7 +890,7 @@ describe("ExpensesPage cross-period display while loading (#469, codex P2)", () 
       items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2,
     });
     await renderReady();
-    expect(screen.getByText(/Month total: 999\.00 USD/)).toBeInTheDocument();
+    expect(screen.getByText(/Month total: \$999\.00/)).toBeInTheDocument();
 
     // The replacement hangs: nothing about the old month may still show.
     mockListExpenses.mockReturnValueOnce(new Promise(() => {}));
@@ -898,7 +898,7 @@ describe("ExpensesPage cross-period display while loading (#469, codex P2)", () 
       fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
     });
 
-    expect(screen.queryByText(/999\.00 USD/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$999\.00/)).not.toBeInTheDocument();
     expect(screen.queryByText("Generator diesel")).not.toBeInTheDocument();
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
@@ -942,7 +942,7 @@ describe("ExpensesPage total is never a guess (#469, codex P2)", () => {
       .mockResolvedValueOnce({ items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2 })
       .mockRejectedValue(new Error("boom"));
     await renderReady();
-    expect(screen.getByText(/Month total: 999\.00 USD/)).toBeInTheDocument();
+    expect(screen.getByText(/Month total: \$999\.00/)).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });

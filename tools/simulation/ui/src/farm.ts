@@ -121,6 +121,26 @@ export function farmToday(timeZone: string, now: Date = new Date()): string {
  * local `Date` would re-introduce the runner's timezone into a farm-local
  * calculation and drift by a day near midnight.
  */
+/**
+ * A count the way the SPA renders it (#650, spec §4.5): grouped per the FARM
+ * locale, never the runner's. Assert on this, not on `String(n)` — "4,446" is
+ * what the farm sees, and a bare "4446" matches nothing once a figure crosses
+ * a thousand. Deliberately Intl in the farm's locale rather than the SPA's own
+ * formatter: this harness asserts the value the app SHOULD show, and sharing
+ * the code under test would make the assertion vacuous.
+ */
+export function farmCount(value: number, locale: string): string {
+  // The SPA's own contract for a malformed farm locale is "fall back to en-US"
+  // (web/src/lib/format.ts, pinned by format.test.ts); the expectation
+  // mirrors the rule so a bad fixture locale reads as a wrong figure on
+  // screen, never as a RangeError thrown from inside the assertion.
+  try {
+    return new Intl.NumberFormat(locale).format(value);
+  } catch {
+    return new Intl.NumberFormat("en-US").format(value);
+  }
+}
+
 export function daysBefore(isoDate: string, days: number): string {
   const [y, m, d] = isoDate.split("-").map(Number);
   if (!y || !m || !d) throw new Error(`Not an ISO date: "${isoDate}"`);

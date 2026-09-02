@@ -3,11 +3,13 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import {
-  adjustExpense, createExpense, createExpenseCategory, formatMoney, getExpense,
+  adjustExpense, createExpense, createExpenseCategory, getExpense,
   listExpenseCategories, listExpenses, listFlocks, updateExpenseCategory,
 } from "../api/cluckwork";
 import type { Expense, ExpenseCategory, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
 import { FlockPicker } from "../components/FlockPicker";
@@ -33,6 +35,7 @@ const PAGE = 100;
 // carries the Admin policy — money data, unlike the production screens.
 export function ExpensesPage() {
   const { t } = useTranslation("expenses");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
 
   // Farm-local, not browser-local: since #35 the API judges "is this date in
@@ -509,7 +512,7 @@ export function ExpensesPage() {
           rather than a degraded display (codex review). */}
       {!expenses.reloading && expenses.meta !== null && (
         <p><strong>{t("monthTotalLabel", {
-          amount: formatMoney(expenses.meta.total, currencyCode, currencyMinor),
+          amount: fmt.money(expenses.meta.total, currencyCode, currencyMinor),
         })}</strong></p>
       )}
 
@@ -735,7 +738,7 @@ export function ExpensesPage() {
         <table className="data">
           <thead>
             <tr>
-              <th>{t("dateHeader")}</th><th>{t("categoryHeader")}</th><th>{t("descriptionHeader")}</th><th>{t("amountHeader")}</th>
+              <th>{t("dateHeader")}</th><th>{t("categoryHeader")}</th><th>{t("descriptionHeader")}</th><th className="num">{t("amountHeader")}</th>
               <th>{t("flockHeader")}</th><th>{t("noteHeader")}</th>
               <th>{tc("recordHistoryHeader")}</th><th></th>
             </tr>
@@ -743,10 +746,10 @@ export function ExpensesPage() {
           <tbody>
             {expenses.rows.map((x) => (
               <tr key={x.id}>
-                <td>{x.date}</td>
+                <td className="nowrap"><FarmDate iso={x.date} /></td>
                 <td>{categoryName(x.expenseCategoryId)}</td>
                 <td>{x.description}</td>
-                <td>{formatMoney(x.amountMinorUnits, x.currencyCode, x.currencyMinorUnit)}</td>
+                <td className="num">{fmt.money(x.amountMinorUnits, x.currencyCode, x.currencyMinorUnit)}</td>
                 <td>{rowFlockName(x)}</td>
                 <td>{x.note ?? "—"}</td>
                 <ProvenanceCell history={x} />

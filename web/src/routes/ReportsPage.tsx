@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import {
-  formatMoney, getExpenseSummary, getProductionReport, getProfitReport, getSalesSummary,
+  getExpenseSummary, getProductionReport, getProfitReport, getSalesSummary,
 } from "../api/cluckwork";
 import type {
   ExpenseSummaryReport, ProductionReport, ProfitReport, SalesSummary,
 } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
+import { FarmDate } from "../components/FarmDate";
 import { daysBefore } from "../lib/dates";
 import { useFarmToday } from "../farm/useFarm";
 import { useAuth } from "../auth/useAuth";
@@ -21,6 +23,7 @@ function errText(err: unknown): string {
 // workers on those routes regardless.
 export function ReportsPage() {
   const { t } = useTranslation("reports");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
@@ -109,45 +112,45 @@ export function ReportsPage() {
           <table className="data">
             <thead>
               <tr>
-                <th>{t("dateHeader")}</th><th>{t("eggsHeader")}</th><th>{t("lossesHeader")}</th><th>{t("sellableHeader")}</th>
+                <th>{t("dateHeader")}</th><th className="num">{t("eggsHeader")}</th><th className="num">{t("lossesHeader")}</th><th className="num">{t("sellableHeader")}</th>
                 {/* #396 — beside Sellable, not folded into it: Sellable is the
                     hand-graded remainder, Condition is what the cracked/dirty
                     counters contributed as stock. */}
-                <th>{t("conditionHeader")}</th>
-                <th>{t("deathsHeader")}</th><th>{t("henDaysHeader")}</th><th>{t("henDayPctHeader")}</th>
+                <th className="num">{t("conditionHeader")}</th>
+                <th className="num">{t("deathsHeader")}</th><th className="num">{t("henDaysHeader")}</th><th className="num">{t("henDayPctHeader")}</th>
               </tr>
             </thead>
             <tbody>
               {production.days.map((d) => (
                 <tr key={d.date}>
-                  <td>{d.date}</td>
-                  <td>{d.totalEggs}</td>
-                  <td>{d.cracked}/{d.dirty}/{d.discarded}</td>
-                  <td>{d.sellable}</td>
-                  <td>{d.fromCounts}</td>
-                  <td>{d.deaths}</td>
-                  <td>{d.henDays}</td>
-                  <td>{d.henDayPct ?? "—"}</td>
+                  <td className="nowrap"><FarmDate iso={d.date} /></td>
+                  <td className="num">{fmt.count(d.totalEggs)}</td>
+                  <td className="num">{fmt.count(d.cracked)}/{fmt.count(d.dirty)}/{fmt.count(d.discarded)}</td>
+                  <td className="num">{fmt.count(d.sellable)}</td>
+                  <td className="num">{fmt.count(d.fromCounts)}</td>
+                  <td className="num">{fmt.count(d.deaths)}</td>
+                  <td className="num">{fmt.count(d.henDays)}</td>
+                  <td className="num">{d.henDayPct === null ? "—" : fmt.count(d.henDayPct, 1)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
                 <th>{t("periodRowLabel")}</th>
-                <th>{production.totalEggs}</th>
+                <th className="num">{fmt.count(production.totalEggs)}</th>
                 <th></th>
-                <th>{production.totalSellable}</th>
-                <th>{production.totalFromCounts}</th>
-                <th>{production.totalDeaths}</th>
-                <th>{production.totalHenDays}</th>
-                <th>{production.periodHenDayPct ?? "—"}</th>
+                <th className="num">{fmt.count(production.totalSellable)}</th>
+                <th className="num">{fmt.count(production.totalFromCounts)}</th>
+                <th className="num">{fmt.count(production.totalDeaths)}</th>
+                <th className="num">{fmt.count(production.totalHenDays)}</th>
+                <th className="num">{production.periodHenDayPct === null ? "—" : fmt.count(production.periodHenDayPct, 1)}</th>
               </tr>
             </tfoot>
           </table>
           {production.gradeTotals.length > 0 && (
             <p className="muted">
               {t("gradeTotalsLabel")}{" "}
-              {production.gradeTotals.map((g) => `${g.name} ${g.quantity}`).join(", ")}
+              {production.gradeTotals.map((g) => `${g.name} ${fmt.count(g.quantity)}`).join(", ")}
             </p>
           )}
         </>
@@ -163,11 +166,12 @@ export function ReportsPage() {
                 <td>
                   {t("salesSummary", {
                     count: sales.confirmedCount,
-                    revenue: formatMoney(sales.revenueMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
-                    paid: formatMoney(sales.paidMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
-                    outstanding: formatMoney(sales.outstandingMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
+                    confirmed: fmt.count(sales.confirmedCount),
+                    revenue: fmt.money(sales.revenueMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
+                    paid: fmt.money(sales.paidMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
+                    outstanding: fmt.money(sales.outstandingMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
                   })}
-                  {sales.voidedCount > 0 ? t("salesVoidedSuffix", { count: sales.voidedCount }) : ""}
+                  {sales.voidedCount > 0 ? t("salesVoidedSuffix", { count: sales.voidedCount, voided: fmt.count(sales.voidedCount) }) : ""}
                 </td>
               </tr>
               <tr>
@@ -176,10 +180,10 @@ export function ReportsPage() {
                   {expenses.categories.length === 0
                     ? t("expensesNone")
                     : expenses.categories
-                        .map((c) => `${c.name} ${formatMoney(c.totalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit)}`)
+                        .map((c) => `${c.name} ${fmt.money(c.totalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit)}`)
                         .join(", ")}
                   {t("expensesTotalSuffix", {
-                    total: formatMoney(expenses.grandTotalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit),
+                    total: fmt.money(expenses.grandTotalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit),
                   })}
                 </td>
               </tr>
@@ -188,9 +192,9 @@ export function ReportsPage() {
                 <td>
                   <Trans ns="reports" i18nKey="profitLine"
                     values={{
-                      revenue: formatMoney(profit.revenueMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
-                      expenses: formatMoney(profit.expensesMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
-                      profit: formatMoney(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
+                      revenue: fmt.money(profit.revenueMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
+                      expenses: fmt.money(profit.expensesMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
+                      profit: fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
                     }}
                     components={{ strong: <strong /> }}
                   />

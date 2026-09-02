@@ -4,6 +4,7 @@
 // is a build error.
 export const en = {
   common: {
+    whatDoesTermMean: "What does “{{term}}” mean?",
     // #494 — the record-history cell shown on the list screens. "Last changed"
     // appears only when something happened after creation.
     "recordHistory.createdBy": "Created by {{email}} on {{at}}",
@@ -638,7 +639,8 @@ export const en = {
     gradeHeader: "Grade",
     availableHeader: "Available",
     restrictedHeader: "Restricted",
-    eggsAvailableMessage: "{{count}} eggs available.",
+    // {{total}} is the farm-locale formatted figure (#650); {{count}} stays for plural selection.
+    eggsAvailableMessage: "{{total}} eggs available.",
 
     // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
     salesPanelTitle: "Recent sales",
@@ -1958,11 +1960,12 @@ export const en = {
     salesRowLabel: "Sales",
     // {{count}} is confirmedCount; {{revenue}}/{{paid}}/{{outstanding}} are
     // pre-formatted formatMoney() strings (DATA).
+    // {{confirmed}} / {{voided}} are the farm-locale formatted figures (#650);
+    // {{count}} is still passed (confirmedCount / voidedCount) for plural
+    // selection and is deliberately not rendered.
     salesSummary:
-      "{{count}} confirmed order(s) — revenue {{revenue}}, paid {{paid}}, outstanding {{outstanding}}",
-    // {{count}} is voidedCount — a second, independent {{count}} interpolation
-    // on the same screen, appended only when voidedCount > 0.
-    salesVoidedSuffix: " ({{count}} voided)",
+      "{{confirmed}} confirmed order(s) — revenue {{revenue}}, paid {{paid}}, outstanding {{outstanding}}",
+    salesVoidedSuffix: " ({{voided}} voided)",
     expensesRowLabel: "Expenses",
     expensesNone: "none recorded",
     // {{total}} is expenses.grandTotalMinorUnits, pre-formatted (DATA).
@@ -2293,6 +2296,28 @@ export const en = {
     lead: "How Cluckwork works, screen by screen — and how to undo mistakes.",
     contentsAriaLabel: "Help contents",
     contentsEyebrow: "Contents",
+    // #657 — search, grouped rail and grouped glossary.
+    searchLabel: "Search the guide",
+    searchPlaceholder: "Type a term or a topic",
+    searchClear: "Clear search",
+    searchMatches: "Matches for “{{query}}”: {{sections}} in the guide, {{terms}} in the glossary.",
+    searchNoMatches: "Nothing matches “{{query}}”.",
+    searchShortcutHint: "Press / to search",
+    glossaryJumpAriaLabel: "Glossary groups",
+    openScreen: "Open {{screen}}",
+    railGroupStartHere: "Start here",
+    railGroupEveryDay: "Every day",
+    railGroupSelling: "Selling",
+    railGroupSupplies: "Supplies",
+    railGroupFarm: "Farm & people",
+    railGroupApp: "The app",
+    glossaryGroupGettingAround: "Getting around",
+    glossaryGroupSigningIn: "Signing in & who can do what",
+    glossaryGroupFlocksEntry: "Flocks & daily entry",
+    glossaryGroupEggsStock: "Eggs, grades & stock",
+    glossaryGroupSalesMoney: "Sales & money",
+    glossaryGroupSupplies: "Feed, water & supplies",
+    glossaryGroupFarm: "Farm settings & branding",
 
     // Contents-rail labels (TOC array, 2nd element). Order mirrors the <h3
     // id=...> sections below — see the KEEP comment at the top of
@@ -2861,9 +2886,11 @@ export const en = {
     farmSettingsDateTimeFormat:
       "<strong>Date format</strong> and <strong>time format</strong> offer a few common choices in a "
       + "dropdown — pick one and you are done. Need something not listed? Choose "
-      + "<strong>Custom…</strong> to type your own; the presets are all safe choices, but a custom value "
-      + "is only checked well enough to save, not to prove it looks right — nothing in Cluckwork displays "
-      + "dates or times through this setting yet, so a broken custom value would not be visible today.",
+      + "<strong>Custom…</strong> to type your own. Every date in a list — daily entries, egg lots, "
+      + "orders, payments, expenses, feed and water records, reports — is shown through the date format "
+      + "(with none set, the farm locale's own short form), so open any list to see a custom value "
+      + "rendered; the presets are all safe choices. Nothing displays a time through the time format "
+      + "yet, so a broken custom time value would not be visible today.",
     farmSettingsSquareLogo:
       "The logo shows in the sidebar at about the height of a line of text. A simple, tightly-cropped mark "
       + "and a <strong>wide wordmark</strong> both read fine there — a wordmark keeps its own shape and uses "
