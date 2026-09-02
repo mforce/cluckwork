@@ -524,3 +524,9 @@ needs the Owner at a *specific* address, so it cannot share step 2's admin:
    run is ~20 logins from one IP against a restored `Login` budget of 10
    per 900s. A pass here means the overrides are still live and you have
    just proved the cleanup does not work.
+7. Update **Last drilled** above.
+
+Under Aspire, only two lines of that change: steps 2 and 3 are one-shot
+verbs and need form B's explicit `ConnectionStrings__Default`, or they
+drill the Compose database while you watch the Aspire one (#565). Step 6's
+expectation is the same either way.
