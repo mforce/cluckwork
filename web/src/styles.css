@@ -1046,9 +1046,20 @@ input.cell {
 }
 
 /* -------------------------------------------- Toolbar (inset filter bar) */
-/* --canvas and --surface-2 sit at 1.05-1.21:1 in every palette, so a
-   borderless fill would be invisible — the hairline border stays for that
-   reason, not because this is a floating card. */
+/* NOT DEAD CODE, and not rendered yet either: nothing in web/src applies
+   `.toolbar` today. It is styled here ahead of #653, which moves the
+   date-range filters into a bounded toolbar and is the slice that adds the
+   consumers. Deleting it would make #653 re-derive the two decisions below.
+   Check `grep -rn toolbar web/src --include='*.tsx'` before assuming it is
+   still unused — the day #653 lands, this note is stale.
+   --r-panel likewise has this rule as its only consumer today.
+
+   Why it is inset rather than carded (#651): elevation encodes what floats,
+   and a filter bar does not. Why it keeps a hairline border despite being
+   inset: --canvas and --surface-2 sit between 1.05:1 and 1.21:1 in every
+   palette and both modes — measured with the repo's own contrast() helper —
+   so a borderless fill is invisible on every one of them, not just the light
+   ones. */
 .toolbar {
   display: flex;
   flex-wrap: wrap;
