@@ -230,11 +230,29 @@ async function revokeSupersededCookie(discardedAccessToken: string): Promise<voi
 // way concurrent 401s share refreshInFlight.
 let loginInFlight: Promise<void> | null = null;
 
-// #438 — resolve once the in-flight login (if any) has settled. Its FAILURE is
-// the login caller's to report; a parked request only needs to know the login
-// is no longer pending before it decides whether a session exists.
-function settledLogin(): Promise<void> {
-  return loginInFlight ? loginInFlight.catch(() => undefined) : Promise.resolve();
+// #438 — resolve once there is no login still pending. Its FAILURE is the login
+// caller's to report; a parked request only needs to know no login is on its way
+// before it decides whether a session exists.
+//
+// #648 review — LOOP ON IDENTITY, not on a single snapshot. A snapshot returns
+// as soon as the login it happened to observe settles, and logins replace one
+// another: with A pending, B replacing it, and A then settling as stale, the
+// parked caller would resume while B is still queued, read no token, and 401 —
+// the same premature 401 this function exists to prevent, one layer out. Each
+// pass consumes exactly one settled flight, so this terminates; re-reading after
+// the await and comparing IDENTITY (never truthiness) is the same rule the
+// generation check follows. The identity guard on `loginInFlight`'s clear below
+// is what makes the re-read meaningful: without it a stale settle nulls a newer
+// flight's handle and this loop exits early on the `!flight` branch.
+async function settledLogin(): Promise<void> {
+  for (;;) {
+    const flight = loginInFlight;
+    if (!flight) return;
+    // A rejection is as much a settlement as a success, and just as stale: the
+    // caller must re-read rather than conclude anything from it.
+    await flight.catch(() => undefined);
+    if (loginInFlight === flight) return;
+  }
 }
 
 export function login(body: LoginRequest): Promise<void> {
@@ -260,15 +278,39 @@ export function login(body: LoginRequest): Promise<void> {
 // page-owned lock can actually give — any in-flight refresh settles, cookie
 // applied, before this login sends a byte, so login's cookie is provably last.
 async function performLogin(body: LoginRequest, generation: number): Promise<void> {
+  // #648 review — `withAuthCookieLock`'s own timeout starts when this login's
+  // TURN arrives, so it caps the request and not the wait for the turn. That was
+  // enough while every holder of this lock was itself bounded, but
+  // changePassword holds it deliberately unbounded (it cannot be replayed after
+  // an ambiguous commit), and the lock name is global — one stalled password
+  // change would otherwise park a sign-in forever, including one in another tab
+  // on another farm. So the clock starts HERE, at the call, and a turn that
+  // arrives past it sends nothing: an abandoned login must never put credentials
+  // on the wire or a cookie in the jar behind the user's back.
+  let abandoned = false;
+  let abandon!: () => void;
+  const abandonedAtDeadline = new Promise<never>((_, reject) => {
+    abandon = () => {
+      abandoned = true;
+      reject(
+        new DOMException("Timed out waiting for the auth cookie lock.", "AbortError"),
+      );
+    };
+  });
+  const deadline = setTimeout(abandon, REFRESH_TIMEOUT_MS);
   // The server sets the HttpOnly refresh cookie; the body returns only the
   // access token, which lives in memory for this tab's lifetime.
-  const res = await withAuthCookieLock(
+  const queued = withAuthCookieLock(
     (signal) =>
       // Superseded while queued (a logout, or a newer login on another form) —
       // never send the credentials at all, exactly as changePassword does.
       sessionGeneration !== generation
         ? Promise.reject(new StaleSessionError())
-        : raw<AccessTokenResponse>(
+        : abandoned
+          ? Promise.reject(
+              new DOMException("Abandoned before its turn on the auth cookie lock.", "AbortError"),
+            )
+          : raw<AccessTokenResponse>(
             "/auth/login",
             {
               method: "POST",
@@ -287,6 +329,12 @@ async function performLogin(body: LoginRequest, generation: number): Promise<voi
     // the cross-tab lock indefinitely on a hung request, unlike a password
     // change. Same cap as refresh.
     REFRESH_TIMEOUT_MS,
+  );
+  // The abandoned branch still settles the queued attempt later; nothing awaits
+  // it by then, and an unobserved rejection must not surface as an unhandled one.
+  queued.catch(() => undefined);
+  const res = await Promise.race([queued, abandonedAtDeadline]).finally(() =>
+    clearTimeout(deadline),
   );
   // Superseded while in flight (e.g. a logout landed before this resolved) —
   // do not resurrect a session the user already ended. The response already
