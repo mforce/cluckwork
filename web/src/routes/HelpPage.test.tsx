@@ -988,6 +988,18 @@ describe("HelpPage glossary + search (#657)", () => {
     }
   });
 
+  it("ignores a malformed URL fragment instead of throwing", () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    window.location.hash = "#%E0%A4%A"; // truncated percent-encoding: decodeURIComponent throws URIError
+    try {
+      expect(() => render(<HelpPage />)).not.toThrow();
+      expect(scroll).not.toHaveBeenCalled();
+    } finally {
+      window.location.hash = "";
+    }
+  });
+
   it("scrolls to the term named in the URL hash on mount", () => {
     const scroll = vi.fn();
     Element.prototype.scrollIntoView = scroll;

@@ -178,7 +178,12 @@ export function HelpPage() {
   const [query, setQuery] = useState("");
   const [pendingHash, setPendingHash] = useState<string | null>(null);
   const followHash = useCallback((hash: string) => {
-    const id = decodeURIComponent(hash.slice(1));
+    let id: string;
+    try {
+      id = decodeURIComponent(hash.slice(1));
+    } catch {
+      return; // a malformed fragment ("#%E0%A4%A") names nothing; ignore it
+    }
     if (id === "") return;
     setQuery("");
     setPendingHash(id);
