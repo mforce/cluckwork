@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { useInRouterContext, useLocation } from "react-router";
+import { Link, useInRouterContext, useLocation } from "react-router";
+import { Search } from "lucide-react";
+import { AuthContext } from "../auth/AuthContext";
+import { navGroups } from "./nav";
 import { GLOSSARY, GLOSSARY_GROUPS } from "./helpGlossary";
 
 // F18 (#71): in-app user guide + glossary. #52 restyled it into a docs layout
@@ -65,6 +68,32 @@ const RAIL = [
 type RailEntry = (typeof RAIL)[number]["entries"][number];
 const TOC: readonly RailEntry[] = RAIL.flatMap((g) => g.entries as readonly RailEntry[]);
 
+// #657 — the screen a guide section describes, so the section can offer
+// "Open Stock". Keyed by section id; a section with no screen (the daily
+// loop, fixing mistakes, install) has no entry. The link renders only for a
+// route the signed-in role's own navigation carries (nav.tsx is the one
+// place role gates live), so a Worker is never handed a door to a 403.
+const ROUTE_FOR: Readonly<Record<string, string>> = {
+  "daily-entry": "/daily-entry",
+  "flocks": "/flocks",
+  "stock": "/stock",
+  "history": "/history",
+  "sales": "/sales",
+  "products": "/products",
+  "grades": "/grades",
+  "reports": "/reports",
+  "expenses": "/expenses",
+  "inventory": "/inventory",
+  "feed": "/feed",
+  "water": "/water",
+  "roles": "/users",
+  "farm-settings": "/settings",
+  "farm-palette": "/settings",
+  "account": "/account",
+  "audit": "/audit",
+  "export": "/export"
+};
+
 // Rendered only inside a router (the tests mount HelpPage bare): follows the
 // router's own location, which is what a <Link to="/help#…"> changes.
 function RouterHashScroll({ onHash }: { onHash: (hash: string) => void }) {
@@ -78,7 +107,38 @@ export function HelpPage() {
   // The busy-button line (#236) reads the same `common` key as the
   // "Working…" announcement it explains, so the two can never drift.
   const { t: tc } = useTranslation("common");
+  const { t: tn } = useTranslation("nav");
   const searchId = useId();
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // #657 — "Open <screen>" beside a section heading. Null outside a session
+  // (the page is also reachable before sign-in in tests) and outside a router.
+  const auth = useContext(AuthContext);
+  const inRouter = useInRouterContext();
+  const navEntries = auth === null ? [] : navGroups(auth.role, auth.isAdmin).flatMap((g) => g.entries);
+  const openLink = (sectionId: string) => {
+    const to = ROUTE_FOR[sectionId];
+    if (to === undefined || !inRouter) return null;
+    const entry = navEntries.find((e) => e.to === to);
+    if (entry === undefined) return null;
+    return (
+      <Link className="help-open" to={to}>{t("openScreen", { screen: tn(entry.labelKey) })}</Link>
+    );
+  };
+
+  // #657 — "/" jumps to the search from anywhere on the page, the way a docs
+  // site does; not while the user is already typing in a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   // Scroll-spy the contents rail: highlight the section currently in view.
   const [activeId, setActiveId] = useState<string>(TOC[0][0]);
@@ -134,8 +194,6 @@ export function HelpPage() {
     document.getElementById(pendingHash)?.scrollIntoView();
     setPendingHash(null);
   }, [pendingHash, query]);
-  const inRouter = useInRouterContext();
-
   // #657 — one search over the guide sections and the glossary terms. The
   // sections are prose the catalog assembles at render time, so the match is
   // taken from the DOM text rather than from any list this page could keep:
@@ -174,22 +232,27 @@ export function HelpPage() {
   return (
     <section className="help">
       {inRouter && <RouterHashScroll onHash={followHash} />}
-      <div className="help-head">
-        <p className="help-kicker">{t("eyebrow")}</p>
-        <h2>{t("heading")}</h2>
-        <p className="help-lead">{t("lead")}</p>
-      </div>
+      <div className="help-hero">
+        <div className="help-head">
+          <p className="help-kicker">{t("eyebrow")}</p>
+          <h2>{t("heading")}</h2>
+          <p className="help-lead">{t("lead")}</p>
+        </div>
 
-      <div className="help-search">
-        <label htmlFor={searchId}>{t("searchLabel")}
-          <input id={searchId} type="search" value={query} placeholder={t("searchPlaceholder")}
-            autoComplete="off" onChange={(e) => setQuery(e.target.value)} />
-        </label>
-        {query !== "" && (
-          <button type="button" className="link" onClick={() => setQuery("")}>{t("searchClear")}</button>
-        )}
+        <div className="help-search">
+          <label className="help-search-field" htmlFor={searchId}>
+            <Search size={18} aria-hidden />
+            <span className="sr-only">{t("searchLabel")}</span>
+            <input id={searchId} ref={searchRef} type="search" value={query} placeholder={t("searchPlaceholder")}
+              autoComplete="off" onChange={(e) => setQuery(e.target.value)} />
+            <kbd title={t("searchShortcutHint")} aria-hidden>/</kbd>
+          </label>
+          {query !== "" && (
+            <button type="button" className="link" onClick={() => setQuery("")}>{t("searchClear")}</button>
+          )}
+        </div>
+        <p className="help-search-status" role="status" aria-live="polite">{searchStatus}</p>
       </div>
-      <p className="help-search-status" role="status" aria-live="polite">{searchStatus}</p>
 
       <div className="help-layout">
         <nav className="help-toc" aria-label={t("contentsAriaLabel")}>
@@ -217,7 +280,7 @@ export function HelpPage() {
 
         <div className="help-body" ref={bodyRef}>
       <section className="help-section" data-searchable="section">
-          <h3 id="getting-around">{t("gettingAroundHeading")}</h3>
+          <div className="help-section-head"><h3 id="getting-around">{t("gettingAroundHeading")}</h3>{openLink("getting-around")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="gettingAroundSidebar" components={{ strong: <strong /> }} />
@@ -241,7 +304,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="signing-in">{t("signingInHeading")}</h3>
+      <div className="help-section-head"><h3 id="signing-in">{t("signingInHeading")}</h3>{openLink("signing-in")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="signingInBasic" components={{ strong: <strong /> }} />
@@ -276,7 +339,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="daily-loop">{t("dailyLoopHeading")}</h3>
+      <div className="help-section-head"><h3 id="daily-loop">{t("dailyLoopHeading")}</h3>{openLink("daily-loop")}</div>
       <p>
         <Trans ns="help" i18nKey="dailyLoopChain" components={{ strong: <strong /> }} />
       </p>
@@ -285,76 +348,59 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="mistakes">{t("mistakesHeading")}</h3>
+      <div className="help-section-head"><h3 id="mistakes">{t("mistakesHeading")}</h3>{openLink("mistakes")}</div>
       <p className="muted">
         <Trans ns="help" i18nKey="mistakesIntro" components={{ em: <em /> }} />
       </p>
-      <table className="data">
-        <thead>
-          <tr><th>{t("mistakesTableMistakeHeader")}</th><th>{t("mistakesTableFixHeader")}</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>{t("mistakesRow1Mistake")}</td>
-            <td><Trans ns="help" i18nKey="mistakesRow1Fix" components={{ strong: <strong /> }} /></td>
-          </tr>
-          <tr>
-            <td>{t("mistakesRow2Mistake")}</td>
-            <td><Trans ns="help" i18nKey="mistakesRow2Fix" components={{ strong: <strong /> }} /></td>
-          </tr>
-          <tr>
-            <td>{t("mistakesRow3Mistake")}</td>
-            <td>
-              <Trans ns="help" i18nKey="mistakesRow3Fix" components={{ strong: <strong /> }} />
-            </td>
-          </tr>
-          <tr>
-            <td>{t("mistakesRow4Mistake")}</td>
-            <td>
-              <Trans ns="help" i18nKey="mistakesRow4Fix" components={{ strong: <strong /> }} />
-            </td>
-          </tr>
-          <tr>
-            <td><Trans ns="help" i18nKey="mistakesRow5Mistake" components={{ em: <em /> }} /></td>
-            <td>
-              <Trans ns="help" i18nKey="mistakesRow5Fix" components={{ strong: <strong /> }} />
-            </td>
-          </tr>
-          <tr>
-            <td>{t("mistakesRow6Mistake")}</td>
-            <td>{t("mistakesRow6Fix")}</td>
-          </tr>
-          <tr>
-            <td>{t("mistakesRow7Mistake")}</td>
-            <td>
-              <Trans ns="help" i18nKey="mistakesRow7Fix" components={{ strong: <strong /> }} />
-            </td>
-          </tr>
-          <tr>
-            <td><Trans ns="help" i18nKey="mistakesRow8Mistake" components={{ em: <em /> }} /></td>
-            <td>
-              <Trans ns="help" i18nKey="mistakesRow8Fix" components={{ strong: <strong /> }} />
-            </td>
-          </tr>
-          <tr>
-            <td><Trans ns="help" i18nKey="mistakesRow9Mistake" components={{ em: <em /> }} /></td>
-            <td>
-              <Trans ns="help" i18nKey="mistakesRow9Fix" components={{ strong: <strong /> }} />
-            </td>
-          </tr>
-          <tr>
-            <td><Trans ns="help" i18nKey="mistakesRow10Mistake" components={{ em: <em /> }} /></td>
-            <td>
-              <Trans ns="help" i18nKey="mistakesRow10Fix" components={{ strong: <strong /> }} />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <dl className="mistakes">
+        
+          <div className="mistake">
+            <dt>{t("mistakesRow1Mistake")}</dt>
+            <dd><Trans ns="help" i18nKey="mistakesRow1Fix" components={{ strong: <strong /> }} /></dd>
+          </div>
+          <div className="mistake">
+            <dt>{t("mistakesRow2Mistake")}</dt>
+            <dd><Trans ns="help" i18nKey="mistakesRow2Fix" components={{ strong: <strong /> }} /></dd>
+          </div>
+          <div className="mistake">
+            <dt>{t("mistakesRow3Mistake")}</dt>
+            <dd><Trans ns="help" i18nKey="mistakesRow3Fix" components={{ strong: <strong /> }} /></dd>
+          </div>
+          <div className="mistake">
+            <dt>{t("mistakesRow4Mistake")}</dt>
+            <dd><Trans ns="help" i18nKey="mistakesRow4Fix" components={{ strong: <strong /> }} /></dd>
+          </div>
+          <div className="mistake">
+            <dt><Trans ns="help" i18nKey="mistakesRow5Mistake" components={{ em: <em /> }} /></dt>
+            <dd><Trans ns="help" i18nKey="mistakesRow5Fix" components={{ strong: <strong /> }} /></dd>
+          </div>
+          <div className="mistake">
+            <dt>{t("mistakesRow6Mistake")}</dt>
+            <dd>{t("mistakesRow6Fix")}</dd>
+          </div>
+          <div className="mistake">
+            <dt>{t("mistakesRow7Mistake")}</dt>
+            <dd><Trans ns="help" i18nKey="mistakesRow7Fix" components={{ strong: <strong /> }} /></dd>
+          </div>
+          <div className="mistake">
+            <dt><Trans ns="help" i18nKey="mistakesRow8Mistake" components={{ em: <em /> }} /></dt>
+            <dd><Trans ns="help" i18nKey="mistakesRow8Fix" components={{ strong: <strong /> }} /></dd>
+          </div>
+          <div className="mistake">
+            <dt><Trans ns="help" i18nKey="mistakesRow9Mistake" components={{ em: <em /> }} /></dt>
+            <dd><Trans ns="help" i18nKey="mistakesRow9Fix" components={{ strong: <strong /> }} /></dd>
+          </div>
+          <div className="mistake">
+            <dt><Trans ns="help" i18nKey="mistakesRow10Mistake" components={{ em: <em /> }} /></dt>
+            <dd><Trans ns="help" i18nKey="mistakesRow10Fix" components={{ strong: <strong /> }} /></dd>
+          </div>
+        
+      </dl>
 
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="dialogs">{t("dialogsHeading")}</h3>
+      <div className="help-section-head"><h3 id="dialogs">{t("dialogsHeading")}</h3>{openLink("dialogs")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="dialogsPopup" components={{ strong: <strong /> }} />
@@ -393,7 +439,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="daily-entry">{t("dailyEntryHeading")}</h3>
+      <div className="help-section-head"><h3 id="daily-entry">{t("dailyEntryHeading")}</h3>{openLink("daily-entry")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="dailyEntryPanes" components={{ strong: <strong /> }} />
@@ -426,7 +472,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="flocks">{t("flocksHeading")}</h3>
+      <div className="help-section-head"><h3 id="flocks">{t("flocksHeading")}</h3>{openLink("flocks")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="flocksCurrentBirds" components={{ strong: <strong /> }} />
@@ -440,7 +486,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="stock">{t("stockHeading")}</h3>
+      <div className="help-section-head"><h3 id="stock">{t("stockHeading")}</h3>{openLink("stock")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="stockLots" components={{ strong: <strong /> }} />
@@ -457,7 +503,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="history">{t("historyHeading")}</h3>
+      <div className="help-section-head"><h3 id="history">{t("historyHeading")}</h3>{openLink("history")}</div>
       <ul>
         <li>{t("historyBrowse")}</li>
         <li>
@@ -471,7 +517,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="sales">{t("salesHeading")}</h3>
+      <div className="help-section-head"><h3 id="sales">{t("salesHeading")}</h3>{openLink("sales")}</div>
       <ul>
         <li>{t("salesCustomerEdit")}</li>
         <li>{t("salesCustomerLink")}</li>
@@ -492,7 +538,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="products">{t("productsHeading")}</h3>
+      <div className="help-section-head"><h3 id="products">{t("productsHeading")}</h3>{openLink("products")}</div>
       <ul>
         <li>{t("productsWhatYouSell")}</li>
         <li>
@@ -503,7 +549,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="grades">{t("gradesHeading")}</h3>
+      <div className="help-section-head"><h3 id="grades">{t("gradesHeading")}</h3>{openLink("grades")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="gradesBuckets" components={{ strong: <strong /> }} />
@@ -517,7 +563,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="reports">{t("reportsHeading")}</h3>
+      <div className="help-section-head"><h3 id="reports">{t("reportsHeading")}</h3>{openLink("reports")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="reportsProduction" components={{ strong: <strong /> }} />
@@ -536,7 +582,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="expenses">{t("expensesHeading")}</h3>
+      <div className="help-section-head"><h3 id="expenses">{t("expensesHeading")}</h3>{openLink("expenses")}</div>
       <ul>
         <li>{t("expensesRecording")}</li>
         <li>
@@ -548,7 +594,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="inventory">{t("inventoryHeading")}</h3>
+      <div className="help-section-head"><h3 id="inventory">{t("inventoryHeading")}</h3>{openLink("inventory")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="inventoryItems" components={{ strong: <strong /> }} />
@@ -568,7 +614,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="feed">{t("feedHeading")}</h3>
+      <div className="help-section-head"><h3 id="feed">{t("feedHeading")}</h3>{openLink("feed")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="feedRecording" components={{ strong: <strong /> }} />
@@ -584,7 +630,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="water">{t("waterHeading")}</h3>
+      <div className="help-section-head"><h3 id="water">{t("waterHeading")}</h3>{openLink("water")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="waterRecording" components={{ strong: <strong /> }} />
@@ -598,7 +644,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="roles">{t("rolesHeading")}</h3>
+      <div className="help-section-head"><h3 id="roles">{t("rolesHeading")}</h3>{openLink("roles")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="rolesWorkers" components={{ strong: <strong /> }} />
@@ -628,7 +674,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="farm-settings">{t("farmSettingsHeading")}</h3>
+      <div className="help-section-head"><h3 id="farm-settings">{t("farmSettingsHeading")}</h3>{openLink("farm-settings")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="farmSettingsIntro" components={{ strong: <strong /> }} />
@@ -668,7 +714,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="farm-palette">{t("farmPaletteHeading")}</h3>
+      <div className="help-section-head"><h3 id="farm-palette">{t("farmPaletteHeading")}</h3>{openLink("farm-palette")}</div>
       <p>{t("farmPaletteIntro")}</p>
       <p>{t("farmPaletteLightNight")}</p>
 
@@ -677,7 +723,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="account">{t("accountHeading")}</h3>
+      <div className="help-section-head"><h3 id="account">{t("accountHeading")}</h3>{openLink("account")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="accountPassword" components={{ strong: <strong /> }} />
@@ -693,7 +739,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="audit">{t("auditHeading")}</h3>
+      <div className="help-section-head"><h3 id="audit">{t("auditHeading")}</h3>{openLink("audit")}</div>
       <ul>
         <li>{t("auditLog")}</li>
         <li>{t("auditRecordTypeFilter")}</li>
@@ -707,7 +753,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="export">{t("exportHeading")}</h3>
+      <div className="help-section-head"><h3 id="export">{t("exportHeading")}</h3>{openLink("export")}</div>
       <ul>
         <li>
           <Trans ns="help" i18nKey="exportCsv" components={{ strong: <strong /> }} />
@@ -718,7 +764,7 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="section">
-      <h3 id="install">{t("installHeading")}</h3>
+      <div className="help-section-head"><h3 id="install">{t("installHeading")}</h3>{openLink("install")}</div>
       <ul>
         <li>{t("installIntro")}</li>
         <li>
@@ -738,7 +784,14 @@ export function HelpPage() {
       </section>
 
       <section className="help-section" data-searchable="glossary">
-      <h3 id="glossary">{t("glossaryHeading")}</h3>
+      <div className="help-section-head"><h3 id="glossary">{t("glossaryHeading")}</h3>{openLink("glossary")}</div>
+      <nav className="glossary-jump" aria-label={t("glossaryJumpAriaLabel")}>
+        <ul>
+          {GLOSSARY_GROUPS.map((group) => (
+            <li key={group.key}><a href={`#glossary-group-${group.key}`}>{t(group.labelKey)}</a></li>
+          ))}
+        </ul>
+      </nav>
       {GLOSSARY_GROUPS.map((group) => {
         // Alphabetical in the ACTIVE language — a Spanish reader gets Spanish
         // order, not English order wearing Spanish labels.

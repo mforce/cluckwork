@@ -1765,25 +1765,158 @@ label.check {
   color: var(--muted);
 }
 
+/* Head band (#657): kicker, title, lead and the search in one inset band,
+   so the page opens on the thing a reader came to do. */
+.help-hero {
+  background: var(--surface-2);
+  border-radius: var(--r-card);
+  padding: 1.75rem 2rem 1.25rem;
+  margin: 0 0 2rem;
+}
+
+.help-hero .help-head {
+  margin-bottom: 1.25rem;
+}
+
 /* Search (#657): one box over the guide and the glossary; the status line
    under it is the live region that says how much matched. */
 .help-search {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  max-width: 34rem;
-  margin: 0 0 0.5rem;
+  max-width: 40rem;
 }
 
-.help-search label {
+.help-search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
   flex: 1 1 auto;
+  gap: 0;
+}
+
+.help-search-field svg {
+  position: absolute;
+  left: 0.9rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.help-search-field input {
+  width: 100%;
+  height: 2.9rem;
+  padding: 0 3rem 0 2.6rem;
+  font-size: 1rem;
+  background: var(--surface);
+}
+
+.help-search-field kbd {
+  position: absolute;
+  right: 0.7rem;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: var(--surface-2);
+  pointer-events: none;
 }
 
 .help-search-status {
   min-height: 1.4rem;
-  margin: 0 0 1.5rem;
+  margin: 0.5rem 0 0;
   font-size: 0.9rem;
   color: var(--muted);
+}
+
+/* Section head (#657): the heading and, where the section describes a
+   screen the reader can reach, the door to it. */
+.help-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 2.5rem 0 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.help-body .help-section-head h3 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.help-open {
+  flex: none;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--link);
+  text-decoration: none;
+}
+
+.help-open:hover {
+  border-color: var(--link);
+  text-decoration: none;
+}
+
+/* Glossary jump bar (#657): one chip per group, under the heading. */
+.glossary-jump ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0.5rem;
+  padding: 0;
+}
+
+.glossary-jump a {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  font-size: 0.85rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.glossary-jump a:hover {
+  border-color: var(--brand);
+  text-decoration: none;
+}
+
+/* Fixing mistakes (#657): a mistake → fix list, the mistake in ink and the
+   fix beside it, instead of a two-column data table. */
+dl.mistakes {
+  margin: 0.5rem 0 0;
+}
+
+.mistake {
+  display: grid;
+  grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
+  gap: 0.3rem 1.5rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.mistake dt {
+  margin: 0;
+  font-weight: 600;
+}
+
+.mistake dd {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.mistake dd strong {
+  color: var(--ink);
 }
 
 .help-toc-group {
@@ -1794,11 +1927,17 @@ label.check {
   color: var(--muted);
 }
 
-/* Glossary (#657): grouped definition lists. A hairline BETWEEN entries, the
-   term in ink, the definition capped at a readable measure. */
+/* Glossary (#657): a dictionary grid — the term in its own column, the
+   definition beside it, a hairline between entries, the group heading
+   sticking while its entries scroll past. */
 .glossary-group h4 {
-  margin: 2rem 0 0.25rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 1.5rem 0 0;
+  padding: 0.6rem 0 0.4rem;
   font-size: 1.05rem;
+  background: var(--canvas);
   scroll-margin-top: 1.5rem;
 }
 
@@ -1807,9 +1946,12 @@ dl.glossary {
 }
 
 .glossary-entry {
-  padding: 0.7rem 0;
+  display: grid;
+  grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr);
+  gap: 0.35rem 1.5rem;
+  padding: 0.8rem 0;
   border-top: 1px solid var(--hairline);
-  scroll-margin-top: 1.5rem;
+  scroll-margin-top: 3.5rem; /* clears the sticky group heading */
 }
 
 .glossary-entry:target {
@@ -1819,7 +1961,7 @@ dl.glossary {
 }
 
 .glossary-entry dt {
-  margin: 0 0 0.2rem;
+  margin: 0;
   font-weight: 600;
 }
 
@@ -1936,7 +2078,7 @@ dl.glossary {
   scroll-margin-top: 1.5rem;
 }
 
-.help-body > .help-section:first-child > h3 {
+.help-body > .help-section:first-child > .help-section-head {
   margin-top: 0;
   padding-top: 0;
   border-top: none;
@@ -2062,19 +2204,64 @@ dl.glossary {
     gap: 1rem;
   }
 
+  /* #657 — the rail becomes one horizontal strip pinned under the head:
+     the group labels fold away and every entry is a pill, scrolled sideways. */
   .help-toc {
-    position: static;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin: 0 -1.15rem;
+    padding: 0.5rem 1.15rem;
+    overflow-x: auto;
+    background: var(--canvas);
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .help-toc > div {
+    display: contents;
+  }
+
+  .help-toc .help-kicker,
+  .help-toc-group {
+    display: none;
   }
 
   .help-toc ul {
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.3rem;
+    margin: 0;
   }
 
   .help-toc li a {
     border: 1px solid var(--hairline);
     border-radius: var(--r-pill);
+    white-space: nowrap;
+  }
+
+  .help-hero {
+    padding: 1.25rem 1.15rem 1rem;
+  }
+
+  /* No keyboard to press "/" on. */
+  .help-search-field kbd {
+    display: none;
+  }
+
+  .help-search-field input {
+    padding-right: 1rem;
+  }
+
+  .help-section-head {
+    flex-wrap: wrap;
+  }
+
+  .glossary-entry,
+  .mistake {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .panel {

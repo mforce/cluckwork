@@ -781,7 +781,7 @@ export function SalesPage() {
                         {i.baseUnitFactor > 1 ? ` ${t("eggsCount", { count: i.baseUnitFactor })}` : ""}</span></td>
                     {editItemId === i.id ? (
                       <>
-                        <td>
+                        <td className="num">
                           {/* No visible label in the cell — the sr-only one names
                               the input; the buttons carry their own names. */}
                           <label className="sr-only" htmlFor={editQtyId}>{t("editQuantityAriaLabel")}</label>

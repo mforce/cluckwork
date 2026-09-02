@@ -3,6 +3,7 @@ import { render, screen, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { GlossaryLink } from "../components/GlossaryLink";
+import { renderWithProviders } from "../test/renderWithProviders";
 import { HelpPage } from "./HelpPage";
 import i18n from "../i18n";
 import { en } from "../i18n/en";
@@ -270,7 +271,8 @@ describe("HelpPage", () => {
     // Scoped to this row's cell: the "must add up to ... exactly" clause is
     // deliberately echoed in glossaryAdjustEntryDef too (same fact, two
     // places), which an unscoped getByText would match twice.
-    const adjustFixCell = screen.getByRole("cell", { name: /Save adjustment/ });
+    // The fix is a <dd> whose text (partly in <strong>) carries the phrase.
+    const adjustFixCell = screen.getByText((_, el) => el?.tagName === "DD" && /Save adjustment/.test(el.textContent ?? ""));
     expect(
       within(adjustFixCell).getByText(/The corrected grades must add up to the corrected sellable count exactly/),
     ).toBeInTheDocument();
@@ -494,7 +496,7 @@ describe("HelpPage i18n wiring (#182, Task 32)", () => {
   it("reads a 'Fixing mistakes' table cell from the catalog, not a hardcoded literal", () => {
     withOverride("mistakesRow1Mistake", "MISTAKE-ROW-MARKER", () => {
       render(<HelpPage />);
-      expect(screen.getByRole("cell", { name: "MISTAKE-ROW-MARKER" })).toBeInTheDocument();
+      expect(screen.getByText("MISTAKE-ROW-MARKER", { selector: "dt" })).toBeInTheDocument();
       expect(screen.queryByText(/depleted or archived the wrong flock/i)).not.toBeInTheDocument();
     });
   });
@@ -997,5 +999,69 @@ describe("HelpPage glossary + search (#657)", () => {
     } finally {
       window.location.hash = "";
     }
+  });
+});
+
+// #657 visual pass — head band, glossary grid with a jump bar, section
+// "Open <screen>" links, mistakes as a two-column list, "/" to search.
+describe("HelpPage visual pass (#657)", () => {
+  it("holds kicker, title, lead and the search in one head band", () => {
+    const { container } = render(<HelpPage />);
+    const hero = container.querySelector(".help-hero");
+    expect(hero).not.toBeNull();
+    expect(within(hero as HTMLElement).getByRole("heading", { name: "Help", level: 2 })).toBeInTheDocument();
+    expect(within(hero as HTMLElement).getByRole("searchbox", { name: "Search the guide" })).toBeInTheDocument();
+  });
+
+  it("focuses the search on / unless the user is already typing somewhere", async () => {
+    const user = userEvent.setup();
+    render(<HelpPage />);
+    const search = screen.getByRole("searchbox", { name: "Search the guide" });
+    expect(search).not.toHaveFocus();
+    await user.keyboard("/");
+    expect(search).toHaveFocus();
+    expect(search).toHaveValue(""); // the shortcut key itself is not typed
+    await user.keyboard("fifo/");
+    expect(search).toHaveValue("fifo/"); // inside the box, "/" is just a character
+  });
+
+  it("offers a jump bar to every glossary group", () => {
+    const { container } = render(<HelpPage />);
+    const jump = screen.getByRole("navigation", { name: "Glossary groups" });
+    const hrefs = within(jump).getAllByRole("link").map((a) => a.getAttribute("href"));
+    const groups = Array.from(container.querySelectorAll(".glossary-group h4")).map((h) => `#${h.id}`);
+    expect(hrefs).toEqual(groups);
+    expect(hrefs.length).toBe(7);
+  });
+
+  it("renders Fixing mistakes as a mistake → fix list, not a table", () => {
+    const { container } = render(<HelpPage />);
+    const section = container.querySelector("#mistakes")!.closest("section")!;
+    expect(section.querySelector("table")).toBeNull();
+    const entries = section.querySelectorAll("dl.mistakes .mistake");
+    expect(entries.length).toBe(10);
+    for (const e of Array.from(entries)) {
+      expect(e.querySelector("dt")).not.toBeNull();
+      expect(e.querySelector("dd")).not.toBeNull();
+    }
+  });
+
+  it("links each screen section to its screen, only for screens the role can reach", () => {
+    renderWithProviders(<HelpPage />, { token: { sub: "u1", role: "Admin" } });
+    expect(screen.getByRole("link", { name: "Open Stock" })).toHaveAttribute("href", "/stock");
+    expect(screen.getByRole("link", { name: "Open Users" })).toHaveAttribute("href", "/users");
+    expect(screen.queryByRole("link", { name: /^Open .*daily loop/i })).not.toBeInTheDocument();
+  });
+
+  it("hides a section's Open link from a role that cannot reach the screen", () => {
+    renderWithProviders(<HelpPage />, { token: { sub: "u2" } }); // plain Worker
+    expect(screen.getByRole("link", { name: "Open Daily entry" })).toHaveAttribute("href", "/daily-entry");
+    expect(screen.queryByRole("link", { name: "Open Users" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open Expenses" })).not.toBeInTheDocument(); // admin-only in nav.tsx
+  });
+
+  it("offers no Open links outside a session (bare render)", () => {
+    render(<HelpPage />);
+    expect(screen.queryByRole("link", { name: /^Open / })).not.toBeInTheDocument();
   });
 });

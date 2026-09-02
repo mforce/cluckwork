@@ -130,7 +130,15 @@ export function farmToday(timeZone: string, now: Date = new Date()): string {
  * the code under test would make the assertion vacuous.
  */
 export function farmCount(value: number, locale: string): string {
-  return new Intl.NumberFormat(locale).format(value);
+  // The SPA's own contract for a malformed farm locale is "fall back to en-US"
+  // (web/src/lib/format.ts, pinned by format.test.ts); the expectation
+  // mirrors the rule so a bad fixture locale reads as a wrong figure on
+  // screen, never as a RangeError thrown from inside the assertion.
+  try {
+    return new Intl.NumberFormat(locale).format(value);
+  } catch {
+    return new Intl.NumberFormat("en-US").format(value);
+  }
 }
 
 export function daysBefore(isoDate: string, days: number): string {
