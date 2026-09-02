@@ -87,14 +87,20 @@ describe("ReportsPage production section (renders for every role)", () => {
   it("renders the production table rows, period totals, and grade-totals line from the mocked report", async () => {
     renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
 
-    const row1 = await screen.findByRole("row", { name: /2026-07-19/ });
+    const row1 = await screen.findByRole("row", { name: /07\/19\/2026/ });
     within(row1).getByText("100"); // totalEggs
     within(row1).getByText("2/3/5"); // cracked/dirty/discarded
     within(row1).getByText("90"); // sellable
     within(row1).getByText("98"); // henDays
     within(row1).getByText("91.8"); // henDayPct
+    // #650 — figures are numeric cells: right-aligned tabular nowrap (styles.num.test.ts
+    // pins what the class does; this pins that the screen puts it on the figure and
+    // its header, and keeps it off the date).
+    expect(within(row1).getByText("100")).toHaveClass("num");
+    expect(within(row1).getByText("07/19/2026")).not.toHaveClass("num");
+    expect(screen.getByRole("columnheader", { name: "Eggs" })).toHaveClass("num");
 
-    const row2 = screen.getByRole("row", { name: /2026-07-18/ });
+    const row2 = screen.getByRole("row", { name: /07\/18\/2026/ });
     within(row2).getByText("—"); // null henDayPct falls back to the em dash
 
     const periodRow = screen.getByRole("row", { name: /Period/ });
@@ -112,7 +118,7 @@ describe("ReportsPage production section (renders for every role)", () => {
   it("renders the Condition column beside Sellable, and keeps Sellable unchanged", async () => {
     renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
 
-    const row1 = await screen.findByRole("row", { name: /2026-07-19/ });
+    const row1 = await screen.findByRole("row", { name: /07\/19\/2026/ });
     within(row1).getByText("90"); // sellable — still the hand-graded remainder
     within(row1).getByText("6");  // condition — what the counters contributed
 
@@ -132,7 +138,7 @@ describe("ReportsPage production section (renders for every role)", () => {
     // would invent stock the farm never had.
     // Columns: date, eggs, losses, sellable, CONDITION, deaths, henDays, pct.
     // Indexed: day 2 has a 0 in deaths too, so a text match proves nothing.
-    const row2 = await screen.findByRole("row", { name: /2026-07-18/ });
+    const row2 = await screen.findByRole("row", { name: /07\/18\/2026/ });
     expect(within(row2).getAllByRole("cell")[4]).toHaveTextContent("0");
   });
 
@@ -148,7 +154,7 @@ describe("ReportsPage production section (renders for every role)", () => {
     mockGetProductionReport.mockResolvedValue(PRODUCTION_NO_GRADES);
     renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
 
-    await screen.findByRole("row", { name: /2026-07-19/ });
+    await screen.findByRole("row", { name: /07\/19\/2026/ });
     expect(screen.queryByText(/By grade:/)).not.toBeInTheDocument();
   });
 
@@ -194,13 +200,13 @@ describe("ReportsPage production section (renders for every role)", () => {
 
     await waitFor(() => expect(mockGetProductionReport).toHaveBeenCalledTimes(2));
     expect(mockGetProductionReport.mock.calls[1]).toEqual([firstFrom, firstTo]);
-    await screen.findByRole("row", { name: /2026-07-19/ });
+    await screen.findByRole("row", { name: /07\/19\/2026/ });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("re-fetches the production report for a newly picked From/To range", async () => {
     renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
-    await screen.findByRole("row", { name: /2026-07-19/ });
+    await screen.findByRole("row", { name: /07\/19\/2026/ });
     mockGetProductionReport.mockClear();
 
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-06-01" } });
@@ -222,11 +228,11 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
 
     expect(await screen.findByRole("heading", { name: "Money" })).toBeInTheDocument();
     expect(screen.getByText(
-      "5 confirmed order(s) — revenue 100.00 USD, paid 80.00 USD, outstanding 20.00 USD (2 voided)",
+      "5 confirmed order(s) — revenue $100.00, paid $80.00, outstanding $20.00 (2 voided)",
     )).toBeInTheDocument();
-    expect(screen.getByText("Feed 50.00 USD, Utilities 15.00 USD — total 65.00 USD")).toBeInTheDocument();
-    expect(screen.getByText(/revenue 100\.00 USD − expenses 65\.00 USD =/)).toBeInTheDocument();
-    expect(screen.getByText("35.00 USD").tagName).toBe("STRONG");
+    expect(screen.getByText("Feed $50.00, Utilities $15.00 — total $65.00")).toBeInTheDocument();
+    expect(screen.getByText(/revenue \$100\.00 − expenses \$65\.00 =/)).toBeInTheDocument();
+    expect(screen.getByText("$35.00").tagName).toBe("STRONG");
 
     expect(mockGetSalesSummary).toHaveBeenCalledWith(expect.any(String), expect.any(String));
     expect(mockGetExpenseSummary).toHaveBeenCalledWith(expect.any(String), expect.any(String));
@@ -245,13 +251,13 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
     mockGetExpenseSummary.mockResolvedValue(EXPENSES_EMPTY);
     renderWithProviders(<ReportsPage />, { token: ADMIN });
 
-    expect(await screen.findByText("none recorded — total 0.00 USD")).toBeInTheDocument();
+    expect(await screen.findByText("none recorded — total $0.00")).toBeInTheDocument();
   });
 
   it("hides the Money section and never fetches sales/expense/profit data for a non-admin role", async () => {
     renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
 
-    await screen.findByRole("row", { name: /2026-07-19/ }); // production loaded, so the mount effects settled
+    await screen.findByRole("row", { name: /07\/19\/2026/ }); // production loaded, so the mount effects settled
     expect(screen.queryByRole("heading", { name: "Money" })).not.toBeInTheDocument();
     expect(screen.queryByText(/confirmed order/)).not.toBeInTheDocument();
     expect(mockGetSalesSummary).not.toHaveBeenCalled();
@@ -376,7 +382,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
         // The voided suffix (a separate text node) trails this one in the
         // same <td>, so match the marker text as a substring, not exactly.
         expect(await screen.findByText(
-          /SALES-MARKER count=5 rev=100\.00 USD paid=80\.00 USD out=20\.00 USD END/,
+          /SALES-MARKER count=5 rev=\$100\.00 paid=\$80\.00 out=\$20\.00 END/,
         )).toBeInTheDocument();
       },
     );
@@ -404,7 +410,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   it("interpolates {{total}} into the expenses total suffix from the catalog", async () => {
     await withOverride("expensesTotalSuffix", " ((TOTAL={{total}}))", async () => {
       renderWithProviders(<ReportsPage />, { token: ADMIN });
-      expect(await screen.findByText(/\(\(TOTAL=65\.00 USD\)\)/)).toBeInTheDocument();
+      expect(await screen.findByText(/\(\(TOTAL=\$65\.00\)\)/)).toBeInTheDocument();
     });
   });
 
@@ -415,13 +421,13 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
     await withOverride("profitLine", "PROFIT-MARKER {{revenue}}/{{expenses}}/{{profit}} END", async () => {
       renderWithProviders(<ReportsPage />, { token: ADMIN });
       expect(await screen.findByText(
-        "PROFIT-MARKER 100.00 USD/65.00 USD/35.00 USD END",
+        "PROFIT-MARKER $100.00/$65.00/$35.00 END",
       )).toBeInTheDocument();
-      // The Sales row also contains "revenue 100.00 USD" (same fixture
+      // The Sales row also contains "revenue $100.00" (same fixture
       // revenue amount) — match the profit line's DISTINCT "− expenses"
       // fragment so this only passes if the profitLine template itself (not
       // some other row) is still hardcoded.
-      expect(screen.queryByText(/revenue 100\.00 USD − expenses/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/revenue \$100\.00 − expenses/)).not.toBeInTheDocument();
     });
   });
 
@@ -431,7 +437,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   // right number but never inside a real <strong>.
   it("wraps the profit figure in a real <strong> element via the <Trans> components mapping", async () => {
     renderWithProviders(<ReportsPage />, { token: ADMIN });
-    expect(await screen.findByText("35.00 USD")).toHaveProperty("tagName", "STRONG");
+    expect(await screen.findByText("$35.00")).toHaveProperty("tagName", "STRONG");
   });
 
   it("reads the profit footnote from the catalog, not a hardcoded literal", async () => {

@@ -1474,6 +1474,25 @@ table.data tbody tr:hover {
   background: var(--row-hover);
 }
 
+/* Numeric cells (#650): a column of figures reads as a column only when the
+   digits line up — right-aligned under a right-aligned header, tabular
+   figures, and never a wrap inside a number or a money string. Screens mark
+   both the th and its td; a header left over its right-aligned column reads
+   as a different column. */
+table.data th.num,
+table.data td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A calendar date is one token: "2026-08-" / "14" across two lines is not a
+   date (docs/images/sales.png before #650). Left-aligned like text, unwrapped
+   like a number. */
+table.data td.nowrap {
+  white-space: nowrap;
+}
+
 table.data th[scope="row"] {
   color: var(--ink);
   font-size: 1rem;
@@ -1738,8 +1757,110 @@ label.check {
   margin-bottom: 1.75rem;
 }
 
-.help-head .eyebrow {
-  margin-bottom: 0.35rem;
+/* Sentence-case kicker above the title and the rail (#657): a label, not a
+   tracked caps eyebrow — the caps convention leaves the app with #652. */
+.help-kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Search (#657): one box over the guide and the glossary; the status line
+   under it is the live region that says how much matched. */
+.help-search {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 34rem;
+  margin: 0 0 0.5rem;
+}
+
+.help-search label {
+  flex: 1 1 auto;
+}
+
+.help-search-status {
+  min-height: 1.4rem;
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.help-toc-group {
+  margin: 0.9rem 0 0.15rem;
+  padding: 0 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Glossary (#657): grouped definition lists. A hairline BETWEEN entries, the
+   term in ink, the definition capped at a readable measure. */
+.glossary-group h4 {
+  margin: 2rem 0 0.25rem;
+  font-size: 1.05rem;
+  scroll-margin-top: 1.5rem;
+}
+
+dl.glossary {
+  margin: 0;
+}
+
+.glossary-entry {
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--hairline);
+  scroll-margin-top: 1.5rem;
+}
+
+.glossary-entry:target {
+  background: var(--tint-accent);
+  box-shadow: 0 0 0 0.6rem var(--tint-accent);
+  border-radius: 4px;
+}
+
+.glossary-entry dt {
+  margin: 0 0 0.2rem;
+  font-weight: 600;
+}
+
+.glossary-entry dt a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.glossary-entry dt a:hover {
+  color: var(--link);
+  text-decoration: underline;
+}
+
+.glossary-entry dd {
+  margin: 0;
+  max-width: 60ch;
+  line-height: 1.6;
+}
+
+/* The "?" beside a column header (#657): a small ring, muted until hovered. */
+.help-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-left: 0.35rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--muted);
+  text-decoration: none;
+  vertical-align: middle;
+}
+
+.help-link:hover {
+  color: var(--link);
+  border-color: var(--link);
+  text-decoration: none;
 }
 
 .help-lead {
@@ -1815,7 +1936,7 @@ label.check {
   scroll-margin-top: 1.5rem;
 }
 
-.help-body h3:first-child {
+.help-body > .help-section:first-child > h3 {
   margin-top: 0;
   padding-top: 0;
   border-top: none;

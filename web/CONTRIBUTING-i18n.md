@@ -153,9 +153,12 @@ The scan's own header comment documents its known false-positive/false-negative 
 **Critical rule:** Money, dates, and numbers must **never** key off the UI language. They are driven by the farm's locale — its timezone, currency, and locale code — which a user cannot change from the UI language picker.
 
 ```tsx
-// ✓ Correct — money is formatted by farm currency + minor units,
-//   regardless of UI language.
-formatMoney(1050, "USD", 2)  // → "10.50 USD"
+// ✓ Correct — money is formatted by farm currency + minor units + farm
+//   locale, regardless of UI language. Screens get the bound form from
+//   useFormat(): fmt.money(1050, "USD", 2).
+formatMoney(1050, "USD", 2, "en-US")  // → "$10.50"
+formatCount(5074, "en-US")             // → "5,074"
+formatDate("2026-08-14", "en-US", farm.dateFormatOverride)  // → "08/14/2026"
 
 // ✓ Correct — date formatted by farm timezone, not UI language.
 todayIso(farm.timezone)  // → "2026-07-26"

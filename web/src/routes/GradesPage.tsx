@@ -8,6 +8,7 @@ import {
 } from "../api/cluckwork";
 import type { EggGrade } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
@@ -32,6 +33,7 @@ function errorMessage(err: unknown): string {
 // from capture/order pickers while history keeps rendering its name.
 export function GradesPage() {
   const { t } = useTranslation("grades");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // The grade catalog is configuration — management is admin-only (#73). The
   // nav link hides for workers; a direct URL just renders the list read-only.
@@ -252,7 +254,7 @@ export function GradesPage() {
           <tr>
             <th>{t("nameHeader")}</th>
             <th>{t("typeHeader")}</th>
-            <th>{t("sortHeader")}</th>
+            <th className="num">{t("sortHeader")}</th>
             <th>{t("saleableHeader")}</th>
             <th>{t("statusHeader")}</th>
             <th>{tc("recordHistoryHeader")}</th>
@@ -264,7 +266,7 @@ export function GradesPage() {
             <tr key={g.id} className={g.active ? undefined : "inactive"}>
               <td>{g.name}</td>
               <td>{gradeTypeLabel(g.gradeType)}</td>
-              <td>{g.sortOrder}</td>
+              <td className="num">{fmt.count(g.sortOrder)}</td>
               <td>{g.isSaleable ? <span className="badge badge-ok">{t("saleableYesBadge")}</span> : "—"}</td>
               <td><StatusBadge status={g.active ? "Active" : "Inactive"} label={statusLabel(g.active ? "Active" : "Inactive")} /></td>
               <ProvenanceCell history={g} />

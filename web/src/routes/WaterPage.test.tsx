@@ -84,13 +84,13 @@ describe("WaterPage loading + list", () => {
     mockListWaterUsage.mockResolvedValue([ROW, METER_ROW]);
     renderWithProviders(<WaterPage />, { token: WORKER });
 
-    const row1 = await screen.findByRole("row", { name: /2026-07-10/ });
+    const row1 = await screen.findByRole("row", { name: /07\/10\/2026/ });
     expect(within(row1).getByText("12 L")).toBeInTheDocument();
     expect(within(row1).getByText("Well")).toBeInTheDocument();
     expect(within(row1).getByText("Hen House 1")).toBeInTheDocument();
     expect(within(row1).getByText("—")).toBeInTheDocument(); // direct quantity → no meters
 
-    const row2 = screen.getByRole("row", { name: /2026-07-11/ });
+    const row2 = screen.getByRole("row", { name: /07\/11\/2026/ });
     expect(within(row2).getByText("74.75 L")).toBeInTheDocument();
     expect(within(row2).getByText("100.5 → 175.25")).toBeInTheDocument(); // meter delta shown
   });

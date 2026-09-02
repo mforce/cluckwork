@@ -8,6 +8,7 @@ import {
 } from "../api/cluckwork";
 import type { DailyEntry, EggGrade, EggUnitConversion, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
@@ -21,6 +22,7 @@ import { useDialogErrors } from "../components/useDialogErrors";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
+import { GlossaryLink } from "../components/GlossaryLink";
 import { useFarm } from "../farm/useFarm";
 import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
@@ -46,6 +48,7 @@ function errText(err: unknown): string {
 // stock and the bird ledger and enforces the role either way.
 export function HistoryPage() {
   const { t } = useTranslation("history");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // The adjust dialog IS the Daily entry form (same two steps, same
   // reconciliation), so it speaks that screen's copy rather than a second
@@ -206,7 +209,7 @@ export function HistoryPage() {
   // state the second while the first is true.
   const conditionStock = (e: DailyEntry) => {
     if (e.status === "Draft") return "—";
-    return (e.crackedGradeId ? e.crackedEggs : 0) + (e.dirtyGradeId ? e.dirtyEggs : 0);
+    return fmt.count((e.crackedGradeId ? e.crackedEggs : 0) + (e.dirtyGradeId ? e.dirtyEggs : 0));
   };
 
   // Dismissal empties the dialog's slot and mutes the attempt still out, so a
@@ -723,13 +726,13 @@ export function HistoryPage() {
           <table className="data">
             <thead>
               <tr>
-                <th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th>{t("statusHeader")}</th><th>{t("totalHeader")}</th>
-                <th>{t("lossesHeader")}</th>
+                <th>{t("dateHeader")}</th><th>{t("flockHeader")}</th><th>{t("statusHeader")}<GlossaryLink term="LockedEntry" /></th><th className="num">{t("totalHeader")}</th>
+                <th className="num">{t("lossesHeader")}</th>
                 {/* #396 — Losses shows the cracked/dirty/discarded COUNTS
                     whatever became of them; this shows how many of those
                     actually became stock, per the entry's own snapshot. */}
-                <th>{t("conditionHeader")}</th>
-                <th>{t("mortalityHeader")}</th><th>{t("gradedHeader")}</th>
+                <th className="num">{t("conditionHeader")}</th>
+                <th className="num">{t("mortalityHeader")}</th><th>{t("gradedHeader")}</th>
                 <th>{tc("recordHistoryHeader")}</th>
                 <th></th>
               </tr>
@@ -737,13 +740,13 @@ export function HistoryPage() {
             <tbody>
               {entries.rows.map((e) => (
                 <tr key={e.id} className={e.status === "Voided" ? "inactive" : undefined}>
-                  <td>{e.date}</td>
+                  <td className="nowrap">{fmt.date(e.date)}</td>
                   <td>{rowFlockName(e)}</td>
                   <td>{statusCell(e)}</td>
-                  <td>{e.totalEggs}</td>
-                  <td>{e.crackedEggs}/{e.dirtyEggs}/{e.discardedEggs}</td>
-                  <td>{conditionStock(e)}</td>
-                  <td>{e.mortalityCount}</td>
+                  <td className="num">{fmt.count(e.totalEggs)}</td>
+                  <td className="num">{fmt.count(e.crackedEggs)}/{fmt.count(e.dirtyEggs)}/{fmt.count(e.discardedEggs)}</td>
+                  <td className="num">{conditionStock(e)}</td>
+                  <td className="num">{fmt.count(e.mortalityCount)}</td>
                   <td>
                     {e.grades.length === 0
                       ? "—"

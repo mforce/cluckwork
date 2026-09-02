@@ -7,8 +7,10 @@ import {
 } from "../api/cluckwork";
 import type { EggLotRow, EggMovementRow, StockRow } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
+import { GlossaryLink } from "../components/GlossaryLink";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { NumberField } from "../components/NumberField";
@@ -34,6 +36,7 @@ const LOT_PAGE = 50;
 // moves, the daily entry's production figures never do.
 export function StockPage() {
   const { t } = useTranslation("stock");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // UI visibility only (#73/#103) — the endpoint re-checks the role.
   const { isAdmin } = useAuth();
@@ -467,7 +470,7 @@ export function StockPage() {
     // — that value is frozen at lot A and would never see the switch.
     if (outcome && activeWriteOffLotId.current === lot.id) {
       activeWriteOffLotId.current = null;
-      setMessage(i18n.t("stock:writeOffRecordedMessage", { available: outcome.quantityAvailable }));
+      setMessage(i18n.t("stock:writeOffRecordedMessage", { available: fmt.count(outcome.quantityAvailable) }));
       setWriteOffLot(null);
     }
   }
@@ -493,19 +496,19 @@ export function StockPage() {
         <>
           <table className="data">
             <thead>
-              <tr><th>{t("gradeHeader")}</th><th>{t("availableHeader")}</th><th>{t("restrictedHeader")}</th><th></th></tr>
+              <tr><th>{t("gradeHeader")}</th><th className="num">{t("availableHeader")}</th><th className="num">{t("restrictedHeader")}<GlossaryLink term="WithdrawalRestriction" /></th><th></th></tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.eggGradeId}>
                   <td>{r.gradeName}</td>
-                  <td>
-                    {r.available}
+                  <td className="num">
+                    {fmt.count(r.available)}
                     <div className="meter" aria-hidden="true">
                       <span style={{ width: (maxAvailable > 0 ? (r.available / maxAvailable) * 100 : 0) + "%" }} />
                     </div>
                   </td>
-                  <td>{r.restricted > 0 ? <span className="badge badge-warn">{r.restricted}</span> : "—"}</td>
+                  <td className="num">{r.restricted > 0 ? <span className="badge badge-warn">{fmt.count(r.restricted)}</span> : "—"}</td>
                   <td>
                     <button className="link" onClick={() => void toggleGrade(r.eggGradeId)}>
                       {openGrade === r.eggGradeId ? t("hideLotsButton") : t("lotsButton")}
@@ -515,7 +518,7 @@ export function StockPage() {
               ))}
             </tbody>
           </table>
-          <p className="muted">{t("totalAvailableMessage", { available: totalAvailable, grades: rows.length })}</p>
+          <p className="muted">{t("totalAvailableMessage", { available: fmt.count(totalAvailable), grades: rows.length })}</p>
 
           {openGrade !== null && (
             <>
@@ -537,14 +540,14 @@ export function StockPage() {
               ) : (
                 <table className="data">
                   <thead>
-                    <tr><th>{t("producedOnHeader")}</th><th>{t("producedHeader")}</th><th>{t("availableHeader")}</th><th></th></tr>
+                    <tr><th>{t("producedOnHeader")}</th><th className="num">{t("producedHeader")}</th><th className="num">{t("availableHeader")}</th><th></th></tr>
                   </thead>
                   <tbody>
                     {lots.map((l) => (
                       <tr key={l.id}>
-                        <td>{l.productionDate}</td>
-                        <td>{l.quantityProduced}</td>
-                        <td>{l.quantityAvailable}</td>
+                        <td className="nowrap">{fmt.date(l.productionDate)}</td>
+                        <td className="num">{fmt.count(l.quantityProduced)}</td>
+                        <td className="num">{fmt.count(l.quantityAvailable)}</td>
                         <td>
                           {/* #493 — the audit trail for MANUAL ADJUSTMENTS to
                               this lot (write-offs, recounts), distinct from
@@ -605,14 +608,14 @@ export function StockPage() {
                   </p>
                   <table className="data">
                     <thead>
-                      <tr><th>{t("ledgerWhenHeader")}</th><th>{t("ledgerTypeHeader")}</th><th>{t("ledgerChangeHeader")}</th><th>{t("ledgerReasonHeader")}</th></tr>
+                      <tr><th>{t("ledgerWhenHeader")}</th><th>{t("ledgerTypeHeader")}<GlossaryLink term="EggMovementLedger" /></th><th className="num">{t("ledgerChangeHeader")}</th><th>{t("ledgerReasonHeader")}</th></tr>
                     </thead>
                     <tbody>
                       {movements.map((m) => (
                         <tr key={m.id}>
-                          <td>{m.createdAtUtc.replace("T", " ").slice(0, 19)}</td>
+                          <td className="nowrap">{m.createdAtUtc.replace("T", " ").slice(0, 19)}</td>
                           <td>{stockMovementLabel(m.movementType)}</td>
-                          <td>{m.quantityDelta > 0 ? `+${m.quantityDelta}` : m.quantityDelta}</td>
+                          <td className="num">{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)}</td>
                           <td>{m.reason ?? "—"}</td>
                         </tr>
                       ))}

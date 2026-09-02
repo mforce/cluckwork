@@ -584,16 +584,20 @@ describe("SalesPage line display", () => {
     expect(within(rowA).getByText(/per dozen \(12 eggs\)/)).toBeInTheDocument();
     expect(within(rowA).getByText("36")).toBeInTheDocument();
     // line total = unitPrice × quantity (300 × 3), NOT the order total
-    expect(within(rowA).getByText("3.00 USD")).toBeInTheDocument();
-    expect(within(rowA).getByText("9.00 USD")).toBeInTheDocument();
+    expect(within(rowA).getByText("$3.00")).toBeInTheDocument();
+    expect(within(rowA).getByText("$9.00")).toBeInTheDocument();
+    // #650 — money and quantity cells are numeric cells; the product cell is not.
+    expect(within(rowA).getByText("$9.00")).toHaveClass("num");
+    expect(within(rowA).getByText("36")).toHaveClass("num");
+    expect(within(rowA).getByText(/Grade A Dozen/)).not.toHaveClass("num");
 
     const rowB = screen.getByRole("row", { name: /Grade B Tray/ });
     expect(within(rowB).getByText("60")).toBeInTheDocument();
-    expect(within(rowB).getByText("20.00 USD")).toBeInTheDocument(); // 1000 × 2
+    expect(within(rowB).getByText("$20.00")).toBeInTheDocument(); // 1000 × 2
 
     // order total (2900) differs from both line totals (900, 2000) → this pins
     // that the line cell renders its own line, not active.totalMinorUnits
-    expect(screen.getByText(/Total: 29\.00 USD/)).toBeInTheDocument();
+    expect(screen.getByText(/Total: \$29\.00/)).toBeInTheDocument();
   });
 
   it("omits the egg-multiplier note and shows eggs === quantity for a per-egg line (factor 1)", async () => {
@@ -607,11 +611,11 @@ describe("SalesPage line display", () => {
   });
 
   it("renders line money at the order's currency scale (3-decimal)", async () => {
-    // 1500 minor units @ 3 decimals → "1.500 BHD" (would read "15.00" at 2dp) —
+    // 1500 minor units @ 3 decimals → "BHD 1.500" (would read "15.00" at 2dp) —
     // proves formatMoney uses the item's currencyMinorUnit, not a hard-coded 2.
     const row = await openOrder(draftWithItem(3, "BHD", 1500, "o4"), /Grade A Dozen/);
-    expect(within(row).getByText("1.500 BHD")).toBeInTheDocument(); // unit price
-    expect(within(row).getByText("4.500 BHD")).toBeInTheDocument(); // line total 1500 × 3
+    expect(within(row).getByText("BHD 1.500")).toBeInTheDocument(); // unit price
+    expect(within(row).getByText("BHD 4.500")).toBeInTheDocument(); // line total 1500 × 3
   });
 });
 

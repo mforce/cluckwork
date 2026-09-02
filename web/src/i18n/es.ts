@@ -5,6 +5,7 @@
 // on-screen label, until that screen itself is externalized to the catalog (#182).
 export const es = {
   common: {
+    whatDoesTermMean: "¿Qué significa “{{term}}”?",
     "recordHistory.createdBy": "Creado por {{email}} el {{at}}",
     "recordHistory.lastChangedBy": "Última modificación por {{email}} el {{at}}",
     "recordHistory.submittedAt": "Enviado el {{at}}",
@@ -531,7 +532,7 @@ export const es = {
     gradeHeader: "Grado",
     availableHeader: "Disponible",
     restrictedHeader: "Restringido",
-    eggsAvailableMessage: "{{count}} huevos disponibles.",
+    eggsAvailableMessage: "{{total}} huevos disponibles.",
 
     // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
     salesPanelTitle: "Ventas recientes",
@@ -1790,6 +1791,25 @@ export const es = {
     lead: "Cómo funciona Cluckwork, pantalla por pantalla — y cómo deshacer errores.",
     contentsAriaLabel: "Contenido de la ayuda",
     contentsEyebrow: "Contenido",
+    // #657 — búsqueda, índice agrupado y glosario agrupado.
+    searchLabel: "Buscar en la guía",
+    searchPlaceholder: "Escriba un término o un tema",
+    searchClear: "Borrar búsqueda",
+    searchMatches: "Coincidencias para “{{query}}”: {{sections}} en la guía, {{terms}} en el glosario.",
+    searchNoMatches: "Nada coincide con “{{query}}”.",
+    railGroupStartHere: "Para empezar",
+    railGroupEveryDay: "Cada día",
+    railGroupSelling: "Ventas",
+    railGroupSupplies: "Suministros",
+    railGroupFarm: "Granja y personas",
+    railGroupApp: "La aplicación",
+    glossaryGroupGettingAround: "Moverse por la aplicación",
+    glossaryGroupSigningIn: "Inicio de sesión y permisos",
+    glossaryGroupFlocksEntry: "Parvadas y registro diario",
+    glossaryGroupEggsStock: "Huevos, calidades y existencias",
+    glossaryGroupSalesMoney: "Ventas y dinero",
+    glossaryGroupSupplies: "Alimento, agua y suministros",
+    glossaryGroupFarm: "Configuración e identidad de la granja",
 
     tocGettingAround: "Cómo moverse",
     tocSigningIn: "Iniciar sesión",
@@ -2367,10 +2387,12 @@ export const es = {
     farmSettingsDateTimeFormat:
       "<strong>Formato de fecha</strong> y <strong>formato de hora</strong> ofrecen algunas opciones "
       + "comunes en un menú desplegable — elija una y listo. ¿Necesita algo que no está en la lista? "
-      + "Elija <strong>Personalizado…</strong> para escribir el suyo; las opciones predefinidas son "
-      + "siempre seguras, pero un valor personalizado solo se verifica lo suficiente para guardarlo, no "
-      + "para comprobar que se ve bien — nada en Cluckwork muestra fechas u horas mediante esta "
-      + "configuración todavía, así que un valor personalizado incorrecto no sería visible hoy.",
+      + "Elija <strong>Personalizado…</strong> para escribir el suyo. Toda fecha en una lista — registros "
+      + "diarios, lotes de huevos, pedidos, pagos, gastos, registros de alimento y agua, informes — se "
+      + "muestra con el formato de fecha (sin uno definido, la forma corta propia de la configuración "
+      + "regional de la granja), así que abra cualquier lista para ver un valor personalizado; las "
+      + "opciones predefinidas son siempre seguras. Nada muestra una hora mediante el formato de hora "
+      + "todavía, así que un valor de hora personalizado incorrecto no sería visible hoy.",
     farmSettingsSquareLogo:
       "El logotipo se muestra en la barra lateral más o menos con la altura de una línea de texto. Tanto "
       + "una marca simple y bien recortada como un <strong>logotipo ancho</strong> se ven bien ahí — un "

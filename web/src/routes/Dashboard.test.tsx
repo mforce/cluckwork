@@ -66,7 +66,10 @@ describe("Dashboard stat cards", () => {
     // eggs collected today = 178 only (the Voided 999 entry is excluded)
     expect(await screen.findByText("Eggs collected today")).toBeInTheDocument();
     expect(statFor("Eggs collected today")).toHaveTextContent("178");
-    expect(statFor("Eggs available")).toHaveTextContent("1560"); // 1240 + 320
+    expect(statFor("Eggs available")).toHaveTextContent("1,560"); // 1240 + 320, grouped per the farm locale (#650)
+    // The stock panel's summary sentence carries the same grouped figure — the
+    // plural `count` stays raw, the rendered `total` is formatted.
+    expect(screen.getByText("1,560 eggs available.")).toBeInTheDocument();
     expect(statFor("Active flocks")).toHaveTextContent("3");
   });
 

@@ -10,6 +10,7 @@
 //   label, until that screen itself is externalized to the catalog (#182).
 export const tl = {
   common: {
+    whatDoesTermMean: "Ano ang ibig sabihin ng “{{term}}”?",
     "recordHistory.createdBy": "Ginawa ni {{email}} noong {{at}}",
     "recordHistory.lastChangedBy": "Huling binago ni {{email}} noong {{at}}",
     "recordHistory.submittedAt": "Naisumite noong {{at}}",
@@ -553,7 +554,7 @@ export const tl = {
     gradeHeader: "Grado",
     availableHeader: "Available",
     restrictedHeader: "Restricted",
-    eggsAvailableMessage: "{{count}} itlog ang available.",
+    eggsAvailableMessage: "{{total}} itlog ang available.",
 
     // "Recent sales" panel (hidden for ReadOnly/Denied, #127)
     salesPanelTitle: "Mga Kamakailang Benta",
@@ -1859,6 +1860,25 @@ export const tl = {
     lead: "Kung paano gumagana ang Cluckwork, screen by screen — at kung paano mo aayusin ang mga pagkakamali.",
     contentsAriaLabel: "Nilalaman ng tulong",
     contentsEyebrow: "Nilalaman",
+    // #657 — paghahanap, nakagrupong index at nakagrupong glossary.
+    searchLabel: "Maghanap sa gabay",
+    searchPlaceholder: "Mag-type ng termino o paksa",
+    searchClear: "I-clear ang paghahanap",
+    searchMatches: "Mga tugma para sa “{{query}}”: {{sections}} sa gabay, {{terms}} sa glossary.",
+    searchNoMatches: "Walang tumutugma sa “{{query}}”.",
+    railGroupStartHere: "Magsimula rito",
+    railGroupEveryDay: "Araw-araw",
+    railGroupSelling: "Pagbebenta",
+    railGroupSupplies: "Mga suplay",
+    railGroupFarm: "Farm at mga tao",
+    railGroupApp: "Ang app",
+    glossaryGroupGettingAround: "Paglilibot sa app",
+    glossaryGroupSigningIn: "Pag-sign in at kung sino ang may pahintulot",
+    glossaryGroupFlocksEntry: "Mga flock at pang-araw-araw na entry",
+    glossaryGroupEggsStock: "Mga itlog, grade at stock",
+    glossaryGroupSalesMoney: "Benta at pera",
+    glossaryGroupSupplies: "Feed, tubig at mga suplay",
+    glossaryGroupFarm: "Mga setting at branding ng farm",
 
     tocGettingAround: "Pag-navigate",
     tocSigningIn: "Pag-sign in",
@@ -2456,10 +2476,12 @@ export const tl = {
     farmSettingsDateTimeFormat:
       "Nag-aalok ang <strong>format ng petsa</strong> at <strong>format ng oras</strong> ng ilang karaniwang "
       + "pagpipilian sa isang dropdown — pumili at tapos na. Kailangan ng hindi nakalista? Piliin ang "
-      + "<strong>Custom…</strong> para mag-type ng sarili mo; palaging ligtas ang mga preset, pero "
-      + "sinusuri lang ang custom value nang sapat para ma-save, hindi para patunayan na tama ang "
-      + "itsura nito — wala pang nagpapakita ng petsa o oras gamit ang setting na ito sa Cluckwork, "
-      + "kaya hindi makikita ngayon ang isang maling custom value.",
+      + "<strong>Custom…</strong> para mag-type ng sarili mo. Bawat petsa sa isang listahan — mga "
+      + "pang-araw-araw na entry, lote ng itlog, order, bayad, gastos, tala ng feed at tubig, ulat — ay "
+      + "ipinapakita gamit ang format ng petsa (kung wala, ang sariling maikling anyo ng locale ng "
+      + "farm), kaya buksan ang anumang listahan para makita ang custom value; palaging ligtas ang mga "
+      + "preset. Wala pang nagpapakita ng oras gamit ang format ng oras, kaya hindi makikita ngayon "
+      + "ang isang maling custom na oras.",
     farmSettingsSquareLogo:
       "Lumalabas ang logo sa sidebar nang halos kasingtaas ng isang linya ng teksto. Maganda ang tingin "
       + "doon ng simple at maigsing-crop na marka at ng <strong>malawak na wordmark</strong> — pinananatili "

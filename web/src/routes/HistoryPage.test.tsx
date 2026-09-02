@@ -106,13 +106,13 @@ describe("HistoryPage record history column (#494)", () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED, HISTORY_ENTRY]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
 
-    const historyRow = await screen.findByRole("row", { name: /2026-07-20/ });
+    const historyRow = await screen.findByRole("row", { name: /07\/20\/2026/ });
     expect(within(historyRow).getByText(/ana@farm\.test/)).toBeInTheDocument();
     expect(within(historyRow).getByText(/bo@farm\.test/)).toBeInTheDocument();
 
     // The OTHER row must not carry the history row's data — this is what
     // catches every row being wired to the same object.
-    const otherRow = screen.getByRole("row", { name: /2026-07-19/ });
+    const otherRow = screen.getByRole("row", { name: /07\/19\/2026/ });
     expect(within(otherRow).queryByText(/ana@farm\.test/)).not.toBeInTheDocument();
   });
 });
@@ -122,7 +122,7 @@ describe("HistoryPage audit history link (#493)", () => {
   it("links each row to its own entity-scoped audit history", async () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
-    const row = await screen.findByRole("row", { name: /2026-07-19/ });
+    const row = await screen.findByRole("row", { name: /07\/19\/2026/ });
     expect(within(row).getByRole("link", { name: "Audit history" }))
       .toHaveAttribute("href", "/audit?entityId=de1");
   });
@@ -132,7 +132,7 @@ describe("HistoryPage audit history link (#493)", () => {
   it("hides the link from a non-admin", async () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
     renderWithProviders(<HistoryPage />, { token: { sub: "u1" } });
-    await screen.findByRole("row", { name: /2026-07-19/ });
+    await screen.findByRole("row", { name: /07\/19\/2026/ });
     expect(screen.queryByRole("link", { name: "Audit history" })).not.toBeInTheDocument();
   });
 });
@@ -147,7 +147,7 @@ describe("HistoryPage condition column", () => {
     ]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
 
-    const row = await screen.findByRole("row", { name: /2026-07-19/ });
+    const row = await screen.findByRole("row", { name: /07\/19\/2026/ });
     within(row).getByText("2/3/5"); // Losses still shows all three counters
     // By CELL, not by text: "2" also appears inside the losses cell, so a text
     // match would pass against a column that renders the wrong number.
@@ -160,7 +160,7 @@ describe("HistoryPage condition column", () => {
     mockListDailyEntries.mockResolvedValue([DRAFT]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
 
-    const row = await screen.findByRole("row", { name: /2026-07-18/ });
+    const row = await screen.findByRole("row", { name: /07\/18\/2026/ });
     expect(conditionCell(row)).toHaveTextContent("—");
   });
 
@@ -168,7 +168,7 @@ describe("HistoryPage condition column", () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]); // both snapshots null
     renderWithProviders(<HistoryPage />, { token: ADMIN });
 
-    const row = await screen.findByRole("row", { name: /2026-07-19/ });
+    const row = await screen.findByRole("row", { name: /07\/19\/2026/ });
     expect(conditionCell(row)).toHaveTextContent("0");
   });
 });
@@ -693,7 +693,7 @@ describe("HistoryPage draft edit link", () => {
     mockListDailyEntries.mockResolvedValue([{ ...DRAFT, flockName: undefined }]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
 
-    const row = await screen.findByRole("row", { name: /2026-07-18/ });
+    const row = await screen.findByRole("row", { name: /07\/18\/2026/ });
     expect(within(row).getByText("Hen House 1")).toBeInTheDocument();
     expect(within(row).queryByText(i18n.t("history:rowFlockUnavailable"))).not.toBeInTheDocument();
   });
@@ -718,7 +718,7 @@ describe("HistoryPage draft edit link", () => {
     // #512 — the filter is a FlockPicker, not a native select: the archived
     // flock is no longer a visible <option>; the row's own name cell proves
     // the metadata landed.
-    await screen.findByText("2026-07-18");
+    await screen.findByText("07/18/2026");
     await waitFor(() =>
       expect(screen.getAllByText("Old Coop").length).toBeGreaterThan(0));
     expect(screen.queryByRole("link", { name: "edit" })).not.toBeInTheDocument();
@@ -747,7 +747,7 @@ describe("HistoryPage draft edit link", () => {
     mockListDailyEntries.mockResolvedValue([{ ...DRAFT, flockStatus: "Archived" }]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
 
-    await screen.findByText("2026-07-18");
+    await screen.findByText("07/18/2026");
     expect(screen.queryByRole("link", { name: "edit" })).not.toBeInTheDocument();
   });
 });
@@ -765,7 +765,7 @@ describe("HistoryPage role gating", () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
     renderWithProviders(<HistoryPage />, { token });
 
-    await screen.findByText("2026-07-19"); // the submitted (correctable) row
+    await screen.findByText("07/19/2026"); // the submitted (correctable) row
     const adjust = screen.queryByRole("button", { name: "adjust" });
     const voidBtn = screen.queryByRole("button", { name: "void" });
     if (allowed) {
@@ -836,7 +836,7 @@ describe("HistoryPage void — reason dialog", () => {
     vi.mocked(voidDailyEntry).mockReturnValue(new Promise<void>((r) => (resolveVoid = r)) as never);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
 
-    const row1 = await screen.findByRole("row", { name: /2026-07-19/ });
+    const row1 = await screen.findByRole("row", { name: /07\/19\/2026/ });
     fireEvent.click(within(row1).getByRole("button", { name: "void" }));
     fireEvent.change(within(voidDialog()).getByLabelText("Reason *"), { target: { value: "dupe" } });
     await act(async () => {
@@ -852,7 +852,7 @@ describe("HistoryPage void — reason dialog", () => {
 
     // Sibling controls go inert but must NOT spin — exactly one control claims
     // the flight (void:de1), the rest merely disable.
-    const row2 = screen.getByRole("row", { name: /2026-07-17/ });
+    const row2 = screen.getByRole("row", { name: /07\/17\/2026/ });
     expect(within(row2).getByRole("button", { name: "void" })).toBeDisabled();
     expect(within(row2).getByRole("button", { name: "void" })).not.toHaveAttribute("aria-busy");
     expect(within(row1).getByRole("button", { name: "adjust" })).toBeDisabled();
@@ -860,7 +860,7 @@ describe("HistoryPage void — reason dialog", () => {
 
     await act(async () => resolveVoid());
     // Settled: no pending scope remains, the row control is live again.
-    const settled = within(screen.getByRole("row", { name: /2026-07-19/ }))
+    const settled = within(screen.getByRole("row", { name: /07\/19\/2026/ }))
       .getByRole("button", { name: "void" });
     expect(settled).toBeEnabled();
     expect(settled).not.toHaveAttribute("aria-busy");
@@ -1181,7 +1181,7 @@ describe("HistoryPage list races (#469)", () => {
   it("ignores a stale filter response that lands after a newer one", async () => {
     mockListDailyEntries.mockResolvedValue([SUBMITTED]);
     renderWithProviders(<HistoryPage />, { token: ADMIN });
-    await screen.findByRole("row", { name: /2026-07-19/ });
+    await screen.findByRole("row", { name: /07\/19\/2026/ });
 
     let releaseStale!: (rows: DailyEntry[]) => void;
     mockListDailyEntries.mockReturnValueOnce(new Promise((r) => { releaseStale = r; }));
@@ -1190,13 +1190,13 @@ describe("HistoryPage list races (#469)", () => {
     await act(async () => {
       fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-07-31" } });
     });
-    expect(screen.getByRole("row", { name: /2026-07-20/ })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /07\/20\/2026/ })).toBeInTheDocument();
 
     await act(async () => {
       releaseStale([{ ...SUBMITTED, id: "stale", date: "2026-07-02" }]);
     });
-    expect(screen.getByRole("row", { name: /2026-07-20/ })).toBeInTheDocument();
-    expect(screen.queryByRole("row", { name: /2026-07-02/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /07\/20\/2026/ })).toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /07\/02\/2026/ })).not.toBeInTheDocument();
   });
 
   it("withdraws load-more while a filter reload is in flight", async () => {
@@ -1215,7 +1215,7 @@ describe("HistoryPage list races (#469)", () => {
     expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
 
     await act(async () => { release([SUBMITTED]); });
-    expect(getRowByCellText("2026-07-19")).toBeInTheDocument();
+    expect(getRowByCellText("07/19/2026")).toBeInTheDocument();
   });
 });
 
@@ -1290,7 +1290,7 @@ describe("HistoryPage conflict reload is issued once (#469)", () => {
     expect(mockListDailyEntries).toHaveBeenCalledTimes(2);
     expect(screen.getByText(/check the list and retry/i)).toBeInTheDocument();
     // The refresh runWrite performed DID land, so its rows are on screen.
-    expect(screen.getByRole("row", { name: /2026-07-19/ })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /07\/19\/2026/ })).toBeInTheDocument();
   });
 });
 

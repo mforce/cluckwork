@@ -3,12 +3,13 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
-  activateProduct, createProduct, deactivateProduct, formatMoney,
+  activateProduct, createProduct, deactivateProduct,
   getAccount, listEggGrades, listEggUnitConversions, listProducts,
   updateEggUnitConversion, updateProduct,
 } from "../api/cluckwork";
 import type { EggGrade, EggUnitConversion, Product } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
@@ -37,6 +38,7 @@ function errorMessage(err: unknown): string {
 // No hard delete — future sold lines reference products forever.
 export function ProductsPage() {
   const { t } = useTranslation("products");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   const { isAdmin } = useAuth();
   const [products, setProducts] = useState<Product[] | null>(null);
@@ -388,7 +390,7 @@ export function ProductsPage() {
       ) : (
         <table className="data">
           <thead>
-            <tr><th>{t("nameHeader")}</th><th>{t("gradeHeader")}</th><th>{t("soldPerHeader")}</th><th>{t("defaultPriceHeader")}</th><th>{t("statusHeader")}</th>{isAdmin && <th>{tc("actions")}</th>}</tr>
+            <tr><th>{t("nameHeader")}</th><th>{t("gradeHeader")}</th><th>{t("soldPerHeader")}</th><th className="num">{t("defaultPriceHeader")}</th><th>{t("statusHeader")}</th>{isAdmin && <th>{tc("actions")}</th>}</tr>
           </thead>
           <tbody>
             {products.map((p) => (
@@ -396,9 +398,9 @@ export function ProductsPage() {
                 <td title={p.notes ?? undefined}>{p.name}</td>
                 <td>{gradeName(p.eggGradeId)}</td>
                 <td>{p.defaultUnit}</td>
-                <td>{p.defaultPriceMinorUnits === null
+                <td className="num">{p.defaultPriceMinorUnits === null
                   ? "—"
-                  : formatMoney(p.defaultPriceMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
+                  : fmt.money(p.defaultPriceMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
                 <td><StatusBadge status={p.active ? "Active" : "Inactive"} label={statusLabel(p.active ? "Active" : "Inactive")} /></td>
                 {isAdmin && (
                   <td>
@@ -428,13 +430,13 @@ export function ProductsPage() {
       </p>
       <table className="data">
         <thead>
-          <tr><th>{t("unitHeader")}</th><th>{t("eggsPerUnitHeader")}</th><th>{t("statusHeader")}</th>{isAdmin && <th>{tc("actions")}</th>}</tr>
+          <tr><th>{t("unitHeader")}</th><th className="num">{t("eggsPerUnitHeader")}</th><th>{t("statusHeader")}</th>{isAdmin && <th>{tc("actions")}</th>}</tr>
         </thead>
         <tbody>
           {conversions.map((c) => (
             <tr key={c.id} className={c.active ? undefined : "muted"}>
               <td>{c.unitCode}</td>
-              <td>{c.eggsPerUnit}</td>
+              <td className="num">{fmt.count(c.eggsPerUnit)}</td>
               <td>{statusLabel(c.active ? "Active" : "Inactive")}</td>
               {isAdmin && (
                 <td>

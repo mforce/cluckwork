@@ -890,13 +890,10 @@ export const enableUser = (
 ) => apiPost<void>(
   `/users/${id}/enable`, undefined, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
 
-// Formats minor units per the order's snapshotted currency (JPY has 0 decimals).
-export function formatMoney(minorUnits: number, currencyCode: string, minorUnit: number): string {
-  const value = minorUnits / 10 ** minorUnit;
-  return `${value.toFixed(minorUnit)} ${currencyCode}`;
-}
+// Display formatting lives in lib/format.ts (#650): formatMoney there takes
+// the farm locale, which this module has no business knowing.
 
-// Inverse of formatMoney: parse a user-entered decimal amount into integer minor
+// Parses a user-entered decimal amount into integer minor
 // units at the currency's scale. The `Math.round` absorbs binary-float artifacts
 // (e.g. 0.29 * 100 = 28.999… which would truncate to 28 without it). Returns NaN
 // for non-numeric input and may return a negative — callers apply their own

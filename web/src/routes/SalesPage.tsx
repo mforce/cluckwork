@@ -3,13 +3,14 @@ import { Plus } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import {
-  addOrderItem, cancelOrder, confirmOrder, createOrder, formatMoney, getOrder,
+  addOrderItem, cancelOrder, confirmOrder, createOrder, getOrder,
   listCustomers, listEggGrades, listEggUnitConversions, listOrderPayments, listOrders,
   listProducts, parseMoneyToMinorUnits, recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
 import type { Customer, EggUnitConversion, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { CustomerPicker } from "../components/CustomerPicker";
@@ -23,6 +24,7 @@ import { useConfirm } from "../components/useConfirm";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
+import { GlossaryLink } from "../components/GlossaryLink";
 import { newId } from "../lib/ids";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import i18n from "../i18n";
@@ -76,6 +78,7 @@ function priceInput(defaultPriceMinorUnits: number | null, scale: number | null)
 // confirm (FIFO allocation), cancel drafts, browse/filter the order list.
 export function SalesPage() {
   const { t } = useTranslation("sales");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
@@ -768,7 +771,7 @@ export function SalesPage() {
 
           {active.items.length > 0 && (
             <table className="data">
-              <thead><tr><th>{t("product")}</th><th>{t("qty")}</th><th>{t("eggs")}</th><th>{t("unitPrice")}</th><th>{t("lineTotal")}</th><th></th></tr></thead>
+              <thead><tr><th>{t("product")}</th><th className="num">{t("qty")}</th><th className="num">{t("eggs")}</th><th className="num">{t("unitPrice")}</th><th className="num">{t("lineTotal")}</th><th></th></tr></thead>
               <tbody>
                 {active.items.map((i) => (
                   <tr key={i.id}>
@@ -787,12 +790,12 @@ export function SalesPage() {
                         {/* #445 — live: the eggs column tracks the edited
                             quantity instead of going blank, so a unit/count
                             mix-up is visible mid-edit too. */}
-                        <td className="muted">{i.baseUnitFactor * editQty}</td>
+                        <td className="num muted">{fmt.count(i.baseUnitFactor * editQty)}</td>
                         <td><input className="cell" type="number" min={0}
                           aria-label={t("editUnitPriceAriaLabel")}
                           step={10 ** -active.currencyMinorUnit} value={editPrice}
                           onChange={(e) => setEditPrice(e.target.value)} /></td>
-                        <td>—</td>
+                        <td className="num">—</td>
                         <td>
                           <BusyButton className="link" disabled={busy} busy={isPending(`update-item:${i.id}`)}
                             onClick={() => onUpdateItem(i.id)}>{t("save")}</BusyButton>
@@ -801,10 +804,10 @@ export function SalesPage() {
                       </>
                     ) : (
                       <>
-                        <td>{i.quantity}</td>
-                        <td>{i.quantityBase}</td>
-                        <td>{formatMoney(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
-                        <td>{formatMoney(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</td>
+                        <td className="num">{fmt.count(i.quantity)}</td>
+                        <td className="num">{fmt.count(i.quantityBase)}</td>
+                        <td className="num">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
+                        <td className="num">{fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</td>
                         <td>
                           {active.status === "Draft" && (
                             <>
@@ -829,7 +832,7 @@ export function SalesPage() {
               </tbody>
             </table>
           )}
-          <p><strong>{t("orderTotal", { amount: formatMoney(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })}</strong></p>
+          <p><strong>{t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })}</strong></p>
 
           {active.status === "Draft" && (
             <>
@@ -908,14 +911,14 @@ export function SalesPage() {
               {payments.items.length > 0 && (
                 <table className="data">
                   <thead>
-                    <tr><th>{t("date")}</th><th>{t("amount")}</th><th>{t("method")}</th><th>{t("reference")}</th><th></th></tr>
+                    <tr><th>{t("date")}</th><th className="num">{t("amount")}</th><th>{t("method")}</th><th>{t("reference")}</th><th></th></tr>
                   </thead>
                   <tbody>
                     {payments.items.map((p) => (
                       <tr key={p.id} className={p.voided ? "inactive" : undefined}
                         title={p.note ?? undefined}>
-                        <td>{p.paymentDate}</td>
-                        <td>{formatMoney(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
+                        <td className="nowrap">{fmt.date(p.paymentDate)}</td>
+                        <td className="num">{fmt.money(p.amountMinorUnits, p.currencyCode, p.currencyMinorUnit)}</td>
                         <td>{t(`method${p.method as PaymentMethod}`)}</td>
                         <td>{p.referenceNumber ?? "—"}</td>
                         <td>
@@ -936,8 +939,8 @@ export function SalesPage() {
                   ns="sales"
                   i18nKey="paymentsSummary"
                   values={{
-                    paid: formatMoney(payments.paidMinorUnits, payments.currencyCode, payments.currencyMinorUnit),
-                    outstanding: formatMoney(payments.outstandingMinorUnits, payments.currencyCode, payments.currencyMinorUnit),
+                    paid: fmt.money(payments.paidMinorUnits, payments.currencyCode, payments.currencyMinorUnit),
+                    outstanding: fmt.money(payments.outstandingMinorUnits, payments.currencyCode, payments.currencyMinorUnit),
                   }}
                   components={{ strong: <strong /> }}
                 />
@@ -1109,16 +1112,16 @@ export function SalesPage() {
         <>
           <table className="data">
             <thead>
-              <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}</th><th>{t("total")}</th><th>{tc("recordHistoryHeader")}</th><th></th></tr>
+              <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}<GlossaryLink term="ConfirmOrder" /></th><th className="num">{t("total")}</th><th>{tc("recordHistoryHeader")}</th><th></th></tr>
             </thead>
             <tbody>
               {orders.rows.map((o) => (
                 <tr key={o.id}>
                   <td>{o.referenceNumber}</td>
-                  <td>{o.orderDate}</td>
+                  <td className="nowrap">{fmt.date(o.orderDate)}</td>
                   <td>{rowCustomerName(o)}</td>
                   <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
-                  <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
+                  <td className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   <ProvenanceCell history={o} official="confirmed" />
                   <td>
                     <button className="link" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</button>

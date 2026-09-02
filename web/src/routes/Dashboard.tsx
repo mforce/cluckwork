@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  formatMoney, getStock, listDailyEntries, listFlocks, listOrders,
+  getStock, listDailyEntries, listFlocks, listOrders,
 } from "../api/cluckwork";
 import type { DailyEntry, Flock, SalesOrder, StockRow } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../auth/useAuth";
 import { useFarmToday } from "../farm/useFarm";
@@ -24,6 +25,7 @@ const MAX_PAGE = 500;
 // Panels degrade independently: one failed fetch blanks its panel, not the page.
 export function Dashboard() {
   const { t } = useTranslation("dashboard");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Captured once at mount so the header date always matches the queried day
   // even if the tab stays open across midnight. Farm-local, not browser-local
@@ -101,19 +103,19 @@ export function Dashboard() {
   return (
     <section>
       <h2>{t("title")}</h2>
-      <p className="muted">{today}</p>
+      <p className="muted">{fmt.date(today)}</p>
 
       <div className="stat-grid">
         <div className="stat">
-          <div className="stat-value">{todaysEggs ?? "—"}</div>
+          <div className="stat-value">{todaysEggs === null ? "—" : fmt.count(todaysEggs)}</div>
           <div className="stat-label">{t("statEggsCollectedToday")}</div>
         </div>
         <div className="stat">
-          <div className="stat-value">{eggsAvailable ?? "—"}</div>
+          <div className="stat-value">{eggsAvailable === null ? "—" : fmt.count(eggsAvailable)}</div>
           <div className="stat-label">{t("statEggsAvailable")}</div>
         </div>
         <div className="stat">
-          <div className="stat-value">{activeFlocks ?? "—"}</div>
+          <div className="stat-value">{activeFlocks === null ? "—" : fmt.count(activeFlocks)}</div>
           <div className="stat-label">{t("statActiveFlocks")}</div>
         </div>
       </div>
@@ -126,7 +128,7 @@ export function Dashboard() {
           ) : (
             <table className="data">
               <thead>
-                <tr><th>{t("flockHeader")}</th><th>{t("statusHeader")}</th><th>{t("eggsHeader")}</th><th>{t("lossesHeader")}</th><th>{t("mortalityHeader")}</th></tr>
+                <tr><th>{t("flockHeader")}</th><th>{t("statusHeader")}</th><th className="num">{t("eggsHeader")}</th><th className="num">{t("lossesHeader")}</th><th className="num">{t("mortalityHeader")}</th></tr>
               </thead>
               <tbody>
                 {visibleFlocks.map((f) => {
@@ -135,9 +137,9 @@ export function Dashboard() {
                     <tr key={f.id}>
                       <td>{f.name}</td>
                       <td>{e ? <StatusBadge status={e.status} label={statusLabel(e.status)} /> : <span className="badge badge-warn">{t("noEntryBadge")}</span>}</td>
-                      <td>{e ? e.totalEggs : "—"}</td>
-                      <td>{e ? e.crackedEggs + e.dirtyEggs + e.discardedEggs : "—"}</td>
-                      <td>{e ? e.mortalityCount : "—"}</td>
+                      <td className="num">{e ? fmt.count(e.totalEggs) : "—"}</td>
+                      <td className="num">{e ? fmt.count(e.crackedEggs + e.dirtyEggs + e.discardedEggs) : "—"}</td>
+                      <td className="num">{e ? fmt.count(e.mortalityCount) : "—"}</td>
                     </tr>
                   );
                 })}
@@ -154,19 +156,19 @@ export function Dashboard() {
             <>
               <table className="data">
                 <thead>
-                  <tr><th>{t("gradeHeader")}</th><th>{t("availableHeader")}</th><th>{t("restrictedHeader")}</th></tr>
+                  <tr><th>{t("gradeHeader")}</th><th className="num">{t("availableHeader")}</th><th className="num">{t("restrictedHeader")}</th></tr>
                 </thead>
                 <tbody>
                   {stock.map((r) => (
                     <tr key={r.eggGradeId}>
                       <td>{r.gradeName}</td>
-                      <td>{r.available}</td>
-                      <td>{r.restricted > 0 ? <span className="warn">{r.restricted}</span> : "—"}</td>
+                      <td className="num">{fmt.count(r.available)}</td>
+                      <td className="num">{r.restricted > 0 ? <span className="warn">{fmt.count(r.restricted)}</span> : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <p className="muted">{t("eggsAvailableMessage", { count: totalAvailable })}</p>
+              <p className="muted">{t("eggsAvailableMessage", { count: totalAvailable, total: fmt.count(totalAvailable) })}</p>
             </>
           )}
         </div>
@@ -179,7 +181,7 @@ export function Dashboard() {
           ) : (
             <table className="data">
               <thead>
-                <tr><th>{t("refHeader")}</th><th>{t("customerHeader")}</th><th>{t("statusHeader")}</th><th>{t("totalHeader")}</th></tr>
+                <tr><th>{t("refHeader")}</th><th>{t("customerHeader")}</th><th>{t("statusHeader")}</th><th className="num">{t("totalHeader")}</th></tr>
               </thead>
               <tbody>
                 {orders.map((o) => (
@@ -195,7 +197,7 @@ export function Dashboard() {
                       </Link>
                     </td>
                     <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
-                    <td>{formatMoney(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
+                    <td className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -4,10 +4,11 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Pencil, Plus } from "lucide-react";
 import {
-  createCustomer, formatMoney, listCustomerBalances, listCustomers, updateCustomer,
+  createCustomer, listCustomerBalances, listCustomers, updateCustomer,
 } from "../api/cluckwork";
 import type { Customer, CustomerBalances } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
@@ -40,6 +41,7 @@ const CUSTOMER_PAGE = 100;
 // #23: customer book — name + phone required, the rest optional.
 export function CustomersPage() {
   const { t } = useTranslation("customers");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
 
   // Balances are money data (#89): the column renders for admins only and the
@@ -339,7 +341,7 @@ export function CustomersPage() {
           <thead>
             <tr>
               <th>{t("nameHeader")}</th><th>{t("phoneHeader")}</th><th>{t("emailHeader")}</th><th>{t("addressHeader")}</th><th>{t("noteHeader")}</th>
-              {isAdmin && <th>{t("outstandingHeader")}</th>}
+              {isAdmin && <th className="num">{t("outstandingHeader")}</th>}
               <th></th>
             </tr>
           </thead>
@@ -356,10 +358,10 @@ export function CustomersPage() {
                 <td>{c.address ?? "—"}</td>
                 <td>{c.note ?? "—"}</td>
                 {isAdmin && (
-                  <td>
+                  <td className="num">
                     {balances === null || outstandingFor(c.id) === null
                       ? "…"
-                      : formatMoney(outstandingFor(c.id)!, balances.currencyCode, balances.currencyMinorUnit)}
+                      : fmt.money(outstandingFor(c.id)!, balances.currencyCode, balances.currencyMinorUnit)}
                   </td>
                 )}
                 <td>

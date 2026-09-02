@@ -150,10 +150,10 @@ describe("FeedPage (#446 — feed usage promoted out of the Inventory drill-down
     await renderReady();
 
     const row = screen.getByRole("row", { name: /Barn A/ });
-    expect(within(row).getByText("2026-08-07")).toBeInTheDocument();
+    expect(within(row).getByText("08/07/2026")).toBeInTheDocument();
     expect(within(row).getByText("Layer feed")).toBeInTheDocument();
     expect(within(row).getByText("18 kg")).toBeInTheDocument();
-    expect(within(row).getByText("450.00 USD")).toBeInTheDocument();
+    expect(within(row).getByText("$450.00")).toBeInTheDocument();
     expect(within(row).getByText("morning feed")).toBeInTheDocument();
   });
 

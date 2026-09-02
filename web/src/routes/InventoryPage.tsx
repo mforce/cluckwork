@@ -4,12 +4,13 @@ import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
-  createInventoryItem, activateInventoryItem, deactivateInventoryItem, formatMoney, getAccount,
+  createInventoryItem, activateInventoryItem, deactivateInventoryItem, getAccount,
   listInventoryItems, listInventoryLots, listInventoryMovements, parseMoneyToMinorUnits,
   recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
 } from "../api/cluckwork";
 import type { Account, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { Dialog } from "../components/Dialog";
@@ -45,6 +46,7 @@ const LEDGER_PAGE = 100;
 // every change. Feed usage (consumption) is the follow-up PR.
 export function InventoryPage() {
   const { t } = useTranslation("inventory");
+  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
@@ -428,7 +430,7 @@ export function InventoryPage() {
 
   const costText = (i: InventoryItem) =>
     i.defaultCostMinorUnits !== null && i.defaultCostCurrencyCode
-      ? formatMoney(i.defaultCostMinorUnits, i.defaultCostCurrencyCode,
+      ? fmt.money(i.defaultCostMinorUnits, i.defaultCostCurrencyCode,
           i.defaultCostCurrencyMinorUnit ?? minorUnit)
       : "—";
 
@@ -647,14 +649,14 @@ export function InventoryPage() {
           ) : (
             <table className="data">
               <thead>
-                <tr><th>{t("ledgerDateHeader")}</th><th>{t("ledgerTypeHeader")}</th><th>{t("ledgerQuantityHeader")}</th><th>{t("ledgerNoteHeader")}</th></tr>
+                <tr><th>{t("ledgerDateHeader")}</th><th>{t("ledgerTypeHeader")}</th><th className="num">{t("ledgerQuantityHeader")}</th><th>{t("ledgerNoteHeader")}</th></tr>
               </thead>
               <tbody>
                 {ledger.rows.map((m) => (
                   <tr key={m.id}>
-                    <td>{m.date}</td>
+                    <td className="nowrap">{fmt.date(m.date)}</td>
                     <td>{inventoryMovementLabel(m.type)}</td>
-                    <td>{m.quantityDelta > 0 ? `+${m.quantityDelta}` : m.quantityDelta} {m.unit}</td>
+                    <td className="num">{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)} {m.unit}</td>
                     <td>{m.note ?? ""}</td>
                   </tr>
                 ))}
@@ -674,15 +676,15 @@ export function InventoryPage() {
 
       <table className="data">
         <thead>
-          <tr><th>{t("nameHeader")}</th><th>{t("categoryHeader")}</th><th>{t("onHandHeader")}</th><th>{t("defaultCostHeader")}</th><th>{t("statusHeader")}</th><th></th></tr>
+          <tr><th>{t("nameHeader")}</th><th>{t("categoryHeader")}</th><th className="num">{t("onHandHeader")}</th><th className="num">{t("defaultCostHeader")}</th><th>{t("statusHeader")}</th><th></th></tr>
         </thead>
         <tbody>
           {items.map((i) => (
             <tr key={i.id} className={i.active ? undefined : "inactive"}>
               <td>{i.name}</td>
               <td>{inventoryCategoryLabel(i.category)}</td>
-              <td>{i.quantityOnHand} {i.unit}</td>
-              <td>{costText(i)}</td>
+              <td className="num">{fmt.count(i.quantityOnHand)} {i.unit}</td>
+              <td className="num">{costText(i)}</td>
               <td><StatusBadge status={i.active ? "Active" : "Inactive"} label={statusLabel(i.active ? "Active" : "Inactive")} /></td>
               <td>
                 <button className="link" disabled={busy} onClick={() => void onOpen(i)}>{t("openButton")}</button>
