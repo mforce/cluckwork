@@ -12,14 +12,17 @@ Two modes:
 | --- | --- | --- |
 | **Smoke** (#385) | Key flow per persona + cross-cutting session/i18n/PWA guarantees | `npm test` |
 | **Canary** (#386) | 1–2 browsers recording Core Web Vitals, optionally while k6 loads the backend | `bash run-canary.sh [--with-load]` |
-| **Screenshots** (#549) | Captures the root README's four images into `docs/images/` | `npm run screenshots` |
+| **Screenshots** (#549) | Captures the root README's three images into `docs/images/` | `npm run screenshots` |
 
 **Screenshots are a third config on purpose.** That run WRITES FILES into the
 repo, so folding it into `npm test` would rewrite committed images on every
 smoke run and turn an unrelated green run into a dirty working tree. It is not
 visual regression either — nothing asserts on pixels, and no gate checks the
 images are current. See the header of `specs-screenshots/screenshots.spec.ts`
-for the staleness contract and for the fixture caveat on the Dashboard capture.
+for the staleness contract and for why the Dashboard is deliberately not among
+them.
+
+**Run it on a freshly reset fixture.** `npm test` leaves its own rows behind — flocks and customers named `E2E …`, which sort ahead of the seeded `Sim …` ones — so a capture taken after a smoke run photographs test data and the daily-entry capture opens on an empty flock. `bash tools/simulation/reset.sh` first, then `npm run screenshots`, with no smoke run in between.
 
 **Playwright is never the load generator.** k6 stays the crowd.
 

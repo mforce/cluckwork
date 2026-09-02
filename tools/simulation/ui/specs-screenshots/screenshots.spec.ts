@@ -69,10 +69,14 @@ test.describe("README screenshots", () => {
   // no entry is the alarm state the screen exists to show, so the tiles are
   // captured as the fixture leaves them — twelve "no entry" tiles and the
   // "N more flocks" link (the fixture seeds ~100 active flocks for the picker
-  // catalog, #627). One fixture artefact remains and is accepted: the seeder
-  // keeps the last two days per flock as Draft (SimulationDataSeeder.
-  // DraftWindowDays), so the 14-day line ends in two zero points — true of
-  // the fixture, not of the product.
+  // catalog, #627).
+  //
+  // The image is NOT committed yet and the README does not embed it: on the
+  // current fixture the twelve leading tiles are all catalog flocks with no
+  // entries (#627 seeds ~100), so the two real houses sit behind the "N more
+  // flocks" link and the trend and stock panels fall below the 1280x800 fold.
+  // The capture stays here — it asserts the screen renders with real data —
+  // and a follow-up decides how to frame an image worth publishing.
 
   test("dashboard — the morning view: capture status, the fortnight, stock by grade", async ({ page, signIn }) => {
     await signIn(castMember("Manager"));

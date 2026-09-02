@@ -84,11 +84,6 @@ fails: [first admin provisioning](docs/runbooks/first-admin-provisioning.md).
 
 ## More of it
 
-The morning view — which houses still need today's entry, the fortnight's
-trend with hen-day %, and stock by grade:
-
-![The dashboard: one tile per flock showing today's eggs or a "no entry" alarm, a 14-day eggs sparkline captioned with hen-day percent and its change, a stacked stock bar by grade, and recent sales](docs/images/dashboard.png)
-
 Sales orders through their lifecycle — draft, confirmed, with who did what and
 when against each one:
 
