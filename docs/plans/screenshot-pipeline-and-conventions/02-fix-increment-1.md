@@ -7,7 +7,7 @@ to capture-and-commit, which is not what #660 asks for. That was a driver error;
 
 Its acceptance, read again in full:
 
-- [ ] committed and embedded in `README.md`, **or** closed as won't-fix with the reason recorded — **met**
+- [x] committed and embedded in `README.md`, **or** closed as won't-fix with the reason recorded — **met**
 - [ ] **the image shows the panels the screen is for, not only the alarm state** — **NOT met**
 - [ ] captured on a freshly reset fixture, and **`tools/simulation/ui/README.md`'s image count matches what ships** — **NOT met**
 

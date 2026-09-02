@@ -60,15 +60,30 @@ STOP and report**, because that means you edited something you should not have.
 
 ## 1a. Capture
 
+Before capturing, assert the main checkout's `docs/images/` is clean:
+
+```bash
+cd /home/mforce/dev/cluckwork && git status --porcelain docs/images/
+```
+
+If that prints anything, **abort and report** — someone has an in-progress edit there and the capture must
+not run over it.
+
 From the main checkout, capture the current four images:
 
 ```bash
 cd /home/mforce/dev/cluckwork/tools/simulation/ui && npm run screenshots
 ```
 
-Copy the produced `docs/images/dashboard.png` into THIS worktree, then restore the main checkout so it is
-left clean (`git checkout -- docs/images/` there, and delete any untracked file the run created).
-**Report the main checkout's `git status --porcelain` at the end to prove you left it clean.**
+Copy the produced `docs/images/dashboard.png` into THIS worktree, then restore the main checkout by
+name — only the four generated files, never the whole directory:
+
+```bash
+cd /home/mforce/dev/cluckwork && git checkout -- docs/images/daily-entry.png docs/images/dashboard.png docs/images/reports.png docs/images/sales.png
+```
+
+Delete any untracked file the run created. **Report the main checkout's `git status --porcelain` at the
+end to prove you left it clean.**
 
 ## 1b. Commit the image and reference it
 
@@ -93,7 +108,7 @@ git commit -m "docs: commit the dashboard screenshot and show it in the README (
 
 # INCREMENT 2 — capture the palette × theme matrix (#664)
 
-#664 asks for a **visual check** of #651/#652 in night mode and the three non-default farm palettes. It
+Issue #664 asks for a **visual check** of #651/#652 in night mode and the three non-default farm palettes. It
 does **not** ask for those images to be committed — 8 states × several screens would bloat the repo for
 no ongoing benefit.
 
@@ -187,7 +202,7 @@ git push -u origin chore/screenshot-pipeline-and-conventions
 
 Open the PR with `gh pr create`. Title exactly:
 
-```
+```text
 docs(sim): commit the dashboard screenshot, capture the palette matrix, and record the #651/#652 conventions (#660, #662, #663, #664)
 ```
 
