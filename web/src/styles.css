@@ -1491,6 +1491,16 @@ table.data td.nowrap {
   white-space: nowrap;
 }
 
+/* One-line provenance summary (#653): relative time + actor. Capped so this
+   column can never again be the widest thing in the table
+   (docs/images/sales.png, before #653) — the full three-fact stamp survives
+   in the cell's `title`, unchanged. */
+table.data td.provenance-cell {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 table.data th[scope="row"] {
   color: var(--ink);
   font-size: 1rem;
