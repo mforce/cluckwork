@@ -28,9 +28,13 @@ const EMPTY_STATE_SITES: { file: string; key: string }[] = [
 describe("classified empty-state sites render through EmptyState, not a bare muted paragraph", () => {
   it.each(EMPTY_STATE_SITES)("$file's $key", ({ file, key }) => {
     const source = readFileSync(path.join(__dirname, file), "utf8");
-    const bareShape = new RegExp(`<p className="muted">\\{t\\("${key}"\\)\\}</p>`);
-    expect(source).not.toMatch(bareShape);
-    expect(source).toMatch(/import \{ EmptyState \} from "\.\.\/components\/EmptyState";/);
+    // Fix increment 2 — an import-only check passes a route that imports
+    // EmptyState, never uses it, and still renders a bare muted paragraph.
+    // Require an actual `<EmptyState ... message={t("key")} ...>` call:
+    // `[^<]*?` keeps the match inside one JSX tag (attributes don't contain
+    // `<`), so it can't cross into a neighboring tag to find a stray match.
+    const usageShape = new RegExp(`<EmptyState\\b[^<]*?message=\\{t\\("${key}"\\)\\}[^<]*?/?>`);
+    expect(source).toMatch(usageShape);
   });
 });
 
