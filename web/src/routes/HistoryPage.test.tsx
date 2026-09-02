@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { HistoryPage } from "./HistoryPage";
+import { getRowByCellText } from "../test/rows";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 import {
@@ -1214,7 +1215,7 @@ describe("HistoryPage list races (#469)", () => {
     expect(screen.queryByRole("button", { name: "load more" })).not.toBeInTheDocument();
 
     await act(async () => { release([SUBMITTED]); });
-    expect(screen.getByRole("row", { name: /2026-07-19/ })).toBeInTheDocument();
+    expect(getRowByCellText("2026-07-19")).toBeInTheDocument();
   });
 });
 
