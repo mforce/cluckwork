@@ -450,6 +450,7 @@ public sealed class SimulationReconfiguredCastTests(SimulationMutableClockFactor
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var manager = await users.FindByEmailAsync("sim-manager-1@sim.local");
             Assert.NotNull(manager);
+            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(manager!.AccountId); // #670
             Assert.True((await users.RemoveFromRoleAsync(manager!, Roles.Manager)).Succeeded);
             Assert.True((await users.AddToRoleAsync(manager!, Roles.ReadOnly)).Succeeded);
         }
@@ -524,6 +525,7 @@ public sealed class SimulationDisabledCoOwnerTests(SimulationMutableClockFactory
     {
         using (var scope = factory.Services.CreateScope())
         {
+            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(SeedDefaults.AccountId); // #670
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var roles = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
             if (!await roles.RoleExistsAsync(Roles.Owner))
@@ -780,6 +782,7 @@ public sealed class SimulationPromotedWorkerTests(SimulationMutableClockFactory 
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var persona = await users.FindByEmailAsync(email);
             Assert.NotNull(persona);
+            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(persona!.AccountId); // #670
             Assert.Empty(await users.GetRolesAsync(persona!)); // held none before the promotion
             Assert.True((await users.AddToRoleAsync(persona!, Roles.Manager)).Succeeded);
         }

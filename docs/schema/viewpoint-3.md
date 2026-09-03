@@ -15,7 +15,7 @@ ASP.NET Identity, refresh tokens, per-flock role assignments.
 | [public.AspNetRoleClaims](public.AspNetRoleClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserClaims](public.AspNetUserClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserLogins](public.AspNetUserLogins.md) | 4 |  | BASE TABLE |
-| [public.AspNetUserRoles](public.AspNetUserRoles.md) | 2 |  | BASE TABLE |
+| [public.AspNetUserRoles](public.AspNetUserRoles.md) | 3 |  | BASE TABLE |
 | [public.AspNetUserTokens](public.AspNetUserTokens.md) | 4 |  | BASE TABLE |
 
 ## Relations
@@ -28,6 +28,7 @@ erDiagram
 "public.AspNetUserLogins" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserRoles" }o--|| "public.AspNetRoles" : "FOREIGN KEY (#quot;RoleId#quot;) REFERENCES #quot;AspNetRoles#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 "public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 
 "public.AspNetRoles" {
@@ -104,6 +105,7 @@ erDiagram
 "public.AspNetUserRoles" {
   uuid UserId
   uuid RoleId
+  uuid AccountId
 }
 "public.AspNetUserTokens" {
   uuid UserId

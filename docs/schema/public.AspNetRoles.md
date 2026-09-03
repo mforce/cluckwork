@@ -52,6 +52,7 @@ erDiagram
 "public.AspNetUserRoles" {
   uuid UserId FK
   uuid RoleId FK
+  uuid AccountId FK
 }
 ```
 

@@ -62,6 +62,8 @@ internal static class TestHarness
         this CluckworkWebApplicationFactory factory, Guid accountId, string email, string? role)
     {
         using var scope = factory.Services.CreateScope();
+        // #670 — a role write happens under a resolved tenant, as in production.
+        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var user = new ApplicationUser
         {
@@ -99,6 +101,8 @@ internal static class TestHarness
         this CluckworkWebApplicationFactory factory, Guid accountId, string email, string? role = Cluckwork.Domain.Accounts.Roles.Owner)
     {
         using var scope = factory.Services.CreateScope();
+        // #670 — a role write happens under a resolved tenant, as in production.
+        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var user = new ApplicationUser
         {
@@ -140,6 +144,8 @@ internal static class TestHarness
             await roles.CreateAsync(new ApplicationRole { Id = Guid.NewGuid(), Name = role });
         var user = await users.FindByEmailAsync(email)
             ?? throw new InvalidOperationException($"No user {email}");
+        // #670 — a role write happens under a resolved tenant, as in production.
+        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(user.AccountId);
         var added = await users.AddToRoleAsync(user, role);
         if (!added.Succeeded)
             throw new InvalidOperationException(
