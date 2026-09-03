@@ -86,7 +86,20 @@ export function AuditPage() {
   // "When (UTC)" column already shows. That is deliberately NOT the farm-local
   // business date Expenses filters on — same-looking control, different day
   // boundary, each matching what its own screen displays.
-  const isIsoDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  // Shape AND calendar: /^\d{4}-\d{2}-\d{2}$/ alone accepts 2026-02-31, which
+  // the server takes and the browser then blanks out of the control — leaving
+  // a filter the user can see the effect of but not clear (#521's invariant,
+  // one layer down). The UTC round-trip rejects any date the calendar does not
+  // have: Date.UTC(2026, 1, 31) normalises to March 3, so the parts no longer
+  // match what was parsed.
+  const isIsoDate = (v: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+    const [y, m, d] = v.split("-").map(Number);
+    const probe = new Date(Date.UTC(y, m - 1, d));
+    return probe.getUTCFullYear() === y
+      && probe.getUTCMonth() === m - 1
+      && probe.getUTCDate() === d;
+  };
   const rawFrom = searchParams.get("from") ?? "";
   const rawTo = searchParams.get("to") ?? "";
   const fromFilter = isIsoDate(rawFrom) ? rawFrom : "";
@@ -99,22 +112,34 @@ export function AuditPage() {
     setSearchParams(next);
   }, [searchParams, setSearchParams]);
 
-  // #666 — PROTECTED. Two things here are deliberate and neither is style.
+  // #666 — PROTECTED. One thing here is load-bearing and one thing is not,
+  // and the difference was got wrong once already.
   //
-  // 1. The FUNCTIONAL updater, not `new URLSearchParams(searchParams)` from the
-  //    closure as the two writers above use. Both satisfy INV-2 (a full copy of
-  //    the current params, never a partial object — setSearchParams REPLACES the
-  //    whole query string), but they read "current" from different places. A
-  //    <select> fires once per user choice; an <input type="date"> can fire
-  //    several times in one interaction, and two closure-based writes batched
-  //    into one render both copy the SAME stale params, so the first is lost.
-  //    The updater form reads the router's own current value each time.
-  //    react-router 8.3 types this as
-  //    `nextInit?: URLSearchParamsInit | ((prev: URLSearchParams) => URLSearchParamsInit)`.
+  // LOAD-BEARING: `{ replace: true }`. An <input type="date"> emits onChange
+  // per keystroke on some browsers — a year retype alone yields 0002-, 0020-,
+  // 0202-, 2026- — so pushing would fill the history stack with values the
+  // user never chose to keep and make Back walk them one by one. Pinned by
+  // `does not leave an intermediate half-typed date on the history stack`,
+  // which fails if this argument is removed.
   //
-  // 2. `{ replace: true }`. A date input emits onChange per keystroke on some
-  //    browsers, so pushing would fill the history stack with half-typed dates
-  //    and make Back walk the user through them.
+  // NOT a protection, despite an earlier version of this comment claiming it
+  // was: the FUNCTIONAL updater form is not safer than copying `searchParams`
+  // from the render closure the way updateActionFilter above does. Verified in
+  // the installed router (react-router 8.3,
+  // dist/development/lib/dom/lib.js:761): the callback is invoked as
+  // `nextInit(new URLSearchParams(searchParams))`, where `searchParams` is the
+  // render-closure memo of location.search — so both forms read the same
+  // snapshot, and the router's own docs warn that "multiple calls to
+  // setSearchParams in the same tick will not build on the prior value".
+  //
+  // What that means for anyone extending this screen: a handler that writes
+  // BOTH fields in one tick — a "clear both dates" button, say — will lose one
+  // of the two writes in EITHER form. Write both in a single call that builds
+  // one URLSearchParams, or hold the pair in state. This is latent today only
+  // because from and to are separate inputs, one event tick each.
+  // INV-2 still holds either way: every write here builds a FULL copy of the
+  // current params, never a partial object, because setSearchParams REPLACES
+  // the whole query string.
   const updateDateFilter = useCallback((field: "from" | "to", value: string) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);

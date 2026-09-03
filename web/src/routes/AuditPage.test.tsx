@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, act, fireEvent, waitFor } from "@testing-library/react";
-import { Link, MemoryRouter, Route, Routes } from "react-router";
+import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 import { AuditPage, isFetchStale } from "./AuditPage";
 import { listAuditEvents } from "../api/cluckwork";
 import type { AuditEvent } from "../api/cluckwork";
@@ -30,6 +30,26 @@ function renderAudit(route = "/audit") {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <AuditPage />
+    </MemoryRouter>,
+  );
+}
+
+function LocationProbe() {
+  const loc = useLocation();
+  const navigate = useNavigate();
+  return (
+    <>
+      <span data-testid="probe-search">{loc.search}</span>
+      <button type="button" onClick={() => navigate(-1)}>probe-back</button>
+    </>
+  );
+}
+
+function renderAuditWithProbe(route = "/audit") {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <AuditPage />
+      <LocationProbe />
     </MemoryRouter>,
   );
 }
@@ -327,17 +347,38 @@ describe("AuditPage filter", () => {
     );
   });
 
-  it("writes a picked date into the URL without pushing a history entry", async () => {
-    renderAudit("/audit");
+  // A shape-only regex accepts 2026-02-31. The server would take it, and the
+  // browser blanks the control showing it — a filter the user cannot clear.
+  it("ignores a well-shaped but impossible calendar date", async () => {
+    renderAudit("/audit?from=2026-02-31&to=2026-08-31");
+
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenCalled());
+    expect(mockListAuditEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ from: undefined, to: "2026-08-31" }),
+    );
+  });
+
+  // Was: a test whose title claimed history behaviour and whose body only
+  // checked the request. Deleting `{ replace: true }` left it green — a
+  // surviving mutant on the one property the PROTECTED block exists to hold.
+  //
+  // With replace, both writes replace the SAME history entry, so Back has
+  // nothing earlier to return to and the search is unchanged. Without it, Back
+  // lands on ?from=2026-08-01 — an intermediate value the user typed through
+  // and never chose to keep. That value is the discriminator.
+  it("does not leave an intermediate half-typed date on the history stack", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAuditWithProbe("/audit");
     await waitFor(() => expect(mockListAuditEvents).toHaveBeenCalled());
 
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-01" } });
+    await waitFor(() => expect(screen.getByTestId("probe-search").textContent).toBe("?from=2026-08-01"));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-05" } });
+    await waitFor(() => expect(screen.getByTestId("probe-search").textContent).toBe("?from=2026-08-05"));
 
-    await waitFor(() => {
-      expect(mockListAuditEvents).toHaveBeenCalledWith(
-        expect.objectContaining({ from: "2026-08-01" }),
-      );
-    });
+    fireEvent.click(screen.getByRole("button", { name: "probe-back" }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByTestId("probe-search").textContent).not.toBe("?from=2026-08-01");
   });
 
   // #653/#662 — mirrors Increment 3's StockPage structural guard: the width
