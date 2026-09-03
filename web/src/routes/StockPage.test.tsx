@@ -169,6 +169,22 @@ describe("StockPage drill-down", () => {
     expect(mockListEggLots).toHaveBeenLastCalledWith({ gradeId: "g1", limit: 50, offset: 0 });
   });
 
+  it("puts the lot date range in the bounded toolbar, not a bare filters row", async () => {
+    // #653/#662 — this is a structural guard on purpose. The defect is a WIDTH
+    // (styles.css caps `.toolbar input[type="date"]` at 12rem and the pair was
+    // outside any .toolbar), and jsdom computes no layout, so the only honest
+    // assertion here is the wrapper the cap is keyed on. The rendered result is
+    // checked by the before/after screenshot pair on the PR.
+    mockListEggLots.mockResolvedValue(LOTS);
+    await renderWithData();
+    const gradeA = screen.getByRole("row", { name: /Grade A\b/ });
+    fireEvent.click(within(gradeA).getByRole("button", { name: "lots" }));
+    await screen.findByRole("row", { name: /07\/01\/2026/ });
+
+    const fromInput = screen.getByLabelText("From");
+    expect(fromInput.closest("div.toolbar")).not.toBeNull();
+  });
+
   it("collapses the lots again on 'hide lots'", async () => {
     mockListEggLots.mockResolvedValue(LOTS);
     await renderWithData();
