@@ -34,7 +34,7 @@ git status --porcelain        # expect: only "?? docs/plans/562-tenant-write-tok
 - **G2 narrowed**: `dotnet test tests/Cluckwork.Api.IntegrationTests --configuration Release --no-build --filter "FullyQualifiedName~AccountIdConcurrencyTokenModelTests|FullyQualifiedName~TenantWriteRefusalLoggingTests" --logger "console;verbosity=normal"` → `Passed: 7` (2 + 5), `Failed: 0`.
 
 ===================================================================================
-# INCREMENT 8 — the guard's comment and message say what the code does (Mechanical)
+## INCREMENT 8 — the guard's comment and message say what the code does (Mechanical)
 ===================================================================================
 
 ### 8a. `tests/Cluckwork.Api.IntegrationTests/AccountIdConcurrencyTokenModelTests.cs` — the selector comment

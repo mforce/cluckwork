@@ -51,8 +51,9 @@ public sealed class AccountIdConcurrencyTokenModelTests
 
         Assert.True(wrongType.Count == 0,
             "AccountId must be a non-nullable Guid on every entity that carries it — the token walk skips any " +
-            "other CLR type, and the write guard skips a null value (an unstamped insert, an unchecked write) " +
-            "(#673):\n  " + string.Join("\n  ", wrongType));
+            "other CLR type, and the write guard skips any value that is not a Guid, a null Guid? or a " +
+            "converted id alike (an unstamped insert, an unchecked write) (#673):\n  " +
+            string.Join("\n  ", wrongType));
 
         // Proves the walk walked: a discovery that finds nothing passes vacuously.
         Assert.True(carriers.Count >= 29,
