@@ -17,7 +17,9 @@ using Serilog.Events;
 // With AccountId a concurrency token, a write aimed at another farm's row
 // fails as DbUpdateConcurrencyException — the same exception an ordinary
 // Version race produces, and one that at least seven call sites already
-// catch and retry. TenantStampInterceptor.SaveChangesFailed therefore logs
+// catch and retry. TenantStampInterceptor's ThrowingConcurrencyException and
+// ThrowingConcurrencyExceptionAsync hooks (EF's interception point for that
+// exception — it never reaches SaveChangesFailed) therefore log
 // every concurrency failure that happens under a RESOLVED tenant as
 // Tenant.WriteRefusedByDatabase, naming the entity, its key and the tenant,
 // and lets the exception propagate untouched. Owner decision 2026-09-02: a
