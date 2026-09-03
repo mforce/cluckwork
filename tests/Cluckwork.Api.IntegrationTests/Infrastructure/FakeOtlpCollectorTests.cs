@@ -24,6 +24,55 @@ public sealed class FakeOtlpCollectorTests
         (await post).Dispose();
     }
 
+    [Fact]
+    public async Task Traffic_that_is_not_an_otlp_export_is_answered_and_never_published()
+    {
+        using var collector = new FakeOtlpCollector();
+        using var client = new HttpClient();
+
+        var scan = await client.GetAsync($"{collector.Endpoint}/");
+        var wrongPath = await client.PostAsync($"{collector.Endpoint}/", new ByteArrayContent([0x01]));
+        var wrongMethod = await client.GetAsync($"{collector.Endpoint}/v1/traces");
+
+        // The captured symptom of #676 comes first, so this test reddens on the bug's own message.
+        await collector.AssertNoRequestAsync(TimeSpan.FromMilliseconds(200));
+        Assert.Equal(0, collector.PublishedRequestCountForTest);
+        Assert.Equal(HttpStatusCode.NotFound, scan.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, wrongPath.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, wrongMethod.StatusCode);
+
+        var post = client.PostAsync($"{collector.Endpoint}/v1/traces", new ByteArrayContent([0x02]));
+        var captured = await collector.WaitForRequestAsync("/v1/traces", TimeSpan.FromSeconds(5));
+        Assert.Equal(new byte[] { 0x02 }, captured.Body);
+        (await post).Dispose();
+        scan.Dispose();
+        wrongPath.Dispose();
+        wrongMethod.Dispose();
+    }
+
+    [Fact]
+    public async Task A_client_that_dies_mid_request_does_not_fault_the_collector()
+    {
+        using var collector = new FakeOtlpCollector();
+        var endpoint = new Uri(collector.Endpoint);
+
+        using (var rude = new TcpClient())
+        {
+            rude.Connect(IPAddress.Loopback, endpoint.Port);
+            rude.LingerState = new LingerOption(true, 0);
+            var truncated = "POST /v1/traces HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 100\r\n\r\nxx"u8.ToArray();
+            rude.GetStream().Write(truncated);
+            rude.GetStream().Flush();
+        }
+
+        using var client = new HttpClient();
+        var post = client.PostAsync($"{collector.Endpoint}/v1/traces", new ByteArrayContent([0x03]));
+        var captured = await collector.WaitForRequestAsync("/v1/traces", TimeSpan.FromSeconds(5));
+
+        Assert.Equal(new byte[] { 0x03 }, captured.Body);
+        (await post).Dispose();
+    }
+
     private static int FreeTestPort()
     {
         using var probe = new TcpListener(IPAddress.Loopback, 0);

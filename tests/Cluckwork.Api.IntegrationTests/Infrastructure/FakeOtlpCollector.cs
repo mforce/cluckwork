@@ -175,19 +175,40 @@ internal sealed class FakeOtlpCollector : IDisposable
         {
             while (_listener.IsListening)
             {
-                currentContext = await _listener.GetContextAsync();
-                using var buffer = new MemoryStream();
-                await currentContext.Request.InputStream.CopyToAsync(buffer);
-                var headers = currentContext.Request.Headers.AllKeys
-                    .Where(key => key is not null)
-                    .ToDictionary(key => key!, key => currentContext.Request.Headers[key!] ?? string.Empty,
-                        StringComparer.OrdinalIgnoreCase);
-                var captured = new CapturedOtlpRequest(currentContext.Request.Url!.AbsolutePath, buffer.ToArray(), headers);
-                currentContext.Response.StatusCode = 200;
-                BeforeResponseCloseForTest?.Invoke();
-                currentContext.Response.Close();
-                Publish(captured);
-                currentContext = null;
+                try
+                {
+                    currentContext = await _listener.GetContextAsync();
+
+                    // Anything that is not an OTLP export is answered and dropped: a local port
+                    // scanner's GET / must not read as "the child exported while export was disabled".
+                    if (!IsOtlpExport(currentContext.Request))
+                    {
+                        currentContext.Response.StatusCode = 404;
+                        currentContext.Response.Close();
+                        currentContext = null;
+                        continue;
+                    }
+
+                    using var buffer = new MemoryStream();
+                    await currentContext.Request.InputStream.CopyToAsync(buffer);
+                    var headers = currentContext.Request.Headers.AllKeys
+                        .Where(key => key is not null)
+                        .ToDictionary(key => key!, key => currentContext.Request.Headers[key!] ?? string.Empty,
+                            StringComparer.OrdinalIgnoreCase);
+                    var captured = new CapturedOtlpRequest(currentContext.Request.Url!.AbsolutePath, buffer.ToArray(), headers);
+                    currentContext.Response.StatusCode = 200;
+                    BeforeResponseCloseForTest?.Invoke();
+                    currentContext.Response.Close();
+                    Publish(captured);
+                    currentContext = null;
+                }
+                catch (Exception ex) when (ex is HttpListenerException or IOException && _listener.IsListening)
+                {
+                    // An unrelated client died mid-exchange. That is not this collector's business,
+                    // and faulting here would redden whatever test happens to hold it.
+                    try { currentContext?.Response.Abort(); } catch { /* already gone */ }
+                    currentContext = null;
+                }
             }
         }
         catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException && !_listener.IsListening)
@@ -200,6 +221,11 @@ internal sealed class FakeOtlpCollector : IDisposable
             Fault(ex);
         }
     }
+
+    private static bool IsOtlpExport(HttpListenerRequest request) =>
+        string.Equals(request.HttpMethod, "POST", StringComparison.Ordinal)
+        && request.Url is { AbsolutePath: var path }
+        && path.StartsWith("/v1/", StringComparison.Ordinal);
 
     private static int FreePort()
     {
