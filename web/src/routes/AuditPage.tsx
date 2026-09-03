@@ -75,12 +75,54 @@ export function AuditPage() {
   // staleness check.
   const entityId = rawEntityId && isLikelyGuid(rawEntityId) ? rawEntityId.toLowerCase() : undefined;
 
+  // #666 — the date window. Read from the URL like every other filter on this
+  // screen (INV-1), and validated the same fail-soft way `action` and
+  // `entityType` are: a hand-edited or shared URL carrying a value the control
+  // cannot display must not be sent to the server either, or the visible filter
+  // and the query drift apart (the #521 finding, applied to a new param).
+  //
+  // The API takes inclusive calendar days over the UTC timestamp
+  // (AuditEventRepository.ListAsync), which is what this screen's own
+  // "When (UTC)" column already shows. That is deliberately NOT the farm-local
+  // business date Expenses filters on — same-looking control, different day
+  // boundary, each matching what its own screen displays.
+  const isIsoDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const rawFrom = searchParams.get("from") ?? "";
+  const rawTo = searchParams.get("to") ?? "";
+  const fromFilter = isIsoDate(rawFrom) ? rawFrom : "";
+  const toFilter = isIsoDate(rawTo) ? rawTo : "";
+
   const updateActionFilter = useCallback((action: string) => {
     const next = new URLSearchParams(searchParams);
     if (action) next.set("action", action);
     else next.delete("action");
     setSearchParams(next);
   }, [searchParams, setSearchParams]);
+
+  // #666 — PROTECTED. Two things here are deliberate and neither is style.
+  //
+  // 1. The FUNCTIONAL updater, not `new URLSearchParams(searchParams)` from the
+  //    closure as the two writers above use. Both satisfy INV-2 (a full copy of
+  //    the current params, never a partial object — setSearchParams REPLACES the
+  //    whole query string), but they read "current" from different places. A
+  //    <select> fires once per user choice; an <input type="date"> can fire
+  //    several times in one interaction, and two closure-based writes batched
+  //    into one render both copy the SAME stale params, so the first is lost.
+  //    The updater form reads the router's own current value each time.
+  //    react-router 8.3 types this as
+  //    `nextInit?: URLSearchParamsInit | ((prev: URLSearchParams) => URLSearchParamsInit)`.
+  //
+  // 2. `{ replace: true }`. A date input emits onChange per keystroke on some
+  //    browsers, so pushing would fill the history stack with half-typed dates
+  //    and make Back walk the user through them.
+  const updateDateFilter = useCallback((field: "from" | "to", value: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set(field, value);
+      else next.delete(field);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // Entity-type filter narrows the action dropdown's OPTION LIST only — it is
   // never sent to the server (the /api/v1/audit query still filters on
@@ -129,8 +171,19 @@ export function AuditPage() {
   // stale-scope check, not just handed straight in.
   const fetchPage = useCallback(
     (offset: number, limit: number) =>
-      listAuditEvents({ action: actionFilter || undefined, entityId, limit, offset }),
-    [actionFilter, entityId],
+      listAuditEvents({
+        action: actionFilter || undefined,
+        entityId,
+        from: fromFilter || undefined,
+        to: toFilter || undefined,
+        limit,
+        offset,
+      }),
+    // INV-3 — every value the request body uses is named here. The whole
+    // stale-window discipline below (isFetchStale, committedFetchPage, the
+    // blanked table) keys on this identity: a filter missing from these deps
+    // renders the previous window's rows under the new window's controls.
+    [actionFilter, entityId, fromFilter, toFilter],
   );
   const events = usePagedList({ fetchPage, pageSize: PAGE });
 
@@ -229,6 +282,19 @@ export function AuditPage() {
             ))}
           </select>
         </label>
+        {/* #666/#653 — the date range gets its own bounded toolbar; the two
+            dropdowns above are not date controls and stay outside it. Mirrors
+            FeedPage/WaterPage/HistoryPage. */}
+        <div className="toolbar">
+          <label>{t("fromLabel")}
+            <input type="date" value={fromFilter}
+              onChange={(e) => updateDateFilter("from", e.target.value)} />
+          </label>
+          <label>{t("toLabel")}
+            <input type="date" value={toFilter}
+              onChange={(e) => updateDateFilter("to", e.target.value)} />
+          </label>
+        </div>
       </div>
 
       {events.error && <p className="error" role="alert">{events.error}</p>}
@@ -246,7 +312,18 @@ export function AuditPage() {
         // #493, Slice 2 — a scoped view with no events reads as "the whole
         // log is empty" under the generic message, which is wrong: it's this
         // record's history that's clean, not the audit trail overall.
-        <p className="muted">{entityId ? t("scopedEmptyMessage") : t("emptyMessage")}</p>
+        //
+        // #666 — and the same is true of a date window. "No audit events yet."
+        // under an active range is a false statement about the log (INV-4).
+        // Deliberately still a muted paragraph, not an <EmptyState>: #655
+        // classified this screen's empty state and did not list it among the
+        // thirteen EmptyState sites, so this stays out of
+        // emptyStates.guard.test.ts's registries.
+        <p className="muted">
+          {entityId
+            ? t("scopedEmptyMessage")
+            : (fromFilter || toFilter) ? t("filteredEmptyMessage") : t("emptyMessage")}
+        </p>
       ) : (
         <>
           <table className="data">

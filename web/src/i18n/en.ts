@@ -2052,8 +2052,15 @@ export const en = {
     actionHeader: "Action",
     entityHeader: "Entity",
     reasonHeader: "Reason",
+    // #666 — the date window. Inclusive calendar days over the UTC timestamp,
+    // matching this screen's own "When (UTC)" column.
+    fromLabel: "From",
+    toLabel: "To",
     emptyMessage: "No audit events yet.",
     scopedEmptyMessage: "No audit events for this record yet.",
+    // Distinct from emptyMessage on purpose: under an active date range the
+    // log is not empty, the window is (INV-4).
+    filteredEmptyMessage: "No audit events in this date range.",
     loadMoreButton: "load more",
   },
   // Task 30 (B5, #182) — ExportPage: the manual-backup screen (#95,

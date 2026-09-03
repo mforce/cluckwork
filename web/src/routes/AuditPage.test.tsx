@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, act, fireEvent } from "@testing-library/react";
+import { render, screen, within, act, fireEvent, waitFor } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes } from "react-router";
 import { AuditPage, isFetchStale } from "./AuditPage";
 import { listAuditEvents } from "../api/cluckwork";
@@ -306,6 +306,49 @@ describe("AuditPage filter", () => {
         (screen.getByRole("combobox", { name: "Action" }) as HTMLSelectElement).options,
       ).map((o) => o.value),
     ).toContain("SalesOrder.Void"); // back to the full, unfiltered list
+  });
+
+  it("sends the date range from the URL to the API", async () => {
+    renderAudit("/audit?from=2026-08-01&to=2026-08-31");
+
+    await waitFor(() => {
+      expect(mockListAuditEvents).toHaveBeenCalledWith(
+        expect.objectContaining({ from: "2026-08-01", to: "2026-08-31" }),
+      );
+    });
+  });
+
+  it("ignores a from/to that is not an ISO date, rather than sending it", async () => {
+    renderAudit("/audit?from=last-tuesday&to=2026-08-31");
+
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenCalled());
+    expect(mockListAuditEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ from: undefined, to: "2026-08-31" }),
+    );
+  });
+
+  it("writes a picked date into the URL without pushing a history entry", async () => {
+    renderAudit("/audit");
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-01" } });
+
+    await waitFor(() => {
+      expect(mockListAuditEvents).toHaveBeenCalledWith(
+        expect.objectContaining({ from: "2026-08-01" }),
+      );
+    });
+  });
+
+  // INV-4 — "No audit events yet." is a FALSE statement when a date filter
+  // emptied the window: the log is not empty, this window is. The two
+  // sentences must differ, which is what the mutation row pins.
+  it("says the window is empty, not the log, when a date filter returns nothing", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit("/audit?from=2026-08-01&to=2026-08-02");
+
+    expect(await screen.findByText("No audit events in this date range.")).toBeInTheDocument();
+    expect(screen.queryByText("No audit events yet.")).not.toBeInTheDocument();
   });
 });
 

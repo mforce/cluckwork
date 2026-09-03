@@ -1620,8 +1620,11 @@ export const tl = {
     actionHeader: "Aksyon",
     entityHeader: "Entidad",
     reasonHeader: "Dahilan",
+    fromLabel: "Mula",
+    toLabel: "Hanggang",
     emptyMessage: "Wala pang audit event.",
     scopedEmptyMessage: "Wala pang audit event para sa record na ito.",
+    filteredEmptyMessage: "Walang audit event sa hanay ng petsa na ito.",
     loadMoreButton: "mag-load pa",
   },
 
