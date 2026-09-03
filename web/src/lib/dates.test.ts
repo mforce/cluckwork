@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { todayIso, ageWeeks, daysBefore, isKnownTimeZone } from "./dates";
+import { todayIso, ageWeeks, daysBefore, isKnownTimeZone, isIsoCalendarDate } from "./dates";
 
 describe("todayIso", () => {
   afterEach(() => vi.useRealTimers());
@@ -154,5 +154,52 @@ describe("ageWeeks", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// #666 — the accepted set is stated ONCE, as the whole space, because the
+// case-by-case method got this wrong three rounds running (impossible dates
+// accepted, then years 1-99 rejected, then year 0000 accepted). The set is
+// exactly what BOTH ends already require: HTML's valid-date-string production
+// for <input type="date"> needs year >= 1, and the endpoint binds DateOnly,
+// whose MinValue is 0001-01-01. Anything outside that is a value the control
+// cannot display and the server cannot bind — a filter the user can see the
+// effect of but not clear.
+const ACCEPTED = [
+  "0001-01-01", // DateOnly.MinValue, and HTML's lowest valid year
+  "0050-01-01", // two-digit year: Date.UTC would remap this to 1950
+  "0099-12-31", // top of the remap range
+  "0100-01-01", // first year the remap never touched
+  "1970-01-01", // epoch, in case the probe is ever built from it
+  "2024-02-29", // real leap day
+  "2026-08-01", // ordinary date
+  "9999-12-31", // highest the four-digit regex admits
+];
+
+const REJECTED = [
+  "0000-01-01", // HTML requires year >= 1; DateOnly cannot bind it -> 400
+  "0000-02-29", // year 0 IS a proleptic leap year, so the round-trip alone accepts it
+  "2026-02-29", // not a leap year
+  "2026-02-31", // never a real day
+  "2026-00-01", // month 0
+  "2026-13-01", // month 13
+  "2026-01-00", // day 0
+  "2026-01-32", // day 32
+  "",           // empty
+  "2026-8-1",   // unpadded
+  "2026-08-1",  // half-padded
+  "20260801",   // no separators
+  "2026-08-01T00:00:00Z", // datetime, not a date
+  "abcd-ef-gh", // non-numeric
+  "10000-01-01", // five-digit year
+];
+
+describe("isIsoCalendarDate", () => {
+  it.each(ACCEPTED)("accepts %s", (v) => {
+    expect(isIsoCalendarDate(v)).toBe(true);
+  });
+
+  it.each(REJECTED)("rejects %s", (v) => {
+    expect(isIsoCalendarDate(v)).toBe(false);
   });
 });

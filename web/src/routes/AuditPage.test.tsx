@@ -390,10 +390,12 @@ describe("AuditPage filter", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "probe-back" }));
     await new Promise((r) => setTimeout(r, 0));
-    // Positive, not `not.toBe(...)`: with replace there is one history entry,
-    // so Back is a clamped no-op and the search must still be the LAST value.
-    // The negative form was also satisfied by the navigation never happening
-    // at all — a dead probe or an unflushed update looked identical to a pass.
+    // Positive, not `not.toBe(...)`: it pins the exact expected string rather
+    // than "anything except one string". Both forms are satisfied if the
+    // navigation never happens at all — with replace there is one history
+    // entry, so Back is a clamped no-op and the pre-click value is also the
+    // expected one. What this form adds is that a future change writing extra
+    // params breaks it, which is a change that should break it.
     expect(screen.getByTestId("probe-search").textContent).toBe("?from=2026-08-05");
   });
 
