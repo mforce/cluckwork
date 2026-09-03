@@ -186,6 +186,42 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         user.Property(u => u.AccountId).Metadata
             .SetAfterSaveBehavior(PropertySaveBehavior.Throw);
 
+        // #670 — Identity's AspNetUserRoles is live RBAC state, and it had no
+        // tenant column: both write-side layers select by a property NAMED
+        // AccountId (TenantStampInterceptor by entry.Properties, the #562 walk
+        // below by FindProperty), and IdentityUserRole<Guid> carried none, so a
+        // hand-built row naming another farm's user was inserted, and another
+        // farm's Owner grant deleted, with no refusal. Observed on the
+        // unmodified tree (UserRoleTenantWriteTests reproduces all three shapes).
+        //
+        // The fix is the smallest way INTO those two layers rather than a third
+        // one: a SHADOW Guid AccountId on the join entity, which the interceptor
+        // stamps on Added and verifies on Deleted exactly as it does for every
+        // other carrier, and which the walk below turns into a concurrency
+        // token so the DELETE carries AND "AccountId" = <original>. The
+        // composite foreign key is what makes the STAMPED value provably the
+        // user's own farm: (UserId, AccountId) must exist in AspNetUsers(Id,
+        // AccountId), so a role can only be granted to the serving farm's user,
+        // and a write under no resolved tenant (value still Guid.Empty) is
+        // refused by the database rather than inserted unowned. Identity's own
+        // UserId → AspNetUsers(Id) key stays; this one sits beside it. No
+        // navigation, for the same reason ApplicationUser.AccountId has none.
+        //
+        // No query filter, deliberately: FirstRunStatusService reads this table
+        // on an anonymous request with the tenant unresolved. The #536 scanner
+        // keeps UserRoles on its stricter non-tenant track (the split is on the
+        // CLR shape, which a shadow property does not change).
+        //
+        // Pinned by UserRoleAccountIdModelTests (the model), UserRoleTenantWriteTests
+        // (the refusals) and UserRoleAccountIdMigrationTests (the backfill).
+        var userRole = builder.Entity<Microsoft.AspNetCore.Identity.IdentityUserRole<Guid>>();
+        userRole.Property<Guid>(nameof(Entity<Guid>.AccountId));
+        userRole.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(nameof(Microsoft.AspNetCore.Identity.IdentityUserRole<Guid>.UserId), nameof(Entity<Guid>.AccountId))
+            .HasPrincipalKey(u => new { u.Id, u.AccountId })
+            .OnDelete(DeleteBehavior.Cascade);
+
         // #562 — AccountId is a CONCURRENCY TOKEN on every entity that carries
         // one. EF then puts AccountId's ORIGINAL value into the WHERE clause of
         // every UPDATE and DELETE it emits, beside the primary key (and beside

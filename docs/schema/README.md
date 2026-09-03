@@ -52,7 +52,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.AspNetRoleClaims](public.AspNetRoleClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserClaims](public.AspNetUserClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserLogins](public.AspNetUserLogins.md) | 4 |  | BASE TABLE |
-| [public.AspNetUserRoles](public.AspNetUserRoles.md) | 2 |  | BASE TABLE |
+| [public.AspNetUserRoles](public.AspNetUserRoles.md) | 3 |  | BASE TABLE |
 | [public.AspNetUserTokens](public.AspNetUserTokens.md) | 4 |  | BASE TABLE |
 | [public.SalesOrders](public.SalesOrders.md) | 11 |  | BASE TABLE |
 | [public.DailyEntryGrades](public.DailyEntryGrades.md) | 5 |  | BASE TABLE |
@@ -80,6 +80,7 @@ erDiagram
 "public.AspNetUserLogins" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserRoles" }o--|| "public.AspNetRoles" : "FOREIGN KEY (#quot;RoleId#quot;) REFERENCES #quot;AspNetRoles#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 "public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.SalesOrders" }o--|| "public.Customers" : "FOREIGN KEY (#quot;CustomerId#quot;) REFERENCES #quot;Customers#quot;(#quot;Id#quot;) ON DELETE RESTRICT"
 "public.DailyEntryGrades" }o--|| "public.DailyEntries" : "FOREIGN KEY (#quot;DailyEntryId#quot;) REFERENCES #quot;DailyEntries#quot;(#quot;Id#quot;) ON DELETE CASCADE"
@@ -371,6 +372,7 @@ erDiagram
 "public.AspNetUserRoles" {
   uuid UserId FK
   uuid RoleId FK
+  uuid AccountId FK
 }
 "public.AspNetUserTokens" {
   uuid UserId FK

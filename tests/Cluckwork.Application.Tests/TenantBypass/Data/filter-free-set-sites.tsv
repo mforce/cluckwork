@@ -7,7 +7,9 @@
 #   TENANT track — sets whose entity carries an AccountId property (Users,
 #     RefreshTokens, IdempotencyRecord). Candidate = a site whose enclosing
 #     statement has no "AccountId" compare (the predicate rule applies).
-#   NON-TENANT track — sets with no AccountId column (UserRoles, Roles,
+#   NON-TENANT track — sets whose CLR entity declares no AccountId property
+#     (UserRoles — which since #670 carries a SHADOW AccountId column the
+#     write guards stamp and token, and stays on this stricter track — Roles,
 #     UserClaims, UserLogins, UserTokens, RoleClaims, DurableJob). Candidate =
 #     EVERY db.<Table> access. These sets have no AccountId to compare, so the
 #     predicate rule cannot apply; instead any query against them is a bypass
@@ -62,7 +64,7 @@ src/Cluckwork.Infrastructure/Jobs/IdempotencyRecordPurgeSweep.cs:111	db.Idempote
 src/Cluckwork.Infrastructure/Jobs/IdempotencyRecordPurgeSweep.cs:130	db.IdempotencyRecords	non-tenant sweep: second purge query in the same sweep; scoped by expiry.
 src/Cluckwork.Infrastructure/Jobs/RefreshTokenPurgeSweep.cs:80	db.RefreshTokens	non-tenant sweep: purges expired refresh tokens across all tenants (single-leader gate #271); scoped by expiry.
 
-# --- NON-TENANT track (no AccountId column; every db.<Table> access is a
+# --- NON-TENANT track (no AccountId CLR property — see the header above for the #670 shadow column; every db.<Table> access is a
 # candidate, classified by its scoping mechanism) ---
 src/Cluckwork.Infrastructure/Identity/AccountUserDirectory.cs:65	db.UserRoles	scoped-by-join: the role query joins db.Users (which carries AccountId) on user.Id, and the WHERE names user.AccountId == accountId; the UserRoles join is therefore tenant-scoped transitively.
 src/Cluckwork.Infrastructure/Identity/AccountUserDirectory.cs:66	db.Roles	global-reference: AspNetRoles has no AccountId column — roles are farm-wide reference data (the four base roles are global); the query is scoped by the join to the tenant's UserRows, not by an account predicate.
@@ -72,7 +74,7 @@ src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1047	db.UserRoles	scop
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1048	db.Roles	global-reference: role lookup by name in the Owner check (AspNetRoles is farm-wide reference data).
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1062	db.UserRoles	scoped-by-user-id: counts other active Owners by joining UserRoles on the user id (account-unique) and the user's AccountId == accountId.
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1063	db.Roles	global-reference: Owner-role filter by name in the owner-count (AspNetRoles is farm-wide reference data).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1115	db.UserRoles	scoped-by-user-id: DisableUser revokes the user's roles by userRole.UserId == userId (account-unique).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1115	db.UserRoles	scoped-by-user-id: DisableUser READS the target's Owner membership by userRole.UserId == userId (account-unique) for the last-Owner check; it writes no role row (it disables the user, rotates the stamp, bumps the epoch, revokes refresh tokens).
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1116	db.Roles	global-reference: role lookup by name in the disable path (AspNetRoles is farm-wide reference data).
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1451	db.UserRoles	scoped-by-account: lists the account's users with their roles; the query carries u.AccountId == accountId (the UserRoles join is scoped by the user rows).
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1452	db.Roles	global-reference: role name resolution in ListUsers (AspNetRoles is farm-wide reference data).

@@ -67,6 +67,7 @@ public sealed class FirstRunLoginNoticeTests(CluckworkWebApplicationFactory fact
         });
 
         using var scope = factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId); // #670
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
         var user = new ApplicationUser

@@ -110,14 +110,19 @@ public sealed class TenantBypassRealTreeTests
             .Select(p => p.Name)
             .ToList();
 
-        // Split into tenant sets (the entity type carries an AccountId property
-        // — Users, RefreshTokens, IdempotencyRecord) and non-tenant sets (no
-        // AccountId column — the Identity claim/login/token/join tables, Roles,
-        // RoleClaims, DurableJob). Note: the split is on the ENTITY's AccountId
-        // property, which matches the table's AccountId column for these types
-        // (verified: AspNetUserRoles has columns [UserId, RoleId] only — no
-        // AccountId — so it is correctly non-tenant; the earlier "HAS AccountId"
-        // reading was a grep of the mermaid Relations block, not the column set).
+        // Split into tenant sets (the CLR entity type declares an AccountId
+        // property — Users, RefreshTokens, IdempotencyRecord) and non-tenant
+        // sets (it does not — the Identity claim/login/token/join tables, Roles,
+        // RoleClaims, DurableJob). The split is on the CLR SHAPE, deliberately,
+        // and since #670 that is no longer the same thing as the table's column
+        // set: AspNetUserRoles now carries a SHADOW AccountId column (stamped
+        // and tokened by the write guards, FK-bound to the user's farm) that
+        // reflection cannot see, and it STAYS on the non-tenant track — the
+        // stricter one, where every db.UserRoles access is a candidate needing
+        // a classification rather than only the ones with no AccountId compare.
+        // A future shadow tenant column on another Identity table lands on the
+        // same track for the same reason; moving a set to the tenant track is a
+        // decision to take here, not a side effect of a model change.
         var tenantNames = new List<string>();
         var nonTenantNames = new List<string>();
         foreach (var name in allPropertyNames)

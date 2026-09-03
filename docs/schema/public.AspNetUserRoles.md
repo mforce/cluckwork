@@ -6,6 +6,7 @@
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
 | UserId | uuid |  | false |  | [public.AspNetUsers](public.AspNetUsers.md) |  |
 | RoleId | uuid |  | false |  | [public.AspNetRoles](public.AspNetRoles.md) |  |
+| AccountId | uuid |  | false |  | [public.AspNetUsers](public.AspNetUsers.md) |  |
 
 ## Viewpoints
 
@@ -17,11 +18,13 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
+| AspNetUserRoles_AccountId_not_null | n | NOT NULL "AccountId" |
 | AspNetUserRoles_RoleId_not_null | n | NOT NULL "RoleId" |
 | AspNetUserRoles_UserId_not_null | n | NOT NULL "UserId" |
 | FK_AspNetUserRoles_AspNetRoles_RoleId | FOREIGN KEY | FOREIGN KEY ("RoleId") REFERENCES "AspNetRoles"("Id") ON DELETE CASCADE |
 | FK_AspNetUserRoles_AspNetUsers_UserId | FOREIGN KEY | FOREIGN KEY ("UserId") REFERENCES "AspNetUsers"("Id") ON DELETE CASCADE |
 | PK_AspNetUserRoles | PRIMARY KEY | PRIMARY KEY ("UserId", "RoleId") |
+| FK_AspNetUserRoles_AspNetUsers_UserId_AccountId | FOREIGN KEY | FOREIGN KEY ("UserId", "AccountId") REFERENCES "AspNetUsers"("Id", "AccountId") ON DELETE CASCADE |
 
 ## Indexes
 
@@ -29,6 +32,7 @@
 | ---- | ---------- |
 | PK_AspNetUserRoles | CREATE UNIQUE INDEX "PK_AspNetUserRoles" ON public."AspNetUserRoles" USING btree ("UserId", "RoleId") |
 | IX_AspNetUserRoles_RoleId | CREATE INDEX "IX_AspNetUserRoles_RoleId" ON public."AspNetUserRoles" USING btree ("RoleId") |
+| IX_AspNetUserRoles_UserId_AccountId | CREATE INDEX "IX_AspNetUserRoles_UserId_AccountId" ON public."AspNetUserRoles" USING btree ("UserId", "AccountId") |
 
 ## Relations
 
@@ -36,11 +40,13 @@
 erDiagram
 
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 "public.AspNetUserRoles" }o--|| "public.AspNetRoles" : "FOREIGN KEY (#quot;RoleId#quot;) REFERENCES #quot;AspNetRoles#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 
 "public.AspNetUserRoles" {
   uuid UserId FK
   uuid RoleId FK
+  uuid AccountId FK
 }
 "public.AspNetUsers" {
   uuid Id

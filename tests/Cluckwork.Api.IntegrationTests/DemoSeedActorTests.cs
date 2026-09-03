@@ -129,6 +129,7 @@ public sealed class DemoSeedDisabledOwnerTests(DemoSeedDisabledOwnerFactory fact
         IServiceProvider services, Guid id, string email, bool disabled)
     {
         using var scope = services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(SeedDefaults.AccountId); // #670
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var roles = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
         if (!await roles.RoleExistsAsync(Roles.Owner))
@@ -186,6 +187,7 @@ public sealed class DemoSeedOnlyDisabledOwnerTests(DemoSeedOnlyDisabledOwnerFact
     {
         using (var scope = factory.Services.CreateScope())
         {
+            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(SeedDefaults.AccountId); // #670
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var roles = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
             if (!await roles.RoleExistsAsync(Roles.Owner))

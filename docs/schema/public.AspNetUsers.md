@@ -5,7 +5,7 @@
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
 | Id | uuid |  | false | [public.AspNetUserClaims](public.AspNetUserClaims.md) [public.AspNetUserLogins](public.AspNetUserLogins.md) [public.AspNetUserRoles](public.AspNetUserRoles.md) [public.AspNetUserTokens](public.AspNetUserTokens.md) |  |  |
-| AccountId | uuid |  | false |  | [public.Accounts](public.Accounts.md) |  |
+| AccountId | uuid |  | false | [public.AspNetUserRoles](public.AspNetUserRoles.md) | [public.Accounts](public.Accounts.md) |  |
 | DisplayName | text |  | true |  |  |  |
 | Language | varchar(16) |  | true |  |  |  |
 | MustChangePassword | boolean |  | false |  |  |  |
@@ -55,6 +55,7 @@
 | AspNetUsers_UserName_not_null | n | NOT NULL "UserName" |
 | FK_AspNetUsers_Accounts_AccountId | FOREIGN KEY | FOREIGN KEY ("AccountId") REFERENCES "Accounts"("Id") ON DELETE RESTRICT |
 | PK_AspNetUsers | PRIMARY KEY | PRIMARY KEY ("Id") |
+| AK_AspNetUsers_Id_AccountId | UNIQUE | UNIQUE ("Id", "AccountId") |
 
 ## Indexes
 
@@ -63,6 +64,7 @@
 | PK_AspNetUsers | CREATE UNIQUE INDEX "PK_AspNetUsers" ON public."AspNetUsers" USING btree ("Id") |
 | EmailIndex | CREATE UNIQUE INDEX "EmailIndex" ON public."AspNetUsers" USING btree ("AccountId", "NormalizedEmail") |
 | UserNameIndex | CREATE UNIQUE INDEX "UserNameIndex" ON public."AspNetUsers" USING btree ("AccountId", "NormalizedUserName") |
+| AK_AspNetUsers_Id_AccountId | CREATE UNIQUE INDEX "AK_AspNetUsers_Id_AccountId" ON public."AspNetUsers" USING btree ("Id", "AccountId") |
 
 ## Relations
 
@@ -72,6 +74,7 @@ erDiagram
 "public.AspNetUserClaims" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserLogins" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 "public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUsers" }o--|| "public.Accounts" : "FOREIGN KEY (#quot;AccountId#quot;) REFERENCES #quot;Accounts#quot;(#quot;Id#quot;) ON DELETE RESTRICT"
 
@@ -116,6 +119,7 @@ erDiagram
 "public.AspNetUserRoles" {
   uuid UserId FK
   uuid RoleId FK
+  uuid AccountId FK
 }
 "public.AspNetUserTokens" {
   uuid UserId FK
