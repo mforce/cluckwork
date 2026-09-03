@@ -3,6 +3,7 @@ namespace Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Auditing;
 using Cluckwork.Domain.Catalog;
+using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Expenses;
 using Cluckwork.Domain.Flocks;
@@ -184,5 +185,40 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         // carry its roles, password and lockout state across a tenant boundary.
         user.Property(u => u.AccountId).Metadata
             .SetAfterSaveBehavior(PropertySaveBehavior.Throw);
+
+        // #562 — AccountId is a CONCURRENCY TOKEN on every entity that carries
+        // one. EF then puts AccountId's ORIGINAL value into the WHERE clause of
+        // every UPDATE and DELETE it emits, beside the primary key (and beside
+        // Version where the aggregate has one), so the database itself refuses
+        // to touch a row whose AccountId is not the value the writer claimed.
+        //
+        // This is what closes the gap TenantStampInterceptor cannot close on its
+        // own: the interceptor compares AccountId's original value against the
+        // resolved tenant, but for an entity that reached SaveChanges DETACHED
+        // (DbSet.Update / DbSet.Remove / Attach on a hand-built stub) that
+        // original value is the caller's own, not the database's. The
+        // interceptor still requires original == tenant, so with the token the
+        // statement carries "AND AccountId = <tenant>" — a stub naming another
+        // farm's row matches nothing and EF throws DbUpdateConcurrencyException.
+        // Observed writing through before this walk existed, for Update, for
+        // Remove, and for an owned-only edit with the principal Unchanged (which
+        // the interceptor never even sees): DetachedTenantWriteTests.
+        //
+        // Discovered from the model, matched by NAME and CLR type exactly as the
+        // interceptor matches (Entity<TId> or not — RefreshToken,
+        // IdempotencyRecord and ApplicationUser are in scope). A primary-key
+        // AccountId (SimulationSeedState) is excluded: the key is already in the
+        // WHERE. AccountIdConcurrencyTokenModelTests pins the walk.
+        //
+        // The snapshot records the flag but EF emits no schema for it, so the
+        // migration that accompanies this walk (AccountIdConcurrencyToken) is
+        // deliberately empty — it exists to keep the snapshot equal to the model.
+        foreach (var entityType in builder.Model.GetEntityTypes())
+        {
+            var accountId = entityType.FindProperty(nameof(Entity<Guid>.AccountId));
+            if (accountId is null || accountId.ClrType != typeof(Guid)) continue;
+            if (accountId.IsPrimaryKey()) continue;
+            accountId.IsConcurrencyToken = true;
+        }
     }
 }
