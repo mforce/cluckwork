@@ -29,10 +29,27 @@ public sealed class AccountIdConcurrencyTokenModelTests
     {
         using var db = BuildContext();
 
+        // Selected by NAME and non-key only — deliberately NOT by CLR type.
+        // Both layers key on AccountId being a non-nullable Guid (the walk skips
+        // any other type, the interceptor skips any other value), so a nullable
+        // or converted AccountId would be fail-open in both with every test
+        // green if this selector mirrored the walk's own predicate. It names
+        // the property instead (#673 tracks closing that by construction).
         var carriers = db.Model.GetEntityTypes()
             .Select(t => (Type: t, AccountId: t.FindProperty("AccountId")))
-            .Where(x => x.AccountId is not null && x.AccountId.ClrType == typeof(Guid) && !x.AccountId.IsPrimaryKey())
+            .Where(x => x.AccountId is not null && !x.AccountId.IsPrimaryKey())
             .ToList();
+
+        var wrongType = carriers
+            .Where(c => c.AccountId!.ClrType != typeof(Guid))
+            .Select(c => $"{c.Type.ShortName()}.AccountId ({c.AccountId!.ClrType.Name})")
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(wrongType.Count == 0,
+            "AccountId must be a non-nullable Guid on every entity that carries it — the write guard and the " +
+            "concurrency token both key on exactly that type, and any other is fail-open in both (#673):\n  " +
+            string.Join("\n  ", wrongType));
 
         // Proves the walk walked: a discovery that finds nothing passes vacuously.
         Assert.True(carriers.Count >= 29,
