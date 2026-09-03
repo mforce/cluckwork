@@ -121,7 +121,9 @@ discipline on (`AuditPage.tsx:130-197`) — must move when the range moves.
 
 - `web/src/routes/AuditPage.tsx`
 - `web/src/routes/AuditPage.test.tsx`
-- `web/src/i18n/{en,es,tl}.ts` — `audit.fromLabel`, `audit.toLabel`, `audit.filteredEmptyMessage`
+- `web/src/i18n/{en,es,tl}.ts` — `audit.fromLabel`, `audit.toLabel`, `audit.filteredEmptyMessage`,
+  `audit.scopedFilteredEmptyMessage` (added in the round-1 fix; both filtered keys were reworded in the
+  round-2 reshape to the sibling-consistent "match these filters" form)
 
 `web/src/api/cluckwork.ts` needs **no change**: `listAuditEvents` at line 918-930 already accepts and
 serialises `from`/`to`. The client, the endpoint and the repository are all ready; only the screen is not.
@@ -172,8 +174,10 @@ serialises `from`/`to`. The client, the endpoint and the repository are all read
 
 `StockPage.tsx:533` wraps the egg-lot production-date filter in `<div className="filters">`. The width
 cap at `styles.css:1083-1085` is scoped to `.toolbar input[type="date"]`, so it never applies here and
-those two inputs render at the row's full width — the exact defect [#653](https://github.com/mforce/cluckwork/issues/653) was filed to fix, on a screen
-[#653](https://github.com/mforce/cluckwork/issues/653) did not reach.
+those two inputs render at the row's full width. Full-width date inputs are the defect
+[#653](https://github.com/mforce/cluckwork/issues/653) was filed to fix, and it fixed them everywhere it
+looked — but its file list never included `StockPage.tsx`, so this instance survived. Same defect, a screen
+that issue did not reach.
 
 **Everything else on this screen is already right.** The from/to pair works, hits a server-side window
 (`#465`), and already has the two-variant empty state with a clear-filters action (`noLotsMatch` /
