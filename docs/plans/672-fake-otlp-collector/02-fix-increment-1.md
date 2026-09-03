@@ -28,7 +28,7 @@ person will read it.
 ### 4a. RED — add the guard test first — PROTECTED
 
 Edit `tests/Cluckwork.Api.IntegrationTests/Infrastructure/FakeOtlpCollectorTests.cs`. Insert this block
-directly ABOVE `    private static int FreeTestPort()`:
+directly ABOVE the indented line `private static int FreeTestPort()`:
 
 ```csharp
     [Fact]
@@ -349,7 +349,7 @@ Paste each final line into your report.
 
 | # | Kind | Mutate | Supplied elsewhere? | Expected test | Expected result + failure | Rebuild command run | Observed failure |
 |---|---|---|---|---|---|---|---|
-| M6 | guard | `FakeOtlpCollector.cs`, in `AssertNoRequestAsync`: replace `        var aborted = AbortedExportCountForTest;` with `        var aborted = 0; // MUTANT M6: the aborted-export arm no longer reports` | n/a — wrong value, not a deletion | `An_export_that_dies_mid_transfer_is_reported_not_silently_dropped` | **RED** — `Assert.ThrowsAny() Failure: No exception was thrown`; that is the false green itself, since nothing reports the export that arrived and died | G1 after apply and after restore | driver observed exactly that before dispatch |
+| M6 | guard | `FakeOtlpCollector.cs`, in `AssertNoRequestAsync`: replace the indented line `var aborted = AbortedExportCountForTest;` with `var aborted = 0; // MUTANT M6: the aborted-export arm no longer reports`, keeping its eight spaces of indentation | n/a — wrong value, not a deletion | `An_export_that_dies_mid_transfer_is_reported_not_silently_dropped` | **RED** — `Assert.ThrowsAny() Failure: No exception was thrown`; that is the false green itself, since nothing reports the export that arrived and died | G1 after apply and after restore | driver observed exactly that before dispatch |
 
 Restore, rebuild, confirm `Passed: 10`, and `git grep -n MUTANT -- tests src` returns nothing.
 

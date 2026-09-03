@@ -26,7 +26,7 @@ Round 2 produced three defects in the fix itself, from three different reviewers
 ### 7a. RED — add the in-flight guard first — PROTECTED
 
 Edit `tests/Cluckwork.Api.IntegrationTests/Infrastructure/FakeOtlpCollectorTests.cs`. Insert this block
-directly ABOVE `    private static int FreeTestPort()`:
+directly ABOVE the indented line `private static int FreeTestPort()`:
 
 ```csharp
     [Fact]
@@ -357,7 +357,7 @@ Run **G4**, **G1**, **G2** on the whole solution (expect Api.IntegrationTests **
 
 | # | Kind | Mutate | Supplied elsewhere? | Expected test | Expected result + failure | Rebuild command run | Observed failure |
 |---|---|---|---|---|---|---|---|
-| M7 | guard | `FakeOtlpCollector.cs`, in `AssertNoRequestAsync`: replace `        var inFlight = ExportsInFlightForTest;` with `        var inFlight = 0; // MUTANT M7: the in-flight arm no longer reports` | n/a — wrong value, not a deletion | `An_export_still_being_received_is_not_reported_as_no_export` | **RED** — `Assert.ThrowsAny() Failure: No exception was thrown`; that is the false green itself | G1 after apply and after restore | driver observed exactly that before dispatch |
+| M7 | guard | `FakeOtlpCollector.cs`, in `AssertNoRequestAsync`: replace the indented line `var inFlight = ExportsInFlightForTest;` with `var inFlight = 0; // MUTANT M7: the in-flight arm no longer reports`, keeping its eight spaces of indentation | n/a — wrong value, not a deletion | `An_export_still_being_received_is_not_reported_as_no_export` | **RED** — `Assert.ThrowsAny() Failure: No exception was thrown`; that is the false green itself | G1 after apply and after restore | driver observed exactly that before dispatch |
 | M8 | unreachable-in-harness | `FakeOtlpCollector.cs`: move `currentContext = await _listener.GetContextAsync();` back INSIDE the `try` that the absorbing catch guards | n/a — a move, not a deletion | *(none reachable)* | **GREEN, and that is the finding, not a pass.** No test in this harness can synthesise a listener-level accept failure while `IsListening` stays true, so nothing reddens. The change is defensive: it converts an unbounded silent retry into a fault. Record it as a surviving mutant with this reason; do NOT invent a test that appears to cover it | G1 after apply and after restore | driver observed GREEN before dispatch, recorded as unreachable |
 
 Restore, rebuild, confirm `Passed: 11`, and `git grep -n MUTANT -- tests src` returns nothing.
