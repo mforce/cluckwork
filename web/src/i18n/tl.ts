@@ -2392,7 +2392,8 @@ export const tl = {
     expensesHeading: "Mga Gastos (admin)",
     expensesRecording:
       "Itala ang lumalabas na pera: petsa, kategorya, deskripsyon, at halaga (sa currency ng bukid), "
-      + "opsyonal na naka-link sa isang kawan. Ipinapakita ng month picker ang tumatakbong total; "
+      + "opsyonal na naka-link sa isang kawan. Ipinapakita ng hanay ng petsa ang tumatakbong total para sa "
+      + "panahong pinili mo; "
       + "pinapamahalaan ang mga kategorya sa parehong screen (ang pag-deactivate ng isa ay nagtatago nito "
       + "mula sa mga bagong gastos — pinapanatili ito ng mga naitala na).",
     expensesCorrections:
@@ -2430,7 +2431,8 @@ export const tl = {
       + "lamang nito ang dropdown na \"Aksyon\" sa tabi nito para lang sa mga aksyong nangyayari sa uring "
       + "pinili mo (Kawan, Order ng benta, atbp.), para hindi mo na kailangang mag-scan sa isang mahabang "
       + "listahan ng bawat aksyong maaaring itala ng bukid. Piliin ang aksyon sa napaliit na listahang iyon "
-      + "para talagang masalà ang mga row.",
+      + "para talagang masalà ang mga row. Ang mga petsang \"Mula\" at \"Hanggang\" sa tabi nila ay "
+      + "TALAGANG nagsasalà sa mga row, batay sa araw na UTC na ipinapakita sa column na \"Kailan (UTC)\".",
     auditRecordHistory:
       "Ang Mga kawan, Grado ng itlog, Kasaysayan ng pang-araw-araw na entry, Benta at Gastos ay may "
       + "kolum na Kasaysayan na nagpapakita kung sino ang gumawa ng record at kailan, at kung sino ang "

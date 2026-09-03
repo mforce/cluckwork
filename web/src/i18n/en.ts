@@ -2827,7 +2827,7 @@ export const en = {
     expensesHeading: "Expenses (admin)",
     expensesRecording:
       "Record money going out: date, category, description, and amount (in the farm's currency), optionally "
-      + "tied to a flock. The month picker shows a running total; categories are managed on the same screen "
+      + "tied to a flock. The date range shows a running total for the period you pick; categories are managed on the same screen "
       + "(deactivating one hides it from new expenses — recorded ones keep it).",
     expensesCorrections:
       "Corrections edit the expense in place (<strong>correct</strong> on the row). If someone else "
@@ -2863,7 +2863,9 @@ export const en = {
       "The Audit log's \"Record type\" dropdown does not filter the rows itself — it narrows the "
       + "\"Action\" dropdown next to it down to only the actions that happen on the type you pick "
       + "(Flock, Sales order, and so on), so you are not scanning one long list of every action the "
-      + "farm can log. Pick the action from that narrowed list to actually filter the rows.",
+      + "farm can log. Pick the action from that narrowed list to actually filter the rows. "
+      + "The From and To dates beside them DO filter the rows, over the UTC day shown in the "
+      + "\"When (UTC)\" column.",
     auditRecordHistory:
       "Flocks, Egg grades, Daily entry history, Sales and Expenses each carry a History column showing who "
       + "created the record and when, plus who last changed it if anyone has. It is read from the same audit "

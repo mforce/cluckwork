@@ -2304,7 +2304,8 @@ export const es = {
     expensesHeading: "Gastos (admin)",
     expensesRecording:
       "Registre el dinero que sale: fecha, categoría, descripción y monto (en la moneda de la granja), "
-      + "opcionalmente vinculado a un lote. El selector de mes muestra un total acumulado; las categorías "
+      + "opcionalmente vinculado a un lote. El rango de fechas muestra un total acumulado para el período "
+      + "elegido; las categorías "
       + "se administran en la misma pantalla (desactivar una la oculta de los gastos nuevos — los ya "
       + "registrados la conservan).",
     expensesCorrections:
@@ -2340,7 +2341,9 @@ export const es = {
       "El menú \"Tipo de registro\" del registro de auditoría no filtra las filas por sí solo — reduce el "
       + "menú \"Acción\" de al lado a solo las acciones que ocurren en el tipo elegido (Lote, Pedido de "
       + "venta, etc.), para que no tengas que revisar una lista larga con cada acción que la granja puede "
-      + "registrar. Elige la acción de esa lista reducida para filtrar las filas realmente.",
+      + "registrar. Elige la acción de esa lista reducida para filtrar las filas realmente. "
+      + "Las fechas \"Desde\" y \"Hasta\" junto a ellos SÍ filtran las filas, sobre el día UTC que "
+      + "muestra la columna \"Cuándo (UTC)\".",
     auditRecordHistory:
       "Lotes, Grados de huevo, Historial de registro diario, Ventas y Gastos tienen una columna Historial "
       + "que muestra quién creó el registro y cuándo, más quién lo modificó por última vez si alguien lo "
