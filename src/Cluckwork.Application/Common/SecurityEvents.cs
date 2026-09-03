@@ -70,4 +70,13 @@ public static class SecurityEvents
     // persists: it means the shared store dropped slots under load or during an
     // outage recovery (#545).
     public const string ReportConcurrencyOverCapacity = "ReportConcurrency.OverCapacity";
+
+    // Fires when the database refuses an UPDATE or DELETE under a resolved
+    // tenant because zero rows matched. With AccountId a concurrency token
+    // (#562) that is what a write aimed at another farm's row looks like from
+    // inside the process — and it is also what an ordinary Version race looks
+    // like. The interceptor cannot tell them apart without a second round trip
+    // and does not try, so a deployment backend should alert on a RUN of these
+    // for one tenant, never on a single one.
+    public const string TenantWriteRefusedByDatabase = "Tenant.WriteRefusedByDatabase";
 }

@@ -132,6 +132,20 @@ check does not reveal.
 | `SharedState.RedisUnavailable` | A shared-state (Redis) operation throws and the caller degrades: grant-replay fails closed, and the auth limiter and the report-concurrency lease fall back to their in-process implementations (#543/#544/#545). A sustained rate means a limiter is silently stuck in per-instance fallback. | `capability` (which port degraded). |
 | `ReportConcurrency.OverCapacity` | A running report's lease lapsed (a reachable backend rejected the renewal) and no free slot was available to re-count it — the account is over its per-instance report-concurrency ceiling with this report on top (#545). Bounded and self-healing as reports finish; a persistent rate means the shared store is dropping slots under load or during outage recovery. | `capability`. |
 
+### Tenant-isolation events
+
+One event, from the write side's second layer (#562): `AccountId` is an EF concurrency token
+on every entity that carries one, so an `UPDATE`/`DELETE` aimed at a row another farm owns
+matches zero rows and fails as `DbUpdateConcurrencyException`. Inside the process that is
+indistinguishable from an ordinary optimistic-concurrency race, and the interceptor does not
+spend a second round trip telling them apart — so a **single** event is usually a race, and a
+**run** of them for one tenant is the signal. Carries the tenant's account id (never a user id,
+email or row contents) and the row's key values.
+
+| Event ID | Fires when | Fields |
+|---|---|---|
+| `Tenant.WriteRefusedByDatabase` | `SaveChanges` under a resolved tenant fails with `DbUpdateConcurrencyException`, once per failed entry. The `AccountId` conjunct (or `Version`) matched no row. | `EntityType` (EF display name), `KeyValues` (comma-joined primary key), `TenantAccountId`. |
+
 ### No identity-existence oracle
 
 The API already collapses "no such user", "account locked", and "wrong
@@ -175,6 +189,9 @@ operator must:
   rejection rates (`RateLimitRejected`); and on the two **operational** events
   (`SharedState.RedisUnavailable`, `ReportConcurrency.OverCapacity`) for a
   degraded shared-state dependency or a breached per-account capacity ceiling.
+- **Alert on a run of `Tenant.WriteRefusedByDatabase` for one `TenantAccountId`** — a
+  lone event is an optimistic-concurrency race; a burst on rows the tenant does not own is a
+  write-side isolation probe the database refused (#562).
 - **Treat `ClientIp`/`UserId` per its own retention policy** — they are
   legitimate correlation fields (the amendment to #273 requires them for
   alerting), not something this repo omits, but a deployment's retention and
