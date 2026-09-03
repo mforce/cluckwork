@@ -64,7 +64,7 @@ src/Cluckwork.Infrastructure/Jobs/IdempotencyRecordPurgeSweep.cs:111	db.Idempote
 src/Cluckwork.Infrastructure/Jobs/IdempotencyRecordPurgeSweep.cs:130	db.IdempotencyRecords	non-tenant sweep: second purge query in the same sweep; scoped by expiry.
 src/Cluckwork.Infrastructure/Jobs/RefreshTokenPurgeSweep.cs:80	db.RefreshTokens	non-tenant sweep: purges expired refresh tokens across all tenants (single-leader gate #271); scoped by expiry.
 
-# --- NON-TENANT track (no AccountId column; every db.<Table> access is a
+# --- NON-TENANT track (no AccountId CLR property — see the header above for the #670 shadow column; every db.<Table> access is a
 # candidate, classified by its scoping mechanism) ---
 src/Cluckwork.Infrastructure/Identity/AccountUserDirectory.cs:65	db.UserRoles	scoped-by-join: the role query joins db.Users (which carries AccountId) on user.Id, and the WHERE names user.AccountId == accountId; the UserRoles join is therefore tenant-scoped transitively.
 src/Cluckwork.Infrastructure/Identity/AccountUserDirectory.cs:66	db.Roles	global-reference: AspNetRoles has no AccountId column — roles are farm-wide reference data (the four base roles are global); the query is scoped by the join to the tenant's UserRows, not by an account predicate.

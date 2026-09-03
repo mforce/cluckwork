@@ -176,4 +176,57 @@ public sealed class UserRoleTenantWriteTests(CluckworkWebApplicationFactory fact
             $"row exists after={exists}; tenant A={f.AccountA} userA2={userA2}");
         Assert.False(exists, "an unowned role row was written under no resolved tenant");
     }
+
+    // The TRACKED shape, which the detached tests above do not cover, and the
+    // cheapest precondition on this table: IdentityUserRole has no query
+    // filter (FirstRunStatusService reads it anonymously), so loading another
+    // farm's grant tracked is a one-line query under any tenant. For a tracked
+    // row the shadow AccountId's ORIGINAL value is the database's, and the
+    // interceptor verifies that original on Modified and on Deleted — the arm
+    // whose omission is the mistake #546 records — so both writes are refused
+    // before any SQL. Pinned per table because the precondition is what makes
+    // this table different from every filtered one.
+    [Fact]
+    public async Task TrackedRelabel_OfAnotherFarmsRow_IsRefusedByTheInterceptor()
+    {
+        var f = await SeedAsync();
+
+        var thrown = await CaptureAsync(() => factory.WithTenantScopeAsync(f.AccountA, async db =>
+        {
+            var row = await db.UserRoles.SingleAsync(ur => ur.UserId == f.UserB && ur.RoleId == f.OwnerRoleId);
+            db.Entry(row).Property("AccountId").CurrentValue = f.AccountA;
+            await db.SaveChangesAsync();
+        }));
+
+        var after = await factory.WithTenantScopeAsync(f.AccountA, db =>
+            db.UserRoles.AsNoTracking()
+                .Where(ur => ur.UserId == f.UserB && ur.RoleId == f.OwnerRoleId)
+                .Select(ur => EF.Property<Guid>(ur, "AccountId"))
+                .SingleOrDefaultAsync());
+
+        Assert.True(thrown is TenantWriteMismatchException,
+            $"tracked relabel of B's Owner row was not refused by the interceptor: thrown={Describe(thrown)}; " +
+            $"row AccountId after={after} (was B={f.AccountB}); tenant A={f.AccountA} userB={f.UserB}");
+        Assert.Equal(f.AccountB, after);
+    }
+
+    [Fact]
+    public async Task TrackedRemove_OfAnotherFarmsRow_IsRefusedByTheInterceptor()
+    {
+        var f = await SeedAsync();
+
+        var thrown = await CaptureAsync(() => factory.WithTenantScopeAsync(f.AccountA, async db =>
+        {
+            var row = await db.UserRoles.SingleAsync(ur => ur.UserId == f.UserB && ur.RoleId == f.OwnerRoleId);
+            db.UserRoles.Remove(row);
+            await db.SaveChangesAsync();
+        }));
+
+        var exists = await RowExistsAsync(f.AccountA, f.UserB, f.OwnerRoleId);
+
+        Assert.True(thrown is TenantWriteMismatchException,
+            $"tracked Remove of B's Owner row was not refused by the interceptor: thrown={Describe(thrown)}; " +
+            $"B's Owner row exists after={exists}; tenant A={f.AccountA} userB={f.UserB}");
+        Assert.True(exists, "B's Owner role row was deleted");
+    }
 }
