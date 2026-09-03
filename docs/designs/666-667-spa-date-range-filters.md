@@ -110,6 +110,13 @@ discipline on (`AuditPage.tsx:130-197`) — must move when the range moves.
    there silently drops the range fact, and is false the moment that record has events outside the window
    (CodeRabbit, round 1).
 
+   Round 2 found a third narrowing axis on this same screen: `actionFilter` predates this slice and can
+   empty the view on its own, which the two-axis enumeration above missed. The block was reshaped rather
+   than given a fifth state — it now keys on `isNarrowed` ("is anything narrowing the view at all", across
+   scope, action, and range) with four sentences over three axes, and the filtered wording matches the
+   sibling screens' `noRecordsMatch` rather than naming the date range specifically, since the range is no
+   longer the only thing that can produce it.
+
 ### Files
 
 - `web/src/routes/AuditPage.tsx`

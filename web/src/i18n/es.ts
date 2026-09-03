@@ -1568,8 +1568,8 @@ export const es = {
     toLabel: "Hasta",
     emptyMessage: "Aún no hay eventos de auditoría.",
     scopedEmptyMessage: "Aún no hay eventos de auditoría para este registro.",
-    filteredEmptyMessage: "No hay eventos de auditoría en este rango de fechas.",
-    scopedFilteredEmptyMessage: "No hay eventos de auditoría para este registro en este rango de fechas.",
+    filteredEmptyMessage: "Ningún evento de auditoría coincide con estos filtros.",
+    scopedFilteredEmptyMessage: "Ningún evento de auditoría de este registro coincide con estos filtros.",
     loadMoreButton: "cargar más",
   },
 

@@ -358,6 +358,18 @@ describe("AuditPage filter", () => {
     );
   });
 
+  // Date.UTC(2, …) is 1902, so a naive round-trip rejects years 1-99 and — the
+  // input being controlled — blanks the whole control mid-edit. Retyping a
+  // year emits exactly these values on the way to a four-digit one.
+  it("accepts a low-numbered year rather than wiping the control", async () => {
+    renderAudit("/audit?from=0050-01-01&to=2026-08-31");
+
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenCalled());
+    expect(mockListAuditEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ from: "0050-01-01", to: "2026-08-31" }),
+    );
+  });
+
   // Was: a test whose title claimed history behaviour and whose body only
   // checked the request. Deleting `{ replace: true }` left it green — a
   // surviving mutant on the one property the PROTECTED block exists to hold.
@@ -378,7 +390,11 @@ describe("AuditPage filter", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "probe-back" }));
     await new Promise((r) => setTimeout(r, 0));
-    expect(screen.getByTestId("probe-search").textContent).not.toBe("?from=2026-08-01");
+    // Positive, not `not.toBe(...)`: with replace there is one history entry,
+    // so Back is a clamped no-op and the search must still be the LAST value.
+    // The negative form was also satisfied by the navigation never happening
+    // at all — a dead probe or an unflushed update looked identical to a pass.
+    expect(screen.getByTestId("probe-search").textContent).toBe("?from=2026-08-05");
   });
 
   // #653/#662 — mirrors Increment 3's StockPage structural guard: the width
@@ -398,7 +414,7 @@ describe("AuditPage filter", () => {
     mockListAuditEvents.mockResolvedValue([]);
     renderAudit("/audit?from=2026-08-01&to=2026-08-02");
 
-    expect(await screen.findByText("No audit events in this date range.")).toBeInTheDocument();
+    expect(await screen.findByText("No audit events match these filters.")).toBeInTheDocument();
     expect(screen.queryByText("No audit events yet.")).not.toBeInTheDocument();
   });
 
@@ -408,9 +424,19 @@ describe("AuditPage filter", () => {
     mockListAuditEvents.mockResolvedValue([]);
     renderAudit("/audit?entityId=f1234567-89ab-4cde-8f01-23456789abcd&from=2026-08-01&to=2026-08-02");
 
-    expect(await screen.findByText("No audit events for this record in this date range.")).toBeInTheDocument();
+    expect(await screen.findByText("No audit events for this record match these filters.")).toBeInTheDocument();
     expect(screen.queryByText("No audit events for this record yet.")).not.toBeInTheDocument();
-    expect(screen.queryByText("No audit events in this date range.")).not.toBeInTheDocument();
+    expect(screen.queryByText("No audit events match these filters.")).not.toBeInTheDocument();
+  });
+
+  // The axis the earlier enumeration missed: action alone can empty the view,
+  // and "No audit events yet." is false when the log is full of other actions.
+  it("says the filters matched nothing when only an action filter is active", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit("/audit?action=Flock.Deplete");
+
+    expect(await screen.findByText("No audit events match these filters.")).toBeInTheDocument();
+    expect(screen.queryByText("No audit events yet.")).not.toBeInTheDocument();
   });
 });
 

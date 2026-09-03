@@ -1626,8 +1626,8 @@ export const tl = {
     toLabel: "Hanggang",
     emptyMessage: "Wala pang audit event.",
     scopedEmptyMessage: "Wala pang audit event para sa record na ito.",
-    filteredEmptyMessage: "Walang audit event sa hanay ng petsa na ito.",
-    scopedFilteredEmptyMessage: "Walang audit event para sa record na ito sa hanay ng petsa na ito.",
+    filteredEmptyMessage: "Walang audit event na tumutugma sa mga filter na ito.",
+    scopedFilteredEmptyMessage: "Walang audit event para sa record na ito na tumutugma sa mga filter na ito.",
     loadMoreButton: "mag-load pa",
   },
 

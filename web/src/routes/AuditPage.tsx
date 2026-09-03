@@ -95,7 +95,17 @@ export function AuditPage() {
   const isIsoDate = (v: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
     const [y, m, d] = v.split("-").map(Number);
-    const probe = new Date(Date.UTC(y, m - 1, d));
+    // setUTCFullYear, NOT Date.UTC: Date.UTC applies the ECMAScript two-digit
+    // year mapping, so Date.UTC(2, 7, 1) is 1902-08-01 and the round-trip
+    // below rejects every year 0001-0099 as "impossible". That matters here
+    // and not in the abstract — this input is CONTROLLED on fromFilter, so a
+    // rejected value blanks all three segments while the user is mid-edit,
+    // losing the month and day they never touched. Retyping a year emits
+    // 0002-, 0020-, 0202- on the way to 2026-, which is exactly that path.
+    // setUTCFullYear has no remap: new Date(0).setUTCFullYear(2, 7, 1) is
+    // year 2, and the calendar round-trip still rejects 2026-02-31.
+    const probe = new Date(0);
+    probe.setUTCFullYear(y, m - 1, d);
     return probe.getUTCFullYear() === y
       && probe.getUTCMonth() === m - 1
       && probe.getUTCDate() === d;
@@ -185,6 +195,10 @@ export function AuditPage() {
     rawActionFilter && (availableActions as readonly string[]).includes(rawActionFilter)
       ? rawActionFilter
       : "";
+
+  // Every axis that can empty this view. INV-4's condition is "is the user
+  // looking at a narrowed view", not "is a date set".
+  const isNarrowed = Boolean(actionFilter || fromFilter || toFilter);
 
   // #469 — the ticket/dedupe/busy-ownership discipline this screen grew for
   // itself (codex review of #94) now lives in usePagedList, shared with every
@@ -344,20 +358,20 @@ export function AuditPage() {
         // classified this screen's empty state and did not list it among the
         // thirteen EmptyState sites, so this stays out of
         // emptyStates.guard.test.ts's registries.
-        // Four states, because two independent narrowings can each be active
-        // and each one makes a DIFFERENT sentence true (INV-4). Scope alone:
-        // this record is clean. Range alone: this window is empty. Both: this
-        // record is empty IN this window — and saying only "for this record
-        // yet" there is false the moment the record has events outside the
-        // range, which is the half-fix CodeRabbit caught on the first pass.
+        // Four sentences over THREE independent narrowings — scope (entityId),
+        // action, and date range — not four over two. An earlier version of
+        // this enumerated the axes it happened to be touching and called that
+        // exhaustive, which left `?action=X` with no rows still claiming the
+        // whole log was empty (INV-4, the exact defect this slice exists to
+        // remove). Keyed on "is anything narrowing at all" rather than on
+        // which knob was turned, so adding a fourth filter does not silently
+        // reintroduce the false sentence. Wording matches the sibling screens'
+        // noRecordsMatch rather than naming the date range, because the range
+        // is no longer the only thing that can empty this view.
         <p className="muted">
           {entityId
-            ? ((fromFilter || toFilter)
-                ? t("scopedFilteredEmptyMessage")
-                : t("scopedEmptyMessage"))
-            : ((fromFilter || toFilter)
-                ? t("filteredEmptyMessage")
-                : t("emptyMessage"))}
+            ? (isNarrowed ? t("scopedFilteredEmptyMessage") : t("scopedEmptyMessage"))
+            : (isNarrowed ? t("filteredEmptyMessage") : t("emptyMessage"))}
         </p>
       ) : (
         <>
