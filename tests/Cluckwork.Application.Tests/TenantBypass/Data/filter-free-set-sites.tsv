@@ -7,7 +7,9 @@
 #   TENANT track — sets whose entity carries an AccountId property (Users,
 #     RefreshTokens, IdempotencyRecord). Candidate = a site whose enclosing
 #     statement has no "AccountId" compare (the predicate rule applies).
-#   NON-TENANT track — sets with no AccountId column (UserRoles, Roles,
+#   NON-TENANT track — sets whose CLR entity declares no AccountId property
+#     (UserRoles — which since #670 carries a SHADOW AccountId column the
+#     write guards stamp and token, and stays on this stricter track — Roles,
 #     UserClaims, UserLogins, UserTokens, RoleClaims, DurableJob). Candidate =
 #     EVERY db.<Table> access. These sets have no AccountId to compare, so the
 #     predicate rule cannot apply; instead any query against them is a bypass
