@@ -19,10 +19,13 @@ using System.Text.RegularExpressions;
 // both halves of the check.
 //
 // Every repository mutation read is a TRACKED read behind the tenant query
-// filter, which is what makes the snapshot trustworthy. That is a PRECONDITION
-// of the guard, not an incidental detail, so it gets a test: flipping one of
-// these reads to AsNoTracking is exactly the change that would void the theft
-// protection, and it must fail here rather than pass quietly.
+// filter, which is what makes the snapshot trustworthy. Until #562 that was
+// the whole guarantee; since #562 AccountId is a concurrency token and the
+// DATABASE refuses a detached stub's write (DetachedTenantWriteTests), so the
+// tracked read is now defence in depth — the layer that keeps the
+// interceptor's own check meaningful and a detached write from ever being
+// attempted. Flipping one of these reads to AsNoTracking must still fail
+// here rather than pass quietly.
 //
 // TWO tests, because one repository is not the precondition (#561 review round 2):
 //   * FlockRepository_GetByIdAsync_ReturnsATrackedEntity proves the MECHANISM
@@ -34,9 +37,8 @@ using System.Text.RegularExpressions;
 //     precondition while pinning 1 of 16, so it would not catch the regression it
 //     documents. Walk everything, exclude deliberately (AGENTS.md).
 //
-// Deliberately NOT a test that a detached write succeeds. That behaviour is a
-// known gap tracked in #562; asserting it would turn "not yet fixed" into
-// "specified".
+// The detached-write behaviour itself is asserted in DetachedTenantWriteTests
+// (refused, since #562), not here.
 [Collection(IntegrationCollection.Name)]
 public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory factory)
 {
@@ -160,8 +162,9 @@ public sealed class TrackedMutationReadTests(CluckworkWebApplicationFactory fact
         Assert.True(violations.Count == 0,
             "These repositories can mutate, but the read that feeds the write path opts out of change " +
             "tracking. TenantStampInterceptor compares AccountId's ORIGINAL value against the resolved " +
-            "tenant, and a detached entity carries caller-seeded originals — so this voids the " +
-            "cross-tenant theft check (see #562):\n  " + string.Join("\n  ", violations));
+            "tenant, and a detached entity carries caller-seeded originals — the database's AccountId " +
+            "token (#562) still refuses the row, but this layer is what keeps that from being reached:\n  " +
+            string.Join("\n  ", violations));
     }
 
     private static string FindRepoRoot()

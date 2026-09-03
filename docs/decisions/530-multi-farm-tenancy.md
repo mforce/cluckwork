@@ -152,9 +152,26 @@ entirely. Review found it, and the shipped version verifies both `OriginalValue`
 `CurrentValue` on update and `OriginalValue` on delete
 (`TenantStampInterceptor.cs:87-96`).
 
-**What this does NOT cover.** The guard reads EF's `OriginalValue` as DB provenance; a
-detached `Update`/`Remove` can still bypass the theft check. That gap is tracked
-separately in #562 and is **not** closed by this epic.
+**What it did not cover, and what closed it (#562, 2026-09-02).** The guard reads EF's
+`OriginalValue` as DB provenance, and that is only true for an entity that was *loaded* while
+tracked: `DbSet.Update`, `DbSet.Remove` and `Attach` seed the original values from the
+caller's own instance. Reproduced on a real Postgres in three shapes — a stub with another
+farm's primary key and this farm's `AccountId` handed to `Update` relabelled the row (theft),
+to `Remove` deleted it, and an `Attach` as `Unchanged` followed by an edit of only the owned
+`Money` rewrote the row's cost with the interceptor never seeing an entry it could judge. The
+third shape was **live**, not latent. Closed at the database rather than in C#: `AccountId` is
+an EF **concurrency token** on every entity that carries one, set by a model walk at the end of
+`AppDbContext.OnModelCreating`, so the statement the database runs carries
+`AND AccountId = <original>`; the interceptor already requires original == tenant, so a row
+that is not the tenant's matches nothing and EF throws `DbUpdateConcurrencyException`. No
+schema changes (the accompanying `AccountIdConcurrencyToken` migration is deliberately empty and
+exists to keep the snapshot equal to the model). The refusal is indistinguishable from a
+`Version` race inside the process and is logged under a resolved tenant as
+`Tenant.WriteRefusedByDatabase` (owner decision: a run of them is the signal, a lone one is a
+race). Pinned by `DetachedTenantWriteTests`, `AccountIdConcurrencyTokenModelTests` and
+`TenantWriteRefusalLoggingTests`. **Still outside both layers:** entity types with no
+`AccountId` property — Identity's own six tables, of which `AspNetUserRoles` is live RBAC state
+(#670) — and every `ExecuteUpdate`/`ExecuteDelete`/raw-SQL path, which #536's guard governs.
 
 ---
 
