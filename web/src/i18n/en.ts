@@ -1693,7 +1693,8 @@ export const en = {
     enterAmountGreaterThanZero: "Enter an amount greater than zero.",
 
     // Filters
-    monthLabel: "Month",
+    fromLabel: "From",
+    toLabel: "To",
     // Shared by the filter select, the add-form select, and the edit-form
     // select — all three already carry this identical label in source.
     categoryLabel: "Category",
@@ -1702,7 +1703,7 @@ export const en = {
     manageCategoriesButton: "manage categories",
     // {{amount}} is formatMoney's already-formatted total — farm-locale DATA,
     // never routed through i18n.language.
-    monthTotalLabel: "Month total: {{amount}}",
+    periodTotalLabel: "Total for this period: {{amount}}",
 
     // Category-management panel
     categoriesHeading: "Expense categories",
@@ -1742,7 +1743,8 @@ export const en = {
     saveCorrectionButton: "Save correction",
 
     // Expenses table
-    noExpensesMessage: "No expenses for this month.",
+    noExpensesMessage: "No expenses recorded yet.",
+    noExpensesMatch: "No expenses match these filters.",
     dateHeader: "Date",
     categoryHeader: "Category",
     descriptionHeader: "Description",

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { Receipt } from "lucide-react";
+import { FilterX, Receipt } from "lucide-react";
 import {
   adjustExpense, createExpense, createExpenseCategory, getExpense,
   listExpenseCategories, listExpenses, listFlocks, updateExpenseCategory,
@@ -58,7 +58,20 @@ export function ExpensesPage() {
   const { busy, isPending, run: runPending } = usePendingAction();
 
   // filters
-  const [month, setMonth] = useState(today.slice(0, 7)); // YYYY-MM
+  // #667 — a from/to pair, like every sibling list screen. It DEFAULTS to the
+  // current farm month rather than opening blank as the siblings do, and that
+  // divergence is deliberate: this screen shows a period TOTAL, so opening
+  // blank would silently change the default view from "this month's spend" to
+  // "every expense ever recorded, and a total to match". The user can widen or
+  // clear it; the default preserves what shipped.
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const monthEnd = (() => {
+    const [y, mo] = today.slice(0, 7).split("-").map(Number);
+    const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+    return `${today.slice(0, 7)}-${String(last).padStart(2, "0")}`;
+  })();
+  const [from, setFrom] = useState(monthStart);
+  const [to, setTo] = useState(monthEnd);
   const [filterCategory, setFilterCategory] = useState("");
 
   // add form
@@ -142,26 +155,23 @@ export function ExpensesPage() {
     if (err === undefined || err instanceof ApiError) clearKey(scope);
   };
 
-  const monthRange = useCallback((m: string) => {
-    const [y, mo] = m.split("-").map(Number);
-    const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-    return { from: `${m}-01`, to: `${m}-${String(last).padStart(2, "0")}` };
-  }, []);
-
   // offset 0 replaces the page (fresh view after filters/mutations); a larger
   // offset appends — months can exceed one page and every row must stay
   // reachable for correction (codex review of #88). The total always covers
   // the WHOLE filtered period regardless of paging.
   // #469 — this list had no request sequencing, on the screen where it hurts
-  // most: a failed month change used to leave the PREVIOUS month's rows and
+  // most: a failed filter change used to leave the PREVIOUS month's rows and
   // total under the new month's picker, reading as a legitimate figure for a
   // period it never described. The total rides as page metadata so it is
   // ticket-protected exactly like the rows and cleared with them.
   const expenses = usePagedList<Expense, { total: number; code: string; minor: number }>({
     fetchPage: useCallback(async (offset: number, limit: number) => {
-      const { from, to } = monthRange(month);
       const list = await listExpenses({
-        from, to, categoryId: filterCategory || undefined, limit, offset,
+        from: from || undefined,
+        to: to || undefined,
+        categoryId: filterCategory || undefined,
+        limit,
+        offset,
       });
       return {
         items: list.items,
@@ -171,7 +181,10 @@ export function ExpensesPage() {
           minor: list.currencyMinorUnit,
         },
       };
-    }, [month, filterCategory, monthRange]),
+      // INV-3 — every value the request body uses. #469's ticket discipline
+      // keys the whole "previous window's total under the new window's control"
+      // protection on this identity.
+    }, [from, to, filterCategory]),
     pageSize: PAGE,
   });
   // MONEY SCALE — never guessed, always the freshest authority available.
@@ -484,13 +497,19 @@ export function ExpensesPage() {
       <h2>{t("title")}</h2>
 
       <div className="filters">
-        {/* #653 — the month picker is this screen's date-range filter (one
-            input standing for a whole calendar month); the category filter
-            beside it is not a date control and stays outside the toolbar. */}
+        {/* #667 — a from/to pair matching every sibling list screen; the
+            category filter beside it is not a date control and stays outside
+            the toolbar. `max` is carried over from the month picker this
+            replaced: filtering into the future returns nothing by
+            construction. */}
         <div className="toolbar">
-          <label>{t("monthLabel")}
-            <input type="month" value={month} max={today.slice(0, 7)}
-              onChange={(e) => setMonth(e.target.value)} />
+          <label>{t("fromLabel")}
+            <input type="date" value={from} max={today}
+              onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label>{t("toLabel")}
+            <input type="date" value={to} max={today}
+              onChange={(e) => setTo(e.target.value)} />
           </label>
         </div>
         <label>{t("categoryLabel")}
@@ -518,7 +537,7 @@ export function ExpensesPage() {
           spend is UNKNOWN is zero, which on a money screen is a wrong number
           rather than a degraded display (codex review). */}
       {!expenses.reloading && expenses.meta !== null && (
-        <p><strong>{t("monthTotalLabel", {
+        <p><strong>{t("periodTotalLabel", {
           amount: fmt.money(expenses.meta.total, currencyCode, currencyMinor),
         })}</strong></p>
       )}
@@ -740,9 +759,18 @@ export function ExpensesPage() {
       {expenses.rows === null || expenses.reloading ? (
         <p className="muted">{tc("loading")}</p>
       ) : expenses.rows.length === 0 ? (
-        // The month picker is always set (never "cleared"), and expense
-        // capture is the inline form above — no filter/create action to offer.
-        <EmptyState icon={Receipt} message={t("noExpensesMessage")} />
+        // #667 — the month picker used to be always set, so there was only one
+        // way to be empty. A range can be cleared or narrowed to nothing, so
+        // this becomes the two-variant shape the sibling screens use: the
+        // filtered sentence offers a way out, the truly-empty one does not
+        // (expense capture is the inline form above, not a page-head action).
+        (from || to || filterCategory)
+          ? <EmptyState icon={FilterX} message={t("noExpensesMatch")}
+              action={{
+                label: tc("clearFiltersButton"),
+                onClick: () => { setFrom(""); setTo(""); setFilterCategory(""); },
+              }} />
+          : <EmptyState icon={Receipt} message={t("noExpensesMessage")} />
       ) : (
         <table className="data">
           <thead>

@@ -29,7 +29,7 @@ describe(".toolbar", () => {
   });
 });
 
-describe.each(['.toolbar input[type="date"]', '.toolbar input[type="month"]'])("%s", (selector) => {
+describe.each(['.toolbar input[type="date"]'])("%s", (selector) => {
   it("caps a date-range control at a bounded width, never the row's full width", () => {
     expect(declarationsFor(selector).get("max-width")).toBe("12rem");
   });

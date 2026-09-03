@@ -1324,12 +1324,13 @@ export const es = {
     enterAmountGreaterThanZero: "Ingrese un monto mayor que cero.",
 
     // Filters
-    monthLabel: "Mes",
+    fromLabel: "Desde",
+    toLabel: "Hasta",
     categoryLabel: "Categoría",
     allCategoriesOption: "Todas las categorías",
     hideCategoriesButton: "ocultar categorías",
     manageCategoriesButton: "gestionar categorías",
-    monthTotalLabel: "Total del mes: {{amount}}",
+    periodTotalLabel: "Total de este período: {{amount}}",
 
     // Category-management panel
     categoriesHeading: "Categorías de gastos",
@@ -1363,7 +1364,8 @@ export const es = {
     saveCorrectionButton: "Guardar corrección",
 
     // Expenses table
-    noExpensesMessage: "No hay gastos este mes.",
+    noExpensesMessage: "Aún no se han registrado gastos.",
+    noExpensesMatch: "Ningún gasto coincide con estos filtros.",
     dateHeader: "Fecha",
     categoryHeader: "Categoría",
     descriptionHeader: "Descripción",

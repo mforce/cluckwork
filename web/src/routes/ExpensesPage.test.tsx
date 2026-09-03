@@ -131,13 +131,27 @@ describe("ExpensesPage list + totals", () => {
     expect(within(row).getByText("BHD 1.500")).toBeInTheDocument(); // 1500 @ 3dp, not "15.00"
     // month total is its own value (12345), rendered at 3dp → "BHD 12.345"; a
     // hard-coded 2dp formatter would read "123.45", so this pins the scale.
-    expect(screen.getByText(/Month total: BHD 12\.345/)).toBeInTheDocument();
+    expect(screen.getByText(/Total for this period: BHD 12\.345/)).toBeInTheDocument();
   });
 
-  it("shows the empty-state hint when the month has no expenses", async () => {
+  it("shows the filtered empty state when the default month has no expenses", async () => {
     mockListExpenses.mockResolvedValue(emptyList("USD", 2));
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
-    expect(await screen.findByText("No expenses for this month.")).toBeInTheDocument();
+
+    // The default window IS a filter — it is visible in the two date controls —
+    // so "no expenses recorded yet" would be a false statement about the farm.
+    expect(await screen.findByText("No expenses match these filters.")).toBeInTheDocument();
+    expect(screen.queryByText("No expenses recorded yet.")).not.toBeInTheDocument();
+  });
+
+  it("shows the truly-empty state once the filters are cleared", async () => {
+    mockListExpenses.mockResolvedValue(emptyList("USD", 2));
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    await screen.findByText("No expenses match these filters.");
+
+    fireEvent.click(screen.getByRole("button", { name: /clear filters/i }));
+
+    expect(await screen.findByText("No expenses recorded yet.")).toBeInTheDocument();
   });
 
   // #512 US4 (T043/T051) — a row's own flockName is null (the flock left the
@@ -276,10 +290,13 @@ describe("ExpensesPage category filter", () => {
     expect(mockListExpenses.mock.calls[0][0]).toMatchObject({ limit: 100, offset: 0 });
     expect(mockListExpenses.mock.calls[0][0]!.categoryId).toBeUndefined();
 
-    // Pin a known month: February 2026 (non-leap) → the component must derive the
-    // exact inclusive boundaries 2026-02-01 … 2026-02-28, not just a YYYY-MM prefix.
+    // Pin a known month: February 2026 (non-leap) → the exact inclusive
+    // boundaries 2026-02-01 … 2026-02-28, driven directly as a from/to pair.
     await act(async () => {
-      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-02" } });
+      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-02-01" } });
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-02-28" } });
     });
     await act(async () => {
       fireEvent.change(comboWithOption(/All categories/), { target: { value: "cat-util" } });
@@ -629,10 +646,10 @@ describe("ExpensesPage i18n wiring (#182, Task 23)", () => {
   // this even though "BHD 12.345" itself is unaffected by the marker.
   it("interpolates formatMoney's total into the month-total label from the catalog", async () => {
     mockListExpenses.mockResolvedValue({ items: [], totalMinorUnits: 12345, currencyCode: "BHD", currencyMinorUnit: 3 });
-    await withOverride("expenses", "monthTotalLabel", "TOTAL-MARKER {{amount}} END", async () => {
+    await withOverride("expenses", "periodTotalLabel", "TOTAL-MARKER {{amount}} END", async () => {
       renderWithProviders(<ExpensesPage />, { token: ADMIN });
       expect(await screen.findByText("TOTAL-MARKER BHD 12.345 END")).toBeInTheDocument();
-      expect(screen.queryByText(/Month total:/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Total for this period:/)).not.toBeInTheDocument();
     });
   });
 
@@ -751,12 +768,20 @@ describe("ExpensesPage list failures (#469)", () => {
       items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2,
     });
     await renderReady();
-    expect(screen.getByText(/Month total: \$999\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Total for this period: \$999\.00/)).toBeInTheDocument();
 
+    // From and To are two separate controls, so setting a range fires two
+    // separate change events (unlike the single month picker this replaced)
+    // — each is its own fetchPage identity and its own request. The first
+    // (From-only) is an interim window immediately superseded by the second
+    // (From+To); queue a harmless placeholder for it so the reject below
+    // lands on the request that actually describes the target range.
+    mockListExpenses.mockResolvedValueOnce({ items: [], totalMinorUnits: 0, currencyCode: "USD", currencyMinorUnit: 2 });
     mockListExpenses.mockRejectedValueOnce(new Error("boom"));
     await act(async () => {
       // A month the picker is not already on — it defaults to the current one.
-      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-05-01" } });
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-05-31" } });
     });
 
     // Neither the old month's rows nor its money may describe the new one.
@@ -768,20 +793,29 @@ describe("ExpensesPage list failures (#469)", () => {
     await renderReady();
 
     let releaseStale!: (v: ExpenseList) => void;
+    // Two changes per range (see the comment above): a harmless interim
+    // placeholder for the From-only request, then the deliberately-unsettled
+    // "stale" promise for the request that actually names the June range.
+    mockListExpenses.mockResolvedValueOnce({ items: [], totalMinorUnits: 0, currencyCode: "USD", currencyMinorUnit: 2 });
     mockListExpenses.mockReturnValueOnce(new Promise((r) => { releaseStale = r; }));
-    fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-06" } });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-06-01" } });
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-06-30" } });
+    });
+    mockListExpenses.mockResolvedValueOnce({ items: [], totalMinorUnits: 0, currencyCode: "USD", currencyMinorUnit: 2 });
     mockListExpenses.mockResolvedValueOnce({
       items: [], totalMinorUnits: 500, currencyCode: "USD", currencyMinorUnit: 2,
     });
     await act(async () => {
-      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-05-01" } });
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-05-31" } });
     });
-    expect(screen.getByText(/Month total: \$5\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Total for this period: \$5\.00/)).toBeInTheDocument();
 
     await act(async () => {
       releaseStale({ items: [], totalMinorUnits: 88800, currencyCode: "USD", currencyMinorUnit: 2 });
     });
-    expect(screen.getByText(/Month total: \$5\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Total for this period: \$5\.00/)).toBeInTheDocument();
     expect(screen.queryByText(/\$888\.00/)).not.toBeInTheDocument();
   });
 });
@@ -828,7 +862,8 @@ describe("ExpensesPage currency scale without an account (#469, codex P1)", () =
     await waitFor(() => expect(screen.getByRole("button", { name: "Record expense" })).toBeEnabled());
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-05-01" } });
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-05-31" } });
     });
     expect(screen.getByRole("alert")).toBeInTheDocument();
 
@@ -894,12 +929,16 @@ describe("ExpensesPage cross-period display while loading (#469, codex P2)", () 
       items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2,
     });
     await renderReady();
-    expect(screen.getByText(/Month total: \$999\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Total for this period: \$999\.00/)).toBeInTheDocument();
 
-    // The replacement hangs: nothing about the old month may still show.
+    // The replacement hangs: nothing about the old month may still show. A
+    // harmless interim placeholder absorbs the From-only request; the final
+    // (From+To) request is the one that hangs.
+    mockListExpenses.mockResolvedValueOnce({ items: [], totalMinorUnits: 0, currencyCode: "USD", currencyMinorUnit: 2 });
     mockListExpenses.mockReturnValueOnce(new Promise(() => {}));
     await act(async () => {
-      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-05-01" } });
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-05-31" } });
     });
 
     expect(screen.queryByText(/\$999\.00/)).not.toBeInTheDocument();
@@ -946,15 +985,89 @@ describe("ExpensesPage total is never a guess (#469, codex P2)", () => {
       .mockResolvedValueOnce({ items: [EXP_OLD], totalMinorUnits: 99900, currencyCode: "USD", currencyMinorUnit: 2 })
       .mockRejectedValue(new Error("boom"));
     await renderReady();
-    expect(screen.getByText(/Month total: \$999\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Total for this period: \$999\.00/)).toBeInTheDocument();
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-05" } });
+      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-05-01" } });
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-05-31" } });
     });
 
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(screen.queryByText(/Month total:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Total for this period:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/0\.00/)).not.toBeInTheDocument();
+  });
+});
+
+describe("ExpensesPage date-range filter (#667)", () => {
+  // The farm's today is computed LIVE from the clock in this suite —
+  // `farmState()` sets `today: null` on purpose (test/fixtures.ts:33-40) and
+  // `useFarmToday()` then falls through to `todayIso()`, which calls
+  // `new Date()`. `renderWithProviders` exposes no `today` override. So this
+  // test MUST pin the clock, or it asserts a different month every month and
+  // goes red on the 1st of October without a line of code changing.
+  // `vi.setSystemTime` is the established form here (Dashboard.test.tsx:371,
+  // DailyEntryPage.test.tsx:1189, HistoryPage.test.tsx).
+  it("defaults to the current farm month", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-05-15T12:00:00Z"));
+    try {
+      renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+      await waitFor(() => {
+        expect(mockListExpenses).toHaveBeenCalledWith(
+          expect.objectContaining({ from: "2026-05-01", to: "2026-05-31" }),
+        );
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // February, because the month-end arithmetic is the only thing in this
+  // change that can be wrong per-month, and a 31-day month cannot tell a
+  // correct `last day` from a hardcoded 31.
+  it("defaults to the correct month end in a short month", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-02-10T12:00:00Z"));
+    try {
+      renderWithProviders(<ExpensesPage />, { token: ADMIN });
+
+      await waitFor(() => {
+        expect(mockListExpenses).toHaveBeenCalledWith(
+          expect.objectContaining({ from: "2026-02-01", to: "2026-02-28" }),
+        );
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("filters by an arbitrary range, not only whole months", async () => {
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    await waitFor(() => expect(mockListExpenses).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-10" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-08-14" } });
+
+    await waitFor(() => {
+      expect(mockListExpenses).toHaveBeenCalledWith(
+        expect.objectContaining({ from: "2026-08-10", to: "2026-08-14" }),
+      );
+    });
+  });
+
+  // INV-4 — the truly-empty sentence must not be shown for a window the user
+  // filtered to nothing, and it must offer a way out.
+  it("offers clear-filters when a range matches nothing, and says why", async () => {
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    await waitFor(() => expect(mockListExpenses).toHaveBeenCalled());
+
+    mockListExpenses.mockResolvedValue({ items: [], totalMinorUnits: 0, currencyCode: "PHP", currencyMinorUnit: 2 });
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2020-01-01" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2020-01-02" } });
+
+    expect(await screen.findByText("No expenses match these filters.")).toBeInTheDocument();
+    expect(screen.queryByText("No expenses recorded yet.")).not.toBeInTheDocument();
   });
 });
 

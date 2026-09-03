@@ -1373,12 +1373,13 @@ export const tl = {
     enterAmountGreaterThanZero: "Maglagay ng halagang higit sa zero.",
 
     // Filters
-    monthLabel: "Buwan",
+    fromLabel: "Mula",
+    toLabel: "Hanggang",
     categoryLabel: "Kategorya",
     allCategoriesOption: "Lahat ng kategorya",
     hideCategoriesButton: "itago ang mga kategorya",
     manageCategoriesButton: "pamahalaan ang mga kategorya",
-    monthTotalLabel: "Kabuuan ng buwan: {{amount}}",
+    periodTotalLabel: "Kabuuan sa panahong ito: {{amount}}",
 
     // Category-management panel
     categoriesHeading: "Mga kategorya ng gastos",
@@ -1412,7 +1413,8 @@ export const tl = {
     saveCorrectionButton: "I-save ang pagtatama",
 
     // Expenses table
-    noExpensesMessage: "Walang gastos ngayong buwan.",
+    noExpensesMessage: "Wala pang naitalang gastos.",
+    noExpensesMatch: "Walang gastos na tumutugma sa mga filter na ito.",
     dateHeader: "Petsa",
     categoryHeader: "Kategorya",
     descriptionHeader: "Deskripsyon",

@@ -21,6 +21,7 @@ const EMPTY_STATE_SITES: { file: string; key: string }[] = [
   { file: "HistoryPage.tsx", key: "noEntriesMatch" },
   { file: "FeedPage.tsx", key: "noRecordsMatch" },
   { file: "WaterPage.tsx", key: "noRecordsMatch" },
+  { file: "ExpensesPage.tsx", key: "noExpensesMatch" },
   { file: "ExpensesPage.tsx", key: "noExpensesMessage" },
   { file: "SalesPage.tsx", key: "noOrdersMatch" },
 ];
@@ -44,6 +45,7 @@ describe("classified empty-state sites render through EmptyState, not a bare mut
 // two-variant screen is `cond ? <EmptyState icon={FilterX} message={t("KEY_A")}
 // ... : <EmptyState icon={...} message={t("KEY_B")}`; this pins KEY_A !== KEY_B.
 const TWO_VARIANT_FILES = [
+  "ExpensesPage.tsx",
   "SalesPage.tsx",
   "FlocksPage.tsx",
   "FeedPage.tsx",
