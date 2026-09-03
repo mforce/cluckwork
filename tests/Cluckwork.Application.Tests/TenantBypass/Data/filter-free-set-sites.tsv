@@ -74,7 +74,7 @@ src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1047	db.UserRoles	scop
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1048	db.Roles	global-reference: role lookup by name in the Owner check (AspNetRoles is farm-wide reference data).
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1062	db.UserRoles	scoped-by-user-id: counts other active Owners by joining UserRoles on the user id (account-unique) and the user's AccountId == accountId.
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1063	db.Roles	global-reference: Owner-role filter by name in the owner-count (AspNetRoles is farm-wide reference data).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1115	db.UserRoles	scoped-by-user-id: DisableUser revokes the user's roles by userRole.UserId == userId (account-unique).
+src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1115	db.UserRoles	scoped-by-user-id: DisableUser READS the target's Owner membership by userRole.UserId == userId (account-unique) for the last-Owner check; it writes no role row (it disables the user, rotates the stamp, bumps the epoch, revokes refresh tokens).
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1116	db.Roles	global-reference: role lookup by name in the disable path (AspNetRoles is farm-wide reference data).
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1451	db.UserRoles	scoped-by-account: lists the account's users with their roles; the query carries u.AccountId == accountId (the UserRoles join is scoped by the user rows).
 src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1452	db.Roles	global-reference: role name resolution in ListUsers (AspNetRoles is farm-wide reference data).

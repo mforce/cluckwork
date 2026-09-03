@@ -187,12 +187,26 @@ hand-inserted backfill from `AspNetUsers` and a `DROP DEFAULT` (`UserRoleAccount
 migrates to the point before it, inserts a role row, and migrates forward). No query filter,
 deliberately — `FirstRunStatusService` reads the table anonymously — and the #536 scanner keeps
 `UserRoles` on its stricter non-tenant track because that split is on CLR shape. Pinned by
-`UserRoleTenantWriteTests`, `UserRoleAccountIdModelTests` and `UserRoleAccountIdMigrationTests`.
+`UserRoleTenantWriteTests`, `UserRoleAccountIdModelTests` and `UserRoleAccountIdMigrationTests`
+(the last four of those tests cover the tracked shape too: loading another farm's row is a
+one-line query on a filter-free table, and a relabel is refused by the interceptor and then by the
+FK, a tracked `Remove` by the interceptor alone). **What no layer covers on this table, stated
+exactly:** under an *unresolved* tenant neither write layer inspects a `DELETE` — the same as every
+entity — but on every filtered entity such a scope reads zero rows unless it writes
+`IgnoreQueryFilters()`, a marker a reviewer sees, while here there is no filter and so no marker: an
+unresolved-tenant `db.UserRoles.Where(…)` + `RemoveRange` would delete every farm's matching
+grants with no refusal. Nothing in `src/` does that, and what holds the arm shut is #536's scanner
+(every `db.UserRoles` site is a classified candidate in `filter-free-set-sites.tsv`) — a guarded
+convention, not a mechanism; narrowing that entry is what reopens it.
 **Accepted risk, deliberately:** `AspNetUserClaims`, `AspNetUserLogins`, `AspNetUserTokens` and
 `AspNetRoleClaims` keep no tenant column. Nothing in `src/` writes or reads them, any direct
 `db.<Set>` access is already a #536 candidate requiring an allow-list entry, and `AspNetRoles` is
-global reference data. The residual is a future `UserManager` claim/login/token call, which no
-source walk can see — the same treatment as `AspNetUserRoles` is the fix the day one appears.
+global reference data. Two residuals no source walk can see: a future `UserManager`
+claim/login/token call — the same treatment as `AspNetUserRoles` is the fix the day one appears —
+and `RoleManager.DeleteAsync`, which deletes a *global* role and, through
+`FK_AspNetUserRoles_AspNetRoles_RoleId … ON DELETE CASCADE`, every farm's grants of it with the
+change tracker never holding an `IdentityUserRole` row; no caller exists, and one would be a
+farm-wide operation by construction, never a per-farm one.
 
 ---
 
@@ -392,6 +406,10 @@ Most of it is enforced by the guards named per section. The parts that are **not
 - the accepted risk on the four claim/login/token/role-claim Identity tables (§5, #670) —
   **nothing enforces that no writer appears**; a direct `db.<Set>` access is caught by #536's
   scanner, a `UserManager` claim/login/token call is not, and relies on review;
+- the unresolved-tenant `DELETE` arm on `AspNetUserRoles` (§5, #670) — **held shut by #536's
+  scanner's classification of every `db.UserRoles` site, not by a write layer**; and
+  `RoleManager.DeleteAsync`'s cascade across every farm's grants — **nothing enforces that no
+  caller appears**; both rely on review;
 - the "no slug as a metric label" and "no `AccessFailedAsync` on the unknown-farm branch"
   constraints (§4) — **nothing enforces these; they rely on review** and on the comments at
   the call site;
