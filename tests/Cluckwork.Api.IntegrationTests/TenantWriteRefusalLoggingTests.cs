@@ -4,8 +4,12 @@ using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Infrastructure.Persistence;
+using Cluckwork.Infrastructure.Persistence.Interceptors;
+using Cluckwork.Infrastructure.Providers;
+using Cluckwork.Infrastructure.Providers.Postgres;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Serilog.Events;
 
 // #562 — the database-side refusal is logged as a security event.
@@ -147,6 +151,62 @@ public sealed class TenantWriteRefusalLoggingTests(SecurityEventLoggingFactory f
         Assert.IsNotType<DbUpdateConcurrencyException>(thrown);
         Assert.IsAssignableFrom<DbUpdateException>(thrown);
         Assert.Equal(before, RefusalsFor(accountA).Count);
+    }
+
+    // INV-5a (#671 review, round 1): the logging path must never change the
+    // exception the caller sees. Program.cs maps DbUpdateConcurrencyException
+    // to 409, and IdentityProvider and IdempotencyMiddleware catch it by type;
+    // a sink that throws inside the hook would otherwise propagate in its
+    // place as a 500. The interceptor is hand-built here with a logger that
+    // throws on every call, exactly as the migration tests hand-build it, on
+    // the factory's own database.
+    [Fact]
+    public async Task LoggerFailure_DoesNotChangeTheException()
+    {
+        var accountA = await factory.SeedAccountWithUserAsync($"a-{Guid.NewGuid():N}@test.local");
+        var accountB = await factory.SeedAccountWithUserAsync($"b-{Guid.NewGuid():N}@test.local");
+        var rowId = await factory.WithTenantScopeAsync(accountB, async db =>
+        {
+            var entry = NewEntry(Guid.NewGuid(), accountB, Guid.NewGuid(), Guid.NewGuid());
+            db.DailyEntries.Add(entry);
+            await db.SaveChangesAsync();
+            return entry.Id;
+        });
+
+        var tenant = new TenantContext();
+        tenant.Resolve(accountA);
+        var sink = new ThrowingLogger();
+        var options = new DbContextOptionsBuilder<AppDbContext>();
+        new PostgresDbContextConfigurator().Configure(options, factory.ConnectionString, new DatabaseResilienceOptions());
+        options.AddInterceptors(new TenantStampInterceptor(tenant, sink));
+        await using var db = new AppDbContext(options.Options, tenant, new FlockScope());
+
+        var thrown = await CaptureAsync(async () =>
+        {
+            db.DailyEntries.Update(NewEntry(rowId, accountA, Guid.NewGuid(), Guid.NewGuid()));
+            await db.SaveChangesAsync();
+        });
+
+        Assert.True(sink.Calls > 0, "the throwing logger was never invoked — the write never reached the log path");
+        Assert.True(thrown is DbUpdateConcurrencyException,
+            $"the logger's failure replaced the concurrency exception: thrown={thrown?.GetType().Name ?? "none"} ({thrown?.Message})");
+    }
+
+    private sealed class ThrowingLogger : ILogger<TenantStampInterceptor>
+    {
+        public int Calls { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Calls++;
+            throw new InvalidOperationException("log sink exploded on purpose (test double)");
+        }
     }
 
     [Fact]

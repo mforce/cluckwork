@@ -175,21 +175,36 @@ public sealed class TenantStampInterceptor(
     {
         if (!tenant.IsResolved) return;
 
-        foreach (var entry in eventData.Exception.Entries)
+        // This method must never change the exception the caller sees.
+        // Program.cs maps DbUpdateConcurrencyException to 409, and
+        // IdentityProvider and IdempotencyMiddleware catch it by type; a sink
+        // or entry-shape failure in here would otherwise propagate in its
+        // place as a 500. Anything thrown while logging is dropped — the
+        // refusal itself is still thrown by EF the moment this returns, and
+        // the only channel this method has is the one that just failed. Pinned
+        // by TenantWriteRefusalLoggingTests.LoggerFailure_DoesNotChangeTheException.
+        try
         {
-            // An owned entry (a Money on a table-split aggregate) shares its
-            // owner's key, so the key logged is the row's either way.
-            var key = entry.Metadata.FindPrimaryKey();
-            var keyValues = key is null
-                ? "?"
-                : string.Join(",", key.Properties.Select(p => entry.Property(p.Name).CurrentValue));
+            foreach (var entry in eventData.Exception.Entries)
+            {
+                // An owned entry (a Money on a table-split aggregate) shares its
+                // owner's key, so the key logged is the row's either way.
+                var key = entry.Metadata.FindPrimaryKey();
+                var keyValues = key is null
+                    ? "?"
+                    : string.Join(",", key.Properties.Select(p => entry.Property(p.Name).CurrentValue));
 
-            logger.LogWarning(
-                "{SecurityEvent} entity={EntityType} key={KeyValues} tenant={TenantAccountId}",
-                SecurityEvents.TenantWriteRefusedByDatabase,
-                entry.Metadata.DisplayName(),
-                keyValues,
-                tenant.AccountId);
+                logger.LogWarning(
+                    "{SecurityEvent} entity={EntityType} key={KeyValues} tenant={TenantAccountId}",
+                    SecurityEvents.TenantWriteRefusedByDatabase,
+                    entry.Metadata.DisplayName(),
+                    keyValues,
+                    tenant.AccountId);
+            }
+        }
+        catch (Exception)
+        {
+            // Deliberately silent — see above.
         }
     }
 }
