@@ -35,11 +35,11 @@ git status --porcelain        # expect: only "?? docs/plans/562-tenant-write-tok
 
 ### 9a. `docs/plans/562-tenant-write-token/03-fix-increment-2.md` — heading level
 Find this exact line:
-```
+```text
 # INCREMENT 8 — the guard's comment and message say what the code does (Mechanical)
 ```
 Replace with:
-```
+```text
 ## INCREMENT 8 — the guard's comment and message say what the code does (Mechanical)
 ```
 
