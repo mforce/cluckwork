@@ -1,7 +1,36 @@
 namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
+using System.Net;
+using System.Net.Sockets;
+
 public sealed class FakeOtlpCollectorTests
 {
+    [Fact]
+    public async Task Bind_retries_with_a_fresh_listener_after_a_lost_port_race()
+    {
+        using var occupied = new TcpListener(IPAddress.Loopback, 0);
+        occupied.Start();
+        var takenPort = ((IPEndPoint)occupied.LocalEndpoint).Port;
+        var answers = new Queue<int>([takenPort]);
+
+        using var collector = new FakeOtlpCollector(() => answers.Count > 0 ? answers.Dequeue() : FreeTestPort());
+        using var client = new HttpClient();
+
+        var post = client.PostAsync($"{collector.Endpoint}/v1/traces", new ByteArrayContent([0x01]));
+        var captured = await collector.WaitForRequestAsync("/v1/traces", TimeSpan.FromSeconds(5));
+
+        Assert.Equal("/v1/traces", captured.Path);
+        Assert.DoesNotContain($":{takenPort}", collector.Endpoint, StringComparison.Ordinal);
+        (await post).Dispose();
+    }
+
+    private static int FreeTestPort()
+    {
+        using var probe = new TcpListener(IPAddress.Loopback, 0);
+        probe.Start();
+        return ((IPEndPoint)probe.LocalEndpoint).Port;
+    }
+
     [Fact]
     public async Task Predicate_wait_throws_a_terminal_error_completed_at_the_timeout_catch_boundary()
     {

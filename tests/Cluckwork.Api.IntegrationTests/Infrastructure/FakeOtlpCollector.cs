@@ -15,7 +15,7 @@ internal sealed record CapturedOtlpRequest(
 // path has a FIFO queue rather than a one-shot completion source.
 internal sealed class FakeOtlpCollector : IDisposable
 {
-    private readonly HttpListener _listener = new();
+    private readonly HttpListener _listener;
     private readonly ConcurrentDictionary<string, Channel<CapturedOtlpRequest>> _byPath = new();
     private readonly object _stateGate = new();
     private readonly TaskCompletionSource<Exception> _terminal =
@@ -26,27 +26,42 @@ internal sealed class FakeOtlpCollector : IDisposable
     private Exception? _terminalException;
     private int _publishedRequestCount;
 
-    public FakeOtlpCollector()
+    public FakeOtlpCollector() : this(FreePort)
     {
+    }
+
+    // The port source is injectable so a test can hand the first attempt a port that is
+    // already taken; every other caller in the suite goes through the parameterless constructor.
+    internal FakeOtlpCollector(Func<int> portSource)
+    {
+        ArgumentNullException.ThrowIfNull(portSource);
+
         for (var attempt = 1; ; attempt++)
         {
-            var port = FreePort();
-            Endpoint = $"http://127.0.0.1:{port}";
-            _listener.Prefixes.Clear();
-            _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+            var port = portSource();
+            var listener = new HttpListener();
+            listener.Prefixes.Add($"http://127.0.0.1:{port}/");
             try
             {
-                _listener.Start();
+                listener.Start();
+                _listener = listener;
+                Endpoint = $"http://127.0.0.1:{port}";
                 break;
             }
-            catch (HttpListenerException) when (attempt < 3)
+            catch (HttpListenerException)
             {
-                // The probe port was claimed before binding; retry a new one.
+                // Start() closes the listener on ANY failure, so the next attempt needs a
+                // fresh instance as well as a fresh port: reusing this one throws
+                // ObjectDisposedException from the very next Prefixes access.
+                ((IDisposable)listener).Dispose();
+                if (attempt >= BindAttempts) throw;
             }
         }
 
         _serveTask = Task.Run(ServeAsync);
     }
+
+    private const int BindAttempts = 10;
 
     public string Endpoint { get; }
 
