@@ -25,6 +25,8 @@ internal sealed class FakeOtlpCollector : IDisposable
     private readonly Task _serveTask;
     private Exception? _terminalException;
     private int _publishedRequestCount;
+    private int _abortedExportCount;
+    private Exception? _lastAbsorbedConnectionFault;
 
     public FakeOtlpCollector() : this(FreePort)
     {
@@ -71,6 +73,11 @@ internal sealed class FakeOtlpCollector : IDisposable
 
     internal int PublishedRequestCountForTest => Volatile.Read(ref _publishedRequestCount);
 
+    // An export-shaped request whose body never completed still ARRIVED. It is absorbed rather
+    // than faulting the collector, but it is counted, because "no export arrived" must not be
+    // satisfied by one that arrived and then died mid-transfer.
+    internal int AbortedExportCountForTest => Volatile.Read(ref _abortedExportCount);
+
     public async Task<byte[]> WaitForPathAsync(string path, TimeSpan timeout) =>
         (await WaitForRequestAsync(path, timeout)).Body;
 
@@ -112,7 +119,13 @@ internal sealed class FakeOtlpCollector : IDisposable
         {
             OnTimeoutCaughtForTest?.Invoke();
             ThrowIfTerminated();
-            throw new TimeoutException($"no matching OTLP export arrived on {path} before the timeout");
+            var absorbed = Volatile.Read(ref _lastAbsorbedConnectionFault);
+            throw new TimeoutException(
+                $"no matching OTLP export arrived on {path} before the timeout"
+                + (absorbed is null
+                    ? string.Empty
+                    : $"; {AbortedExportCountForTest} export(s) died mid-transfer and were absorbed, "
+                      + $"last connection fault: {absorbed.Message}"));
         }
     }
 
@@ -123,6 +136,11 @@ internal sealed class FakeOtlpCollector : IDisposable
         ThrowIfTerminated();
         Assert.True(completed != _anyRequest.Task,
             "an OTLP request arrived while export was expected to be disabled");
+        var aborted = AbortedExportCountForTest;
+        Assert.True(aborted == 0,
+            $"an OTLP export arrived while export was expected to be disabled but its body never "
+            + $"completed, so it was never published ({aborted} aborted; last connection fault: "
+            + $"{Volatile.Read(ref _lastAbsorbedConnectionFault)?.Message ?? "none"})");
     }
 
     internal void FaultForTest(Exception exception) => Fault(exception);
@@ -175,6 +193,7 @@ internal sealed class FakeOtlpCollector : IDisposable
         {
             while (_listener.IsListening)
             {
+                var identifiedAsExport = false;
                 try
                 {
                     currentContext = await _listener.GetContextAsync();
@@ -189,6 +208,7 @@ internal sealed class FakeOtlpCollector : IDisposable
                         continue;
                     }
 
+                    identifiedAsExport = true;
                     using var buffer = new MemoryStream();
                     await currentContext.Request.InputStream.CopyToAsync(buffer);
                     var headers = currentContext.Request.Headers.AllKeys
@@ -205,7 +225,11 @@ internal sealed class FakeOtlpCollector : IDisposable
                 catch (Exception ex) when (ex is HttpListenerException or IOException && _listener.IsListening)
                 {
                     // An unrelated client died mid-exchange. That is not this collector's business,
-                    // and faulting here would redden whatever test happens to hold it.
+                    // and faulting here would redden whatever test happens to hold it. But absorbing
+                    // is not forgetting: if the request had already been identified as an OTLP export,
+                    // count it, so a real export that dies mid-transfer cannot read as "nothing arrived".
+                    if (identifiedAsExport) Interlocked.Increment(ref _abortedExportCount);
+                    Volatile.Write(ref _lastAbsorbedConnectionFault, ex);
                     try { currentContext?.Response.Abort(); } catch { /* already gone */ }
                     currentContext = null;
                 }
@@ -222,6 +246,10 @@ internal sealed class FakeOtlpCollector : IDisposable
         }
     }
 
+    // http/protobuf ONLY, deliberately: gRPC OTLP uses HTTP/2 and a
+    // /opentelemetry.proto.collector.*/Export path, which this gate refuses. A test that points a
+    // grpc-protocol child at this collector would see every export 404'd, so do not use this fixture
+    // to prove anything about the gRPC transport.
     private static bool IsOtlpExport(HttpListenerRequest request) =>
         string.Equals(request.HttpMethod, "POST", StringComparison.Ordinal)
         && request.Url is { AbsolutePath: var path }

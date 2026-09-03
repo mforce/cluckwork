@@ -73,6 +73,32 @@ public sealed class FakeOtlpCollectorTests
         (await post).Dispose();
     }
 
+    [Fact]
+    public async Task An_export_that_dies_mid_transfer_is_reported_not_silently_dropped()
+    {
+        using var collector = new FakeOtlpCollector();
+        var endpoint = new Uri(collector.Endpoint);
+
+        using (var rude = new TcpClient())
+        {
+            rude.Connect(IPAddress.Loopback, endpoint.Port);
+            rude.LingerState = new LingerOption(true, 0);
+            var truncated = "POST /v1/traces HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 100\r\n\r\nxx"u8.ToArray();
+            rude.GetStream().Write(truncated);
+            rude.GetStream().Flush();
+        }
+
+        // The collector must not fault (that is the dead-client rule), but it must not pretend the
+        // export never arrived either: an export-shaped request that died mid-body is still one that
+        // arrived, and "no export arrived" has to fail.
+        var failure = await Assert.ThrowsAnyAsync<Exception>(
+            () => collector.AssertNoRequestAsync(TimeSpan.FromSeconds(1)));
+
+        Assert.Contains("its body never completed", failure.Message, StringComparison.Ordinal);
+        Assert.Equal(1, collector.AbortedExportCountForTest);
+        Assert.Equal(0, collector.PublishedRequestCountForTest);
+    }
+
     private static int FreeTestPort()
     {
         using var probe = new TcpListener(IPAddress.Loopback, 0);
