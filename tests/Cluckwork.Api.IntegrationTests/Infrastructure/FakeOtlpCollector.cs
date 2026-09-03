@@ -26,6 +26,7 @@ internal sealed class FakeOtlpCollector : IDisposable
     private Exception? _terminalException;
     private int _publishedRequestCount;
     private int _abortedExportCount;
+    private int _exportsInFlight;
     private Exception? _lastAbsorbedConnectionFault;
 
     public FakeOtlpCollector() : this(FreePort)
@@ -77,6 +78,12 @@ internal sealed class FakeOtlpCollector : IDisposable
     // than faulting the collector, but it is counted, because "no export arrived" must not be
     // satisfied by one that arrived and then died mid-transfer.
     internal int AbortedExportCountForTest => Volatile.Read(ref _abortedExportCount);
+
+    // An export whose body is still arriving has ALSO arrived. Without this, an export that
+    // merely stalls past the observation window — no reset, no completion — is invisible to both
+    // the published check and the aborted count, and "no export arrived" passes while one is
+    // mid-transfer on the wire.
+    internal int ExportsInFlightForTest => Volatile.Read(ref _exportsInFlight);
 
     public async Task<byte[]> WaitForPathAsync(string path, TimeSpan timeout) =>
         (await WaitForRequestAsync(path, timeout)).Body;
@@ -136,6 +143,10 @@ internal sealed class FakeOtlpCollector : IDisposable
         ThrowIfTerminated();
         Assert.True(completed != _anyRequest.Task,
             "an OTLP request arrived while export was expected to be disabled");
+        var inFlight = ExportsInFlightForTest;
+        Assert.True(inFlight == 0,
+            $"an OTLP export was still being received when the observation window closed "
+            + $"({inFlight} in flight), so \"no export arrived\" cannot be concluded");
         var aborted = AbortedExportCountForTest;
         Assert.True(aborted == 0,
             $"an OTLP export arrived while export was expected to be disabled but its body never "
@@ -193,11 +204,14 @@ internal sealed class FakeOtlpCollector : IDisposable
         {
             while (_listener.IsListening)
             {
+                // The accept itself is deliberately OUTSIDE the absorbing catch below. A listener-level
+                // failure here is not a client disconnect, and absorbing it would spin this loop
+                // forever while every waiter timed out with no cause; it must reach Fault instead.
+                currentContext = await _listener.GetContextAsync();
+
                 var identifiedAsExport = false;
                 try
                 {
-                    currentContext = await _listener.GetContextAsync();
-
                     // Anything that is not an OTLP export is answered and dropped: a local port
                     // scanner's GET / must not read as "the child exported while export was disabled".
                     if (!IsOtlpExport(currentContext.Request))
@@ -209,6 +223,7 @@ internal sealed class FakeOtlpCollector : IDisposable
                     }
 
                     identifiedAsExport = true;
+                    Interlocked.Increment(ref _exportsInFlight);
                     using var buffer = new MemoryStream();
                     await currentContext.Request.InputStream.CopyToAsync(buffer);
                     var headers = currentContext.Request.Headers.AllKeys
@@ -232,6 +247,10 @@ internal sealed class FakeOtlpCollector : IDisposable
                     Volatile.Write(ref _lastAbsorbedConnectionFault, ex);
                     try { currentContext?.Response.Abort(); } catch { /* already gone */ }
                     currentContext = null;
+                }
+                finally
+                {
+                    if (identifiedAsExport) Interlocked.Decrement(ref _exportsInFlight);
                 }
             }
         }

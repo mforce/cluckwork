@@ -88,14 +88,48 @@ public sealed class FakeOtlpCollectorTests
             rude.GetStream().Flush();
         }
 
+        // Wait for the serve loop to observe the reset rather than assuming a fixed window is long
+        // enough: the counter is written on another thread, and a window that is merely usually long
+        // enough is a test that is merely usually right.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+        while (collector.AbortedExportCountForTest == 0 && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+
         // The collector must not fault (that is the dead-client rule), but it must not pretend the
         // export never arrived either: an export-shaped request that died mid-body is still one that
         // arrived, and "no export arrived" has to fail.
         var failure = await Assert.ThrowsAnyAsync<Exception>(
-            () => collector.AssertNoRequestAsync(TimeSpan.FromSeconds(1)));
+            () => collector.AssertNoRequestAsync(TimeSpan.FromMilliseconds(50)));
 
         Assert.Contains("its body never completed", failure.Message, StringComparison.Ordinal);
         Assert.Equal(1, collector.AbortedExportCountForTest);
+        Assert.Equal(0, collector.PublishedRequestCountForTest);
+    }
+
+    [Fact]
+    public async Task An_export_still_being_received_is_not_reported_as_no_export()
+    {
+        using var collector = new FakeOtlpCollector();
+        var endpoint = new Uri(collector.Endpoint);
+
+        using var stalled = new TcpClient();
+        stalled.Connect(IPAddress.Loopback, endpoint.Port);
+        // Complete headers promising a body, then send nothing and hold the connection OPEN. The
+        // collector has accepted an export and is blocked reading it: it has neither published nor
+        // aborted, and that is exactly the state in which "no export arrived" used to pass.
+        var headersOnly = "POST /v1/traces HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 100\r\n\r\n"u8.ToArray();
+        stalled.GetStream().Write(headersOnly);
+        stalled.GetStream().Flush();
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+        while (collector.ExportsInFlightForTest == 0 && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+
+        Assert.Equal(1, collector.ExportsInFlightForTest);
+        var failure = await Assert.ThrowsAnyAsync<Exception>(
+            () => collector.AssertNoRequestAsync(TimeSpan.FromMilliseconds(50)));
+
+        Assert.Contains("still being received", failure.Message, StringComparison.Ordinal);
         Assert.Equal(0, collector.PublishedRequestCountForTest);
     }
 
