@@ -143,7 +143,7 @@ Same protocol as the first runbook: apply → **G1** → the NAMED test (G2 narr
 git grep -n -e MUTANT -e DEBUG-670 -- src tests   # expect: nothing
 git diff --exit-code src/Cluckwork.Infrastructure/Persistence/Interceptors/TenantStampInterceptor.cs   # expect: exit 0 (byte-identical)
 git add tests/Cluckwork.Api.IntegrationTests/UserRoleTenantWriteTests.cs tests/Cluckwork.Application.Tests/TenantBypass/Data/filter-free-set-sites.tsv docs/plans/670-user-roles-account-id/02-fix-increment-1.md
-git status --porcelain   # expect: empty
+git diff --cached --name-only   # expect: exactly the three paths given to git add above. [Corrected in fix increment 3: the dispatched text expected an empty porcelain, which is true only after the commit — CodeRabbit's finding on PR #675.]
 git commit -m "test(tenancy): pin the tracked relabel and remove of another farm's AspNetUserRoles row (#670)"
 git push origin fix/670-user-roles-account-id
 ```

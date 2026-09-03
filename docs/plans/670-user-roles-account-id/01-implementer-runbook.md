@@ -928,7 +928,7 @@ tools/schema-docs/generate.sh --check
 
 ```bash
 git add src/Cluckwork.Infrastructure/Persistence/AppDbContext.cs src/Cluckwork.Infrastructure/Persistence/Migrations/ tests/Cluckwork.Api.IntegrationTests/UserRoleTenantWriteTests.cs tests/Cluckwork.Api.IntegrationTests/UserRoleAccountIdModelTests.cs tests/Cluckwork.Api.IntegrationTests/UserRoleAccountIdMigrationTests.cs tests/Cluckwork.Api.IntegrationTests/AccountIdConcurrencyTokenModelTests.cs tests/Cluckwork.Api.IntegrationTests/Infrastructure/TestHarness.cs tests/Cluckwork.Api.IntegrationTests/DemoSeedActorTests.cs tests/Cluckwork.Api.IntegrationTests/FirstRunLoginNoticeTests.cs tests/Cluckwork.Api.IntegrationTests/SimulationCrossDayRerunTests.cs docs/schema/
-git status --porcelain   # expect: only "?? docs/plans/670-user-roles-account-id/01-implementer-runbook.md"
+git diff --cached --name-only   # expect: exactly the paths given to git add above (the runbook itself stays untracked until Increment 2). [Corrected in fix increment 3: the dispatched text expected a porcelain showing only the untracked runbook, but a porcelain after git add also lists the staged files.]
 git commit -m "fix(tenancy): AspNetUserRoles carries a shadow AccountId and a composite FK to its user (#670)"
 ```
 
@@ -1080,7 +1080,7 @@ Then **G4**. Then:
 ```bash
 git grep -n -e MUTANT -e DEBUG-670 -- src tests   # expect: nothing (git grep: tracked text files only — a plain grep -r matches strings inside DLLs under bin/)
 git add tests/Cluckwork.Application.Tests/TenantBypass/TenantBypassRealTreeTests.cs tests/Cluckwork.Application.Tests/TenantBypass/Data/filter-free-set-sites.tsv AGENTS.md docs/decisions/530-multi-farm-tenancy.md docs/plans/670-user-roles-account-id/01-implementer-runbook.md
-git status --porcelain   # expect: empty
+git diff --cached --name-only   # expect: exactly the paths given to git add above. [Corrected in fix increment 3: the dispatched text expected an empty porcelain, which is true only after the commit.]
 git commit -m "docs(tenancy): record the AspNetUserRoles tenant column and the four-table accepted risk (#670)"
 ```
 
