@@ -178,8 +178,10 @@ export function AuditPage() {
       ? rawActionFilter
       : "";
 
-  // Every axis that can empty this view. INV-4's condition is "is the user
-  // looking at a narrowed view", not "is a date set".
+  // The non-scope narrowings. `entityId` is the fourth axis that can empty this
+  // view and is deliberately NOT here — it selects which of the two sentence
+  // families applies, in the ternary below, rather than whether the view is
+  // narrowed at all.
   const isNarrowed = Boolean(actionFilter || fromFilter || toFilter);
 
   // #469 — the ticket/dedupe/busy-ownership discipline this screen grew for
@@ -345,10 +347,11 @@ export function AuditPage() {
         // this enumerated the axes it happened to be touching and called that
         // exhaustive, which left `?action=X` with no rows still claiming the
         // whole log was empty (INV-4, the exact defect this slice exists to
-        // remove). Every axis that can empty this view is named in isNarrowed. That list
-        // is hand-maintained, not derived: anyone adding a fourth server-sent
-        // filter to this screen must add it there too, or the false sentence
-        // comes back exactly as it did for `action`. Wording matches the sibling screens'
+        // remove). isNarrowed names the non-scope narrowings; entityId is handled by the
+        // ternary below. Both lists are hand-maintained: a new server-sent
+        // filter must be added to whichever of the two matches its shape — a
+        // scope-shaped one beside entityId, anything else inside isNarrowed —
+        // or the false sentence returns exactly as it did for `action`. Wording matches the sibling screens'
         // noRecordsMatch rather than naming the date range, because the range
         // is no longer the only thing that can empty this view.
         <p className="muted">
