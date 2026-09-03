@@ -140,8 +140,13 @@ serialises `from`/`to`. The client, the endpoint and the repository are all read
    silently change the screen's default from "this month's spend" to "every expense ever recorded, and a
    total to match", which is a bigger behaviour change than either issue asked for and lands on a money
    screen. The user can widen or clear it; the default preserves what ships today.
-3. The `max={today}` cap carries over to both inputs. Filtering into the future returns nothing by
-   construction, and the existing month control already caps at the current month.
+3. Neither range-filter input carries `max={today}`. It was carried over from the month picker this
+   replaces, where `max` was the current MONTH — a granularity that contains its own month-end default. On
+   a day-granularity control it does not: the default `to` is month-end, so the cap made the input render a
+   value it forbade (constraint-invalid from first paint) and made that default unreachable once the user
+   changed it (round 5 finding, confirmed against the #662 capture). Removed on both bounds; a future window
+   is still empty by construction, which is what the sibling range filters (Feed, Water, History) already
+   rely on uncapped.
 4. `monthTotalLabel` becomes a period-total label in all three locales — the figure now describes a
    range, and a string reading "Month total" over a two-week window is a wrong statement about money.
    Same for `noExpensesMessage` ("No expenses for this month."), and its `EmptyState` comment at

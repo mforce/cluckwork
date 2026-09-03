@@ -499,16 +499,22 @@ export function ExpensesPage() {
       <div className="filters">
         {/* #667 — a from/to pair matching every sibling list screen; the
             category filter beside it is not a date control and stays outside
-            the toolbar. `max` is carried over from the month picker this
-            replaced: filtering into the future returns nothing by
-            construction. */}
+            the toolbar. */}
         <div className="toolbar">
+          {/* No `max` on either bound. The month picker this replaced capped at
+              the current MONTH, which contained its own month-end default; a
+              day-granularity control capped at TODAY does not — the default
+              `to` is month-end, so the cap made the input render a value it
+              forbade, and made the default unreachable once changed. The
+              sibling range filters (Feed, Water, History) ship uncapped for the
+              same reason: a future window is empty by construction, which is
+              cheaper than a control that argues with its own value. */}
           <label>{t("fromLabel")}
-            <input type="date" value={from} max={today}
+            <input type="date" value={from}
               onChange={(e) => setFrom(e.target.value)} />
           </label>
           <label>{t("toLabel")}
-            <input type="date" value={to} max={today}
+            <input type="date" value={to}
               onChange={(e) => setTo(e.target.value)} />
           </label>
         </div>

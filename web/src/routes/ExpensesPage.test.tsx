@@ -1034,6 +1034,28 @@ describe("ExpensesPage date-range filter (#667)", () => {
     }
   });
 
+  // The default `to` is month-end while `today` is mid-month, so a max={today}
+  // cap made the control render a value it forbade — and made the default
+  // unreachable once the user changed it. Pins the absence of the attribute on
+  // BOTH bounds, since the same cap was on both.
+  it("does not cap the range bounds at today, which the month-end default exceeds", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-09-03T12:00:00Z"));
+    try {
+      renderWithProviders(<ExpensesPage />, { token: ADMIN });
+      await waitFor(() => expect(mockListExpenses).toHaveBeenCalled());
+
+      const from = screen.getByLabelText("From");
+      const to = screen.getByLabelText("To");
+      // The default the screen opens on, which the old cap forbade.
+      expect(to).toHaveValue("2026-09-30");
+      expect(to).not.toHaveAttribute("max");
+      expect(from).not.toHaveAttribute("max");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   // February, because the month-end arithmetic is the only thing in this
   // change that can be wrong per-month, and a 31-day month cannot tell a
   // correct `last day` from a hardcoded 31.
