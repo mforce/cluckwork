@@ -340,6 +340,16 @@ describe("AuditPage filter", () => {
     });
   });
 
+  // #653/#662 — mirrors Increment 3's StockPage structural guard: the width
+  // cap in styles.css is keyed on `.toolbar input[type="date"]`, so the wrapper
+  // is the only honest thing jsdom (no layout engine) can assert here.
+  it("puts the date range in the bounded toolbar, not a bare filters row", async () => {
+    renderAudit("/audit");
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenCalled());
+    const fromInput = screen.getByLabelText("From");
+    expect(fromInput.closest("div.toolbar")).not.toBeNull();
+  });
+
   // INV-4 — "No audit events yet." is a FALSE statement when a date filter
   // emptied the window: the log is not empty, this window is. The two
   // sentences must differ, which is what the mutation row pins.

@@ -999,6 +999,17 @@ describe("ExpensesPage total is never a guess (#469, codex P2)", () => {
 });
 
 describe("ExpensesPage date-range filter (#667)", () => {
+  // #653/#662 — mirrors Increment 3's StockPage structural guard: the width
+  // cap in styles.css is keyed on `.toolbar input[type="date"]`, so the wrapper
+  // is the only honest thing jsdom (no layout engine) can assert here.
+  it("puts the date range in the bounded toolbar, not a bare filters row", async () => {
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    await waitFor(() => expect(mockListExpenses).toHaveBeenCalled());
+    const fromInput = screen.getByLabelText("From");
+    expect(fromInput.closest("div.toolbar")).not.toBeNull();
+  });
+
+
   // The farm's today is computed LIVE from the clock in this suite —
   // `farmState()` sets `today: null` on purpose (test/fixtures.ts:33-40) and
   // `useFarmToday()` then falls through to `todayIso()`, which calls
