@@ -15,7 +15,7 @@ internal sealed record CapturedOtlpRequest(
 // path has a FIFO queue rather than a one-shot completion source.
 internal sealed class FakeOtlpCollector : IDisposable
 {
-    private readonly HttpListener _listener = new();
+    private readonly HttpListener _listener;
     private readonly ConcurrentDictionary<string, Channel<CapturedOtlpRequest>> _byPath = new();
     private readonly object _stateGate = new();
     private readonly TaskCompletionSource<Exception> _terminal =
@@ -25,28 +25,46 @@ internal sealed class FakeOtlpCollector : IDisposable
     private readonly Task _serveTask;
     private Exception? _terminalException;
     private int _publishedRequestCount;
+    private int _abortedExportCount;
+    private int _exportsInFlight;
+    private Exception? _lastAbsorbedConnectionFault;
 
-    public FakeOtlpCollector()
+    public FakeOtlpCollector() : this(FreePort)
     {
+    }
+
+    // The port source is injectable so a test can hand the first attempt a port that is
+    // already taken; every other caller in the suite goes through the parameterless constructor.
+    internal FakeOtlpCollector(Func<int> portSource)
+    {
+        ArgumentNullException.ThrowIfNull(portSource);
+
         for (var attempt = 1; ; attempt++)
         {
-            var port = FreePort();
-            Endpoint = $"http://127.0.0.1:{port}";
-            _listener.Prefixes.Clear();
-            _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+            var port = portSource();
+            var listener = new HttpListener();
+            listener.Prefixes.Add($"http://127.0.0.1:{port}/");
             try
             {
-                _listener.Start();
+                listener.Start();
+                _listener = listener;
+                Endpoint = $"http://127.0.0.1:{port}";
                 break;
             }
-            catch (HttpListenerException) when (attempt < 3)
+            catch (HttpListenerException)
             {
-                // The probe port was claimed before binding; retry a new one.
+                // Start() closes the listener on ANY failure, so the next attempt needs a
+                // fresh instance as well as a fresh port: reusing this one throws
+                // ObjectDisposedException from the very next Prefixes access.
+                ((IDisposable)listener).Dispose();
+                if (attempt >= BindAttempts) throw;
             }
         }
 
         _serveTask = Task.Run(ServeAsync);
     }
+
+    private const int BindAttempts = 10;
 
     public string Endpoint { get; }
 
@@ -55,6 +73,17 @@ internal sealed class FakeOtlpCollector : IDisposable
     internal Action? BeforeResponseCloseForTest { get; set; }
 
     internal int PublishedRequestCountForTest => Volatile.Read(ref _publishedRequestCount);
+
+    // An export-shaped request whose body never completed still ARRIVED. It is absorbed rather
+    // than faulting the collector, but it is counted, because "no export arrived" must not be
+    // satisfied by one that arrived and then died mid-transfer.
+    internal int AbortedExportCountForTest => Volatile.Read(ref _abortedExportCount);
+
+    // An export whose body is still arriving has ALSO arrived. Without this, an export that
+    // merely stalls past the observation window — no reset, no completion — is invisible to both
+    // the published check and the aborted count, and "no export arrived" passes while one is
+    // mid-transfer on the wire.
+    internal int ExportsInFlightForTest => Volatile.Read(ref _exportsInFlight);
 
     public async Task<byte[]> WaitForPathAsync(string path, TimeSpan timeout) =>
         (await WaitForRequestAsync(path, timeout)).Body;
@@ -97,7 +126,13 @@ internal sealed class FakeOtlpCollector : IDisposable
         {
             OnTimeoutCaughtForTest?.Invoke();
             ThrowIfTerminated();
-            throw new TimeoutException($"no matching OTLP export arrived on {path} before the timeout");
+            var absorbed = Volatile.Read(ref _lastAbsorbedConnectionFault);
+            throw new TimeoutException(
+                $"no matching OTLP export arrived on {path} before the timeout"
+                + (absorbed is null
+                    ? string.Empty
+                    : $"; {AbortedExportCountForTest} export(s) died mid-transfer and were absorbed, "
+                      + $"last connection fault: {absorbed.Message}"));
         }
     }
 
@@ -108,6 +143,15 @@ internal sealed class FakeOtlpCollector : IDisposable
         ThrowIfTerminated();
         Assert.True(completed != _anyRequest.Task,
             "an OTLP request arrived while export was expected to be disabled");
+        var inFlight = ExportsInFlightForTest;
+        Assert.True(inFlight == 0,
+            $"an OTLP export was still being received when the observation window closed "
+            + $"({inFlight} in flight), so \"no export arrived\" cannot be concluded");
+        var aborted = AbortedExportCountForTest;
+        Assert.True(aborted == 0,
+            $"an OTLP export arrived while export was expected to be disabled but its body never "
+            + $"completed, so it was never published ({aborted} aborted; last connection fault: "
+            + $"{Volatile.Read(ref _lastAbsorbedConnectionFault)?.Message ?? "none"})");
     }
 
     internal void FaultForTest(Exception exception) => Fault(exception);
@@ -160,19 +204,54 @@ internal sealed class FakeOtlpCollector : IDisposable
         {
             while (_listener.IsListening)
             {
+                // The accept itself is deliberately OUTSIDE the absorbing catch below. A listener-level
+                // failure here is not a client disconnect, and absorbing it would spin this loop
+                // forever while every waiter timed out with no cause; it must reach Fault instead.
                 currentContext = await _listener.GetContextAsync();
-                using var buffer = new MemoryStream();
-                await currentContext.Request.InputStream.CopyToAsync(buffer);
-                var headers = currentContext.Request.Headers.AllKeys
-                    .Where(key => key is not null)
-                    .ToDictionary(key => key!, key => currentContext.Request.Headers[key!] ?? string.Empty,
-                        StringComparer.OrdinalIgnoreCase);
-                var captured = new CapturedOtlpRequest(currentContext.Request.Url!.AbsolutePath, buffer.ToArray(), headers);
-                currentContext.Response.StatusCode = 200;
-                BeforeResponseCloseForTest?.Invoke();
-                currentContext.Response.Close();
-                Publish(captured);
-                currentContext = null;
+
+                var identifiedAsExport = false;
+                try
+                {
+                    // Anything that is not an OTLP export is answered and dropped: a local port
+                    // scanner's GET / must not read as "the child exported while export was disabled".
+                    if (!IsOtlpExport(currentContext.Request))
+                    {
+                        currentContext.Response.StatusCode = 404;
+                        currentContext.Response.Close();
+                        currentContext = null;
+                        continue;
+                    }
+
+                    identifiedAsExport = true;
+                    Interlocked.Increment(ref _exportsInFlight);
+                    using var buffer = new MemoryStream();
+                    await currentContext.Request.InputStream.CopyToAsync(buffer);
+                    var headers = currentContext.Request.Headers.AllKeys
+                        .Where(key => key is not null)
+                        .ToDictionary(key => key!, key => currentContext.Request.Headers[key!] ?? string.Empty,
+                            StringComparer.OrdinalIgnoreCase);
+                    var captured = new CapturedOtlpRequest(currentContext.Request.Url!.AbsolutePath, buffer.ToArray(), headers);
+                    currentContext.Response.StatusCode = 200;
+                    BeforeResponseCloseForTest?.Invoke();
+                    currentContext.Response.Close();
+                    Publish(captured);
+                    currentContext = null;
+                }
+                catch (Exception ex) when (ex is HttpListenerException or IOException && _listener.IsListening)
+                {
+                    // An unrelated client died mid-exchange. That is not this collector's business,
+                    // and faulting here would redden whatever test happens to hold it. But absorbing
+                    // is not forgetting: if the request had already been identified as an OTLP export,
+                    // count it, so a real export that dies mid-transfer cannot read as "nothing arrived".
+                    if (identifiedAsExport) Interlocked.Increment(ref _abortedExportCount);
+                    Volatile.Write(ref _lastAbsorbedConnectionFault, ex);
+                    try { currentContext?.Response.Abort(); } catch { /* already gone */ }
+                    currentContext = null;
+                }
+                finally
+                {
+                    if (identifiedAsExport) Interlocked.Decrement(ref _exportsInFlight);
+                }
             }
         }
         catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException && !_listener.IsListening)
@@ -185,6 +264,15 @@ internal sealed class FakeOtlpCollector : IDisposable
             Fault(ex);
         }
     }
+
+    // http/protobuf ONLY, deliberately: gRPC OTLP uses HTTP/2 and a
+    // /opentelemetry.proto.collector.*/Export path, which this gate refuses. A test that points a
+    // grpc-protocol child at this collector would see every export 404'd, so do not use this fixture
+    // to prove anything about the gRPC transport.
+    private static bool IsOtlpExport(HttpListenerRequest request) =>
+        string.Equals(request.HttpMethod, "POST", StringComparison.Ordinal)
+        && request.Url is { AbsolutePath: var path }
+        && path.StartsWith("/v1/", StringComparison.Ordinal);
 
     private static int FreePort()
     {

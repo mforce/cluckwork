@@ -1,7 +1,145 @@
 namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
+using System.Net;
+using System.Net.Sockets;
+
 public sealed class FakeOtlpCollectorTests
 {
+    [Fact]
+    public async Task Bind_retries_with_a_fresh_listener_after_a_lost_port_race()
+    {
+        using var occupied = new TcpListener(IPAddress.Loopback, 0);
+        occupied.Start();
+        var takenPort = ((IPEndPoint)occupied.LocalEndpoint).Port;
+        var answers = new Queue<int>([takenPort]);
+
+        using var collector = new FakeOtlpCollector(() => answers.Count > 0 ? answers.Dequeue() : FreeTestPort());
+        using var client = new HttpClient();
+
+        var post = client.PostAsync($"{collector.Endpoint}/v1/traces", new ByteArrayContent([0x01]));
+        var captured = await collector.WaitForRequestAsync("/v1/traces", TimeSpan.FromSeconds(5));
+
+        Assert.Equal("/v1/traces", captured.Path);
+        Assert.DoesNotContain($":{takenPort}", collector.Endpoint, StringComparison.Ordinal);
+        (await post).Dispose();
+    }
+
+    [Fact]
+    public async Task Traffic_that_is_not_an_otlp_export_is_answered_and_never_published()
+    {
+        using var collector = new FakeOtlpCollector();
+        using var client = new HttpClient();
+
+        var scan = await client.GetAsync($"{collector.Endpoint}/");
+        var wrongPath = await client.PostAsync($"{collector.Endpoint}/", new ByteArrayContent([0x01]));
+        var wrongMethod = await client.GetAsync($"{collector.Endpoint}/v1/traces");
+
+        // The captured symptom of #676 comes first, so this test reddens on the bug's own message.
+        await collector.AssertNoRequestAsync(TimeSpan.FromMilliseconds(200));
+        Assert.Equal(0, collector.PublishedRequestCountForTest);
+        Assert.Equal(HttpStatusCode.NotFound, scan.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, wrongPath.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, wrongMethod.StatusCode);
+
+        var post = client.PostAsync($"{collector.Endpoint}/v1/traces", new ByteArrayContent([0x02]));
+        var captured = await collector.WaitForRequestAsync("/v1/traces", TimeSpan.FromSeconds(5));
+        Assert.Equal(new byte[] { 0x02 }, captured.Body);
+        (await post).Dispose();
+        scan.Dispose();
+        wrongPath.Dispose();
+        wrongMethod.Dispose();
+    }
+
+    [Fact]
+    public async Task A_client_that_dies_mid_request_does_not_fault_the_collector()
+    {
+        using var collector = new FakeOtlpCollector();
+        var endpoint = new Uri(collector.Endpoint);
+
+        using (var rude = new TcpClient())
+        {
+            rude.Connect(IPAddress.Loopback, endpoint.Port);
+            rude.LingerState = new LingerOption(true, 0);
+            var truncated = "POST /v1/traces HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 100\r\n\r\nxx"u8.ToArray();
+            rude.GetStream().Write(truncated);
+            rude.GetStream().Flush();
+        }
+
+        using var client = new HttpClient();
+        var post = client.PostAsync($"{collector.Endpoint}/v1/traces", new ByteArrayContent([0x03]));
+        var captured = await collector.WaitForRequestAsync("/v1/traces", TimeSpan.FromSeconds(5));
+
+        Assert.Equal(new byte[] { 0x03 }, captured.Body);
+        (await post).Dispose();
+    }
+
+    [Fact]
+    public async Task An_export_that_dies_mid_transfer_is_reported_not_silently_dropped()
+    {
+        using var collector = new FakeOtlpCollector();
+        var endpoint = new Uri(collector.Endpoint);
+
+        using (var rude = new TcpClient())
+        {
+            rude.Connect(IPAddress.Loopback, endpoint.Port);
+            rude.LingerState = new LingerOption(true, 0);
+            var truncated = "POST /v1/traces HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 100\r\n\r\nxx"u8.ToArray();
+            rude.GetStream().Write(truncated);
+            rude.GetStream().Flush();
+        }
+
+        // Wait for the serve loop to observe the reset rather than assuming a fixed window is long
+        // enough: the counter is written on another thread, and a window that is merely usually long
+        // enough is a test that is merely usually right.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+        while (collector.AbortedExportCountForTest == 0 && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+
+        // The collector must not fault (that is the dead-client rule), but it must not pretend the
+        // export never arrived either: an export-shaped request that died mid-body is still one that
+        // arrived, and "no export arrived" has to fail.
+        var failure = await Assert.ThrowsAnyAsync<Exception>(
+            () => collector.AssertNoRequestAsync(TimeSpan.FromMilliseconds(50)));
+
+        Assert.Contains("its body never completed", failure.Message, StringComparison.Ordinal);
+        Assert.Equal(1, collector.AbortedExportCountForTest);
+        Assert.Equal(0, collector.PublishedRequestCountForTest);
+    }
+
+    [Fact]
+    public async Task An_export_still_being_received_is_not_reported_as_no_export()
+    {
+        using var collector = new FakeOtlpCollector();
+        var endpoint = new Uri(collector.Endpoint);
+
+        using var stalled = new TcpClient();
+        stalled.Connect(IPAddress.Loopback, endpoint.Port);
+        // Complete headers promising a body, then send nothing and hold the connection OPEN. The
+        // collector has accepted an export and is blocked reading it: it has neither published nor
+        // aborted, and that is exactly the state in which "no export arrived" used to pass.
+        var headersOnly = "POST /v1/traces HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 100\r\n\r\n"u8.ToArray();
+        stalled.GetStream().Write(headersOnly);
+        stalled.GetStream().Flush();
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+        while (collector.ExportsInFlightForTest == 0 && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+
+        Assert.Equal(1, collector.ExportsInFlightForTest);
+        var failure = await Assert.ThrowsAnyAsync<Exception>(
+            () => collector.AssertNoRequestAsync(TimeSpan.FromMilliseconds(50)));
+
+        Assert.Contains("still being received", failure.Message, StringComparison.Ordinal);
+        Assert.Equal(0, collector.PublishedRequestCountForTest);
+    }
+
+    private static int FreeTestPort()
+    {
+        using var probe = new TcpListener(IPAddress.Loopback, 0);
+        probe.Start();
+        return ((IPEndPoint)probe.LocalEndpoint).Port;
+    }
+
     [Fact]
     public async Task Predicate_wait_throws_a_terminal_error_completed_at_the_timeout_catch_boundary()
     {
