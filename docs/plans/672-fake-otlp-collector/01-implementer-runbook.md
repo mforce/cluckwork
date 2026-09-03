@@ -20,7 +20,7 @@ bottom. You do EVERYTHING: branch, edit, build, test, commit, open the PR.
   `MultiInstanceIdempotencyTests.cs:100`, `MultiInstanceRateLimitTests.cs:107`).
 - Files you may create or edit: `tests/Cluckwork.Api.IntegrationTests/Infrastructure/FakeOtlpCollector.cs`,
   `tests/Cluckwork.Api.IntegrationTests/Infrastructure/FakeOtlpCollectorTests.cs`,
-  `docs/plans/672-fake-otlp-collector/01-implementer-runbook.md` (this file, committed in Increment 4),
+  `docs/plans/672-fake-otlp-collector/01-implementer-runbook.md` (this file, committed in Increment 3),
   and a scratch `PR-BODY.md` you delete before FINISH. Anything else, STOP and report.
 - Work only on the new branch. Never commit to `main`.
 - A **mutation check** means: plant a bug on purpose, run the suite, see whether a test notices. RED means
