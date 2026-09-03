@@ -2063,6 +2063,7 @@ export const en = {
     // Distinct from emptyMessage on purpose: under an active date range the
     // log is not empty, the window is (INV-4).
     filteredEmptyMessage: "No audit events in this date range.",
+    scopedFilteredEmptyMessage: "No audit events for this record in this date range.",
     loadMoreButton: "load more",
   },
   // Task 30 (B5, #182) — ExportPage: the manual-backup screen (#95,

@@ -401,6 +401,17 @@ describe("AuditPage filter", () => {
     expect(await screen.findByText("No audit events in this date range.")).toBeInTheDocument();
     expect(screen.queryByText("No audit events yet.")).not.toBeInTheDocument();
   });
+
+  // Two narrowings, two facts. Saying only "for this record yet" here is false
+  // whenever the record HAS events outside the window (CodeRabbit, round 1).
+  it("says both the record and the range when a scoped view is filtered to nothing", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit("/audit?entityId=f1234567-89ab-4cde-8f01-23456789abcd&from=2026-08-01&to=2026-08-02");
+
+    expect(await screen.findByText("No audit events for this record in this date range.")).toBeInTheDocument();
+    expect(screen.queryByText("No audit events for this record yet.")).not.toBeInTheDocument();
+    expect(screen.queryByText("No audit events in this date range.")).not.toBeInTheDocument();
+  });
 });
 
 describe("AuditPage paging", () => {

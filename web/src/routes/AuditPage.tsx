@@ -344,10 +344,20 @@ export function AuditPage() {
         // classified this screen's empty state and did not list it among the
         // thirteen EmptyState sites, so this stays out of
         // emptyStates.guard.test.ts's registries.
+        // Four states, because two independent narrowings can each be active
+        // and each one makes a DIFFERENT sentence true (INV-4). Scope alone:
+        // this record is clean. Range alone: this window is empty. Both: this
+        // record is empty IN this window — and saying only "for this record
+        // yet" there is false the moment the record has events outside the
+        // range, which is the half-fix CodeRabbit caught on the first pass.
         <p className="muted">
           {entityId
-            ? t("scopedEmptyMessage")
-            : (fromFilter || toFilter) ? t("filteredEmptyMessage") : t("emptyMessage")}
+            ? ((fromFilter || toFilter)
+                ? t("scopedFilteredEmptyMessage")
+                : t("scopedEmptyMessage"))
+            : ((fromFilter || toFilter)
+                ? t("filteredEmptyMessage")
+                : t("emptyMessage"))}
         </p>
       ) : (
         <>

@@ -1569,6 +1569,7 @@ export const es = {
     emptyMessage: "Aún no hay eventos de auditoría.",
     scopedEmptyMessage: "Aún no hay eventos de auditoría para este registro.",
     filteredEmptyMessage: "No hay eventos de auditoría en este rango de fechas.",
+    scopedFilteredEmptyMessage: "No hay eventos de auditoría para este registro en este rango de fechas.",
     loadMoreButton: "cargar más",
   },
 

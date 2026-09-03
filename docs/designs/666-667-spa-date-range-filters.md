@@ -37,7 +37,7 @@ So neither slice needs an endpoint, a handler, a validator or a migration. Both 
 date-narrowed audit read under a resolved tenant is an index lookup today, before this slice changes
 anything.
 
-#505 is about **partitioning, not indexing**, and the two must not be conflated: it argues that
+[#505](https://github.com/mforce/cluckwork/issues/505) is about **partitioning, not indexing**, and the two must not be conflated: it argues that
 range-partitioning by month is the wrong *axis*, because pruning only helps a query filtering on the
 partition key and the dominant read (`AccountId`+`EntityId`) does not — turning one lookup on
 `IX_AuditEvents_AccountId_EntityId` into one per partition
@@ -104,7 +104,11 @@ discipline on (`AuditPage.tsx:130-197`) — must move when the range moves.
 4. Empty result with a range set gets its own message. Today `AuditPage.tsx:246-248` renders
    `emptyMessage` ("No audit events yet.") or `scopedEmptyMessage`. Under a date filter that sentence is
    **false** — the log is not empty, this window is. A third message is required, not optional: this is
-   the exact class of wrong-statement the sibling screens use `noRecordsMatch` for.
+   the exact class of wrong-statement the sibling screens use `noRecordsMatch` for. Scope and range are
+   two independent narrowings, so a scoped view with a range active needs a **fourth** message
+   (`scopedFilteredEmptyMessage`) rather than either branch alone — checking `entityId` first and stopping
+   there silently drops the range fact, and is false the moment that record has events outside the window
+   (CodeRabbit, round 1).
 
 ### Files
 
@@ -161,8 +165,8 @@ serialises `from`/`to`. The client, the endpoint and the repository are all read
 
 `StockPage.tsx:533` wraps the egg-lot production-date filter in `<div className="filters">`. The width
 cap at `styles.css:1083-1085` is scoped to `.toolbar input[type="date"]`, so it never applies here and
-those two inputs render at the row's full width — the exact defect #653 was filed to fix, on a screen
-#653 did not reach.
+those two inputs render at the row's full width — the exact defect [#653](https://github.com/mforce/cluckwork/issues/653) was filed to fix, on a screen
+[#653](https://github.com/mforce/cluckwork/issues/653) did not reach.
 
 **Everything else on this screen is already right.** The from/to pair works, hits a server-side window
 (`#465`), and already has the two-variant empty state with a clear-filters action (`noLotsMatch` /
@@ -231,9 +235,11 @@ the registry's **readers**, per AGENTS.md's "Writing a guard" rule — not by re
 ### `web/src/styles.toolbar.test.ts:32` — the `input[type="month"]` selector goes with the control
 
 `describe.each(['.toolbar input[type="date"]', '.toolbar input[type="month"]'])` pins `max-width: 12rem`
-for both arms against the combined CSS rule at `styles.css:1083-1085`. After Slice B,
-`ExpensesPage.tsx:492` is the **last** `type="month"` in `web/src` — verified by
-`grep -rn 'type="month"' web/src`, which returns exactly that line and the guard itself.
+for both arms against the combined CSS rule at `styles.css:1083-1085`. Before Slice B, `ExpensesPage.tsx:492`
+was the **last** production `type="month"` in `web/src` — `grep -rn 'type="month"' web/src` returned exactly
+that line plus the guard itself. That grep is a **pre-change inventory**: Slice B deletes the input, so
+afterwards no production `type="month"` call site remains and the selector's only reference is the guard
+being retired with it.
 
 **Decision: retire the selector with its last caller.** Drop the `input[type="month"]` arm from the CSS
 rule and from the guard's `describe.each`. Leaving it would ship a styling rule with zero DOM call sites
