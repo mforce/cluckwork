@@ -30,11 +30,14 @@ public sealed class AccountIdConcurrencyTokenModelTests
         using var db = BuildContext();
 
         // Selected by NAME and non-key only — deliberately NOT by CLR type.
-        // Both layers key on AccountId being a non-nullable Guid (the walk skips
-        // any other type, the interceptor skips any other value), so a nullable
-        // or converted AccountId would be fail-open in both with every test
-        // green if this selector mirrored the walk's own predicate. It names
-        // the property instead (#673 tracks closing that by construction).
+        // The token walk skips any AccountId whose CLR type is not exactly Guid
+        // (so a Guid? or a converted id gets no token at all), and the
+        // interceptor skips any VALUE that does not box to a Guid (a Guid? that
+        // is null is neither stamped on Added nor checked on Modified/Deleted;
+        // a populated Guid? boxes to Guid and is checked). If this selector
+        // mirrored the walk's own predicate, such a property would vanish from
+        // the guard with every test green; naming the property instead makes it
+        // red the day one is mapped (#673 tracks closing that by construction).
         var carriers = db.Model.GetEntityTypes()
             .Select(t => (Type: t, AccountId: t.FindProperty("AccountId")))
             .Where(x => x.AccountId is not null && !x.AccountId.IsPrimaryKey())
@@ -47,9 +50,9 @@ public sealed class AccountIdConcurrencyTokenModelTests
             .ToList();
 
         Assert.True(wrongType.Count == 0,
-            "AccountId must be a non-nullable Guid on every entity that carries it — the write guard and the " +
-            "concurrency token both key on exactly that type, and any other is fail-open in both (#673):\n  " +
-            string.Join("\n  ", wrongType));
+            "AccountId must be a non-nullable Guid on every entity that carries it — the token walk skips any " +
+            "other CLR type, and the write guard skips a null value (an unstamped insert, an unchecked write) " +
+            "(#673):\n  " + string.Join("\n  ", wrongType));
 
         // Proves the walk walked: a discovery that finds nothing passes vacuously.
         Assert.True(carriers.Count >= 29,

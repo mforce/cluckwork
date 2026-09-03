@@ -160,8 +160,10 @@ public sealed class TenantWriteRefusalLoggingTests(SecurityEventLoggingFactory f
     // to 409, and IdentityProvider and IdempotencyMiddleware catch it by type;
     // a sink that throws inside the hook would otherwise propagate in its
     // place as a 500. The interceptor is hand-built here with a logger that
-    // throws on every call, exactly as the migration tests hand-build it, on
-    // the factory's own database.
+    // throws on every call, in the shape the migration tests use, on the
+    // factory's own database — with ONE TenantContext shared by the
+    // interceptor and the context, as DI wires it (the migration tests pass
+    // two unresolved instances, which is fine there and would be wrong here).
     [Fact]
     public async Task LoggerFailure_DoesNotChangeTheException()
     {
