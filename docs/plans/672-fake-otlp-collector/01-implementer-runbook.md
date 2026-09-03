@@ -69,7 +69,7 @@ git config core.hooksPath                # expect: .githooks — the pre-commit 
 | 1 | `FakeOtlpCollector` gains `internal FakeOtlpCollector(Func<int> portSource)`; the existing parameterless constructor keeps its signature and delegates to it | every `new FakeOtlpCollector()` in the suite: `FakeOtlpCollectorTests.cs` (6 sites), `OtlpSubprocessExporterTests.cs` (8 sites) — enumerated with `git grep -n "new FakeOtlpCollector"` | all compile and behave unchanged: an added overload changes no existing call | same commit | driver fills at Phase 11 |
 | 2 | none — no contract change (`ServeAsync` is private) | n/a — private method, no external caller | n/a | same commit | driver fills at Phase 11 |
 | 3 | none — no contract change | n/a | n/a | same commit | driver fills at Phase 11 |
-| 4 | none — docs only | n/a | n/a | same commit | driver fills at Phase 11 |
+| 3 | none — docs only | n/a | n/a | same commit | driver fills at Phase 11 |
 
 ## Environment expectations
 

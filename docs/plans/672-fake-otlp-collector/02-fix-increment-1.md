@@ -23,7 +23,7 @@ Two smaller findings from the same round ride along: the timeout message now nam
 instead of dropping it silently, and the gate's http/protobuf-only assumption is stated where the next
 person will read it.
 
-## Increment 4 — an aborted export is counted and reported
+# INCREMENT 4 — an aborted export is counted and reported
 
 ### 4a. RED — add the guard test first — PROTECTED
 
@@ -308,7 +308,7 @@ git diff --cached --name-only
 git commit -m "test(otlp): an export that dies mid-transfer is reported, not silently dropped"
 ```
 
-## Increment 5 — correct the committed runbook's stale cross-reference
+# INCREMENT 5 — correct the committed runbook's stale cross-reference
 
 Round 1's `repo-rules` seat found that `docs/plans/672-fake-otlp-collector/01-implementer-runbook.md`
 says the runbook is "committed in Increment 4" while that document defines only three increments. The
@@ -340,12 +340,12 @@ git diff --cached --name-only
 git commit -m "docs(plans): record the #672 fix increment and correct a runbook cross-reference"
 ```
 
-## Increment 6 — gates
+# INCREMENT 6 — gates
 
 Run **G4**, **G1**, **G2** on the whole solution (expect Api.IntegrationTests **1668**), then **G3**.
 Paste each final line into your report.
 
-## Mutation check for this increment
+# MUTATION CHECK
 
 | # | Kind | Mutate | Supplied elsewhere? | Expected test | Expected result + failure | Rebuild command run | Observed failure |
 |---|---|---|---|---|---|---|---|
@@ -353,7 +353,7 @@ Paste each final line into your report.
 
 Restore, rebuild, confirm `Passed: 10`, and `git grep -n MUTANT -- tests src` returns nothing.
 
-## Report back
+# REPORT BACK
 
 The compiler error you saw at 4a, the G1 tail, the four `Test Run Successful.` lines, the M6 row, and
 per-increment confirmation that you applied the blocks yourself.
