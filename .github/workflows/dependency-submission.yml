@@ -5,7 +5,8 @@ name: NuGet dependency submission
 # Why this is needed at all: the graph parses .csproj/.vbproj/.nuspec/.fsproj/
 # packages.config for NuGet — it does NOT read packages.lock.json, and it does
 # not derive transitive dependencies for NuGet statically. So it only ever saw
-# our 20 direct PackageReferences, while the solution resolves ~80. That left
+# our direct PackageReferences (versioned in Directory.Packages.props), a
+# fraction of what the solution actually resolves. That left
 # the PR-scoped dependency-review gate unable to flag a vulnerable package a PR
 # pulls in TRANSITIVELY. (The tree-scoped `dotnet list package --vulnerable
 # --include-transitive` gate in ci.yml always saw all of them, so nothing was
@@ -26,7 +27,7 @@ on:
     paths:
       - "**/*.csproj"
       - "**/packages.lock.json"
-      - "Directory.Build.props"
+      - "**/Directory.Build.props"
       - "Directory.Packages.props"
       - "Cluckwork.sln"
       - ".github/workflows/dependency-submission.yml"

@@ -1,0 +1,20 @@
+<Project>
+
+  <!-- Chain to the repo-root Directory.Build.props: MSBuild imports only the
+       NEAREST file of this name, so without this line RestorePackagesWithLockFile
+       would silently stop applying to every test project. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- The three references every xunit test project needs, held once instead
+       of four times. Versions come from Directory.Packages.props (#684). A test
+       project that needs something else adds it in its own csproj. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>
