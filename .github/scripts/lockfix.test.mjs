@@ -28,7 +28,7 @@ test("the allowlist is exactly the 9 solution lock files", () => {
 test("the allowlist covers every project in Cluckwork.sln", () => {
   const sln = readFileSync(new URL("../../Cluckwork.sln", import.meta.url), "utf8");
   const projects = [...sln.matchAll(/Project\("[^"]+"\) = "[^"]+", "([^"]+\.csproj)"/g)]
-    .map((m) => m[1].replaceAll("\\", "/").replace(/\/[^/]+\.csproj$/, "/packages.lock.json"))
+    .map((m) => m[1].replaceAll("\\", "/").replace(/[^/]+\.csproj$/, "packages.lock.json"))
     .sort();
   assert.ok(projects.length >= 9, `parsed only ${projects.length} projects from the sln`);
   assert.deepEqual([...LOCK_FILES].sort(), projects);
