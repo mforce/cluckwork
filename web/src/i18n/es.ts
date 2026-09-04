@@ -2413,7 +2413,7 @@ export const es = {
       + "abre en ella y se niega a ir más allá para lo que usted registra, sea cual sea el día en el "
       + "teléfono o la laptop que tiene en la mano, para que un dispositivo adelantado a la granja ya no "
       + "pueda ofrecer una fecha que el guardado luego rechace. Las fechas que están destinadas a estar en "
-      + "el futuro no tienen tope — la <strong>fecha de caducidad</strong> de un artículo en existencia.",
+      + "el futuro no tienen tope — la <strong>fecha de vencimiento</strong> de un artículo en existencia.",
     farmSettingsCurrency:
       "La <strong>moneda</strong> se bloquea en el momento en que la granja registra su primer monto — una "
       + "venta, un pago, un gasto, un producto con precio, o dinero gastado en alimento. El campo se "
