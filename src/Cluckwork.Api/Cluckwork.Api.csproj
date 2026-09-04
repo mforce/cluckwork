@@ -11,27 +11,27 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <!-- Pin patched Microsoft.OpenApi: transitive 2.0.0 has GHSA-v5pm-xwqc-g5wc (NU1903) -->
-    <PackageReference Include="Microsoft.OpenApi" Version="2.12.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.*">
+    <PackageReference Include="Microsoft.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.*" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.*" />
-    <PackageReference Include="Serilog.AspNetCore" Version="10.*" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+    <PackageReference Include="Serilog.AspNetCore" />
     <!-- #404 — appsettings.Production.json names CompactJsonFormatter by
          assembly-qualified type. Transitive via Serilog.AspNetCore today; this
          states the dependency the config file relies on rather than inheriting
          it silently. Note no test can enforce this: the assembly stays in the
          graph transitively, so removing this line leaves the suite green. -->
-    <PackageReference Include="Serilog.Formatting.Compact" Version="3.*" />
-    <PackageReference Include="FluentValidation" Version="12.*" />
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.*" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.*" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.16.0-beta.1" />
+    <PackageReference Include="Serilog.Formatting.Compact" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
   </ItemGroup>
 
   <ItemGroup>

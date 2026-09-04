@@ -27,6 +27,7 @@ on:
       - "**/*.csproj"
       - "**/packages.lock.json"
       - "Directory.Build.props"
+      - "Directory.Packages.props"
       - "Cluckwork.sln"
       - ".github/workflows/dependency-submission.yml"
   workflow_dispatch:

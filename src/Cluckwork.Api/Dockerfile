@@ -26,11 +26,14 @@ WORKDIR /src
 # BEFORE the restore layer, then restore with --locked-mode. This makes the image
 # resolve the SAME deterministic NuGet graph CI enforces: a stale/hand-edited lock
 # fails the build (NU1004) instead of silently floating to a different version.
-# Directory.Build.props sets RestorePackagesWithLockFile, so it must precede
-# restore. Only the SERVING projects are restored here (not the test projects),
+# Directory.Build.props sets RestorePackagesWithLockFile and
+# Directory.Packages.props carries every package VERSION (#684, Central Package
+# Management), so both must precede restore — without the second the csproj
+# files reference packages with no version and the restore fails (NU1010).
+# Only the SERVING projects are restored here (not the test projects),
 # so only their four lock files are needed. Copying just these inputs (not the
 # full source tree) keeps the restore layer cached across source-only changes.
-COPY Directory.Build.props ./
+COPY Directory.Build.props Directory.Packages.props ./
 COPY Cluckwork.sln ./
 COPY src/Cluckwork.Domain/Cluckwork.Domain.csproj src/Cluckwork.Domain/packages.lock.json src/Cluckwork.Domain/
 COPY src/Cluckwork.Application/Cluckwork.Application.csproj src/Cluckwork.Application/packages.lock.json src/Cluckwork.Application/
