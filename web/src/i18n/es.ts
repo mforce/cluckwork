@@ -1324,12 +1324,13 @@ export const es = {
     enterAmountGreaterThanZero: "Ingrese un monto mayor que cero.",
 
     // Filters
-    monthLabel: "Mes",
+    fromLabel: "Desde",
+    toLabel: "Hasta",
     categoryLabel: "Categoría",
     allCategoriesOption: "Todas las categorías",
     hideCategoriesButton: "ocultar categorías",
     manageCategoriesButton: "gestionar categorías",
-    monthTotalLabel: "Total del mes: {{amount}}",
+    periodTotalLabel: "Total de este período: {{amount}}",
 
     // Category-management panel
     categoriesHeading: "Categorías de gastos",
@@ -1363,7 +1364,8 @@ export const es = {
     saveCorrectionButton: "Guardar corrección",
 
     // Expenses table
-    noExpensesMessage: "No hay gastos este mes.",
+    noExpensesMessage: "Aún no se han registrado gastos.",
+    noExpensesMatch: "Ningún gasto coincide con estos filtros.",
     dateHeader: "Fecha",
     categoryHeader: "Categoría",
     descriptionHeader: "Descripción",
@@ -1562,8 +1564,12 @@ export const es = {
     actionHeader: "Acción",
     entityHeader: "Entidad",
     reasonHeader: "Motivo",
+    fromLabel: "Desde",
+    toLabel: "Hasta",
     emptyMessage: "Aún no hay eventos de auditoría.",
     scopedEmptyMessage: "Aún no hay eventos de auditoría para este registro.",
+    filteredEmptyMessage: "Ningún evento de auditoría coincide con estos filtros.",
+    scopedFilteredEmptyMessage: "Ningún evento de auditoría de este registro coincide con estos filtros.",
     loadMoreButton: "cargar más",
   },
 
@@ -2299,7 +2305,8 @@ export const es = {
     expensesHeading: "Gastos (admin)",
     expensesRecording:
       "Registre el dinero que sale: fecha, categoría, descripción y monto (en la moneda de la granja), "
-      + "opcionalmente vinculado a un lote. El selector de mes muestra un total acumulado; las categorías "
+      + "opcionalmente vinculado a un lote. El rango de fechas — las fechas propias de la granja, no un "
+      + "reloj del navegador en otro lugar — muestra un total acumulado para el período elegido; las categorías "
       + "se administran en la misma pantalla (desactivar una la oculta de los gastos nuevos — los ya "
       + "registrados la conservan).",
     expensesCorrections:
@@ -2335,7 +2342,9 @@ export const es = {
       "El menú \"Tipo de registro\" del registro de auditoría no filtra las filas por sí solo — reduce el "
       + "menú \"Acción\" de al lado a solo las acciones que ocurren en el tipo elegido (Lote, Pedido de "
       + "venta, etc.), para que no tengas que revisar una lista larga con cada acción que la granja puede "
-      + "registrar. Elige la acción de esa lista reducida para filtrar las filas realmente.",
+      + "registrar. Elige la acción de esa lista reducida para filtrar las filas realmente. "
+      + "Las fechas \"Desde\" y \"Hasta\" junto a ellos SÍ filtran las filas, sobre el día UTC que "
+      + "muestra la columna \"Cuándo (UTC)\".",
     auditRecordHistory:
       "Lotes, Grados de huevo, Historial de registro diario, Ventas y Gastos tienen una columna Historial "
       + "que muestra quién creó el registro y cuándo, más quién lo modificó por última vez si alguien lo "
@@ -2400,12 +2409,11 @@ export const es = {
       + "medidas una vez que ese formato esté disponible.",
     farmSettingsTimezone:
       "La <strong>zona horaria</strong> es el día de la granja. Cada campo que registra <em>cuándo sucedió "
-      + "algo</em> — entrada diaria, lotes, agua, uso y compras de alimento, gastos, pedidos y pagos — se "
-      + "abre en ella y se niega a ir más allá, sea cual sea el día en el teléfono o la laptop que tiene en "
-      + "la mano, para que un dispositivo adelantado a la granja ya no pueda ofrecer una fecha que el "
-      + "guardado luego rechace. Las fechas que están destinadas a estar en el futuro no tienen tope: la "
-      + "<strong>caducidad</strong> de un lote de alimento, y los rangos de fechas por los que filtra "
-      + "Historial y Agua.",
+      + "algo</em> — entrada diaria, lotes, agua, uso de alimento, compras de existencias, gastos, pedidos y pagos — se "
+      + "abre en ella y se niega a ir más allá para lo que usted registra, sea cual sea el día en el "
+      + "teléfono o la laptop que tiene en la mano, para que un dispositivo adelantado a la granja ya no "
+      + "pueda ofrecer una fecha que el guardado luego rechace. Las fechas que están destinadas a estar en "
+      + "el futuro no tienen tope — la <strong>fecha de vencimiento</strong> de un artículo en existencia.",
     farmSettingsCurrency:
       "La <strong>moneda</strong> se bloquea en el momento en que la granja registra su primer monto — una "
       + "venta, un pago, un gasto, un producto con precio, o dinero gastado en alimento. El campo se "
@@ -2607,8 +2615,7 @@ export const es = {
       + "puede tomar una venta, el día en que se agota o archiva un lote, y el rango en que se abren los "
       + "informes. Todo campo que registra CUÁNDO OCURRIÓ ALGO se abre en ese día y no permite ir más "
       + "allá, sin importar en qué día esté el dispositivo que tiene en la mano. Las fechas que deben caer "
-      + "en el futuro no tienen ese límite — el vencimiento de un lote de alimento, y los filtros de "
-      + "Historial y Agua.",
+      + "en el futuro no tienen ese límite — la fecha de vencimiento de un artículo en existencia.",
 
     glossaryInstallToHomeScreenTerm: "Instalar en la pantalla de inicio",
     glossaryInstallToHomeScreenDef:

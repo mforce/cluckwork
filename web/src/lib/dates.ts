@@ -68,6 +68,27 @@ export function daysBefore(isoDate: string, days: number): string {
   return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
 }
 
+// #666 — is this string a date the control can display AND the server can bind?
+// Both ends agree on the same set, so this checks it once: HTML's valid-date-
+// string production requires year >= 1, and the audit endpoint binds DateOnly,
+// whose MinValue is 0001-01-01. The boundary table in dates.test.ts is the
+// specification — every case this has been got wrong is a row in it.
+//
+// setUTCFullYear, NOT Date.UTC: Date.UTC applies the ECMAScript two-digit-year
+// mapping, so Date.UTC(50, 0, 1) is 1950 and a round-trip built on it rejects
+// every year 1-99. new Date(0) is exactly 1970-01-01T00:00:00.000Z and every
+// accessor below is a UTC accessor, so the probe carries no local offset.
+export function isIsoCalendarDate(v: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split("-").map(Number);
+  if (y < 1) return false;
+  const probe = new Date(0);
+  probe.setUTCFullYear(y, m - 1, d);
+  return probe.getUTCFullYear() === y
+    && probe.getUTCMonth() === m - 1
+    && probe.getUTCDate() === d;
+}
+
 // Whole weeks a flock has been placed, floored, never negative (a future
 // placement date reads as age 0). `nowMs` is injectable for testing; callers
 // pass a farm-local `placementDate` (YYYY-MM-DD), interpreted at local midnight.

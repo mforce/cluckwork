@@ -1693,7 +1693,8 @@ export const en = {
     enterAmountGreaterThanZero: "Enter an amount greater than zero.",
 
     // Filters
-    monthLabel: "Month",
+    fromLabel: "From",
+    toLabel: "To",
     // Shared by the filter select, the add-form select, and the edit-form
     // select — all three already carry this identical label in source.
     categoryLabel: "Category",
@@ -1702,7 +1703,7 @@ export const en = {
     manageCategoriesButton: "manage categories",
     // {{amount}} is formatMoney's already-formatted total — farm-locale DATA,
     // never routed through i18n.language.
-    monthTotalLabel: "Month total: {{amount}}",
+    periodTotalLabel: "Total for this period: {{amount}}",
 
     // Category-management panel
     categoriesHeading: "Expense categories",
@@ -1742,7 +1743,8 @@ export const en = {
     saveCorrectionButton: "Save correction",
 
     // Expenses table
-    noExpensesMessage: "No expenses for this month.",
+    noExpensesMessage: "No expenses recorded yet.",
+    noExpensesMatch: "No expenses match these filters.",
     dateHeader: "Date",
     categoryHeader: "Category",
     descriptionHeader: "Description",
@@ -2052,8 +2054,16 @@ export const en = {
     actionHeader: "Action",
     entityHeader: "Entity",
     reasonHeader: "Reason",
+    // #666 — the date window. Inclusive calendar days over the UTC timestamp,
+    // matching this screen's own "When (UTC)" column.
+    fromLabel: "From",
+    toLabel: "To",
     emptyMessage: "No audit events yet.",
     scopedEmptyMessage: "No audit events for this record yet.",
+    // Distinct from emptyMessage on purpose: under an active date range the
+    // log is not empty, the window is (INV-4).
+    filteredEmptyMessage: "No audit events match these filters.",
+    scopedFilteredEmptyMessage: "No audit events for this record match these filters.",
     loadMoreButton: "load more",
   },
   // Task 30 (B5, #182) — ExportPage: the manual-backup screen (#95,
@@ -2818,7 +2828,8 @@ export const en = {
     expensesHeading: "Expenses (admin)",
     expensesRecording:
       "Record money going out: date, category, description, and amount (in the farm's currency), optionally "
-      + "tied to a flock. The month picker shows a running total; categories are managed on the same screen "
+      + "tied to a flock. The date range — the farm's own dates, not a browser clock elsewhere — shows a running "
+      + "total for the period you pick; categories are managed on the same screen "
       + "(deactivating one hides it from new expenses — recorded ones keep it).",
     expensesCorrections:
       "Corrections edit the expense in place (<strong>correct</strong> on the row). If someone else "
@@ -2854,7 +2865,9 @@ export const en = {
       "The Audit log's \"Record type\" dropdown does not filter the rows itself — it narrows the "
       + "\"Action\" dropdown next to it down to only the actions that happen on the type you pick "
       + "(Flock, Sales order, and so on), so you are not scanning one long list of every action the "
-      + "farm can log. Pick the action from that narrowed list to actually filter the rows.",
+      + "farm can log. Pick the action from that narrowed list to actually filter the rows. "
+      + "The From and To dates beside them DO filter the rows, over the UTC day shown in the "
+      + "\"When (UTC)\" column.",
     auditRecordHistory:
       "Flocks, Egg grades, Daily entry history, Sales and Expenses each carry a History column showing who "
       + "created the record and when, plus who last changed it if anyone has. It is read from the same audit "
@@ -2918,11 +2931,11 @@ export const en = {
       + "once that formatting lands.",
     farmSettingsTimezone:
       "The <strong>timezone</strong> is the farm's day. Every field that records <em>when something "
-      + "happened</em> — daily entry, flocks, water, feed usage and purchases, expenses, orders and payments "
-      + "— opens on it and refuses to go past it, whatever day the phone or laptop in your hand is on, so a "
-      + "device travelling ahead of the farm can no longer offer a date the save then refuses. Dates that are "
-      + "meant to be in the future are not capped: a feed batch's <strong>expiry</strong>, and the date "
-      + "ranges you filter History and Water by.",
+      + "happened</em> — daily entry, flocks, water, feed usage, stock purchases, expenses, orders and payments "
+      + "— opens on it and refuses to go past it for what you record, whatever day the phone or laptop in "
+      + "your hand is on, so a device travelling ahead of the farm can no longer offer a date the save then "
+      + "refuses. Dates that are meant to be in the future are not capped: a "
+      + "<strong>stock item's expiry date</strong>.",
     farmSettingsCurrency:
       "The <strong>currency</strong> locks the moment the farm records its first amount — a sale, a payment, "
       + "an expense, a priced product, or money spent on feed. The field shows as locked with the reason "
@@ -3123,7 +3136,7 @@ export const en = {
       + "work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted "
       + "or archived on, and the range reports open on. Every field that records WHEN SOMETHING HAPPENED "
       + "opens on it and will not go past it, whatever day the device in your hand is on. Dates meant to "
-      + "fall in the future are not capped — a feed batch's expiry, and the History and Water filters.",
+      + "fall in the future are not capped — a stock item's expiry date.",
 
     glossaryInstallToHomeScreenTerm: "Install to home screen",
     glossaryInstallToHomeScreenDef:

@@ -1078,10 +1078,12 @@ input.cell {
   margin: 0;
 }
 
-/* Two ten-character dates (or one "YYYY-MM") do not need the row's full
-   width — the bug #653 fixes (docs/images/reports.png: a ~950px date field). */
-.toolbar input[type="date"],
-.toolbar input[type="month"] {
+/* Two ten-character dates do not need the row's full width — the bug #653
+   fixes (docs/images/reports.png: a ~950px date field). The
+   `input[type="month"]` arm was retired with its last caller in #667: leaving
+   a rule for a control no screen renders is a styling rule with zero call
+   sites, and a guard asserting it reads as safety for nothing (#662). */
+.toolbar input[type="date"] {
   max-width: 12rem;
 }
 

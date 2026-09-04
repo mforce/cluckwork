@@ -529,8 +529,14 @@ export function StockPage() {
             <>
               <h3>{t("lotsHeading")}</h3>
               {/* #465 — a server-side production-date window, so an old lot is
-                  findable without paging the whole history to it. */}
-              <div className="filters">
+                  findable without paging the whole history to it.
+                  #653 — and it belongs in the bounded toolbar: the width cap in
+                  styles.css is keyed on `.toolbar input[type="date"]`, so under
+                  `.filters` these two rendered at the row's full width, which is
+                  exactly the bug #653 was filed to fix. This section has no
+                  non-date filter, so the whole bar is the toolbar — the same
+                  shape ReportsPage uses. */}
+              <div className="toolbar">
                 <label>{t("fromLabel")}
                   <input type="date" value={lotsFrom}
                     onChange={(e) => void changeLotsFilter(e.target.value, lotsTo)} />

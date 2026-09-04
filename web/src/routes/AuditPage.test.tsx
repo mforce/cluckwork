@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, act, fireEvent } from "@testing-library/react";
-import { Link, MemoryRouter, Route, Routes } from "react-router";
+import { render, screen, within, act, fireEvent, waitFor } from "@testing-library/react";
+import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 import { AuditPage, isFetchStale } from "./AuditPage";
 import { listAuditEvents } from "../api/cluckwork";
 import type { AuditEvent } from "../api/cluckwork";
@@ -30,6 +30,26 @@ function renderAudit(route = "/audit") {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <AuditPage />
+    </MemoryRouter>,
+  );
+}
+
+function LocationProbe() {
+  const loc = useLocation();
+  const navigate = useNavigate();
+  return (
+    <>
+      <span data-testid="probe-search">{loc.search}</span>
+      <button type="button" onClick={() => navigate(-1)}>probe-back</button>
+    </>
+  );
+}
+
+function renderAuditWithProbe(route = "/audit") {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <AuditPage />
+      <LocationProbe />
     </MemoryRouter>,
   );
 }
@@ -306,6 +326,119 @@ describe("AuditPage filter", () => {
         (screen.getByRole("combobox", { name: "Action" }) as HTMLSelectElement).options,
       ).map((o) => o.value),
     ).toContain("SalesOrder.Void"); // back to the full, unfiltered list
+  });
+
+  it("sends the date range from the URL to the API", async () => {
+    renderAudit("/audit?from=2026-08-01&to=2026-08-31");
+
+    await waitFor(() => {
+      expect(mockListAuditEvents).toHaveBeenCalledWith(
+        expect.objectContaining({ from: "2026-08-01", to: "2026-08-31" }),
+      );
+    });
+  });
+
+  it("ignores a from/to that is not an ISO date, rather than sending it", async () => {
+    renderAudit("/audit?from=last-tuesday&to=2026-08-31");
+
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenCalled());
+    expect(mockListAuditEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ from: undefined, to: "2026-08-31" }),
+    );
+  });
+
+  // A shape-only regex accepts 2026-02-31. The server would take it, and the
+  // browser blanks the control showing it — a filter the user cannot clear.
+  it("ignores a well-shaped but impossible calendar date", async () => {
+    renderAudit("/audit?from=2026-02-31&to=2026-08-31");
+
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenCalled());
+    expect(mockListAuditEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ from: undefined, to: "2026-08-31" }),
+    );
+  });
+
+  // Date.UTC(2, …) is 1902, so a naive round-trip rejects years 1-99 and — the
+  // input being controlled — blanks the whole control mid-edit. Retyping a
+  // year emits exactly these values on the way to a four-digit one.
+  it("accepts a low-numbered year rather than wiping the control", async () => {
+    renderAudit("/audit?from=0050-01-01&to=2026-08-31");
+
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenCalled());
+    expect(mockListAuditEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ from: "0050-01-01", to: "2026-08-31" }),
+    );
+  });
+
+  // Was: a test whose title claimed history behaviour and whose body only
+  // checked the request. Deleting `{ replace: true }` left it green — a
+  // surviving mutant on the one property the PROTECTED block exists to hold.
+  //
+  // With replace, both writes replace the SAME history entry, so Back has
+  // nothing earlier to return to and the search is unchanged. Without it, Back
+  // lands on ?from=2026-08-01 — an intermediate value the user typed through
+  // and never chose to keep. That value is the discriminator.
+  it("does not leave an intermediate half-typed date on the history stack", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAuditWithProbe("/audit");
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-01" } });
+    await waitFor(() => expect(screen.getByTestId("probe-search").textContent).toBe("?from=2026-08-01"));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-05" } });
+    await waitFor(() => expect(screen.getByTestId("probe-search").textContent).toBe("?from=2026-08-05"));
+
+    fireEvent.click(screen.getByRole("button", { name: "probe-back" }));
+    await new Promise((r) => setTimeout(r, 0));
+    // Positive, not `not.toBe(...)`: it pins the exact expected string rather
+    // than "anything except one string". Both forms are satisfied if the
+    // navigation never happens at all — with replace there is one history
+    // entry, so Back is a clamped no-op and the pre-click value is also the
+    // expected one. What this form adds is that a future change writing extra
+    // params breaks it, which is a change that should break it.
+    expect(screen.getByTestId("probe-search").textContent).toBe("?from=2026-08-05");
+  });
+
+  // #653/#662 — mirrors Increment 3's StockPage structural guard: the width
+  // cap in styles.css is keyed on `.toolbar input[type="date"]`, so the wrapper
+  // is the only honest thing jsdom (no layout engine) can assert here.
+  it("puts the date range in the bounded toolbar, not a bare filters row", async () => {
+    renderAudit("/audit");
+    await waitFor(() => expect(mockListAuditEvents).toHaveBeenCalled());
+    const fromInput = screen.getByLabelText("From");
+    expect(fromInput.closest("div.toolbar")).not.toBeNull();
+  });
+
+  // INV-4 — "No audit events yet." is a FALSE statement when a date filter
+  // emptied the window: the log is not empty, this window is. The two
+  // sentences must differ, which is what the mutation row pins.
+  it("says the window is empty, not the log, when a date filter returns nothing", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit("/audit?from=2026-08-01&to=2026-08-02");
+
+    expect(await screen.findByText("No audit events match these filters.")).toBeInTheDocument();
+    expect(screen.queryByText("No audit events yet.")).not.toBeInTheDocument();
+  });
+
+  // Two narrowings, two facts. Saying only "for this record yet" here is false
+  // whenever the record HAS events outside the window (CodeRabbit, round 1).
+  it("says both the record and the range when a scoped view is filtered to nothing", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit("/audit?entityId=f1234567-89ab-4cde-8f01-23456789abcd&from=2026-08-01&to=2026-08-02");
+
+    expect(await screen.findByText("No audit events for this record match these filters.")).toBeInTheDocument();
+    expect(screen.queryByText("No audit events for this record yet.")).not.toBeInTheDocument();
+    expect(screen.queryByText("No audit events match these filters.")).not.toBeInTheDocument();
+  });
+
+  // The axis the earlier enumeration missed: action alone can empty the view,
+  // and "No audit events yet." is false when the log is full of other actions.
+  it("says the filters matched nothing when only an action filter is active", async () => {
+    mockListAuditEvents.mockResolvedValue([]);
+    renderAudit("/audit?action=Flock.Deplete");
+
+    expect(await screen.findByText("No audit events match these filters.")).toBeInTheDocument();
+    expect(screen.queryByText("No audit events yet.")).not.toBeInTheDocument();
   });
 });
 
