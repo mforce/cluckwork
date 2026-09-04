@@ -410,3 +410,48 @@ test("loadExceptions: only a missing file is quiet; unusable files warn and supp
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// #686 — the ADVISORY run must never block, INCLUDING when the audit report is
+// unusable. npm's advisory endpoint returning 503 emits an error payload; the
+// blocking gate must still fail closed on that ("an error payload is not 'no
+// vulnerabilities'"), but the advisory step is documented in this file's header
+// as `--warn-only  (report, always exit 0)` and in ci.yml as "ADVISORY only
+// (never blocks)". It was doing neither: both bad-input paths set exit 2
+// without consulting warnOnly, so a third-party outage failed CI on PRs that
+// touched no web/ file at all.
+//
+// Both paths are covered, because they are separate returns in main(): an
+// unusable-but-parseable report (reportProblem) and input that is not JSON at
+// all (extractJson).
+test("bad input: the advisory run warns and exits 0, the blocking run still fails closed", () => {
+  const errorPayload = JSON.stringify({ error: { code: "E503", summary: "", detail: "" } });
+  const notJson = "npm error audit endpoint returned an error";
+
+  const run = (input, extra = []) => spawnSync(
+    process.execPath,
+    [SCRIPT, "--ecosystem", "npm", ...extra],
+    { cwd: process.cwd(), encoding: "utf8", input },
+  );
+
+  // Unusable report — the npm-503 shape.
+  const blocking = run(errorPayload);
+  assert.equal(blocking.status, 2, "blocking gate must fail closed on an unusable report");
+  assert.match(blocking.stderr, /::error::/);
+
+  const advisory = run(errorPayload, ["--warn-only"]);
+  assert.equal(advisory.status, 0, "advisory gate must not block on an unusable report");
+  assert.match(advisory.stderr, /::warning::/);
+  assert.doesNotMatch(advisory.stderr, /::error::/);
+
+  // Unparseable input — the same rule applies on the other bad-input path.
+  const blockingUnparseable = run(notJson);
+  assert.equal(blockingUnparseable.status, 2, "blocking gate must fail closed on unparseable input");
+
+  const advisoryUnparseable = run(notJson, ["--warn-only"]);
+  assert.equal(advisoryUnparseable.status, 0, "advisory gate must not block on unparseable input");
+  assert.match(advisoryUnparseable.stderr, /::warning::/);
+
+  // The advisory run must still SAY something — a silent exit 0 would be a gate
+  // nobody can tell ran at all.
+  assert.match(advisory.stderr, /unusable audit report|could not parse/);
+});

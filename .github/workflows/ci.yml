@@ -86,7 +86,12 @@ jobs:
   web:
     name: Web typecheck, test, and build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # #686 — 20, not 10. The two npm audit steps below are each bounded at 240s,
+    # so their bounded worst case is 8 minutes; at the old 10 the job could be
+    # killed before typecheck/test/build ran at all, which is exactly what
+    # happened on 2026-09-04 (job cancelled at 10m16s with npm audit still
+    # hanging, PRs #685 and #687, neither of which touched web/).
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
@@ -130,9 +135,27 @@ jobs:
       # (repo-root) exceptions path would resolve to a nonexistent
       # `web/.github/…` and silently drop every npm exception — leaving an
       # excepted advisory blocking anyway (#146 review). Point it at the real file.
+      #
+      # `timeout --kill-after=30s 240s` (#686): npm's advisory endpoint can HANG
+      # rather than fail,
+      # and an unbounded hang eats the whole job budget — on 2026-09-04 it killed
+      # the job before typecheck/test/build ran. 240s is sized above the slowest
+      # SUCCESSFUL call observed that day (3m14s), so a merely slow endpoint still
+      # produces a real verdict; it is not 120s for that reason. A bound that
+      # trips yields no report, and that is deliberate: this BLOCKING step then
+      # fails closed via vuln-gate, because "we could not check" is not "clean".
+      #
+      # `--kill-after` is NOT optional (CodeRabbit review of #687): bare `timeout`
+      # sends SIGTERM and never escalates, so a child blocked in a network read
+      # outlives its own bound — which is exactly what the 2026-09-04 cancellation
+      # logged: "Terminate orphan process: pid (2611) (npm audit)". Verified
+      # against a process that ignores SIGTERM: bare `timeout` returns 124 while
+      # the child keeps running; with `--kill-after` it returns 137 and the child
+      # is gone. Worst case per call is therefore 270s, and both calls still fit
+      # the 20-minute job budget with room for the build.
       - name: Audit prod npm dependencies (high+, blocking)
         run: |
-          npm audit --omit=dev --json > npm-audit-prod.json || true
+          timeout --kill-after=30s 240s npm audit --omit=dev --json > npm-audit-prod.json || true
           node ../.github/scripts/vuln-gate.mjs --ecosystem npm --level high \
             --exceptions ../.github/security-exceptions.json < npm-audit-prod.json
 
@@ -140,9 +163,14 @@ jobs:
       # A build-tooling advisory (vite, vitest, eslint…) does not ship to users,
       # so it surfaces in the log without wedging unrelated PRs. Bump the dep, or
       # promote this to a blocking step, when one actually appears.
+      #
+      # Bounded the same way as the blocking step above, `--kill-after` included. When the
+      # bound trips, vuln-gate warns and exits 0 rather than failing the build
+      # (#686) — never blocking has to hold for an outage too, not just for a
+      # finding.
       - name: Audit all npm dependencies (moderate+, advisory only)
         run: |
-          npm audit --json > npm-audit-all.json || true
+          timeout --kill-after=30s 240s npm audit --json > npm-audit-all.json || true
           node ../.github/scripts/vuln-gate.mjs --ecosystem npm --level moderate --warn-only \
             --exceptions ../.github/security-exceptions.json < npm-audit-all.json
 

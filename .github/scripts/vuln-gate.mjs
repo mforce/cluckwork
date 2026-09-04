@@ -23,7 +23,8 @@
 //        --exceptions <path>                   (default .github/security-exceptions.json)
 //        --emit-allowlist                      (print live GHSA ids for dependency-review)
 //
-// Exit 0 = clean or fully excepted; exit 1 = blocking advisory; exit 2 = bad input.
+// Exit 0 = clean, fully excepted, or ANY outcome under --warn-only; exit 1 =
+// blocking advisory; exit 2 = bad input, unless --warn-only (see badInput).
 
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -328,6 +329,23 @@ export function loadExceptions(path, warn = console.error) {
   return exceptions;
 }
 
+// #686 — the one place that decides what bad input costs. `--warn-only` is
+// documented in this file's header as "report, always exit 0" and ci.yml
+// describes the advisory step as "ADVISORY only (never blocks)"; both bad-input
+// paths used to ignore that and exit 2, so an npm outage failed CI on PRs that
+// touched nothing. The BLOCKING gate keeps failing closed — that is #146 and it
+// does not change here.
+export function badInput(options, message) {
+  const prefix = `[${options.ecosystem}] ${message}`;
+  if (options.warnOnly) {
+    console.error(`::warning::${prefix} — advisory run, not blocking`);
+    return 0;
+  }
+  console.error(`::error::${prefix}`);
+  process.exitCode = 2;
+  return 2;
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
 
@@ -355,15 +373,21 @@ async function main() {
   try {
     parsed = extractJson(await readStdin());
   } catch (err) {
-    console.error(`::error::[${options.ecosystem}] could not parse the audit output: ${err.message}`);
-    process.exitCode = 2; // a gate that cannot read its input must not pass silently
+    // #686 — fail closed, EXCEPT under --warn-only. The blocking gate must not
+    // pass when it cannot read its input; the advisory run cannot block even on
+    // a finding, so blocking it on unreadable input is stranger still, and it
+    // failed CI on unrelated PRs whenever npm's advisory endpoint was down.
+    // Either way it says so: a silent exit 0 is a gate nobody can tell ran.
+    badInput(options, `could not parse the audit output: ${err.message}`);
     return;
   }
 
   const shapeProblem = reportProblem(parsed, options.ecosystem);
   if (shapeProblem) {
-    console.error(`::error::[${options.ecosystem}] unusable audit report — ${shapeProblem}`);
-    process.exitCode = 2; // fail closed: an error payload is not "no vulnerabilities"
+    // #686 — same rule as the parse failure above: an error payload is not "no
+    // vulnerabilities" for the blocking gate, and is not a build failure for the
+    // advisory one.
+    badInput(options, `unusable audit report — ${shapeProblem}`);
     return;
   }
 
