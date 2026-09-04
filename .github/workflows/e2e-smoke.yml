@@ -45,6 +45,7 @@ on:
       # itself lives under src/ (covered above), but it COPYs these from the
       # repo root, and .dockerignore governs its whole build context.
       - "Directory.Build.props"
+      - "Directory.Packages.props"
       - "Cluckwork.sln"
       - ".dockerignore"
       - "deploy/**"
@@ -112,9 +113,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: /tmp/.buildx-cache
-          key: image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Cluckwork.sln', '.dockerignore') }}-${{ github.sha }}
+          key: image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'Cluckwork.sln', '.dockerignore') }}-${{ github.sha }}
           restore-keys: |
-            image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Cluckwork.sln', '.dockerignore') }}-
+            image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'Cluckwork.sln', '.dockerignore') }}-
             image-layers-
 
       # Pre-build the app image under the compose-derived tag (project

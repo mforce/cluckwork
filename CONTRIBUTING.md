@@ -203,6 +203,9 @@ Block on these like a missing test:
 
 ## Dependencies
 
+- NuGet versions live in `Directory.Packages.props` at the repo root (Central
+  Package Management, #684); the `.csproj` files carry no `Version=`. Bump there,
+  then `dotnet restore Cluckwork.sln`.
 - A package add or bump commits the regenerated `packages.lock.json` **in the same
   commit** — CI restores `--locked-mode` and otherwise fails with `NU1004`.
 - A known-vulnerable production dependency fails CI. The only mute is a dated

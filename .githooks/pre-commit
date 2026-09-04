@@ -16,11 +16,13 @@ set -eu
 # partial staging (git add -p) the hook can pass while the staged content
 # alone would not build. Acceptable for a tripwire; CI checks the real tree.
 # D included: deleting a .cs/.csproj can break references just as well.
+# Directory.Packages.props included: a version bump there changes the graph
+# every project restores (#684), the same as editing the csproj used to.
 staged=$(git diff --cached --name-only --diff-filter=ACMRD)
 
 fail() { echo "pre-commit: FAILED ($1) — fix or use --no-verify." >&2; exit 1; }
 
-if echo "$staged" | grep -qE '\.sln$|\.cs(proj)?$'; then
+if echo "$staged" | grep -qE '\.sln$|\.cs(proj)?$|^Directory\.Packages\.props$'; then
   echo "pre-commit: .NET unit tests (domain + application)..."
   dotnet test tests/Cluckwork.Domain.Tests --nologo -v q || fail ".NET unit tests"
   dotnet test tests/Cluckwork.Application.Tests --nologo -v q || fail ".NET unit tests"

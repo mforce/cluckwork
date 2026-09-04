@@ -47,7 +47,9 @@ jobs:
         with:
           dotnet-version: 10.0.x
           cache: true
-          cache-dependency-path: "**/*.csproj"
+          cache-dependency-path: |
+            **/*.csproj
+            Directory.Packages.props
 
       # --locked-mode: restore must match the committed packages.lock.json
       # exactly, so a dependency can't float to a different resolved version
@@ -282,9 +284,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: /tmp/.buildx-cache
-          key: image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Cluckwork.sln', '.dockerignore') }}-${{ github.sha }}
+          key: image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'Cluckwork.sln', '.dockerignore') }}-${{ github.sha }}
           restore-keys: |
-            image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Cluckwork.sln', '.dockerignore') }}-
+            image-layers-${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'Cluckwork.sln', '.dockerignore') }}-
             image-layers-
 
       # Build the exact image the container ships: the multi-stage Dockerfile
@@ -306,7 +308,7 @@ jobs:
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       # #315 — prove --locked-mode is enforced in the Docker restore: perturb an
-      # exact-pinned PackageReference WITHOUT refreshing its lock and assert the
+      # exact-pinned PackageVersion WITHOUT refreshing its lock and assert the
       # build fails (NU1004). `--target build` stops at the restore/publish stage
       # (skips the SPA/web stage), so this is a fast negative check on a throwaway
       # copy of the committed tree — the real build above is untouched.
@@ -316,12 +318,14 @@ jobs:
           work="$(mktemp -d)"
           git archive HEAD | tar -x -C "$work"
           cd "$work"
-          sed -i 's#<PackageReference Include="Microsoft.OpenApi" Version="2.12.2" #<PackageReference Include="Microsoft.OpenApi" Version="2.12.1" #' \
-            src/Cluckwork.Api/Cluckwork.Api.csproj
+          # #684 — versions live in Directory.Packages.props (Central Package
+          # Management), so the perturbation edits the PackageVersion there.
+          sed -i 's#<PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" #<PackageVersion Include="Microsoft.OpenApi" Version="2.12.1" #' \
+            Directory.Packages.props
           # Fail loudly (don't silently pass) if the pin used as the perturbation
           # target has since moved — the guard must be kept pointing at a real pin.
-          grep -q '<PackageReference Include="Microsoft.OpenApi" Version="2.12.1" ' \
-            src/Cluckwork.Api/Cluckwork.Api.csproj \
+          grep -q '<PackageVersion Include="Microsoft.OpenApi" Version="2.12.1" ' \
+            Directory.Packages.props \
             || { echo "::error::drift-guard perturbation target not found; update the Microsoft.OpenApi version it edits"; exit 1; }
           if docker build --target build -f src/Cluckwork.Api/Dockerfile -t cluckwork-lockdrift:ci . ; then
             echo "::error::Docker restore succeeded with a stale packages.lock.json — --locked-mode is not enforced"

@@ -1,0 +1,57 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- #684: Central Package Management. Every NuGet version lives here;
+         the .csproj files carry bare PackageReference elements. Bump a package
+         by editing this file, then run `dotnet restore Cluckwork.sln` and commit
+         the regenerated packages.lock.json files with it (#146). -->
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- CPM rejects floating ranges (10.*, 1.*, ...) with NU1011 unless this is
+         set. The ranges below are the same ones the .csproj files carried; the
+         committed lock files, not the ranges, pin what actually restores. -->
+    <CentralPackageFloatingVersionsEnabled>true</CentralPackageFloatingVersionsEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.5.3" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.5.3" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.5.3" />
+    <PackageVersion Include="Aspire.Hosting.Testing" Version="13.5.3" />
+    <PackageVersion Include="FluentValidation" Version="12.*" />
+    <PackageVersion Include="Google.Protobuf" Version="3.*" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.*" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.*" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.*" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.*" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.*" />
+    <!-- Pinned, floor AND ceiling load-bearing: transitive 2.0.0 has
+         GHSA-v5pm-xwqc-g5wc (NU1903); Microsoft.AspNetCore.OpenApi 10.x
+         requires Microsoft.OpenApi [2.7.5, 3.0.0). Reason also noted at the
+         reference in Cluckwork.Api.csproj. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.*" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.*" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.*" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.*" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.16.0-beta.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.*" />
+    <PackageVersion Include="Riok.Mapperly" Version="4.*" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.*" />
+    <PackageVersion Include="Serilog.Extensions.Logging" Version="10.*" />
+    <PackageVersion Include="Serilog.Formatting.Compact" Version="3.*" />
+    <!-- Transitive-pin override for GHSA-q939-rpr3-3284 via Testcontainers;
+         full rationale at the reference in Cluckwork.Api.IntegrationTests.csproj. -->
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.*" />
+    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.*" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.*" />
+    <PackageVersion Include="Testcontainers.Redis" Version="4.*" />
+    <PackageVersion Include="xunit" Version="2.*" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.*" />
+  </ItemGroup>
+
+</Project>

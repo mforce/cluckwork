@@ -21,7 +21,10 @@ CI fails a PR when a dependency carries a known **high+** advisory:
   gates only fire on a PR or a push, so without this an advisory published
   against a dependency nobody is touching goes unnoticed until the next PR.
 
-**NuGet lock files.** `Directory.Build.props` sets `RestorePackagesWithLockFile`,
+**NuGet lock files.** `Directory.Build.props` sets `RestorePackagesWithLockFile`
+(and, since #684, `Directory.Packages.props` beside it holds every package
+version under Central Package Management — the lock files are format version 2
+from then on, which is the CPM lock format, not a resolution change),
 so every project has a committed `packages.lock.json` and CI restores with
 `--locked-mode` — restores are **deterministic**, and a dependency can't float to
 a different resolved version between a green local run and CI. **When you add or
