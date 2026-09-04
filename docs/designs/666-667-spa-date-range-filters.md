@@ -164,6 +164,13 @@ serialises `from`/`to`. The client, the endpoint and the repository are all read
    is in flight and still withheld when `meta` is null (`ExpensesPage.tsx:508-520`). Those two guards
    exist because a figure from the previous window under the new window's control is the defect this
    screen was fixed for. **Do not simplify them.**
+7. **`from`/`to` live in `useState`, not the URL — a deliberate choice nobody had stated.** This mirrors
+   Feed, Water and History, which all hold their filters the same way; Audit is the outlier, and it is an
+   outlier for a reason already on record — its own header comment made the URL the single source of truth
+   for `action` and `entityId` before this PR touched it, so `from`/`to` joining that same source keeps one
+   screen's existing contract rather than establishing a new one. The consequence is real and user-visible:
+   an Audit window survives a refresh, Back, and a shared link; an Expenses window survives none of them.
+   Recorded here so the next reader does not rediscover the asymmetry as a bug.
 
 ### Files
 
@@ -238,8 +245,7 @@ clamps.
 **Decision: no client-side validation, and no new error state.** An inverted range renders the
 filtered-empty message this slice is already adding, which is a true statement about that window. Adding
 a bespoke "your dates are backwards" path would be a fifth code path on two screens for a state the user
-resolves by looking at the two controls they just set. `max={today}` is kept on both inputs on Expenses,
-preserving the cap the month picker had. What is *not* acceptable is the current Audit behaviour of
+resolves by looking at the two controls they just set. What is *not* acceptable is the current Audit behaviour of
 saying "No audit events yet." to a user who inverted a range — that is INV-4, and it is why the third
 message is required rather than optional.
 

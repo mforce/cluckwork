@@ -193,11 +193,13 @@ const REJECTED = [
   "abcd-ef-gh", // non-numeric
   "10000-01-01", // five-digit year
   // Whitespace is URL-reachable: searchParams.get() decodes "+" and "%20" to a
-  // space, so ?from=+2026-08-01 arrives as " 2026-08-01". These rows exist to
-  // fail the tempting future edit — trim the input, or allow \s* in the regex —
-  // which every other row in this table survives. .NET binds a padded date
-  // fine (DateTimeStyles.AllowWhiteSpaces is the default), so a lenient client
-  // would send a value the server accepts and the control cannot display.
+  // space, so ?from=+2026-08-01 arrives as " 2026-08-01" and ?from=2026+-08-01
+  // as "2026 -08-01". These rows exist to fail the tempting future edit — trim
+  // the input, or allow \s* at the anchors — which every other row in this
+  // table survives. What the server would do with a padded value is not
+  // asserted here: this function's contract is that the client sends only what
+  // the CONTROL can display, and <input type="date"> cannot display any of
+  // these three.
   " 2026-08-01",  // leading space, the "+" decoding
   "2026-08-01 ",  // trailing space
   "2026 -08-01",  // interior space

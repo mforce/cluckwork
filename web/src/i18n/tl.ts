@@ -2393,8 +2393,8 @@ export const tl = {
     expensesHeading: "Mga Gastos (admin)",
     expensesRecording:
       "Itala ang lumalabas na pera: petsa, kategorya, deskripsyon, at halaga (sa currency ng bukid), "
-      + "opsyonal na naka-link sa isang kawan. Ipinapakita ng hanay ng petsa ang tumatakbong total para sa "
-      + "panahong pinili mo; "
+      + "opsyonal na naka-link sa isang kawan. Ipinapakita ng hanay ng petsa — ang sariling petsa ng bukid, "
+      + "hindi ng orasan ng browser sa ibang lugar — ang tumatakbong total para sa panahong pinili mo; "
       + "pinapamahalaan ang mga kategorya sa parehong screen (ang pag-deactivate ng isa ay nagtatago nito "
       + "mula sa mga bagong gastos — pinapanatili ito ng mga naitala na).",
     expensesCorrections:
@@ -2502,11 +2502,12 @@ export const tl = {
     farmSettingsTimezone:
       "Ang <strong>time zone</strong> ang araw ng bukid. Ang bawat field na nagtatala ng <em>kung kailan "
       + "nangyari ang isang bagay</em> — araw-araw na entry, kawan, tubig, paggamit at pagbili ng feed, "
-      + "gastos, order at bayad — ay bumubukas dito at tumatanggi lumampas dito, anuman ang araw sa "
-      + "telepono o laptop na hawak mo, para hindi na makapag-alok ang isang device na nauuna sa bukid ng "
-      + "petsang tatanggihan din naman ng pag-save. Ang mga petsang nakatakdang mangyari sa hinaharap ay "
-      + "walang cap: ang <strong>expiry</strong> ng isang lote ng feed, at ang mga date range na ginagamit "
-      + "mo para i-filter ang History at Tubig.",
+      + "gastos, order at bayad — ay bumubukas dito at tumatanggi lumampas dito para sa itinatala mo, "
+      + "anuman ang araw sa telepono o laptop na hawak mo, para hindi na makapag-alok ang isang device na "
+      + "nauuna sa bukid ng petsang tatanggihan din naman ng pag-save. Ang cap na iyon ay para sa "
+      + "pagtatala, hindi sa pag-filter: ang mga petsang nakatakdang mangyari sa hinaharap ay walang cap "
+      + "— ang <strong>expiry</strong> ng isang lote ng feed, at ang mga date range na ginagamit mo para "
+      + "i-filter ang isang listahan.",
     farmSettingsCurrency:
       "Naka-lock ang <strong>currency</strong> sa sandaling itala ng bukid ang una nitong halaga — isang "
       + "benta, isang bayad, isang gastos, isang produktong may presyo, o perang ginastos sa feed. "
@@ -2713,9 +2714,10 @@ export const tl = {
       + "darating kapag nagtatala ka ng trabaho, kailan aalis ang itlog sa withdrawal period, kung aling "
       + "itlog ang puwedeng kunin ng isang benta, ang araw na na-deplete o na-archive ang isang kawan, at "
       + "ang range na binubuksan ng mga report. Bawat field na nagtatala kung KAILAN NANGYARI ANG ISANG "
-      + "BAGAY ay nagbubukas dito at hindi ito lalagpasan, kahit anong araw ang nasa device mo. Hindi "
-      + "limitado ang mga petsang dapat mahulog sa hinaharap — ang expiry ng isang batch ng feed, at ang "
-      + "mga filter ng History at Tubig.",
+      + "BAGAY ay nagbubukas dito at hindi ito lalagpasan, kahit anong araw ang nasa device mo — ang limitasyong "
+      + "iyon ay para sa pagtatala, hindi sa pag-filter. Hindi limitado ang mga petsang dapat mahulog sa "
+      + "hinaharap — ang expiry ng isang batch ng feed, at ang mga date range na ginagamit mo para "
+      + "i-filter ang isang listahan.",
 
     glossaryInstallToHomeScreenTerm: "Pag-install sa home screen",
     glossaryInstallToHomeScreenDef:

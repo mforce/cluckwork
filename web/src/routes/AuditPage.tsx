@@ -178,7 +178,7 @@ export function AuditPage() {
       ? rawActionFilter
       : "";
 
-  // The non-scope narrowings. `entityId` is the fourth axis that can empty this
+  // The non-scope narrowings. `entityId` is the scope axis that can empty this
   // view and is deliberately NOT here — it selects which of the two sentence
   // families applies, in the ternary below, rather than whether the view is
   // narrowed at all.
