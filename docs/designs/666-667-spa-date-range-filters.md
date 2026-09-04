@@ -166,12 +166,13 @@ serialises `from`/`to`. The client, the endpoint and the repository are all read
    screen was fixed for. **Do not simplify them.**
 7. **`from`/`to` live in `useState`, not the URL — a deliberate choice nobody had stated.** Verified by
    reading `FeedPage.tsx:92`, `WaterPage.tsx:101-102`, `HistoryPage.tsx:79-80` and `ExpensesPage.tsx:73-74`,
-   naming them so the next reader can check rather than trust: History holds its filters the same way
-   Expenses does, plain `useState("")` with no URL involvement, surviving neither a refresh nor a shared
-   link. Feed and Water are a hybrid, not a match for either — they seed their initial `useState` from
+   naming them so the next reader can check rather than trust: History (`useState("")`) and Expenses
+   (`useState(monthStart)` / `useState(monthEnd)`) differ in their initial VALUE and agree in the thing
+   that matters here — neither has any URL involvement, so neither survives a refresh or a shared link. Feed and Water are a hybrid, not a match for either — they seed their initial `useState` from
    `searchParams`/`window.location.search` on mount but never write back, so an inbound shared link restores
    their window while their own subsequent changes do not update the URL. Audit is the only screen where the
-   URL is the single source of truth in both directions, for a reason already on record — its own header
+   URL is the single source of truth for `from`/`to` in both directions (`SalesPage` is bidirectional too,
+   but for `customerId`, not a date range), for a reason already on record — its own header
    comment made it so for `action` and `entityId` before this PR touched it, so `from`/`to` joining that same
    source keeps one screen's existing contract rather than establishing a new one. The consequence is real
    and user-visible: an Audit window survives a refresh, Back, and a shared link; an Expenses window survives
