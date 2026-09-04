@@ -29,9 +29,11 @@ export const LOCK_FILES = Object.freeze([
   "src/Cluckwork.Application/packages.lock.json",
   "src/Cluckwork.Infrastructure/packages.lock.json",
   "src/Cluckwork.Api/packages.lock.json",
+  "src/Cluckwork.AppHost/packages.lock.json",
   "tests/Cluckwork.Domain.Tests/packages.lock.json",
   "tests/Cluckwork.Application.Tests/packages.lock.json",
   "tests/Cluckwork.Api.IntegrationTests/packages.lock.json",
+  "tests/Cluckwork.AppHost.Tests/packages.lock.json",
 ]);
 
 const ALLOW = new Set(LOCK_FILES);

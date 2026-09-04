@@ -7,15 +7,31 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { changedPaths, classify, LOCK_FILES } from "./lockfix.mjs";
 
 // Build a `git status --porcelain -z` stream: each record is `XY <path>` and
 // the stream is NUL-terminated per record.
 const z = (...records) => records.map((r) => r + "\0").join("");
 
-test("the allowlist is exactly the 7 solution lock files", () => {
-  assert.equal(LOCK_FILES.length, 7);
+test("the allowlist is exactly the 9 solution lock files", () => {
+  assert.equal(LOCK_FILES.length, 9);
   assert.ok(LOCK_FILES.every((p) => p.endsWith("/packages.lock.json")));
+});
+
+// Walk the solution, exclude nothing: every project Cluckwork.sln references
+// restores a lock, so every one of them must be in the allowlist. The 7-entry
+// list shipped with #203 was written by hand and silently missed the two
+// AppHost projects added in #565 — a Dependabot bump touching an Aspire package
+// would have left their locks stale and the PR red. A recalled list is exactly
+// what this allowlist exists to replace.
+test("the allowlist covers every project in Cluckwork.sln", () => {
+  const sln = readFileSync(new URL("../../Cluckwork.sln", import.meta.url), "utf8");
+  const projects = [...sln.matchAll(/Project\("[^"]+"\) = "[^"]+", "([^"]+\.csproj)"/g)]
+    .map((m) => m[1].replaceAll("\\", "/").replace(/\/[^/]+\.csproj$/, "/packages.lock.json"))
+    .sort();
+  assert.ok(projects.length >= 9, `parsed only ${projects.length} projects from the sln`);
+  assert.deepEqual([...LOCK_FILES].sort(), projects);
 });
 
 test("a diff of only lock files -> commit", () => {

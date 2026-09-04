@@ -80,7 +80,8 @@ jobs:
           name: lockfiles
           if-no-files-found: error
           retention-days: 1
-          # These 7 paths span both src/ and tests/, so the artifact's
+          # These 9 paths (every project in Cluckwork.sln; the two AppHost ones
+          # were missing from the hand-written #203 list) span both src/ and tests/, so the artifact's
           # least-common-ancestor is the repo root: each file is preserved with
           # its full repo-relative path. lockfix-apply.sh relies on this — it
           # reads each lock back out at $ARTIFACT_DIR/<repo-relative-path>.
@@ -89,9 +90,11 @@ jobs:
             src/Cluckwork.Application/packages.lock.json
             src/Cluckwork.Infrastructure/packages.lock.json
             src/Cluckwork.Api/packages.lock.json
+            src/Cluckwork.AppHost/packages.lock.json
             tests/Cluckwork.Domain.Tests/packages.lock.json
             tests/Cluckwork.Application.Tests/packages.lock.json
             tests/Cluckwork.Api.IntegrationTests/packages.lock.json
+            tests/Cluckwork.AppHost.Tests/packages.lock.json
 
   commit:
     name: Commit and push the refreshed locks
