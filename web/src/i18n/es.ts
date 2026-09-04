@@ -2412,10 +2412,8 @@ export const es = {
       + "algo</em> — entrada diaria, lotes, agua, uso y compras de alimento, gastos, pedidos y pagos — se "
       + "abre en ella y se niega a ir más allá para lo que usted registra, sea cual sea el día en el "
       + "teléfono o la laptop que tiene en la mano, para que un dispositivo adelantado a la granja ya no "
-      + "pueda ofrecer una fecha que el guardado luego rechace. Ese tope es sobre el registro, no sobre el "
-      + "filtrado: las fechas que están destinadas a estar en el futuro no tienen tope — la "
-      + "<strong>caducidad</strong> de un lote de alimento, y los rangos de fechas por los que filtra una "
-      + "lista.",
+      + "pueda ofrecer una fecha que el guardado luego rechace. Las fechas que están destinadas a estar en "
+      + "el futuro no tienen tope — la <strong>caducidad</strong> de un lote de alimento.",
     farmSettingsCurrency:
       "La <strong>moneda</strong> se bloquea en el momento en que la granja registra su primer monto — una "
       + "venta, un pago, un gasto, un producto con precio, o dinero gastado en alimento. El campo se "
@@ -2616,9 +2614,8 @@ export const es = {
       + "fecha futura al registrar trabajo, cuándo salen los huevos de un período de retiro, qué huevos "
       + "puede tomar una venta, el día en que se agota o archiva un lote, y el rango en que se abren los "
       + "informes. Todo campo que registra CUÁNDO OCURRIÓ ALGO se abre en ese día y no permite ir más "
-      + "allá, sin importar en qué día esté el dispositivo que tiene en la mano — ese límite es sobre el "
-      + "registro, no sobre el filtrado. Las fechas que deben caer en el futuro no tienen ese límite — el "
-      + "vencimiento de un lote de alimento, y los rangos de fechas por los que filtra una lista.",
+      + "allá, sin importar en qué día esté el dispositivo que tiene en la mano. Las fechas que deben caer "
+      + "en el futuro no tienen ese límite — el vencimiento de un lote de alimento.",
 
     glossaryInstallToHomeScreenTerm: "Instalar en la pantalla de inicio",
     glossaryInstallToHomeScreenDef:

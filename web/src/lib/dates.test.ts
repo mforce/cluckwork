@@ -194,12 +194,15 @@ const REJECTED = [
   "10000-01-01", // five-digit year
   // Whitespace is URL-reachable: searchParams.get() decodes "+" and "%20" to a
   // space, so ?from=+2026-08-01 arrives as " 2026-08-01" and ?from=2026+-08-01
-  // as "2026 -08-01". These rows exist to fail the tempting future edit — trim
-  // the input, or allow \s* at the anchors — which every other row in this
-  // table survives. What the server would do with a padded value is not
-  // asserted here: this function's contract is that the client sends only what
-  // the CONTROL can display, and <input type="date"> cannot display any of
-  // these three.
+  // as "2026 -08-01". The leading- and trailing-space rows exist to fail the
+  // tempting future edit — trim the input, or allow \s* at the anchors — which
+  // every other row in this table survives. The interior-space row is not a
+  // control for that edit (either form still rejects it, since \s* at the
+  // anchors does not admit an interior space); it is here because this exact
+  // input path can produce it. What the server would do with a padded value is
+  // not asserted here: this function's contract is that the client sends only
+  // what the CONTROL can display, and <input type="date"> cannot display any
+  // of these three.
   " 2026-08-01",  // leading space, the "+" decoding
   "2026-08-01 ",  // trailing space
   "2026 -08-01",  // interior space

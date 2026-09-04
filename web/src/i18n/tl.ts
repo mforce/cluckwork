@@ -2504,10 +2504,8 @@ export const tl = {
       + "nangyari ang isang bagay</em> — araw-araw na entry, kawan, tubig, paggamit at pagbili ng feed, "
       + "gastos, order at bayad — ay bumubukas dito at tumatanggi lumampas dito para sa itinatala mo, "
       + "anuman ang araw sa telepono o laptop na hawak mo, para hindi na makapag-alok ang isang device na "
-      + "nauuna sa bukid ng petsang tatanggihan din naman ng pag-save. Ang cap na iyon ay para sa "
-      + "pagtatala, hindi sa pag-filter: ang mga petsang nakatakdang mangyari sa hinaharap ay walang cap "
-      + "— ang <strong>expiry</strong> ng isang lote ng feed, at ang mga date range na ginagamit mo para "
-      + "i-filter ang isang listahan.",
+      + "nauuna sa bukid ng petsang tatanggihan din naman ng pag-save. Ang mga petsang nakatakdang "
+      + "mangyari sa hinaharap ay walang cap — ang <strong>expiry</strong> ng isang lote ng feed.",
     farmSettingsCurrency:
       "Naka-lock ang <strong>currency</strong> sa sandaling itala ng bukid ang una nitong halaga — isang "
       + "benta, isang bayad, isang gastos, isang produktong may presyo, o perang ginastos sa feed. "
@@ -2714,10 +2712,8 @@ export const tl = {
       + "darating kapag nagtatala ka ng trabaho, kailan aalis ang itlog sa withdrawal period, kung aling "
       + "itlog ang puwedeng kunin ng isang benta, ang araw na na-deplete o na-archive ang isang kawan, at "
       + "ang range na binubuksan ng mga report. Bawat field na nagtatala kung KAILAN NANGYARI ANG ISANG "
-      + "BAGAY ay nagbubukas dito at hindi ito lalagpasan, kahit anong araw ang nasa device mo — ang limitasyong "
-      + "iyon ay para sa pagtatala, hindi sa pag-filter. Hindi limitado ang mga petsang dapat mahulog sa "
-      + "hinaharap — ang expiry ng isang batch ng feed, at ang mga date range na ginagamit mo para "
-      + "i-filter ang isang listahan.",
+      + "BAGAY ay nagbubukas dito at hindi ito lalagpasan, kahit anong araw ang nasa device mo. Hindi "
+      + "limitado ang mga petsang dapat mahulog sa hinaharap — ang expiry ng isang batch ng feed.",
 
     glossaryInstallToHomeScreenTerm: "Pag-install sa home screen",
     glossaryInstallToHomeScreenDef:

@@ -2934,8 +2934,8 @@ export const en = {
       + "happened</em> — daily entry, flocks, water, feed usage and purchases, expenses, orders and payments "
       + "— opens on it and refuses to go past it for what you record, whatever day the phone or laptop in "
       + "your hand is on, so a device travelling ahead of the farm can no longer offer a date the save then "
-      + "refuses. That cap is on recording, not on filtering: dates that are meant to be in the future are "
-      + "not capped — a feed batch's <strong>expiry</strong>, and the date ranges you filter a list by.",
+      + "refuses. Dates that are meant to be in the future are not capped: a feed batch's "
+      + "<strong>expiry</strong>.",
     farmSettingsCurrency:
       "The <strong>currency</strong> locks the moment the farm records its first amount — a sale, a payment, "
       + "an expense, a priced product, or money spent on feed. The field shows as locked with the reason "
@@ -3135,9 +3135,8 @@ export const en = {
       + "somewhere else. It is the same \"today\" everywhere: what counts as a future date when you record "
       + "work, when eggs leave a withdrawal period, which eggs a sale can take, the day a flock is depleted "
       + "or archived on, and the range reports open on. Every field that records WHEN SOMETHING HAPPENED "
-      + "opens on it and will not go past it, whatever day the device in your hand is on — that cap is on "
-      + "recording, not on filtering. Dates meant to fall in the future are not capped — a feed batch's "
-      + "expiry, and the date ranges you filter a list by.",
+      + "opens on it and will not go past it, whatever day the device in your hand is on. Dates meant to "
+      + "fall in the future are not capped — a feed batch's expiry.",
 
     glossaryInstallToHomeScreenTerm: "Install to home screen",
     glossaryInstallToHomeScreenDef:
