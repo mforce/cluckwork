@@ -155,7 +155,6 @@ public sealed class TenantBypassRealTreeTests
         // a cross-tenant by-email enumeration is a candidate, not a pass.
         var tenantCandidates = GuardScanner.ScanFilterFreeSet(SrcRoot(), tenantNames)
             .Where(o => o.PredicateHasAccountId != true)
-            .Select(o => $"{o.File}:{o.Line}\t{o.Detail}")
             .ToList();
 
         // NON-TENANT-track candidates: EVERY db.<non-tenant-set> access. These
@@ -163,42 +162,88 @@ public sealed class TenantBypassRealTreeTests
         // but any query against a filter-free set is a bypass occurrence that
         // must be classified (scoped-by-join / scoped-by-user-id / global-
         // reference / non-tenant-sweep). An unclassified site is a red build.
-        var nonTenantCandidates = GuardScanner.ScanFilterFreeSet(SrcRoot(), nonTenantNames)
-            .Select(o => $"{o.File}:{o.Line}\t{o.Detail}")
-            .ToList();
+        var nonTenantCandidates = GuardScanner.ScanFilterFreeSet(SrcRoot(), nonTenantNames).ToList();
 
+        // #632 — keyed by IDENTITY (enclosing symbol + set + normalized-query
+        // signature), never by file:line. Line identity moved three times on
+        // edits that did not touch a query (#601, #609/#606, #627); #604 set
+        // the threshold at three. The file:line survives only in the failure
+        // text below, where it is how a human finds the code.
         var candidates = tenantCandidates.Concat(nonTenantCandidates)
-            .OrderBy(s => s, StringComparer.Ordinal)
+            .OrderBy(GuardScanner.FilterFreeSetIdentity, StringComparer.Ordinal)
             .ToList();
+        var located = candidates
+            .GroupBy(GuardScanner.FilterFreeSetIdentity, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        var candidateKeys = located.Keys.ToHashSet(StringComparer.Ordinal);
+
+        // Two sites that key alike would let ONE classification excuse BOTH,
+        // which is the failure mode a stable identity introduces and a line
+        // number could not have. The signature's in-statement ordinal exists
+        // for the only case where the text cannot differ; anything else
+        // reaching here is a scheme bug, and it fails loudly rather than
+        // quietly excusing a query nobody classified.
+        var duplicateIdentities = candidates
+            .GroupBy(GuardScanner.FilterFreeSetIdentity, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => $"{g.Key} — {string.Join(", ", g.Select(o => $"{o.File}:{o.Line}"))}")
+            .ToList();
+        Assert.True(duplicateIdentities.Count == 0,
+            "two filter-free-set sites share one identity, so a single classification would excuse both " +
+            "(#632). Report this as a scanner bug — the signature is supposed to separate them:\n  " +
+            string.Join("\n  ", duplicateIdentities));
 
         // Load the classifications.
         var tsvPath = Path.Combine(AppContext.BaseDirectory, "TenantBypass", "Data", "filter-free-set-sites.tsv");
+        // symbol <TAB> db.<Set> <TAB> signature <TAB> reason
         var classified = File.ReadAllLines(tsvPath)
             .Where(l => !string.IsNullOrWhiteSpace(l) && !l.TrimStart().StartsWith("#"))
             .Select(l =>
             {
                 var parts = l.Split('\t');
-                return (Key: $"{parts[0]}\t{parts[1]}", Reason: parts.Length > 2 ? parts[2].Trim() : "");
+                Assert.True(parts.Length >= 4 && !string.IsNullOrWhiteSpace(parts[3]),
+                    "malformed classification row — expected symbol, set, signature and a NON-EMPTY reason " +
+                    "separated by tabs. #698 review: a row with a valid identity and a blank reason passed the " +
+                    "missing, stale, duplicate and needs-review checks alike, so it excused a filter-free query " +
+                    $"with no reviewed justification at all (#632):\n  {l}");
+                return (Key: string.Join("\t", parts[0], parts[1], parts[2]), Reason: parts[3].Trim());
             })
             .ToList();
 
-        var classifiedKeys = classified.Select(c => c.Key).ToHashSet();
+        var classifiedKeys = classified.Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
+
+        // A registry that excuses the same identity twice is a merge accident;
+        // it also makes the stale check below unable to see the second one.
+        var duplicateRows = classified.GroupBy(c => c.Key, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+        Assert.True(duplicateRows.Count == 0,
+            "duplicate classification rows in Data/filter-free-set-sites.tsv — one identity, one row (#632):\n  " +
+            string.Join("\n  ", duplicateRows));
 
         // 1. Every candidate (both tracks) must be classified (no needs-review,
         // no missing). A new db.<tenant-table> query with no AccountId compare,
         // OR a new db.<non-tenant-set> query of any shape, appears as red here.
-        var unclassified = candidates.Where(c => !classifiedKeys.Contains(c)).ToList();
+        // The failure text carries the identity to PASTE and the file:line to
+        // READ. Only the first is the key; a line shift alone can no longer
+        // land anything here (#632).
+        var unclassified = candidates
+            .Select(GuardScanner.FilterFreeSetIdentity)
+            .Distinct(StringComparer.Ordinal)
+            .Where(k => !classifiedKeys.Contains(k))
+            .Select(k => $"{k}\n      at {located[k].File}:{located[k].Line}")
+            .ToList();
         Assert.True(unclassified.Count == 0,
             "unclassified filter-free-set candidates (a new db.<tenant-table> query with no " +
-            "AccountId compare, a new db.<non-tenant-set> query, or a line shift). Classify each in " +
-            "Data/filter-free-set-sites.tsv (scoped-by-X or needs-review) or fix the query:\n  " +
+            "AccountId compare, a new db.<non-tenant-set> query, or an EDITED query — a moved one no longer " +
+            "reaches here). Paste each identity into Data/filter-free-set-sites.tsv with a reason " +
+            "(scoped-by-X or needs-review), or fix the query:\n  " +
             string.Join("\n  ", unclassified));
 
         // 2. No classified site may have disappeared (drift).
-        var stale = classifiedKeys.Except(candidates).ToList();
+        var stale = classifiedKeys.Except(candidateKeys, StringComparer.Ordinal).ToList();
         Assert.True(stale.Count == 0,
-            "stale filter-free-set classifications (the query moved or was deleted — " +
-            "update Data/filter-free-set-sites.tsv):\n  " +
+            "stale filter-free-set classifications (the query was deleted, renamed out of its method, or " +
+            "edited — update Data/filter-free-set-sites.tsv):\n  " +
             string.Join("\n  ", stale));
 
         // 3. No needs-review sentinel may remain.

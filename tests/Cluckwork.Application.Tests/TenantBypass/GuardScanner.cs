@@ -35,7 +35,13 @@ public sealed record BypassOccurrence(
     string EnclosingSymbol,
     string Detail,
     bool? PredicateHasAccountId = null,
-    string? RawSqlText = null);
+    string? RawSqlText = null,
+    // #632 — the stable half of a filter-free-set site's identity. A hash of
+    // the enclosing statement with comments stripped and whitespace collapsed,
+    // plus an ordinal for the rare statement that queries one set twice. Only
+    // ScanFilterFreeSet populates it; the allow-list leg keys on the symbol
+    // already and needs nothing here.
+    string? QuerySignature = null);
 
 public sealed record AllowListMismatch(AllowListEntry Entry, string Reason);
 
@@ -805,12 +811,84 @@ public static class GuardScanner
                     access.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
                     EnclosingSymbolOf(access, file),
                     $"{access.Expression}.{access.Name.Identifier.ValueText}",
-                    PredicateHasAccountId: PredicateHasAccountId(access)));
+                    PredicateHasAccountId: PredicateHasAccountId(access),
+                    QuerySignature: QuerySignatureOf(access)));
             }
         }
 
         return results;
     }
+
+    // #632 — a site's identity must survive edits that do not touch the query.
+    // Line numbers did not: three separate changes (#601, #609/#606, #627)
+    // shifted classifications whose queries were untouched, and #604 set
+    // "revisit after the third" as the threshold.
+    //
+    // The signature is the enclosing STATEMENT, normalized: comments removed
+    // (so a comment inside the statement cannot move it either) and all
+    // whitespace collapsed (so reformatting cannot). Editing the query itself
+    // DOES change it, deliberately — a changed query is a re-review, not a
+    // moved one.
+    internal static string QuerySignatureOf(SyntaxNode access)
+    {
+        // The innermost enclosing "unit of query text". #698 review: taking
+        // only a statement or a method body meant an expression-bodied property
+        // — which has neither — fell through to the ACCESS itself, so the
+        // signature hashed the bare `db.Users` and an edit to the predicate
+        // left the identity unchanged. That is the one thing this scheme must
+        // never do. Ancestors() is nearest-first, so the first match is the
+        // tightest scope that contains the whole query.
+        var scope = access.Ancestors().FirstOrDefault(n =>
+                n is StatementSyntax
+                    or ArrowExpressionClauseSyntax
+                    or EqualsValueClauseSyntax
+                    or AccessorDeclarationSyntax
+                    or BaseMethodDeclarationSyntax
+                    or BasePropertyDeclarationSyntax)
+            ?? (SyntaxNode)access;
+
+        var normalized = NormalizeQueryText(scope);
+
+        // The ordinal disambiguates ONE case: a single statement that queries
+        // the same set twice (`db.Users.Where(...).Union(db.Users...)`), where
+        // the text is identical by construction and no edit could separate
+        // them. It is positional within the statement, so it is unaffected by
+        // anything outside it.
+        var ordinal = scope.DescendantNodesAndSelf()
+            .OfType<MemberAccessExpressionSyntax>()
+            .Where(m => m.Name.Identifier.ValueText
+                == ((MemberAccessExpressionSyntax)access).Name.Identifier.ValueText
+                && m.Expression.ToString() == ((MemberAccessExpressionSyntax)access).Expression.ToString())
+            .ToList()
+            .FindIndex(m => m.SpanStart == access.SpanStart);
+
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(normalized));
+        var sig = Convert.ToHexStringLower(hash)[..8];
+        return ordinal > 0 ? $"{sig}#{ordinal}" : sig;
+    }
+
+    // Comments out, whitespace uniform, LITERALS UNTOUCHED. #698 review: the
+    // first version ran regexes over `scope.ToString()`, which reads `//`
+    // inside "https://…" as a comment and deletes the rest of the statement,
+    // and collapses whitespace inside string literals. Both mean an edit to a
+    // filter VALUE can leave the signature unchanged — the identity failing to
+    // move when the query moved, which is exactly the hole this scheme exists
+    // to close. Roslyn already separates the two: tokens carry the literal
+    // text, trivia carries the comments, so walking tokens is both simpler and
+    // exact.
+    internal static string NormalizeQueryText(SyntaxNode scope)
+    {
+        var parts = scope.DescendantTokens()
+            .Where(t => !t.IsKind(SyntaxKind.None))
+            .Select(t => t.Text);
+        return string.Join(" ", parts);
+    }
+
+    // The registry key for a filter-free-set site: what the classification file
+    // is keyed by, and the only thing the stability test compares.
+    public static string FilterFreeSetIdentity(BypassOccurrence occurrence) =>
+        $"{occurrence.EnclosingSymbol}\t{occurrence.Detail}\t{occurrence.QuerySignature}";
 
     private static BypassOccurrence MakeOccurrence(
         BypassKind kind, string repoRoot, string file, InvocationExpressionSyntax invocation, string detail)
@@ -840,6 +918,27 @@ public static class GuardScanner
         var method = node.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>();
         if (method is null)
         {
+            // #698 review — a query in an expression-bodied PROPERTY has no
+            // BaseMethodDeclarationSyntax ancestor, and used to land here: every
+            // such site in one file keyed as the same "<file>.<top-level>",
+            // so two of them could not be told apart and neither could be
+            // located. Name the property (and the accessor, when there is one)
+            // the way a method is named.
+            var property = node.FirstAncestorOrSelf<BasePropertyDeclarationSyntax>();
+            if (property is not null)
+            {
+                var name = property switch
+                {
+                    PropertyDeclarationSyntax prop => prop.Identifier.ValueText,
+                    IndexerDeclarationSyntax indexer => $"this[{ParameterTypes(indexer.ParameterList)}]",
+                    EventDeclarationSyntax evt => evt.Identifier.ValueText,
+                    _ => "<property>",
+                };
+                var accessor = node.FirstAncestorOrSelf<AccessorDeclarationSyntax>();
+                var suffix = accessor is null ? string.Empty : $".{accessor.Keyword.ValueText}";
+                return $"{SymbolPrefix(property, file)}.{name}{suffix}";
+            }
+
             // Top-level statements or static initializers: name them as such
             // rather than pretending a method exists.
             return $"<{Path.GetFileName(file)}>.<top-level>";
@@ -872,7 +971,7 @@ public static class GuardScanner
         return method.ToString()!.Split(' ', '\n', '\r').FirstOrDefault(t => !t.All(char.IsPunctuation) && t.Length > 0) ?? "<method>";
     }
 
-    private static string SymbolPrefix(BaseMethodDeclarationSyntax method, string file)
+    private static string SymbolPrefix(SyntaxNode method, string file)
     {
         // Walk up to the enclosing type and its namespace. The test project
         // does not compile src/, so no symbol info is available — the display
@@ -920,6 +1019,14 @@ public static class GuardScanner
         parts.AddRange(typeParts);
         return string.Join(".", parts);
     }
+
+    // #698 review round 2 — indexers overload on their parameter list, and
+    // mapping them all to "this[]" dropped exactly the text that separates
+    // them: two overloads carrying the same query would collide on identity
+    // and fail the duplicate check, with no edit available to fix it.
+    private static string ParameterTypes(BaseParameterListSyntax parameters) =>
+        string.Join(", ", parameters.Parameters
+            .Select(p => p.Type!.ToString() + " " + p.Identifier.ValueText));
 
     private static string ParameterTypes(BaseMethodDeclarationSyntax method)
     {
