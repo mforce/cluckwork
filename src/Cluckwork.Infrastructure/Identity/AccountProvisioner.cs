@@ -24,9 +24,10 @@ public sealed class AccountProvisioner(
         string? ownerEmail,
         string? locale = null,
         string? currencyCode = null,
+        string? timeZoneId = null,
         CancellationToken ct = default)
     {
-        var validated = Validate(name, slug, ownerEmail, locale, currencyCode);
+        var validated = Validate(name, slug, ownerEmail, locale, currencyCode, timeZoneId);
         if (validated.IsFailure)
             return Result.Failure<AccountProvisionOutcome>(validated.Error);
 
@@ -46,9 +47,10 @@ public sealed class AccountProvisioner(
         string? ownerEmail,
         string? locale = null,
         string? currencyCode = null,
+        string? timeZoneId = null,
         CancellationToken ct = default)
     {
-        var validated = Validate(name, slug, ownerEmail, locale, currencyCode);
+        var validated = Validate(name, slug, ownerEmail, locale, currencyCode, timeZoneId);
         return validated.IsFailure
             ? Result.Failure<AccountProvisionOutcome>(validated.Error)
             : await ProvisionValidatedAsync(accountId, validated.Value, ct);
@@ -94,7 +96,7 @@ public sealed class AccountProvisioner(
             return await AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
             {
                 var account = Account.Create(
-                    accountId, input.Name, input.Slug, "UTC",
+                    accountId, input.Name, input.Slug, input.TimeZoneId,
                     input.CurrencyCode, input.Locale);
                 db.Accounts.Add(account);
                 await db.SaveChangesAsync(token);
@@ -139,7 +141,8 @@ public sealed class AccountProvisioner(
         string? slug,
         string? ownerEmail,
         string? locale,
-        string? currencyCode)
+        string? currencyCode,
+        string? timeZoneId)
     {
         var normalizedName = name?.Trim() ?? string.Empty;
         if (normalizedName.Length == 0)
@@ -168,9 +171,21 @@ public sealed class AccountProvisioner(
             return Result.Failure<ProvisionInput>(Error.Validation(
                 "Provision.CurrencyInvalid", "Currency must be a three-letter ISO 4217 code."));
 
+        // #603 — the zone is validated HERE, at the provisioning boundary, not at
+        // first use. #264's clock fails closed on an unresolvable zone, so a farm
+        // committed with a bad one renders no dates at all; a CLI run is the right
+        // place to fail loudly instead. IsKnownTimeZone is the same rule the
+        // Settings screen enforces (UpdateFarmSettingsValidator), so the two
+        // cannot disagree about what a farm may hold. Absent flag keeps "UTC".
+        var normalizedTimeZone = (timeZoneId ?? Account.DefaultTimeZoneId).Trim();
+        if (!FarmSettingsRules.IsKnownTimeZone(normalizedTimeZone))
+            return Result.Failure<ProvisionInput>(Error.Validation(
+                "Provision.TimeZoneInvalid",
+                $"'{timeZoneId}' is not a known IANA timezone such as Asia/Manila."));
+
         return Result.Success(new ProvisionInput(
             normalizedName, normalizedSlug.Value, normalizedEmail,
-            normalizedLocale, normalizedCurrency));
+            normalizedLocale, normalizedCurrency, normalizedTimeZone));
     }
 
     private static Result<AccountProvisionOutcome> SlugTaken(string slug) =>
@@ -182,7 +197,8 @@ public sealed class AccountProvisioner(
         string Slug,
         string OwnerEmail,
         string Locale,
-        string CurrencyCode);
+        string CurrencyCode,
+        string TimeZoneId);
 }
 
 public sealed record AccountProvisionOutcome(

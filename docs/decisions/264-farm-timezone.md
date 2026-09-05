@@ -9,9 +9,20 @@
 
 The default account carries a fixed `"UTC"` migration literal (since
 [#283](283-migrations-base-provisioning.md)). A real farm sets its actual IANA
-zone via **Settings → timezone** after first login (`Account.UpdateSettings`),
-**not** at provisioning time — the `Seed:TimeZoneId` config lever from before
-#283 is retired along with the runtime seeder it fed.
+zone via **Settings → timezone** after first login (`Account.UpdateSettings`).
+
+**Amended 2026-09 (#603).** `provision-account` now also accepts an optional
+`--timezone`, so an operator who already knows the farm's zone can commit it
+with the farm instead of leaving its first day of data recorded against `UTC`.
+Omitted, the behaviour is exactly as before. This does **not** reinstate the
+`Seed:TimeZoneId` config lever retired with #283's runtime seeder, and that
+distinction is the point: a *config key* read at boot applied silently to
+whatever the process was doing, while a *CLI argument* is stated per farm by
+the operator creating it, and is validated at that boundary with
+`FarmSettingsRules.IsKnownTimeZone` — the same predicate
+`UpdateFarmSettingsValidator` uses, so a zone the CLI accepts is always one
+Settings would accept. An unresolvable zone fails the command before any write
+rather than committing a farm whose dates cannot render.
 
 ## Why the image constraint follows
 

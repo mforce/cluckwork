@@ -15,6 +15,10 @@ public sealed class Account : AggregateRoot<Guid>
     public const int MaxTimeZoneIdLength = 64;
     public const int MaxFormatOverrideLength = 32;
     public const string DefaultLocale = "en-US";
+    // A farm with no zone stated at provisioning time starts here and its Owner
+    // sets the real one in Settings (#264). Named so the CLI default and the
+    // property initialiser below cannot drift apart.
+    public const string DefaultTimeZoneId = "UTC";
     public const int SlugMaxLength = 32;
 
     // Farm code (#531). Lowercase, URL-safe, stored ALREADY-NORMALIZED so a
@@ -37,7 +41,7 @@ public sealed class Account : AggregateRoot<Guid>
 
     public string Name { get; private set; } = string.Empty;
     public string Slug { get; private set; } = string.Empty;
-    public string TimeZoneId { get; private set; } = "UTC";
+    public string TimeZoneId { get; private set; } = DefaultTimeZoneId;
     public string Locale { get; private set; } = DefaultLocale;
     public string DefaultCurrencyCode { get; private set; } = "USD";
     public string? DefaultCurrencySymbol { get; private set; }
