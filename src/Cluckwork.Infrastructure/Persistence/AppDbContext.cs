@@ -249,10 +249,28 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         // The snapshot records the flag but EF emits no schema for it, so the
         // migration that accompanies this walk (AccountIdConcurrencyToken) is
         // deliberately empty — it exists to keep the snapshot equal to the model.
+        ApplyAccountIdTenantTokens(builder);
+    }
+
+    // Extracted so #673's fail-closed case can be proved against a throwaway
+    // entity: this walk is the only thing a probe context needs, and a mapping
+    // it must refuse cannot be added to AppDbContext's own model by definition.
+    internal static void ApplyAccountIdTenantTokens(ModelBuilder builder)
+    {
         foreach (var entityType in builder.Model.GetEntityTypes())
         {
             var accountId = entityType.FindProperty(nameof(Entity<Guid>.AccountId));
-            if (accountId is null || accountId.ClrType != typeof(Guid)) continue;
+            if (accountId is null) continue;
+
+            // #673 — fail CLOSED on any other CLR type instead of walking past
+            // it. A Guid? or a converted AccountId used to get no token here and
+            // no check in the interceptor, which is the #562 hole reopened with
+            // every test green. Throwing at model build makes it fail every boot
+            // and every test on the day it is mapped. Checked before the
+            // primary-key exclusion below, so a key AccountId must be a Guid too.
+            if (accountId.ClrType != typeof(Guid))
+                throw TenantAccountIdShapeException.ForModel(entityType.DisplayName(), accountId.ClrType);
+
             if (accountId.IsPrimaryKey()) continue;
             accountId.IsConcurrencyToken = true;
         }

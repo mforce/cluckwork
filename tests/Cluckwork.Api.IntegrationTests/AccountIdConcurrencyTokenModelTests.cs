@@ -29,15 +29,15 @@ public sealed class AccountIdConcurrencyTokenModelTests
     {
         using var db = BuildContext();
 
-        // Selected by NAME and non-key only — deliberately NOT by CLR type.
-        // The token walk skips any AccountId whose CLR type is not exactly Guid
-        // (so a Guid? or a converted id gets no token at all), and the
-        // interceptor skips any VALUE that does not box to a Guid (a Guid? that
-        // is null is neither stamped on Added nor checked on Modified/Deleted;
-        // a populated Guid? boxes to Guid and is checked). If this selector
-        // mirrored the walk's own predicate, such a property would vanish from
-        // the guard with every test green; naming the property instead makes it
-        // red the day one is mapped (#673 tracks closing that by construction).
+        // Selected by NAME and non-key only — deliberately NOT by CLR type. A
+        // selector mirroring the walk's own predicate would let a Guid? or a
+        // converted AccountId vanish from this guard with every test green.
+        //
+        // Since #673 the walk itself THROWS on any CLR type other than Guid, so
+        // BuildContext above would already have failed and this assertion is the
+        // second net rather than the first — kept because it names the whole
+        // set at once, and because the day the walk's throw is weakened is the
+        // day this has to be the one that reddens.
         var carriers = db.Model.GetEntityTypes()
             .Select(t => (Type: t, AccountId: t.FindProperty("AccountId")))
             .Where(x => x.AccountId is not null && !x.AccountId.IsPrimaryKey())
