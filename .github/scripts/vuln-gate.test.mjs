@@ -25,10 +25,13 @@ import {
   levelProblem,
   loadExceptions,
   parseArgs,
+  PARSERS,
   parseNpm,
   parseNuget,
+  registryProblem,
   report,
   reportProblem,
+  resolveParser,
   severityRank,
 } from "./vuln-gate.mjs";
 
@@ -250,6 +253,66 @@ test("gate: a MALFORMED exception is ignored (never suppresses) and reported", (
     assert.equal(result.invalidExceptions.length, 1);
     assert.equal(result.suppressed.length, 0);
   }
+});
+
+// #634 — the registry is the one place an ecosystem is wired in, and the sites
+// that used to hand-dispatch must all derive from it. The sharp edge the
+// refactor removes: a two-way ternary that parsed any unknown ecosystem as
+// NuGet. So the guard is not "npm and nuget still work" (true with the bug
+// present) but "a half-wired or unknown ecosystem is REFUSED, never defaulted".
+test("PARSERS: exactly the wired ecosystems, each carrying its own parse and shape check", () => {
+  assert.deepEqual(Object.keys(PARSERS).sort(), ["npm", "nuget"]);
+  assert.equal(PARSERS.npm.parse, parseNpm);
+  assert.equal(PARSERS.nuget.parse, parseNuget);
+  assert.equal(registryProblem(PARSERS), null);
+  assert.ok(Object.isFrozen(PARSERS) && Object.isFrozen(PARSERS.npm) && Object.isFrozen(PARSERS.nuget));
+});
+
+test("registryProblem: an entry without a parser or a shape check is named, not tolerated", () => {
+  assert.match(registryProblem({ npm: PARSERS.npm, pypi: {} }), /pypi.*parse/);
+  assert.match(registryProblem({ npm: PARSERS.npm, pypi: { parse: () => [] } }), /pypi.*reportProblem/);
+  assert.match(registryProblem({}), /no ecosystems/);
+  assert.match(registryProblem(null), /not an object/);
+});
+
+test("resolveParser: a half-wired entry REFUSES to run instead of falling through to a default", () => {
+  const halfWired = { npm: PARSERS.npm, nuget: PARSERS.nuget, pypi: {} };
+  const picked = resolveParser("pypi", halfWired);
+  assert.equal(picked.parser, undefined);
+  assert.match(picked.problem, /pypi.*parse/);
+  // The broken entry poisons the whole registry — even a good name is refused
+  // until it is fixed, so a bad merge cannot half-work.
+  assert.match(resolveParser("npm", halfWired).problem, /pypi/);
+});
+
+test("resolveParser: an unknown ecosystem is a problem naming the known ones; known ones resolve case-insensitively", () => {
+  const unknown = resolveParser("pypi");
+  assert.equal(unknown.parser, undefined);
+  assert.match(unknown.problem, /unknown ecosystem "pypi"/);
+  assert.match(unknown.problem, /npm\|nuget/);
+  assert.equal(resolveParser("NPM").parser, PARSERS.npm);
+  assert.equal(resolveParser("nuget").parser, PARSERS.nuget);
+});
+
+test("reportProblem: an ecosystem nothing can check is a problem, not a clean report", () => {
+  assert.match(reportProblem({ projects: [] }, "pypi"), /unknown ecosystem/);
+  assert.match(reportProblem({ vulnerabilities: {} }, ""), /unknown ecosystem/);
+});
+
+test("exceptionProblem: the ecosystem message lists the registry's names plus the 'any' scope", () => {
+  assert.match(exceptionProblem(exception({ ecosystem: "pypi" })), /npm, nuget, any/);
+  assert.equal(exceptionProblem(exception({ ecosystem: "any" })), null);
+});
+
+test("CLI: an unknown --ecosystem is a usage error naming the registry, not a run against a default parser", () => {
+  const run = spawnSync(
+    process.execPath,
+    [SCRIPT, "--ecosystem", "pypi"],
+    { cwd: process.cwd(), encoding: "utf8", input: JSON.stringify({ projects: [] }) },
+  );
+  assert.equal(run.status, 2);
+  assert.match(run.stderr, /--ecosystem npm\|nuget/);
+  assert.match(run.stderr, /unknown ecosystem "pypi"/);
 });
 
 test("reportProblem: an npm error payload is NOT clean — fails closed", () => {
