@@ -442,6 +442,67 @@ describe("AuditPage filter", () => {
   });
 });
 
+describe("AuditPage clear filters (#679)", () => {
+  it("offers no clear control until something is narrowing the list", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A]);
+    renderAudit();
+    await screen.findByText(/admin@farm.test/);
+
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+  });
+
+  // The gap #679 is about: the control has to exist while ROWS ARE SHOWING.
+  // This screen's empty state is a bare muted paragraph by #655's
+  // classification, so an empty-state-only control could never appear here.
+  it("shows the clear control beside the filters while rows are still listed", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A]);
+    renderAudit("/audit?action=Flock.Deplete");
+    await screen.findByText(/admin@farm.test/);
+
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+  });
+
+  it("clears all four filters in ONE write and keeps the entity scope", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A]);
+    renderAuditWithProbe(
+      "/audit?entityId=11111111-1111-1111-1111-111111111111&entityType=Flock&action=Flock.Deplete&from=2026-01-01&to=2026-01-31",
+    );
+    await screen.findByText(/admin@farm.test/);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    });
+
+    // All four gone. The PROTECTED comment on updateDateFilter says a handler
+    // writing these separately in one tick loses all but one, so a partial
+    // result here is the regression this asserts against — not a nicety.
+    const search = screen.getByTestId("probe-search").textContent ?? "";
+    expect(search).not.toContain("entityType=");
+    expect(search).not.toContain("action=");
+    expect(search).not.toContain("from=");
+    expect(search).not.toContain("to=");
+    // The scope is NOT a filter the user set here: dropping it would silently
+    // widen the page from one record to the whole farm.
+    expect(search).toContain("entityId=11111111-1111-1111-1111-111111111111");
+  });
+
+  it("re-queries unfiltered after clearing", async () => {
+    mockListAuditEvents.mockResolvedValue([EVENT_A]);
+    renderAudit("/audit?action=Flock.Deplete&from=2026-01-01");
+    await screen.findByText(/admin@farm.test/);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    });
+
+    await waitFor(() =>
+      expect(mockListAuditEvents).toHaveBeenLastCalledWith(
+        expect.objectContaining({ action: undefined, from: undefined, to: undefined, offset: 0 }),
+      ),
+    );
+  });
+});
+
 describe("AuditPage paging", () => {
   it("passes the current row count as the offset when 'load more' is clicked", async () => {
     // A full page (=== PAGE 100) is what sets hasMore, exposing 'load more'.

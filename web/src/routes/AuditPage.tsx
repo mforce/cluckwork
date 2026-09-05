@@ -162,6 +162,23 @@ export function AuditPage() {
     setSearchParams(next);
   }, [searchParams, setSearchParams]);
 
+  // #679 — the four filter controls in one write, not four. The PROTECTED
+  // comment above says exactly why: separate writes in one tick lose all but
+  // one, in either setSearchParams form. `entityId` is deliberately NOT
+  // cleared — it is the scope this view was opened in (a per-row "Audit
+  // history" link), not a filter the user set here, and dropping it would
+  // silently widen the page from one record to the whole farm.
+  const clearFilters = useCallback(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("entityType");
+      next.delete("action");
+      next.delete("from");
+      next.delete("to");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
   const availableActions = entityTypeFilter
     ? AUDIT_ACTION_VALUES.filter((a) => AUDIT_ACTION_ENTITY_TYPE[a] === entityTypeFilter)
     : AUDIT_ACTION_VALUES;
@@ -183,6 +200,12 @@ export function AuditPage() {
   // families applies, in the ternary below, rather than whether the view is
   // narrowed at all.
   const isNarrowed = Boolean(actionFilter || fromFilter || toFilter);
+
+  // #679 — what the CLEAR control keys off, and deliberately not `isNarrowed`
+  // above: that one answers "which empty-state sentence applies" and excludes
+  // the scope axes on purpose, while this one answers "is any control the user
+  // can see currently narrowing the list", which includes the entity type.
+  const hasFilters = Boolean(entityTypeFilter || actionFilter || fromFilter || toFilter);
 
   // #469 — the ticket/dedupe/busy-ownership discipline this screen grew for
   // itself (codex review of #94) now lives in usePagedList, shared with every
@@ -318,6 +341,15 @@ export function AuditPage() {
               onChange={(e) => updateDateFilter("to", e.target.value)} />
           </label>
         </div>
+        {/* #679 — persistent, and that is the whole point: this screen's empty
+            state is a bare muted paragraph by #655's classification, so a
+            control living there would appear only once the filters had already
+            hidden every row. Here it exists while rows are still showing. */}
+        {hasFilters && (
+          <button className="link" type="button" onClick={clearFilters}>
+            {tc("clearFiltersButton")}
+          </button>
+        )}
       </div>
 
       {events.error && <p className="error" role="alert">{events.error}</p>}

@@ -585,6 +585,16 @@ sites, not the action code's own "Entity.Verb" prefix — the four
 `Account.Set/RemoveLogo/Banner` actions are prefixed `Account` but recorded
 against `FarmLogo`, a row shared by both the logo and the banner.
 
+**Clearing filters (#679)** — both filtered lists that can be narrowed while
+still showing rows carry a **Clear filters** control in the filter row itself,
+not only inside the zero-rows empty state where it used to live. On the /audit
+viewer it resets all four narrowing controls (record type, action, from, to) in
+one write, and deliberately **keeps the `entityId` scope**: that scope is where
+the view was opened from — a record's own "Audit history" link — not a filter
+the admin set on this screen, so clearing it would silently widen the page from
+one record to the whole farm. The empty state stays a plain sentence with no
+action (#655).
+
 **Hen-day % (#91)** — eggs collected ÷ hen-days × 100 (spec §19.3). A
 hen-day is one bird alive for one day; the day's bird count comes from the
 bird ledger (placements + movements). The production report shows it per
@@ -644,6 +654,17 @@ per farm case-insensitively (precheck + `lower(Name)` index, the grade
 pattern). Deactivating hides a category from new expenses; recorded ones
 keep it (grandfathering). List/sum endpoints report a server-side period
 total — clients never sum pages.
+
+**Expenses period filter, and what "clear" means there (#667, #679)** — the
+Expenses list filters on a from/to range that **defaults to the current farm
+month**, unlike its sibling list screens which open blank, because this screen
+shows a period *total*: opening blank would silently change the default view
+from "this month's spend" to "every expense ever recorded, and a total to
+match". So **Clear filters** here means *restore that default*, not *blank the
+range* — the two readings are different intents and the control can only carry
+one. The wider view is still reachable, as its own labelled **Show all time**
+action offered from the empty state, where clearing to the default would change
+nothing on screen.
 
 ## Cross-cutting
 

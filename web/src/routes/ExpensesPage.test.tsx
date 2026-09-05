@@ -118,6 +118,112 @@ async function renderReady(currencyCode = "USD", token: Record<string, unknown> 
   await waitFor(() => expect(screen.getByRole("button", { name: "Record expense" })).toBeEnabled());
 }
 
+// #679 — "clear" on this screen RESTORES THE CURRENT-MONTH DEFAULT rather
+// than blanking the range (owner decision, 2026-09-05): a blank range leaves
+// the period total describing every expense ever recorded, which is the
+// framing #667 declined to make the default. The dates are read off the
+// controls rather than hardcoded — this suite computes the farm's today live
+// from the clock, so a pinned month would pass only in one month of the year.
+describe("ExpensesPage persistent clear filters (#679)", () => {
+  const dateInputs = () => ({
+    from: screen.getByLabelText("From") as HTMLInputElement,
+    to: screen.getByLabelText("To") as HTMLInputElement,
+  });
+
+  it("offers no clear control while the filters are still the default", async () => {
+    mockListExpenses.mockResolvedValue({ items: [EXP_BHD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+    await renderReady("BHD");
+
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+  });
+
+  // The gap: before this, the only clear control lived in the ZERO-ROWS empty
+  // state, so it appeared only once the filters had hidden everything.
+  it("shows the clear control while rows are still listed", async () => {
+    mockListExpenses.mockResolvedValue({ items: [EXP_BHD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+    await renderReady("BHD");
+    const { from } = dateInputs();
+
+    await act(async () => {
+      fireEvent.change(from, { target: { value: "2026-02-01" } });
+    });
+
+    expect(getRowByCellText("Layer feed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+  });
+
+  it("restores the current-month default instead of blanking the range, and re-queries with it", async () => {
+    mockListExpenses.mockResolvedValue({ items: [EXP_BHD], totalMinorUnits: 1500, currencyCode: "BHD", currencyMinorUnit: 3 });
+    await renderReady("BHD");
+    const { from, to } = dateInputs();
+    const defaultFrom = from.value;
+    const defaultTo = to.value;
+    expect(defaultFrom).not.toBe("");
+
+    await act(async () => {
+      fireEvent.change(from, { target: { value: "2026-02-01" } });
+    });
+    await act(async () => {
+      fireEvent.change(comboWithOption(/All categories/), { target: { value: "cat-util" } });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    });
+
+    // Not blank — the default. A blank range is the OTHER meaning of "clear",
+    // and pinning the difference is the point of this test.
+    expect(dateInputs().from.value).toBe(defaultFrom);
+    expect(dateInputs().to.value).toBe(defaultTo);
+    await waitFor(() =>
+      expect(mockListExpenses).toHaveBeenLastCalledWith(
+        expect.objectContaining({ from: defaultFrom, to: defaultTo, categoryId: undefined }),
+      ),
+    );
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+  });
+
+  // Sitting ON the default with nothing this month, "clear filters" would be a
+  // no-op that changes nothing on screen. All-time is the useful move there,
+  // and it is a DIFFERENT label because it is a different intent.
+  it("offers all-time from the empty state when the range is already the default", async () => {
+    mockListExpenses.mockResolvedValue(emptyList("USD", 2));
+    await renderReady("USD");
+
+    await act(async () => {
+      fireEvent.click(await screen.findByRole("button", { name: "Show all time" }));
+    });
+
+    expect(dateInputs().from.value).toBe("");
+    expect(dateInputs().to.value).toBe("");
+    await waitFor(() =>
+      expect(mockListExpenses).toHaveBeenLastCalledWith(
+        expect.objectContaining({ from: undefined, to: undefined }),
+      ),
+    );
+  });
+
+  it("offers the default-restoring clear from the empty state once narrowed past the default", async () => {
+    mockListExpenses.mockResolvedValue(emptyList("USD", 2));
+    await renderReady("USD");
+    const defaultFrom = dateInputs().from.value;
+
+    await act(async () => {
+      fireEvent.change(dateInputs().from, { target: { value: "2026-02-01" } });
+    });
+
+    // Two controls with the same label must not mean two different things: the
+    // empty state's button and the filter row's button are one handler.
+    const emptyStateClear = screen.getAllByRole("button", { name: "Clear filters" });
+    expect(emptyStateClear.length).toBeGreaterThanOrEqual(2);
+    await act(async () => {
+      fireEvent.click(emptyStateClear[emptyStateClear.length - 1]);
+    });
+
+    expect(dateInputs().from.value).toBe(defaultFrom);
+  });
+});
+
 describe("ExpensesPage list + totals", () => {
   it("shows the loading placeholder, then rows and the month total via formatMoney at the currency scale", async () => {
     let resolve!: (v: ExpenseList) => void;
@@ -144,12 +250,16 @@ describe("ExpensesPage list + totals", () => {
     expect(screen.queryByText("No expenses recorded yet.")).not.toBeInTheDocument();
   });
 
-  it("shows the truly-empty state once the filters are cleared", async () => {
+  // #679 changed which control does this. "Clear filters" now restores the
+  // current-month default (owner decision), so on the default itself it would
+  // be a no-op and the empty state offers all-time instead — the action that
+  // blanks the range, and therefore the one that can reach this state.
+  it("shows the truly-empty state once the range is widened to all time", async () => {
     mockListExpenses.mockResolvedValue(emptyList("USD", 2));
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
     await screen.findByText("No expenses match these filters.");
 
-    fireEvent.click(screen.getByRole("button", { name: /clear filters/i }));
+    fireEvent.click(screen.getByRole("button", { name: /show all time/i }));
 
     expect(await screen.findByText("No expenses recorded yet.")).toBeInTheDocument();
   });

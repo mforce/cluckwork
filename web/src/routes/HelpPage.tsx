@@ -608,6 +608,9 @@ export function HelpPage() {
       <ul>
         <li>{t("expensesRecording")}</li>
         <li>
+          <Trans ns="help" i18nKey="expensesClearingFilters" components={{ strong: <strong /> }} />
+        </li>
+        <li>
           <Trans ns="help" i18nKey="expensesCorrections" components={{ strong: <strong /> }} />
         </li>
         <li>{t("expensesAdminOnly")}</li>
@@ -765,6 +768,9 @@ export function HelpPage() {
       <ul>
         <li>{t("auditLog")}</li>
         <li>{t("auditRecordTypeFilter")}</li>
+        <li>
+          <Trans ns="help" i18nKey="auditClearingFilters" components={{ strong: <strong /> }} />
+        </li>
         <li>{t("auditRecordHistory")}</li>
         <li>{t("auditRecordHistoryLink")}</li>
         <li>{t("auditRecordHistorySubmit")}</li>
