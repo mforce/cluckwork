@@ -1366,6 +1366,7 @@ export const es = {
     // Expenses table
     noExpensesMessage: "Aún no se han registrado gastos.",
     noExpensesMatch: "Ningún gasto coincide con estos filtros.",
+    showAllTimeButton: "Ver todo el historial",
     dateHeader: "Fecha",
     categoryHeader: "Categoría",
     descriptionHeader: "Descripción",
@@ -2309,6 +2310,10 @@ export const es = {
       + "reloj del navegador en otro lugar — muestra un total acumulado para el período elegido; las categorías "
       + "se administran en la misma pantalla (desactivar una la oculta de los gastos nuevos — los ya "
       + "registrados la conservan).",
+    expensesClearingFilters:
+      "El rango se abre en el mes actual de la granja. <strong>Borrar filtros</strong>, junto a los controles, "
+      + "lo devuelve ahí — está disponible mientras aún se ven filas, no solo cuando un filtro ya lo ocultó "
+      + "todo — y cuando el mes está vacío, <strong>Ver todo el historial</strong> amplía la vista a todos los períodos.",
     expensesCorrections:
       "Las correcciones editan el gasto en su lugar (<strong>corregir</strong> en la fila). Si alguien más "
       + "lo corrigió primero, el formulario recarga sus valores y le pide volver a aplicar. La moneda en "
@@ -2345,6 +2350,10 @@ export const es = {
       + "registrar. Elige la acción de esa lista reducida para filtrar las filas realmente. "
       + "Las fechas \"Desde\" y \"Hasta\" junto a ellos SÍ filtran las filas, sobre el día UTC que "
       + "muestra la columna \"Cuándo (UTC)\".",
+    auditClearingFilters:
+      "<strong>Borrar filtros</strong>, junto a esos controles, restablece los cuatro a la vez. Deja el "
+      + "registro en el que llegó: abrir el historial desde el enlace de una fila lo limita a ese registro, "
+      + "y ese alcance no es uno de los filtros.",
     auditRecordHistory:
       "Lotes, Grados de huevo, Historial de registro diario, Ventas y Gastos tienen una columna Historial "
       + "que muestra quién creó el registro y cuándo, más quién lo modificó por última vez si alguien lo "

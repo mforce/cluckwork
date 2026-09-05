@@ -1745,6 +1745,10 @@ export const en = {
     // Expenses table
     noExpensesMessage: "No expenses recorded yet.",
     noExpensesMatch: "No expenses match these filters.",
+    // #679 — offered only when the range is still the default one this
+    // screen opens with: "Clear filters" restores that default, so on the
+    // default itself the useful move is the wider view instead.
+    showAllTimeButton: "Show all time",
     dateHeader: "Date",
     categoryHeader: "Category",
     descriptionHeader: "Description",
@@ -2831,6 +2835,11 @@ export const en = {
       + "tied to a flock. The date range — the farm's own dates, not a browser clock elsewhere — shows a running "
       + "total for the period you pick; categories are managed on the same screen "
       + "(deactivating one hides it from new expenses — recorded ones keep it).",
+    // #679 — the two filter-row controls, named exactly as they are labelled.
+    expensesClearingFilters:
+      "The range opens on the current farm month. <strong>Clear filters</strong> beside the controls puts it "
+      + "back there — it is there while rows are still listed, not only when a filter has hidden everything — "
+      + "and when the month itself is empty, <strong>Show all time</strong> widens the view to every period.",
     expensesCorrections:
       "Corrections edit the expense in place (<strong>correct</strong> on the row). If someone else "
       + "corrected it first, the form reloads their values and asks you to re-apply. The currency an expense "
@@ -2868,6 +2877,11 @@ export const en = {
       + "farm can log. Pick the action from that narrowed list to actually filter the rows. "
       + "The From and To dates beside them DO filter the rows, over the UTC day shown in the "
       + "\"When (UTC)\" column.",
+    // #679 — the control, and the one thing it deliberately does NOT clear.
+    auditClearingFilters:
+      "<strong>Clear filters</strong> beside those controls resets all four at once. It leaves the record "
+      + "you arrived on: opening the log from a row's Audit history link scopes it to that record, and that "
+      + "scope is not one of the filters.",
     auditRecordHistory:
       "Flocks, Egg grades, Daily entry history, Sales and Expenses each carry a History column showing who "
       + "created the record and when, plus who last changed it if anyone has. It is read from the same audit "

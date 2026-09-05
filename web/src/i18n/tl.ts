@@ -1415,6 +1415,7 @@ export const tl = {
     // Expenses table
     noExpensesMessage: "Wala pang naitalang gastos.",
     noExpensesMatch: "Walang gastos na tumutugma sa mga filter na ito.",
+    showAllTimeButton: "Ipakita ang lahat ng panahon",
     dateHeader: "Petsa",
     categoryHeader: "Kategorya",
     descriptionHeader: "Deskripsyon",
@@ -2397,6 +2398,9 @@ export const tl = {
       + "hindi ng orasan ng browser sa ibang lugar — ang tumatakbong total para sa panahong pinili mo; "
       + "pinapamahalaan ang mga kategorya sa parehong screen (ang pag-deactivate ng isa ay nagtatago nito "
       + "mula sa mga bagong gastos — pinapanatili ito ng mga naitala na).",
+    expensesClearingFilters:
+      "Bumubukas ang range sa kasalukuyang buwan ng bukid. Ibinabalik ito roon ng <strong>I-clear ang mga filter</strong> na katabi ng mga kontrol — naroon ito habang may nakalistang mga row pa, hindi lang kapag "
+      + "may filter nang nagtago ng lahat — at kapag walang laman ang buwan, pinapalawak ng <strong>Ipakita ang lahat ng panahon</strong> ang view sa lahat ng panahon.",
     expensesCorrections:
       "Ine-edit ng mga pagtatama ang gastos sa lugar nito (<strong>tama</strong> sa row). Kung may ibang "
       + "tao na nagtama nito muna, nire-reload ng form ang mga value nila at hinihiling sa iyong mag-apply "
@@ -2434,6 +2438,10 @@ export const tl = {
       + "listahan ng bawat aksyong maaaring itala ng bukid. Piliin ang aksyon sa napaliit na listahang iyon "
       + "para talagang masalà ang mga row. Ang mga petsang \"Mula\" at \"Hanggang\" sa tabi nila ay "
       + "TALAGANG nagsasalà sa mga row, batay sa araw na UTC na ipinapakita sa column na \"Kailan (UTC)\".",
+    auditClearingFilters:
+      "Ni-reset ng <strong>I-clear ang mga filter</strong> na katabi ng mga kontrol na iyon ang lahat ng apat "
+      + "nang sabay. Iniiwan nito ang record na pinanggalingan mo: kapag binuksan ang log mula sa link na "
+      + "Audit history ng isang row, naka-scope ito sa record na iyon, at hindi filter ang scope na iyon.",
     auditRecordHistory:
       "Ang Mga kawan, Grado ng itlog, Kasaysayan ng pang-araw-araw na entry, Benta at Gastos ay may "
       + "kolum na Kasaysayan na nagpapakita kung sino ang gumawa ng record at kailan, at kung sino ang "

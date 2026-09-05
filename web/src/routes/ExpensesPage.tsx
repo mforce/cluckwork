@@ -74,6 +74,24 @@ export function ExpensesPage() {
   const [to, setTo] = useState(monthEnd);
   const [filterCategory, setFilterCategory] = useState("");
 
+  // #679 — "clear" on this screen means RESTORE THE DEFAULT, not blank the
+  // range (owner decision, 2026-09-05). Blanking would leave periodTotalLabel
+  // describing an unbounded total across every expense ever recorded, which is
+  // the framing #667 deliberately declined to make the default. All-time stays
+  // reachable, but as its own labelled action in the empty state below rather
+  // than as the meaning of this button.
+  const isFiltered = from !== monthStart || to !== monthEnd || filterCategory !== "";
+  const resetFilters = () => {
+    setFrom(monthStart);
+    setTo(monthEnd);
+    setFilterCategory("");
+  };
+  const showAllTime = () => {
+    setFrom("");
+    setTo("");
+    setFilterCategory("");
+  };
+
   // add form
   const [date, setDate] = useState(today);
   const [categoryId, setCategoryId] = useState("");
@@ -529,6 +547,14 @@ export function ExpensesPage() {
         <button className="link" type="button" onClick={() => setShowCategories((v) => !v)}>
           {showCategories ? t("hideCategoriesButton") : t("manageCategoriesButton")}
         </button>
+        {/* #679 — persistent, not empty-state-only: before this, the sole way
+            back to the default view was to narrow the range until the list
+            emptied so the empty state's button appeared. */}
+        {isFiltered && (
+          <button className="link" type="button" onClick={resetFilters}>
+            {tc("clearFiltersButton")}
+          </button>
+        )}
       </div>
 
       {/* The total belongs to the rows below it: it lands and clears with
@@ -771,11 +797,15 @@ export function ExpensesPage() {
         // filtered sentence offers a way out, the truly-empty one does not
         // (expense capture is the inline form above, not a page-head action).
         (from || to || filterCategory)
+          // #679 — the action depends on WHERE the empty view is. Narrowed past
+          // the default, the way out is back to the default; sitting ON the
+          // default with nothing this month, "clear filters" would be a no-op
+          // that changes nothing on screen, and the useful move is the one the
+          // filter row's button deliberately does not mean: show every period.
           ? <EmptyState icon={FilterX} message={t("noExpensesMatch")}
-              action={{
-                label: tc("clearFiltersButton"),
-                onClick: () => { setFrom(""); setTo(""); setFilterCategory(""); },
-              }} />
+              action={isFiltered
+                ? { label: tc("clearFiltersButton"), onClick: resetFilters }
+                : { label: t("showAllTimeButton"), onClick: showAllTime }} />
           : <EmptyState icon={Receipt} message={t("noExpensesMessage")} />
       ) : (
         <table className="data">
