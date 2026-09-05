@@ -165,4 +165,30 @@ public sealed class FilterFreeSetIdentityTests : IDisposable
         Assert.Equal(2, identities.Count);
         Assert.Equal(2, identities.Distinct(StringComparer.Ordinal).Count());
     }
+    // #698 review round 2. Indexers overload on their parameter list, so
+    // naming them all "this[]" dropped the only thing that separates them:
+    // two overloads carrying the same query collided on identity and failed
+    // the duplicate check, with no edit available that could fix it.
+    [Fact]
+    public void OverloadedIndexers_WithIdenticalQueries_KeepDistinctIdentities()
+    {
+        const string body = """
+            namespace Fixture;
+            public sealed class Repo
+            {
+                private readonly AppDbContext db = null!;
+                public object this[int id] => db.Users.Where(u => u.Id == id);
+                public object this[string key] => db.Users.Where(u => u.Id == key);
+            }
+            """;
+
+        var identities = GuardScanner.ScanFilterFreeSet(WriteSource(body), ["Users"])
+            .Select(GuardScanner.FilterFreeSetIdentity)
+            .ToList();
+
+        Assert.Equal(2, identities.Count);
+        Assert.Equal(2, identities.Distinct(StringComparer.Ordinal).Count());
+        Assert.Contains(identities, i => i.Contains("this[int id]", StringComparison.Ordinal));
+        Assert.Contains(identities, i => i.Contains("this[string key]", StringComparison.Ordinal));
+    }
 }

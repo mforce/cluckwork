@@ -930,7 +930,7 @@ public static class GuardScanner
                 var name = property switch
                 {
                     PropertyDeclarationSyntax prop => prop.Identifier.ValueText,
-                    IndexerDeclarationSyntax => "this[]",
+                    IndexerDeclarationSyntax indexer => $"this[{ParameterTypes(indexer.ParameterList)}]",
                     EventDeclarationSyntax evt => evt.Identifier.ValueText,
                     _ => "<property>",
                 };
@@ -1019,6 +1019,14 @@ public static class GuardScanner
         parts.AddRange(typeParts);
         return string.Join(".", parts);
     }
+
+    // #698 review round 2 — indexers overload on their parameter list, and
+    // mapping them all to "this[]" dropped exactly the text that separates
+    // them: two overloads carrying the same query would collide on identity
+    // and fail the duplicate check, with no edit available to fix it.
+    private static string ParameterTypes(BaseParameterListSyntax parameters) =>
+        string.Join(", ", parameters.Parameters
+            .Select(p => p.Type!.ToString() + " " + p.Identifier.ValueText));
 
     private static string ParameterTypes(BaseMethodDeclarationSyntax method)
     {
