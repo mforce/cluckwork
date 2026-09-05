@@ -201,9 +201,11 @@ public sealed class TenantBypassRealTreeTests
             .Select(l =>
             {
                 var parts = l.Split('\t');
-                Assert.True(parts.Length >= 4,
-                    "malformed classification row — expected symbol, set, signature and reason separated by " +
-                    $"tabs (#632):\n  {l}");
+                Assert.True(parts.Length >= 4 && !string.IsNullOrWhiteSpace(parts[3]),
+                    "malformed classification row — expected symbol, set, signature and a NON-EMPTY reason " +
+                    "separated by tabs. #698 review: a row with a valid identity and a blank reason passed the " +
+                    "missing, stale, duplicate and needs-review checks alike, so it excused a filter-free query " +
+                    $"with no reviewed justification at all (#632):\n  {l}");
                 return (Key: string.Join("\t", parts[0], parts[1], parts[2]), Reason: parts[3].Trim());
             })
             .ToList();
