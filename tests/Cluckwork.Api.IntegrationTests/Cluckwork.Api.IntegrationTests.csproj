@@ -1,13 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <IsPackable>false</IsPackable>
-  </PropertyGroup>
-
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
@@ -17,18 +9,6 @@
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Testcontainers.Redis" />
     <PackageReference Include="Google.Protobuf" />
-    <!-- Transitive-pin override: Testcontainers 4.13.0 still resolves SSH.NET
-         2025.1.0, which carries GHSA-q939-rpr3-3284 (high — ScpClient recursive
-         download allows arbitrary file write via server-controlled SCP
-         filenames; fixed in 2026.0.0). The #146 NuGet gate scans transitives, so
-         the advisory fails CI on every PR. Dependabot cannot fix it: there is no
-         Testcontainers release that moves the pin, so a direct reference is the
-         only lever that lifts the resolved version. Cluckwork never calls
-         ScpClient — Testcontainers only reaches SSH.NET for remote/SSH Docker
-         hosts, which the test fixtures do not use — so this is gate hygiene, not
-         live exposure. Drop this line once Testcontainers itself depends on
-         SSH.NET >= 2026.0.0. -->
-    <PackageReference Include="SSH.NET" />
   </ItemGroup>
 
   <ItemGroup>

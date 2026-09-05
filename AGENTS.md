@@ -53,7 +53,7 @@ or adding an aggregate state.
 
 ```bash
 dotnet build Cluckwork.sln                 # warnings are errors — keep it clean
-dotnet test  Cluckwork.sln                 # 688 tests as of 2026-07; integration needs Docker
+dotnet test  Cluckwork.sln                 # 2278 tests as of 2026-09; integration needs Docker
 ```
 
 - **Integration tests** spin up a real Postgres via Testcontainers (`docker` required). No SQLite — EF SQL semantics differ.
@@ -161,7 +161,7 @@ A guard is a test whose job is to *fail* when someone later does the wrong thing
 
 CI fails a PR when a **production** dependency carries a known **high+** advisory — NuGet (`dotnet list package --vulnerable`) and npm prod deps (`npm audit --omit=dev`; dev-only advisories are logged, not blocking). Plus dependency-review, CodeQL (advisory), and a weekly scheduled audit. Both audit gates run through `.github/scripts/vuln-gate.mjs` and **fail closed**; the only mute is a dated `.github/security-exceptions.json` entry (exact GHSA id, required `expires`). → [`146-ci-security-gates.md`](docs/decisions/146-ci-security-gates.md)
 
-- **NuGet versions live in `Directory.Packages.props` (#684).** Central Package Management: every `.csproj` carries bare `PackageReference` elements and the one `PackageVersion` list at the repo root decides the version, so a bump is one file, and two projects cannot silently disagree. `CentralPackageFloatingVersionsEnabled` is on because the ranges (`10.*`, `1.*`) moved over as they were; the committed lock files, not the ranges, pin what restores. `Directory.Build.props` beside it does one unrelated thing (`RestorePackagesWithLockFile`) — do not merge the two. The Dockerfile's restore layer, the CI drift guard and every path filter name the props file explicitly; a new restore input goes in all of them.
+- **NuGet versions live in `Directory.Packages.props` (#684).** Central Package Management: every `.csproj` carries bare `PackageReference` elements and the one `PackageVersion` list at the repo root decides the version, so a bump is one file, and two projects cannot silently disagree. `CentralPackageFloatingVersionsEnabled` is on because the ranges (`10.*`, `1.*`) moved over as they were; the committed lock files, not the ranges, pin what restores. `Directory.Build.props` beside it holds `RestorePackagesWithLockFile` and the four build properties every project shares (target framework, nullable, implicit usings, warnings as errors) — never a version; do not merge the two. The Dockerfile's restore layer, the CI drift guard and every path filter name the props file explicitly; a new restore input goes in all of them.
 - **NuGet lock files.** Every project has a committed `packages.lock.json` and CI restores `--locked-mode`, so a package add or bump commits the regenerated lock files **in the same commit** or CI fails with `NU1004`. Dependabot NuGet PRs are auto-healed by `.github/workflows/dependabot-lockfix.yml`.
 - **Pin third-party Actions to a full commit SHA** with a trailing `# vX.Y.Z` comment — never a mutable tag (the 2026-03 `aquasecurity/trivy-action` and 2025-03 `tj-actions/changed-files` compromises both retargeted tags). `actions/*` and `github/*` may keep major-version tags.
 

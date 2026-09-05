@@ -5,6 +5,10 @@
        would silently stop applying to every test project. -->
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
 
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
   <!-- The three references every xunit test project needs, held once instead
        of four times. Versions come from Directory.Packages.props (#684). A test
        project that needs something else adds it in its own csproj. -->

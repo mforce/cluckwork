@@ -1,5 +1,16 @@
 <Project>
 
+  <!-- Build settings every project in Cluckwork.sln shares. A project file
+       still overrides any of these for itself, since MSBuild imports this file
+       before the project. Package VERSIONS never go here: they live in
+       Directory.Packages.props (#684). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
   <PropertyGroup>
     <!-- #146: emit a committed packages.lock.json per project, so restores are
          DETERMINISTIC — CI restores in locked mode, and a dependency cannot

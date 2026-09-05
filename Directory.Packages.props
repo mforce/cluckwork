@@ -43,9 +43,6 @@
     <PackageVersion Include="Serilog.AspNetCore" Version="10.*" />
     <PackageVersion Include="Serilog.Extensions.Logging" Version="10.*" />
     <PackageVersion Include="Serilog.Formatting.Compact" Version="3.*" />
-    <!-- Transitive-pin override for GHSA-q939-rpr3-3284 via Testcontainers;
-         full rationale at the reference in Cluckwork.Api.IntegrationTests.csproj. -->
-    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <PackageVersion Include="StackExchange.Redis" Version="3.*" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.*" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.*" />
