@@ -22,7 +22,7 @@ staged=$(git diff --cached --name-only --diff-filter=ACMRD)
 
 fail() { echo "pre-commit: FAILED ($1) — fix or use --no-verify." >&2; exit 1; }
 
-if echo "$staged" | grep -qE '\.sln$|\.cs(proj)?$|^Directory\.Packages\.props$'; then
+if echo "$staged" | grep -qE '\.sln$|\.cs(proj)?$|Directory\.(Packages|Build)\.props$'; then
   echo "pre-commit: .NET unit tests (domain + application)..."
   dotnet test tests/Cluckwork.Domain.Tests --nologo -v q || fail ".NET unit tests"
   dotnet test tests/Cluckwork.Application.Tests --nologo -v q || fail ".NET unit tests"

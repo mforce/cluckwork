@@ -10,8 +10,12 @@
          comment claimed it did; that was wrong. The graph parses
          .csproj/.vbproj/.nuspec/.fsproj/packages.config for NuGet — never
          packages.lock.json — and does not derive NuGet transitives statically,
-         so on manifests alone it sees only our 20 direct PackageReferences out
-         of ~80 resolved. The transitive closure reaches the graph via the
+         so on manifests alone it sees only the direct PackageReferences
+         (versioned in Directory.Packages.props), a fraction of the resolved
+         closure — and not even those held in a Directory.Build.props such as
+         tests/Directory.Build.props, which is no manifest to the graph; the
+         tree-scoped vulnerable-package gate in ci.yml covers those at PR
+         time. The transitive closure reaches the graph via the
          Dependency Submission API instead, in
          .github/workflows/dependency-submission.yml.
 

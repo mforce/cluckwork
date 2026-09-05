@@ -34,7 +34,15 @@ same commit** — otherwise CI fails the restore with `NU1004`.
 **How the graph learns about transitive NuGet.** Not from the lock files. GitHub
 parses `.csproj`/`.vbproj`/`.nuspec`/`.fsproj`/`packages.config` for NuGet, never
 `packages.lock.json`, and doesn't derive NuGet transitives statically — on
-manifests alone it sees 20 direct `PackageReference`s out of ~80 resolved, leaving
+manifests alone it sees only the direct `PackageReference`s, a fraction of the
+resolved closure (the counts drift; `Directory.Packages.props` lists the
+versions and the lock files the resolved set). It sees even fewer than that:
+a `PackageReference` held in a `Directory.Build.props` (the three xunit
+references shared by `tests/Directory.Build.props`) is not in any manifest the
+graph parses, so PR-scoped dependency review can omit such a reference
+entirely. The tree-scoped `dotnet list package --vulnerable
+--include-transitive` gate in `ci.yml` runs on the restored graph and is what
+covers those at PR time. All of this leaves
 dependency-review blind to a transitively-introduced vulnerable package.
 `.github/workflows/dependency-submission.yml` closes that: on a push to `main`
 touching the dependency set, Microsoft's component-detection reads the restore
