@@ -37,52 +37,78 @@
 #   Nothing is silently un-banned: a new unscoped query cannot land without a
 #   classification decision.
 #
-# FORMAT: one line per candidate:  file:line <TAB> detail <TAB> reason
-#   The file:line + detail must EXACTLY match what the scanner reports; a line
-#   number shift breaks the match (the test re-derives the scanner's view).
+# FORMAT (#632): one line per candidate
+#     enclosing symbol <TAB> db.<Set> <TAB> signature <TAB> reason
+#
+#   The identity carries NO file or line. It used to: the guard keyed each
+#   classification by file:line, and three separate changes moved rows whose
+#   queries were untouched — #601 (comment-only edits shifted eight
+#   IdentityProvider rows), #609/#606 (three), #627 (two db.Roles rows moved
+#   457->469 and 500->512 with neither query changed). #604 recorded the
+#   problem and set "revisit after the third occurrence"; this is that.
+#
+#   * enclosing symbol — the method in Roslyn display form, exactly as the
+#     scanner reports it. Renaming the method, or moving the query into a
+#     different one, DOES require re-pinning: both change which code is
+#     asserted to be safe.
+#   * signature — 8 hex characters of SHA-256 over the enclosing STATEMENT,
+#     comments stripped and whitespace collapsed. So a comment above, beside
+#     or inside the query, and any reformatting, leave it alone; editing the
+#     query itself changes it, deliberately — a changed query is a re-review,
+#     not a move. A trailing "#N" appears only for a statement that queries the
+#     same set more than once, where the text is identical by construction.
+#
+#   Identities must be UNIQUE: two rows with the same identity fail the guard
+#   rather than one silently excusing the other.
+#
+# CLASSIFYING A NEW QUERY: run the guard (dotnet test --filter
+#   TenantBypassRealTreeTests). A new candidate fails with its identity, its
+#   file:line and a normalized excerpt printed — paste the identity here and
+#   add the reason naming the scoping mechanism (by-id / by-hash / by-key /
+#   scoped-by-join / scoped-by-user-id / global-reference / non-tenant-sweep),
+#   or fix the query. The file:line in the failure message is for FINDING the
+#   code; it is deliberately not part of the key.
 #
 # The `reason` is a human assertion, not a machine proof. It names the scoping
 # mechanism. `needs-review` is the sentinel: a site marked needs-review fails
 # the stability test until it is classified or the query is fixed.
 
-src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs:443	db.IdempotencyRecords	by-key: unique index (AccountId, EndpointHash, IdempotencyKeyHash) is enforced by the DB; the method carries accountId and the record is written with it. The claim read is by (endpointHash, keyHash) within the caller's resolved account.
-src/Cluckwork.Infrastructure/Identity/AccountScopedUserValidator.cs:59	db.Users	by-id: re-reads the current user by primary key (candidate.Id == user.Id) to compare against the persisted row; the user's account is already resolved by the caller. #529 legacy-import guard.
-src/Cluckwork.Infrastructure/Identity/AdminRecoveryService.cs:136	db.Users	by-id+account: break-glass recovery looks up the user by email within the recovered account; the method takes accountId and the lookup is scoped to it. #265.
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:131	db.RefreshTokens	by-hash: login rotates the user's refresh tokens by user id (account-unique); the token hash embeds the account.
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:181	db.RefreshTokens	by-hash: refresh-token rotation reads by token hash; the hash is account-scoped by construction.
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:304	db.RefreshTokens	by-hash: same rotation path, second read by token hash.
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1415	db.RefreshTokens	by-user: password change revokes the user's tokens by user id (account-unique).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1590	db.RefreshTokens	by-hash: logout attribution reads by the globally unique opaque credential hash, then immediately compares the projected AccountId when a farm was selected; the projection is part of that scope gate. Review P1-3 surfaced this candidate because the old Contains("AccountId") check mistook a projection for a predicate.
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1750	db.RefreshTokens	by-root-lineage: attaches only the replacement entity projected by the fresh hash + UserId + AccountId parent/child inspection; Attach performs no query and the later CAS save retains the row's AccountId.
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1772	db.RefreshTokens	by-user: revokes all active tokens for a user by user id (account-unique).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:2005	db.RefreshTokens	by-hash: the post-save durability probe uses the hash of 256-bit random bytes minted by this single attempt and not yet exposed; presence proves this attempt's transaction committed.
-src/Cluckwork.Infrastructure/Identity/PersistentStepUpGrantRegistry.cs:53	db.Users	by-id: reads the user's StepUpLogoutEpoch by user id (account-unique) to check the grant is not revoked; #338 shared-state.
-src/Cluckwork.Infrastructure/Identity/PersistentStepUpGrantRegistry.cs:92	db.Users	by-id: records a logout by bumping the user's StepUpLogoutEpoch (account-unique).
-src/Cluckwork.Infrastructure/Identity/PersistentStepUpGrantRegistry.cs:104	db.Users	by-id: checks revocation by the user's StepUpLogoutEpoch (account-unique).
-src/Cluckwork.Infrastructure/Identity/StepUpGrantService.cs:368	db.Users	by-id: validates the grant's security stamp by user id (account-unique), then rejects when the persisted user's AccountId does not match the grant account; the read is no-tracking so a later account-locked mutation cannot identity-resolve this pre-lock row.
-src/Cluckwork.Infrastructure/Jobs/IdempotencyRecordPurgeSweep.cs:111	db.IdempotencyRecords	non-tenant sweep: purges expired records across all tenants (runs under the single-leader gate #271 with no tenant resolved); scoped by expiry, not by account.
-src/Cluckwork.Infrastructure/Jobs/IdempotencyRecordPurgeSweep.cs:130	db.IdempotencyRecords	non-tenant sweep: second purge query in the same sweep; scoped by expiry.
-src/Cluckwork.Infrastructure/Jobs/RefreshTokenPurgeSweep.cs:80	db.RefreshTokens	non-tenant sweep: purges expired refresh tokens across all tenants (single-leader gate #271); scoped by expiry.
 
-# --- NON-TENANT track (no AccountId CLR property — see the header above for the #670 shadow column; every db.<Table> access is a
-# candidate, classified by its scoping mechanism) ---
-src/Cluckwork.Infrastructure/Identity/AccountUserDirectory.cs:65	db.UserRoles	scoped-by-join: the role query joins db.Users (which carries AccountId) on user.Id, and the WHERE names user.AccountId == accountId; the UserRoles join is therefore tenant-scoped transitively.
-src/Cluckwork.Infrastructure/Identity/AccountUserDirectory.cs:66	db.Roles	global-reference: AspNetRoles has no AccountId column — roles are farm-wide reference data (the four base roles are global); the query is scoped by the join to the tenant's UserRows, not by an account predicate.
-src/Cluckwork.Infrastructure/Identity/FirstRunStatusService.cs:91	db.UserRoles	scoped-by-join: checks the Owner role by joining db.Users (carries AccountId) on user.Id; tenant-scoped transitively through the user row.
-src/Cluckwork.Infrastructure/Identity/FirstRunStatusService.cs:93	db.Roles	global-reference: role lookup by name (AspNetRoles is farm-wide reference data); scoped by the join to the tenant's user rows.
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1047	db.UserRoles	scoped-by-user-id: checks the acting user's Owner role by userRole.UserId == actingUserId (the user id is account-unique); the Role join is to global reference data.
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1048	db.Roles	global-reference: role lookup by name in the Owner check (AspNetRoles is farm-wide reference data).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1062	db.UserRoles	scoped-by-user-id: counts other active Owners by joining UserRoles on the user id (account-unique) and the user's AccountId == accountId.
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1063	db.Roles	global-reference: Owner-role filter by name in the owner-count (AspNetRoles is farm-wide reference data).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1115	db.UserRoles	scoped-by-user-id: DisableUser READS the target's Owner membership by userRole.UserId == userId (account-unique) for the last-Owner check; it writes no role row (it disables the user, rotates the stamp, bumps the epoch, revokes refresh tokens).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1116	db.Roles	global-reference: role lookup by name in the disable path (AspNetRoles is farm-wide reference data).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1451	db.UserRoles	scoped-by-account: lists the account's users with their roles; the query carries u.AccountId == accountId (the UserRoles join is scoped by the user rows).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1452	db.Roles	global-reference: role name resolution in ListUsers (AspNetRoles is farm-wide reference data).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1496	db.UserRoles	scoped-by-account: GetUser loads the user's roles; the method takes accountId and the user lookup is scoped to it.
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1497	db.Roles	global-reference: role name resolution in GetUser (AspNetRoles is farm-wide reference data).
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1522	db.UserRoles	scoped-by-account: GetEffectiveRoleAsync (#612) loads the user's roles; the method takes accountId and has already confirmed the user is an ACTIVE member of it via a preceding db.Users AnyAsync(u.Id == userId && u.AccountId == accountId && u.DisabledAt == null) check.
-src/Cluckwork.Infrastructure/Identity/IdentityProvider.cs:1523	db.Roles	global-reference: role name resolution in GetEffectiveRoleAsync (#612) (AspNetRoles is farm-wide reference data).
-src/Cluckwork.Infrastructure/Jobs/DurableJobWorker.cs:149	db.DurableJobs	non-tenant table: DurableJob has no AccountId column by design (#271 at-most-one-leader lease, single-leader gate); the worker runs with no tenant resolved and polls by status/RunAfter.
-src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs:204	db.Roles	global-reference: dev-only seeder ensures the base role rows exist (AspNetRoles is farm-wide reference data); runs at unresolved tenant by design (#280).
-src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs:469	db.Roles	global-reference: simulation seeder ensures base role rows (AspNetRoles is farm-wide reference data); runs at unresolved tenant by design (#279).
-src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs:512	db.Roles	global-reference: simulation seeder finds the Owner by joining global reference roles to the seeded account's users; scoped to the seeded account via the user rows.
+Cluckwork.Api.Middleware.IdempotencyMiddleware.TryClaimOrInspectAsync(AppDbContext db, Guid accountId, string endpointHash, string keyHash, string requestHash, Guid ownerToken, DateTimeOffset leaseExpiresAt, DateTimeOffset now, CancellationToken ct)	db.IdempotencyRecords	42d2997f	by-key: unique index (AccountId, EndpointHash, IdempotencyKeyHash) is enforced by the DB; the method carries accountId and the record is written with it. The claim read is by (endpointHash, keyHash) within the caller's resolved account.
+Cluckwork.Infrastructure.Identity.AccountScopedUserValidator.ValidateAsync(UserManager<ApplicationUser> manager, ApplicationUser user)	db.Users	251fdbf0	by-id: re-reads the current user by primary key (candidate.Id == user.Id) to compare against the persisted row; the user's account is already resolved by the caller. #529 legacy-import guard.
+Cluckwork.Infrastructure.Identity.AccountUserDirectory.FindByAccountRoleAsync(Guid accountId, string roleName, CancellationToken ct)	db.Roles	0c82b86d	global-reference: AspNetRoles has no AccountId column — roles are farm-wide reference data (the four base roles are global); the query is scoped by the join to the tenant's UserRows, not by an account predicate.
+Cluckwork.Infrastructure.Identity.AccountUserDirectory.FindByAccountRoleAsync(Guid accountId, string roleName, CancellationToken ct)	db.UserRoles	0c82b86d	scoped-by-join: the role query joins db.Users (which carries AccountId) on user.Id, and the WHERE names user.AccountId == accountId; the UserRoles join is therefore tenant-scoped transitively.
+Cluckwork.Infrastructure.Identity.AdminRecoveryService.RecoverAsync(string? email, Guid? accountId, string? reason, CancellationToken ct)	db.Users	e46faa33	by-id+account: break-glass recovery looks up the user by email within the recovered account; the method takes accountId and the lookup is scoped to it. #265.
+Cluckwork.Infrastructure.Identity.FirstRunStatusService.IsProvisionedAsync(CancellationToken ct)	db.Roles	bdbdd428	global-reference: role lookup by name (AspNetRoles is farm-wide reference data); scoped by the join to the tenant's user rows.
+Cluckwork.Infrastructure.Identity.FirstRunStatusService.IsProvisionedAsync(CancellationToken ct)	db.UserRoles	bdbdd428	scoped-by-join: checks the Owner role by joining db.Users (carries AccountId) on user.Id; tenant-scoped transitively through the user row.
+Cluckwork.Infrastructure.Identity.IdentityProvider.ChangeOwnPasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct)	db.RefreshTokens	23c11b54	by-user: password change revokes the user's tokens by user id (account-unique).
+Cluckwork.Infrastructure.Identity.IdentityProvider.CountOtherActiveOwnersAsync(Guid accountId, Guid excludingUserId, CancellationToken token)	db.Roles	c77a0038	global-reference: Owner-role filter by name in the owner-count (AspNetRoles is farm-wide reference data).
+Cluckwork.Infrastructure.Identity.IdentityProvider.CountOtherActiveOwnersAsync(Guid accountId, Guid excludingUserId, CancellationToken token)	db.UserRoles	c77a0038	scoped-by-user-id: counts other active Owners by joining UserRoles on the user id (account-unique) and the user's AccountId == accountId.
+Cluckwork.Infrastructure.Identity.IdentityProvider.DisableUserAsync(Guid accountId, Guid userId, Guid actingUserId, string? reason, CancellationToken ct)	db.Roles	7821efe2	global-reference: role lookup by name in the disable path (AspNetRoles is farm-wide reference data).
+Cluckwork.Infrastructure.Identity.IdentityProvider.DisableUserAsync(Guid accountId, Guid userId, Guid actingUserId, string? reason, CancellationToken ct)	db.UserRoles	7821efe2	scoped-by-user-id: DisableUser READS the target's Owner membership by userRole.UserId == userId (account-unique) for the last-Owner check; it writes no role row (it disables the user, rotates the stamp, bumps the epoch, revokes refresh tokens).
+Cluckwork.Infrastructure.Identity.IdentityProvider.GetEffectiveRoleAsync(Guid accountId, Guid userId, CancellationToken ct)	db.Roles	ccd40473	global-reference: role name resolution in GetEffectiveRoleAsync (#612) (AspNetRoles is farm-wide reference data).
+Cluckwork.Infrastructure.Identity.IdentityProvider.GetEffectiveRoleAsync(Guid accountId, Guid userId, CancellationToken ct)	db.UserRoles	ccd40473	scoped-by-account: GetEffectiveRoleAsync (#612) loads the user's roles; the method takes accountId and has already confirmed the user is an ACTIVE member of it via a preceding db.Users AnyAsync(u.Id == userId && u.AccountId == accountId && u.DisabledAt == null) check.
+Cluckwork.Infrastructure.Identity.IdentityProvider.GetUserAsync(Guid accountId, Guid userId, CancellationToken ct)	db.Roles	4fe967b1	global-reference: role name resolution in GetUser (AspNetRoles is farm-wide reference data).
+Cluckwork.Infrastructure.Identity.IdentityProvider.GetUserAsync(Guid accountId, Guid userId, CancellationToken ct)	db.UserRoles	4fe967b1	scoped-by-account: GetUser loads the user's roles; the method takes accountId and the user lookup is scoped to it.
+Cluckwork.Infrastructure.Identity.IdentityProvider.InspectGraceReplacementAsync(RefreshToken revoked, DateTimeOffset now, CancellationToken ct)	db.RefreshTokens	3eb9d948	by-root-lineage: attaches only the replacement entity projected by the fresh hash + UserId + AccountId parent/child inspection; Attach performs no query and the later CAS save retains the row's AccountId.
+Cluckwork.Infrastructure.Identity.IdentityProvider.ListUsersAsync(Guid accountId, CancellationToken ct)	db.Roles	e8003089	global-reference: role name resolution in ListUsers (AspNetRoles is farm-wide reference data).
+Cluckwork.Infrastructure.Identity.IdentityProvider.ListUsersAsync(Guid accountId, CancellationToken ct)	db.UserRoles	e8003089	scoped-by-account: lists the account's users with their roles; the query carries u.AccountId == accountId (the UserRoles join is scoped by the user rows).
+Cluckwork.Infrastructure.Identity.IdentityProvider.LoginAsync(Guid accountId, string email, string password, CancellationToken ct)	db.RefreshTokens	88428b09	by-hash: login rotates the user's refresh tokens by user id (account-unique); the token hash embeds the account.
+Cluckwork.Infrastructure.Identity.IdentityProvider.MintedTokenIsDurableAsync(string mintedHash)	db.RefreshTokens	6d67f326	by-hash: the post-save durability probe uses the hash of 256-bit random bytes minted by this single attempt and not yet exposed; presence proves this attempt's transaction committed.
+Cluckwork.Infrastructure.Identity.IdentityProvider.RefreshAsync(string refreshToken, CancellationToken ct, Guid? expectedAccountId)	db.RefreshTokens	2e5c7ea4	by-hash: refresh-token rotation reads by token hash; the hash is account-scoped by construction.
+Cluckwork.Infrastructure.Identity.IdentityProvider.RefreshAsync(string refreshToken, CancellationToken ct, Guid? expectedAccountId)	db.RefreshTokens	88428b09	by-hash: same rotation path, second read by token hash.
+Cluckwork.Infrastructure.Identity.IdentityProvider.RequireActiveOwnerAsync(Guid accountId, Guid actingUserId, CancellationToken token)	db.Roles	79b5c7d4	global-reference: role lookup by name in the Owner check (AspNetRoles is farm-wide reference data).
+Cluckwork.Infrastructure.Identity.IdentityProvider.RequireActiveOwnerAsync(Guid accountId, Guid actingUserId, CancellationToken token)	db.UserRoles	79b5c7d4	scoped-by-user-id: checks the acting user's Owner role by userRole.UserId == actingUserId (the user id is account-unique); the Role join is to global reference data.
+Cluckwork.Infrastructure.Identity.IdentityProvider.RevokeAllActiveForUserAsync(Guid userId, int? issuedEpoch, DateTimeOffset now, CancellationToken ct)	db.RefreshTokens	089239d3	by-user: revokes all active tokens for a user by user id (account-unique).
+Cluckwork.Infrastructure.Identity.IdentityProvider.RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct, Guid? expectedAccountId)	db.RefreshTokens	2207eeb6	by-hash: logout attribution reads by the globally unique opaque credential hash, then immediately compares the projected AccountId when a farm was selected; the projection is part of that scope gate. Review P1-3 surfaced this candidate because the old Contains("AccountId") check mistook a projection for a predicate.
+Cluckwork.Infrastructure.Identity.PersistentStepUpGrantRegistry.IsRevokedByLogoutAsync(Guid userId, int grantEpoch, CancellationToken ct)	db.Users	9b9ad3cf	by-id: checks revocation by the user's StepUpLogoutEpoch (account-unique).
+Cluckwork.Infrastructure.Identity.PersistentStepUpGrantRegistry.RecordLogoutAsync(Guid userId, CancellationToken ct)	db.Users	1cce86bb	by-id: records a logout by bumping the user's StepUpLogoutEpoch (account-unique).
+Cluckwork.Infrastructure.Identity.PersistentStepUpGrantRegistry.TryConsumeIfNotLoggedOutAsync(Guid userId, Guid jti, int grantEpoch, DateTimeOffset expiresAt, DateTimeOffset now, CancellationToken ct)	db.Users	9b9ad3cf	by-id: reads the user's StepUpLogoutEpoch by user id (account-unique) to check the grant is not revoked; #338 shared-state.
+Cluckwork.Infrastructure.Identity.StepUpGrantService.ValidateAsync(Guid accountId, Guid userId, string? stepUpToken, CancellationToken ct)	db.Users	33a7b398	by-id: validates the grant's security stamp by user id (account-unique), then rejects when the persisted user's AccountId does not match the grant account; the read is no-tracking so a later account-locked mutation cannot identity-resolve this pre-lock row.
+Cluckwork.Infrastructure.Jobs.DurableJobWorker.ProcessPendingJobsAsync(CancellationToken ct)	db.DurableJobs	c8ecc395	non-tenant table: DurableJob has no AccountId column by design (#271 at-most-one-leader lease, single-leader gate); the worker runs with no tenant resolved and polls by status/RunAfter.
+Cluckwork.Infrastructure.Jobs.IdempotencyRecordPurgeSweep.RunAsync(CancellationToken ct)	db.IdempotencyRecords	4b68c880	non-tenant sweep: purges expired records across all tenants (runs under the single-leader gate #271 with no tenant resolved); scoped by expiry, not by account.
+Cluckwork.Infrastructure.Jobs.IdempotencyRecordPurgeSweep.RunAsync(CancellationToken ct)	db.IdempotencyRecords	f6f05fc1	non-tenant sweep: second purge query in the same sweep; scoped by expiry.
+Cluckwork.Infrastructure.Jobs.RefreshTokenPurgeSweep.RunAsync(CancellationToken ct)	db.RefreshTokens	2d0a4f3b	non-tenant sweep: purges expired refresh tokens across all tenants (single-leader gate #271); scoped by expiry.
+Cluckwork.Infrastructure.Persistence.DemoDataSeeder.MissingBaseDataAsync(Guid accountId, CancellationToken ct)	db.Roles	bec02796	global-reference: dev-only seeder ensures the base role rows exist (AspNetRoles is farm-wide reference data); runs at unresolved tenant by design (#280).
+Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.FindOwnerAsync(Guid accountId, CancellationToken ct)	db.Roles	8398c767	global-reference: simulation seeder finds the Owner by joining global reference roles to the seeded account's users; scoped to the seeded account via the user rows.
+Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.MissingBaseDataAsync(Guid accountId, CancellationToken ct)	db.Roles	bec02796	global-reference: simulation seeder ensures base role rows (AspNetRoles is farm-wide reference data); runs at unresolved tenant by design (#279).

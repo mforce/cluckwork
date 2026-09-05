@@ -35,7 +35,13 @@ public sealed record BypassOccurrence(
     string EnclosingSymbol,
     string Detail,
     bool? PredicateHasAccountId = null,
-    string? RawSqlText = null);
+    string? RawSqlText = null,
+    // #632 — the stable half of a filter-free-set site's identity. A hash of
+    // the enclosing statement with comments stripped and whitespace collapsed,
+    // plus an ordinal for the rare statement that queries one set twice. Only
+    // ScanFilterFreeSet populates it; the allow-list leg keys on the symbol
+    // already and needs nothing here.
+    string? QuerySignature = null);
 
 public sealed record AllowListMismatch(AllowListEntry Entry, string Reason);
 
@@ -805,12 +811,66 @@ public static class GuardScanner
                     access.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
                     EnclosingSymbolOf(access, file),
                     $"{access.Expression}.{access.Name.Identifier.ValueText}",
-                    PredicateHasAccountId: PredicateHasAccountId(access)));
+                    PredicateHasAccountId: PredicateHasAccountId(access),
+                    QuerySignature: QuerySignatureOf(access)));
             }
         }
 
         return results;
     }
+
+    // #632 — a site's identity must survive edits that do not touch the query.
+    // Line numbers did not: three separate changes (#601, #609/#606, #627)
+    // shifted classifications whose queries were untouched, and #604 set
+    // "revisit after the third" as the threshold.
+    //
+    // The signature is the enclosing STATEMENT, normalized: comments removed
+    // (so a comment inside the statement cannot move it either) and all
+    // whitespace collapsed (so reformatting cannot). Editing the query itself
+    // DOES change it, deliberately — a changed query is a re-review, not a
+    // moved one.
+    internal static string QuerySignatureOf(SyntaxNode access)
+    {
+        var scope = (SyntaxNode?)access.FirstAncestorOrSelf<StatementSyntax>()
+            ?? access.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>()
+            ?? access;
+
+        var normalized = NormalizeQueryText(scope.ToString());
+
+        // The ordinal disambiguates ONE case: a single statement that queries
+        // the same set twice (`db.Users.Where(...).Union(db.Users...)`), where
+        // the text is identical by construction and no edit could separate
+        // them. It is positional within the statement, so it is unaffected by
+        // anything outside it.
+        var ordinal = scope.DescendantNodesAndSelf()
+            .OfType<MemberAccessExpressionSyntax>()
+            .Where(m => m.Name.Identifier.ValueText
+                == ((MemberAccessExpressionSyntax)access).Name.Identifier.ValueText
+                && m.Expression.ToString() == ((MemberAccessExpressionSyntax)access).Expression.ToString())
+            .ToList()
+            .FindIndex(m => m.SpanStart == access.SpanStart);
+
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(normalized));
+        var sig = Convert.ToHexStringLower(hash)[..8];
+        return ordinal > 0 ? $"{sig}#{ordinal}" : sig;
+    }
+
+    // Comments out, whitespace collapsed. Both are things a reviewer changes
+    // without touching the query, and both used to move a site's identity.
+    internal static string NormalizeQueryText(string text)
+    {
+        var withoutBlockComments = System.Text.RegularExpressions.Regex.Replace(
+            text, @"/\*.*?\*/", " ", System.Text.RegularExpressions.RegexOptions.Singleline);
+        var withoutLineComments = System.Text.RegularExpressions.Regex.Replace(
+            withoutBlockComments, @"//[^\n]*", " ");
+        return System.Text.RegularExpressions.Regex.Replace(withoutLineComments, @"\s+", " ").Trim();
+    }
+
+    // The registry key for a filter-free-set site: what the classification file
+    // is keyed by, and the only thing the stability test compares.
+    public static string FilterFreeSetIdentity(BypassOccurrence occurrence) =>
+        $"{occurrence.EnclosingSymbol}\t{occurrence.Detail}\t{occurrence.QuerySignature}";
 
     private static BypassOccurrence MakeOccurrence(
         BypassKind kind, string repoRoot, string file, InvocationExpressionSyntax invocation, string detail)
