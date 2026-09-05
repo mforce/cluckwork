@@ -33,7 +33,58 @@ const SEVERITIES = ["info", "low", "moderate", "high", "critical"];
 // One rung above `critical`, so anything we don't recognise sorts ABOVE the
 // highest known severity and therefore blocks at any threshold (fail closed).
 const UNKNOWN_RANK = SEVERITIES.length;
-const ECOSYSTEMS = new Set(["npm", "nuget", "any"]);
+// #634 — the ONE place an ecosystem is wired in. Every site that used to name
+// "npm" or "nuget" by hand — the exception-scope set, the usage strings, the
+// CLI arg check, the report-shape check and the parser pick — now derives from
+// this registry, so a third ecosystem is one entry here. An entry that is not
+// fully wired REFUSES to run (registryProblem) rather than falling through: the
+// old parser pick was a two-way ternary that parsed anything unknown as NuGet.
+// (parseNpm/parseNuget and the two shape checks are function declarations
+// further down; declarations hoist, so referencing them here is safe.)
+export const PARSERS = Object.freeze({
+  npm: Object.freeze({ parse: parseNpm, reportProblem: npmReportProblem }),
+  nuget: Object.freeze({ parse: parseNuget, reportProblem: nugetReportProblem }),
+});
+
+// Names what is wrong with a registry, or null. Every entry must carry BOTH
+// functions: a parser without a shape check would trust an error payload, and a
+// shape check without a parser has nothing to hand the findings to.
+export function registryProblem(registry) {
+  if (typeof registry !== "object" || registry === null) return "registry is not an object";
+  const names = Object.keys(registry);
+  if (names.length === 0) return "no ecosystems registered";
+  for (const name of names) {
+    const entry = registry[name];
+    if (typeof entry?.parse !== "function") return `ecosystem "${name}" has no parse function`;
+    if (typeof entry?.reportProblem !== "function") return `ecosystem "${name}" has no reportProblem function`;
+  }
+  return null;
+}
+{
+  const problem = registryProblem(PARSERS);
+  if (problem) throw new Error(`vuln-gate PARSERS registry is broken: ${problem}`);
+}
+
+// Picks the entry for an ecosystem, or says why it cannot. Never defaults: an
+// unknown name and a half-wired entry are both a problem, not "use NuGet".
+export function resolveParser(ecosystem, registry = PARSERS) {
+  const problem = registryProblem(registry);
+  if (problem) return { problem };
+  const name = String(ecosystem ?? "").toLowerCase();
+  // Own properties only: `registry["constructor"]` is the inherited Object
+  // function, truthy, and would then crash on `.reportProblem` instead of
+  // taking the usage-error path (#693 review).
+  if (!Object.prototype.hasOwnProperty.call(registry, name))
+    return { problem: `unknown ecosystem "${ecosystem}" — expected one of ${Object.keys(registry).join("|")}` };
+  return { parser: registry[name] };
+}
+
+const PARSEABLE = Object.freeze(Object.keys(PARSERS));
+const USAGE_ECOSYSTEMS = PARSEABLE.join("|");
+// "any" is an exception SCOPE, not a parseable ecosystem: an exception may
+// cover every ecosystem, but nothing is ever audited "as any". That asymmetry
+// is deliberate and must survive any change to the registry above.
+const ECOSYSTEMS = new Set([...PARSEABLE, "any"]);
 const ONE_DAY_MS = 86_400_000;
 
 // A finding's severity comes from a tool we don't control: an unrecognised or
@@ -153,7 +204,7 @@ export function exceptionProblem(exception) {
   if (typeof exception !== "object" || exception === null) return "not an object";
   if (!isGhsaId(exception.id)) return "id is not a canonical GHSA (GHSA-xxxx-xxxx-xxxx)";
   if (!ECOSYSTEMS.has(String(exception.ecosystem ?? "").toLowerCase()))
-    return "ecosystem must be one of npm, nuget, any";
+    return `ecosystem must be one of ${[...ECOSYSTEMS].join(", ")}`;
   if (typeof exception.reason !== "string" || exception.reason.trim() === "")
     return "reason must be a non-empty string";
   // Strict calendar date: the literal must be YYYY-MM-DD *and* round-trip, so a
@@ -294,13 +345,20 @@ export function extractJson(text) {
 // `projects` array is not a real run (#146 review).
 export function reportProblem(report, ecosystem) {
   if (typeof report !== "object" || report === null) return "not a JSON object";
-  if (ecosystem === "npm") {
-    if (report.error) return `npm audit reported an error: ${JSON.stringify(report.error)}`;
-    if (report.auditReportVersion === undefined && report.vulnerabilities === undefined)
-      return "npm audit output has neither auditReportVersion nor vulnerabilities";
-  } else if (ecosystem === "nuget") {
-    if (!Array.isArray(report.projects)) return "dotnet output has no projects array";
-  }
+  const { parser, problem } = resolveParser(ecosystem);
+  if (problem) return problem; // an ecosystem nothing can check is not "clean"
+  return parser.reportProblem(report);
+}
+
+function npmReportProblem(report) {
+  if (report.error) return `npm audit reported an error: ${JSON.stringify(report.error)}`;
+  if (report.auditReportVersion === undefined && report.vulnerabilities === undefined)
+    return "npm audit output has neither auditReportVersion nor vulnerabilities";
+  return null;
+}
+
+function nugetReportProblem(report) {
+  if (!Array.isArray(report.projects)) return "dotnet output has no projects array";
   return null;
 }
 
@@ -356,15 +414,16 @@ async function main() {
     return;
   }
 
-  if (options.ecosystem !== "npm" && options.ecosystem !== "nuget") {
-    console.error("usage: vuln-gate.mjs --ecosystem npm|nuget [--level high] [--warn-only]");
+  const { parser, problem: parserProblem } = resolveParser(options.ecosystem);
+  if (parserProblem) {
+    console.error(`usage: vuln-gate.mjs --ecosystem ${USAGE_ECOSYSTEMS} [--level high] [--warn-only] — ${parserProblem}`);
     process.exitCode = 2;
     return;
   }
 
   const problem = levelProblem(options.level);
   if (problem) {
-    console.error(`usage: vuln-gate.mjs --ecosystem npm|nuget [--level info|low|moderate|high|critical] [--warn-only] — ${problem}`);
+    console.error(`usage: vuln-gate.mjs --ecosystem ${USAGE_ECOSYSTEMS} [--level info|low|moderate|high|critical] [--warn-only] — ${problem}`);
     process.exitCode = 2;
     return;
   }
@@ -392,7 +451,7 @@ async function main() {
   }
 
   const exceptions = loadExceptions(options.exceptionsPath);
-  const findings = options.ecosystem === "npm" ? parseNpm(parsed) : parseNuget(parsed);
+  const findings = parser.parse(parsed);
   const result = gate({ findings, exceptions, ecosystem: options.ecosystem, level: options.level });
   report({ result, ecosystem: options.ecosystem, level: options.level, warnOnly: options.warnOnly });
 
