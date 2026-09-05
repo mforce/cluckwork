@@ -2049,7 +2049,7 @@ export const tl = {
       "Ang lahat sa Cluckwork ay nakasalalay sa iisang chain: nagtatala ka ng <strong>araw-araw na "
       + "entry</strong> para sa bawat kawan (itlog ayon sa grado, nawala, namatay), <strong>isinusumite</strong> "
       + "mo ito, at ang pagsumite ay lumilikha ng may petsang <strong>lote ng itlog</strong> — iyon ang iyong "
-      + "nabibiling <strong>stock</strong>. Ang isang <strong>order ng benta</strong> ay kumukuha mula sa "
+      + "nabebentang <strong>stock</strong>. Ang isang <strong>order ng benta</strong> ay kumukuha mula sa "
       + "stock kapag kinumpirma mo ito, palaging ang pinakalumang itlog muna. Gayon din ang daloy ng feed sa "
       + "panig ng input: nagdadagdag ng feed sa stock ang mga pagbili, binabawasan ito ng araw-araw na "
       + "paggamit kada kawan.",
@@ -2237,8 +2237,8 @@ export const tl = {
     gradesHeading: "Mga Grado ng Itlog",
     gradesBuckets:
       "Ang mga grado ang mga grading bucket ng bukid mo — sukat (Malaki…), kalidad (Basag…), o custom. "
-      + "Ang mga grado lang na <strong>nabibili</strong> ang lumalabas sa pagtatala ng entry at sa mga "
-      + "order; ang mga hindi nabibiling bucket ay para sa bookkeeping.",
+      + "Ang mga grado lang na <strong>nabebenta</strong> ang lumalabas sa pagtatala ng entry at sa mga "
+      + "order; ang mga hindi nabebentang bucket ay para sa bookkeeping.",
     gradesDeactivating:
       "Hindi kailanman binubura ang mga grado. Ang <strong>Pag-deactivate</strong> ay nag-aalis ng isang "
       + "grado sa pagtatala at sa mga picker ng order: patuloy na binibilang ang stock nito at puwede pa "
@@ -2494,7 +2494,7 @@ export const tl = {
     farmSettingsIntro:
       "Nasa <strong>Setup → Mga Setting ng Bukid</strong> ang pangalan ng bukid at ang apat na bagay na "
       + "nagdedesisyon kung paano babasahin ang lahat: <strong>time zone</strong>, <strong>locale</strong>, "
-      + "<strong>currency</strong>, at <strong>unit system</strong>. Opsyonal ang unang araw ng linggo at ang "
+      + "<strong>currency</strong>, at <strong>sistema ng yunit</strong>. Opsyonal ang unang araw ng linggo at ang "
       + "mga format ng petsa at oras — iwanan itong blangko at ang locale ang magdedesisyon. Agad na "
       + "kumikilos ang time zone sa lahat ng lugar sa sandaling ma-save ito; naitatala ang iba pa laban sa "
       + "bukid at magtatakda kung paano ipapakita ang mga halaga, petsa, at sukat kapag dumating na ang "
@@ -2816,7 +2816,7 @@ export const tl = {
       + "ng entry. Ang stock ay ang kabuuan ng mga lote.",
 
     glossaryGradeTerm: "Grado",
-    glossaryGradeDef: "Isang grading bucket (sukat, kalidad, o custom). Ang mga grado na nabibili ay puwedeng ibenta.",
+    glossaryGradeDef: "Isang grading bucket (sukat, kalidad, o custom). Ang mga gradong nabebenta ay puwedeng ibenta.",
 
     glossaryEggMovementLedgerTerm: "Talaan ng galaw ng itlog",
     glossaryEggMovementLedgerDef:
