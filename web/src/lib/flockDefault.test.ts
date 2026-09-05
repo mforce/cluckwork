@@ -93,6 +93,15 @@ describe("resolveDefaultFlock (#646)", () => {
     expect(mockListFlocks).toHaveBeenCalledWith({ eligibility: "active", limit: 1 });
   });
 
+  // A farm between flocks: nothing active anywhere, but the page already holds
+  // a depleted one — answer from it rather than spending a second round trip.
+  it("uses a depleted flock already on the page before asking again", async () => {
+    mockListFlocks.mockResolvedValueOnce([]); // no active flock anywhere
+
+    expect(await resolveDefaultFlock([ARCHIVED, DEPLETED])).toBe(DEPLETED);
+    expect(mockListFlocks).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back to a depleted flock only once no active one exists anywhere", async () => {
     mockListFlocks
       .mockResolvedValueOnce([])                 // no active flock at all
