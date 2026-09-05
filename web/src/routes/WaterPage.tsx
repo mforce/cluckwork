@@ -330,7 +330,18 @@ export function WaterPage() {
         // active flock forever. Written after the save succeeds, so a refused
         // write never changes what the next capture opens on. Daily entry
         // reads the same key.
-        rememberFlockId(flockId);
+        //
+        // #699 review — two things this has to get right. An ARCHIVED flock is
+        // never a default (a correction of an archived row commits one as the
+        // capture flock), so it is neither remembered nor cached. And the
+        // just-saved entity is cached for resetForm: `rememberFlockId` stores
+        // only an ID, and resetForm resolves an ID against the capped page —
+        // so a flock the user reached through the picker from OUTSIDE that
+        // page would be remembered and then immediately not restored.
+        if (captureFlock && captureFlock.status !== "Archived") {
+          rememberFlockId(flockId);
+          defaultFlockRef.current = captureFlock;
+        }
         resetForm();
       } catch (err) {
         setError(errText(err));

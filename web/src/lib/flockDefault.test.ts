@@ -68,6 +68,17 @@ describe("resolveDefaultFlock (#646)", () => {
     expect(await resolveDefaultFlock([ACTIVE])).toBe(ACTIVE);
   });
 
+  // #699 review — the archived check has to hold on the LIST-RESIDENT path
+  // too, not only after the exact GET. Water lists with includeArchived: true,
+  // so correcting an archived row leaves that flock remembered AND on the
+  // page, and it would have come back as the next capture default.
+  it("ignores a remembered flock that is archived AND already on the page", async () => {
+    rememberFlockId(ARCHIVED.id);
+
+    expect(await resolveDefaultFlock([ARCHIVED, ACTIVE])).toBe(ACTIVE);
+    expect(mockGetFlock).not.toHaveBeenCalled();
+  });
+
   it("ignores a remembered flock that no longer resolves at all", async () => {
     rememberFlockId("deleted");
     mockGetFlock.mockRejectedValue(new Error("404"));

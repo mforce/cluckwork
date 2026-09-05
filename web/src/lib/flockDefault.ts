@@ -36,17 +36,26 @@ export function rememberFlockId(id: string): void {
 export async function resolveDefaultFlock(listed: readonly Flock[]): Promise<Flock | null> {
   const remembered = readLastFlockId();
   if (remembered) {
+    // #699 review — the ARCHIVED check has to be on this path too, not only
+    // after the exact GET below. Water lists with includeArchived: true, so
+    // correcting an archived row leaves that flock both remembered and
+    // present in `listed`, and the next reset would open a capture form on a
+    // flock nothing can be recorded against.
     const onPage = listed.find((f) => f.id === remembered);
-    if (onPage) return onPage;
-
-    // Remembered but off-page, archived, or deleted since. An exact GET is the
-    // same resolution the pickers use for an out-of-window id (#512); a
-    // failure here is not an error to report, it just means "no memory".
-    try {
-      const exact = await getFlock(remembered);
-      if (exact.status !== "Archived") return exact;
-    } catch {
-      // fall through to the active/depleted defaults
+    if (onPage) {
+      if (onPage.status !== "Archived") return onPage;
+      // Known archived: the page already answered, so asking the server the
+      // same question would only cost a round trip to reach the same "no".
+    } else {
+      // Remembered but off-page, or deleted since. An exact GET is the same
+      // resolution the pickers use for an out-of-window id (#512); a failure
+      // here is not an error to report, it just means "no memory".
+      try {
+        const exact = await getFlock(remembered);
+        if (exact.status !== "Archived") return exact;
+      } catch {
+        // fall through to the active/depleted defaults
+      }
     }
   }
 

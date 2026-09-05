@@ -2082,7 +2082,8 @@ export const es = {
     dailyEntryDefaultFlock:
       "La pantalla se abre en el lote sobre el que registró por última vez — Entrada diaria y Agua "
       + "comparten esa memoria, por granja, en este dispositivo. Si no hay nada recordado, se abre en el "
-      + "primer lote activo; solo se ofrece uno agotado cuando no existe ningún lote activo.",
+      + "primer lote activo; uno agotado se selecciona por defecto solo cuando la granja no tiene ningún "
+      + "lote activo — el selector los ofrece igualmente.",
     dailyEntryPanes:
       "Elija el lote y la fecha en la parte superior, luego trabaje en dos paneles uno al lado del otro: "
       + "<strong>1 Conteo de huevos</strong> (total, rotos, sucios, descartados, muertes) y <strong>2 "
