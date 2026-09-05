@@ -47,14 +47,22 @@ docker run --rm --env-file <runtime-credential.env> \
   --slug example-farm \
   --owner-email owner@example.com \
   --locale en-US \
-  --currency USD
+  --currency USD \
+  --timezone Asia/Manila
 ```
 
 Pass the verb only: the image entrypoint already supplies
-`dotnet Cluckwork.Api.dll`. Locale and currency default to `en-US` and `USD`,
-but production provisioning should state them explicitly. A new farm always
-starts in `UTC`; after the Owner's first login and required password change,
-select its IANA timezone in **Settings**.
+`dotnet Cluckwork.Api.dll`. Locale, currency and timezone default to `en-US`,
+`USD` and `UTC`, but production provisioning should state them explicitly.
+
+State `--timezone` when you know the farm's zone: every date the farm sees
+depends on it, so a farm left in `UTC` records its first day of data against
+the wrong zone until its Owner reaches **Settings**. The value must be an IANA
+id such as `Asia/Manila` — an abbreviation like `PST` is rejected — and it is
+checked before anything is written, so a bad zone fails the command instead of
+committing a farm whose dates will not render. Omit the flag and the farm
+starts in `UTC` exactly as before; the Owner can change it in **Settings**
+either way.
 
 The command echoes the normalized farm code before any write; runtime warnings
 may appear before that line. On success it exits `0`, prints the new account id
@@ -67,14 +75,15 @@ deliver it to the Owner out of band.
 1. Run `list-accounts` again and confirm the new code is `active`.
 2. Sign in using the new farm code, Owner email, and printed password.
 3. Confirm the SPA shows **Set your password** and blocks every other screen.
-4. Set a permanent password, select the farm's IANA timezone in **Settings**,
-   and confirm the farm opens normally.
+4. Set a permanent password, confirm the farm's timezone in **Settings** (set
+   it there if `--timezone` was omitted), and confirm the farm opens normally.
 
 ## If it fails
 
 | Symptom | Action |
 |---|---|
 | `Account.SlugInvalid` | Correct the code; uppercase is rejected rather than folded. Nothing was written. |
+| `Provision.TimeZoneInvalid` | Not a known IANA zone. Use a full id such as `Asia/Manila`, not an abbreviation like `PST`. Nothing was written. |
 | `Provision.SlugTaken` | Choose a different code. Do not assume the similarly named farm is this attempted provision. |
 | `Provision.SlugTakenRecoverable` | The account and matching Owner already committed, but the printed password may have been lost. Run the exact `recover-admin --email <email> --account <guid> --reason <reason>` command in the error. Do not rerun provisioning with another code. |
 | `Provision.SlugTakenSuspended` | Run `reactivate-account --slug <farm-code>` first, then recover the Owner if needed. |
