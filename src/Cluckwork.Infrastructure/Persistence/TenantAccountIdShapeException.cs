@@ -26,6 +26,12 @@ public sealed class TenantAccountIdShapeException : InvalidOperationException
             "shape, so any other one is a silent cross-tenant write (#673).",
             entityType);
 
+    public static TenantAccountIdShapeException ForMapping(string entityType, string state, Type clrType) =>
+        new($"Refusing to save {state} {entityType}: its AccountId is mapped as {clrType.Name} rather than " +
+            "a non-nullable Guid, so the value this guard sees can be right while the row carries no " +
+            "concurrency token to compare it against (#673).",
+            entityType);
+
     public static TenantAccountIdShapeException ForWrite(string entityType, string state, object? value) =>
         new($"Refusing to save {state} {entityType}: its AccountId is " +
             $"{(value is null ? "null" : $"a {value.GetType().Name}")} rather than a Guid, so the write " +

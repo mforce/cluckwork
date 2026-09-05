@@ -36,6 +36,13 @@ public sealed class AccountIdShapeFailClosedTests
         public Guid AccountId { get; set; }
     }
 
+    // Keyed BY the converted AccountId, so the walk's shape check has to run
+    // before its primary-key exclusion to catch it (#695 review).
+    private sealed class ConvertedKeyEntity
+    {
+        public AccountKey AccountId { get; set; }
+    }
+
     private readonly record struct AccountKey(Guid Value);
 
     // One probe context PER SHAPE, and that is load-bearing: EF caches the
@@ -60,6 +67,18 @@ public sealed class AccountIdShapeFailClosedTests
             builder.Entity<ConvertedAccountIdEntity>()
                 .Property(e => e.AccountId)
                 .HasConversion(key => key.Value, value => new AccountKey(value));
+            AppDbContext.ApplyAccountIdTenantTokens(builder);
+        }
+    }
+
+    private sealed class ConvertedKeyProbeContext(DbContextOptions<ConvertedKeyProbeContext> options)
+        : DbContext(options)
+    {
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            var entity = builder.Entity<ConvertedKeyEntity>();
+            entity.HasKey(e => e.AccountId);
+            entity.Property(e => e.AccountId).HasConversion(key => key.Value, value => new AccountKey(value));
             AppDbContext.ApplyAccountIdTenantTokens(builder);
         }
     }
@@ -195,5 +214,50 @@ public sealed class AccountIdShapeFailClosedTests
         // and fails there, on the connection this test deliberately cannot open.
         Assert.IsNotType<TenantAccountIdShapeException>(Record.Exception(() => db.SaveChanges()));
     }
-}
 
+    // The walk checks the CLR type BEFORE excluding a primary-key AccountId, and
+    // this is what holds that ordering: with the two swapped, a key AccountId of
+    // the wrong shape would be skipped as a key and never type-checked. The
+    // other converted probe cannot see it — its key is a separate Id (#695
+    // review).
+    [Fact]
+    public void ModelWalk_RefusesAConvertedAccountIdEvenAsThePrimaryKey()
+    {
+        using var db = Probe<ConvertedKeyProbeContext>();
+
+        var ex = Assert.Throws<TenantAccountIdShapeException>(() => _ = db.Model);
+
+        Assert.Equal(nameof(ConvertedKeyEntity), ex.EntityType);
+    }
+
+    // The value checks alone are NOT enough, and this is why: a non-null Guid?
+    // boxes to Guid, so `value is not Guid` accepts it and the write passes with
+    // the tenant's own id in a column the model gave no #562 token. The
+    // interceptor must refuse the SHAPE, not only a null (#695 review).
+    [Theory]
+    [InlineData(EntityState.Added)]
+    [InlineData(EntityState.Modified)]
+    [InlineData(EntityState.Deleted)]
+    public void Interceptor_RefusesAPopulatedNullableAccountId(EntityState state)
+    {
+        using var db = Writes(out var tenant);
+
+        // The tenant's OWN id: the only thing wrong here is the mapped type, so
+        // a guard that only compared values would let this through.
+        var stub = new NullableAccountIdEntity { Id = Guid.NewGuid(), AccountId = tenant.AccountId };
+        if (state == EntityState.Added)
+        {
+            db.Add(stub);
+        }
+        else
+        {
+            db.Attach(stub);
+            db.Entry(stub).State = state;
+        }
+
+        var ex = Assert.Throws<TenantAccountIdShapeException>(() => db.SaveChanges());
+
+        Assert.Equal(nameof(NullableAccountIdEntity), ex.EntityType);
+        Assert.Contains("Nullable", ex.Message, StringComparison.Ordinal);
+    }
+}

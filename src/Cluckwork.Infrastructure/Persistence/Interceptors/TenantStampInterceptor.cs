@@ -113,6 +113,17 @@ public sealed class TenantStampInterceptor(
                 .FirstOrDefault(p => p.Metadata.Name == nameof(Entity<Guid>.AccountId));
             if (prop is null) continue;
 
+            // #673 review round — the SHAPE is checked here, not just the value
+            // below. A non-null Guid? boxes to Guid, so the value checks alone
+            // accept a nullable AccountId whose row carries no #562 concurrency
+            // token: the value looks right and the database is never told to
+            // compare it. AppDbContext's walk refuses that mapping at model
+            // build, but this layer is meant to hold on its own — a context
+            // configured without the walk is exactly the case it exists for.
+            if (prop.Metadata.ClrType != typeof(Guid))
+                throw TenantAccountIdShapeException.ForMapping(
+                    entry.Metadata.ClrType.Name, entry.State.ToString(), prop.Metadata.ClrType);
+
             switch (entry.State)
             {
                 case EntityState.Added:

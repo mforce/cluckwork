@@ -216,10 +216,14 @@ did not box to a `Guid` (so a null `Guid?` was inserted unstamped and never chec
 update/delete). One future entity mapped `public Guid? AccountId` therefore reopened #562's
 detached-write hole with every test green. The walk now **throws
 `TenantAccountIdShapeException` at model build** for any other CLR type — checked before the
-primary-key exclusion, so a key `AccountId` must be a `Guid` too — which fails every boot and
-every test rather than degrading silently; the interceptor throws the same exception at
-`SaveChanges` for a value that is not a `Guid`, under a resolved tenant, on Added, Modified and
-Deleted alike. The two throws are independent on purpose: the interceptor's case is proved
+primary-key exclusion, so a key `AccountId` must be a `Guid` too, and that ordering is pinned by
+its own probe rather than left to a comment — which fails every boot and every test rather than
+degrading silently; the interceptor throws the same exception at
+`SaveChanges`, under a resolved tenant, on Added, Modified and Deleted alike — for a **mapped
+type** that is not `Guid` as well as for a value that is not a `Guid`, because a non-null `Guid?`
+boxes to `Guid` and the value check alone would accept it while the row carries no token to
+compare (found by the deep review round on #695, and the reason the interceptor holds without the
+walk rather than beside it). The two throws are independent on purpose: the interceptor's case is proved
 against a context that never runs the walk. `AccountIdConcurrencyTokenModelTests`' by-name
 selector stays as the second net for the whole set at once, and
 `AccountIdShapeFailClosedTests` pins both refusals plus the must-still-pass control that a plain
