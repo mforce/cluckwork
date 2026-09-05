@@ -10,6 +10,8 @@ import { ApiError } from "../api/client";
 import { todayIso } from "../lib/dates";
 import i18n from "../i18n";
 import { NO_RECORD_HISTORY } from "../test/fixtures";
+import { readLastFlockId } from "../lib/flockDefault";
+import { bindAccount, clearBoundAccount } from "../auth/tokenStore";
 
 // WaterPage's only runtime deps on the API module are the four network fns it
 // imports; mock exactly those. ApiError stays real (../api/client, unmocked) so
@@ -55,6 +57,10 @@ const ADMIN = { sub: "u1", role: "Admin" };
 const WORKER = { sub: "u1" };
 
 beforeEach(() => {
+  // #646 — bindAccount below is module state; clear it so a bind in one
+  // test cannot make a later one read another farm's remembered flock.
+  clearBoundAccount();
+  localStorage.clear();
   vi.clearAllMocks();
   localStorage.clear();
   mockListFlocks.mockResolvedValue([FLOCK_A, FLOCK_B]);
@@ -145,6 +151,47 @@ describe("WaterPage record water", () => {
     expect(body.meterStart).toBeUndefined(); // direct quantity → no meter fields sent
     expect(body.meterEnd).toBeUndefined();
     expect(key).toEqual(expect.any(String)); // idempotency key
+  });
+
+  // #646 — "most recently used" has to include this screen. Before, a worker
+  // who only records water got the alphabetically first active flock every
+  // time, forever; now a successful save is what the next capture opens on,
+  // shared with Daily entry through the same account-scoped key.
+  it("remembers the flock a successful save recorded against", async () => {
+    // The remembered key is account-scoped (#535), so it answers null until a
+    // farm is bound — exactly as it does for a signed-out reader.
+    bindAccount("11111111-1111-1111-1111-111111111111");
+    mockRecordWaterUsage.mockResolvedValue({ id: "w9" });
+    await renderReadyForm(WORKER);
+
+    fireEvent.click(screen.getByRole("button", { name: /Hen House 1/ }));
+    fireEvent.click(await screen.findByRole("option", { name: "Coop 2" }));
+    fireEvent.change(screen.getByLabelText(/Quantity/), { target: { value: "10" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record water" }));
+    });
+    await screen.findByText("Water recorded.");
+
+    expect(readLastFlockId()).toBe("f2");
+  });
+
+  // …and a REFUSED save must not: the next capture should not open on a flock
+  // whose record was never written.
+  it("does not remember the flock when the save fails", async () => {
+    bindAccount("11111111-1111-1111-1111-111111111111");
+    mockRecordWaterUsage.mockRejectedValue(new ApiError(409, "Conflict", "nope"));
+    await renderReadyForm(WORKER);
+
+    fireEvent.click(screen.getByRole("button", { name: /Hen House 1/ }));
+    fireEvent.click(await screen.findByRole("option", { name: "Coop 2" }));
+    fireEvent.change(screen.getByLabelText(/Quantity/), { target: { value: "10" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record water" }));
+    });
+
+    expect(readLastFlockId()).toBeNull();
   });
 
   it("records meter readings: sends meterStart/meterEnd and omits quantity", async () => {

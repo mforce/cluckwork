@@ -1845,6 +1845,8 @@ describe("UsersPage flock scoping", () => {
     });
     await screen.findByText(/account-wide access/);
 
+    // #646 — no preselected flock, so BOTH assigns name their own.
+    await pickFlock("Coop A");
     fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
@@ -1878,6 +1880,10 @@ describe("UsersPage flock scoping", () => {
     const assign = () => screen.getByRole("button", { name: "Assign flock" });
 
     // Attempt 1 — fails, so the key is kept.
+    // #646 — the dialog no longer preselects a flock (a role grant must not
+    // carry one the admin never chose), so this test picks the flock it used
+    // to inherit. What it asserts is unchanged.
+    await pickFlock("Coop A");
     fillFlockPassword();
     await act(async () => { fireEvent.click(assign()); });
     expect(await screen.findByText(/Server error|boom/)).toBeInTheDocument();
@@ -1908,6 +1914,10 @@ describe("UsersPage flock scoping", () => {
       fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
     const item = await screen.findByRole("listitem");
+    // #646 — the dialog no longer preselects a flock (a role grant must not
+    // carry one the admin never chose), so this test picks the flock it used
+    // to inherit. What it asserts is unchanged.
+    await pickFlock("Coop A");
     fillFlockPassword();
     await act(async () => {
       fireEvent.click(within(item).getByRole("button", { name: "remove" }));
@@ -1918,7 +1928,12 @@ describe("UsersPage flock scoping", () => {
     expect(await screen.findByText(/No assignments — account-wide access/)).toBeInTheDocument();
   });
 
-  it("resets the assign dropdown to the first active flock each time the dialog opens", async () => {
+  // #646 — this used to assert the dialog opened on the first active flock.
+  // The default is now BLANK by owner decision: this dialog grants scope, and
+  // an arbitrary alphabetically-first house is not a grant anyone chose. What
+  // the test still guards is the part that mattered — a previous open's pick
+  // must never survive into the next one.
+  it("resets the assign picker to blank each time the dialog opens", async () => {
     setAssignmentsFor("u-w", []);
     await renderReady(ADMIN);
 
@@ -1932,14 +1947,13 @@ describe("UsersPage flock scoping", () => {
     expect(assignTrigger()).toHaveAccessibleName("Flock Coop B");
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
 
-    // Reopen — the picker is back on the first active flock, not the stale
-    // fl2, so a distracted admin can't assign the previous worker's pick by
-    // accident.
+    // Reopen — the picker is back to BLANK, not the stale fl2, so a
+    // distracted admin cannot assign the previous worker's pick by accident.
     await act(async () => {
       fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByRole("dialog", { name: /Flock access/ });
-    expect(assignTrigger()).toHaveAccessibleName("Flock Coop A");
+    expect(assignTrigger()).toHaveAccessibleName("Flock Select a flock");
   });
 
   it("closes the flock dialog on Done", async () => {
@@ -2009,6 +2023,10 @@ describe("UsersPage flock scoping", () => {
       fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByText(/account-wide access/);
+    // #646 — the dialog no longer preselects a flock (a role grant must not
+    // carry one the admin never chose), so this test picks the flock it used
+    // to inherit. What it asserts is unchanged.
+    await pickFlock("Coop A");
     fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
@@ -2038,6 +2056,10 @@ describe("UsersPage flock scoping", () => {
       fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByText(/account-wide access/);
+    // #646 — the dialog no longer preselects a flock (a role grant must not
+    // carry one the admin never chose), so this test picks the flock it used
+    // to inherit. What it asserts is unchanged.
+    await pickFlock("Coop A");
     fillFlockPassword();
 
     await act(async () => {
@@ -2157,6 +2179,10 @@ describe("UsersPage flock scoping", () => {
       fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
     await screen.findByText(/account-wide access/);
+    // #646 — the dialog no longer preselects a flock (a role grant must not
+    // carry one the admin never chose), so this test picks the flock it used
+    // to inherit. What it asserts is unchanged.
+    await pickFlock("Coop A");
     fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
@@ -2285,9 +2311,10 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     const rowB = screen.getByRole("row", { name: /worker2@farm\.test/ });
     await act(async () => { fireEvent.click(within(rowB).getByRole("button", { name: "flocks" })); });
     const panelB = await screen.findByRole("dialog", { name: /Flock access — worker2@farm.test/ });
-    // B's fresh generation is back on the DEFAULT first active flock — A's
-    // pick never leaks into B's dialog.
-    expect(within(panelB).getByRole("button", { name: "Flock Coop A" })).toBeInTheDocument();
+    // #646 — B's fresh generation is back on the BLANK default; A's pick
+    // never leaks into B's dialog. The leak is what this test guards, and it
+    // is now guarded against a blank rather than against fl1.
+    expect(within(panelB).getByRole("button", { name: "Flock Select a flock" })).toBeInTheDocument();
     expect(within(panelB).queryByRole("button", { name: "Flock Coop B" })).not.toBeInTheDocument();
   });
 
@@ -2309,10 +2336,10 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     // the abandoned query text is gone, not retained.
     await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
     await screen.findByRole("dialog", { name: /Flock access/ });
-    expect(assignTrigger()).toHaveAccessibleName("Flock Coop A");
+    expect(assignTrigger()).toHaveAccessibleName("Flock Select a flock");
     fireEvent.click(assignTrigger());
     const reopened = await screen.findByRole("combobox");
-    expect(reopened).toHaveValue("Coop A");
+    expect(reopened).toHaveValue("");
   });
 
   it("retains a RETAINED archived identity exactly — the row-owned name resolves it, never a first-result substitution", async () => {
@@ -2335,10 +2362,12 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     const item = await within(panel).findByRole("listitem");
     expect(within(item).getByText("Old Coop")).toBeInTheDocument();
 
-    // The picker's default is the first ACTIVE flock (fl1): the retained
-    // identity must never leak into the picker, and the picker's discovery
-    // must not substitute one.
-    expect(assignTrigger()).toHaveAccessibleName("Flock Coop A");
+    // #646 — the picker opens BLANK: the retained archived identity must
+    // never leak into it, and the picker's discovery must not substitute a
+    // first result for it either. Assigning still names a flock the admin
+    // picked, which is the point of the blank.
+    expect(assignTrigger()).toHaveAccessibleName("Flock Select a flock");
+    await pickFlock("Coop A");
     fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
@@ -2459,6 +2488,10 @@ describe("UsersPage pending states (#236)", () => {
       fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
     });
     const items = await screen.findAllByRole("listitem");
+    // #646 — the dialog no longer preselects a flock (a role grant must not
+    // carry one the admin never chose), so this test picks the flock it used
+    // to inherit. What it asserts is unchanged.
+    await pickFlock("Coop A");
     fillFlockPassword();
     await act(async () => {
       fireEvent.click(within(items[0]).getByRole("button", { name: "remove" }));
@@ -3053,6 +3086,10 @@ describe("UsersPage error placement (#479)", () => {
     await act(async () => {
       openRowDialog("worker@farm.test", "flocks");
     });
+    // #646 — the dialog no longer preselects a flock (a role grant must not
+    // carry one the admin never chose), so this test picks the flock it used
+    // to inherit. What it asserts is unchanged.
+    await pickFlock("Coop A");
     fillFlockPassword();
 
     await act(async () => {
@@ -3129,6 +3166,10 @@ describe("UsersPage error placement (#479)", () => {
     await act(async () => {
       openRowDialog("worker@farm.test", "flocks");
     });
+    // #646 — the dialog no longer preselects a flock (a role grant must not
+    // carry one the admin never chose), so this test picks the flock it used
+    // to inherit. What it asserts is unchanged.
+    await pickFlock("Coop A");
     fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
@@ -3155,6 +3196,10 @@ describe("UsersPage error placement (#479)", () => {
     await act(async () => {
       openRowDialog("worker@farm.test", "flocks");
     });
+    // #646 — the dialog no longer preselects a flock (a role grant must not
+    // carry one the admin never chose), so this test picks the flock it used
+    // to inherit. What it asserts is unchanged.
+    await pickFlock("Coop A");
     fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));

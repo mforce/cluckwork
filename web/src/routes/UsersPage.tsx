@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Ban, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
 import {
-  assignFlock as apiAssignFlock, changeUserEmail, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments, listFlocks,
+  assignFlock as apiAssignFlock, changeUserEmail, changeUserRole, createUser, disableUser, enableUser, listFlockAssignments,
   listUsers, setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
@@ -174,7 +174,6 @@ export function UsersPage() {
   // (pi review of #491: every reachable interleaving still evaluates
   // correctly), but the ref removes the trap for whoever edits this next.
   const openUserRef = useRef<string | null>(null);
-  const [flocks, setFlocks] = useState<Flock[]>([]);
   // #512 (T028/T037) — the assignment flock is committed through FlockPicker.
   // `assignFlock` is the page-controlled committed entity (a full typed flock,
   // so a retained archived identity is preserved EXACTLY); bumping
@@ -215,10 +214,13 @@ export function UsersPage() {
   }, [isAuthenticated, errors]);
 
   useEffect(() => {
-    Promise.all([listUsers(), listFlocks()])
-      .then(([u, f]) => {
+    // #646 — this screen no longer lists flocks at all. The list existed only
+    // to seed the assignment dialog's default; the assignment ROWS carry their
+    // own scoped flockName from the API, and the picker does its own
+    // eligibility-scoped discovery. One fewer request per open.
+    listUsers()
+      .then((u) => {
         setUsers(u);
-        setFlocks(f);
         // #512 (T037) — the capture default is committed as a full typed entity
         // through the picker's controlled sync: the first ACTIVE flock, same
         // choice the old dropdown initialized from (an inactive first flock
@@ -226,11 +228,17 @@ export function UsersPage() {
         // #104). The picker's own discovery is eligibility-scoped, so the
         // display list here may be the full (incl. archived) one — display
         // only; the picker owns which identities are selectable.
-        const firstActive = f.find((x) => x.status === "Active");
-        if (firstActive) {
-          setAssignFlock(firstActive);
-          setAssignFlockGen((g) => g + 1);
-        }
+        // #646 — NO default flock here, deliberately (owner decision,
+        // 2026-09-05). This dialog grants a user scope over the flock it
+        // names, and the default used to be "whichever active flock sorts
+        // first on the capped page" — an arbitrary house that a distracted
+        // admin can grant without ever choosing it. The picker admits a blank
+        // (account-wide) and Assign arms only once something is chosen, so
+        // making the admin pick costs one interaction and removes a silent
+        // permission decision. The other two screens keep a default because
+        // there a wrong guess is a mis-typed reading, not a grant.
+        setAssignFlock(null);
+        setAssignFlockGen((g) => g + 1);
       })
       .catch((err) => setPageError(errText(err)));
   }, [setPageError]);
@@ -255,7 +263,9 @@ export function UsersPage() {
       // the account has none) it is a fresh BLANK (account-wide) — the
       // optional picker admits the blank, so Assign is only ever armed once
       // a real default exists.
-      setAssignFlock(flocks.find((f) => f.status === "Active") ?? null);
+      // #646 — blank, for the reason above: a role grant should not carry a
+      // flock the admin never picked.
+      setAssignFlock(null);
       setAssignFlockGen((g) => g + 1);
       // Displacement only once the load actually succeeds and the dialog is
       // about to rebind. Abandoning up front (adversarial review of #491)

@@ -467,6 +467,9 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="dailyEntryPanes" components={{ strong: <strong /> }} />
         </li>
         <li>
+          {t("dailyEntryDefaultFlock")}
+        </li>
+        <li>
           <Trans ns="help" i18nKey="dailyEntryGradingDown" components={{ strong: <strong /> }} />
         </li>
         <li>

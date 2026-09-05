@@ -9,7 +9,7 @@ import {
 import type { EggGrade, EggUnitConversion, FeedUsage, Flock, WaterUsage } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
-import { readAccountScoped, writeAccountScoped } from "../lib/accountStorage";
+import { rememberFlockId, resolveDefaultFlock } from "../lib/flockDefault";
 import { BusyButton } from "../components/BusyButton";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
@@ -30,7 +30,6 @@ import { useMe } from "../session/SessionContext";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
 
-const LAST_FLOCK_KEY = "cluckwork.lastFlockId";
 
 // Capture targets active flocks plus depleted ones — a depleted flock still
 // accepts backfilled entries up to its depletion date (the API gates exact
@@ -154,7 +153,7 @@ export function DailyEntryPage() {
     // grade; that line must render and survive a re-save (only the ACTIVE
     // saleable grades are offered for new input — see visibleGrades).
     Promise.all([listFlocks(), listEggGrades({ includeInactive: true }), listEggUnitConversions()])
-      .then(([all, g, units]) => {
+      .then(async ([all, g, units]) => {
         const f = capturable(all);
         setFlocks(f);
         // #396 — saleable AND hand-graded. Cracked and Dirty are saleable now,
@@ -186,22 +185,25 @@ export function DailyEntryPage() {
         if (deepLinked) retarget(() => setDate(wantedDate!));
         else if (wantedFlock || wantedDate)
           setPageError(i18n.t("dailyEntry:deepLinkUnavailable"));
-        const remembered = readAccountScoped(LAST_FLOCK_KEY);
-        // Default prefers an ACTIVE flock — depleted ones are backfill targets
-        // you pick deliberately, not a default.
-        const firstActive = f.find((x) => x.status === "Active") ?? f[0];
         // #512 (T036) — the picker's committed entity is set HERE, in the same
         // mount-time effect that resolves the deep-link/remembered/default
         // precedence. Bumping `pickerFlockGen` makes the engine's controlled
         // sync effect fire, committing the entity and flipping canSubmit.
+        //
+        // #646 — the non-deep-link branches moved into resolveDefaultFlock:
+        // remembered first, then the first ACTIVE flock, then a depleted one.
+        // Two things changed by moving it there. A remembered flock OUTSIDE
+        // the capped page used to be dropped silently (`f.some(...)` could not
+        // see it) and is now resolved by an exact GET, the same way the
+        // pickers resolve an out-of-window id; and the old `?? f[0]` last
+        // resort, which could hand back an ARCHIVED flock nobody can record
+        // against, is gone. The await is safe here: the screen renders its
+        // loading state until the `finally` below, so there is no form to race.
         const targetFlock = deepLinked
           ? f.find((x) => x.id === wantedFlock)
-          : remembered && f.some((x) => x.id === remembered)
-            ? f.find((x) => x.id === remembered)
-            : firstActive;
+          : await resolveDefaultFlock(f);
         if (deepLinked) retarget(() => setFlockId(wantedFlock!));
-        else if (remembered && f.some((x) => x.id === remembered)) retarget(() => setFlockId(remembered));
-        else if (firstActive) retarget(() => setFlockId(firstActive.id));
+        else if (targetFlock) retarget(() => setFlockId(targetFlock.id));
         if (targetFlock) {
           setPickerFlock(targetFlock);
           setPickerFlockGen((g) => g + 1);
@@ -266,7 +268,7 @@ export function DailyEntryPage() {
   }, [flockId, date, prefillRetry]);
 
   useEffect(() => {
-    if (flockId) writeAccountScoped(LAST_FLOCK_KEY, flockId);
+    if (flockId) rememberFlockId(flockId);
   }, [flockId]);
 
   // #512 (T036) — GET-only post-create hydration. A freshly created flock is
