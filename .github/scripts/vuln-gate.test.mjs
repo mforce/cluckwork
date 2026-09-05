@@ -294,6 +294,15 @@ test("resolveParser: an unknown ecosystem is a problem naming the known ones; kn
   assert.equal(resolveParser("nuget").parser, PARSERS.nuget);
 });
 
+test("resolveParser: an inherited property name is not an ecosystem — usage error, not a crash", () => {
+  for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+    const picked = resolveParser(name);
+    assert.equal(picked.parser, undefined, name);
+    assert.match(picked.problem, /unknown ecosystem/, name);
+    assert.match(reportProblem({ projects: [] }, name), /unknown ecosystem/, name);
+  }
+});
+
 test("reportProblem: an ecosystem nothing can check is a problem, not a clean report", () => {
   assert.match(reportProblem({ projects: [] }, "pypi"), /unknown ecosystem/);
   assert.match(reportProblem({ vulnerabilities: {} }, ""), /unknown ecosystem/);

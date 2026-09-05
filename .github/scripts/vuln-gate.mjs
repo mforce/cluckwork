@@ -71,9 +71,12 @@ export function resolveParser(ecosystem, registry = PARSERS) {
   const problem = registryProblem(registry);
   if (problem) return { problem };
   const name = String(ecosystem ?? "").toLowerCase();
-  const parser = registry[name];
-  if (!parser) return { problem: `unknown ecosystem "${ecosystem}" — expected one of ${Object.keys(registry).join("|")}` };
-  return { parser };
+  // Own properties only: `registry["constructor"]` is the inherited Object
+  // function, truthy, and would then crash on `.reportProblem` instead of
+  // taking the usage-error path (#693 review).
+  if (!Object.prototype.hasOwnProperty.call(registry, name))
+    return { problem: `unknown ecosystem "${ecosystem}" — expected one of ${Object.keys(registry).join("|")}` };
+  return { parser: registry[name] };
 }
 
 const PARSEABLE = Object.freeze(Object.keys(PARSERS));
