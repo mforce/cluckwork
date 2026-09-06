@@ -146,6 +146,22 @@ describe("useDialogAction", () => {
     expect(result.current.errors.page).toBeNull();
   });
 
+  it("reports a failure that lands while its dialog is still the one on screen, even though opening muted the scope", async () => {
+    // codex, round 2 of #703 PR 1: with both session edges muting the attempt
+    // still out, every attempt starts on a MUTED scope — `beginAttempt` is what
+    // un-mutes it. Delete that line and every hook test above stays green,
+    // because none of them opens a dialog and then lets a live failure land in
+    // it. This is the path a screen takes on every ordinary failed save.
+    const { result } = renderHook(() => useDialogAction(DIALOGS));
+    act(() => result.current.openDialog("create"));
+    await act(async () => {
+      await result.current.run("create", async () => { throw new Error("live boom"); });
+    });
+
+    expect(result.current.errors.forDialog("create")).toBe("live boom");
+    expect(result.current.errors.page).toBeNull();
+  });
+
   it("leaves the previous message alone when the in-flight guard skips a run", async () => {
     // beginAttempt runs INSIDE the guarded action: a press that the guard
     // rejects must not blank the verdict the dialog is still showing.
