@@ -29,8 +29,10 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
                      && (entityId == null || e.EntityId == entityId)
                      && (fromUtc == null || e.OccurredAtUtc >= fromUtc)
                      && (toUtc == null || e.OccurredAtUtc < toUtc))
-            // Id tiebreaker: same-instant events must page stably.
-            .OrderByDescending(e => e.OccurredAtUtc).ThenByDescending(e => e.Id)
+            // #508 — "Sequence" tiebreaker, not "Id": same-instant events must
+            // page stably AND in the order they were written. "Id" is a random
+            // v4 Guid, so it gave a stable-but-arbitrary order.
+            .OrderByDescending(e => e.OccurredAtUtc).ThenByDescending(e => EF.Property<long>(e, "Sequence"))
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);
@@ -79,11 +81,11 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
     {
         var accountId = tenant.AccountId;
         // Creation is identified by its ACTION, never by its position in the
-        // trail (codex review of PR #503). Position cannot answer it: events
-        // sharing an OccurredAtUtc have no knowable order, because AuditWriter
-        // mints a random v4 Guid — so an Id tiebreaker would name whichever
-        // event happens to sort first, reversing creator and changer at random.
-        // The action is unambiguous, and there is at most one per entity.
+        // trail (codex review of PR #503). That stays true after #508 gave the
+        // trail a durable order: "Sequence" makes the order KNOWABLE, but the
+        // earliest event is still not the same thing as the creation — a record
+        // predating #494 has changes and no creation event at all. The action is
+        // unambiguous; position, however well ordered, is not.
         var createAction = $"%.Create";
 
         var created = await db.AuditEvents.FromSqlInterpolated($"""
@@ -93,7 +95,7 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
               AND "EntityType" = {entityType}
               AND "EntityId" = ANY({ids})
               AND "Action" LIKE {createAction}
-            ORDER BY "EntityId", "OccurredAtUtc" ASC, "Id" ASC
+            ORDER BY "EntityId", "OccurredAtUtc" ASC, "Sequence" ASC
             """)
             .IgnoreQueryFilters()
             .AsNoTracking()
@@ -168,25 +170,29 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
         // the keying changed in the same branch — the sentence that would have
         // licensed the next person to simplify the line.
         //
-        // KNOWN RESIDUAL, accepted rather than overlooked (#508). Which candidate
-        // wins is still decided by ORDER BY, and the "Id" tiebreak carries no
-        // chronology — AuditWriter mints a random v4 Guid. So two reportable
-        // changes sharing an OccurredAtUtc resolve arbitrarily, and the wrong
-        // actor can be named as the last changer. The timestamp shown is right
-        // either way; only the name is at risk.
+        // #508, FIXED. Which candidate wins is decided by ORDER BY, and the
+        // tiebreak is now "Sequence" — a bigint GENERATED ALWAYS AS IDENTITY
+        // column the database assigns at insert. Two reportable changes sharing
+        // an OccurredAtUtc therefore resolve to the one written LAST, instead of
+        // to whichever random v4 Guid happened to sort first.
         //
-        // It is narrow but genuinely reachable, so do not dismiss it: most
-        // concurrent changes to one record cannot collide, because the aggregate
-        // Version token serialises them and the loser 409s having written
-        // nothing. RecordBirdMovement escapes that — it writes an audit event
-        // against the FLOCK's id while only inserting a movement row, never
-        // touching Flock.Version, so it does not serialise against Flock.Update.
+        // All FOUR order clauses in this method take it, not just this one. The
+        // other three were once justified as "at most one row survives the
+        // filter anyway" — true, but enforced only by the AGGREGATE's state
+        // machine (no second Flock.Create; no path back to Draft), never by
+        // anything in the audit schema. An unenforced invariant is not a reason
+        // to leave a known-arbitrary tiebreak in place, and using the same
+        // column costs nothing.
         //
-        // Fixing it properly needs a durable monotonic column on AuditEvents,
-        // i.e. a migration — the one thing #494 was specified not to do. Tracked
-        // separately in #508 rather than smuggled in here. There is deliberately
-        // NO test pinning the current arbitrary outcome: that would promote a
-        // known loss into a specification.
+        // Held by Provenance_WhenTwoChangesShareAnInstant_NamesTheOneWrittenLast,
+        // which pins both Guids so the old behaviour fails deterministically
+        // rather than half the time.
+        //
+        // What this does NOT fix: OccurredAtUtc is still the primary sort and
+        // still comes from wall time, so a CLOCK ROLLBACK can give a later
+        // insert an earlier timestamp, and "Sequence" is never consulted. Fixing
+        // that means redefining "latest" as insert order for every pair, tied or
+        // not — a behaviour change well outside #508.
         // EXACT actions, not a "%.Submit"/"%.Confirm" pattern. Creation rightly
         // uses a wildcard — any ".Create" IS a creation — but these are closed
         // sets, and a pattern would silently swallow a future action that merely
@@ -220,7 +226,7 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
                 SELECT DISTINCT ON ("EntityId") "EntityId", "ActorUserId"
                 FROM scoped
                 WHERE "Action" LIKE {createAction}
-                ORDER BY "EntityId", "OccurredAtUtc" ASC, "Id" ASC
+                ORDER BY "EntityId", "OccurredAtUtc" ASC, "Sequence" ASC
             ),
             shared AS (
                 SELECT DISTINCT s."EntityId"
@@ -238,7 +244,7 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
                        AND e."ActorUserId" IS NOT DISTINCT FROM c."ActorUserId"
                        AND (e."Action" = ANY({promotionActions})
                             OR sh."EntityId" IS NULL))
-            ORDER BY e."EntityId", e."OccurredAtUtc" DESC, e."Id" DESC
+            ORDER BY e."EntityId", e."OccurredAtUtc" DESC, e."Sequence" DESC
             """)
             .IgnoreQueryFilters()
             .AsNoTracking()
@@ -262,7 +268,7 @@ public sealed class AuditEventRepository(AppDbContext db, TenantContext tenant) 
               AND "EntityType" = {entityType}
               AND "EntityId" = ANY({ids})
               AND "Action" = ANY({promotionActions})
-            ORDER BY "EntityId", "OccurredAtUtc" ASC, "Id" ASC
+            ORDER BY "EntityId", "OccurredAtUtc" ASC, "Sequence" ASC
             """)
             .IgnoreQueryFilters()
             .AsNoTracking()

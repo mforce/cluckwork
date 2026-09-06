@@ -1117,4 +1117,92 @@ public sealed class AuditProvenanceTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(ids.Length, result.Count);
         Assert.All(ids, id => Assert.Equal("ana@farm.test", result[id].CreatedByEmail));
     }
+
+    // #508 — two reportable changes to one record can share an OccurredAtUtc.
+    // RecordBirdMovement is how: it writes an audit event against the FLOCK's
+    // id while only inserting a BirdMovement row, so it never bumps
+    // Flock.Version and never serialises against Flock.Update. Two of them can
+    // land in the same microsecond on one flock.
+    //
+    // Which of the two is reported as the last change must then be decided by a
+    // DURABLE, database-assigned order — not by "Id", which AuditWriter mints as
+    // a random v4 Guid and which therefore sorts arbitrarily.
+    //
+    // The two Guids below are PINNED, and that is the whole point of the test:
+    // the event written SECOND is given the LOWER id, so a query still breaking
+    // the tie on "Id" DESC names the FIRST-written actor and this test fails
+    // deterministically. With a random pair it would pass about half the time,
+    // which is not a regression test — it is a coin flip that occasionally
+    // reports the bug.
+    //
+    // Each event is written in its OWN SaveChanges call so that insert order —
+    // and therefore the identity column's order — is defined, rather than
+    // depending on how EF batches a single AddRange.
+    [Fact]
+    public async Task Provenance_WhenTwoChangesShareAnInstant_NamesTheOneWrittenLast()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var sameInstant = Base.AddMinutes(10);
+
+        var create = AuditEvent.Create(
+            Guid.NewGuid(), accountId, Base, Guid.NewGuid(), "ana@farm.test",
+            "Flock.Create", "Flock", entityId);
+
+        // Written FIRST, HIGH id — this is the one the old "Id" DESC tiebreak picks.
+        var first = AuditEvent.Create(
+            new Guid("ffffffff-ffff-4fff-bfff-ffffffffffff"), accountId, sameInstant,
+            Guid.NewGuid(), "first@farm.test", "Flock.Update", "Flock", entityId);
+
+        // Written SECOND, LOW id — the true last change.
+        var second = AuditEvent.Create(
+            new Guid("00000000-0000-4000-8000-000000000001"), accountId, sameInstant,
+            Guid.NewGuid(), "second@farm.test", "Flock.Update", "Flock", entityId);
+
+        foreach (var e in new[] { create, first, second })
+            await SeedEventsAsync(accountId, e);
+
+        var result = await WithRepositoryAsync(accountId, repo =>
+            repo.GetProvenanceAsync("Flock", [entityId]));
+
+        var provenance = result[entityId];
+        Assert.Equal("second@farm.test", provenance.LastChangedByEmail);
+        // The instant was never at risk — only the name. Pinned so a fix that
+        // reported the right person at the wrong time would still fail.
+        Assert.Equal(sameInstant, provenance.LastChangedAtUtc);
+    }
+
+    // The same durability requirement, one layer out: the Audit page's own list.
+    // Here a wrong order is not a wrong VALUE — both rows are shown — but the
+    // pair renders in the wrong sequence, and paging needs a total order that
+    // does not depend on a random Guid.
+    //
+    // Same pinning trick: the row written SECOND gets the LOWER id, so it must
+    // come FIRST in a newest-first list, and the old "Id" DESC tiebreak puts it
+    // second.
+    [Fact]
+    public async Task List_WhenTwoEventsShareAnInstant_ReturnsTheOneWrittenLastFirst()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var entityId = Guid.NewGuid();
+        var sameInstant = Base.AddMinutes(20);
+
+        var earlier = AuditEvent.Create(
+            new Guid("ffffffff-ffff-4fff-bfff-fffffffffffe"), accountId, sameInstant,
+            Guid.NewGuid(), "earlier@farm.test", "Flock.Update", "Flock", entityId);
+
+        var later = AuditEvent.Create(
+            new Guid("00000000-0000-4000-8000-000000000002"), accountId, sameInstant,
+            Guid.NewGuid(), "later@farm.test", "Flock.Update", "Flock", entityId);
+
+        foreach (var e in new[] { earlier, later })
+            await SeedEventsAsync(accountId, e);
+
+        var rows = await WithRepositoryAsync(accountId, repo =>
+            repo.ListAsync(null, entityId, null, null, 10, 0));
+
+        Assert.Collection(rows,
+            row => Assert.Equal("later@farm.test", row.ActorEmail),
+            row => Assert.Equal("earlier@farm.test", row.ActorEmail));
+    }
 }
