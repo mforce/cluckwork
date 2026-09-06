@@ -498,7 +498,14 @@ export function SalesPage() {
       // Superseded: the order exists and the list write stands, but the panel
       // belongs to whatever session is on screen now (#477).
       if (!current()) return;
-      setActive(await getOrder(created.id));
+      const loaded = await getOrder(created.id);
+      // Checked AGAIN, after the second await. The first version of this fix
+      // checked once and then wrote the result of a further round trip, which
+      // is the same hijack one hop later: the POST lands while the user is
+      // still here, the GET is issued, and only THEN do they cancel and reopen.
+      // A gate before an await says nothing about the state after it.
+      if (!current()) return;
+      setActive(loaded);
     });
     // Released whether or not anyone is still watching: `keys` holds one entry
     // per scope until cleared, so a spent key left behind makes the NEXT order

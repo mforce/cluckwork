@@ -1605,6 +1605,38 @@ describe("SalesPage in-dialog errors (#474)", () => {
     expect(mockGetOrder).not.toHaveBeenCalled();
   });
 
+  // Found by an internal review seat against this fix's own first version: the
+  // gate was checked after the POST, then a SECOND await (`getOrder`) ran and
+  // its result was written unguarded. The whole bug, shifted one round trip
+  // later — the dialog survives, but the panel still gets hijacked.
+  it("does not swap the panel when the session is abandoned during the follow-up read", async () => {
+    await renderReady();
+    let resolveCreate!: (v: { id: string }) => void;
+    let resolveGet!: (v: SalesOrder) => void;
+    mockCreateOrder.mockReturnValueOnce(new Promise((res) => { resolveCreate = res; }) as never);
+    mockGetOrder.mockReturnValueOnce(new Promise((res) => { resolveGet = res; }) as never);
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    // The POST lands while the user is still in the session that started it, so
+    // the first gate passes and the follow-up read begins.
+    await act(async () => { resolveCreate({ id: DRAFT_TWO.id }); });
+
+    // Only NOW does the user give up and start again.
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => { resolveGet(DRAFT_TWO); });
+
+    // A REGEX, not the bare string: the panel heading renders
+    // "SO-2 — Acme Eggs [Draft]" in one element, and `queryByText("SO-2")`
+    // demands the element's whole text equal that — so the exact-string form
+    // can never match and the assertion passes whatever the code does. A
+    // positive control (a clean create, which SHOULD show the order) proved it
+    // vacuous before this was corrected.
+    expect(screen.queryByText(/SO-2/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeInTheDocument();
+  });
+
   // The POST succeeded, so the attempt is spent whether or not anyone is still
   // watching. Its idempotency key MUST be released: `keys` holds one entry per
   // scope until cleared, so a gate that skipped `clearKey` would make the next
