@@ -166,13 +166,23 @@ Shape to preserve exactly:
    current rather than being gated by accident.
 4. `report(slot, …)` in `catch`, which owns the abandoned-attempt decision.
 
-Screens must call `session.begin(scope)` at **both** dialog open **and**
-dismiss. Both end the session on screen.
+Screens must end the session at **both** dialog open **and** dismiss.
+
+> **Amended 2026-09-06, after PR 1 (#704) shipped the hook.** The sentence above
+> originally read "call `session.begin(scope)` at both edges". The shipped hook
+> owns its own session and error instances, so a screen never calls `session.begin`
+> or `errors.abandon` itself: it calls **`openDialog(scope)`** when the dialog opens
+> and **`dismissDialog(scope)`** when it is dismissed or force-closed. Both names
+> resolve to one body that **mutes the attempt still out and then ends the
+> session** — review round 1 of #704 found that doing only one of the two on one
+> edge let a stale failure land in the replacement dialog (invariant INV-7 on the
+> PR). A screen that calls `session.begin` directly would update a different
+> session map and skip the mute.
 
 ## 6. Traps
 
-Each of these has already cost a review round somewhere in #474 → #477 → #479 →
-#625 → #702.
+Each of these has already cost a review round somewhere in
+#474 → #477 → #479 → #625 → #702.
 
 1. **`clearKey` is not a UI statement.** Gating it strands a spent idempotency
    key: the next attempt reuses it, the server replays the abandoned write, and
