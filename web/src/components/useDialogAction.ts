@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { errText } from "../lib/errText";
 import { useDialogErrors, type DialogErrors } from "./useDialogErrors";
 import { useDialogSession } from "./useDialogSession";
@@ -28,12 +29,17 @@ export interface DialogAction {
    * skipped it or the action threw — never read `undefined` as success.
    */
   run: <T>(scope: string, action: (current: () => boolean) => Promise<T>) => Promise<T | undefined>;
-  /** Called when a dialog OPENS: whatever session was on screen is over. */
+  /**
+   * Called when a dialog OPENS. Mutes the attempt still out, so its failure
+   * lands nowhere, and ends the session, so its success cannot touch the
+   * dialog now on screen. The same operation as `dismissDialog` — one name per
+   * edge so a call site reads as what the screen is doing.
+   */
   openDialog: (scope: string) => void;
   /**
-   * Called when a dialog is DISMISSED: mutes the attempt still out, so its
-   * failure lands nowhere, and ends the session, so its success cannot touch
-   * whatever the user opens next.
+   * Called when a dialog is DISMISSED, or closed out from under the user by
+   * the screen itself (a record swap, a role change): mutes the attempt still
+   * out and ends the session. Stable across renders, so an effect may list it.
    */
   dismissDialog: (scope: string) => void;
 }
@@ -96,17 +102,24 @@ export function useDialogAction(
       }
     });
 
-  const openDialog = (scope: string) => session.begin(scope);
+  // Both edges of a session are ONE operation (#703, round 1 of PR 1). Opening
+  // a dialog, dismissing it, and a screen closing it out from under the user
+  // each end whatever session was on screen, and an attempt still out belongs
+  // to the session that just ended: its failure must land nowhere (#474/#479)
+  // and its success must not act on whatever replaces it (#477). Doing only
+  // one of the two on one edge was the finding: `openDialog` ended the
+  // session without muting, so a reopen that never went through dismiss let a
+  // stale failure into the dialog the user had just opened. Pinned by
+  // `drops a failure that lands after its dialog was reopened without a dismiss`.
+  //
+  // Stable, so a screen's effect can list it as a dependency without
+  // re-running every render — `abandon` and `begin` are themselves stable.
+  const { abandon } = errors;
+  const { begin } = session;
+  const endSession = useCallback((scope: string) => {
+    abandon(scope);
+    begin(scope);
+  }, [abandon, begin]);
 
-  const dismissDialog = (scope: string) => {
-    // #474 — empties the dialog's slot, so reopening shows no stale verdict,
-    // and mutes the attempt still out, so its failure is not reported against
-    // the session the user opens next.
-    errors.abandon(scope);
-    // Ends the session too: an attempt still out belongs to the one just
-    // dismissed, so its success must not act on whatever replaces it (#477).
-    session.begin(scope);
-  };
-
-  return { busy, isPending, errors, run, openDialog, dismissDialog };
+  return { busy, isPending, errors, run, openDialog: endSession, dismissDialog: endSession };
 }

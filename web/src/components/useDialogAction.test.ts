@@ -119,6 +119,33 @@ describe("useDialogAction", () => {
     expect(result.current.errors.page).toBeNull();
   });
 
+  it("drops a failure that lands after its dialog was reopened without a dismiss", async () => {
+    // codex + CodeRabbit, round 1 of #703 PR 1: a screen can close a dialog by
+    // a route that never calls dismiss — a parent swapping the record, a role
+    // change, a route change — and then open it again. Ending the session on
+    // open was pinned below; muting the attempt still out was not, so its
+    // failure landed in the dialog the user had just opened. Both edges are
+    // one operation now.
+    const { result } = renderHook(() => useDialogAction(DIALOGS));
+    act(() => result.current.openDialog("create"));
+    const gate = deferred<void>();
+    let flight!: Promise<void | undefined>;
+    act(() => {
+      flight = result.current.run("create", async () => {
+        await gate.promise;
+        throw new Error("stale boom");
+      });
+    });
+    act(() => result.current.openDialog("create")); // reopened, never dismissed
+    await act(async () => {
+      gate.resolve();
+      await flight;
+    });
+
+    expect(result.current.errors.forDialog("create")).toBeUndefined();
+    expect(result.current.errors.page).toBeNull();
+  });
+
   it("leaves the previous message alone when the in-flight guard skips a run", async () => {
     // beginAttempt runs INSIDE the guarded action: a press that the guard
     // rejects must not blank the verdict the dialog is still showing.

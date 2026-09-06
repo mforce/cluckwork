@@ -227,9 +227,10 @@ export function SalesPage() {
     ["create-order", "record-payment"],
     { onAttempt: () => setMessage(null) },
   );
-  // Pulled out for the payments effect's dependency list: both are stable, and
-  // naming them is what lets that effect declare its real dependencies.
-  const { abandon: abandonError, setPage: setPageError } = errors;
+  // Pulled out for the payments effect's dependency list: it is stable, and
+  // naming it is what lets that effect declare its real dependencies
+  // (`dismissDialog` is stable by the hook's own construction).
+  const { setPage: setPageError } = errors;
 
   // Payments (#89, admin-only money data) — settlement state of the open
   // confirmed order.
@@ -373,10 +374,12 @@ export function SalesPage() {
     // below, a 422 about the previous order's money survives the switch and is
     // waiting inside the form when they open it on this order's.
     //
-    // `abandon`, not `clearDialog`: a payment write can still be out when this
-    // runs, so the slot is emptied and that attempt muted together. Clearing
+    // `dismissDialog`, not `clearDialog`: a payment write can still be out
+    // when this runs, so the slot is emptied, that attempt muted, AND its
+    // session ended, together (#703 round 1 — every edge does both). Clearing
     // alone would let the rejection settle into the slot afterwards, to be
-    // found by whoever opens a payment form next.
+    // found by whoever opens a payment form next; muting without ending the
+    // session would let the write's success act on a form opened later.
     //
     // An earlier version used `clearDialog` and argued the mute was
     // unreachable, because the row's open button is `disabled={busy}`. That
@@ -396,7 +399,7 @@ export function SalesPage() {
     // an argument that has been wrong twice, not an observable fix. Deleting
     // the line altogether IS caught, by the reopen test below.
     setPaying(false);
-    abandonError("record-payment");
+    dismissDialog("record-payment");
     if (activeId === null || activeStatus !== "Confirmed" || !canSettle) return;
     let cancelled = false;
     listOrderPayments(activeId)
@@ -405,11 +408,12 @@ export function SalesPage() {
         if (!cancelled) setPageError(i18n.t("sales:loadPaymentsFailed"));
       });
     return () => { cancelled = true; };
-    // The two hook members this effect uses are destructured above and listed
-    // here, rather than depending on `errors` — that object is rebuilt every
-    // render, so naming it would re-run this on every render and re-fetch the
-    // payments. There is no eslint in this package to have caught either.
-  }, [activeId, activeStatus, canSettle, abandonError, setPageError]);
+    // `setPageError` is destructured above and `dismissDialog` is stable in
+    // the hook; both are listed here rather than depending on `errors` — that
+    // object is rebuilt every render, so naming it would re-run this on every
+    // render and re-fetch the payments. There is no eslint in this package to
+    // have caught either.
+  }, [activeId, activeStatus, canSettle, dismissDialog, setPageError]);
 
   // Exact decimal parsing in the ORDER's denomination (no float multiply —
   // #88 review); excess decimals are rejected, not silently rounded.
