@@ -189,11 +189,17 @@ shipped regression test is its permanent form.
 ## Blast radius
 
 - `src/Cluckwork.Domain/Auditing/AuditEvent.cs` — untouched (shadow property).
-- `src/Cluckwork.Infrastructure/Persistence/Configurations/AuditEventConfiguration.cs` — one property, one index.
-- `src/Cluckwork.Infrastructure/Repositories/AuditEventRepository.cs` — two order clauses (`ListAsync`, `latest`), and the `#508` residual comment replaced by what shipped.
+- `src/Cluckwork.Infrastructure/Persistence/Configurations/AuditEventConfiguration.cs` — one shadow
+  property. **No new index**: the two existing `HasIndex` calls are untouched, and `Sequence` is only ever
+  read as a tiebreak *after* `OccurredAtUtc` has already narrowed the rows.
+- `src/Cluckwork.Infrastructure/Repositories/AuditEventRepository.cs` — **five** order clauses
+  (`ListAsync`, and `created`, `creator`, `latest`, `promoted` in `GetProvenanceChunkAsync`), and the
+  `#508` residual comment replaced by what shipped.
 - One new migration + `AppDbContextModelSnapshot`.
-- `docs/schema/public.AuditEvents.md` regenerated (#417).
-- `tests/Cluckwork.Api.IntegrationTests/AuditProvenanceTests.cs` — the regression test.
+- `docs/schema/` regenerated (#417) — **three files**: `public.AuditEvents.md`, `README.md` (its column
+  count for this table), and `viewpoint-4.md` (its ERD).
+- `tests/Cluckwork.Api.IntegrationTests/AuditProvenanceTests.cs` — **two** regression tests, one per
+  surface: the provenance query and the audit list.
 - Verified as **not** in scope: the tenant-bypass allowlist is keyed by symbol + file (no query hash),
   and `AuditEvents` has a global query filter so it has no row in `filter-free-set-sites.tsv` — the
   registry only churns if a method **signature** changes, which this fix does not do. The gate is run
