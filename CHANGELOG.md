@@ -1,5 +1,111 @@
 # Changelog
 
+## [0.1.0](https://github.com/mforce/cluckwork/compare/v0.0.4...v0.1.0) (2026-09-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* log in by farm code, with per-account email identity ([#532](https://github.com/mforce/cluckwork/issues/532)) (#564)
+
+### Features
+
+* **accounts:** add Account.Slug (farm code), suspend/reactivate, list-accounts verb ([#531](https://github.com/mforce/cluckwork/issues/531)) ([3fe9754](https://github.com/mforce/cluckwork/commit/3fe975454a761b2b29bc9ced67a561ccc5a5260d))
+* **accounts:** provision additional farms ([#581](https://github.com/mforce/cluckwork/issues/581)) ([006f298](https://github.com/mforce/cluckwork/commit/006f298aef1ef00ff44f1b7da18f280a9ae6a67b))
+* add Aspire local development AppHost ([#567](https://github.com/mforce/cluckwork/issues/567)) ([2c9e6b9](https://github.com/mforce/cluckwork/commit/2c9e6b933de5b570b7a3960277f0c911bac67bbf))
+* add configurable worker sale allocation ([#619](https://github.com/mforce/cluckwork/issues/619)) ([0955095](https://github.com/mforce/cluckwork/commit/0955095f3185471a55a6890adfa827bb29dd518e))
+* add searchable entity pickers ([#642](https://github.com/mforce/cluckwork/issues/642)) ([60d2053](https://github.com/mforce/cluckwork/commit/60d2053c7eb0394c04439c8eae1a3b0cfc6098a4))
+* **api:** provision-account takes an optional --timezone at creation ([#603](https://github.com/mforce/cluckwork/issues/603)) ([#694](https://github.com/mforce/cluckwork/issues/694)) ([a0aee39](https://github.com/mforce/cluckwork/commit/a0aee39c51c3bf0115f581bb8dc9b658d2b40932))
+* **auth:** add ApplicationUser.StepUpLogoutEpoch column ([#338](https://github.com/mforce/cluckwork/issues/338)) ([#554](https://github.com/mforce/cluckwork/issues/554)) ([18306ee](https://github.com/mforce/cluckwork/commit/18306ee3c3382eed672bfaefddb92fd007e6f0a4))
+* certify over-cap simulation fixture bands ([#633](https://github.com/mforce/cluckwork/issues/633)) ([a67b2e1](https://github.com/mforce/cluckwork/commit/a67b2e1f0c3dba2a8635d76ffc8e4f6ad7e9f58b)), closes [#627](https://github.com/mforce/cluckwork/issues/627)
+* **customers:** edit existing customer details ([#625](https://github.com/mforce/cluckwork/issues/625)) ([#626](https://github.com/mforce/cluckwork/issues/626)) ([062a55c](https://github.com/mforce/cluckwork/commit/062a55c88a075fc181cb675c2bd3f8d3ff856e9d))
+* **jobs:** single-runner leader gate for the durable job worker ([#271](https://github.com/mforce/cluckwork/issues/271)) ([#555](https://github.com/mforce/cluckwork/issues/555)) ([4148f9b](https://github.com/mforce/cluckwork/commit/4148f9bc97d43c8e4c4811049f5b49360a1a8a63))
+* let owners change user email addresses ([#605](https://github.com/mforce/cluckwork/issues/605)) ([842347b](https://github.com/mforce/cluckwork/commit/842347bd0a747b33e6b26a953cfea0733095ab61))
+* log in by farm code, with per-account email identity ([#532](https://github.com/mforce/cluckwork/issues/532)) ([#564](https://github.com/mforce/cluckwork/issues/564)) ([68adb62](https://github.com/mforce/cluckwork/commit/68adb621b45567f6526b61f34c13ff728452baac))
+* **ratelimit:** distributed IP-keyed auth limiters ([#544](https://github.com/mforce/cluckwork/issues/544)) ([#558](https://github.com/mforce/cluckwork/issues/558)) ([ec14972](https://github.com/mforce/cluckwork/commit/ec1497283787cd63d064d20c28227a3ea3311871))
+* **ratelimit:** distributed per-account report concurrency cap with local-ceiling fallback ([#545](https://github.com/mforce/cluckwork/issues/545)) ([#559](https://github.com/mforce/cluckwork/issues/559)) ([1522e4e](https://github.com/mforce/cluckwork/commit/1522e4e99ea3e062dcb735abbdeaab3ae26190ac))
+* scope Worker reads to assigned flocks ([#388](https://github.com/mforce/cluckwork/issues/388)) ([#611](https://github.com/mforce/cluckwork/issues/611)) ([5884a9a](https://github.com/mforce/cluckwork/commit/5884a9a88cbd8eeeeee5bfc111762e26f62a090a))
+* shared-state ports with Redis + in-process fallback ([#543](https://github.com/mforce/cluckwork/issues/543)) ([#552](https://github.com/mforce/cluckwork/issues/552)) ([f767fa9](https://github.com/mforce/cluckwork/commit/f767fa907d4c42922c74cca59a38caba30cac442))
+* suspend-account / reactivate-account operator verbs ([#534](https://github.com/mforce/cluckwork/issues/534)) ([#573](https://github.com/mforce/cluckwork/issues/573)) ([d0be26c](https://github.com/mforce/cluckwork/commit/d0be26cfa41880a2421adb780f3807ebd9edbc3e))
+* **tenancy:** write-side tenant guard + single-assignment TenantContext ([#546](https://github.com/mforce/cluckwork/issues/546)) ([#561](https://github.com/mforce/cluckwork/issues/561)) ([f371f1d](https://github.com/mforce/cluckwork/commit/f371f1d0b584a66b89e86da57420b808674a9340))
+* **web:** dashboard rework — capture-status tiles, 14-day trend, stock as a stacked bar ([#654](https://github.com/mforce/cluckwork/issues/654)) ([396ba23](https://github.com/mforce/cluckwork/commit/396ba233c04a84fa3452e9fd7901e4f2429d4bd7))
+* **web:** date-range filters on audit and expenses, and the stock lot filter gets its bounded toolbar ([#666](https://github.com/mforce/cluckwork/issues/666), [#667](https://github.com/mforce/cluckwork/issues/667), [#653](https://github.com/mforce/cluckwork/issues/653)) ([94b188f](https://github.com/mforce/cluckwork/commit/94b188f7a95c88c5903c242c630df39a99af2090))
+* **web:** elevation hierarchy and sentence-case labels ([#651](https://github.com/mforce/cluckwork/issues/651), [#652](https://github.com/mforce/cluckwork/issues/652)) ([#661](https://github.com/mforce/cluckwork/issues/661)) ([28db4c7](https://github.com/mforce/cluckwork/commit/28db4c75f7f2cd13ac00c439c87f1fa90b37d77f))
+* **web:** Expenses and Audit keep a clear-filters control while rows are still showing ([#679](https://github.com/mforce/cluckwork/issues/679)) ([#697](https://github.com/mforce/cluckwork/issues/697)) ([b859982](https://github.com/mforce/cluckwork/commit/b8599822fe6fc422a56a2875b650e02f3845e7a0))
+* **web:** expenses filters by a date range like its sibling screens ([#667](https://github.com/mforce/cluckwork/issues/667)) ([f13858f](https://github.com/mforce/cluckwork/commit/f13858f624d5cceb3b7eb52a666cdcd7cfe1327e))
+* **web:** key the farm brand palette per farm ([#586](https://github.com/mforce/cluckwork/issues/586)) ([#600](https://github.com/mforce/cluckwork/issues/600)) ([7183a43](https://github.com/mforce/cluckwork/commit/7183a432e824f19618093ce0b6591946d1c46002))
+* **web:** let operators forget remembered farms ([#598](https://github.com/mforce/cluckwork/issues/598)) ([577d94e](https://github.com/mforce/cluckwork/commit/577d94e5081716ea299896aba9749e196a1b9e8e))
+* **web:** one-line provenance, bounded date filters, and empty states that invite action ([#653](https://github.com/mforce/cluckwork/issues/653), [#655](https://github.com/mforce/cluckwork/issues/655)) ([#668](https://github.com/mforce/cluckwork/issues/668)) ([80b53f4](https://github.com/mforce/cluckwork/commit/80b53f4bdf29d07652ef434852b1ac18d36208f5))
+* **web:** prefill the farm code from ?farm= and remember it ([#535](https://github.com/mforce/cluckwork/issues/535)) ([#588](https://github.com/mforce/cluckwork/issues/588)) ([b7f5cc6](https://github.com/mforce/cluckwork/commit/b7f5cc6c35d3499bba91c05ea4f04e8786dc00e9))
+* **web:** split authenticated routes into lazy chunks ([#620](https://github.com/mforce/cluckwork/issues/620)) ([5089271](https://github.com/mforce/cluckwork/commit/5089271f0872ec75db143eda204e738adc1a6973))
+* **web:** the audit log filters by a date range, and says which window is empty ([#666](https://github.com/mforce/cluckwork/issues/666)) ([63027e0](https://github.com/mforce/cluckwork/commit/63027e01918d0ad157e5f038a50ffb06ca03bd7d))
+* **web:** typeset numbers as numbers and refresh the Help glossary ([#650](https://github.com/mforce/cluckwork/issues/650), [#657](https://github.com/mforce/cluckwork/issues/657)) ([af4fe11](https://github.com/mforce/cluckwork/commit/af4fe11112c40888b1958311a131a7ded444c985))
+
+
+### Bug fixes
+
+* **api:** order same-instant audit events by a durable monotonic key ([#700](https://github.com/mforce/cluckwork/issues/700)) ([8fcf084](https://github.com/mforce/cluckwork/commit/8fcf084fb3889b78e9bee950f6e324d7e0f238dc))
+* **api:** print the farm code from bootstrap-admin ([#589](https://github.com/mforce/cluckwork/issues/589)) ([#594](https://github.com/mforce/cluckwork/issues/594)) ([34032ac](https://github.com/mforce/cluckwork/commit/34032ac673a7b921d68b7904e773ad4e45cd0b4e))
+* **auth:** reject invalid account claims ([#622](https://github.com/mforce/cluckwork/issues/622)) ([8d6c7fe](https://github.com/mforce/cluckwork/commit/8d6c7fe3f4e45c2d910fae5ef54fc528aab2e0f5))
+* **auth:** require step-up for durable user access ([#360](https://github.com/mforce/cluckwork/issues/360)) ([#607](https://github.com/mforce/cluckwork/issues/607)) ([f767dce](https://github.com/mforce/cluckwork/commit/f767dce0073aea17a7e4e8cd644224023d325c89))
+* **ci:** bound the npm audit calls and give the web job room to finish ([#686](https://github.com/mforce/cluckwork/issues/686)) ([153b7a8](https://github.com/mforce/cluckwork/commit/153b7a8e9c029ce69645a1e6bd7fbf98a548b27d))
+* **ci:** escalate the audit bound to SIGKILL, so it actually bounds ([#686](https://github.com/mforce/cluckwork/issues/686)) ([a0c8f4e](https://github.com/mforce/cluckwork/commit/a0c8f4ec84de3b3d6f8719e45bf9f8e98e4965ea))
+* **ci:** fail closed on invalid vulnerability config ([#621](https://github.com/mforce/cluckwork/issues/621)) ([1690db8](https://github.com/mforce/cluckwork/commit/1690db89f69982fdb1b5a7017c6a0dcdf21787c6))
+* **ci:** lockfix covers the two AppHost lock files, derived from the sln ([efb05e6](https://github.com/mforce/cluckwork/commit/efb05e63163f9df0a17f5a38852827135232604f))
+* **ci:** lockfix covers the two AppHost lock files, derived from the sln ([8986d77](https://github.com/mforce/cluckwork/commit/8986d77b5b6d7ae56073fca6e095c798df21658c))
+* **ci:** remove invalid XML comment from nuget.lockfix.config ([#541](https://github.com/mforce/cluckwork/issues/541)) ([5f1bc0a](https://github.com/mforce/cluckwork/commit/5f1bc0a8d7594e440120b52c408014674a707d55))
+* **ci:** the advisory vuln gate no longer blocks on an unusable report ([#686](https://github.com/mforce/cluckwork/issues/686)) ([aaf6934](https://github.com/mforce/cluckwork/commit/aaf693449bd58b6290ec747cb491c1698f96c7a6))
+* **ci:** the advisory vuln gate no longer blocks on an unusable report ([#686](https://github.com/mforce/cluckwork/issues/686)) ([64f1f53](https://github.com/mforce/cluckwork/commit/64f1f53ed04be37e57a1541f52c103772dd5ed90))
+* **i18n:** tl help text names the saleable flag and unit-system setting what their labels call them ([#688](https://github.com/mforce/cluckwork/issues/688)) ([#696](https://github.com/mforce/cluckwork/issues/696)) ([bfd24d7](https://github.com/mforce/cluckwork/commit/bfd24d7eb50e93767d667aa4e502885a904bcf9f))
+* **infra:** AccountId must be a non-nullable Guid or both tenant write layers refuse ([#673](https://github.com/mforce/cluckwork/issues/673)) ([#695](https://github.com/mforce/cluckwork/issues/695)) ([2470c4e](https://github.com/mforce/cluckwork/commit/2470c4e85929e1eea6466217ef8b15f3f52eed54))
+* require step-up for flock scope changes ([#609](https://github.com/mforce/cluckwork/issues/609)) ([4151f89](https://github.com/mforce/cluckwork/commit/4151f89f1ca7b2350acfe54672ff5903545e240e))
+* scope legacy logout to selected farm ([#624](https://github.com/mforce/cluckwork/issues/624)) ([fae8d82](https://github.com/mforce/cluckwork/commit/fae8d82175fb53fa95610a85a7c87779dbd17b42))
+* **seed:** drain the daily-entry lock sweep so deep simulation fixtures validate ([#644](https://github.com/mforce/cluckwork/issues/644)) ([730fa23](https://github.com/mforce/cluckwork/commit/730fa238749ef4b816923de64fb7b28c20ad560e)), closes [#638](https://github.com/mforce/cluckwork/issues/638)
+* **tenancy:** AccountId is a concurrency token, so the database refuses a detached cross-tenant write ([#562](https://github.com/mforce/cluckwork/issues/562)) ([4d1dfa3](https://github.com/mforce/cluckwork/commit/4d1dfa3729a8d1feea80d1261a27ad1373068e65))
+* **tenancy:** AspNetUserRoles carries a tenant column, so a role write naming another farm's user is refused ([#670](https://github.com/mforce/cluckwork/issues/670)) ([fc0552a](https://github.com/mforce/cluckwork/commit/fc0552aef110973be3cee8b369d4c9862045db90))
+* **tests:** bump the image-pin allow-list counts for the AppHost LocalPorts tests ([#593](https://github.com/mforce/cluckwork/issues/593)) ([58d3056](https://github.com/mforce/cluckwork/commit/58d30568414f3f6b8f1f5742f005a1b3b63c4420))
+* **tests:** the OTLP collector survives a lost port race and ignores traffic that is not an export ([#672](https://github.com/mforce/cluckwork/issues/672), [#676](https://github.com/mforce/cluckwork/issues/676)) ([#677](https://github.com/mforce/cluckwork/issues/677)) ([965c737](https://github.com/mforce/cluckwork/commit/965c73745fc2784bb155cfdf8ff399870ed0c196))
+* **web:** a scoped audit view filtered to nothing names both the record and the range ([#666](https://github.com/mforce/cluckwork/issues/666)) ([41bbfe1](https://github.com/mforce/cluckwork/commit/41bbfe12aab8efac6be4aa79e2e8fd74275dfbaf))
+* **web:** an abandoned order attempt's success no longer hijacks the dialog that replaced it ([#702](https://github.com/mforce/cluckwork/issues/702)) ([522c699](https://github.com/mforce/cluckwork/commit/522c699e6e424055c93f69b468c9bff00722f680))
+* **web:** capture screens open on the flock you last used, and assigning one no longer guesses ([#646](https://github.com/mforce/cluckwork/issues/646)) ([#699](https://github.com/mforce/cluckwork/issues/699)) ([7f8f317](https://github.com/mforce/cluckwork/commit/7f8f31725608e42ac236a52b3bbbcf4cb9b187fc))
+* **web:** date validation gets one boundary table instead of one case per review round ([#666](https://github.com/mforce/cluckwork/issues/666)) ([215f830](https://github.com/mforce/cluckwork/commit/215f830a37509b81497dfc09fa7cced0c51a2015))
+* **web:** keep a paged window and an item panel on the user's newest intent ([#645](https://github.com/mforce/cluckwork/issues/645)) ([d81bccf](https://github.com/mforce/cluckwork/commit/d81bccf7c42525735c16076ff768d2ca1c54fc11))
+* **web:** make login take the cross-tab cookie lock so a racing refresh cannot restore the wrong session ([#648](https://github.com/mforce/cluckwork/issues/648)) ([ff18beb](https://github.com/mforce/cluckwork/commit/ff18beb9d1cd7dc5f931b992313eb7841f0bf660))
+* **web:** page truncated customer and movement tables with usePagedList ([7cfe4d6](https://github.com/mforce/cluckwork/commit/7cfe4d6fdd82ac0caf0a70572eab1c5a229ae9e7))
+* **web:** the audit date filter accepts low-numbered years, and its empty state covers every narrowing ([#666](https://github.com/mforce/cluckwork/issues/666)) ([af52d25](https://github.com/mforce/cluckwork/commit/af52d2562efdda36e393e8887fcda7b3130779f5))
+* **web:** the audit date filter rejects impossible dates, and its history guard actually guards ([#666](https://github.com/mforce/cluckwork/issues/666)) ([8d51846](https://github.com/mforce/cluckwork/commit/8d518461d5ad90088124b4656cdb20903ab4c094))
+* **web:** the expense range bounds are not capped at today, which the month-end default exceeds ([#667](https://github.com/mforce/cluckwork/issues/667)) ([7e01864](https://github.com/mforce/cluckwork/commit/7e01864849c4f530cdb77362905880f572740811))
+* **web:** the help text calls the expiry field what the field calls itself ([#666](https://github.com/mforce/cluckwork/issues/666)) ([2fd1f3c](https://github.com/mforce/cluckwork/commit/2fd1f3c4db50a813f1fa4bcf11b592c669c2c517))
+* **web:** the stock lot date range sits in the bounded toolbar ([#653](https://github.com/mforce/cluckwork/issues/653)) ([43dec5e](https://github.com/mforce/cluckwork/commit/43dec5e160c2c86eaabe1afde77e787219e9da60))
+
+
+### Refactoring
+
+* **web:** extract SalesPage's dialog-write wrapper into a shared useDialogAction hook ([#703](https://github.com/mforce/cluckwork/issues/703)) ([#704](https://github.com/mforce/cluckwork/issues/704)) ([60ee9d9](https://github.com/mforce/cluckwork/commit/60ee9d9a5226b77d23ce7b20d101748c013db53d))
+
+
+### Documentation
+
+* add k6 preparation steps to the dev-database fixture runbook ([#643](https://github.com/mforce/cluckwork/issues/643)) ([a4f1f09](https://github.com/mforce/cluckwork/commit/a4f1f0944100898d8808c3508d8415b454e39713))
+* add runbook for loading the simulation fixture into a dev database ([#639](https://github.com/mforce/cluckwork/issues/639)) ([2d143b8](https://github.com/mforce/cluckwork/commit/2d143b817ae9940f5a17e18af7826076dd56387c))
+* **agents:** find guards by grepping registry readers; amend issues a PR overtakes ([#580](https://github.com/mforce/cluckwork/issues/580)) ([fe3fde8](https://github.com/mforce/cluckwork/commit/fe3fde8e15a383659c86682c8b7a3887318a2038))
+* **aspire:** record the second local database and pin the AppHost dashboard ports ([#623](https://github.com/mforce/cluckwork/issues/623)) ([713b941](https://github.com/mforce/cluckwork/commit/713b9411f55c0f14f67d020365e8651e0ced075d))
+* compress AGENTS.md to one paragraph per rule, and draw the two orders that matter ([#551](https://github.com/mforce/cluckwork/issues/551)) ([997ae8a](https://github.com/mforce/cluckwork/commit/997ae8aea5f360aff9cf884270a3eebf27ad1f27))
+* item 7 names each screen's actual initial filter value ([#666](https://github.com/mforce/cluckwork/issues/666)) ([70a53d8](https://github.com/mforce/cluckwork/commit/70a53d8f3a93c7506d292cd6f43b0cb103b489f6))
+* multi-farm tenancy decision record and AGENTS/GLOSSARY sync ([#537](https://github.com/mforce/cluckwork/issues/537)) ([#601](https://github.com/mforce/cluckwork/issues/601)) ([2c34771](https://github.com/mforce/cluckwork/commit/2c34771342cac2df26654ac90b2680567f2ffb1b))
+* name the scoped filtered-empty key and state the [#653](https://github.com/mforce/cluckwork/issues/653) relationship plainly ([#666](https://github.com/mforce/cluckwork/issues/666)) ([0e93dac](https://github.com/mforce/cluckwork/commit/0e93dac6c70d305a8842ce54c8c4f24356baf2b3))
+* note that a PackageReference in Directory.Build.props is invisible to the dependency graph ([4845724](https://github.com/mforce/cluckwork/commit/48457247e4bb1fdb829a3055ba678627a582cf40))
+* record [#579](https://github.com/mforce/cluckwork/issues/579) as won't-fix — suspension is immediate for use, not issuance ([#582](https://github.com/mforce/cluckwork/issues/582)) ([7a3be40](https://github.com/mforce/cluckwork/commit/7a3be4098d673658954736195342e052ca1c0c5f))
+* record the [#508](https://github.com/mforce/cluckwork/issues/508) audit ordering key and the tracked-file guard lesson ([#701](https://github.com/mforce/cluckwork/issues/701)) ([08964e9](https://github.com/mforce/cluckwork/commit/08964e98371b6467ebc6381207dd9932ebddc82e))
+* screenshots of the running SPA in the README ([#550](https://github.com/mforce/cluckwork/issues/550)) ([711488a](https://github.com/mforce/cluckwork/commit/711488a9b32cf59eeacd4e5bdd5aa6586c3f8b50))
+* **sim:** commit the dashboard screenshot, capture the palette matrix, and record the [#651](https://github.com/mforce/cluckwork/issues/651)/[#652](https://github.com/mforce/cluckwork/issues/652) conventions ([#660](https://github.com/mforce/cluckwork/issues/660), [#662](https://github.com/mforce/cluckwork/issues/662), [#663](https://github.com/mforce/cluckwork/issues/663), [#664](https://github.com/mforce/cluckwork/issues/664)) ([#665](https://github.com/mforce/cluckwork/issues/665)) ([930ea30](https://github.com/mforce/cluckwork/commit/930ea3085187e19c53e3782b011a15fee8ce5784))
+* specify searchable entity picker ([#641](https://github.com/mforce/cluckwork/issues/641)) ([91d4300](https://github.com/mforce/cluckwork/commit/91d43009c45be0ed28ea86447cb8fd6cdbf53c0f))
+* split the README into audience-scoped docs and adopt repo-template scaffolding ([#548](https://github.com/mforce/cluckwork/issues/548)) ([b3f3fcf](https://github.com/mforce/cluckwork/commit/b3f3fcf8b7f62289e01132eec9418eaf4dda7e6f))
+* surface Aspire local development workflow ([#568](https://github.com/mforce/cluckwork/issues/568)) ([a343baa](https://github.com/mforce/cluckwork/commit/a343baa6cafb7ffc71de0475ae9bab8e6e6c9dfb))
+* **web:** the date-cap help text covers every stocked item, not only feed ([#666](https://github.com/mforce/cluckwork/issues/666), [#667](https://github.com/mforce/cluckwork/issues/667)) ([c8433c5](https://github.com/mforce/cluckwork/commit/c8433c56321419ee60bc9e99a2777e6860ebefaa))
+* **web:** the help text claims only what is true of recording, and says nothing about filter caps ([#666](https://github.com/mforce/cluckwork/issues/666), [#667](https://github.com/mforce/cluckwork/issues/667)) ([e2f63d1](https://github.com/mforce/cluckwork/commit/e2f63d16f77cfca7b91f53aa062c2d811e867c1a))
+* **web:** the help text describes the date-range filters that shipped ([#666](https://github.com/mforce/cluckwork/issues/666), [#667](https://github.com/mforce/cluckwork/issues/667)) ([c3275b7](https://github.com/mforce/cluckwork/commit/c3275b7b939daf7fc40db3c30f690e997198087d))
+* **web:** the help text stops describing a cap the filters no longer have ([#666](https://github.com/mforce/cluckwork/issues/666), [#667](https://github.com/mforce/cluckwork/issues/667)) ([49654cd](https://github.com/mforce/cluckwork/commit/49654cd0bf8ebedde6b34026bd2bece83812ff1f))
+
 ## [0.0.4](https://github.com/mforce/cluckwork/compare/v0.0.3...v0.0.4) (2026-08-13)
 
 
