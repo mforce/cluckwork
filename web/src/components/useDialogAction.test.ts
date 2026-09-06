@@ -42,6 +42,35 @@ describe("useDialogAction", () => {
     expect(seen).toBe(false);
   });
 
+  it("supersedes the attempt on dismissal alone, with no reopen before it settles", async () => {
+    // codex, round 3 of #703 PR 1: every other dismissal test reopens before
+    // the write settles, and the open edge shares the dismiss edge's body — so
+    // a `dismissDialog` that did nothing survived the whole hook suite. The
+    // user who cancels and walks away is the common case; their stale success
+    // must find no session to act on, and their stale failure nowhere to land.
+    const { result } = renderHook(() => useDialogAction(DIALOGS));
+    act(() => result.current.openDialog("create"));
+    const gate = deferred<void>();
+    let seen: boolean | undefined;
+    let flight!: Promise<void | undefined>;
+    act(() => {
+      flight = result.current.run("create", async (current) => {
+        await gate.promise;
+        seen = current();
+        throw new Error("walked away");
+      });
+    });
+    act(() => result.current.dismissDialog("create")); // and never reopened
+    await act(async () => {
+      gate.resolve();
+      await flight;
+    });
+
+    expect(seen).toBe(false);
+    expect(result.current.errors.forDialog("create")).toBeUndefined();
+    expect(result.current.errors.page).toBeNull();
+  });
+
   it("keeps a claim current while nothing supersedes it", async () => {
     const { result } = renderHook(() => useDialogAction(DIALOGS));
     act(() => result.current.openDialog("create"));
