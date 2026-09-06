@@ -20,7 +20,7 @@
   - Exactly one new migration; `InitialCreate` untouched; `docs/schema/` regenerated in the same PR; `dotnet ef migrations has-pending-model-changes` clean (INV-6).
   - `dotnet build Cluckwork.sln` clean (warnings are errors) and `dotnet test Cluckwork.sln` green.
 - **Explicitly out of scope:**
-  - The 13 sibling `ThenBy(x => x.Id)` paging tiebreaks, and the `audit-events` export's `OrderBy(OccurredAtUtc).ThenBy(Id)` — reported in the diagnosis, not fixed here; changing the export's order would change an existing output contract.
+  - The 38 sibling `ThenBy(x => x.Id)` paging tiebreaks (across 16 files; an earlier count of "13" came from a truncated grep), and the `audit-events` export's `OrderBy(OccurredAtUtc).ThenBy(Id)` — reported in the diagnosis, not fixed here; changing the export's order would change an existing output contract.
   - Changing `AuditWriter`'s `Guid.NewGuid()` id, or the `Id` primary key.
   - Any change to what the SPA renders.
 - **Simplicity ceiling:** *One EF shadow property backed by one `bigint` identity column, replacing `Id` as the tiebreak in all five order clauses that carry one (`ListAsync`, and `created`/`creator`/`latest`/`promoted` in `GetProvenanceChunkAsync`).* Complexity budget: **7 files** — `AuditEventConfiguration.cs`, `AuditEventRepository.cs`, one new migration, `AppDbContextModelSnapshot.cs`, `docs/schema/public.AuditEvents.md`, `AuditProvenanceTests.cs`, and the issue/PR text. New concepts allowed: **none**. Non-goals: no domain-model change to `AuditEvent`, no new repository method, no new endpoint, no second migration.
@@ -42,7 +42,7 @@
 | Surface | Owning slice | Lands first | Forward-compat carried by |
 |---|---|---|---|
 | `AuditEvents` schema + `AuditEventRepository` ordering | **#508 (this slice)** | this slice | n/a — no sibling slice is in flight against this surface, verified against the open-issue list |
-| Sibling repository paging tiebreaks (13 sites) | none — reported, unowned | n/a — nothing lands, no slice claims them | n/a — not a defect; arbitrary-but-stable satisfies paging |
+| Sibling repository paging tiebreaks (38 sites across 16 files) | none — reported, unowned | n/a — nothing lands, no slice claims them | n/a — not a defect; arbitrary-but-stable satisfies paging |
 | `audit-events` export row order | none — reported, unowned | n/a — nothing lands, deliberately left alone | n/a — changing it would change an existing output contract |
 
 ## 5. Baseline
