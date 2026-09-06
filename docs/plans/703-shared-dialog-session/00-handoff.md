@@ -181,8 +181,8 @@ Screens must end the session at **both** dialog open **and** dismiss.
 
 ## 6. Traps
 
-Each of these has already cost a review round somewhere in
-#474 → #477 → #479 → #625 → #702.
+Each of these has already cost a review round somewhere in the chain
+`#474 → #477 → #479 → #625 → #702`.
 
 1. **`clearKey` is not a UI statement.** Gating it strands a spent idempotency
    key: the next attempt reuses it, the server replays the abandoned write, and
