@@ -14,6 +14,7 @@
 | Reason | varchar(500) |  | true |  |  |  |
 | DetailsJson | text |  | true |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -33,6 +34,7 @@
 | AuditEvents_EntityType_not_null | n | NOT NULL "EntityType" |
 | AuditEvents_Id_not_null | n | NOT NULL "Id" |
 | AuditEvents_OccurredAtUtc_not_null | n | NOT NULL "OccurredAtUtc" |
+| AuditEvents_Sequence_not_null | n | NOT NULL "Sequence" |
 | PK_AuditEvents | PRIMARY KEY | PRIMARY KEY ("Id") |
 
 ## Indexes
@@ -60,6 +62,7 @@ erDiagram
   varchar_500_ Reason
   text DetailsJson
   uuid AccountId
+  bigint Sequence
 }
 ```
 
