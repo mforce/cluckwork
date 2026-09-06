@@ -148,9 +148,11 @@ hide the class of defect this whole ticket exists to remove.
 
 ## 5. The hook to extract
 
-Source: `web/src/routes/SalesPage.tsx`, the `run` wrapper (search for
+Source **(pre-#704, kept for history)**: `web/src/routes/SalesPage.tsx`, the `run` wrapper (search for
 `const run = (scope: string, fn: (current: () => boolean) => Promise<void>)`).
-It already composes the three existing pieces:
+**Shipped (PR 1, #704):** that wrapper no longer exists in `SalesPage.tsx`; the extracted hook is
+`web/src/components/useDialogAction.ts`, and its `run` / `openDialog` / `dismissDialog` are what PRs 2–6
+migrate onto. The pre-#704 wrapper composed the three existing pieces:
 
 - `usePendingAction.run(scope, …)` — the in-flight guard (#236)
 - `useDialogErrors.beginAttempt` / `report` — failure routing (#479)
