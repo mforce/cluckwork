@@ -10,6 +10,8 @@ import { ApiError } from "../api/client";
 import { todayIso } from "../lib/dates";
 import i18n from "../i18n";
 import { NO_RECORD_HISTORY } from "../test/fixtures";
+import { readLastFlockId } from "../lib/flockDefault";
+import { bindAccount, clearBoundAccount } from "../auth/tokenStore";
 
 // WaterPage's only runtime deps on the API module are the four network fns it
 // imports; mock exactly those. ApiError stays real (../api/client, unmocked) so
@@ -55,6 +57,10 @@ const ADMIN = { sub: "u1", role: "Admin" };
 const WORKER = { sub: "u1" };
 
 beforeEach(() => {
+  // #646 — bindAccount below is module state; clear it so a bind in one
+  // test cannot make a later one read another farm's remembered flock.
+  clearBoundAccount();
+  localStorage.clear();
   vi.clearAllMocks();
   localStorage.clear();
   mockListFlocks.mockResolvedValue([FLOCK_A, FLOCK_B]);
@@ -145,6 +151,77 @@ describe("WaterPage record water", () => {
     expect(body.meterStart).toBeUndefined(); // direct quantity → no meter fields sent
     expect(body.meterEnd).toBeUndefined();
     expect(key).toEqual(expect.any(String)); // idempotency key
+  });
+
+  // #646 — "most recently used" has to include this screen. Before, a worker
+  // who only records water got the alphabetically first active flock every
+  // time, forever; now a successful save is what the next capture opens on,
+  // shared with Daily entry through the same account-scoped key.
+  it("remembers the flock a successful save recorded against", async () => {
+    // The remembered key is account-scoped (#535), so it answers null until a
+    // farm is bound — exactly as it does for a signed-out reader.
+    bindAccount("11111111-1111-1111-1111-111111111111");
+    mockRecordWaterUsage.mockResolvedValue({ id: "w9" });
+    await renderReadyForm(WORKER);
+
+    fireEvent.click(screen.getByRole("button", { name: /Hen House 1/ }));
+    fireEvent.click(await screen.findByRole("option", { name: "Coop 2" }));
+    fireEvent.change(screen.getByLabelText(/Quantity/), { target: { value: "10" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record water" }));
+    });
+    await screen.findByText("Water recorded.");
+
+    expect(readLastFlockId()).toBe("f2");
+  });
+
+  // #699 review — rememberFlockId stores an ID, and resetForm resolves an ID
+  // against the capped page. A flock reached through the picker from OUTSIDE
+  // that page was therefore remembered and then immediately not restored: the
+  // form fell back to the mount-time default. The saved entity is cached so
+  // the next capture opens on what was just recorded.
+  it("restores the just-saved flock even when it is outside the capped page", async () => {
+    bindAccount("11111111-1111-1111-1111-111111111111");
+    mockRecordWaterUsage.mockResolvedValue({ id: "w9" });
+    await renderReadyForm(WORKER);
+
+    // Off-page: the picker's own discovery finds it, the page list does not.
+    const OFF_PAGE: Flock = {
+      ...NO_RECORD_HISTORY,
+      id: "f-far", farmId: "farm1", houseId: "h1", name: "Zulu Coop", breed: "ISA",
+      placementDate: "2026-01-01", initialCount: 50, currentBirds: 50, status: "Active",
+    };
+    mockListFlocks.mockResolvedValue([OFF_PAGE]);
+    fireEvent.click(screen.getByRole("button", { name: /Hen House 1/ }));
+    fireEvent.click(await screen.findByRole("option", { name: "Zulu Coop" }));
+    fireEvent.change(screen.getByLabelText(/Quantity/), { target: { value: "10" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record water" }));
+    });
+    await screen.findByText("Water recorded.");
+
+    // The reset form is back on the flock just recorded, not the mount default.
+    expect(screen.getByRole("button", { name: /Zulu Coop/ })).toBeInTheDocument();
+  });
+
+  // …and a REFUSED save must not: the next capture should not open on a flock
+  // whose record was never written.
+  it("does not remember the flock when the save fails", async () => {
+    bindAccount("11111111-1111-1111-1111-111111111111");
+    mockRecordWaterUsage.mockRejectedValue(new ApiError(409, "Conflict", "nope"));
+    await renderReadyForm(WORKER);
+
+    fireEvent.click(screen.getByRole("button", { name: /Hen House 1/ }));
+    fireEvent.click(await screen.findByRole("option", { name: "Coop 2" }));
+    fireEvent.change(screen.getByLabelText(/Quantity/), { target: { value: "10" } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record water" }));
+    });
+
+    expect(readLastFlockId()).toBeNull();
   });
 
   it("records meter readings: sends meterStart/meterEnd and omits quantity", async () => {
@@ -445,6 +522,33 @@ describe("WaterPage lifecycle (#512 T031/T037)", () => {
   // fabricated path would have requested one) and no spliced entity. The test
   // waits for the includeArchived list to resolve before clicking correct, so
   // startEdit sees the populated flocks array.
+  // #699 review — correcting a row whose flock is ARCHIVED must not leave that
+  // flock as the remembered "most recently used" one: nothing can be recorded
+  // against it, so the next capture would open on a dead default. The write is
+  // gated on the committed capture entity's status, not on the id alone.
+  it("does not remember an archived flock after correcting its row", async () => {
+    bindAccount("11111111-1111-1111-1111-111111111111");
+    mockListWaterUsage.mockResolvedValue([ARCHIVED_ROW]);
+    mockUpdateWaterUsage.mockResolvedValue(undefined);
+    mockListFlocks.mockImplementation(async (p?: { includeArchived?: boolean }) =>
+      (p?.includeArchived ? [FLOCK_A, ARCHIVED] : [FLOCK_A]));
+    renderWithProviders(<WaterPage />, { token: ADMIN });
+
+    const correctBtn = await screen.findByRole("button", { name: i18n.t("water:correctButton") });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: flockTriggerName(FLOCK_A.name) })).toBeInTheDocument();
+    });
+    fireEvent.click(correctBtn);
+    await screen.findByRole("button", { name: flockTriggerName(ARCHIVED_ROW.flockName) });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: i18n.t("water:saveCorrectionButton") }));
+    });
+    await screen.findByText(i18n.t("water:recordCorrectedMessage"));
+
+    expect(readLastFlockId()).toBeNull();
+  });
+
   it("edit of a row whose flock is in the loaded list admits that full entity as-is — no exact GET, no fabricated splice", async () => {
     mockListWaterUsage.mockResolvedValue([ARCHIVED_ROW]);
     // The page's includeArchived load carries both the active default and the

@@ -2612,6 +2612,12 @@ export const en = {
 
     // Daily entry
     dailyEntryHeading: "Daily entry",
+    // #646 — which flock the screen opens on.
+    dailyEntryDefaultFlock:
+      "The screen opens on the flock you last recorded against — Daily entry and Water share that "
+      + "memory, per farm, on this device. With nothing remembered it opens on the first active flock; "
+      + "a depleted one is selected by default only when the farm has no active flock — the picker still "
+      + "offers them either way.",
     dailyEntryPanes:
       "Pick the flock and date at the top, then work through two panes side by side: <strong>1 Egg "
       + "counts</strong> (total, cracked, dirty, discarded, deaths) and <strong>2 Grading</strong>. The counts "

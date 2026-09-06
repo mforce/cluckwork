@@ -19,6 +19,15 @@ counts from here; laying performance is judged against age.
 **Current birds** — `initial count − Σ bird movements`. Computed from the
 ledger, never stored.
 
+**Default flock (#646)** — which flock a capture screen opens on. Daily entry
+and Water both open on the flock you last recorded against (remembered per
+farm, in this browser), falling back to the first *active* flock by name, and
+to a depleted one only when the farm has no active flock at all — a farm
+between flocks still opens on something rather than an empty picker. The user-assignment dialog deliberately has
+**no** default: it grants a user scope over the flock it names, so an
+arbitrary preselection would be a permission nobody chose. Archived flocks are
+never a default anywhere.
+
 **Bird movement** — one row in the append-only bird ledger. Types:
 
 - **Mortality** — birds that died on their own. Generated automatically when a

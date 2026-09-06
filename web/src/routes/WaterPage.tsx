@@ -10,6 +10,7 @@ import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { EmptyState } from "../components/EmptyState";
+import { readLastFlockId, rememberFlockId, resolveDefaultFlock } from "../lib/flockDefault";
 import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { usePagedList } from "../components/usePagedList";
@@ -109,6 +110,9 @@ export function WaterPage() {
   // the closure-staleness problem: the effect's .then() reads the ref's
   // current value at resolution time, not the mount-time value.
   const defaultGenRef = useRef(0);
+  // #646 — what the mount-time resolution settled on, so the synchronous
+  // resetForm can restore the same flock without a round trip.
+  const defaultFlockRef = useRef<Flock | null>(null);
 
   // Stable idempotency keys per logical mutation, rotated only after the full
   // action (write + refresh) succeeds — same contract as the other screens.
@@ -153,7 +157,7 @@ export function WaterPage() {
   useEffect(() => {
     const gen = defaultGenRef.current;
     listFlocks({ includeArchived: true })
-      .then((all) => {
+      .then(async (all) => {
         // Display names need archived too, so keep the full list for the
         // records table; the picker's discovery owns the capture options.
         setFlocks(all);
@@ -169,10 +173,23 @@ export function WaterPage() {
         // resolution time: if startEdit or resetForm incremented it, this
         // default is stale and must stand down.
         if (defaultGenRef.current !== gen) return;
-        const firstActive = all.find((f) => f.status === "Active")
-          ?? all.find((f) => f.status === "Depleted");
-        if (firstActive) {
-          setCaptureFlock(firstActive);
+        // #646 — the default is resolved rather than scanned off this page:
+        // `listFlocks` answers 100 rows ordered by NAME, so on a big farm the
+        // old scan defaulted to whatever happened to be alphabetically early.
+        // resolveDefaultFlock prefers the flock this user last recorded
+        // against (shared with Daily entry), then the first ACTIVE one, and
+        // only then a depleted one.
+        const resolved = await resolveDefaultFlock(all);
+        // The gen token is re-read AFTER the await, not just before it: the
+        // resolution can now take a round trip, and startEdit or resetForm
+        // may have committed a different flock inside that window. Checking
+        // only on entry would let this late default overwrite the row the
+        // user is correcting — the exact failure the pre-await check exists
+        // to prevent, reintroduced by making the work asynchronous.
+        if (defaultGenRef.current !== gen) return;
+        defaultFlockRef.current = resolved;
+        if (resolved) {
+          setCaptureFlock(resolved);
           setCaptureFlockGen((g) => g + 1);
         }
       })
@@ -213,10 +230,18 @@ export function WaterPage() {
     // Fresh capture: drop any row-owned id still in exact resolution so a
     // late GET for the row's flock can never commit over the new default.
     setCaptureFlockRequestId(null);
-    const firstActive = flocks.find((f) => f.status === "Active")
+    // #646 — the SAME flock the mount-time resolution chose, held in a ref.
+    // resetForm is synchronous by design (it runs inside the save/cancel
+    // gesture), so it reuses that answer rather than starting a round trip
+    // inside a user action; the page-scan fallback is what remains for the
+    // window before the mount resolution lands.
+    const remembered = readLastFlockId();
+    const restored = (remembered ? flocks.find((f) => f.id === remembered) : null)
+      ?? defaultFlockRef.current
+      ?? flocks.find((f) => f.status === "Active")
       ?? flocks.find((f) => f.status === "Depleted");
-    if (firstActive) {
-      setCaptureFlock(firstActive);
+    if (restored) {
+      setCaptureFlock(restored);
       setCaptureFlockGen((g) => g + 1);
     }
   }
@@ -300,6 +325,23 @@ export function WaterPage() {
           }
         });
         clearKey(scope);
+        // #646 — "most recently used" has to include THIS screen, or a worker
+        // who only records water would keep getting the alphabetically first
+        // active flock forever. Written after the save succeeds, so a refused
+        // write never changes what the next capture opens on. Daily entry
+        // reads the same key.
+        //
+        // #699 review — two things this has to get right. An ARCHIVED flock is
+        // never a default (a correction of an archived row commits one as the
+        // capture flock), so it is neither remembered nor cached. And the
+        // just-saved entity is cached for resetForm: `rememberFlockId` stores
+        // only an ID, and resetForm resolves an ID against the capped page —
+        // so a flock the user reached through the picker from OUTSIDE that
+        // page would be remembered and then immediately not restored.
+        if (captureFlock && captureFlock.status !== "Archived") {
+          rememberFlockId(flockId);
+          defaultFlockRef.current = captureFlock;
+        }
         resetForm();
       } catch (err) {
         setError(errText(err));

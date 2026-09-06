@@ -2159,6 +2159,11 @@ export const tl = {
       + "ito ng popup, pinapanatili ang anumang na-type mo na.",
 
     dailyEntryHeading: "Araw-araw na Tala",
+    dailyEntryDefaultFlock:
+      "Bumubukas ang screen sa kawan na huli mong tinalaan — magkatulad ang memoryang ito ng Daily entry "
+      + "at Tubig, bawat bukid, sa device na ito. Kapag walang naaalala, bumubukas ito sa unang aktibong "
+      + "kawan; pinipili lang bilang default ang depleted kapag walang aktibong kawan ang bukid — nasa "
+      + "picker pa rin ang mga ito sa alinmang kaso.",
     dailyEntryPanes:
       "Piliin ang kawan at petsa sa itaas, pagkatapos ay magtrabaho sa dalawang panel nang magkatabi: "
       + "<strong>1 Bilang ng itlog</strong> (kabuuan, basag, marumi, tinapon, namatay) at <strong>2 "
