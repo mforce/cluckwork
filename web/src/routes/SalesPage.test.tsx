@@ -1420,6 +1420,56 @@ describe("SalesPage in-dialog errors (#474)", () => {
     expect(screen.getAllByText("Order date cannot be in the future.")).toHaveLength(1);
   });
 
+  // codex review of this branch. Both of these are about MONEY, which is why
+  // they are pinned rather than argued about.
+  it("still announces a payment that succeeded after its dialog was abandoned", async () => {
+    // #477 calls this message "stray". It is not: the money was recorded.
+    // Withholding the confirmation because the user closed the dialog leaves
+    // them believing it did not happen, and the likely next act is paying twice.
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "BHD", currencyMinorUnit: 3,
+    });
+    await openOrder(
+      { ...draftEmpty(3, "BHD", "o9"), referenceNumber: "SO-9", status: "Confirmed", totalMinorUnits: 12000, items: [ITEM_A] },
+      /Grade A Dozen/);
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+
+    let resolvePay!: (v: unknown) => void;
+    mockRecordPayment.mockReturnValueOnce(new Promise((res) => { resolvePay = res; }) as never);
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "5" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => { resolvePay({}); });
+
+    expect(screen.getByText("Payment recorded.")).toBeInTheDocument(); // the catalogue string ends in a period
+  });
+
+  it("starts a new payment session with an empty amount", async () => {
+    // An attempt abandoned and then succeeded leaves its amount in the field
+    // otherwise — ready to be sent again under a fresh key, which is a second
+    // payment of money already taken.
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "BHD", currencyMinorUnit: 3,
+    });
+    await openOrder(
+      { ...draftEmpty(3, "BHD", "o9"), referenceNumber: "SO-9", status: "Confirmed", totalMinorUnits: 12000, items: [ITEM_A] },
+      /Grade A Dozen/);
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+
+    let resolvePay!: (v: unknown) => void;
+    mockRecordPayment.mockReturnValueOnce(new Promise((res) => { resolvePay = res; }) as never);
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "5" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => { resolvePay({}); });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+
+    expect(within(dialog()).getByLabelText(/Amount/)).toHaveValue(null);
+  });
+
   it("shows a failed payment inside the payment dialog", async () => {
     mockListOrderPayments.mockResolvedValue({
       items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
@@ -1635,6 +1685,34 @@ describe("SalesPage in-dialog errors (#474)", () => {
     // vacuous before this was corrected.
     expect(screen.queryByText(/SO-2/)).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).toBeInTheDocument();
+  });
+
+  // codex review of this branch: the key was released only AFTER the follow-up
+  // read, which can fail. A succeeded POST plus a failed GET therefore stranded
+  // a spent key, and the next order replayed the first one — the customer the
+  // user actually chose never got an order. The payment path already states
+  // this rule ("the key rotates the moment the WRITE lands", #90); create-order
+  // did not follow it.
+  it("releases the idempotency key when the write succeeds but the follow-up read fails", async () => {
+    await renderReady();
+    mockCreateOrder.mockResolvedValueOnce({ id: DRAFT_TWO.id } as never);
+    mockGetOrder.mockRejectedValueOnce(new ApiError(500, "Server error", "read failed"));
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+    const spentKey = mockCreateOrder.mock.calls[0][1];
+
+    mockCreateOrder.mockResolvedValueOnce({ id: "o9" } as never);
+    mockGetOrder.mockResolvedValueOnce(DRAFT_TWO as never);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    expect(mockCreateOrder).toHaveBeenCalledTimes(2);
+    expect(mockCreateOrder.mock.calls[1][1]).not.toBe(spentKey);
   });
 
   // The POST succeeded, so the attempt is spent whether or not anyone is still

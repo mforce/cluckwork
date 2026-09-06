@@ -495,6 +495,12 @@ export function SalesPage() {
     // made while it is in flight keeps the view (#469).
     await orders.runWrite(async () => {
       const created = await createOrder({ customerId: customer.id, orderDate }, keyFor("create-order"));
+      // The key rotates the moment the WRITE lands — the same rule the payment
+      // path states (#90). Releasing it after the follow-up read instead left a
+      // spent key stranded whenever that read failed, and the next order then
+      // replayed this one, so the customer the user actually chose never got
+      // an order (codex review of this branch).
+      clearKey("create-order");
       // Superseded: the order exists and the list write stands, but the panel
       // belongs to whatever session is on screen now (#477).
       if (!current()) return;
@@ -507,10 +513,6 @@ export function SalesPage() {
       if (!current()) return;
       setActive(loaded);
     });
-    // Released whether or not anyone is still watching: `keys` holds one entry
-    // per scope until cleared, so a spent key left behind makes the NEXT order
-    // replay this one and the customer the user actually chose never gets one.
-    clearKey("create-order");
     if (!current()) return;
     setNewOrderCustomerPickerOpen(false);
     setCreatingOrder(false); // only on success — a throw keeps the dialog up
@@ -643,18 +645,24 @@ export function SalesPage() {
     // (codex review of #90). The form reset before the refresh (#88 review)
     // covers the duplicate-resubmit direction.
     clearKey(scope);
-    // The resets and the refresh keep the order #88 put them in. What changes
-    // is that a SUPERSEDED attempt does not reset fields the user has since
-    // typed into, and does not announce or close a session that is not its own
-    // (#477). The refresh is unconditional: the money is recorded either way.
+    // The resets and the refresh keep the order #88 put them in. A SUPERSEDED
+    // attempt skips the resets, because the fields now belong to a session the
+    // user is typing into; opening the dialog clears them instead, so the spent
+    // values cannot be resubmitted under a fresh key (codex review).
     if (current()) {
       setPayAmount("");
       setPayRef("");
       setPayNote("");
     }
     await refreshPayments(active.id);
-    if (!current()) return;
+    // NOT gated, deliberately, and this is where #477's own wording is wrong:
+    // it calls the message "stray". The money was recorded. Withholding the
+    // confirmation because the user closed the dialog leaves them believing it
+    // did not happen, and the likely next act is paying twice. The message is
+    // page-owned and renders outside the dialog, so it has somewhere honest to
+    // land whether or not that session still exists (codex review).
     setMessage(i18n.t("sales:paymentRecorded"));
+    if (!current()) return;
     setPaying(false); // only on success — a throw keeps the dialog up
   });
 
@@ -994,6 +1002,13 @@ export function SalesPage() {
                 <div className="panel-actions">
                   <button type="button" onClick={() => {
                     setPayDate(today);
+                    // A new session starts clean: an earlier attempt that
+                    // succeeded after being abandoned leaves its amount in
+                    // place otherwise, ready to be sent again under a fresh
+                    // key — a duplicate payment (codex review).
+                    setPayAmount("");
+                    setPayRef("");
+                    setPayNote("");
                     session.begin("record-payment"); // a new session — see #477
                     setPaying(true);
                   }}>
