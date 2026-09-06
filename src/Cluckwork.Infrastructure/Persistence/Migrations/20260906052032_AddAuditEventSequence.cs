@@ -38,6 +38,13 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
             // table and column are both mixed-case; unquoted they fold to
             // lowercase and resolve to nothing.
             //
+            // "Sequence" is GLOBAL, not per-account: one counter for the whole
+            // table, so values interleave across farms and the gaps any single
+            // farm sees are other farms rows. That is deliberate — it is only
+            // ever compared INSIDE a query that has already filtered on
+            // "AccountId", and it reaches no API response, export or screen. Do
+            // not reach for it as a per-farm revision or invoice number.
+            //
             // This rewrites the table under ACCESS EXCLUSIVE. So does the
             // scaffolded one-liner — the identity column assigns a per-row value
             // either way — so the sort is the only added cost, and `migrate`
