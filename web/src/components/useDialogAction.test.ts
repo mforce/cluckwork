@@ -163,7 +163,7 @@ describe("useDialogAction", () => {
     await expect(failed).resolves.toBeUndefined();
   });
 
-  it("calls onAttempt once per attempt that actually runs, after the claim", async () => {
+  it("calls onAttempt once per attempt that actually runs", async () => {
     let calls = 0;
     const { result } = renderHook(() => useDialogAction(DIALOGS, { onAttempt: () => { calls += 1; } }));
     await act(async () => {
@@ -184,6 +184,24 @@ describe("useDialogAction", () => {
       await flight;
     });
     expect(calls).toBe(2);
+  });
+
+  it("claims the session before onAttempt runs, so an onAttempt that ends the session supersedes the attempt", async () => {
+    // codex, round 1 of #703 PR 1: the test above only counts calls, so moving
+    // `onAttempt` ahead of the claim left every assertion green. The order is
+    // observable exactly one way — an onAttempt that itself ends the session
+    // (a screen resetting the dialog it is about) must leave THIS attempt
+    // superseded, rather than letting the attempt claim the session it created.
+    let api: ReturnType<typeof useDialogAction> | undefined;
+    const { result } = renderHook(() =>
+      useDialogAction(DIALOGS, { onAttempt: () => api?.openDialog("create") }));
+    api = result.current;
+    let seen: boolean | undefined;
+    await act(async () => {
+      await result.current.run("create", async (current) => { seen = current(); });
+    });
+
+    expect(seen).toBe(false);
   });
 
   it("ends the session on open as well as on dismiss", async () => {
