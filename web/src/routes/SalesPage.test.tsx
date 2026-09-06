@@ -1470,6 +1470,32 @@ describe("SalesPage in-dialog errors (#474)", () => {
     expect(within(dialog()).getByLabelText(/Amount/)).toHaveValue(null);
   });
 
+  it("starts a new payment session with the default method", async () => {
+    // CodeRabbit: the method is as much part of the abandoned attempt as the
+    // amount. Clearing three of the four fields leaves the next payment
+    // preselected with a method it was never given.
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,
+      currencyCode: "BHD", currencyMinorUnit: 3,
+    });
+    await openOrder(
+      { ...draftEmpty(3, "BHD", "o9"), referenceNumber: "SO-9", status: "Confirmed", totalMinorUnits: 12000, items: [ITEM_A] },
+      /Grade A Dozen/);
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+
+    let resolvePay!: (v: unknown) => void;
+    mockRecordPayment.mockReturnValueOnce(new Promise((res) => { resolvePay = res; }) as never);
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "5" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Method/), { target: { value: "BankTransfer" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => { resolvePay({}); });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+
+    expect(within(dialog()).getByLabelText(/Method/)).toHaveValue("Cash");
+  });
+
   it("shows a failed payment inside the payment dialog", async () => {
     mockListOrderPayments.mockResolvedValue({
       items: [], paidMinorUnits: 0, outstandingMinorUnits: 12000, totalMinorUnits: 12000,

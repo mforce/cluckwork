@@ -252,7 +252,10 @@ export function SalesPage() {
   const [payments, setPayments] = useState<OrderPayments | null>(null);
   const [payDate, setPayDate] = useState(today);
   const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState("Cash");
+  // Named once: the initial value and the new-session reset below must not
+  // drift apart, which is exactly what two "Cash" literals would allow.
+  const DEFAULT_PAY_METHOD = "Cash";
+  const [payMethod, setPayMethod] = useState(DEFAULT_PAY_METHOD);
   const [payRef, setPayRef] = useState("");
   const [payNote, setPayNote] = useState("");
 
@@ -1009,6 +1012,10 @@ export function SalesPage() {
                     setPayAmount("");
                     setPayRef("");
                     setPayNote("");
+                    // The method too (CodeRabbit): it is as much part of the
+                    // abandoned attempt as the amount, and leaving it behind
+                    // preselects a method this payment was never given.
+                    setPayMethod(DEFAULT_PAY_METHOD);
                     session.begin("record-payment"); // a new session — see #477
                     setPaying(true);
                   }}>
