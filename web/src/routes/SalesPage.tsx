@@ -21,11 +21,9 @@ import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { EmptyState } from "../components/EmptyState";
 import { ProvenanceCell } from "../components/ProvenanceCell";
-import { useDialogErrors } from "../components/useDialogErrors";
+import { useDialogAction } from "../components/useDialogAction";
 import { useConfirm } from "../components/useConfirm";
 import { usePagedList } from "../components/usePagedList";
-import { usePendingAction } from "../components/usePendingAction";
-import { useDialogSession } from "../components/useDialogSession";
 import { StatusBadge } from "../components/StatusBadge";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { newId } from "../lib/ids";
@@ -50,11 +48,6 @@ const isSellingUnit = (u: string): u is SellingUnit =>
 // module — method was deliberately left out of enums in Task 4 because it
 // already carries es/tl translations in the `sales` namespace (#182).
 type PaymentMethod = "Cash" | "Check" | "Card" | "BankTransfer" | "MobilePayment" | "Other";
-
-function errText(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
-  return err instanceof Error ? err.message : String(err);
-}
 
 // #512 US5 (T057, FR-046/048) — the canonical 8-4-4-4-12 GUID shape,
 // case-insensitive on input, normalized to lowercase on output. A malformed
@@ -209,11 +202,6 @@ export function SalesPage() {
   const [editQty, setEditQty] = useState(1);
   const [editPrice, setEditPrice] = useState("0");
 
-  // #236 — the shared flight guard (the hook's internal ref replaced the old
-  // inFlight ref here). `busy` inerts every trigger; isPending(scope) spins
-  // exactly the clicked one, so a row with two verbs never lies about which
-  // is working.
-  const { busy, isPending, run: runPending } = usePendingAction();
   // Idempotency keys bound to (action, target) and rotated ONLY after the whole
   // action (write + refresh) succeeds: a retry after any failure — including a
   // lost response or a failed follow-up read — replays the same key, so the
@@ -228,24 +216,20 @@ export function SalesPage() {
   };
   const clearKey = (scope: string) => keys.current.delete(scope);
 
-  // One slot per PLACE a message can appear: the page, and each dialog by
-  // scope. Sales learned every rule of this the hard way over four review
-  // rounds (#474 → #477 → #480 → #481); #479 extracted the result into
-  // useDialogErrors once the same one-shared-slot shape turned up on ten other
-  // screens. The rules and the incidents that earned them live with the hook —
-  // Sales-specific is only WHICH scopes own a dialog.
-  const errors = useDialogErrors();
-  // #477 part 2 — the session generation. `errors` stops an abandoned attempt
-  // REPORTING; this stops one still in flight from acting on the session that
-  // replaced it when it SUCCEEDS.
-  const session = useDialogSession();
+  const [message, setMessage] = useState<string | null>(null);
+  // #703 — the flight guard (#236), the per-place message slots (#479) and the
+  // dialog-session generation (#477 part 2) are composed by one shared hook.
+  // Sales learned every rule of this the hard way over five review rounds
+  // (#474 → #477 → #479 → #625 → #702); the rules and the incidents that
+  // earned them live with the hook. Sales-specific is only WHICH scopes own a
+  // dialog, and that the page-level success message clears on each attempt.
+  const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(
+    ["create-order", "record-payment"],
+    { onAttempt: () => setMessage(null) },
+  );
   // Pulled out for the payments effect's dependency list: both are stable, and
   // naming them is what lets that effect declare its real dependencies.
   const { abandon: abandonError, setPage: setPageError } = errors;
-  // The scopes that own a dialog. run() routes a failure by this and nothing
-  // else, so a new dialog action is one entry, not a new render condition.
-  const DIALOG_SCOPES = ["create-order", "record-payment"];
-  const [message, setMessage] = useState<string | null>(null);
 
   // Payments (#89, admin-only money data) — settlement state of the open
   // confirmed order.
@@ -442,52 +426,23 @@ export function SalesPage() {
     return v;
   };
 
-  // Rebased on usePendingAction (#236), gaining the scope parameter the old
-  // scopeless helper lacked. Pending scopes are independent of the idempotency
-  // key scopes built inside each action (nothing couples the two). The helper
-  // also wraps two READS — "open:<id>" and "more" — which keep the flight
-  // guard but deliberately get no BusyButton treatment (#236 is writes).
-  const run = (scope: string, fn: (current: () => boolean) => Promise<void>) =>
-    runPending(scope, async () => {
-      // The slot this attempt owns — its dialog's, or the page's. Everything
-      // that is not a dialog's belongs to the page, so one lookup decides both
-      // where the attempt clears and where its verdict lands.
-      const slot = DIALOG_SCOPES.includes(scope) ? scope : null;
-      // Its own slot only, and un-muted: a dialog write must not wipe a page
-      // failure the user has not seen, and abandoning one attempt must not
-      // mute the next.
-      errors.beginAttempt(slot);
-      // Claimed BEFORE anything awaits, so it names the session the user was in
-      // when they asked. A non-dialog scope has no session to be superseded by,
-      // so it is always current.
-      const claimed = slot === null ? 0 : session.claim(slot);
-      const current = () => slot === null || session.isCurrent(slot, claimed);
-      setMessage(null);
-      try {
-        await fn(current);
-      } catch (err) {
-        // Dropped outright if the user gave up on this one — Cancel stays live
-        // during `busy`, and Escape and the backdrop dismiss too (#474, and
-        // the codex + pi review of #476). `report` owns that decision.
-        errors.report(slot, errText(err));
-      }
-    });
-
-  // #474 — dismissing empties the dialog's slot, so reopening the form shows no
-  // stale verdict, and mutes the attempt still out, so its failure is not
-  // reported against the session the user opens next. Both live in `abandon`.
-  const dismiss = (scope: string, setOpen: (open: boolean) => void) => {
-    setOpen(false);
-    errors.abandon(scope);
-    // Ends the session too: an attempt still out belongs to the one just
-    // dismissed, so its success must not act on whatever replaces it (#477).
-    session.begin(scope);
-  };
+  // `run` (from useDialogAction) also wraps two READS — "open:<id>" and "more"
+  // — which keep the flight guard but deliberately get no BusyButton treatment
+  // (#236 is writes). Pending scopes are independent of the idempotency key
+  // scopes built inside each action (nothing couples the two).
+  //
+  // Closing a dialog is the screen's state; the two bookkeeping calls that end
+  // its session and mute its attempt are the hook's (`dismissDialog`). Cancel
+  // stays live during `busy`, and Escape and the backdrop dismiss too (#474).
   const closeNewOrder = () => {
     setNewOrderCustomerPickerOpen(false);
-    dismiss("create-order", setCreatingOrder);
+    setCreatingOrder(false);
+    dismissDialog("create-order");
   };
-  const closePayment = () => dismiss("record-payment", setPaying);
+  const closePayment = () => {
+    setPaying(false);
+    dismissDialog("record-payment");
+  };
 
   const onCreateOrder = () => run("create-order", async (current) => {
     // #512 (T039) — the handler's own guard: canSubmit is the write-safety
@@ -745,7 +700,7 @@ export function SalesPage() {
             // dismissal, so the slot is already empty before a reopen.
             setOrderDate(today);
             setNewOrderCustomerPickerOpen(true);
-            session.begin("create-order"); // a new session — see #477
+            openDialog("create-order"); // a new session — see #477
             setCreatingOrder(true);
           }}>
             <Plus size={16} aria-hidden /> {t("newOrder")}
@@ -1016,7 +971,7 @@ export function SalesPage() {
                     // abandoned attempt as the amount, and leaving it behind
                     // preselects a method this payment was never given.
                     setPayMethod(DEFAULT_PAY_METHOD);
-                    session.begin("record-payment"); // a new session — see #477
+                    openDialog("record-payment"); // a new session — see #477
                     setPaying(true);
                   }}>
                     {t("recordPayment")}
@@ -1196,7 +1151,7 @@ export function SalesPage() {
                 onClick: () => {
                   setOrderDate(today);
                   setNewOrderCustomerPickerOpen(true);
-                  session.begin("create-order"); // a new session — see #477
+                  openDialog("create-order"); // a new session — see #477
                   setCreatingOrder(true);
                 },
               } : undefined} />
