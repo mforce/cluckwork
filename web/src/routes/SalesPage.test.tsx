@@ -1577,6 +1577,61 @@ describe("SalesPage in-dialog errors (#474)", () => {
     expect(screen.queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
   });
 
+  // #477 part 2 — the abandonment marker covers the FAILURE path only. A stale
+  // SUCCESS still ran its side effects unconditionally: it swapped the order
+  // panel to the abandoned attempt's order and force-closed the dialog the user
+  // had reopened and was typing into, discarding what they had entered.
+  it("does not let an abandoned attempt's success hijack the session that replaced it", async () => {
+    await renderReady();
+    let resolveCreate!: (v: { id: string }) => void;
+    mockCreateOrder.mockReturnValueOnce(new Promise((res) => { resolveCreate = res; }) as never);
+    mockGetOrder.mockResolvedValue(DRAFT_TWO);
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" })); // second session
+    await act(async () => { resolveCreate({ id: DRAFT_TWO.id }); });
+
+    // The session the user is in must survive its predecessor landing.
+    expect(screen.queryByRole("dialog")).toBeInTheDocument();
+    // …and the panel must not have been swapped to the order they gave up on.
+    // Asserted on the READ rather than on rendered text: `setActive` lands in a
+    // state update that has not necessarily flushed by the time this line runs,
+    // so a `queryByText` here passes while the swap is still queued — it let the
+    // panel-swap mutant survive until a diagnostic caught the fetch happening
+    // anyway. The fetch is the earliest deterministic evidence of the swap.
+    expect(mockGetOrder).not.toHaveBeenCalled();
+  });
+
+  // The POST succeeded, so the attempt is spent whether or not anyone is still
+  // watching. Its idempotency key MUST be released: `keys` holds one entry per
+  // scope until cleared, so a gate that skipped `clearKey` would make the next
+  // order reuse a spent key — the server replays the abandoned order and the
+  // customer the user actually chose never gets one.
+  it("releases the idempotency key when an abandoned attempt succeeds", async () => {
+    await renderReady();
+    let resolveCreate!: (v: { id: string }) => void;
+    mockCreateOrder.mockReturnValueOnce(new Promise((res) => { resolveCreate = res; }) as never);
+    mockGetOrder.mockResolvedValue(DRAFT_TWO);
+
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => { resolveCreate({ id: DRAFT_TWO.id }); });
+
+    const abandonedKey = mockCreateOrder.mock.calls[0][1];
+    mockCreateOrder.mockResolvedValueOnce({ id: "o9" } as never);
+    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
+    });
+
+    expect(mockCreateOrder).toHaveBeenCalledTimes(2);
+    expect(mockCreateOrder.mock.calls[1][1]).not.toBe(abandonedKey);
+  });
+
   it("reports the next attempt after an abandoned one", async () => {
     // The abandonment is per-attempt, not permanent: reopening and failing
     // again must still say so, or the first Cancel would mute the dialog for

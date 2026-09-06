@@ -25,6 +25,7 @@ import { useDialogErrors } from "../components/useDialogErrors";
 import { useConfirm } from "../components/useConfirm";
 import { usePagedList } from "../components/usePagedList";
 import { usePendingAction } from "../components/usePendingAction";
+import { useDialogSession } from "../components/useDialogSession";
 import { StatusBadge } from "../components/StatusBadge";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { newId } from "../lib/ids";
@@ -234,6 +235,10 @@ export function SalesPage() {
   // screens. The rules and the incidents that earned them live with the hook —
   // Sales-specific is only WHICH scopes own a dialog.
   const errors = useDialogErrors();
+  // #477 part 2 — the session generation. `errors` stops an abandoned attempt
+  // REPORTING; this stops one still in flight from acting on the session that
+  // replaced it when it SUCCEEDS.
+  const session = useDialogSession();
   // Pulled out for the payments effect's dependency list: both are stable, and
   // naming them is what lets that effect declare its real dependencies.
   const { abandon: abandonError, setPage: setPageError } = errors;
@@ -439,7 +444,7 @@ export function SalesPage() {
   // key scopes built inside each action (nothing couples the two). The helper
   // also wraps two READS — "open:<id>" and "more" — which keep the flight
   // guard but deliberately get no BusyButton treatment (#236 is writes).
-  const run = (scope: string, fn: () => Promise<void>) =>
+  const run = (scope: string, fn: (current: () => boolean) => Promise<void>) =>
     runPending(scope, async () => {
       // The slot this attempt owns — its dialog's, or the page's. Everything
       // that is not a dialog's belongs to the page, so one lookup decides both
@@ -449,9 +454,14 @@ export function SalesPage() {
       // failure the user has not seen, and abandoning one attempt must not
       // mute the next.
       errors.beginAttempt(slot);
+      // Claimed BEFORE anything awaits, so it names the session the user was in
+      // when they asked. A non-dialog scope has no session to be superseded by,
+      // so it is always current.
+      const claimed = slot === null ? 0 : session.claim(slot);
+      const current = () => slot === null || session.isCurrent(slot, claimed);
       setMessage(null);
       try {
-        await fn();
+        await fn(current);
       } catch (err) {
         // Dropped outright if the user gave up on this one — Cancel stays live
         // during `busy`, and Escape and the backdrop dismiss too (#474, and
@@ -466,6 +476,9 @@ export function SalesPage() {
   const dismiss = (scope: string, setOpen: (open: boolean) => void) => {
     setOpen(false);
     errors.abandon(scope);
+    // Ends the session too: an attempt still out belongs to the one just
+    // dismissed, so its success must not act on whatever replaces it (#477).
+    session.begin(scope);
   };
   const closeNewOrder = () => {
     setNewOrderCustomerPickerOpen(false);
@@ -473,7 +486,7 @@ export function SalesPage() {
   };
   const closePayment = () => dismiss("record-payment", setPaying);
 
-  const onCreateOrder = () => run("create-order", async () => {
+  const onCreateOrder = () => run("create-order", async (current) => {
     // #512 (T039) — the handler's own guard: canSubmit is the write-safety
     // boundary (a disabled button alone is not). An exploring/uninitialized
     // or unavailable picker must not ship a stale committed id.
@@ -482,9 +495,16 @@ export function SalesPage() {
     // made while it is in flight keeps the view (#469).
     await orders.runWrite(async () => {
       const created = await createOrder({ customerId: customer.id, orderDate }, keyFor("create-order"));
+      // Superseded: the order exists and the list write stands, but the panel
+      // belongs to whatever session is on screen now (#477).
+      if (!current()) return;
       setActive(await getOrder(created.id));
     });
+    // Released whether or not anyone is still watching: `keys` holds one entry
+    // per scope until cleared, so a spent key left behind makes the NEXT order
+    // replay this one and the customer the user actually chose never gets one.
     clearKey("create-order");
+    if (!current()) return;
     setNewOrderCustomerPickerOpen(false);
     setCreatingOrder(false); // only on success — a throw keeps the dialog up
   });
@@ -599,7 +619,7 @@ export function SalesPage() {
   const refreshPayments = async (orderId: string) =>
     setPayments(await listOrderPayments(orderId));
 
-  const onRecordPayment = () => void run("record-payment", async () => {
+  const onRecordPayment = () => void run("record-payment", async (current) => {
     if (!active || !payments) return;
     const minorUnits = toMinor(payAmount, payments.currencyMinorUnit);
     const scope = `pay:${active.id}`;
@@ -616,10 +636,17 @@ export function SalesPage() {
     // (codex review of #90). The form reset before the refresh (#88 review)
     // covers the duplicate-resubmit direction.
     clearKey(scope);
-    setPayAmount("");
-    setPayRef("");
-    setPayNote("");
+    // The resets and the refresh keep the order #88 put them in. What changes
+    // is that a SUPERSEDED attempt does not reset fields the user has since
+    // typed into, and does not announce or close a session that is not its own
+    // (#477). The refresh is unconditional: the money is recorded either way.
+    if (current()) {
+      setPayAmount("");
+      setPayRef("");
+      setPayNote("");
+    }
     await refreshPayments(active.id);
+    if (!current()) return;
     setMessage(i18n.t("sales:paymentRecorded"));
     setPaying(false); // only on success — a throw keeps the dialog up
   });
@@ -700,6 +727,7 @@ export function SalesPage() {
             // dismissal, so the slot is already empty before a reopen.
             setOrderDate(today);
             setNewOrderCustomerPickerOpen(true);
+            session.begin("create-order"); // a new session — see #477
             setCreatingOrder(true);
           }}>
             <Plus size={16} aria-hidden /> {t("newOrder")}
@@ -958,7 +986,9 @@ export function SalesPage() {
               {payments.outstandingMinorUnits > 0 && (
                 <div className="panel-actions">
                   <button type="button" onClick={() => {
-                    setPayDate(today); setPaying(true);
+                    setPayDate(today);
+                    session.begin("record-payment"); // a new session — see #477
+                    setPaying(true);
                   }}>
                     {t("recordPayment")}
                   </button>
@@ -1137,6 +1167,7 @@ export function SalesPage() {
                 onClick: () => {
                   setOrderDate(today);
                   setNewOrderCustomerPickerOpen(true);
+                  session.begin("create-order"); // a new session — see #477
                   setCreatingOrder(true);
                 },
               } : undefined} />
