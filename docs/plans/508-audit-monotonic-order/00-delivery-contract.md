@@ -14,7 +14,7 @@
 - **Acceptance criteria:**
   - Two reportable changes to one entity sharing an `OccurredAtUtc` name the **later-written** actor as the last changer (INV-1).
   - The ordering value is assigned by Postgres at insert and is not writable from application code (INV-2).
-  - All three provenance round trips keep their own `AccountId` predicate under `IgnoreQueryFilters`, one per query, none shared or copied (INV-3).
+  - Each of the three provenance round trips keeps exactly one `AccountId` predicate under `IgnoreQueryFilters`; in the `latest` round trip the CTEs derive from the single `scoped` predicate rather than restating it (INV-3, as corrected).
   - `ListAsync` still returns a deterministic total order; paging neither skips nor repeats (INV-4).
   - Legacy rows carry an ordering value that does not contradict their `OccurredAtUtc` (INV-5).
   - Exactly one new migration; `InitialCreate` untouched; `docs/schema/` regenerated in the same PR; `dotnet ef migrations has-pending-model-changes` clean (INV-6).
@@ -30,9 +30,9 @@
 
 | ID | Invariant | Enforcement sites (symbols) | Discovered | Source |
 |---|---|---|---|---|
-| INV-1 | For one entity, "last changed by" names the actor of the newest reportable change; when two reportable changes share an `OccurredAtUtc`, the one written **later** to the trail wins. | `AuditEventRepository.GetProvenanceChunkAsync` (`latest`) | 2026-09-05 | front-half signoff |
+| INV-1 | For one entity, "last changed by" names the actor of the newest reportable change. For rows inserted **after this migration**, a tie on `OccurredAtUtc` is broken by insert order — the one written later wins, because `Sequence` is assigned by the database at INSERT. For rows predating the migration, write order is **not recoverable**: the backfill orders same-timestamp legacy rows by `row_number() OVER (ORDER BY "OccurredAtUtc", "Id")` over a random Guid, so a legacy tie is deterministic and stable but arbitrary — as it was before. **Corrected 2026-09-05 on the owner's ruling**, same round-2 finding class as INV-3. | `AuditEventRepository.GetProvenanceChunkAsync` (`latest`), and the migration backfill | 2026-09-05 | front-half signoff; INV-1 text corrected 2026-09-05 by owner ruling at the Phase 13 ask |
 | INV-2 | The ordering key is assigned by the database at insert and is never writable by application code; the trail keeps no mutation surface. | `AuditEventConfiguration`, `AuditWriter.WriteAsync`, `AuditEvent` | 2026-09-05 | front-half signoff |
-| INV-3 | All three provenance round trips stay tenant-scoped by their **own** `AccountId` predicate under `IgnoreQueryFilters`; never shared or copied between CTEs. | `GetProvenanceChunkAsync`, `Provenance_LastChange_IsScopedToTheTenant`, `Provenance_MadeOfficial_IsScopedToTheTenant`, `Provenance_EveryQueryIsScopedToTheEntityType` | 2026-09-05 | front-half signoff |
+| INV-3 | Each of the three provenance round trips is tenant-scoped by exactly one `AccountId` predicate under `IgnoreQueryFilters`. In the `latest` round trip that predicate lives once in the `scoped` CTE, and `creator`, `shared` and the outer `SELECT DISTINCT ON` all derive from `scoped` rather than restating it — that sharing is deliberate, and the reason is written at the query: a COPIED predicate is what let this triple ship mostly unguarded twice. What must never happen is a round trip with no predicate of its own, or a second independent copy of one. **Corrected 2026-09-05 on the owner's ruling** — the original wording ("never shared or copied between CTEs") asserted the opposite of what ships and was caught by review round 2. | `GetProvenanceChunkAsync`, `Provenance_LastChange_IsScopedToTheTenant`, `Provenance_MadeOfficial_IsScopedToTheTenant`, `Provenance_EveryQueryIsScopedToTheEntityType` | 2026-09-05 | front-half signoff; INV-3 text corrected 2026-09-05 by owner ruling at the Phase 13 ask |
 | INV-4 | `ListAsync` returns a deterministic total order; paging neither skips nor repeats a row. | `AuditEventRepository.ListAsync` | 2026-09-05 | front-half signoff |
 | INV-5 | A legacy row's ordering value never contradicts its `OccurredAtUtc`. | the new migration's backfill | 2026-09-05 | front-half signoff |
 | INV-6 | `InitialCreate` stays frozen (#407); one new migration; `docs/schema/` regenerated in the same PR (#417). | `Persistence/Migrations/`, `SchemaDocsTests` | 2026-09-05 | front-half signoff |
@@ -47,7 +47,7 @@
 
 ## 5. Baseline
 
-- **Base commit:** `7f8f31725608e42ac236a52b3bbbcf4cb9b187fc`
+- **Base commit:** 7f8f31725608e42ac236a52b3bbbcf4cb9b187fc
 - **Baseline result:** `dotnet test Cluckwork.sln --configuration Release`, run by the driver on `7f8f3172`, exit 0:
   - `Cluckwork.Domain.Tests` — `Failed: 0, Passed: 365, Skipped: 0`
   - `Cluckwork.AppHost.Tests` — `Failed: 0, Passed: 10, Skipped: 0`
