@@ -34,7 +34,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.Accounts](public.Accounts.md) | 18 |  | BASE TABLE |
 | [public.AspNetRoles](public.AspNetRoles.md) | 4 |  | BASE TABLE |
 | [public.AspNetUsers](public.AspNetUsers.md) | 24 |  | BASE TABLE |
-| [public.AuditEvents](public.AuditEvents.md) | 10 |  | BASE TABLE |
+| [public.AuditEvents](public.AuditEvents.md) | 11 |  | BASE TABLE |
 | [public.Customers](public.Customers.md) | 8 |  | BASE TABLE |
 | [public.DailyEntries](public.DailyEntries.md) | 19 |  | BASE TABLE |
 | [public.durable_jobs](public.durable_jobs.md) | 9 |  | BASE TABLE |
@@ -178,6 +178,7 @@ erDiagram
   varchar_500_ Reason
   text DetailsJson
   uuid AccountId
+  bigint Sequence
 }
 "public.Customers" {
   uuid Id
