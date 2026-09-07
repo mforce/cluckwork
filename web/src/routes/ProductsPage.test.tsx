@@ -800,3 +800,25 @@ describe("ProductsPage abandoned-attempt success (#703)", () => {
     expect(mockListProducts).toHaveBeenCalledTimes(2); // mount + the post-edit refresh
   });
 });
+
+describe("ProductsPage codex-f2 repro (#703 review r2)", () => {
+  function deferred<T>() { let resolve!: (v: T) => void; let reject!: (e: unknown) => void;
+    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; }); return { promise, resolve, reject }; }
+  it("abandoned create failure must NOT leak into the reopened create dialog (skipped Enter-submit)", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "First" } });
+    fireEvent.change(within(dialog()).getByLabelText("Grade"), { target: { value: "g1" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Add product" })); // A submitted, pending
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));      // dismiss A
+    openCreate();                                                                    // reopen B
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Second" } });
+    fireEvent.change(within(dialog()).getByLabelText("Grade"), { target: { value: "g1" } });
+    const form = within(dialog()).getByRole("button", { name: "Add product" }).closest("form")!;
+    await act(async () => { fireEvent.submit(form); }); // Enter-submit B while A in flight -> run() skips
+    await act(async () => { gate.reject(new ApiError(422, "Validation failed", "A-ONLY-ERROR")); }); // A fails
+    expect(within(dialog()).queryByText(/A-ONLY-ERROR/)).not.toBeInTheDocument();
+  });
+});

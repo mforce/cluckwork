@@ -1035,15 +1035,19 @@ describe("CustomersPage abandoned-attempt success (#703)", () => {
     expect(within(dialog()).getByLabelText("Name *")).toHaveValue("One");
   });
 
-  it("still rotates the create key when an abandoned create succeeds", async () => {
+  it("still rotates the create key AND refreshes the list when an abandoned create succeeds", async () => {
     const gate = deferred<{ id: string }>();
     mockCreate.mockReturnValueOnce(gate.promise as never);
     await ready();
+    const listCallsBefore = mockList.mock.calls.length;
     openCreate();
     fill("One");
     submitCreate();
     cancel();
     await act(async () => { gate.resolve({ id: "new" }); });
+    // The write is a fact about the world: its `runWrite` refreshes the list even
+    // though the dialog was dismissed (INV-3 RUN) — not just the key rotation below.
+    expect(mockList.mock.calls.length).toBeGreaterThan(listCallsBefore);
 
     mockCreate.mockResolvedValueOnce({ id: "new2" });
     openCreate();

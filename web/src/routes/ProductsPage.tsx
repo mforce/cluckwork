@@ -152,6 +152,12 @@ export function ProductsPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
+    // #703 review r2 — a submit while another action is in flight is SKIPPED by
+    // `run`'s guard, so it must not even `beginAttempt`: the pre-run beginAttempt
+    // below fires regardless, and un-muting here lets an in-flight ABANDONED
+    // attempt's late FAILURE surface against this dialog. Enter bypasses the
+    // disabled submit button, so guard it explicitly.
+    if (busy) return;
     // The attempt starts here, not inside `run` — a validation throw below
     // returns before `run` (and its own beginAttempt) is ever reached, and
     // without this the slot would still carry a MUTE from a prior dismissal,
@@ -219,6 +225,9 @@ export function ProductsPage() {
     e.preventDefault();
     const id = editingId;
     if (id === null) return;
+    // #703 review r2 — see onCreate: a skipped-while-busy submit must not
+    // beginAttempt (Enter bypasses the disabled button).
+    if (busy) return;
     // See onCreate: the attempt starts here so a validation throw below still
     // un-mutes and clears this dialog's own slot.
     errors.beginAttempt("edit");

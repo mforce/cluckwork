@@ -460,6 +460,15 @@ export function DailyEntryPage() {
   // late failure is not reported against a session the user reopened.
   const closeNewFlock = () => { setShowNewFlock(false); dismissDialog("new-flock"); };
 
+  // #703 review r2 — the dialog is admin-gated (`open={showNewFlock && isAdmin}`),
+  // so a role change HIDES it without firing onClose: an in-flight create would
+  // stay `current()` and could reset/close/retarget the dialog a re-promotion
+  // restores. End the session on the isAdmin edge (dismiss mutes + advances the
+  // generation; setShowNewFlock hides it), so a re-promotion reopens a fresh one.
+  useEffect(() => {
+    if (!isAdmin) { setShowNewFlock(false); dismissDialog("new-flock"); }
+  }, [isAdmin, dismissDialog]);
+
   async function onCreateFlock(e: FormEvent) {
     e.preventDefault();
     // #236: this form shipped with NO in-flight guard at all — a double submit
@@ -473,16 +482,12 @@ export function DailyEntryPage() {
       }, flockKey.current);
       flockKey.current = newId();
       // Best-effort refresh of the picker's eligible-list rows (RUN — the flock
-      // exists whether or not anyone is watching). This list refresh now runs
-      // BEFORE the retarget/exact-GET hydration below (hydration started first
-      // pre-#703); the order moved deliberately so the RUN facts precede the
-      // single superseded gate, and the catch keeps this list's failure
-      // independent of that hydration.
-      try {
-        setFlocks(capturable(await listFlocks()));
-      } catch {
-        // requestedId-driven hydration (below) is independent of this list.
-      }
+      // exists whether or not anyone is watching). FIRE-AND-FORGET (#703 review
+      // r2): a slow or hung list read must never block the retarget/exact-GET
+      // hydration below — the base hydrated first, and awaiting here gated flock
+      // selection on the refresh (client.ts has no timeout). Its rejection lands
+      // nowhere; the requestedId-driven hydration below is independent of it.
+      void listFlocks().then((f) => setFlocks(capturable(f))).catch(() => {});
       // Superseded (#703 INV-8, owner GATE 2026-09-06): the flock exists and
       // the list shows it, but switching the page's captured flock and
       // re-hydrating the picker belong to whatever session is on screen now —
