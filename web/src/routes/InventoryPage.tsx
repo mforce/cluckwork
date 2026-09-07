@@ -9,7 +9,6 @@ import {
   recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
 } from "../api/cluckwork";
 import type { Account, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
-import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
@@ -18,8 +17,7 @@ import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
 import { usePagedList } from "../components/usePagedList";
-import { useDialogErrors } from "../components/useDialogErrors";
-import { usePendingAction } from "../components/usePendingAction";
+import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
 import { useFarmToday } from "../farm/useFarm";
 import { FEEDABLE_CATEGORIES } from "./FeedPage";
@@ -34,13 +32,13 @@ const CATEGORIES = [
 
 
 
-function errText(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
-  return err instanceof Error ? err.message : String(err);
-}
-
 // The ledger's previous hard cap, kept as the page size.
 const LEDGER_PAGE = 100;
+
+// The scopes that own a dialog (#703). `run` routes a failure by this and gates
+// a success by it; a scope outside the list — activate/deactivate from the row
+// buttons — reports to the page and is never superseded.
+const DIALOG_SCOPES = ["create", "edit", "purchase", "adjust"] as const;
 
 // F15 (#66, PR 1): inventory catalog + receiving stock. Items define what and
 // how it's measured; lots carry quantities/cost; the movement ledger explains
@@ -59,14 +57,18 @@ export function InventoryPage() {
   // Account currency drives ALL money parsing/formatting here — costs may not
   // exist on an item yet, and assuming 2 decimals corrupts JPY/KWD amounts.
   const [account, setAccount] = useState<Account | null>(null);
-  // #479 — one slot per PLACE a message can appear: the page, and each of the
-  // four dialogs below by its own scope.
-  const errors = useDialogErrors();
-  const setPageError = errors.setPage;
   const [message, setMessage] = useState<string | null>(null);
-  // #236: the flight guard + per-scope spinner state live in the shared hook;
-  // this screen keeps only its idempotency-key and refresh discipline below.
-  const { busy, isPending, run: runPending } = usePendingAction();
+  // #703 — the flight guard (#236), the per-place message slots (#479: the
+  // page, and each of the four dialogs below by its own scope) and the
+  // dialog-session generation (#477 part 2) come from one shared hook; this
+  // screen keeps only its idempotency-key and refresh discipline below, and
+  // says which scopes own a dialog. The page's "Saved" message clears as each
+  // attempt starts, exactly where the old wrapper cleared it.
+  const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(
+    DIALOG_SCOPES,
+    { onAttempt: () => setMessage(null) },
+  );
+  const setPageError = errors.setPage;
 
   // create form (F131: every capture form on this screen is a dialog)
   const [creating, setCreating] = useState(false);
@@ -149,16 +151,27 @@ export function InventoryPage() {
       .catch(() => setPageError(i18n.t("inventory:loadInventoryFailed")));
   }, []);
 
-  // Dismissal empties a dialog's slot and mutes the attempt still out, so a
-  // late failure is not reported against a session the user reopened.
-  const closeCreate = () => { setCreating(false); errors.abandon("create"); };
-  const closeEdit = () => {
-    const id = editingId;
-    setEditingId(null);
-    if (id) errors.abandon(`edit:${id}`);
-  };
-  const closePurchase = () => { setPurchasing(false); errors.abandon("purchase"); };
-  const closeAdjust = () => { setAdjusting(false); errors.abandon("adjust"); };
+  // Dismissal is one of the two session edges (#703): it mutes the attempt
+  // still out, so a late failure is not reported against a session the user
+  // reopened, and ends the session, so a late success cannot act on it.
+  const closeCreate = () => { setCreating(false); dismissDialog("create"); };
+  const closeEdit = () => { setEditingId(null); dismissDialog("edit"); };
+  const closePurchase = () => { setPurchasing(false); dismissDialog("purchase"); };
+  const closeAdjust = () => { setAdjusting(false); dismissDialog("adjust"); };
+
+  // #703 review r2 (PR 2) — create/edit/adjust are admin-gated
+  // (`open={… && isAdmin}`), so a role change HIDES them without firing
+  // onClose: an in-flight write would stay `current()` and could reset/close
+  // the dialog a re-promotion restores. End each session on the isAdmin edge
+  // (dismiss mutes + advances the generation; the setter hides it), so a
+  // re-promotion reopens a fresh one. Purchase is open to every role.
+  useEffect(() => {
+    if (!isAdmin) {
+      setCreating(false); dismissDialog("create");
+      setEditingId(null); dismissDialog("edit");
+      setAdjusting(false); dismissDialog("adjust");
+    }
+  }, [isAdmin, dismissDialog]);
 
   async function refreshAll() {
     const fresh = await fetchItems();
@@ -233,9 +246,14 @@ export function InventoryPage() {
     setAdjustLotId((prev) => lotRows.some((l) => l.id === prev) ? prev : (lotRows[0]?.id ?? ""));
   }
 
-  // `scope` drives the idempotency key + pending spinner (#236); `errorScope`
-  // is the #479 slot the attempt reports to — `null` for the two row-level
-  // writes (activate/deactivate) that have no dialog of their own.
+  // The write discipline every mutation on this screen shares: the write under
+  // its idempotency key, the items (+ open panel's lots) refresh, and only THEN
+  // the key rotation — if the refresh throws, the key survives and a retry
+  // replays the idempotent write instead of repeating it. All three are facts
+  // about the world: they run whether or not the dialog that started them is
+  // still on screen (#703 — the superseded-safe rule). The flight guard, the
+  // failure routing and the success gate are the hook's; this helper is called
+  // INSIDE `run`, and anything it throws lands in the slot `run` was given.
   // #511 round 2 — `touchesLedger` decides whether this write goes through the
   // LEDGER's runWrite. Only a write that produces an InventoryMovement does.
   // Round 1 wrapped all six, so an unrelated create-item claimed the open
@@ -244,32 +262,16 @@ export function InventoryPage() {
   // and could clear a standing ledger error the moment its incidental re-read
   // happened to succeed. FlocksPage already draws this line — only
   // onRecordMovement goes through ledger.runWrite there.
-  async function run(scope: string, errorScope: string | null, action: (key: string) => Promise<unknown>, touchesLedger = false): Promise<boolean> {
-    const outcome = await runPending(scope, async () => {
-      errors.beginAttempt(errorScope);
-      setMessage(null);
-      try {
-        const write = async () => {
-          await action(keyFor(scope));
-          // The refresh must succeed before the key rotates: if it throws, the key
-          // survives and a retry replays the idempotent write instead of repeating it.
-          await refreshAll();
-        };
-        // A ledger write refreshes the whole loaded movement window (AC4); a
-        // catalog write refreshes items and lots only.
-        if (touchesLedger) await ledger.runWrite(write);
-        else await write();
-        clearKey(scope);
-        return true;
-      } catch (err) {
-        errors.report(errorScope, errText(err));
-        return false;
-      }
-    });
-    // A skipped run (another flight already open) reports `undefined` — never
-    // success: mapping it to false keeps a blocked submit from closing its
-    // dialog or resetting its form as if it had saved.
-    return outcome ?? false;
+  async function commit(keyScope: string, action: (key: string) => Promise<unknown>, touchesLedger = false): Promise<void> {
+    const write = async () => {
+      await action(keyFor(keyScope));
+      await refreshAll();
+    };
+    // A ledger write refreshes the whole loaded movement window (AC4); a
+    // catalog write refreshes items and lots only.
+    if (touchesLedger) await ledger.runWrite(write);
+    else await write();
+    clearKey(keyScope);
   }
 
   const minorUnit = account?.currencyMinorUnit ?? 2;
@@ -284,26 +286,30 @@ export function InventoryPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    const ok = await run("create-item", "create", (key) =>
-      createInventoryItem({
-        name, category, unit,
-        defaultUnitCostMinorUnits: toMinorUnits(defaultCost),
-      }, key));
-    if (ok) {
+    await run("create", async (current) => {
+      await commit("create-item", (key) =>
+        createInventoryItem({
+          name, category, unit,
+          defaultUnitCostMinorUnits: toMinorUnits(defaultCost),
+        }, key));
+      // Superseded (#703): the item exists and the list shows it, but the form
+      // reset, the message and the close belong to the session on screen now.
+      if (!current()) return;
       setName("");
       setDefaultCost("");
       setMessage(i18n.t("inventory:itemCreatedMessage"));
       setCreating(false);
-    }
+    });
   }
 
   function startEdit(i: InventoryItem) {
     closeCreate();
-    // A different item's edit DISPLACES this one: the session ends without
-    // onClose, and its per-id slot would otherwise replay the dead session's
-    // failure when THAT item's edit is reopened later. Reachable behind the
-    // backdrop via a screen reader's virtual cursor (#480; pi review of #491).
-    if (editingId !== null && editingId !== i.id) errors.abandon(`edit:${editingId}`);
+    // Opening is the other session edge (#703): a different item's edit
+    // DISPLACES this one without onClose — reachable behind the backdrop via a
+    // screen reader's virtual cursor (#480; pi review of #491) — and
+    // `openDialog` ends whatever edit session was on screen, unconditionally.
+    // The slot is the dialog's ("edit"), not per item, since #703.
+    openDialog("edit");
     setEditingId(i.id);
     setEditName(i.name);
     setEditUnit(i.unit);
@@ -316,12 +322,20 @@ export function InventoryPage() {
     e.preventDefault();
     const id = editingId;
     if (id === null) return;
-    const ok = await run(`update:${id}`, `edit:${id}`, (key) =>
-      updateInventoryItem(id, {
-        name: editName, unit: editUnit,
-        defaultUnitCostMinorUnits: toMinorUnits(editCost),
-      }, key));
-    if (ok) setEditingId(null);
+    // The run scope is the dialog's; the idempotency key stays per item.
+    await run("edit", async (current) => {
+      await commit(`update:${id}`, (key) =>
+        updateInventoryItem(id, {
+          name: editName, unit: editUnit,
+          defaultUnitCostMinorUnits: toMinorUnits(editCost),
+        }, key));
+      // Edit's superseded case is unreachable through the UI (the row's edit
+      // button is `disabled={busy}`); the gate stays for INV-1 and against a
+      // future change that enables the button — pinned by the wiring test
+      // "a successful edit closes its dialog and refreshes the list".
+      if (!current()) return;
+      setEditingId(null);
+    });
   }
 
   async function onOpen(i: InventoryItem) {
@@ -367,6 +381,11 @@ export function InventoryPage() {
   async function onPurchase(e: FormEvent) {
     e.preventDefault();
     if (!active) return;
+    // #703 review r2 (PR 2) — a skipped-while-busy submit must not un-mute:
+    // Enter bypasses the disabled submit button, `run` would skip the second
+    // attempt, but the pre-run `beginAttempt` below would still un-mute an
+    // abandoned attempt and let its late failure into the reopened dialog.
+    if (busy) return;
     // Clears the purchase slot whether or not the check below fails, so a
     // fixed keystroke doesn't leave a stale verdict behind.
     errors.beginAttempt("purchase");
@@ -375,16 +394,21 @@ export function InventoryPage() {
       errors.report("purchase", i18n.t("inventory:quantityMustBePositive"));
       return;
     }
-    const ok = await run(`purchase:${active.id}`, "purchase", (key) =>
-      recordInventoryPurchase(active.id, {
-        receivedDate: purchaseDate,
-        quantity: qty,
-        unitCostMinorUnits: toMinorUnits(purchaseCost),
-        lotNumber: lotNumber.trim() || undefined,
-        expiryDate: expiryDate || undefined,
-        note: purchaseNote.trim() || undefined,
-      }, key), true);
-    if (ok) {
+    // The run scope is the dialog's; the idempotency key stays per item.
+    await run("purchase", async (current) => {
+      await commit(`purchase:${active.id}`, (key) =>
+        recordInventoryPurchase(active.id, {
+          receivedDate: purchaseDate,
+          quantity: qty,
+          unitCostMinorUnits: toMinorUnits(purchaseCost),
+          lotNumber: lotNumber.trim() || undefined,
+          expiryDate: expiryDate || undefined,
+          note: purchaseNote.trim() || undefined,
+        }, key), true);
+      // Superseded (#703): the lot exists, the items/lots/ledger show it and
+      // the key rotated; the resets, the message and the close are the
+      // replacement session's.
+      if (!current()) return;
       setPurchaseQty("");
       setPurchaseCost("");
       setLotNumber("");
@@ -392,14 +416,16 @@ export function InventoryPage() {
       setPurchaseNote("");
       setMessage(i18n.t("inventory:purchaseRecordedMessage"));
       setPurchasing(false);
-    }
+    });
   }
 
   async function onAdjust(e: FormEvent) {
     e.preventDefault();
     if (!active) return;
-    // Same reasoning as onPurchase: cleared up front so either guard below
-    // reports against a clean slot.
+    // Same reasoning as onPurchase: a skipped-while-busy submit must not
+    // un-mute (#703 review r2), and the slot is cleared up front so either
+    // guard below reports against a clean slot.
+    if (busy) return;
     errors.beginAttempt("adjust");
     const delta = parseFloat(adjustQty);
     if (!Number.isFinite(delta) || delta === 0) {
@@ -410,20 +436,24 @@ export function InventoryPage() {
       errors.report("adjust", i18n.t("inventory:adjustReasonRequired"));
       return;
     }
-    const ok = await run(`adjust:${active.id}:${adjustLotId}`, "adjust", (key) =>
-      recordInventoryAdjustment(active.id, {
-        inventoryLotId: adjustLotId,
-        date: today,
-        type: adjustType,
-        quantityDelta: adjustType === "Discard" ? -Math.abs(delta) : delta,
-        reason: adjustReason.trim(),
-      }, key), true);
-    if (ok) {
+    // The run scope is the dialog's; the idempotency key stays per item + lot.
+    await run("adjust", async (current) => {
+      await commit(`adjust:${active.id}:${adjustLotId}`, (key) =>
+        recordInventoryAdjustment(active.id, {
+          inventoryLotId: adjustLotId,
+          date: today,
+          type: adjustType,
+          quantityDelta: adjustType === "Discard" ? -Math.abs(delta) : delta,
+          reason: adjustReason.trim(),
+        }, key), true);
+      // Superseded (#703): the correction landed and the view shows it; the
+      // resets, the message and the close are the replacement session's.
+      if (!current()) return;
       setAdjustQty("");
       setAdjustReason("");
       setMessage(i18n.t("inventory:correctionRecordedMessage"));
       setAdjusting(false);
-    }
+    });
   }
 
   const lotLabel = (l: InventoryLot) =>
@@ -449,7 +479,7 @@ export function InventoryPage() {
       <div className="page-head">
         <h2>{t("title")}</h2>
         {isAdmin && (
-          <button type="button" onClick={() => { closeEdit(); setCreating(true); }}>
+          <button type="button" onClick={() => { closeEdit(); openDialog("create"); setCreating(true); }}>
             <Plus size={16} aria-hidden /> {t("newItemButton")}
           </button>
         )}
@@ -481,7 +511,7 @@ export function InventoryPage() {
           <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("create-item")} disabled={busy}>{t("addItemButton")}</BusyButton>
+            <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addItemButton")}</BusyButton>
           </div>
         </form>
       </Dialog>
@@ -502,10 +532,10 @@ export function InventoryPage() {
             <input className="cell" type="number" min={0} step={costStep} value={editCost}
               onChange={(e) => setEditCost(e.target.value)} />
           </label>
-          <DialogError errors={errors} scope={`edit:${editingId}`} />
+          <DialogError errors={errors} scope="edit" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={editingId !== null && isPending(`update:${editingId}`)} disabled={busy}>
+            <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
               {tc("save")}
             </BusyButton>
           </div>
@@ -524,7 +554,7 @@ export function InventoryPage() {
           {/* One row of actions; each opens its own dialog so the ledger below
               stays put instead of being pushed down by three stacked forms. */}
           <div className="panel-actions">
-            <button type="button" onClick={() => setPurchasing(true)}>
+            <button type="button" onClick={() => { openDialog("purchase"); setPurchasing(true); }}>
               <Plus size={16} aria-hidden /> {t("recordPurchaseButton")}
             </button>
             {canFeed && (
@@ -536,7 +566,7 @@ export function InventoryPage() {
               </Link>
             )}
             {isAdmin && lots.length > 0 && (
-              <button type="button" className="link" onClick={() => setAdjusting(true)}>
+              <button type="button" className="link" onClick={() => { openDialog("adjust"); setAdjusting(true); }}>
                 {t("correctStockButton")}
               </button>
             )}
@@ -586,7 +616,7 @@ export function InventoryPage() {
               <DialogError errors={errors} scope="purchase" />
               <div className="dialog-foot">
                 <button type="button" className="link" onClick={closePurchase}>{tc("cancel")}</button>
-                <BusyButton type="submit" busy={isPending(`purchase:${active.id}`)} disabled={busy}>
+                <BusyButton type="submit" busy={isPending("purchase")} disabled={busy}>
                   {t("recordPurchaseSubmitButton")}
                 </BusyButton>
               </div>
@@ -595,10 +625,10 @@ export function InventoryPage() {
 
           <Dialog open={adjusting && isAdmin} title={t("correctStockDialogTitle", { name: active.name })} onClose={closeAdjust}>
             <form className="form-grid" onSubmit={onAdjust}>
-              {/* Disabled during any flight: the composite adjust scope embeds
-                  the selected lot id, so changing the selection mid-flight
-                  would re-point isPending at a scope nobody is running and
-                  drop the spinner while the request is still open (#242). */}
+              {/* Disabled during any flight — kept as shipped (#242); since
+                  #703 the spinner reads the fixed "adjust" scope, so the
+                  original re-pointing hazard is gone, and the field stays
+                  inert during a flight like every other trigger here. */}
               <label>{t("lotFieldLabel")}
                 <select value={adjustLotId} disabled={busy}
                   onChange={(e) => setAdjustLotId(e.target.value)}>
@@ -623,8 +653,9 @@ export function InventoryPage() {
               <DialogError errors={errors} scope="adjust" />
               <div className="dialog-foot">
                 <button type="button" className="link" onClick={closeAdjust}>{tc("cancel")}</button>
-                {/* The composite key scope doubles as the pending scope (#236). */}
-                <BusyButton type="submit" busy={isPending(`adjust:${active.id}:${adjustLotId}`)}
+                {/* The pending scope is the dialog's; the composite key scope is
+                    the idempotency key's alone since #703. */}
+                <BusyButton type="submit" busy={isPending("adjust")}
                   disabled={busy || !adjustLotId}>
                   {t("recordCorrectionButton")}
                 </BusyButton>
@@ -697,12 +728,12 @@ export function InventoryPage() {
                       onClick={() => startEdit(i)}>{t("editButton")}</button>
                     {i.active ? (
                       <BusyButton className="link" busy={isPending(`deactivate:${i.id}`)} disabled={busy}
-                        onClick={() => void run(`deactivate:${i.id}`, null, (key) => deactivateInventoryItem(i.id, key))}>
+                        onClick={() => void run(`deactivate:${i.id}`, () => commit(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key)))}>
                         {t("deactivateButton")}
                       </BusyButton>
                     ) : (
                       <BusyButton className="link" busy={isPending(`activate:${i.id}`)} disabled={busy}
-                        onClick={() => void run(`activate:${i.id}`, null, (key) => activateInventoryItem(i.id, key))}>
+                        onClick={() => void run(`activate:${i.id}`, () => commit(`activate:${i.id}`, (key) => activateInventoryItem(i.id, key)))}>
                         {t("activateButton")}
                       </BusyButton>
                     )}
