@@ -240,24 +240,25 @@ export function UsersPage() {
     }
     if (!current()) return; // superseded by another open/close
     setAssignments(list);
-      // Start every worker's dialog on a FRESH controlled generation, never
-      // retaining the previous open's exploration or selection — open A, pick
-      // fl2, close, open B, and B would otherwise still show fl2, so a
-      // distracted admin could assign the wrong flock. The default is the
-      // first active flock when one is loaded; until the load resolves (or
-      // the account has none) it is a fresh BLANK (account-wide) — the
-      // optional picker admits the blank, so Assign is only ever armed once
-      // a real default exists.
-      // #646 — blank, for the reason above: a role grant should not carry a
-      // flock the admin never picked.
-      setAssignFlock(null);
-      setAssignFlockGen((g) => g + 1);
-      // The session edge only once the load actually succeeds and the dialog
-      // is about to rebind: a failed load opens nothing, so nothing is ended
-      // or cleared for it. (Another worker's row is inert behind an open
-      // dialog since #480, so a displacement reaches here only after a
-      // dismissal; the test `keeps worker A's dialog and its message when
-      // worker B's load fails` drives the row directly to pin the property.)
+    // Start every worker's dialog on a FRESH controlled generation, never
+    // retaining the previous open's exploration or selection — open A, pick
+    // fl2, close, open B, and B would otherwise still show fl2, so a
+    // distracted admin could assign the wrong flock. The default is the
+    // first active flock when one is loaded; until the load resolves (or
+    // the account has none) it is a fresh BLANK (account-wide) — the
+    // optional picker admits the blank, so Assign is only ever armed once
+    // a real default exists.
+    // #646 — blank, for the reason above: a role grant should not carry a
+    // flock the admin never picked.
+    setAssignFlock(null);
+    setAssignFlockGen((g) => g + 1);
+    // The SLOT's edge (the mute and the clear that `openDialog` carries)
+    // only once the load actually succeeds and the dialog is about to
+    // rebind: a failed load opens nothing, so nothing is cleared for it — the
+    // session itself began at `startLoad` above. (Another worker's row is
+    // inert behind an open dialog since #480, so a displacement reaches here
+    // only after a dismissal; the test `keeps worker A's dialog and its
+    // message when worker B's load fails` drives the row directly.)
     // Rebind: this ends the displaced dialog's session and drops its verdict
     // — a same-worker re-entry included, exactly as every other dialog on
     // this screen (#703).
