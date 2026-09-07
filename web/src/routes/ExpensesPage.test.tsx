@@ -1534,6 +1534,31 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
   // a definite outcome, so the key rotates and an edited resubmit is a fresh
   // request. The sibling test above pins the other two legs (transport failure
   // keeps it, success rotates it).
+  // #706 review round 1 (CodeRabbit) — the toggle's key is spent once the
+  // update lands, whatever the reload does: a transport failure on the reload
+  // used to keep it, and a later toggle of the same category — with a
+  // different body once any refresh had shown the new state — would reuse it
+  // and be refused as key reuse. The reload failure is the page's.
+  it("spends the toggle's key when the update lands but the categories reload fails", async () => {
+    mockUpdateCategory.mockResolvedValue(undefined);
+    await renderReady();
+    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    const feedRow = screen.getAllByRole("listitem").find((li) => li.textContent?.includes("Feed"))!;
+    mockListCategories.mockRejectedValueOnce(new TypeError("Failed to fetch")); // the reload, not the toggle
+    await act(async () => {
+      fireEvent.click(within(feedRow).getByRole("button", { name: "deactivate" }));
+    });
+    expect(screen.getByText("Failed to fetch")).toBeInTheDocument(); // reported on the page
+
+    // The list never re-read, so the row still offers "deactivate": a second
+    // press is a NEW toggle and must carry a fresh key.
+    await act(async () => {
+      fireEvent.click(within(feedRow).getByRole("button", { name: "deactivate" }));
+    });
+    expect(mockUpdateCategory).toHaveBeenCalledTimes(2);
+    expect(mockUpdateCategory.mock.calls[1][2]).not.toBe(mockUpdateCategory.mock.calls[0][2]);
+  });
+
   it("spends the key on a server rejection (ApiError), so an edited resubmit is a fresh request", async () => {
     mockCreateExpense.mockRejectedValueOnce(new ApiError(422, "Validation failed", "Amount too large."));
     mockCreateExpense.mockResolvedValue({ id: "e-new" });

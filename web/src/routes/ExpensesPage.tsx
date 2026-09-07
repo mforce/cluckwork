@@ -524,7 +524,18 @@ export function ExpensesPage() {
     const scope = `toggle-category:${c.id}`;
     void run(scope, () => commit(scope, async () => {
       await updateExpenseCategory(c.id, { name: c.name, active: !c.active }, keyFor(scope));
-      setCategories(await listExpenseCategories({ includeInactive: true }));
+      // The toggle is durable the moment the server answers, so its key is
+      // spent whatever the reload below does: a reload failure is the page's,
+      // not the write's — reported there, exactly as onAddCategory's is — and
+      // must not keep a spent key for a later toggle to reuse under a
+      // different body, which the server refuses as key reuse (CodeRabbit on
+      // #706). Pinned by "spends the toggle's key when the update lands but
+      // the categories reload fails".
+      try {
+        setCategories(await listExpenseCategories({ includeInactive: true }));
+      } catch (err) {
+        errors.setPage(errText(err));
+      }
       setMessage(c.active
         ? i18n.t("expenses:categoryDeactivatedMessage", { name: c.name })
         : i18n.t("expenses:categoryReactivatedMessage", { name: c.name }));
