@@ -18,9 +18,8 @@ import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { DialogError } from "../components/DialogError";
 import { ProvenanceCell } from "../components/ProvenanceCell";
-import { useDialogErrors } from "../components/useDialogErrors";
+import { useDialogAction } from "../components/useDialogAction";
 import { usePagedList } from "../components/usePagedList";
-import { usePendingAction } from "../components/usePendingAction";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
@@ -31,6 +30,12 @@ function errText(err: unknown): string {
 }
 
 const PAGE = 100;
+
+// The scopes that own a dialog (#703). `run` routes a failure by this and gates
+// a success by it; a scope outside the list — the record-expense form on the
+// page, the category toggles in the panel — reports to the page and is never
+// superseded.
+const DIALOG_SCOPES = ["edit", "add-category"] as const;
 
 // #87 — basic expenses (spec §16 cut): categories + recording + monthly view.
 // Admin-only end to end: the route hides for workers and every endpoint
@@ -46,16 +51,19 @@ export function ExpensesPage() {
   const { farm } = useFarm();
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [flocks, setFlocks] = useState<Flock[]>([]);
-  // #479 — one slot per PLACE a message can appear. The record-expense form
-  // sits on the page (not in a dialog), same as the mount read and the
-  // category-toggle writes; "add-category" and each correction dialog get
-  // their own.
-  const errors = useDialogErrors();
-  const setPageError = errors.setPage;
   const [message, setMessage] = useState<string | null>(null);
-  // #236: the flight guard + per-scope spinner state live in the shared hook;
-  // this screen keeps only its idempotency-key discipline below.
-  const { busy, isPending, run: runPending } = usePendingAction();
+  // #703 — the flight guard (#236), the per-place message slots (#479: the
+  // record-expense form sits on the page, same as the mount read and the
+  // category-toggle writes; "add-category" and the correction dialog get
+  // their own) and the dialog-session generation (#477 part 2) come from one
+  // shared hook; this screen keeps only its idempotency-key discipline below,
+  // and says which scopes own a dialog. The page's message clears as each
+  // attempt starts, exactly where the old wrapper cleared it.
+  const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(
+    DIALOG_SCOPES,
+    { onAttempt: () => setMessage(null) },
+  );
+  const setPageError = errors.setPage;
 
   // filters
   // #667 — a from/to pair, like every sibling list screen. It DEFAULTS to the
@@ -283,23 +291,21 @@ export function ExpensesPage() {
     return v;
   };
 
-  // `dialogScope` names the DIALOG this attempt's failure belongs to — `null`
-  // for the record-expense form and the category-toggle writes, neither of
-  // which is behind a dialog.
-  async function run(scope: string, dialogScope: string | null, fn: () => Promise<void>) {
-    // A skipped run (another flight already open) simply does nothing — no
-    // caller here branches on the outcome, so there is no boolean to map.
-    await runPending(scope, async () => {
-      errors.beginAttempt(dialogScope);
-      setMessage(null);
-      try {
-        await fn();
-        settleKey(scope);
-      } catch (err) {
-        settleKey(scope, err);
-        errors.report(dialogScope, errText(err));
-      }
-    });
+  // The key policy every write on this screen shares (see settleKey): a server
+  // response — success or ApiError — spends the key, a transport failure keeps
+  // it for an exact replay. It is a fact about the world, so it runs whether
+  // or not the dialog that started the write is still on screen (#703 — the
+  // superseded-safe rule). The flight guard, the failure routing and the
+  // success gate are the hook's; this helper is called INSIDE `run`, and what
+  // it rethrows lands in the slot `run` was given.
+  async function commit(keyScope: string, fn: () => Promise<void>): Promise<void> {
+    try {
+      await fn();
+    } catch (err) {
+      settleKey(keyScope, err);
+      throw err;
+    }
+    settleKey(keyScope);
   }
 
   function onAdd(e: FormEvent) {
@@ -309,7 +315,7 @@ export function ExpensesPage() {
     // not-yet-committed flock even if the control is bypassed. A valid blank
     // selection still submits (canSubmit is true for it).
     if (busy || !addFlockSnapshot.canSubmit) return;
-    void run("add", null, async () => {
+    void run("add", () => commit("add", async () => {
       // runWrite claims the list's ticket before the POST, so a month or
       // category change made while it is in flight keeps the view (#469).
       await expenses.runWrite(async () => {
@@ -338,20 +344,18 @@ export function ExpensesPage() {
         setAddFlockGen((g) => g + 1);
       });
       setMessage(i18n.t("expenses:expenseRecordedMessage"));
-    });
+    }));
   }
 
-  // A switch straight from one bound expense to another, with no Cancel or
-  // close in between, abandons the one being displaced, so its stale verdict
-  // cannot resurface next time THAT expense is reopened. The backdrop stops a
-  // mouse from reaching the row buttons underneath, so this is not the common
-  // path — but #480 established that it does not stop a screen reader's
-  // virtual cursor, which is the same reason the per-dialog map exists at all.
-  // The 409 rebind below also calls this, on the
-  // SAME id, so this must not fire there — abandoning would mute the very
-  // report the rebind is about to make.
+  // Seeds the dialog from a row. It is NOT a session edge on its own (#703):
+  // the row button that opens a correction calls `openDialog("edit")` first —
+  // a switch straight from one bound expense to another, with no Cancel or
+  // close in between, is reachable to a screen reader's virtual cursor (#480),
+  // and that call ends the displaced session — while the 409 rebind below
+  // calls this on the SAME id to reopen the SAME session with the winner's
+  // values; ending the session there would gate off the very report the
+  // rebind is about to make.
   function startEdit(x: Expense) {
-    if (editing !== null && editing.id !== x.id) errors.abandon(`edit:${editing.id}`);
     setEditing(x);
     setEditDate(x.date);
     setEditCategory(x.expenseCategoryId);
@@ -403,8 +407,11 @@ export function ExpensesPage() {
     // there is nothing to scroll to.
   }
 
+  // Dismissal is one of the two session edges (#703): it mutes the attempt
+  // still out, so a late failure lands nowhere, and ends the session, so a
+  // late success cannot act on the dialog the user opens next.
   function closeEdit() {
-    if (editing !== null) errors.abandon(`edit:${editing.id}`);
+    dismissDialog("edit");
     setEditing(null);
     setEditFlockEntity(null);
     setEditFlockId(null);
@@ -415,7 +422,7 @@ export function ExpensesPage() {
 
   function closeAddCategory() {
     setAddingCategory(false);
-    errors.abandon("add-category");
+    dismissDialog("add-category");
   }
 
   function onSaveEdit(e: FormEvent) {
@@ -428,8 +435,9 @@ export function ExpensesPage() {
     // optional blank), so the guard never blocks a legal edit.
     if (busy || !editFlockSnapshot.canSubmit) return;
     const target = editing;
+    // The run scope is the dialog's; the idempotency key stays per expense.
     const scope = `edit:${target.id}`;
-    void run(scope, scope, async () => {
+    void run("edit", (current) => commit(scope, async () => {
       try {
         // The refresh that follows replaces the row wholesale, so the old
         // optimistic splice into `items` is gone with the local list state.
@@ -445,9 +453,14 @@ export function ExpensesPage() {
             flockId: editFlockEntity?.id ?? null,
             note: editNote.trim() || null,
           }, keyFor(scope));
-          setEditing(null);
+          // The correction's superseded case is unreachable through the UI
+          // (the row's correct button is `disabled={busy}`); the gate stays for
+          // INV-1 and against a future change that enables the button — pinned
+          // by the wiring test "a successful correction closes its dialog and
+          // refreshes the list".
+          if (current()) setEditing(null);
         });
-        setMessage(i18n.t("expenses:expenseCorrectedMessage"));
+        if (current()) setMessage(i18n.t("expenses:expenseCorrectedMessage"));
       } catch (err) {
         // 409: someone else corrected it meanwhile — rebind the panel to the
         // fresh row (only unsent typing is lost, and the banner says why).
@@ -463,51 +476,59 @@ export function ExpensesPage() {
           // startEdit may have just REOPENED a dialog the user dismissed while
           // this GET was out, and that dismissal muted this scope — so the
           // message below would be dropped and the panel would reappear with
-          // the winner's values and no word of why (codex on #491). A forced
-          // reopen is a new session, so un-mute it. Same id as the scope `run`
-          // reports on, so this re-enables that report and nothing else.
-          errors.beginAttempt(scope);
+          // the winner's values and no word of why (codex on #491). The app
+          // is reopening the dialog uninvited and saying something new, so it
+          // un-mutes the slot it reports into — the one explicit
+          // `beginAttempt` a migrated screen keeps (#703; History's rebind does
+          // the same). The slot is the dialog's fixed "edit" now.
+          errors.beginAttempt("edit");
           throw new Error(i18n.t("expenses:conflictRebindMessage"));
         }
         throw err;
       }
-    });
+    }));
   }
 
-  // The category-create scope is derived from the typed name (it keys the
-  // idempotent write); computed once per render so the handler and the submit
-  // button's isPending() can never disagree on the string.
+  // The category-create KEY scope is derived from the typed name (it keys the
+  // idempotent write); the run scope — the spinner's and the slot's — is the
+  // dialog's fixed "add-category" since #703.
   const addCategoryScope = `add-category:${newCategoryName.trim().toLowerCase()}`;
 
   function onAddCategory(e: FormEvent) {
     e.preventDefault();
     const scope = addCategoryScope;
-    void run(scope, "add-category", async () => {
+    void run("add-category", (current) => commit(scope, async () => {
       await createExpenseCategory({ name: newCategoryName.trim() }, keyFor(scope));
-      setNewCategoryName("");
-      setAddingCategory(false);
-      setMessage(i18n.t("expenses:categoryCreatedMessage"));
-      // The dialog closed two lines ago, so its slot renders NOWHERE from here
-      // on: a refresh failure reported to it would leave the user with a stale
-      // category list and no message at all (codex on #491). The write already
-      // succeeded, so this is the screen's problem now, not the form's.
+      // Superseded (#703): the category exists and the list below will show
+      // it; the reset, the close and the message are the replacement
+      // session's.
+      if (current()) {
+        setNewCategoryName("");
+        setAddingCategory(false);
+        setMessage(i18n.t("expenses:categoryCreatedMessage"));
+      }
+      // The dialog closed above, or belongs to another session now, so its
+      // slot is not where this attempt's news can land: a refresh failure
+      // reported to it would leave the user with a stale category list and no
+      // message at all (codex on #491). The write already succeeded, so this
+      // is the screen's problem now, not the form's.
       try {
         setCategories(await listExpenseCategories({ includeInactive: true }));
       } catch (err) {
         errors.setPage(errText(err));
       }
-    });
+    }));
   }
 
   function onToggleCategory(c: ExpenseCategory) {
     const scope = `toggle-category:${c.id}`;
-    void run(scope, null, async () => {
+    void run(scope, () => commit(scope, async () => {
       await updateExpenseCategory(c.id, { name: c.name, active: !c.active }, keyFor(scope));
       setCategories(await listExpenseCategories({ includeInactive: true }));
       setMessage(c.active
         ? i18n.t("expenses:categoryDeactivatedMessage", { name: c.name })
         : i18n.t("expenses:categoryReactivatedMessage", { name: c.name }));
-    });
+    }));
   }
 
   return (
@@ -578,17 +599,17 @@ export function ExpensesPage() {
         <div className="order-panel">
           <h3>{t("categoriesHeading")}</h3>
           <div className="panel-actions">
-            <button type="button" onClick={() => setAddingCategory(true)}>
+            <button type="button" onClick={() => { openDialog("add-category"); setAddingCategory(true); }}>
               {t("newCategoryButton")}
             </button>
           </div>
 
           <Dialog open={addingCategory} title={t("newCategoryDialogTitle")} onClose={closeAddCategory}>
             <form className="inline-form" onSubmit={onAddCategory}>
-              {/* Disabled during any flight: the create scope is derived from
-                  this name (addCategoryScope), so editing it mid-flight would
-                  re-point isPending at a scope nobody is running and drop the
-                  spinner while the request is still open (#242 review). */}
+              {/* Disabled during any flight — kept as shipped (#242 review);
+                  since #703 the spinner reads the fixed "add-category" scope,
+                  so the original re-pointing hazard is gone, and the field
+                  stays inert during a flight like every other trigger here. */}
               <label>{t("categoryNameLabel")}
                 <input value={newCategoryName} required disabled={busy}
                   onChange={(e) => setNewCategoryName(e.target.value)} />
@@ -596,7 +617,7 @@ export function ExpensesPage() {
               <DialogError errors={errors} scope="add-category" />
               <div className="dialog-foot">
                 <button type="button" className="link" onClick={closeAddCategory}>{tc("cancel")}</button>
-                <BusyButton type="submit" busy={isPending(addCategoryScope)} disabled={busy}>{t("addCategoryButton")}</BusyButton>
+                <BusyButton type="submit" busy={isPending("add-category")} disabled={busy}>{t("addCategoryButton")}</BusyButton>
               </div>
             </form>
           </Dialog>
@@ -771,13 +792,13 @@ export function ExpensesPage() {
             </label>
             {/* The 409 rebind reports through here, so the conflict banner stays
                 next to the form it is telling you to re-apply. */}
-            <DialogError errors={errors} scope={`edit:${editing.id}`} />
+            <DialogError errors={errors} scope="edit" />
             <div className="dialog-foot">
               <button type="button" className="link" disabled={busy}
                 onClick={closeEdit}>{tc("cancel")}</button>
               {/* #512 (T028): canSubmit also gates the visible control; the
                   handler guard above is the real boundary. */}
-              <BusyButton type="submit" busy={isPending(`edit:${editing.id}`)}
+              <BusyButton type="submit" busy={isPending("edit")}
                 disabled={busy || !editFlockSnapshot.canSubmit}>
                 {t("saveCorrectionButton")}
               </BusyButton>
@@ -835,7 +856,7 @@ export function ExpensesPage() {
                   {/* Opens the correction dialog — non-mutating, so the
                       spinner belongs to the dialog's Save, not here (#242). */}
                   <button className="link" disabled={busy}
-                    onClick={() => startEdit(x)}>
+                    onClick={() => { openDialog("edit"); startEdit(x); }}>
                     {t("correctButton")}
                   </button>
                 </td>
