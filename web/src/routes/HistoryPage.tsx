@@ -21,9 +21,8 @@ import { GradingChip, TakeRemainderButton, remainderDropProps } from "../compone
 import { NumberField } from "../components/NumberField";
 import { ProvenanceCell } from "../components/ProvenanceCell";
 import { useConfirm } from "../components/useConfirm";
-import { useDialogErrors } from "../components/useDialogErrors";
+import { useDialogAction } from "../components/useDialogAction";
 import { usePagedList } from "../components/usePagedList";
-import { usePendingAction } from "../components/usePendingAction";
 import { StatusBadge } from "../components/StatusBadge";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { useFarm } from "../farm/useFarm";
@@ -34,6 +33,11 @@ import { useMe } from "../session/SessionContext";
 import i18n from "../i18n";
 
 const PAGE = 50;
+
+// The scope that owns a dialog (#703). `run` routes a failure by this and gates
+// a success by it; `void:<id>` from the row button reports to the page and is
+// never superseded.
+const DIALOG_SCOPES = ["adjust"] as const;
 
 // Module-level helper — outside the hook's render context, so it always uses
 // the imperative i18n.t() singleton (see CONTRIBUTING-i18n.md).
@@ -81,12 +85,16 @@ export function HistoryPage() {
   // #479 — one slot per PLACE a message can appear: the setup read and the
   // void write (a row button, not behind a dialog) belong to the page; the
   // adjust dialog's failures belong to that form.
-  const errors = useDialogErrors();
+  // #703 — the flight guard (#236), the per-place message slots (#479: the
+  // setup read and the void write — a row button, not behind a dialog —
+  // belong to the page; the adjust dialog's failures belong to that form) and
+  // the dialog-session generation (#477 part 2) come from one shared hook.
+  // The adjust dialog runs under its own fixed scope and `void:<id>` per row:
+  // exactly one control spins while `busy` keeps every other mutating control
+  // on the screen inert.
+  const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(DIALOG_SCOPES);
   const setPageError = errors.setPage;
   const [message, setMessage] = useState<string | null>(null);
-  // Per-row scopes (adjust:<id> / void:<id>): exactly one control spins while
-  // `busy` keeps every other mutating control on the screen inert.
-  const { busy, isPending, run } = usePendingAction();
 
   // adjust panel: one entry at a time; the version it was loaded with rides
   // along so a concurrent correction surfaces as a 409, not an overwrite.
@@ -215,20 +223,22 @@ export function HistoryPage() {
     return fmt.count((e.crackedGradeId ? e.crackedEggs : 0) + (e.dirtyGradeId ? e.dirtyEggs : 0));
   };
 
-  // Dismissal empties the dialog's slot and mutes the attempt still out, so a
-  // late failure is not reported against a session the user reopened.
-  const closeAdjust = () => { setAdjusting(null); errors.abandon("adjust"); };
+  // Dismissal is one of the two session edges (#703): it mutes the attempt
+  // still out, so a late failure is not reported against a session the user
+  // reopened, and ends the session, so a late success cannot act on it.
+  const closeAdjust = () => { setAdjusting(null); dismissDialog("adjust"); };
 
   function startAdjust(e: DailyEntry) {
-    // A different entry's adjust DISPLACES this session — it ends without
-    // onClose, so nothing else abandons the fixed "adjust" scope, and the
-    // displaced day's verdict would render under the next day's heading.
-    // Reachable behind the backdrop via a screen reader's virtual cursor
-    // (#480; pi review of #491). Same-id re-entry is deliberately spared: the
-    // session is still about this entry, so its failed save's verdict must
-    // survive the reseed. (The 409 rebind also re-enters same-id, but it
-    // re-arms its own scope before reporting, so it does not depend on this.)
-    if (adjusting !== null && adjusting.id !== e.id) errors.abandon("adjust");
+    // Opening is the other edge. A fresh open, or a different entry's adjust
+    // DISPLACING this session without onClose — reachable behind the backdrop
+    // via a screen reader's virtual cursor (#480; pi review of #491) — ends
+    // whatever session was on screen. Same-id re-entry is deliberately spared:
+    // the session is still about this entry, so its failed save's verdict must
+    // survive the reseed (pinned by "keeps a save failure visible after
+    // re-entering the same entry's adjust"). The 409 rebind also re-enters
+    // same-id, on purpose: it reopens the SAME session with the winner's
+    // values and re-arms its slot itself before reporting.
+    if (adjusting === null || adjusting.id !== e.id) openDialog("adjust");
     setAdjusting(e);
     setTotal(e.totalEggs);
     setCracked(e.crackedEggs);
@@ -396,7 +406,8 @@ export function HistoryPage() {
       errors.report("adjust", i18n.t("history:gradesMustReconcileMessage"));
       return;
     }
-    await run(scope, async () => {
+    // The run scope is the dialog's; the idempotency key stays per entry.
+    await run("adjust", async (current) => {
       try {
         // The list ticket is claimed before the PUT, so a filter change made
         // while it is in flight keeps the view and this refresh stands down
@@ -413,6 +424,13 @@ export function HistoryPage() {
             grades: lines, // [] explicitly clears all lines
           }, keyFor(scope));
           settleKey(scope);
+          // The adjust's superseded case is unreachable through the UI (the
+          // row's adjust button is `disabled={busy}`); the gate stays for
+          // INV-1 and against a future change that enables the button — pinned
+          // by the wiring test "a successful adjust closes its dialog and
+          // refreshes the list". The write, the key settle above and the
+          // refresh runWrite does next are facts about the world (#703).
+          if (!current()) return;
           setAdjusting(null);
           setMessage(i18n.t("history:entryAdjustedMessage"));
         });
@@ -421,7 +439,9 @@ export function HistoryPage() {
         if (err instanceof ApiError && err.status === 409) {
           await rebindAfterConflict(adjusting.id);
         } else {
-          errors.report("adjust", errText(err));
+          // Rethrown for the hook to report into the "adjust" slot — it owns
+          // the "was this attempt abandoned?" decision (#474/#479).
+          throw err;
         }
       }
     });
@@ -452,10 +472,13 @@ export function HistoryPage() {
           await voidDailyEntry(e.id, { version: e.version, reason: voidReason }, keyFor(scope));
           settleKey(scope);
           // A stale adjust panel for the now-voided entry would only 409.
-          // Abandon (not a plain close): this panel wasn't dismissed by the
+          // Dismiss it (not a plain close): this panel wasn't dismissed by the
           // user, so its slot must not keep a stale error, or later be
-          // written into after the user has moved on to a different entry.
-          if (adjusting?.id === e.id) { setAdjusting(null); errors.abandon("adjust"); }
+          // written into after the user has moved on to a different entry —
+          // and its session ends, so nothing of it can act on the dialog the
+          // user opens next. A fact about the world reaching into another
+          // scope's dialog, run ungated (#703, owner decision 2026-09-07).
+          if (adjusting?.id === e.id) { setAdjusting(null); dismissDialog("adjust"); }
           setMessage(i18n.t("history:entryVoidedMessage"));
         });
       } catch (err) {
@@ -464,7 +487,7 @@ export function HistoryPage() {
           // The void lost a race — show what actually stands now. Also close
           // a stale adjust panel for this entry: the 409 path used to leave
           // it bound to pre-conflict values while the success path closed it.
-          if (adjusting?.id === e.id) { setAdjusting(null); errors.abandon("adjust"); }
+          if (adjusting?.id === e.id) { setAdjusting(null); dismissDialog("adjust"); }
           // No reload of our own — runWrite already re-read in its rejection
           // path — and no claim about how that read went: the message states
           // the conflict, and the list reports its own health through the
@@ -701,7 +724,7 @@ export function HistoryPage() {
               {/* #394: an adjustment has no draft state — Save stays disabled
                   until grading reconciles exactly, the same rule Daily
                   Entry's submit uses. */}
-              <BusyButton type="submit" busy={isPending(`adjust:${adjusting.id}`)}
+              <BusyButton type="submit" busy={isPending("adjust")}
                 disabled={busy || !reason.trim() || !gradesReconciled}>{t("saveAdjustmentButton")}</BusyButton>
             </div>
             </form>
