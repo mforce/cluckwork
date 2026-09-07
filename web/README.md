@@ -70,6 +70,29 @@ src/
   routes/    Login, ProtectedRoute, AppLayout shell, screens
 ```
 
+## Dialog writes: sessions and idempotency keys
+
+Every dialog write goes through `src/components/useDialogAction.ts` (#703): `run(scope, async (current) =>
+…)` owns the in-flight guard, the per-dialog message slot and the dialog session; `openDialog`/`dismissDialog`
+are the two session edges. Inside the action, what a **superseded** success must still do is decided per
+statement — the write, the idempotency-key rotation and the list refresh are facts about the world and run
+regardless; form resets, the dialog close and the success message belong to the session on screen and are
+gated on `current()`.
+
+Two things reviewers keep proposing to "fix", both deliberate:
+
+- **The key policies differ by screen, on purpose** (#703 PR 3, owner decision 2026-09-07). Inventory,
+  Flocks, Grades and Products **keep** the key when the post-write refresh fails, so a retry replays the
+  idempotent write instead of duplicating it (`commit`: write → refresh → `clearKey`). Expenses, History and
+  Stock **spend** the key the moment the server answers — success or any `ApiError` — and keep it only on a
+  transport failure of the write itself (`settleKey`; Stock rotates before its refresh). Do not normalise one
+  into the other; a finding that proposes it has the owner decision as its answer.
+- **`usePagedList.runWrite` never rejects on a failed post-write refresh.** `refreshWindow` catches a failed
+  page fetch, sets the hook's own `error`/rows state and *returns* `{ status: "failed" }`; only
+  `runWriteWithCommittedRow` rethrows. So a screen whose key policy is "settle on the write's answer" is
+  already correct for a `runWrite`-wrapped write; a *bare* post-write read (Expenses' category reload) must
+  catch its own failure into the page, or that failure is settled as the write's (#706 review).
+
 ## Auth flow
 
 `login` → `POST /api/v1/auth/login` → the **access token lives in JS memory only**
