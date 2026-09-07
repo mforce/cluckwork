@@ -3840,3 +3840,33 @@ describe("UsersPage abandoned disable's success (#703 PR 4)", () => {
     expect(disableRow(/worker@farm.test/)).toBeEnabled();
   });
 });
+
+// #703 PR 4 review (authentication seat) — disable/enable was the one step-up
+// write with no `current()` check between the grant and the write, so a
+// Cancel during issuance still landed the disable. Now refused, like the
+// other five.
+describe("UsersPage dismissed disable continuation (#703 PR 4)", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((ok) => { resolve = ok; });
+    return { promise, resolve };
+  }
+
+  it("does not let a dismissed disable continuation write", async () => {
+    const grant = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(grant.promise);
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ })).getByRole("button", { name: "disable" }));
+    const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dlg).getByLabelText(/Your current password/), { target: { value: OWNER_STEP_UP_PASSWORD } });
+    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Disable" })); });
+
+    fireEvent.click(within(dlg).getByRole("button", { name: "Cancel" }));
+    await act(async () => { grant.resolve({ token: "late-grant", expiresAt: "2026-01-01T00:05:00Z" }); });
+
+    expect(mockDisableUser).not.toHaveBeenCalled();
+    expect(mockListUsers).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/worker@farm\.test has been disabled/)).not.toBeInTheDocument();
+  });
+});

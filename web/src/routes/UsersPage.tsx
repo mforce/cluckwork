@@ -87,6 +87,8 @@ export function UsersPage() {
       setRoleStepUpPassword("");
       setStepUpPassword("");
       setFlockStepUpPassword("");
+      // `emailStepUpPassword` is cleared by the change-email effect below,
+      // which also ends that dialog's session.
     }
   }, [isAuthenticated]);
 
@@ -645,6 +647,11 @@ export function UsersPage() {
       // Reason is optional: empty or whitespace sends null, never "".
       const enteredReason = disableReason.trim() || null;
       const token = (await stepUp(enteredPassword)).token;
+      // Dismissed while the grant was being issued: like every other step-up
+      // write on this screen, the write is refused rather than made — the
+      // grant is dropped unspent (#703 PR 4 review; pinned by `does not let a
+      // dismissed disable continuation write`).
+      if (!current()) return;
 
       if (mode === "disable") {
         await disableUser(target.id, { reason: enteredReason }, keyFor(scope), token);
@@ -825,8 +832,8 @@ export function UsersPage() {
         // finish before this dialog can be closed/reopened: escaping mid-write
         // is exactly the close/reopen race that leaves the reopened dialog
         // showing data the write's own completion can no longer reach (the
-        // {targetId, generation} guard correctly discards a write that no
-        // longer belongs to the current dialog instance).
+        // session generation — `current()` — correctly discards a write that
+        // no longer belongs to the current dialog instance).
         closeDisabled={flockWriteInFlight}
       >
         <p className="muted">
