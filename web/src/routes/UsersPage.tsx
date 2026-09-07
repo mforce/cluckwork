@@ -129,7 +129,6 @@ export function UsersPage() {
   const disableWarningId = useId();
   const [disableReason, setDisableReason] = useState("");
   const [stepUpPassword, setStepUpPassword] = useState("");
-  const activeStepUp = useRef<string | null>(null);
 
   // #103 flock scoping: expand a worker row to manage assignments.
   // #606 — assign/remove each require step-up, same as every other durable
@@ -604,13 +603,11 @@ export function UsersPage() {
     setMessage(null);
     setStepUpPassword("");
     setDisableReason("");
-    activeStepUp.current = u.id;
     setStepUpMode(mode);
     setStepUpUser(u);
   }
 
   function closeStepUp() {
-    activeStepUp.current = null;
     setStepUpPassword(""); // #308 — never leave a typed proof password behind
     setDisableReason("");
     setStepUpMode(null);
@@ -625,45 +622,48 @@ export function UsersPage() {
     if (!target || !mode || busy) return;
     setMessage(null);
     const scope = `${mode}:${target.id}`;
-    await run(scope, async () => {
-      try {
-        // #308 — read-then-clear-before-await, same pattern as every other
-        // step-up site on this screen: the proof password never sits in state
-        // across the network call that consumes it.
-        const enteredPassword = stepUpPassword;
-        setStepUpPassword("");
+    await run(scope, async (current) => {
+      // #308 — read-then-clear-before-await, same pattern as every other
+      // step-up site on this screen: the proof password never sits in state
+      // across the network call that consumes it.
+      const enteredPassword = stepUpPassword;
+      setStepUpPassword("");
 
-        // #356 — grouped here with the password for readability, NOT because
-        // reading it after the await would be a bug. An earlier revision of
-        // this comment claimed exactly that ("defence in depth" against a
-        // late read filing one dialog's reason against another user), and a
-        // review probe disproved it: `disableReason` is a `const` this
-        // closure captured at THIS render, not a live ref. Retyping the
-        // textarea triggers a new render with a new `onSubmitStepUp` closure
-        // over a new `disableReason` binding — it cannot reach back and
-        // mutate the one this already-running invocation holds. So a read
-        // before or after the await, within one invocation, is provably the
-        // same value; unlike the password above, there is no state-exposure
-        // reason to move it either, since a reason is not a secret.
-        //
-        // Reason is optional: empty or whitespace sends null, never "".
-        const enteredReason = disableReason.trim() || null;
-        const token = (await stepUp(enteredPassword)).token;
+      // #356 — grouped here with the password for readability, NOT because
+      // reading it after the await would be a bug. An earlier revision of
+      // this comment claimed exactly that ("defence in depth" against a
+      // late read filing one dialog's reason against another user), and a
+      // review probe disproved it: `disableReason` is a `const` this
+      // closure captured at THIS render, not a live ref. Retyping the
+      // textarea triggers a new render with a new `onSubmitStepUp` closure
+      // over a new `disableReason` binding — it cannot reach back and
+      // mutate the one this already-running invocation holds. So a read
+      // before or after the await, within one invocation, is provably the
+      // same value; unlike the password above, there is no state-exposure
+      // reason to move it either, since a reason is not a secret.
+      //
+      // Reason is optional: empty or whitespace sends null, never "".
+      const enteredReason = disableReason.trim() || null;
+      const token = (await stepUp(enteredPassword)).token;
 
-        if (mode === "disable") {
-          await disableUser(target.id, { reason: enteredReason }, keyFor(scope), token);
-        } else {
-          await enableUser(target.id, keyFor(scope), token);
-        }
-        clearKey(scope); // write confirmed before any refresh (#163 review)
-        setUsers(await listUsers());
-        if (activeStepUp.current !== target.id) return; // dialog moved on
-        setMessage(i18n.t(mode === "disable" ? "users:userDisabledMessage" : "users:userEnabledMessage",
-          { email: target.email }));
-        closeStepUp();
-      } catch (err) {
-        if (activeStepUp.current === target.id) errors.report("disable-enable", errText(err));
+      if (mode === "disable") {
+        await disableUser(target.id, { reason: enteredReason }, keyFor(scope), token);
+      } else {
+        await enableUser(target.id, keyFor(scope), token);
       }
+      clearKey(scope); // write confirmed before any refresh (#163 review)
+      setUsers(await listUsers());
+      // Dismissed, or reopened for another user, the same user, or the other
+      // MODE, while this was in flight. The old guard compared user ids, so a
+      // same-user reopen — a disable followed by an enable of the same person
+      // included — passed and this stale success closed the dialog the user
+      // had just reopened (#703); the session generation tells them apart.
+      // Not reachable through the UI today (both row triggers are disabled
+      // for the whole flight), pinned by the close-on-success wiring test.
+      if (!current()) return;
+      setMessage(i18n.t(mode === "disable" ? "users:userDisabledMessage" : "users:userEnabledMessage",
+        { email: target.email }));
+      closeStepUp();
     }, { dialog: "disable-enable" });
   }
 

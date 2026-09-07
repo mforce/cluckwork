@@ -3749,3 +3749,94 @@ describe("UsersPage abandoned edit's success (#703 PR 4)", () => {
     expect(mockUpdateUser.mock.calls[1][2]).not.toBe(mockUpdateUser.mock.calls[0][2]); // the spent key went with the write
   });
 });
+
+// #703 PR 4 — the disable/enable dialog's guard compared user IDS too, and a
+// disable followed by an enable of the same user reuses one scope, so a
+// same-user reopen would pass it. Through the UI that reopen cannot happen:
+// both row triggers are disabled for the whole flight (pinned below), so the
+// stale success has nothing to hijack. What IS reachable is dismissing
+// mid-flight, and the success path itself; both are pinned here, and the
+// guard's replacement by the session generation rides on the second.
+describe("UsersPage abandoned disable's success (#703 PR 4)", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((ok) => { resolve = ok; });
+    return { promise, resolve };
+  }
+  const disableRow = (rowName: RegExp) =>
+    within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "disable" });
+  const fillProof = (target: HTMLElement) =>
+    fireEvent.change(within(target).getByLabelText(/Your current password/), { target: { value: OWNER_STEP_UP_PASSWORD } });
+
+  it("a successful disable closes its dialog, reports it and refreshes the list (its same-user reopen is unreachable — see the block comment)", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-703", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fillProof(dlg);
+    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Disable" })); });
+
+    expect(mockDisableUser).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText(/worker@farm\.test has been disabled/)).toBeInTheDocument();
+    expect(mockListUsers).toHaveBeenCalledTimes(2);
+  });
+
+  it("supersedes the disable on dismissal alone: a late success after Cancel claims no message, but still rotates the key and refreshes the list", async () => {
+    const write = deferred<void>();
+    mockStepUp.mockResolvedValue({ token: "grant-703", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockReturnValueOnce(write.promise);
+    await renderReady(ADMIN);
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fillProof(dlg);
+    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Disable" })); });
+    expect(mockDisableUser).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(within(dlg).getByRole("button", { name: "Cancel" }));
+    await act(async () => { write.resolve(); });
+
+    expect(screen.queryByText(/worker@farm\.test has been disabled/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockListUsers).toHaveBeenCalledTimes(2); // the refresh ran: the user is disabled whoever is watching
+
+    // The mocked refresh still lists the worker as enabled, so Disable is
+    // offered again: a second disable of the SAME user runs under the same
+    // key scope, and only a real rotation on the abandoned success makes
+    // its key differ from the first.
+    mockDisableUser.mockResolvedValueOnce(undefined);
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const again = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fillProof(again);
+    await act(async () => { fireEvent.click(within(again).getByRole("button", { name: "Disable" })); });
+
+    expect(mockDisableUser).toHaveBeenCalledTimes(2);
+    expect(mockDisableUser.mock.calls[1][2]).not.toBe(mockDisableUser.mock.calls[0][2]);
+  });
+
+  it("keeps both row triggers disabled for the whole flight, so a same-user reopen mid-flight is unreachable", async () => {
+    // The reason the reopen hijack has no behaviour test here: while a
+    // disable is in flight, Disable and Enable on every row are disabled, so
+    // Cancel-then-reopen cannot happen before the write settles. If this
+    // gate is ever removed, that reopen becomes reachable and needs the
+    // close-then-reopen test the other dialogs carry.
+    const write = deferred<void>();
+    mockListUsers.mockResolvedValue([WORKER_USER, DISABLED_USER, ADMIN_USER]);
+    mockStepUp.mockResolvedValue({ token: "grant-703", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fillProof(dlg);
+    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Disable" })); });
+
+    fireEvent.click(within(dlg).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(disableRow(/worker@farm.test/)).toBeDisabled();
+    expect(within(screen.getByRole("row", { name: /disabled@farm.test/ })).getByRole("button", { name: "enable" })).toBeDisabled();
+
+    await act(async () => { write.resolve(); });
+    expect(disableRow(/worker@farm.test/)).toBeEnabled();
+  });
+});
