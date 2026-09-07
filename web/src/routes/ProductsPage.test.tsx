@@ -684,3 +684,142 @@ describe("ProductsPage pending states (#236)", () => {
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
   });
 });
+
+// #703 PR 2 — the abandoned-success hijack (#477 part 2) on Products' create
+// dialog. BOTH edit dialogs (product edit, conversion edit) have unreachable
+// superseded cases — their reopen triggers are row edit buttons disabled while
+// the write is in flight — so each is pinned by a wiring test + mutation, same
+// as Customers/Flocks edit. Only create gets abandoned-success behaviour tests.
+describe("ProductsPage abandoned-attempt success (#703)", () => {
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((r) => (resolve = r));
+    return { promise, resolve };
+  }
+  const fillCreate = (name: string) => {
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: name } });
+    fireEvent.change(within(dialog()).getByLabelText("Grade"), { target: { value: "g1" } });
+  };
+  const submitCreate = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Add product" }));
+  const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+  it("does not let an abandoned create's success reset or close the reopened dialog", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await renderReady(ADMIN);
+    openCreate();
+    fillCreate("First");
+    submitCreate();
+    cancel();
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Second" } });
+    await act(async () => { gate.resolve({ id: "new" }); });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Second");
+  });
+
+  it("supersedes the create on dismissal alone: a late success does not reset the form the next open shows", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await renderReady(ADMIN);
+    openCreate();
+    fillCreate("One");
+    submitCreate();
+    cancel();
+    await act(async () => { gate.resolve({ id: "new" }); });
+    openCreate();
+
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("One");
+  });
+
+  it("still refreshes the catalog and rotates the key when an abandoned create succeeds", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await renderReady(ADMIN);
+    openCreate();
+    fillCreate("One");
+    submitCreate();
+    cancel();
+    await act(async () => { gate.resolve({ id: "new" }); });
+    expect(mockListProducts).toHaveBeenCalledTimes(2); // mount + the refresh
+
+    mockCreate.mockResolvedValueOnce({ id: "new2" });
+    openCreate();
+    fillCreate("Two");
+    await act(async () => { submitCreate(); });
+
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(mockCreate.mock.calls[1][1]).not.toBe(mockCreate.mock.calls[0][1]);
+  });
+
+  it("keeps the create key when the write lands but the refresh fails, so the retry replays it", async () => {
+    mockCreate.mockResolvedValueOnce({ id: "new" });
+    mockListProducts.mockResolvedValueOnce([P1, P2]);
+    mockListProducts.mockRejectedValueOnce(new ApiError(500, "Server error", "refresh boom"));
+    await renderReady(ADMIN);
+    openCreate();
+    fillCreate("One");
+    await act(async () => { submitCreate(); });
+    expect(within(dialog()).getByText(/refresh boom/)).toBeInTheDocument();
+
+    mockCreate.mockResolvedValueOnce({ id: "new" });
+    await act(async () => { submitCreate(); });
+
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(mockCreate.mock.calls[1][1]).toBe(mockCreate.mock.calls[0][1]);
+  });
+
+  // Product edit's superseded case is UNREACHABLE (row edit button disabled
+  // while busy); pinned by this wiring test + mutation P5, not a behaviour test.
+  it("a successful product edit closes its dialog and refreshes the catalog (edit's superseded case is unreachable — see comment)", async () => {
+    mockUpdate.mockResolvedValueOnce(undefined);
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "edit" }));
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Renamed" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockListProducts).toHaveBeenCalledTimes(2); // mount + the post-edit refresh
+  });
+
+  // Conversion edit's superseded case is likewise UNREACHABLE; pinned by this
+  // wiring test + mutation P6.
+  it("a successful conversion edit closes its dialog and refreshes the catalog (edit-conversion's superseded case is unreachable — see comment)", async () => {
+    mockUpdateConversion.mockResolvedValueOnce(undefined);
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Carton/ })).getByRole("button", { name: "edit" }));
+    fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Eggs per unit" }), { target: { value: "18" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockListProducts).toHaveBeenCalledTimes(2); // mount + the post-edit refresh
+    expect(mockListConversions).toHaveBeenCalledTimes(2); // refresh() reloads conversions too
+  });
+});
+
+describe("ProductsPage codex-f2 repro (#703 review r2)", () => {
+  function deferred<T>() { let resolve!: (v: T) => void; let reject!: (e: unknown) => void;
+    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; }); return { promise, resolve, reject }; }
+  it("abandoned create failure must NOT leak into the reopened create dialog (skipped Enter-submit)", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await renderReady(ADMIN);
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "First" } });
+    fireEvent.change(within(dialog()).getByLabelText("Grade"), { target: { value: "g1" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Add product" })); // A submitted, pending
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));      // dismiss A
+    openCreate();                                                                    // reopen B
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Second" } });
+    fireEvent.change(within(dialog()).getByLabelText("Grade"), { target: { value: "g1" } });
+    const form = within(dialog()).getByRole("button", { name: "Add product" }).closest("form")!;
+    await act(async () => { fireEvent.submit(form); }); // Enter-submit B while A in flight -> run() skips
+    await act(async () => { gate.reject(new ApiError(422, "Validation failed", "A-ONLY-ERROR")); }); // A fails
+    expect(within(dialog()).queryByText(/A-ONLY-ERROR/)).not.toBeInTheDocument();
+  });
+});

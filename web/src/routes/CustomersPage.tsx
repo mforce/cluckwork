@@ -7,7 +7,6 @@ import {
   createCustomer, listCustomerBalances, listCustomers, updateCustomer,
 } from "../api/cluckwork";
 import type { Customer, CustomerBalances } from "../api/cluckwork";
-import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
@@ -15,15 +14,9 @@ import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
 import { DialogError } from "../components/DialogError";
 import { usePagedList } from "../components/usePagedList";
-import { useDialogErrors } from "../components/useDialogErrors";
-import { usePendingAction } from "../components/usePendingAction";
+import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
-
-function errText(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
-  return err instanceof Error ? err.message : String(err);
-}
 
 interface EditForm {
   id: string;
@@ -38,6 +31,9 @@ interface EditForm {
 // Matches the endpoint's DefaultPageSize (CustomerEndpoints.cs) so a full page
 // is exactly what the server considers one.
 const CUSTOMER_PAGE = 100;
+
+// The scopes that own a dialog (#703).
+const DIALOG_SCOPES = ["create", "edit-customer"] as const;
 
 // #23: customer book — name + phone required, the rest optional.
 export function CustomersPage() {
@@ -69,9 +65,9 @@ export function CustomersPage() {
   });
   const customers = customerList.rows;
   const [balances, setBalances] = useState<CustomerBalances | null>(null);
-  // #479 — one slot per PLACE a message can appear. Both reads below belong to
-  // the page; the create form's failures belong to the form.
-  const errors = useDialogErrors();
+  // #703 — the flight guard (#236), the per-place message slots (#479) and the
+  // dialog-session generation (#477 part 2) come from one shared hook.
+  const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(DIALOG_SCOPES);
   const setPageError = errors.setPage;
 
   const [creating, setCreating] = useState(false); // F131: capture moved into a dialog
@@ -80,19 +76,14 @@ export function CustomersPage() {
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
-  const { busy, isPending, run } = usePendingAction();
   const createKey = useRef<string>(newId());
 
-  // #625 — one edit object (id/version/all five fields) or null, following the
-  // reviewed UsersPage displacement pattern: a synchronous active-target +
-  // generation ref so a write that resolves after the dialog moved on (closed,
-  // or reopened for a DIFFERENT customer) cannot splice its result into the
-  // wrong session. Each list row already carries every field the dialog needs
-  // (unlike an async detail fetch), so prefill is one atomic state assignment.
+  // #625 — one edit object (id/version/all five fields) or null. Each list row
+  // carries every field the dialog needs (unlike an async detail fetch), so
+  // prefill is one atomic state assignment. The old synchronous active-target +
+  // generation ref is now the shared hook's session (#703 `current()`).
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [editWriteInFlight, setEditWriteInFlight] = useState(false);
-  const editDialogGeneration = useRef(0);
-  const activeEdit = useRef<{ id: string; generation: number } | null>(null);
   // Stable idempotency key per customer AND exact wire payload, rotated when
   // either the Version/fields or omitted-optionals shape changes. A confirmed
   // write still clears it immediately, before the refresh.
@@ -124,46 +115,39 @@ export function CustomersPage() {
 
   // Dismissal empties the form's slot and mutes the attempt still out, so a
   // late failure is not reported against a session the user reopened.
-  const closeCreate = () => { setCreating(false); errors.abandon("create"); };
+  const closeCreate = () => { setCreating(false); dismissDialog("create"); };
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    // The hook's ref skips a same-tick re-submit (state alone waved both
-    // through); `beginAttempt` stays INSIDE run for the same reason the old
-    // `setError(null)` did — a skipped run must not blank the message the
-    // previous attempt left, because nothing new is going to replace it.
-    await run("create", async () => {
-      errors.beginAttempt("create");
-      try {
-        await customerList.runWrite(async () => {
-          await createCustomer({
-            name, phone,
-            email: email || undefined,
-            address: address || undefined,
-            note: note || undefined,
-          }, createKey.current);
-        });
-        createKey.current = newId();
-        setName(""); setPhone(""); setEmail(""); setAddress(""); setNote("");
-        setCreating(false);
-      } catch (err) {
-        errors.report("create", err instanceof ApiError ? err.message : String(err));
-      }
+    // The hook owns the re-entry guard, the beginAttempt and the catch/report;
+    // this action does the write, rotates the key (RUN — the customer exists),
+    // then gates the form reset and close on `current()` (#703).
+    await run("create", async (current) => {
+      await customerList.runWrite(async () => {
+        await createCustomer({
+          name, phone,
+          email: email || undefined,
+          address: address || undefined,
+          note: note || undefined,
+        }, createKey.current);
+      });
+      createKey.current = newId();
+      if (!current()) return;
+      setName(""); setPhone(""); setEmail(""); setAddress(""); setNote("");
+      setCreating(false);
     });
   }
 
   // #625 — the row Edit button opens or REBINDS this dialog. `closeDisabled`
-  // makes the entire background — every OTHER row's Edit button included —
-  // `inert` for the whole write+refresh window (Dialog's own modal
-  // mechanism), so a live cross-record displacement is not reachable through
-  // the real UI: there is no click that can reach a different row while this
-  // one is in flight. The id/generation guard below is deliberate
-  // defense-in-depth against that not staying true (a future relaxation of
-  // `closeDisabled`, a programmatic re-open), not a path this component
-  // exercises today — do not test it as if it were a live user path (#501).
+  // makes the entire background `inert` for the whole write+refresh window
+  // (Dialog's own modal mechanism), so a live cross-record displacement is not
+  // reachable through the real UI: there is no click that can reach a different
+  // row while this one is in flight. `openDialog` claims a fresh session so a
+  // superseded write's success cannot splice into the reopened one — defence in
+  // depth against `closeDisabled` not staying true (a future relaxation, a
+  // programmatic re-open), not a path this component exercises today (#501/#703).
   function openEdit(c: Customer) {
-    if (editForm !== null && editForm.id !== c.id) errors.abandon("edit-customer");
-    activeEdit.current = { id: c.id, generation: ++editDialogGeneration.current };
+    openDialog("edit-customer");
     setEditForm({
       id: c.id, version: c.version, name: c.name, phone: c.phone,
       email: c.email ?? "", address: c.address ?? "", note: c.note ?? "",
@@ -171,20 +155,20 @@ export function CustomersPage() {
   }
 
   function closeEdit() {
-    activeEdit.current = null;
     setEditForm(null);
-    errors.abandon("edit-customer");
+    dismissDialog("edit-customer");
   }
 
   async function onSaveEdit(e: FormEvent) {
     e.preventDefault();
     const target = editForm;
-    const dialog = activeEdit.current;
-    if (!target || dialog === null || dialog.id !== target.id) return;
-    const isCurrentDialog = () => activeEdit.current?.generation === dialog.generation;
-    const scope = `update:${target.id}`;
-    await run(scope, async () => {
-      errors.beginAttempt("edit-customer");
+    if (!target) return;
+    // Run scope is the dialog's; the idempotency key stays per customer. The
+    // hook owns beginAttempt and the catch/report (it drops an abandoned
+    // attempt itself, so no `current()` guard around reporting). `current()`
+    // replaces the old id/generation ref. The gate is UNREACHABLE through the
+    // UI (`closeDisabled`) but kept as defence in depth (#501/#703).
+    await run("edit-customer", async (current) => {
       setEditWriteInFlight(true);
       try {
         const body = {
@@ -222,7 +206,7 @@ export function CustomersPage() {
             id: target.id, version: committedVersion, name: normalizedName, phone: normalizedPhone,
             email: normalizedEmail, address: normalizedAddress, note: normalizedNote,
           };
-          if (isCurrentDialog()) {
+          if (current()) {
             setEditForm((prev) => (prev && prev.id === target.id ? {
               ...prev, version: committedVersion, name: normalizedName, phone: normalizedPhone,
               email: normalizedEmail ?? "", address: normalizedAddress ?? "", note: normalizedNote ?? "",
@@ -230,9 +214,7 @@ export function CustomersPage() {
           }
           return committedFields;
         });
-        if (isCurrentDialog()) closeEdit();
-      } catch (err) {
-        if (isCurrentDialog()) errors.report("edit-customer", errText(err));
+        if (current()) closeEdit();
       } finally {
         setEditWriteInFlight(false);
       }
@@ -247,7 +229,7 @@ export function CustomersPage() {
             same action, so there is one "New customer" button on screen, not
             two with an identical accessible name. */}
         {customers !== null && customers.length > 0 && (
-          <button type="button" onClick={() => setCreating(true)}>
+          <button type="button" onClick={() => { openDialog("create"); setCreating(true); }}>
             <Plus size={16} aria-hidden /> {t("newCustomerButton")}
           </button>
         )}
@@ -323,7 +305,7 @@ export function CustomersPage() {
                 {tc("cancel")}
               </button>
               <BusyButton type="submit" disabled={busy}
-                busy={isPending(`update:${editForm.id}`)}>{tc("save")}</BusyButton>
+                busy={isPending("edit-customer")}>{tc("save")}</BusyButton>
             </div>
           </form>
         )}
@@ -342,7 +324,7 @@ export function CustomersPage() {
         <p className="muted">{tc("loading")}</p>
       ) : customers.length === 0 ? (
         <EmptyState icon={Users} message={t("noCustomersMessage")}
-          action={{ label: t("newCustomerButton"), onClick: () => setCreating(true) }} />
+          action={{ label: t("newCustomerButton"), onClick: () => { openDialog("create"); setCreating(true); } }} />
       ) : (
         <table className="data">
           <thead>

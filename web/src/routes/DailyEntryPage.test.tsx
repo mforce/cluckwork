@@ -1507,3 +1507,141 @@ describe("DailyEntryPage picker lifecycle races (#512 T031)", () => {
     }
   });
 });
+
+// #703 PR 2 — the abandoned-success hijack (#477 part 2) on Daily Entry's
+// new-flock dialog. INV-8 (owner GATE 2026-09-06): a superseded new-flock
+// success refreshes the flock list but does NOT switch the page's captured
+// flock or re-hydrate the picker. new-flock IS reachable (its trigger and the
+// dialog Cancel are not disabled while busy), so it gets behaviour tests.
+describe("DailyEntryPage new-flock abandoned-attempt success (#703)", () => {
+  const dialog = () => screen.getByRole("dialog");
+  const openNewFlock = () => fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((r) => (resolve = r));
+    return { promise, resolve };
+  }
+  const fill = (name: string) => {
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: name } });
+    fireEvent.change(within(dialog()).getByLabelText("Breed"), { target: { value: "RIR" } });
+  };
+  const submitFlock = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Create flock" }));
+  const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+  it("does not let an abandoned new-flock create's success reset or close the reopened dialog", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreateFlock.mockReturnValueOnce(gate.promise as never);
+    await renderReady();
+    openNewFlock();
+    fill("First");
+    submitFlock();
+    cancel();
+    openNewFlock();
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Second" } });
+    await act(async () => { gate.resolve({ id: "f2" }); });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Second");
+  });
+
+  it("supersedes the new-flock create on dismissal alone: a late success does not reset the form the next open shows", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreateFlock.mockReturnValueOnce(gate.promise as never);
+    await renderReady();
+    openNewFlock();
+    fill("One");
+    submitFlock();
+    cancel();
+    await act(async () => { gate.resolve({ id: "f2" }); });
+    openNewFlock();
+
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("One");
+  });
+
+  it("does not switch the page's captured flock when an abandoned new-flock create succeeds (INV-8, owner GATE)", async () => {
+    const CREATED: Flock = { ...FLOCK, id: "f2", name: "Rhode Reds", breed: "Rhode Island Red" };
+    vi.mocked(getFlock).mockImplementation(async (id: string) => id === "f2" ? CREATED : FLOCK);
+    const gate = deferred<{ id: string }>();
+    mockCreateFlock.mockReturnValueOnce(gate.promise as never);
+    await renderReady();
+    openNewFlock();
+    fill("One");
+    submitFlock();
+    cancel();
+    await act(async () => { gate.resolve({ id: "f2" }); });
+
+    // The flock exists but the page did NOT retarget to it: no exact-GET
+    // hydration for the created id fired, and the trigger still shows the
+    // originally-captured flock (#703 INV-8).
+    expect(vi.mocked(getFlock)).not.toHaveBeenCalledWith("f2");
+    expect(screen.getByRole("button", { name: /Hen House 1 \(ISA\)/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Rhode Reds/ })).not.toBeInTheDocument();
+  });
+
+  it("still rotates the flock key when an abandoned new-flock create succeeds", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreateFlock.mockReturnValueOnce(gate.promise as never);
+    await renderReady();
+    openNewFlock();
+    fill("One");
+    submitFlock();
+    cancel();
+    await act(async () => { gate.resolve({ id: "f2" }); });
+
+    mockCreateFlock.mockResolvedValueOnce({ id: "f3" });
+    openNewFlock();
+    fill("Two");
+    await act(async () => { submitFlock(); });
+
+    expect(mockCreateFlock).toHaveBeenCalledTimes(2);
+    expect(mockCreateFlock.mock.calls[1][1]).not.toBe(mockCreateFlock.mock.calls[0][1]);
+  });
+});
+
+// #703 review r2 (A) — the admin-gated dialog hides on demotion without onClose;
+// an in-flight create must not survive a demote+re-promote and retarget the page.
+describe("DailyEntryPage new-flock role-change session (#703 r2)", () => {
+  const dialog = () => screen.getByRole("dialog");
+  function deferred<T>() { let resolve!: (v: T) => void; const promise = new Promise<T>((r) => (resolve = r)); return { promise, resolve }; }
+  it("does not retarget after an in-flight create survives an admin demote+re-promote", async () => {
+    const CREATED: Flock = { ...FLOCK, id: "f2", name: "Rhode Reds", breed: "Rhode Island Red" };
+    vi.mocked(getFlock).mockImplementation(async (id: string) => id === "f2" ? CREATED : FLOCK);
+    const gate = deferred<{ id: string }>();
+    mockCreateFlock.mockReturnValueOnce(gate.promise as never);
+    auth.isAdmin = true;
+    const view = render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
+    await screen.findByLabelText("Grade A");
+    await waitFor(() => expect(saveDraftBtn()).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "One" } });
+    fireEvent.change(within(dialog()).getByLabelText("Breed"), { target: { value: "RIR" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Create flock" })); // create in flight
+
+    auth.isAdmin = false; view.rerender(<MemoryRouter><DailyEntryPage /></MemoryRouter>); // demote
+    auth.isAdmin = true; view.rerender(<MemoryRouter><DailyEntryPage /></MemoryRouter>);  // re-promote
+    await act(async () => { gate.resolve({ id: "f2" }); });                              // old create lands
+
+    expect(vi.mocked(getFlock)).not.toHaveBeenCalledWith("f2");
+    expect(screen.queryByRole("button", { name: /Rhode Reds/ })).not.toBeInTheDocument();
+  });
+});
+
+// #703 review r2 (B) — the best-effort eligible-list refresh is fire-and-forget,
+// so a slow/hung list read never blocks the exact-GET hydration that selects the
+// newly-created flock. Awaiting it (the pre-fix order) would strand selection.
+describe("DailyEntryPage new-flock refresh independence (#703 r2)", () => {
+  const dialog = () => screen.getByRole("dialog");
+  it("selects the created flock even when the post-create list refresh never resolves", async () => {
+    const CREATED: Flock = { ...FLOCK, id: "f2", name: "Rhode Reds", breed: "Rhode Island Red" };
+    vi.mocked(getFlock).mockImplementation(async (id: string) => id === "f2" ? CREATED : FLOCK);
+    mockCreateFlock.mockResolvedValueOnce({ id: "f2" });
+    await renderReady();
+    mockListFlocks.mockReturnValue(new Promise<Flock[]>(() => {}));
+    fireEvent.click(screen.getByRole("button", { name: "+ new flock" }));
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "One" } });
+    fireEvent.change(within(dialog()).getByLabelText("Breed"), { target: { value: "RIR" } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create flock" })); });
+
+    await waitFor(() => expect(vi.mocked(getFlock)).toHaveBeenCalledWith("f2"));
+  });
+});

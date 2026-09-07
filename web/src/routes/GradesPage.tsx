@@ -7,7 +7,6 @@ import {
   activateEggGrade, createEggGrade, deactivateEggGrade, listEggGrades, updateEggGrade,
 } from "../api/cluckwork";
 import type { EggGrade } from "../api/cluckwork";
-import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
@@ -15,18 +14,16 @@ import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { ProvenanceCell } from "../components/ProvenanceCell";
 import { StatusBadge } from "../components/StatusBadge";
-import { useDialogErrors } from "../components/useDialogErrors";
-import { usePendingAction } from "../components/usePendingAction";
+import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { gradeTypeLabel, statusLabel } from "../i18n/enums";
 
 const GRADE_TYPES = ["Size", "Quality", "Custom"];
 
-function errorMessage(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
-  return err instanceof Error ? err.message : String(err);
-}
+// The scopes that own a dialog (#703). A scope outside the list — the row
+// activate/deactivate writes — reports to the page and is never superseded.
+const DIALOG_SCOPES = ["create", "edit"] as const;
 
 // F6 (#42): manage the farm's egg grades. No hard delete — grade lines, lots,
 // and order items reference grades forever; deactivation only removes a grade
@@ -39,14 +36,12 @@ export function GradesPage() {
   // nav link hides for workers; a direct URL just renders the list read-only.
   const { isAdmin } = useAuth();
   const [grades, setGrades] = useState<EggGrade[] | null>(null);
-  // #479 — one slot per PLACE a message can appear: the initial load and the
-  // row-level activate/deactivate writes (neither is behind a dialog) belong
-  // to the page; create and edit each get their own dialog slot.
-  const errors = useDialogErrors();
+  // #703 — the flight guard (#236), the per-place message slots (#479) and the
+  // dialog-session generation (#477 part 2) come from one shared hook; this
+  // screen keeps only its idempotency-key and refresh discipline below, and
+  // says which scopes own a dialog.
+  const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(DIALOG_SCOPES);
   const setPageError = errors.setPage;
-  // #236: the flight guard + per-scope spinner state live in the shared hook;
-  // this screen keeps only its idempotency-key and refresh discipline below.
-  const { busy, isPending, run: runPending } = usePendingAction();
 
   // create form (F131: lives in a dialog, not a bar above the table)
   const [creating, setCreating] = useState(false);
@@ -81,78 +76,65 @@ export function GradesPage() {
       .catch(() => setPageError(i18n.t("grades:loadGradesFailed")));
   }, [setPageError]);
 
-  // `dialogScope` names the DIALOG this attempt's failure belongs to — `null`
-  // for the row-level activate/deactivate writes, which sit on the page.
-  async function run(
-    scope: string, dialogScope: string | null, action: (key: string) => Promise<unknown>,
-  ): Promise<boolean> {
-    const outcome = await runPending(scope, async () => {
-      errors.beginAttempt(dialogScope);
-      try {
-        await action(keyFor(scope));
-        // The refresh must succeed before the key rotates: if it throws, the key
-        // survives and a retry replays the idempotent write instead of repeating it.
-        setGrades(await fetchGrades());
-        clearKey(scope);
-        return true;
-      } catch (err) {
-        errors.report(dialogScope, errorMessage(err));
-        return false;
-      }
-    });
-    // A skipped run (another flight already open) reports `undefined` — never
-    // success: mapping it to false keeps a blocked submit from closing its
-    // dialog or resetting its form as if it had saved.
-    return outcome ?? false;
+  // The write discipline every mutation on this screen shares: the write under
+  // its idempotency key, the list refresh, and only THEN the key rotation — if
+  // the refresh throws, the key survives and a retry replays the idempotent
+  // write instead of duplicating it. All three are facts about the world: they
+  // run whether or not the dialog that started them is still on screen (#703).
+  // Called INSIDE `run`; anything it throws lands in the slot `run` was given.
+  async function commit(keyScope: string, action: (key: string) => Promise<unknown>): Promise<void> {
+    await action(keyFor(keyScope));
+    setGrades(await fetchGrades());
+    clearKey(keyScope);
   }
 
-  // A dialog opens on a clean form; cancelling keeps whatever was typed until
-  // the next open, so a stray Escape does not throw the entry away. Switching
-  // straight from one dialog to the other, with no Cancel in between, abandons
-  // the one being displaced, so its stale verdict cannot resurface next time it
-  // reopens — the one case `abandon`-on-close alone cannot see. The backdrop
-  // stops a mouse reaching the trigger underneath, so this is the rare path;
-  // #480 established it does not stop a screen reader's virtual cursor, which
-  // is the same reason a per-dialog map exists rather than one slot.
+  // Opening create ends any edit session on screen (#703): `closeEdit` mutes the
+  // edit attempt still out and ends its session, so its late success cannot
+  // touch the create dialog now opening. The backdrop stops a mouse reaching the
+  // edit trigger, but not a screen reader's virtual cursor (#480), so this
+  // displacement is real; `openDialog`/`dismissDialog` handle it unconditionally.
   function openCreate() {
-    if (editingId !== null) errors.abandon(`edit:${editingId}`);
-    setEditingId(null);
+    closeEdit();
+    openDialog("create");
     setCreating(true);
   }
 
-  // Dismissal empties the dialog's slot and mutes the attempt still out, so a
-  // late failure is not reported against a session the user reopened.
+  // Dismissal is one of the two session edges (#703): it mutes the attempt still
+  // out and ends the session, so a late failure or success cannot act on a
+  // session the user reopened.
   function closeCreate() {
     setCreating(false);
-    errors.abandon("create");
+    dismissDialog("create");
   }
 
   function closeEdit() {
-    const id = editingId;
     setEditingId(null);
-    if (id !== null) errors.abandon(`edit:${id}`);
+    dismissDialog("edit");
   }
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    const ok = await run("create-grade", "create", (key) =>
-      createEggGrade({ name, gradeType, sortOrder, isSaleable }, key));
-    if (ok) {
+    await run("create", async (current) => {
+      await commit("create-grade", (key) =>
+        createEggGrade({ name, gradeType, sortOrder, isSaleable }, key));
+      // Superseded: the grade exists and the list shows it, but the form and its
+      // dialog belong to whatever session is on screen now (#703).
+      if (!current()) return;
       setName("");
       setSortOrder(0);
       setIsSaleable(true);
       setCreating(false);
-    }
+    });
   }
 
   function startEdit(g: EggGrade) {
-    if (creating) errors.abandon("create");
-    setCreating(false);
-    // A different grade's edit DISPLACES this one the same way (see openCreate
-    // above): the session ends without onClose, and its per-id slot would
-    // otherwise replay the dead session's failure when THAT grade's edit is
-    // reopened later (pi review of #491).
-    if (editingId !== null && editingId !== g.id) errors.abandon(`edit:${editingId}`);
+    closeCreate(); // create and edit are mutually exclusive; end any create session
+    // Opening is the other session edge (#703): whatever edit session was on
+    // screen — this grade's or, reached behind the backdrop by a screen reader's
+    // virtual cursor (#480; pi review of #491), another grade's — is over, its
+    // attempt muted and its success unable to touch this one. That is what used
+    // to need the per-id displacement check and the per-id error slot here.
+    openDialog("edit");
     setEditingId(g.id);
     setEditName(g.name);
     setEditSort(g.sortOrder);
@@ -163,9 +145,13 @@ export function GradesPage() {
     e.preventDefault();
     const id = editingId;
     if (id === null) return;
-    const ok = await run(`update:${id}`, `edit:${id}`, (key) =>
-      updateEggGrade(id, { name: editName, sortOrder: editSort, isSaleable: editSaleable }, key));
-    if (ok) setEditingId(null);
+    // The run scope is the dialog's; the idempotency key stays per grade.
+    await run("edit", async (current) => {
+      await commit(`update:${id}`, (key) =>
+        updateEggGrade(id, { name: editName, sortOrder: editSort, isSaleable: editSaleable }, key));
+      if (!current()) return;
+      setEditingId(null);
+    });
   }
 
   if (errors.page && grades === null) {
@@ -213,7 +199,7 @@ export function GradesPage() {
           <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("create-grade")} disabled={busy}>{t("addGradeButton")}</BusyButton>
+            <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addGradeButton")}</BusyButton>
           </div>
         </form>
       </Dialog>
@@ -235,10 +221,10 @@ export function GradesPage() {
               onChange={(e) => setEditSaleable(e.target.checked)} />
             {t("saleableLabel")}
           </label>
-          <DialogError errors={errors} scope={`edit:${editingId}`} />
+          <DialogError errors={errors} scope="edit" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={editingId !== null && isPending(`update:${editingId}`)} disabled={busy}>
+            <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
               {tc("save")}
             </BusyButton>
           </div>
@@ -288,12 +274,12 @@ export function GradesPage() {
                       onClick={() => startEdit(g)}>{t("editButton")}</button>
                     {g.active ? (
                       <BusyButton className="link" busy={isPending(`deactivate:${g.id}`)} disabled={busy}
-                        onClick={() => void run(`deactivate:${g.id}`, null, (key) => deactivateEggGrade(g.id, key))}>
+                        onClick={() => void run(`deactivate:${g.id}`, () => commit(`deactivate:${g.id}`, (key) => deactivateEggGrade(g.id, key)))}>
                         {t("deactivateButton")}
                       </BusyButton>
                     ) : (
                       <BusyButton className="link" busy={isPending(`activate:${g.id}`)} disabled={busy}
-                        onClick={() => void run(`activate:${g.id}`, null, (key) => activateEggGrade(g.id, key))}>
+                        onClick={() => void run(`activate:${g.id}`, () => commit(`activate:${g.id}`, (key) => activateEggGrade(g.id, key)))}>
                         {t("activateButton")}
                       </BusyButton>
                     )}

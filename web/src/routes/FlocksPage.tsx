@@ -8,7 +8,6 @@ import {
   recordBirdMovement, updateFlock,
 } from "../api/cluckwork";
 import type { BirdMovement, Flock } from "../api/cluckwork";
-import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { BusyButton } from "../components/BusyButton";
@@ -19,8 +18,7 @@ import { NumberField } from "../components/NumberField";
 import { ProvenanceCell } from "../components/ProvenanceCell";
 import { StatusBadge } from "../components/StatusBadge";
 import { useConfirm } from "../components/useConfirm";
-import { useDialogErrors } from "../components/useDialogErrors";
-import { usePendingAction } from "../components/usePendingAction";
+import { useDialogAction } from "../components/useDialogAction";
 import { usePagedList } from "../components/usePagedList";
 import { useAuth } from "../auth/useAuth";
 import { ageWeeks } from "../lib/dates";
@@ -29,14 +27,14 @@ import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { flockMovementLabel, statusLabel } from "../i18n/enums";
 
-function errorMessage(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
-  return err instanceof Error ? err.message : String(err);
-}
-
 // The ledger's previous hard cap, kept as the page size: the endpoint's own
 // max is 500, and 50 is what this screen has always shown at once.
 const LEDGER_PAGE = 50;
+
+// The scopes that own a dialog (#703). `run` routes a failure by this and gates
+// a success by it; a scope outside the list — deplete/archive/reactivate from
+// the row buttons — reports to the page and is never superseded.
+const DIALOG_SCOPES = ["create", "edit", "record-movement"] as const;
 
 // F7 (#47): manage flocks — create, correct identity fields, deplete, archive.
 // Archived flocks leave pickers and the dashboard; this screen still shows them
@@ -55,13 +53,12 @@ export function FlocksPage() {
   const { confirm, confirmDialog } = useConfirm();
   const [flocks, setFlocks] = useState<Flock[] | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  // #479 — one slot per PLACE a message can appear: the page (mount load and
-  // the bird-ledger read), and each dialog by its own scope.
-  const errors = useDialogErrors();
+  // #703 — the flight guard (#236), the per-place message slots (#479) and the
+  // dialog-session generation (#477 part 2) come from one shared hook; this
+  // screen keeps only its idempotency-key and refresh discipline below, and
+  // says which scopes own a dialog.
+  const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(DIALOG_SCOPES);
   const setPageError = errors.setPage;
-  // #236: the flight guard + per-scope spinner state live in the shared hook;
-  // this screen keeps only its idempotency-key and refresh discipline below.
-  const { busy, isPending, run: runPending } = usePendingAction();
 
   // create form (F131: in a dialog)
   const [creating, setCreating] = useState(false);
@@ -111,32 +108,19 @@ export function FlocksPage() {
       .catch(() => setPageError(i18n.t("flocks:loadFlocksFailed")));
   }, [fetchFlocks, setPageError]);
 
-  // `errorScope` names the DIALOG a failure belongs to; `null` routes it to the
-  // page. Deplete/archive/reactivate run from row buttons, not a dialog, so
-  // they pass `null` — same place the old shared `error` used to render them.
-  async function run(
-    scope: string,
-    errorScope: string | null,
-    action: (key: string) => Promise<unknown>,
-  ): Promise<boolean> {
-    const outcome = await runPending(scope, async () => {
-      errors.beginAttempt(errorScope);
-      try {
-        await action(keyFor(scope));
-        // Refresh must succeed before the key rotates (grade-management review
-        // lesson): if it throws, a retry replays the idempotent write.
-        setFlocks(await fetchFlocks());
-        clearKey(scope);
-        return true;
-      } catch (err) {
-        errors.report(errorScope, errorMessage(err));
-        return false;
-      }
-    });
-    // A skipped run (another flight already open) reports `undefined` — never
-    // success: mapping it to false keeps a blocked submit from closing its
-    // dialog or resetting its form as if it had saved.
-    return outcome ?? false;
+  // The write discipline every mutation on this screen shares: the write under
+  // its idempotency key, the list refresh, and only THEN the key rotation — if
+  // the refresh throws, the key survives and a retry replays the idempotent
+  // write instead of duplicating it (grade-management review lesson). All
+  // three are facts about the world: they run whether or not the dialog that
+  // started them is still on screen (#703 — the superseded-safe rule). The
+  // flight guard, the failure routing and the success gate are the hook's;
+  // this helper is called INSIDE `run`, and anything it throws lands in the
+  // slot `run` was given.
+  async function commit(keyScope: string, action: (key: string) => Promise<unknown>): Promise<void> {
+    await action(keyFor(keyScope));
+    setFlocks(await fetchFlocks());
+    clearKey(keyScope);
   }
 
   // F135: the two lifecycle changes ask first. Named handlers rather than the
@@ -148,7 +132,7 @@ export function FlocksPage() {
       confirmLabel: i18n.t("flocks:depleteConfirmLabel"),
       destructive: true,
     });
-    if (ok) await run(`deplete:${f.id}`, null, (key) => depleteFlock(f.id, key));
+    if (ok) await run(`deplete:${f.id}`, () => commit(`deplete:${f.id}`, (key) => depleteFlock(f.id, key)));
   }
 
   async function onArchive(f: Flock) {
@@ -158,36 +142,40 @@ export function FlocksPage() {
       confirmLabel: i18n.t("flocks:archiveConfirmLabel"),
       destructive: true,
     });
-    if (ok) await run(`archive:${f.id}`, null, (key) => archiveFlock(f.id, key));
+    if (ok) await run(`archive:${f.id}`, () => commit(`archive:${f.id}`, (key) => archiveFlock(f.id, key)));
   }
 
-  // Dismissal empties this dialog's slot and mutes the attempt still out, so a
-  // late failure is not reported against a session the user reopened.
-  const closeCreate = () => { setCreating(false); errors.abandon("create"); };
+  // Dismissal is one of the two session edges (#703): it mutes the attempt
+  // still out, so a late failure is not reported against a session the user
+  // reopened, and ends the session, so a late success cannot act on it.
+  const closeCreate = () => { setCreating(false); dismissDialog("create"); };
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    const ok = await run("create-flock", "create", (key) =>
-      createFlock({ name, breed, placementDate: placed, initialCount: count }, key));
-    if (ok) {
+    await run("create", async (current) => {
+      await commit("create-flock", (key) =>
+        createFlock({ name, breed, placementDate: placed, initialCount: count }, key));
+      // Superseded: the flock exists and the list shows it, but the form and
+      // its dialog belong to whatever session is on screen now (#703).
+      if (!current()) return;
       setName("");
       setBreed("");
       setPlaced(today);
       setCount(100);
       setCreating(false);
-    }
+    });
   }
 
-  const closeEdit = () => { setEditingId(null); errors.abandon("edit"); };
+  const closeEdit = () => { setEditingId(null); dismissDialog("edit"); };
 
   function startEdit(f: Flock) {
     closeCreate(); // defensive: New flock and Edit are mutually exclusive triggers
-    // A different flock's edit DISPLACES this one — the session ends without
-    // onClose, so nothing else abandons the fixed "edit" scope, and the
-    // displaced flock's verdict would render inside the next flock's dialog.
-    // Reachable behind the backdrop via a screen reader's virtual cursor
-    // (#480; pi review of #491). Same-flock re-entry is not a displacement.
-    if (editingId !== null && editingId !== f.id) errors.abandon("edit");
+    // Opening is the other session edge (#703): whatever "edit" session was on
+    // screen — this flock's or, reached behind the backdrop by a screen
+    // reader's virtual cursor (#480; pi review of #491), another flock's — is
+    // over, its attempt still out muted and its success unable to touch this
+    // one. That is what used to need a displacement check here.
+    openDialog("edit");
     setEditingId(f.id);
     setEditName(f.name);
     setEditBreed(f.breed);
@@ -199,12 +187,16 @@ export function FlocksPage() {
     e.preventDefault();
     const id = editingId;
     if (id === null) return;
-    const ok = await run(`update:${id}`, "edit", (key) =>
-      updateFlock(id, {
-        name: editName, breed: editBreed,
-        placementDate: editPlaced, initialCount: editCount,
-      }, key));
-    if (ok) setEditingId(null);
+    // The run scope is the dialog's; the idempotency key stays per flock.
+    await run("edit", async (current) => {
+      await commit(`update:${id}`, (key) =>
+        updateFlock(id, {
+          name: editName, breed: editBreed,
+          placementDate: editPlaced, initialCount: editCount,
+        }, key));
+      if (!current()) return;
+      setEditingId(null);
+    });
   }
 
   // #511 — the ledger is server-paged; the open flock IS the fetch identity, so
@@ -223,7 +215,7 @@ export function FlocksPage() {
     errorText: () => i18n.t("flocks:loadMovementsFailed"),
   });
 
-  const closeRecordMovement = () => { setRecording(false); errors.abandon("record-movement"); };
+  const closeRecordMovement = () => { setRecording(false); dismissDialog("record-movement"); };
 
   function openLedger(id: string) {
     closeRecordMovement(); // a movement dialog belongs to the ledger that opened it
@@ -239,19 +231,20 @@ export function FlocksPage() {
     e.preventDefault();
     if (!ledgerFlockId) return;
     const id = ledgerFlockId;
-    const ok = await run(`movement:${id}`, "record-movement", async (key) => {
-      await ledger.runWrite(async () => {
-        await recordBirdMovement(id, {
-          date: mvDate, type: mvType, quantity: mvQty,
-          note: mvNote || undefined,
-        }, key);
+    await run("record-movement", async (current) => {
+      await commit(`movement:${id}`, async (key) => {
+        await ledger.runWrite(async () => {
+          await recordBirdMovement(id, {
+            date: mvDate, type: mvType, quantity: mvQty,
+            note: mvNote || undefined,
+          }, key);
+        });
       });
-    });
-    if (ok) {
+      if (!current()) return;
       setMvQty(1);
       setMvNote("");
       setRecording(false);
-    }
+    });
   }
 
   if (errors.page && flocks === null) {
@@ -272,7 +265,7 @@ export function FlocksPage() {
             offering this same action (never for the filtered-empty branch,
             which offers "Clear filters" instead — no duplicate there). */}
         {isAdmin && !(flocks.length === 0) && (
-          <button type="button" onClick={() => { closeEdit(); setCreating(true); }}>
+          <button type="button" onClick={() => { closeEdit(); openDialog("create"); setCreating(true); }}>
             <Plus size={16} aria-hidden /> {t("newFlockButton")}
           </button>
         )}
@@ -306,7 +299,7 @@ export function FlocksPage() {
           <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("create-flock")} disabled={busy}>{t("addFlockButton")}</BusyButton>
+            <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addFlockButton")}</BusyButton>
           </div>
         </form>
       </Dialog>
@@ -336,7 +329,7 @@ export function FlocksPage() {
           <DialogError errors={errors} scope="edit" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={editingId !== null && isPending(`update:${editingId}`)} disabled={busy}>
+            <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
               {tc("save")}
             </BusyButton>
           </div>
@@ -366,7 +359,7 @@ export function FlocksPage() {
           ? <EmptyState icon={FilterX} message={t("noFlocksMatch")}
               action={{ label: tc("clearFiltersButton"), onClick: () => setShowArchived(true) }} />
           : <EmptyState icon={Bird} message={t("noFlocksMessage")}
-              action={isAdmin ? { label: t("newFlockButton"), onClick: () => { closeEdit(); setCreating(true); } } : undefined} />
+              action={isAdmin ? { label: t("newFlockButton"), onClick: () => { closeEdit(); openDialog("create"); setCreating(true); } } : undefined} />
       ) : (
         <table className="data">
           <thead>
@@ -428,7 +421,7 @@ export function FlocksPage() {
                   {isAdmin && f.status !== "Active" && (
                     // The undo (#57): back to Active, full capture restored.
                     <BusyButton className="link" busy={isPending(`reactivate:${f.id}`)} disabled={busy}
-                      onClick={() => void run(`reactivate:${f.id}`, null, (key) => reactivateFlock(f.id, key))}>
+                      onClick={() => void run(`reactivate:${f.id}`, () => commit(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key)))}>
                       {t("reactivateButton")}
                     </BusyButton>
                   )}
@@ -450,7 +443,7 @@ export function FlocksPage() {
           </p>
 
           {isAdmin && (
-            <button type="button" onClick={() => setRecording(true)}>
+            <button type="button" onClick={() => { openDialog("record-movement"); setRecording(true); }}>
               <Plus size={16} aria-hidden /> {t("recordMovementButton")}
             </button>
           )}
@@ -483,7 +476,7 @@ export function FlocksPage() {
               <div className="dialog-foot">
                 <button type="button" className="link" onClick={closeRecordMovement}>{tc("cancel")}</button>
                 <BusyButton type="submit"
-                  busy={ledgerFlockId !== null && isPending(`movement:${ledgerFlockId}`)}
+                  busy={isPending("record-movement")}
                   disabled={busy || mvQty === 0}>
                   {t("recordButton")}
                 </BusyButton>

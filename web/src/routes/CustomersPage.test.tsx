@@ -983,3 +983,117 @@ describe("CustomersPage paging (#511)", () => {
     }
   });
 });
+
+// #703 PR 2 — the abandoned-success hijack (#477 part 2) on Customers' create
+// dialog. Edit's superseded case is UNREACHABLE (closeDisabled inerts every
+// dismissal path for the whole write+refresh window, #501/#625), so edit is
+// pinned by a wiring test + mutation, not a behaviour test (handoff trap 4).
+describe("CustomersPage abandoned-attempt success (#703)", () => {
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((r) => (resolve = r));
+    return { promise, resolve };
+  }
+  const ready = async () => {
+    renderWithProviders(<CustomersPage />, { token: ADMIN });
+    await screen.findByText("Acme Eggs");
+  };
+  const fill = (n: string) => {
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: n } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "999" } });
+  };
+  const submitCreate = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Add customer" }));
+  const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+  it("does not let an abandoned create's success reset or close the reopened dialog", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await ready();
+    openCreate();
+    fill("First");
+    submitCreate();
+    cancel();
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Second" } });
+    await act(async () => { gate.resolve({ id: "new" }); });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("Second");
+  });
+
+  it("supersedes the create on dismissal alone: a late success does not reset the form the next open shows", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await ready();
+    openCreate();
+    fill("One");
+    submitCreate();
+    cancel();
+    await act(async () => { gate.resolve({ id: "new" }); });
+    openCreate();
+
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("One");
+  });
+
+  it("still rotates the create key AND refreshes the list when an abandoned create succeeds", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await ready();
+    const listCallsBefore = mockList.mock.calls.length;
+    openCreate();
+    fill("One");
+    submitCreate();
+    cancel();
+    await act(async () => { gate.resolve({ id: "new" }); });
+    // The write is a fact about the world: its `runWrite` refreshes the list even
+    // though the dialog was dismissed (INV-3 RUN) — not just the key rotation below.
+    expect(mockList.mock.calls.length).toBeGreaterThan(listCallsBefore);
+
+    mockCreate.mockResolvedValueOnce({ id: "new2" });
+    openCreate();
+    fill("Two");
+    await act(async () => { submitCreate(); });
+
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(mockCreate.mock.calls[1][1]).not.toBe(mockCreate.mock.calls[0][1]);
+  });
+
+  // Edit's superseded case is UNREACHABLE (closeDisabled); pinned by this wiring
+  // test + mutation CU4, not a behaviour test. The `if (current())` gates stay
+  // in onSaveEdit (INV-1), defensive.
+  it("a successful edit closes its dialog (edit's superseded case is unreachable — see comment)", async () => {
+    mockUpdate.mockResolvedValueOnce(undefined);
+    await ready();
+    openEdit("Acme Eggs");
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Acme Renamed" } });
+    await submitEdit();
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// #703 — INV-5 for the edit open edge: opening one customer's edit must mute the
+// previous edit's still-shown verdict, or a screen reader reaching another row's
+// Edit behind the backdrop (write already settled, closeDisabled false — #480)
+// renders customer A's failure inside customer B's dialog. Pinned by mutation CU6
+// (delete openDialog("edit-customer") in openEdit). Mirrors the Products/Grades
+// "does not carry one X's failed edit into another" test Customers never had.
+describe("CustomersPage edit displacement (#703 INV-5)", () => {
+  it("does not carry one customer's failed edit into another customer's dialog", async () => {
+    mockUpdate.mockRejectedValue(new ApiError(409, "Conflict", "Someone else changed this customer."));
+    renderWithProviders(<CustomersPage />, { token: ADMIN });
+    await screen.findByText("Acme Eggs");
+    openEdit("Acme Eggs");
+    await submitEdit();
+    expect(within(dialog()).getByText("Someone else changed this customer.")).toBeInTheDocument();
+
+    // Backdrop blocks a mouse, but #480 established a screen reader's virtual
+    // cursor still reaches the row; the write has settled (closeDisabled false),
+    // so this displacement is reachable.
+    openEdit("Bravo Co");
+
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("Bravo Co");
+    expect(within(dialog()).queryByText("Someone else changed this customer.")).not.toBeInTheDocument();
+  });
+});

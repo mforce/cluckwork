@@ -19,8 +19,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
 import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
-import { useDialogErrors } from "../components/useDialogErrors";
-import { usePendingAction } from "../components/usePendingAction";
+import { useDialogAction } from "../components/useDialogAction";
 import { useAuth } from "../auth/useAuth";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { armedState, gradingState } from "../lib/grading";
@@ -42,6 +41,10 @@ function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
 }
+
+// The scopes that own a dialog (#703). save/submit route to the page and are
+// never superseded.
+const DIALOG_SCOPES = ["new-flock"] as const;
 
 // F1 (#21): record the day's production by grade, then submit — submitting
 // turns grade lines into egg lots (stock).
@@ -126,9 +129,11 @@ export function DailyEntryPage() {
   const [prefillRetry, setPrefillRetry] = useState(0);
   const failedTarget = useRef<string | null>(null);
 
-  // One shared flight for save/submit/create-flock (#236): the hook's internal
-  // ref replaced the hand-rolled inFlight ref this screen used to carry.
-  const { busy, isPending, run } = usePendingAction();
+  // One shared flight for save/submit/create-flock (#236), plus the per-place
+  // message slots (#479) and the new-flock dialog session (#477 part 2), from
+  // one shared hook. Only "new-flock" owns a dialog; save/submit route to the
+  // page and are always current.
+  const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(DIALOG_SCOPES);
   // Stable idempotency keys per logical mutation: regenerated only after a
   // definitive success, so a retry after an ambiguous network failure dedupes
   // server-side instead of repeating the write.
@@ -138,7 +143,6 @@ export function DailyEntryPage() {
   // #479 — one slot per PLACE a message can appear: the deep-link check and
   // the draft/submit writes (the main form, not behind a dialog) belong to
   // the page; the new-flock dialog's failures belong to that form.
-  const errors = useDialogErrors();
   const setPageError = errors.setPage;
 
   // inline flock creation
@@ -454,54 +458,57 @@ export function DailyEntryPage() {
 
   // Dismissal empties the dialog's slot and mutes the attempt still out, so a
   // late failure is not reported against a session the user reopened.
-  const closeNewFlock = () => { setShowNewFlock(false); errors.abandon("new-flock"); };
+  const closeNewFlock = () => { setShowNewFlock(false); dismissDialog("new-flock"); };
+
+  // #703 review r2 — the dialog is admin-gated (`open={showNewFlock && isAdmin}`),
+  // so a role change HIDES it without firing onClose: an in-flight create would
+  // stay `current()` and could reset/close/retarget the dialog a re-promotion
+  // restores. End the session on the isAdmin edge (dismiss mutes + advances the
+  // generation; setShowNewFlock hides it), so a re-promotion reopens a fresh one.
+  useEffect(() => {
+    if (!isAdmin) { setShowNewFlock(false); dismissDialog("new-flock"); }
+  }, [isAdmin, dismissDialog]);
 
   async function onCreateFlock(e: FormEvent) {
     e.preventDefault();
     // #236: this form shipped with NO in-flight guard at all — a double submit
     // reached the API twice. The hook's ref is the guard now.
-    await run("create-flock", async () => {
-      errors.beginAttempt("new-flock");
-      try {
-        const created = await createFlock({
-          name: newFlockName,
-          breed: newFlockBreed,
-          placementDate: newFlockPlaced,
-          initialCount: newFlockCount,
-        }, flockKey.current);
-        flockKey.current = newId();
-        // Through `retarget` like the pickers: creating a flock switches the
-        // captured day too, and nothing stops the dialog being opened while the
-        // remainder gesture is armed (#403 round 4). Without it, the render
-        // after the create shows the NEW flock's rows armed over the previous
-        // flock's remainder — the picker bug reached by a different door.
-        retarget(() => setFlockId(created.id));
-        // #512 (T036) — createFlock's response is `Created` ({ id }) only, not
-        // a full Flock, so the page cannot fabricate the committed entity.
-        // Commit only the row-owned id: `pickerFlock` goes to null so
-        // `requestedId` (derived below) becomes `created.id`, which drives
-        // FlockPicker's real `getFlock` exact-GET read. `handleFlockSnapshot`
-        // mirrors that resolved entity onto `pickerFlock` once it lands. A
-        // failed exact read enters the picker's own unavailable state, whose
-        // built-in Retry re-issues ONLY that GET — the create POST already
-        // succeeded and is never repeated.
-        setPickerFlock(null);
-        setPickerFlockGen((g) => g + 1);
-        // Best-effort refresh of the picker's eligible-list rows; its failure
-        // must never block the exact-GET hydration above.
-        try {
-          setFlocks(capturable(await listFlocks()));
-        } catch {
-          // requestedId-driven hydration (above) is independent of this list.
-        }
-        setShowNewFlock(false);
-        setNewFlockName("");
-        setNewFlockBreed("");
-        setNewFlockPlaced(today);
-        setNewFlockCount(100);
-      } catch (err) {
-        errors.report("new-flock", errorMessage(err));
-      }
+    await run("new-flock", async (current) => {
+      const created = await createFlock({
+        name: newFlockName,
+        breed: newFlockBreed,
+        placementDate: newFlockPlaced,
+        initialCount: newFlockCount,
+      }, flockKey.current);
+      flockKey.current = newId();
+      // Best-effort refresh of the picker's eligible-list rows (RUN — the flock
+      // exists whether or not anyone is watching). FIRE-AND-FORGET (#703 review
+      // r2): a slow or hung list read must never block the retarget/exact-GET
+      // hydration below — the base hydrated first, and awaiting here gated flock
+      // selection on the refresh (client.ts has no timeout). Its rejection lands
+      // nowhere; the requestedId-driven hydration below is independent of it.
+      void listFlocks().then((f) => setFlocks(capturable(f))).catch(() => {});
+      // Superseded (#703 INV-8, owner GATE 2026-09-06): the flock exists and
+      // the list shows it, but switching the page's captured flock and
+      // re-hydrating the picker belong to whatever session is on screen now —
+      // the replacement's user did not ask to create this flock.
+      if (!current()) return;
+      // Through `retarget` like the pickers: creating a flock switches the
+      // captured day too, and nothing stops the dialog being opened while the
+      // remainder gesture is armed (#403 round 4).
+      retarget(() => setFlockId(created.id));
+      // #512 (T036) — createFlock's response is `Created` ({ id }) only, not a
+      // full Flock. `pickerFlock` goes to null so `requestedId` becomes
+      // `created.id`, which drives FlockPicker's real `getFlock` exact-GET read;
+      // `handleFlockSnapshot` mirrors that resolved entity onto `pickerFlock`
+      // once it lands.
+      setPickerFlock(null);
+      setPickerFlockGen((g) => g + 1);
+      setShowNewFlock(false);
+      setNewFlockName("");
+      setNewFlockBreed("");
+      setNewFlockPlaced(today);
+      setNewFlockCount(100);
     });
   }
 
@@ -622,7 +629,7 @@ export function DailyEntryPage() {
             onChange={(e) => retarget(() => setDate(e.target.value))} />
         </label>
         {isAdmin && (
-          <button className="link" type="button" onClick={() => setShowNewFlock(true)}>
+          <button className="link" type="button" onClick={() => { openDialog("new-flock"); setShowNewFlock(true); }}>
             {t("newFlockButton")}
           </button>
         )}
@@ -665,7 +672,7 @@ export function DailyEntryPage() {
           <DialogError errors={errors} scope="new-flock" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeNewFlock}>{tc("cancel")}</button>
-            <BusyButton type="submit" busy={isPending("create-flock")} disabled={busy}>
+            <BusyButton type="submit" busy={isPending("new-flock")} disabled={busy}>
               {t("createFlockButton")}
             </BusyButton>
           </div>

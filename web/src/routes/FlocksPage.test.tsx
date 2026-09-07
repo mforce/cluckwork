@@ -961,3 +961,131 @@ describe("FlocksPage bird ledger paging (#511)", () => {
     expect(screen.getByRole("button", { name: "load more" })).toBeInTheDocument();
   });
 });
+
+// #703 PR 2 — the abandoned-success hijack (#477 part 2), on this screen's three
+// dialogs. The pattern is SalesPage's: hold the write open, dismiss, reopen and
+// type, then let the old write land. The session the user is in now must
+// survive; the facts about the world — the write, the key rotation, the list
+// refresh — must not.
+describe("FlocksPage abandoned-attempt success (#703)", () => {
+  const fillCreate = (name: string) => {
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: name } });
+    fireEvent.change(within(dialog()).getByLabelText("Breed *"), { target: { value: "ISA" } });
+  };
+  const submitCreate = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Add flock" }));
+  const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+  it("does not let an abandoned create's success reset or close the reopened dialog", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await renderReady(ADMIN, [ACTIVE]);
+    openCreate();
+    fillCreate("First");
+    submitCreate();
+    cancel();
+    openCreate(); // the replacement session
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Second" } });
+    await act(async () => { gate.resolve({ id: "new" }); });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("Second");
+  });
+
+  it("supersedes the create on dismissal alone: a late success does not reset the form the next open shows", async () => {
+    // Cancel keeps what was typed until the next open (this screen resets only
+    // on success). A dismissal that failed to end the session would let the
+    // late success wipe it — observable on the reopen, with no second edge
+    // involved, so this isolates the dismiss edge.
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await renderReady(ADMIN, [ACTIVE]);
+    openCreate();
+    fillCreate("One");
+    submitCreate();
+    cancel();
+    await act(async () => { gate.resolve({ id: "new" }); });
+    openCreate();
+
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("One");
+  });
+
+  it("still refreshes the list and rotates the key when an abandoned create succeeds", async () => {
+    // The flock exists whether or not anyone is watching: the list must show
+    // it, and the spent key must go, or the next create replays this one.
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await renderReady(ADMIN, [ACTIVE]);
+    openCreate();
+    fillCreate("One");
+    submitCreate();
+    cancel();
+    await act(async () => { gate.resolve({ id: "new" }); });
+    expect(mockListFlocks).toHaveBeenCalledTimes(2); // mount + the refresh
+
+    mockCreate.mockResolvedValueOnce({ id: "new2" });
+    openCreate();
+    fillCreate("Two");
+    await act(async () => { submitCreate(); });
+
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(mockCreate.mock.calls[1][1]).not.toBe(mockCreate.mock.calls[0][1]);
+  });
+
+  it("keeps the create key when the write lands but the refresh fails, so the retry replays it", async () => {
+    // Passes before the migration too: it pins the refresh-before-rotate order
+    // the wrapper already had, so the migration cannot lose it.
+    mockCreate.mockResolvedValueOnce({ id: "new" });
+    mockListFlocks.mockResolvedValueOnce([ACTIVE]);
+    mockListFlocks.mockRejectedValueOnce(new ApiError(500, "Server error", "refresh boom"));
+    await renderReady(ADMIN, [ACTIVE]);
+    openCreate();
+    fillCreate("One");
+    await act(async () => { submitCreate(); });
+    expect(within(dialog()).getByText(/refresh boom/)).toBeInTheDocument();
+
+    mockCreate.mockResolvedValueOnce({ id: "new" });
+    await act(async () => { submitCreate(); });
+
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(mockCreate.mock.calls[1][1]).toBe(mockCreate.mock.calls[0][1]);
+  });
+
+  // Edit's superseded-success case is UNREACHABLE through the UI: the only
+  // trigger that reopens the edit dialog is the row's edit button, which is
+  // `disabled={busy}` while the write is in flight, so submit -> dismiss ->
+  // reopen cannot complete. Same as Customers edit (#703 handoff trap 4). So
+  // edit is pinned by this reachable wiring test plus mutation row F5, not by
+  // an abandoned-success behaviour test. The `if (!current())` gate stays in
+  // onSaveEdit for consistency with create/movement (INV-1) and against a
+  // future change that enables the button; it is defensive and unpinnable.
+  it("a successful edit closes its dialog and refreshes the list (edit's superseded case is unreachable — see comment)", async () => {
+    mockUpdate.mockResolvedValueOnce(undefined);
+    await renderReady(ADMIN, [ACTIVE]);
+    fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "edit" }));
+    fireEvent.change(within(dialog()).getByLabelText("Edit name"), { target: { value: "Barn A" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockListFlocks).toHaveBeenCalledTimes(2); // mount + the post-edit refresh
+  });
+
+  it("does not let an abandoned movement's success reset or close the reopened movement dialog", async () => {
+    const gate = deferred<{ id: string }>();
+    mockRecordMovement.mockReturnValueOnce(gate.promise as never);
+    await renderReady(ADMIN, [ACTIVE]);
+    fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "birds" }));
+    const openRecord = async () => fireEvent.click(await screen.findByRole("button", { name: "Record movement" }));
+    await openRecord();
+    fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Birds" }), { target: { value: "3" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Record" }));
+    cancel();
+    await openRecord(); // the replacement session
+    fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Birds" }), { target: { value: "7" } });
+    await act(async () => { gate.resolve({ id: "mv-new" }); });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByRole("spinbutton", { name: "Birds" })).toHaveValue(7);
+  });
+});
