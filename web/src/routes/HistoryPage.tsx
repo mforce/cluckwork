@@ -82,9 +82,6 @@ export function HistoryPage() {
   const [filterPickerOpen, setFilterPickerOpen] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  // #479 — one slot per PLACE a message can appear: the setup read and the
-  // void write (a row button, not behind a dialog) belong to the page; the
-  // adjust dialog's failures belong to that form.
   // #703 — the flight guard (#236), the per-place message slots (#479: the
   // setup read and the void write — a row button, not behind a dialog —
   // belong to the page; the adjust dialog's failures belong to that form) and
