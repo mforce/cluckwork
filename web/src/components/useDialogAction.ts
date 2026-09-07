@@ -51,9 +51,10 @@ export interface DialogAction<S extends string = string> {
    * new session for it NOW — so a load still out, or an attempt from the
    * dialog on screen, is superseded the moment the user asks for another —
    * and returns `current()` for this load. Unlike `openDialog` it neither
-   * mutes nor clears the slot: until this load lands and the screen calls
-   * `openDialog`, the slot still belongs to the dialog on screen, whose
-   * verdict must survive a load that fails.
+   * mutes nor clears the slot: a load is not an attempt, so there is nothing
+   * of its own to mute, and the slot stays as it is until the load lands and
+   * the screen calls `openDialog` (which ends the session again and clears
+   * it). A load that fails leaves the slot as it found it.
    */
   startLoad: (scope: string) => () => boolean;
   /**
@@ -151,8 +152,7 @@ export function useDialogAction<S extends string = string>(
 
   // The latest click wins: a new session, claimed for this load, with the
   // slot left alone (see the interface). Pinned by the hook's own
-  // `startLoad` tests and by Users' `keeps worker A's dialog and its message
-  // when worker B's load fails`.
+  // `startLoad` tests (`startLoad neither mutes nor clears…`).
   const startLoad = useCallback((scope: string) => {
     begin(scope);
     const claimed = claim(scope);

@@ -225,11 +225,10 @@ export function UsersPage() {
   async function openAssignments(userId: string) {
     // The latest click wins (#703): a new session for this dialog now, so a
     // load still out — or an attempt from the dialog on screen, a reopen of
-    // the SAME worker included (#606) — is superseded; the slot is left alone
-    // until the load lands, because a failed load for worker B must not take
-    // worker A's verdict with it (adversarial review of #491, and the
-    // displacement note below). The try covers the load alone: once the
-    // dialog rebinds below, this load's `current()` is over.
+    // the SAME worker included (#606) — is superseded. The slot is left alone
+    // until the load lands: a load is not an attempt, and a load that fails
+    // reports to the page and changes nothing else. The try covers the load
+    // alone: once the dialog rebinds below, this load's `current()` is over.
     const current = startLoad("flock-access");
     let list: FlockAssignment[];
     try {
@@ -253,13 +252,12 @@ export function UsersPage() {
       // flock the admin never picked.
       setAssignFlock(null);
       setAssignFlockGen((g) => g + 1);
-      // Displacement only once the load actually succeeds and the dialog is
-      // about to rebind. Abandoning up front (adversarial review of #491)
-      // would fire even when THIS load fails and openUser's dialog never
-      // moves — worker A's dialog stays open per the comment above, but its
-      // verdict would already be gone, and the failed load's own message
-      // lands on the page behind it, about a worker the admin isn't looking
-      // at.
+      // The session edge only once the load actually succeeds and the dialog
+      // is about to rebind: a failed load opens nothing, so nothing is ended
+      // or cleared for it. (Another worker's row is inert behind an open
+      // dialog since #480, so a displacement reaches here only after a
+      // dismissal; the test `keeps worker A's dialog and its message when
+      // worker B's load fails` drives the row directly to pin the property.)
     // Rebind: this ends the displaced dialog's session and drops its verdict
     // — a same-worker re-entry included, exactly as every other dialog on
     // this screen (#703).
