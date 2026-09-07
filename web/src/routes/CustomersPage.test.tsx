@@ -983,3 +983,88 @@ describe("CustomersPage paging (#511)", () => {
     }
   });
 });
+
+// #703 PR 2 — the abandoned-success hijack (#477 part 2) on Customers' create
+// dialog. Edit's superseded case is UNREACHABLE (closeDisabled inerts every
+// dismissal path for the whole write+refresh window, #501/#625), so edit is
+// pinned by a wiring test + mutation, not a behaviour test (handoff trap 4).
+describe("CustomersPage abandoned-attempt success (#703)", () => {
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((r) => (resolve = r));
+    return { promise, resolve };
+  }
+  const ready = async () => {
+    renderWithProviders(<CustomersPage />, { token: ADMIN });
+    await screen.findByText("Acme Eggs");
+  };
+  const fill = (n: string) => {
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: n } });
+    fireEvent.change(within(dialog()).getByLabelText("Phone *"), { target: { value: "999" } });
+  };
+  const submitCreate = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Add customer" }));
+  const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+  it("does not let an abandoned create's success reset or close the reopened dialog", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await ready();
+    openCreate();
+    fill("First");
+    submitCreate();
+    cancel();
+    openCreate();
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Second" } });
+    await act(async () => { gate.resolve({ id: "new" }); });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("Second");
+  });
+
+  it("supersedes the create on dismissal alone: a late success does not reset the form the next open shows", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await ready();
+    openCreate();
+    fill("One");
+    submitCreate();
+    cancel();
+    await act(async () => { gate.resolve({ id: "new" }); });
+    openCreate();
+
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("One");
+  });
+
+  it("still rotates the create key when an abandoned create succeeds", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise as never);
+    await ready();
+    openCreate();
+    fill("One");
+    submitCreate();
+    cancel();
+    await act(async () => { gate.resolve({ id: "new" }); });
+
+    mockCreate.mockResolvedValueOnce({ id: "new2" });
+    openCreate();
+    fill("Two");
+    await act(async () => { submitCreate(); });
+
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(mockCreate.mock.calls[1][1]).not.toBe(mockCreate.mock.calls[0][1]);
+  });
+
+  // Edit's superseded case is UNREACHABLE (closeDisabled); pinned by this wiring
+  // test + mutation CU4, not a behaviour test. The `if (current())` gates stay
+  // in onSaveEdit (INV-1), defensive.
+  it("a successful edit closes its dialog (edit's superseded case is unreachable — see comment)", async () => {
+    mockUpdate.mockResolvedValueOnce(undefined);
+    await ready();
+    openEdit("Acme Eggs");
+    fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Acme Renamed" } });
+    await submitEdit();
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+  });
+});
