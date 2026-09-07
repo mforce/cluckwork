@@ -417,8 +417,9 @@ export function UsersPage() {
   // belongs to a session that is over — its failure lands nowhere and its
   // success cannot close or reset the form the user is looking at now — and
   // a displaced user's verdict is dropped rather than rendered under the new
-  // user's email in the title. The row buttons behind the backdrop stay
-  // reachable to a screen reader's virtual cursor (#480; pi review of #491).
+  // user's email in the title. Everything behind the topmost dialog is inert
+  // (`Dialog.tsx`, #480), so a displacement reaches an open handler only
+  // after a dismissal; both edges end the session all the same.
   function openEdit(u: User) {
     openDialog("edit-user");
     setMessage(null);
@@ -665,8 +666,11 @@ export function UsersPage() {
       // same-user reopen — a disable followed by an enable of the same person
       // included — passed and this stale success closed the dialog the user
       // had just reopened (#703); the session generation tells them apart.
-      // Not reachable through the UI today (both row triggers are disabled
-      // for the whole flight), pinned by the close-on-success wiring test.
+      // A mid-flight REOPEN is not reachable through the UI (both row
+      // triggers are disabled for the whole flight — pinned by `keeps both
+      // row triggers disabled…`); a mid-flight DISMISSAL is, pinned by
+      // `supersedes the disable on dismissal alone…`; the close itself by
+      // `a successful disable closes its dialog…`.
       if (!current()) return;
       setMessage(i18n.t(mode === "disable" ? "users:userDisabledMessage" : "users:userEnabledMessage",
         { email: target.email }));
