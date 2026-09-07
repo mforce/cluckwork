@@ -17,8 +17,7 @@ import { DialogError } from "../components/DialogError";
 import { EmptyState } from "../components/EmptyState";
 import { NumberField } from "../components/NumberField";
 import { StatusBadge } from "../components/StatusBadge";
-import { useDialogErrors } from "../components/useDialogErrors";
-import { usePendingAction } from "../components/usePendingAction";
+import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
@@ -28,6 +27,10 @@ import { statusLabel } from "../i18n/enums";
 // "Other" is deliberately absent: it has no packed-unit conversion row this
 // phase, so an Other product could never resolve to eggs (codex review of #98).
 const EGG_UNITS = ["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"];
+
+// The scopes that own a dialog (#703). A scope outside the list — the row
+// activate/deactivate writes — reports to the page and is never superseded.
+const DIALOG_SCOPES = ["create", "edit", "edit-conversion"] as const;
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -45,13 +48,12 @@ export function ProductsPage() {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [grades, setGrades] = useState<EggGrade[]>([]);
   const [conversions, setConversions] = useState<EggUnitConversion[]>([]);
-  // #479 — one slot per PLACE a message can appear: the page (mount load) and
-  // each dialog by its own scope.
-  const errors = useDialogErrors();
+  // #703 — the flight guard (#236), the per-place message slots (#479) and the
+  // dialog-session generation (#477 part 2) come from one shared hook; this
+  // screen keeps only its idempotency-key and refresh discipline below, and
+  // says which scopes own a dialog.
+  const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(DIALOG_SCOPES);
   const setPageError = errors.setPage;
-  // #236 — the shared flight guard. `busy` inerts the whole screen; the one
-  // clicked trigger additionally spins via isPending(scope).
-  const { busy, isPending, run: runPending } = usePendingAction();
 
   // create form (F131: in a dialog)
   const [creating, setCreating] = useState(false);
@@ -130,35 +132,23 @@ export function ProductsPage() {
     return Number(match[1]) * 10 ** minor + Number(frac.padEnd(minor, "0") || 0);
   };
 
-  // Rebased on usePendingAction (#236): the hook owns the re-entry guard and
-  // the pending scope; the idempotency-key/refresh-before-rotate body stays
-  // exactly as reviewed. The same scope string doubles as the key scope.
-  // `errorScope` names the DIALOG a failure belongs to; `null` routes it to
-  // the page — deactivate/activate run from row buttons, not a dialog.
-  async function run(scope: string, errorScope: string | null, action: (key: string) => Promise<unknown>) {
-    const ok = await runPending(scope, async () => {
-      errors.beginAttempt(errorScope);
-      try {
-        await action(keyFor(scope));
-        // Refresh must succeed before the key rotates (idempotent retry contract).
-        await refresh();
-        clearKey(scope);
-        return true;
-      } catch (err) {
-        errors.report(errorScope, errorMessage(err));
-        return false;
-      }
-    });
-    // A SKIPPED run (undefined — another flight was open) is not a success: it
-    // must never close a dialog or reset a form as if it were.
-    return ok ?? false;
+  // The write discipline every mutation on this screen shares: the write under
+  // its idempotency key, the list refresh, and only THEN the key rotation — if
+  // the refresh throws, the key survives and a retry replays the idempotent
+  // write instead of duplicating it. All three are facts about the world: they
+  // run whether or not the dialog that started them is still on screen (#703).
+  // Called INSIDE `run`; anything it throws lands in the slot `run` was given.
+  async function commit(keyScope: string, action: (key: string) => Promise<unknown>): Promise<void> {
+    await action(keyFor(keyScope));
+    await refresh();
+    clearKey(keyScope);
   }
 
   // Dismissal empties this dialog's slot and mutes the attempt still out, so a
   // late failure is not reported against a session the user reopened.
-  const closeCreate = () => { setCreating(false); errors.abandon("create"); };
-  const closeEdit = () => { setEditingId(null); errors.abandon("edit"); };
-  const closeEditConversion = () => { setEditingConvId(null); errors.abandon("edit-conversion"); };
+  const closeCreate = () => { setCreating(false); dismissDialog("create"); };
+  const closeEdit = () => { setEditingId(null); dismissDialog("edit"); };
+  const closeEditConversion = () => { setEditingConvId(null); dismissDialog("edit-conversion"); };
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -174,36 +164,37 @@ export function ProductsPage() {
       errors.report("create", errorMessage(err));
       return;
     }
-    const ok = await run("create-product", "create", (key) =>
-      createProduct({
-        name,
-        productType: "Egg",
-        defaultUnit: unit,
-        defaultPriceMinorUnits: priceMinor,
-        eggGradeId: gradeId,
-        notes: notes.trim() || null,
-      }, key));
-    if (ok) {
+    await run("create", async (current) => {
+      await commit("create-product", (key) =>
+        createProduct({
+          name,
+          productType: "Egg",
+          defaultUnit: unit,
+          defaultPriceMinorUnits: priceMinor,
+          eggGradeId: gradeId,
+          notes: notes.trim() || null,
+        }, key));
+      // Superseded: the product exists and the catalog shows it, but the form
+      // and its dialog belong to whatever session is on screen now (#703).
+      if (!current()) return;
       setName("");
       setPrice("");
       setNotes("");
       setCreating(false);
-    }
+    });
   }
 
-  // Opening a dialog over a still-open one is a DISPLACEMENT: the first
-  // session ends without `onClose` ever running, so its `abandon` never fires
-  // and whatever verdict it left is still in the slot the next session
-  // renders. The backdrop keeps a mouse off the row buttons underneath, but
-  // #480 established it does not stop a screen reader's virtual cursor — the
-  // same door the per-dialog map exists for. A displacing open therefore
-  // abandons what it displaces, INCLUDING its own scope when that scope is
-  // fixed across records (pi review of #491). Never on the same record: a 409
-  // rebind reopens the identical scope and then reports into it.
+  // Opening a dialog is a session edge (#703): `openDialog` ends whatever
+  // session that scope had on screen and mutes its still-out attempt, so a late
+  // success cannot touch the dialog now opening. The backdrop keeps a mouse off
+  // the row buttons underneath, but #480 established it does not stop a screen
+  // reader's virtual cursor — the same door the per-dialog map existed for.
+  // `closeCreate`/`closeEditConversion` end the OTHER two sessions this open
+  // displaces; `openDialog("edit")` ends any prior edit session unconditionally.
   function startEdit(p: Product) {
     closeCreate();
     closeEditConversion();
-    if (editingId !== null && editingId !== p.id) errors.abandon("edit");
+    openDialog("edit");
     setEditingId(p.id);
     setEditName(p.name);
     setEditUnit(p.defaultUnit);
@@ -214,12 +205,11 @@ export function ProductsPage() {
     setEditNotes(p.notes ?? "");
   }
 
-  // Same displacement rule as startEdit, for the conversion dialog's own
-  // fixed scope.
+  // Same session-edge rule as startEdit, for the conversion dialog's scope.
   function startEditConversion(c: EggUnitConversion) {
     closeCreate();
     closeEdit();
-    if (editingConvId !== null && editingConvId !== c.id) errors.abandon("edit-conversion");
+    openDialog("edit-conversion");
     setEditingConvId(c.id);
     setEditEggs(c.eggsPerUnit);
     setEditConvActive(c.active);
@@ -240,24 +230,35 @@ export function ProductsPage() {
       errors.report("edit", errorMessage(err));
       return;
     }
-    const ok = await run(`update:${id}`, "edit", (key) =>
-      updateProduct(id, {
-        name: editName,
-        defaultUnit: editUnit,
-        defaultPriceMinorUnits: priceMinor,
-        eggGradeId: editGradeId,
-        notes: editNotes.trim() || null,
-      }, key));
-    if (ok) setEditingId(null);
+    // The run scope is the dialog's; the idempotency key stays per product. The
+    // superseded gate is UNREACHABLE here (the row edit button is disabled while
+    // the write is in flight) but kept for INV-1 consistency and defence.
+    await run("edit", async (current) => {
+      await commit(`update:${id}`, (key) =>
+        updateProduct(id, {
+          name: editName,
+          defaultUnit: editUnit,
+          defaultPriceMinorUnits: priceMinor,
+          eggGradeId: editGradeId,
+          notes: editNotes.trim() || null,
+        }, key));
+      if (!current()) return;
+      setEditingId(null);
+    });
   }
 
   async function onSaveConversion(e: FormEvent) {
     e.preventDefault();
     const id = editingConvId;
     if (id === null) return;
-    const ok = await run(`conv:${id}`, "edit-conversion", (key) =>
-      updateEggUnitConversion(id, { eggsPerUnit: editEggs, active: editConvActive }, key));
-    if (ok) setEditingConvId(null);
+    // Superseded gate is unreachable here too (row edit button disabled while
+    // busy); kept for consistency. Key stays per conversion.
+    await run("edit-conversion", async (current) => {
+      await commit(`conv:${id}`, (key) =>
+        updateEggUnitConversion(id, { eggsPerUnit: editEggs, active: editConvActive }, key));
+      if (!current()) return;
+      setEditingConvId(null);
+    });
   }
 
   const gradeName = (id: string | null) =>
@@ -280,7 +281,7 @@ export function ProductsPage() {
         {/* #655 — withheld while the empty state below is offering this exact
             same action, so there is one "New product" button on screen. */}
         {isAdmin && products.length > 0 && (
-          <button type="button" onClick={() => { closeEdit(); closeEditConversion(); setCreating(true); }}>
+          <button type="button" onClick={() => { closeEdit(); closeEditConversion(); openDialog("create"); setCreating(true); }}>
             <Plus size={16} aria-hidden /> {t("newProductButton")}
           </button>
         )}
@@ -321,7 +322,7 @@ export function ProductsPage() {
           <DialogError errors={errors} scope="create" />
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton disabled={busy} busy={isPending("create-product")}>{t("addProductButton")}</BusyButton>
+            <BusyButton disabled={busy} busy={isPending("create")}>{t("addProductButton")}</BusyButton>
           </div>
         </form>
       </Dialog>
@@ -356,7 +357,7 @@ export function ProductsPage() {
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
-              busy={editingId !== null && isPending(`update:${editingId}`)}>{tc("save")}</BusyButton>
+              busy={isPending("edit")}>{tc("save")}</BusyButton>
           </div>
         </form>
       </Dialog>
@@ -383,14 +384,14 @@ export function ProductsPage() {
           <div className="dialog-foot">
             <button type="button" className="link" onClick={closeEditConversion}>{tc("cancel")}</button>
             <BusyButton type="submit" disabled={busy}
-              busy={editingConvId !== null && isPending(`conv:${editingConvId}`)}>{tc("save")}</BusyButton>
+              busy={isPending("edit-conversion")}>{tc("save")}</BusyButton>
           </div>
         </form>
       </Dialog>
 
       {products.length === 0 ? (
         <EmptyState icon={Package} message={t("noProductsMessage")}
-          action={isAdmin ? { label: t("newProductButton"), onClick: () => { closeEdit(); closeEditConversion(); setCreating(true); } } : undefined} />
+          action={isAdmin ? { label: t("newProductButton"), onClick: () => { closeEdit(); closeEditConversion(); openDialog("create"); setCreating(true); } } : undefined} />
       ) : (
         <table className="data">
           <thead>
@@ -411,12 +412,12 @@ export function ProductsPage() {
                     <button className="link" disabled={busy} onClick={() => startEdit(p)}>{t("editButton")}</button>{" "}
                     {p.active ? (
                       <BusyButton className="link" disabled={busy} busy={isPending(`deact:${p.id}`)}
-                        onClick={() => void run(`deact:${p.id}`, null, (key) => deactivateProduct(p.id, key))}>
+                        onClick={() => void run(`deact:${p.id}`, () => commit(`deact:${p.id}`, (key) => deactivateProduct(p.id, key)))}>
                         {t("deactivateButton")}
                       </BusyButton>
                     ) : (
                       <BusyButton className="link" disabled={busy} busy={isPending(`act:${p.id}`)}
-                        onClick={() => void run(`act:${p.id}`, null, (key) => activateProduct(p.id, key))}>
+                        onClick={() => void run(`act:${p.id}`, () => commit(`act:${p.id}`, (key) => activateProduct(p.id, key)))}>
                         {t("activateButton")}
                       </BusyButton>
                     )}
