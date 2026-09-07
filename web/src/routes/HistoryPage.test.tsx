@@ -1414,3 +1414,50 @@ describe("HistoryPage rebind after a dismissed conflict (#491)", () => {
     expect(within(dlg).getByText(i18n.t("history:conflictRebindFailedMessage"))).toBeInTheDocument();
   });
 });
+
+// #703 PR 3 — the adjust dialog under the shared dialog session. Its
+// superseded-success case is UNREACHABLE through the UI: the row's adjust
+// button is `disabled={busy}` while the save is in flight, so submit ->
+// dismiss -> reopen cannot complete (same as the four edits in #703 PR 2). So
+// it is pinned by this wiring test plus its close mutation, not by an
+// abandoned-success behaviour test; the `if (!current())` gate stays in
+// onAdjustSubmit for INV-1, defensive and unpinnable. The two session edges,
+// the same-id spare and the 409 rebind's own un-mute are pinned by the
+// pre-existing tests the runbook's mutation rows name.
+describe("HistoryPage adjust wiring under the shared dialog session (#703)", () => {
+  // Already reconciled (grades sum 90 === sellable 90), so only the Reason
+  // field stands between opening the dialog and a live Save button.
+  const RECONCILED: DailyEntry = { ...SUBMITTED, grades: [{ eggGradeId: "gr1", quantity: 90 }] };
+
+  it("a successful adjust closes its dialog and refreshes the list (adjust's superseded case is unreachable — see comment)", async () => {
+    mockListDailyEntries.mockResolvedValue([RECONCILED]);
+    mockAdjustDailyEntry.mockResolvedValue({ id: "de1", status: "ManagerAdjusted", version: 2 });
+    await openAdjustPanel();
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText(i18n.t("history:entryAdjustedMessage"))).toBeInTheDocument();
+    expect(mockListDailyEntries).toHaveBeenCalledTimes(2); // mount + the post-write refresh
+  });
+
+  // The dismiss edge, in isolation: Cancel is not busy-gated (#630), so an
+  // adjust dismissed mid-flight has no session left to claim a message for;
+  // the write still landed and the list still re-read.
+  it("supersedes the adjust on dismissal alone: a late success refreshes the list but claims no message", async () => {
+    mockListDailyEntries.mockResolvedValue([RECONCILED]);
+    let resolveSave!: (v: { id: string; status: string; version: number }) => void;
+    mockAdjustDailyEntry.mockReturnValueOnce(new Promise((resolve) => { resolveSave = resolve; }) as never);
+    await openAdjustPanel();
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save adjustment" })); // left pending
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await act(async () => { resolveSave({ id: "de1", status: "ManagerAdjusted", version: 2 }); });
+
+    expect(mockListDailyEntries).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(i18n.t("history:entryAdjustedMessage"))).not.toBeInTheDocument();
+  });
+});

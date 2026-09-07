@@ -1372,3 +1372,165 @@ describe("InventoryPage — the lots read belongs to the item that is open (#631
     expect(options).not.toHaveTextContent("L-1");
   });
 });
+
+// #703 PR 3 — the abandoned-success hijack (#477 part 2), on this screen's four
+// dialogs. The pattern is SalesPage's: hold the write open, dismiss, reopen and
+// type, then let the old write land. The session the user is in now must
+// survive; the facts about the world — the write, the key rotation, the
+// items/lots refresh — must not.
+describe("InventoryPage abandoned-attempt success (#703)", () => {
+  const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+  const submitCreate = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" }));
+
+  it("does not let an abandoned create's success reset or close the reopened dialog", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise);
+    await renderReady(ADMIN);
+    fireEvent.change(within(openDialog("New item")).getByLabelText("Item name *"), { target: { value: "First" } });
+    submitCreate();
+    cancel();
+    fireEvent.change(within(openDialog("New item")).getByLabelText("Item name *"), { target: { value: "Second" } }); // the replacement session
+    await act(async () => { gate.resolve({ id: "new" }); });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Item name *")).toHaveValue("Second");
+    expect(screen.queryByText(i18n.t("inventory:itemCreatedMessage"))).not.toBeInTheDocument();
+  });
+
+  it("supersedes the create on dismissal alone: a late success does not reset the form the next open shows", async () => {
+    // Cancel keeps what was typed until the next open (this screen resets only
+    // on success). A dismissal that failed to end the session would let the
+    // late success wipe it — observable on the reopen, with no second edge
+    // involved, so this isolates the dismiss edge.
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise);
+    await renderReady(ADMIN);
+    fireEvent.change(within(openDialog("New item")).getByLabelText("Item name *"), { target: { value: "One" } });
+    submitCreate();
+    cancel();
+    await act(async () => { gate.resolve({ id: "new" }); });
+
+    expect(within(openDialog("New item")).getByLabelText("Item name *")).toHaveValue("One");
+  });
+
+  it("still refreshes the list and rotates the key when an abandoned create succeeds", async () => {
+    // The item exists whether or not anyone is watching: the list must show
+    // it, and the spent key must go, or the next create replays this one.
+    const gate = deferred<{ id: string }>();
+    mockCreate.mockReturnValueOnce(gate.promise);
+    await renderReady(ADMIN);
+    fireEvent.change(within(openDialog("New item")).getByLabelText("Item name *"), { target: { value: "One" } });
+    submitCreate();
+    cancel();
+    await act(async () => { gate.resolve({ id: "new" }); });
+    expect(mockListItems).toHaveBeenCalledTimes(2); // mount + the refresh
+
+    mockCreate.mockResolvedValueOnce({ id: "new2" });
+    fireEvent.change(within(openDialog("New item")).getByLabelText("Item name *"), { target: { value: "Two" } });
+    await act(async () => { submitCreate(); });
+
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(mockCreate.mock.calls[1][1]).not.toBe(mockCreate.mock.calls[0][1]);
+  });
+
+  // Edit's superseded-success case is UNREACHABLE through the UI: the only
+  // trigger that reopens the edit dialog is the row's edit button, which is
+  // `disabled={busy}` while the write is in flight, so submit -> dismiss ->
+  // reopen cannot complete (same as the four edits in #703 PR 2). So edit is
+  // pinned by this reachable wiring test plus its close mutation, not by an
+  // abandoned-success behaviour test. The `if (!current())` gate stays in
+  // onSaveEdit for INV-1 and against a future change that enables the button;
+  // it is defensive and unpinnable.
+  it("a successful edit closes its dialog and refreshes the list (edit's superseded case is unreachable — see comment)", async () => {
+    mockUpdate.mockResolvedValueOnce(undefined);
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "edit" }));
+    fireEvent.change(within(dialog()).getByLabelText(/Item name/), { target: { value: "Layer Feed 2" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockListItems).toHaveBeenCalledTimes(2); // mount + the post-edit refresh
+  });
+
+  // Purchase and adjust are REACHABLE: their panel buttons carry no
+  // `disabled={busy}`, and the dialogs' Cancel is not gated either.
+  it("does not let an abandoned purchase's success reset or close the reopened dialog", async () => {
+    const gate = deferred<{ lotId: string }>();
+    mockPurchase.mockReturnValueOnce(gate.promise);
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    fireEvent.change(within(openDialog("Record purchase")).getByLabelText(/Quantity/), { target: { value: "3" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    cancel();
+    fireEvent.change(within(openDialog("Record purchase")).getByLabelText(/Quantity/), { target: { value: "7" } }); // the replacement session
+    await act(async () => { gate.resolve({ lotId: "lot9" }); });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText(/Quantity/)).toHaveValue(7);
+    expect(screen.queryByText(i18n.t("inventory:purchaseRecordedMessage"))).not.toBeInTheDocument();
+    // The lot exists: the items and the panel's lots re-read regardless.
+    expect(mockListItems).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not let an abandoned correction's success reset or close the reopened dialog", async () => {
+    mockListLots.mockResolvedValue([LOT]);
+    const gate = deferred<{ movementId: string }>();
+    mockAdjust.mockReturnValueOnce(gate.promise);
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    const form = openDialog("Correct stock");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "2" } });
+    fireEvent.change(within(form).getByLabelText(/Reason/), { target: { value: "first" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Record correction" }));
+    cancel();
+    fireEvent.change(within(openDialog("Correct stock")).getByLabelText(/Reason/), { target: { value: "second" } }); // the replacement session
+    await act(async () => { gate.resolve({ movementId: "adj1" }); });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText(/Reason/)).toHaveValue("second");
+    expect(screen.queryByText(i18n.t("inventory:correctionRecordedMessage"))).not.toBeInTheDocument();
+  });
+
+  // #703 review r2 (PR 2) — Enter submits a form whose button is disabled, and
+  // the pre-run `beginAttempt` these two handlers keep for their client-side
+  // validation would un-mute an abandoned attempt even though `run` then skips
+  // the second one, letting its late failure into the reopened dialog.
+  it("does not let a skipped Enter-submit un-mute an abandoned purchase's late failure", async () => {
+    let rejectFirst!: (err: unknown) => void;
+    mockPurchase.mockReturnValueOnce(new Promise<{ lotId: string }>((_resolve, reject) => { rejectFirst = reject; }));
+    await renderReady(ADMIN);
+    await openItem(PACKAGING);
+    fireEvent.change(within(openDialog("Record purchase")).getByLabelText(/Quantity/), { target: { value: "3" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
+    cancel();
+    fireEvent.change(within(openDialog("Record purchase")).getByLabelText(/Quantity/), { target: { value: "5" } });
+    fireEvent.submit(within(dialog()).getByRole("button", { name: "Record purchase" }).closest("form")!); // Enter, while busy
+    await act(async () => { rejectFirst(new ApiError(500, "Server error", "late purchase failure")); });
+
+    expect(mockPurchase).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("late purchase failure")).not.toBeInTheDocument();
+  });
+
+  it("does not let a skipped Enter-submit un-mute an abandoned correction's late failure", async () => {
+    mockListLots.mockResolvedValue([LOT]);
+    let rejectFirst!: (err: unknown) => void;
+    mockAdjust.mockReturnValueOnce(new Promise<{ movementId: string }>((_resolve, reject) => { rejectFirst = reject; }));
+    await renderReady(ADMIN);
+    await openItem(FEED);
+    const form = openDialog("Correct stock");
+    fireEvent.change(within(form).getByLabelText(/Quantity/), { target: { value: "2" } });
+    fireEvent.change(within(form).getByLabelText(/Reason/), { target: { value: "first" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Record correction" }));
+    cancel();
+    const reopened = openDialog("Correct stock");
+    fireEvent.change(within(reopened).getByLabelText(/Quantity/), { target: { value: "4" } });
+    fireEvent.change(within(reopened).getByLabelText(/Reason/), { target: { value: "second" } });
+    fireEvent.submit(within(reopened).getByRole("button", { name: "Record correction" }).closest("form")!); // Enter, while busy
+    await act(async () => { rejectFirst(new ApiError(500, "Server error", "late correction failure")); });
+
+    expect(mockAdjust).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("late correction failure")).not.toBeInTheDocument();
+  });
+});

@@ -1441,3 +1441,198 @@ describe("ExpensesPage flock picker (T028/T038)", () => {
     expect(within(row).queryByText("Hen House 1")).not.toBeInTheDocument();
   });
 });
+
+// #703 PR 3 — the abandoned-success hijack (#477 part 2), on this screen's two
+// dialogs, plus the key policy and the session edges the migration must keep.
+describe("ExpensesPage abandoned-attempt success (#703)", () => {
+  const dialog = () => screen.getByRole("dialog");
+  const openNewCategory = () => fireEvent.click(screen.getByRole("button", { name: "New category" }));
+  const submitCategory = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Add category" }));
+  const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+  // The category dialog is REACHABLE: its panel button and its Cancel carry no
+  // `disabled={busy}`. Its name field is disabled while the write is out, so
+  // the replacement session still shows the name the abandoned one typed —
+  // and the late success must not blank it or close the dialog around it.
+  it("does not let an abandoned category create's success reset or close the reopened dialog", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreateCategory.mockReturnValueOnce(gate.promise);
+    await renderReady();
+    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    openNewCategory();
+    fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Bedding" } });
+    submitCategory();
+    cancel();
+    openNewCategory(); // the replacement session
+    await act(async () => { gate.resolve({ id: "cat-new" }); });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Category name")).toHaveValue("Bedding");
+    expect(screen.queryByText(i18n.t("expenses:categoryCreatedMessage"))).not.toBeInTheDocument();
+  });
+
+  it("supersedes the category create on dismissal alone: a late success does not reset the name the next open shows", async () => {
+    const gate = deferred<{ id: string }>();
+    mockCreateCategory.mockReturnValueOnce(gate.promise);
+    await renderReady();
+    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    openNewCategory();
+    fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Bedding" } });
+    submitCategory();
+    cancel();
+    await act(async () => { gate.resolve({ id: "cat-new" }); });
+    openNewCategory();
+
+    expect(within(dialog()).getByLabelText("Category name")).toHaveValue("Bedding");
+  });
+
+  it("still refreshes the categories and rotates the key when an abandoned category create succeeds", async () => {
+    // Same name both times on purpose: the key scope is derived from the name,
+    // so only a same-name resubmit can tell a rotated key from a replayed one.
+    const gate = deferred<{ id: string }>();
+    mockCreateCategory.mockReturnValueOnce(gate.promise);
+    await renderReady();
+    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    openNewCategory();
+    fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Bedding" } });
+    submitCategory();
+    cancel();
+    await act(async () => { gate.resolve({ id: "cat-new" }); });
+    expect(mockListCategories).toHaveBeenCalledTimes(2); // mount + the refresh
+
+    mockCreateCategory.mockResolvedValueOnce({ id: "cat-new-2" });
+    openNewCategory();
+    fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Bedding" } });
+    await act(async () => { submitCategory(); });
+
+    expect(mockCreateCategory).toHaveBeenCalledTimes(2);
+    expect(mockCreateCategory.mock.calls[1][1]).not.toBe(mockCreateCategory.mock.calls[0][1]);
+  });
+
+  // The correction's superseded-success case is UNREACHABLE through the UI:
+  // the row's correct button is `disabled={busy}` while the write is in flight,
+  // so submit -> dismiss -> reopen cannot complete (same as the four edits in
+  // #703 PR 2). It is pinned by this wiring test plus its close mutation; the
+  // `if (current())` gates stay for INV-1, defensive and unpinnable.
+  it("a successful correction closes its dialog and refreshes the list (its superseded case is unreachable — see comment)", async () => {
+    mockListExpenses.mockResolvedValue({ items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "JPY", currencyMinorUnit: 0 });
+    mockAdjustExpense.mockResolvedValue({ ...EXP_OLD, version: 8 });
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    const row = await screen.findByRole("row", { name: /Generator diesel/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    await screen.findByLabelText("Amount (BHD)");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save correction" }));
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText(i18n.t("expenses:expenseCorrectedMessage"))).toBeInTheDocument();
+    expect(mockListExpenses).toHaveBeenCalledTimes(2); // mount + the post-write refresh
+  });
+
+  // The key policy this screen keeps verbatim (settleKey): a server REJECTION is
+  // a definite outcome, so the key rotates and an edited resubmit is a fresh
+  // request. The sibling test above pins the other two legs (transport failure
+  // keeps it, success rotates it).
+  // #706 review round 1 (CodeRabbit) — the toggle's key is spent once the
+  // update lands, whatever the reload does: a transport failure on the reload
+  // used to keep it, and a later toggle of the same category — with a
+  // different body once any refresh had shown the new state — would reuse it
+  // and be refused as key reuse. The reload failure is the page's.
+  it("spends the toggle's key when the update lands but the categories reload fails", async () => {
+    mockUpdateCategory.mockResolvedValue(undefined);
+    await renderReady();
+    fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
+    const feedRow = screen.getAllByRole("listitem").find((li) => li.textContent?.includes("Feed"))!;
+    mockListCategories.mockRejectedValueOnce(new TypeError("Failed to fetch")); // the reload, not the toggle
+    await act(async () => {
+      fireEvent.click(within(feedRow).getByRole("button", { name: "deactivate" }));
+    });
+    expect(screen.getByText("Failed to fetch")).toBeInTheDocument(); // reported on the page
+
+    // The list never re-read, so the row still offers "deactivate": a second
+    // press is a NEW toggle and must carry a fresh key.
+    await act(async () => {
+      fireEvent.click(within(feedRow).getByRole("button", { name: "deactivate" }));
+    });
+    expect(mockUpdateCategory).toHaveBeenCalledTimes(2);
+    expect(mockUpdateCategory.mock.calls[1][2]).not.toBe(mockUpdateCategory.mock.calls[0][2]);
+  });
+
+  it("spends the key on a server rejection (ApiError), so an edited resubmit is a fresh request", async () => {
+    mockCreateExpense.mockRejectedValueOnce(new ApiError(422, "Validation failed", "Amount too large."));
+    mockCreateExpense.mockResolvedValue({ id: "e-new" });
+    await renderReady("USD");
+    fireEvent.change(comboWithOption(/pick/), { target: { value: "cat-feed" } });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Feed" } });
+    fireEvent.change(screen.getByLabelText(/Amount \(USD\)/), { target: { value: "1.00" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Record expense" })); });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Amount too large/);
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Record expense" })); });
+
+    expect(mockCreateExpense).toHaveBeenCalledTimes(2);
+    expect(mockCreateExpense.mock.calls[1][1]).not.toBe(mockCreateExpense.mock.calls[0][1]);
+  });
+
+  // The dismiss edge, in isolation: a correction dismissed mid-flight (Escape —
+  // Cancel is busy-gated, Escape and the X are not) has no session left to
+  // claim a message for; the write still landed and the list still re-read.
+  it("supersedes the correction on dismissal alone: a late success refreshes the list but claims no message", async () => {
+    mockListExpenses.mockResolvedValue({ items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "JPY", currencyMinorUnit: 0 });
+    const gate = deferred<Expense>();
+    mockAdjustExpense.mockReturnValueOnce(gate.promise);
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    const row = await screen.findByRole("row", { name: /Generator diesel/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    await screen.findByLabelText("Amount (BHD)");
+    fireEvent.click(screen.getByRole("button", { name: "Save correction" })); // left pending
+    fireEvent.keyDown(dialog(), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await act(async () => { gate.resolve({ ...EXP_OLD, version: 8 }); });
+
+    expect(mockListExpenses).toHaveBeenCalledTimes(2); // the correction landed: the list re-read
+    expect(screen.queryByText(i18n.t("expenses:expenseCorrectedMessage"))).not.toBeInTheDocument();
+  });
+
+  // The open edge, in isolation.
+  it("does not carry one expense's failed correction into another's dialog (the open edge)", async () => {
+    mockListExpenses.mockResolvedValue({ items: [EXP_OLD, EXP_BHD], totalMinorUnits: 3000, currencyCode: "BHD", currencyMinorUnit: 3 });
+    mockAdjustExpense.mockRejectedValue(new ApiError(500, "Server error", "Correction failed."));
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    const row1 = await screen.findByRole("row", { name: /Generator diesel/ });
+    fireEvent.click(within(row1).getByRole("button", { name: "correct" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save correction" }));
+    });
+    expect(within(dialog()).getByText("Correction failed.")).toBeInTheDocument();
+
+    // Straight to the other row's correct — no Cancel in between (#480).
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer feed/ })).getByRole("button", { name: "correct" }));
+    expect(dialog()).toHaveAccessibleName(/Layer feed/);
+    expect(screen.queryByText("Correction failed.")).not.toBeInTheDocument();
+  });
+
+  // Both edges together: a failure that lands after a dismissal is muted by the
+  // dismiss edge and, were it not, cleared by the open edge on the next open.
+  it("mutes a correction's late failure once its dialog is dismissed mid-flight", async () => {
+    mockListExpenses.mockResolvedValue({ items: [EXP_OLD], totalMinorUnits: 1500, currencyCode: "JPY", currencyMinorUnit: 0 });
+    let rejectFirst!: (err: unknown) => void;
+    mockAdjustExpense.mockReturnValueOnce(new Promise<Expense>((_resolve, reject) => { rejectFirst = reject; }));
+    renderWithProviders(<ExpensesPage />, { token: ADMIN });
+    const row = await screen.findByRole("row", { name: /Generator diesel/ });
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    await screen.findByLabelText("Amount (BHD)");
+    fireEvent.click(screen.getByRole("button", { name: "Save correction" })); // left pending
+
+    // Cancel is busy-gated; Escape is not, and onClose runs the same dismiss.
+    fireEvent.keyDown(dialog(), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await act(async () => { rejectFirst(new ApiError(500, "Server error", "late correction failure")); });
+
+    expect(screen.queryByText("late correction failure")).not.toBeInTheDocument();
+    // ...and not replayed into the next session either.
+    fireEvent.click(within(row).getByRole("button", { name: "correct" }));
+    expect(screen.queryByText("late correction failure")).not.toBeInTheDocument();
+  });
+});

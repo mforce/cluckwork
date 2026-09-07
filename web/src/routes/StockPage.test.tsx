@@ -1459,3 +1459,132 @@ describe("StockPage audit history link (#493)", () => {
     expect(within(lotRow).queryByRole("link", { name: "Adjustment history" })).not.toBeInTheDocument();
   });
 });
+
+// #703 PR 3 — the abandoned-success hijack (#477 part 2) on the write-off
+// dialog. Unlike the edit dialogs elsewhere, this one's superseded case is
+// REACHABLE BY MOUSE: the row's write-off trigger carries no `disabled={busy}`
+// (an admin may act on another lot's ledger while a submit is out — see
+// StockPage.tsx), and Cancel is not gated either. The hand-rolled
+// `activeWriteOffLotId` ref this replaces caught a DIFFERENT lot's open (the
+// displaced-lot test above) but not a same-lot reopen after a dismissal —
+// that is the hijack this block pins.
+describe("StockPage abandoned-attempt success (#703)", () => {
+  const RESULT: EggLotMovementResult = {
+    movementId: "wo1", eggLotId: "lot1", movementType: "Discard",
+    quantityDelta: -7, reason: "dropped a tray",
+    createdAtUtc: "2026-08-08T10:00:00Z", quantityAvailable: 92, version: 2,
+  };
+  const dialog = () => screen.getByRole("dialog");
+
+  async function openLotRow() {
+    mockGetStock.mockResolvedValue(ROWS);
+    mockListEggLots.mockResolvedValue(LOTS);
+    render(<StockPage />);
+    await screen.findByText("Grade A");
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A\b/ })).getByRole("button", { name: "lots" }));
+    return await screen.findByRole("row", { name: /07\/01\/2026/ });
+  }
+
+  function fillAndSubmit({ qty = "7", reason = "dropped a tray" }: { qty?: string; reason?: string } = {}) {
+    fireEvent.change(within(dialog()).getByRole("spinbutton"), { target: { value: qty } });
+    fireEvent.change(within(dialog()).getByLabelText(/Reason/), { target: { value: reason } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: /Record/ }));
+  }
+
+  it("does not let an abandoned write-off's success reset or close the same lot's reopened dialog", async () => {
+    let resolveFirst!: (v: EggLotMovementResult) => void;
+    mockRecordEggLotMovement.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve; }));
+    const lotRow = await openLotRow();
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit(); // left pending
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" })); // the replacement session — same lot
+    fireEvent.change(within(dialog()).getByRole("spinbutton"), { target: { value: "5" } });
+    await act(async () => { resolveFirst(RESULT); });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog()).getByRole("spinbutton")).toHaveValue(5);
+    expect(screen.queryByText(/92 now available/)).not.toBeInTheDocument();
+  });
+
+  it("still patches the row, refreshes and rotates the key when an abandoned write-off succeeds", async () => {
+    // The write-off happened whether or not anyone is watching: the lot row
+    // must show the new balance, the totals re-read, and the spent key must
+    // go, or the next write-off of this lot replays this one.
+    let resolveFirst!: (v: EggLotMovementResult) => void;
+    mockRecordEggLotMovement.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve; }));
+    const lotRow = await openLotRow();
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit(); // left pending
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => { resolveFirst(RESULT); });
+    expect(within(lotRow).getByText("92")).toBeInTheDocument();
+    expect(mockGetStock).toHaveBeenCalledTimes(2); // mount + the refresh
+
+    mockRecordEggLotMovement.mockResolvedValueOnce(RESULT);
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    await act(async () => { fillAndSubmit(); });
+
+    expect(mockRecordEggLotMovement).toHaveBeenCalledTimes(2);
+    const [, , firstKey] = mockRecordEggLotMovement.mock.calls[0];
+    const [, , secondKey] = mockRecordEggLotMovement.mock.calls[1];
+    expect(firstKey).not.toBe(secondKey);
+  });
+
+  // The dismiss edge, in isolation: a write-off dismissed mid-flight has no
+  // session left to claim a message for; the row still patches and the totals
+  // still re-read. (The shipped ref-gate behaved the same way on a dismissal;
+  // what it missed was the same-lot REOPEN above.)
+  it("supersedes the write-off on dismissal alone: a late success patches the row and refreshes but claims no message", async () => {
+    let resolveFirst!: (v: EggLotMovementResult) => void;
+    mockRecordEggLotMovement.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve; }));
+    const lotRow = await openLotRow();
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit(); // left pending
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => { resolveFirst(RESULT); });
+
+    expect(within(lotRow).getByText("92")).toBeInTheDocument();
+    expect(mockGetStock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/92 now available/)).not.toBeInTheDocument();
+  });
+
+  // Same-lot RE-ENTRY (the row's write-off clicked again with its dialog still
+  // open — no dismissal) is a reseed of the same session, as it always was: the
+  // in-flight write still closes it on success. A different lot's open, and a
+  // dismissal, are the edges that end it.
+  it("still closes the dialog when the same lot's write-off is reseeded, not dismissed, while its submit is out", async () => {
+    let resolveFirst!: (v: EggLotMovementResult) => void;
+    mockRecordEggLotMovement.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve; }));
+    const lotRow = await openLotRow();
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit(); // left pending
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" })); // reseed, same lot
+    await act(async () => { resolveFirst(RESULT); });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText(/92 now available/)).toBeInTheDocument();
+  });
+
+  // #703 review r2 (PR 2) — Enter submits a form whose button is disabled, and
+  // the pre-run `beginAttempt` this handler keeps for its client-side
+  // validation would un-mute an abandoned attempt even though `run` then skips
+  // the second one, letting its late failure into the reopened dialog. This
+  // was the one unguarded handler of its kind in the codebase.
+  it("does not let a skipped Enter-submit un-mute an abandoned write-off's late failure", async () => {
+    let rejectFirst!: (err: unknown) => void;
+    mockRecordEggLotMovement.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectFirst = reject; }));
+    const lotRow = await openLotRow();
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit(); // left pending
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fireEvent.change(within(dialog()).getByRole("spinbutton"), { target: { value: "5" } });
+    fireEvent.change(within(dialog()).getByLabelText(/Reason/), { target: { value: "second try" } });
+    fireEvent.submit(within(dialog()).getByRole("button", { name: /Record/ }).closest("form")!); // Enter, while busy
+    await act(async () => { rejectFirst(new Error("late write-off failure")); });
+
+    expect(mockRecordEggLotMovement).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("late write-off failure")).not.toBeInTheDocument();
+  });
+});
