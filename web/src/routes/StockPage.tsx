@@ -7,7 +7,6 @@ import {
   getStock, listEggLotMovements, listEggLots, recordEggLotMovement,
 } from "../api/cluckwork";
 import type { EggLotRow, EggMovementRow, StockRow } from "../api/cluckwork";
-import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
@@ -17,19 +16,17 @@ import { GlossaryLink } from "../components/GlossaryLink";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
 import { NumberField } from "../components/NumberField";
-import { useDialogErrors } from "../components/useDialogErrors";
-import { usePendingAction } from "../components/usePendingAction";
+import { useDialogAction } from "../components/useDialogAction";
 import i18n from "../i18n";
 import { stockMovementLabel } from "../i18n/enums";
 import { newId } from "../lib/ids";
 
-function errText(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
-  return err instanceof Error ? err.message : String(err);
-}
-
 // Matches the API's default page size — a full page means there may be more.
 const LOT_PAGE = 50;
+
+// The scope that owns a dialog (#703). `run` routes a failure by this and gates
+// a success by it; nothing else on this screen goes through `run`.
+const DIALOG_SCOPES = ["write-off"] as const;
 
 // F2 (#22): current sellable stock by grade; withdrawal-restricted quantities
 // are shown separately — they exist but cannot be sold yet.
@@ -43,14 +40,12 @@ export function StockPage() {
   const { t: tc } = useTranslation("common");
   // UI visibility only (#73/#103) — the endpoint re-checks the role.
   const { isAdmin } = useAuth();
-  const { busy, isPending, run: runPending } = usePendingAction();
+  // #703 — the flight guard (#236), the per-place message slots (#479) and the
+  // dialog-session generation (#477 part 2) come from one shared hook; this
+  // screen keeps only its idempotency-key and refresh discipline below, and
+  // says which scope owns a dialog.
+  const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(DIALOG_SCOPES);
   const [rows, setRows] = useState<StockRow[] | null>(null);
-  // #479 — one slot per PLACE a message can appear. This screen already kept
-  // the write-off dialog's own failures in a separate hand-rolled
-  // `dialogError` state, so this conversion is for uniformity with the other
-  // screens, not a bug fix — the one gap the shared hook closes for free is
-  // muting a late failure from an attempt the dialog abandoned mid-flight.
-  const errors = useDialogErrors();
   const setPageError = errors.setPage;
   const [message, setMessage] = useState<string | null>(null);
   const [openGrade, setOpenGrade] = useState<string | null>(null);
@@ -271,41 +266,41 @@ export function StockPage() {
     }
   }
 
-  // Mirrors `writeOffLot` synchronously. `onWriteOff` is an async function
-  // whose closure captures `writeOffLot` as it read at SUBMIT time — reading
-  // the state itself after an `await` would silently see that stale value
-  // forever, not the lot the dialog has since rebound to. The ref is updated
-  // everywhere `writeOffLot` is, so a post-`await` read reflects reality
-  // (adversarial review of #491).
-  const activeWriteOffLotId = useRef<string | null>(null);
-
   function openWriteOff(lot: EggLotRow) {
     setWoType("Discard");
     setWoDirection("remove");
     setWoQty(0);
     setWoReason("");
-    // #479 — no reset for a plain open. Every DISMISSAL goes through
-    // closeWriteOff, whose `abandon` cleared the slot and muted any attempt
-    // still in flight on the way out. The success path closes with a bare
-    // setWriteOffLot(null), where the slot is empty by construction: the
-    // attempt did not fail. The one door left: a DIFFERENT lot's write-off
-    // opened over this one DISPLACES it without any close running, and the
-    // scope is fixed — so the displaced lot's verdict would render under the
-    // new lot's date. Reachable behind the backdrop via a screen reader's
-    // virtual cursor (#480; pi review of #491).
-    if (writeOffLot !== null && writeOffLot.id !== lot.id) errors.abandon("write-off");
-    activeWriteOffLotId.current = lot.id;
+    // Opening is a session edge (#703). A fresh open, or a DIFFERENT lot's
+    // write-off opened over this one — it DISPLACES the dialog without any
+    // close running, reachable behind the backdrop via a screen reader's
+    // virtual cursor (#480; pi review of #491) and, on this screen, by the
+    // mouse, because the trigger carries no `disabled={busy}` — ends whatever
+    // session was on screen: the displaced lot's verdict cannot render under
+    // the new lot's date, and its success cannot close the new lot's form.
+    // Same-lot re-entry (a reseed of THIS lot) is spared, as it always was:
+    // the session is still about this lot, so its in-flight write still
+    // closes it on success and its failed verdict survives the reseed.
+    if (writeOffLot === null || writeOffLot.id !== lot.id) openDialog("write-off");
     setWriteOffLot(lot);
   }
 
-  // Dismissal empties the dialog's slot and mutes the attempt still out, so a
-  // late failure from an in-flight write-off is not reported against a
-  // session the user reopened.
+  // Dismissal is the other edge: it mutes the attempt still out, so a late
+  // failure from an in-flight write-off is not reported against a session the
+  // user reopened, and ends the session, so a late success cannot act on it.
   const closeWriteOff = () => {
-    activeWriteOffLotId.current = null;
     setWriteOffLot(null);
-    errors.abandon("write-off");
+    dismissDialog("write-off");
   };
+
+  // #703 review r2 (PR 2) — the dialog is admin-gated (`open={isAdmin}`), so a
+  // role change HIDES it without firing onClose: an in-flight write-off would
+  // stay `current()` and could close the dialog a re-promotion restores. End
+  // the session on the isAdmin edge (dismiss mutes + advances the generation;
+  // setWriteOffLot hides it), so a re-promotion reopens a fresh one.
+  useEffect(() => {
+    if (!isAdmin) { setWriteOffLot(null); dismissDialog("write-off"); }
+  }, [isAdmin, dismissDialog]);
 
   // The signed delta the API receives: only a reconciliation may add back.
   const woDelta = woType === "Reconciliation" && woDirection === "add" ? woQty : -woQty;
@@ -379,6 +374,11 @@ export function StockPage() {
 
   async function onWriteOff(e: FormEvent) {
     e.preventDefault();
+    // #703 review r2 (PR 2) — a skipped-while-busy submit must not un-mute:
+    // Enter bypasses the disabled submit button, `run` would skip the second
+    // attempt, but the pre-run `beginAttempt` below would still un-mute an
+    // abandoned attempt and let its late failure into the reopened dialog.
+    if (busy) return;
     const lot = writeOffLot;
     if (lot === null) return;
     // Clears and un-mutes the slot up front — before the validation writes
@@ -414,20 +414,16 @@ export function StockPage() {
     // ledger action has happened by the time it runs (codex review).
     const ledgerSeq = ledgerReq.current;
     setLotsLoading(true);
-    const outcome = await runPending(scope, async () => {
+    // The run scope is the dialog's; the idempotency key stays per lot.
+    await run("write-off", async (current) => {
       setMessage(null);
-      let res;
-      try {
-        res = await recordEggLotMovement(lot.id, {
-          movementType: woType, quantityDelta: woDelta, reason: woReason.trim(),
-        }, keyFor(scope));
-      } catch (err) {
-        // No definitive success — keep the key so a retry replays rather than
-        // repeats. (A 4xx stores no idempotency record, so an edited resubmit
-        // under the same key is safe too.)
-        errors.report("write-off", errText(err));
-        return undefined;
-      }
+      // A failure here is the hook's to report into the dialog's slot, and the
+      // key is not rotated on it — a retry replays rather than repeats. (A 4xx
+      // stores no idempotency record, so an edited resubmit under the same key
+      // is safe too.)
+      const res = await recordEggLotMovement(lot.id, {
+        movementType: woType, quantityDelta: woDelta, reason: woReason.trim(),
+      }, keyFor(scope));
       // The write is durable the moment the server answers — rotate NOW.
       // Holding the key past this point would hash-conflict a later submit
       // with edited values while the dialog is still open (codex review).
@@ -450,7 +446,17 @@ export function StockPage() {
         // Only the view is stale; the correction itself landed.
         setPageError(i18n.t("stock:loadStockFailed"));
       }
-      return res;
+      // The write-off trigger has no `disabled={busy}` gate (an admin can act
+      // on another lot's ledger while this submit is out), so the dialog may
+      // already be a DIFFERENT lot's by now — or a fresh session of THIS lot,
+      // reopened after a dismissal. Closing it here would be a success message
+      // about the abandoned attempt slamming shut the form the admin is typing
+      // into (adversarial review of #491; #703). `current()` is the hook's
+      // answer to "is this still my session?": a different lot's open or a
+      // dismissal ended it; a same-lot reseed did not, and still closes.
+      if (!current()) return;
+      setMessage(i18n.t("stock:writeOffRecordedMessage", { available: fmt.count(res.quantityAvailable) }));
+      setWriteOffLot(null);
     });
     // Release the loading flag claimed at submit — success, failure, or
     // skipped walk alike — unless something newer has taken ownership. The
@@ -462,19 +468,6 @@ export function StockPage() {
       setLotsLoading(false);
       setLotsFrom(appliedFilter.current.from);
       setLotsTo(appliedFilter.current.to);
-    }
-    // The write-off trigger has no `disabled={busy}` gate (an admin can act
-    // on another lot's ledger while this submit is out), so the dialog may
-    // already be a DIFFERENT lot's by now. Closing it here would be a
-    // success message about lot A slamming shut lot B's still-open form —
-    // typed quantity and all (adversarial review of #491). Same-lot
-    // re-entry (a reseed of THIS lot) still closes normally. Read via the
-    // ref, not the `writeOffLot` state this closure captured at submit time
-    // — that value is frozen at lot A and would never see the switch.
-    if (outcome && activeWriteOffLotId.current === lot.id) {
-      activeWriteOffLotId.current = null;
-      setMessage(i18n.t("stock:writeOffRecordedMessage", { available: fmt.count(outcome.quantityAvailable) }));
-      setWriteOffLot(null);
     }
   }
 
@@ -692,7 +685,7 @@ export function StockPage() {
             <DialogError errors={errors} scope="write-off" />
             <div className="dialog-foot">
               <button type="button" className="link" onClick={closeWriteOff}>{tc("cancel")}</button>
-              <BusyButton type="submit" busy={isPending(`write-off:${writeOffLot.id}`)} disabled={busy}>
+              <BusyButton type="submit" busy={isPending("write-off")} disabled={busy}>
                 {t("writeOffSubmitButton")}
               </BusyButton>
             </div>
