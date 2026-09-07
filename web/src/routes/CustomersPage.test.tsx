@@ -1068,3 +1068,28 @@ describe("CustomersPage abandoned-attempt success (#703)", () => {
     expect(mockUpdate).toHaveBeenCalledTimes(1);
   });
 });
+
+// #703 — INV-5 for the edit open edge: opening one customer's edit must mute the
+// previous edit's still-shown verdict, or a screen reader reaching another row's
+// Edit behind the backdrop (write already settled, closeDisabled false — #480)
+// renders customer A's failure inside customer B's dialog. Pinned by mutation CU6
+// (delete openDialog("edit-customer") in openEdit). Mirrors the Products/Grades
+// "does not carry one X's failed edit into another" test Customers never had.
+describe("CustomersPage edit displacement (#703 INV-5)", () => {
+  it("does not carry one customer's failed edit into another customer's dialog", async () => {
+    mockUpdate.mockRejectedValue(new ApiError(409, "Conflict", "Someone else changed this customer."));
+    renderWithProviders(<CustomersPage />, { token: ADMIN });
+    await screen.findByText("Acme Eggs");
+    openEdit("Acme Eggs");
+    await submitEdit();
+    expect(within(dialog()).getByText("Someone else changed this customer.")).toBeInTheDocument();
+
+    // Backdrop blocks a mouse, but #480 established a screen reader's virtual
+    // cursor still reaches the row; the write has settled (closeDisabled false),
+    // so this displacement is reachable.
+    openEdit("Bravo Co");
+
+    expect(within(dialog()).getByLabelText("Name *")).toHaveValue("Bravo Co");
+    expect(within(dialog()).queryByText("Someone else changed this customer.")).not.toBeInTheDocument();
+  });
+});

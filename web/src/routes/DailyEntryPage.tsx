@@ -473,8 +473,11 @@ export function DailyEntryPage() {
       }, flockKey.current);
       flockKey.current = newId();
       // Best-effort refresh of the picker's eligible-list rows (RUN — the flock
-      // exists whether or not anyone is watching); its failure must never block
-      // the exact-GET hydration below.
+      // exists whether or not anyone is watching). This list refresh now runs
+      // BEFORE the retarget/exact-GET hydration below (hydration started first
+      // pre-#703); the order moved deliberately so the RUN facts precede the
+      // single superseded gate, and the catch keeps this list's failure
+      // independent of that hydration.
       try {
         setFlocks(capturable(await listFlocks()));
       } catch {
