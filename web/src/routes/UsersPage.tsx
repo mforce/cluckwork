@@ -93,10 +93,6 @@ export function UsersPage() {
   // #163 edit: the user whose name is being edited, and the working value.
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editName, setEditName] = useState("");
-  // Synchronous target of the edit dialog — like activeUser for flock scoping,
-  // so a save that resolves after the dialog was closed/reopened for another
-  // user doesn't splice its result into the wrong dialog.
-  const activeEdit = useRef<string | null>(null);
 
   // #165 password reset: kept in its own dialog rather than folded into the name
   // edit — setting someone's password is a different, higher-consequence action
@@ -426,12 +422,10 @@ export function UsersPage() {
     openDialog("edit-user");
     setMessage(null);
     setEditName(u.displayName ?? "");
-    activeEdit.current = u.id;
     setEditUser(u);
   }
 
   function closeEdit() {
-    activeEdit.current = null;
     setEditUser(null);
     dismissDialog("edit-user");
   }
@@ -678,23 +672,22 @@ export function UsersPage() {
     const target = editUser;
     if (!target) return;
     const scope = `update:${target.id}`;
-    await run(scope, async () => {
+    await run(scope, async (current) => {
       setMessage(null);
-      try {
-        // Blank clears the name back to "—" (null); the server normalizes too.
-        await updateUser(target.id, { name: editName.trim() || null }, keyFor(scope));
-        // Clear the key once the WRITE is confirmed (before the refresh), so a
-        // follow-up edit isn't replayed against this cached response (#163 review).
-        clearKey(scope);
-        await listUsers().then(setUsers);
-        // The dialog may have been dismissed/reopened for another user while this
-        // was in flight; only touch the UI if it's still this edit (#163 review).
-        if (activeEdit.current !== target.id) return;
-        setMessage(i18n.t("users:updatedMessage", { email: target.email }));
-        closeEdit();
-      } catch (err) {
-        if (activeEdit.current === target.id) errors.report("edit-user", errText(err));
-      }
+      // Blank clears the name back to "—" (null); the server normalizes too.
+      await updateUser(target.id, { name: editName.trim() || null }, keyFor(scope));
+      // Clear the key once the WRITE is confirmed (before the refresh), so a
+      // follow-up edit isn't replayed against this cached response (#163 review).
+      clearKey(scope);
+      await listUsers().then(setUsers);
+      // The dialog may have been dismissed, or reopened — for another user OR
+      // the same one — while this was in flight. The old guard compared user
+      // ids, so a same-user reopen passed and this stale success closed the
+      // dialog the user had just reopened (#703); the session generation
+      // tells the two apart.
+      if (!current()) return;
+      setMessage(i18n.t("users:updatedMessage", { email: target.email }));
+      closeEdit();
     }, { dialog: "edit-user" });
   }
 

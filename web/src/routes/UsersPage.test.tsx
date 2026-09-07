@@ -3659,3 +3659,93 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     expect(screen.queryByText(/Login email changed to first@farm\.test/)).not.toBeInTheDocument();
   });
 });
+
+// #703 PR 4 — the edit dialog's guard compared user IDS, so a close-and-reopen
+// of the SAME user passed it and the abandoned save closed the dialog the user
+// had just reopened. The hook's session generation tells the two apart. The
+// first two tests are RED on the id-only guard; the last two pin the edges and
+// the facts about the world that must still run.
+describe("UsersPage abandoned edit's success (#703 PR 4)", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((ok) => { resolve = ok; });
+    return { promise, resolve };
+  }
+  const editRow = (rowName: RegExp) =>
+    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "edit" }));
+  const nameBox = () => within(dialog()).getByLabelText("Name");
+  const typeName = (value: string) => fireEvent.change(nameBox(), { target: { value } });
+  const save = () => act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
+  const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+  it("does not let an abandoned edit's success close the dialog reopened for the same user", async () => {
+    const write = deferred<void>();
+    mockUpdateUser.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    editRow(/boss@farm.test/);
+    typeName("First");
+    await save();
+    expect(mockUpdateUser).toHaveBeenCalledTimes(1);
+
+    cancel();
+    editRow(/boss@farm.test/); // the SAME user — an id-only guard cannot tell this session from the last
+    typeName("Second");
+    await act(async () => { write.resolve(); });
+
+    expect(screen.getByRole("dialog", { name: /Edit user — boss@farm\.test/ })).toBeInTheDocument();
+    expect(nameBox()).toHaveValue("Second");
+    expect(screen.queryByText(/Updated boss@farm\.test/)).not.toBeInTheDocument();
+  });
+
+  it("supersedes the edit on re-entry alone: the row's edit button pressed again ends the session the held write belongs to", async () => {
+    const write = deferred<void>();
+    mockUpdateUser.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    editRow(/boss@farm.test/);
+    typeName("First");
+    await save();
+
+    editRow(/boss@farm.test/); // reseeds the field, no dismissal
+    typeName("Second");
+    await act(async () => { write.resolve(); });
+
+    expect(screen.getByRole("dialog", { name: /Edit user — boss@farm\.test/ })).toBeInTheDocument();
+    expect(nameBox()).toHaveValue("Second");
+    expect(screen.queryByText(/Updated boss@farm\.test/)).not.toBeInTheDocument();
+  });
+
+  it("supersedes the edit on dismissal alone: a late success after Cancel claims no message", async () => {
+    const write = deferred<void>();
+    mockUpdateUser.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    editRow(/boss@farm.test/);
+    typeName("First");
+    await save();
+
+    cancel();
+    await act(async () => { write.resolve(); });
+
+    expect(screen.queryByText(/Updated boss@farm\.test/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("still rotates the update key and refreshes the list when an abandoned edit succeeds", async () => {
+    const write = deferred<void>();
+    mockUpdateUser.mockReturnValueOnce(write.promise);
+    await renderReady(ADMIN);
+    editRow(/boss@farm.test/);
+    typeName("First");
+    await save();
+    cancel();
+    await act(async () => { write.resolve(); });
+    expect(mockListUsers).toHaveBeenCalledTimes(2); // mount + the refresh: the name changed whoever is watching
+
+    mockUpdateUser.mockResolvedValueOnce(undefined);
+    editRow(/boss@farm.test/);
+    typeName("Second");
+    await save();
+
+    expect(mockUpdateUser).toHaveBeenCalledTimes(2);
+    expect(mockUpdateUser.mock.calls[1][2]).not.toBe(mockUpdateUser.mock.calls[0][2]); // the spent key went with the write
+  });
+});
