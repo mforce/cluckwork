@@ -798,6 +798,7 @@ describe("ProductsPage abandoned-attempt success (#703)", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mockListProducts).toHaveBeenCalledTimes(2); // mount + the post-edit refresh
+    expect(mockListConversions).toHaveBeenCalledTimes(2); // refresh() reloads conversions too
   });
 });
 
