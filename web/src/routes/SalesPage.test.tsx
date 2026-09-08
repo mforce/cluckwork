@@ -2693,3 +2693,75 @@ describe("Sales line-update retry intent (#713)", () => {
     expect(key(1)).toBe(key(0));
   });
 });
+
+// #713 review — accepting fresh server values begins a new retry intent.
+describe("Sales accepted edit baseline (#713)", () => {
+  beforeEach(() => { mockUpdateOrderItem.mockReset().mockResolvedValue(undefined); });
+  it.each([
+    ["reload", "quantity"], ["reload", "price"], ["reopen", "quantity"],
+    ["clean refresh", "quantity"], ["baseline round trip", "quantity"],
+  ] as const)("%s lets an earlier %s value be applied again instead of replaying old success", async (path, field) => {
+    let server = DRAFT_TWO;
+    const completed = new Set<string>();
+    let loseResponse = true;
+    const row = await openOrder(server, /Grade A Dozen/);
+    mockGetOrder.mockImplementation(async () => server);
+    mockUpdateOrderItem.mockImplementation(async (_orderId, _itemId, payload, key) => {
+      if (!key) throw new Error("Missing request key");
+      // A completed idempotency key replays success without another mutation.
+      if (completed.has(key)) return;
+      completed.add(key);
+      server = { ...server, items: [{ ...ITEM_A, quantity: payload.quantity,
+        quantityBase: payload.quantity * ITEM_A.baseUnitFactor,
+        unitPriceMinorUnits: payload.unitPriceMinorUnits }, ITEM_B] };
+      if (loseResponse) { loseResponse = false; throw new Error("Successful response lost"); }
+    });
+    const edit = () => fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ }))
+      .getByRole("button", { name: i18n.t("sales:edit") }));
+    const type = (value: string) => fireEvent.change(screen.getByLabelText(i18n.t(field === "quantity"
+      ? "sales:editQuantityAriaLabel" : "sales:editUnitPriceAriaLabel")), { target: { value } });
+    const save = async () => { await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:save") })); }); };
+    const refresh = async () => { await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); }); };
+    fireEvent.click(within(row).getByRole("button", { name: i18n.t("sales:edit") }));
+    const desired = path === "clean refresh" ? "3" : field === "quantity" ? "5" : "4.00";
+    if (path !== "clean refresh") type(desired);
+    await save();
+    expect(completed.size).toBe(1);
+    server = { ...server, items: [{ ...server.items[0],
+      ...(field === "quantity" ? { quantity: 9, quantityBase: 108 } : { unitPriceMinorUnits: 900 }),
+    }, ITEM_B] };
+    await refresh();
+    if (path === "reopen") {
+      fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:cancelEdit") }));
+      edit();
+    } else if (path !== "clean refresh") {
+      expect(screen.getByRole("button", { name: i18n.t("sales:save") })).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:reloadLine") }));
+    }
+    if (path === "baseline round trip") { server = DRAFT_TWO; await refresh(); }
+    type(desired);
+    await save();
+    expect(mockUpdateOrderItem).toHaveBeenCalledTimes(2);
+    expect(mockUpdateOrderItem.mock.calls[1][2]).toEqual(mockUpdateOrderItem.mock.calls[0][2]);
+    expect(screen.queryByRole("button", { name: i18n.t("sales:save") })).not.toBeInTheDocument();
+    expect(field === "quantity" ? server.items[0].quantity : server.items[0].unitPriceMinorUnits)
+      .toBe(field === "quantity" ? Number(desired) : 400);
+    expect(completed.size).toBe(2);
+  });
+
+  it("unchanged accepted values and continued typing preserve an identical ambiguous retry", async () => {
+    const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    fireEvent.click(within(row).getByRole("button", { name: i18n.t("sales:edit") }));
+    const type = (value: string) => fireEvent.change(screen.getByLabelText(i18n.t("sales:editQuantityAriaLabel")), { target: { value } });
+    const save = async () => { await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:save") })); }); };
+    type("5");
+    mockUpdateOrderItem.mockRejectedValueOnce(new Error("Response unavailable"));
+    await save();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
+    type("6");
+    type("5");
+    await save();
+    expect(mockUpdateOrderItem).toHaveBeenCalledTimes(2);
+    expect(mockUpdateOrderItem.mock.calls[1][3]).toBe(mockUpdateOrderItem.mock.calls[0][3]);
+  });
+});

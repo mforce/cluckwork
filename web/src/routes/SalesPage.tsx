@@ -210,8 +210,22 @@ export function SalesPage() {
   const activeRef = useRef<SalesOrder | null>(null);
   const [editor, setEditorState] = useState<EditorDraft | null>(null);
   const editorRef = useRef<EditorDraft | null>(null);
+  // Retry identity includes the accepted edit baseline as well as the payload.
+  // Keep ambiguous attempts across cancellation, but retire them when the editor
+  // accepts different server values (Reload, reopening, or a clean refresh).
+  const itemUpdateAttempts = useRef(new Map<string, {
+    quantity: number; unitPriceMinorUnits: number; key: string;
+    serverQuantity: number; serverPrice: number;
+  }>());
   // Async publications read the latest typing/cancellation, not their starting render.
   const setEditor = useCallback((draft: EditorDraft | null) => {
+    if (draft) {
+      const scope = `update-item:${draft.itemId}`;
+      const attempt = itemUpdateAttempts.current.get(scope);
+      if (attempt && (attempt.serverQuantity !== draft.serverQuantity || attempt.serverPrice !== draft.serverPrice)) {
+        itemUpdateAttempts.current.delete(scope);
+      }
+    }
     editorRef.current = draft;
     setEditorState(draft);
   }, []);
@@ -256,12 +270,6 @@ export function SalesPage() {
     const item = editableLine(order, editorRef.current);
     if (order && item) setEditor(lineDraft(order, item));
   };
-
-  // Line updates also bind their key to the parsed payload: identical retries
-  // replay an ambiguous result, while changed input represents a new intent.
-  const itemUpdateAttempts = useRef(new Map<string, {
-    quantity: number; unitPriceMinorUnits: number; key: string;
-  }>());
 
   // Other idempotency keys are bound to (action, target) and rotated ONLY after the whole
   // action (write + refresh) succeeds: a retry after any failure — including a
@@ -602,7 +610,10 @@ export function SalesPage() {
     const previous = itemUpdateAttempts.current.get(scope);
     const attempt = previous?.quantity === draft.quantity && previous.unitPriceMinorUnits === minorUnits
       ? previous
-      : { quantity: draft.quantity, unitPriceMinorUnits: minorUnits, key: newId() };
+      : {
+        quantity: draft.quantity, unitPriceMinorUnits: minorUnits, key: newId(),
+        serverQuantity: draft.serverQuantity, serverPrice: draft.serverPrice,
+      };
     itemUpdateAttempts.current.set(scope, attempt);
     await updateOrderItem(id, itemId,
       { quantity: draft.quantity, unitPriceMinorUnits: minorUnits }, attempt.key);
