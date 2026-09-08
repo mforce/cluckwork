@@ -2351,7 +2351,8 @@ export const tl = {
       + "Ang dami ay bilang ng <strong>mga unit, hindi mga itlog</strong> — nakasaad sa field ang unit at "
       + "ipinapakita nito ang kabuuang itlog habang nagta-type (2 tray = 60 itlog, hindi 60 tray). "
       + "Naaalala ng bawat linya kung ilang itlog ang laman ng unit nito noong idinagdag ito, kaya hindi "
-      + "kailanman binabago ng muling pagtukoy sa isang karton ang mga lumang order.",
+      + "kailanman binabago ng muling pagtukoy sa isang karton ang mga lumang order. Kung naglo-load pa ang order, "
+      + "mananatiling sarado ang panel kapag pinili ang <strong>isara</strong>. Piliin muli ang <strong>buksan</strong> para tingnan ang order.",
     salesConfirming:
       "Ang <strong>Pagkumpirma</strong> ng isang order ay naglalaan ng aktwal na stock — pinakalumang lote "
       + "muna — at ito ang sandali kung saan lumilipat ang inventory.",
@@ -2905,7 +2906,7 @@ export const tl = {
       + "Kailangan ng dahilan.",
 
     glossaryCancelOrderTerm: "Kanselahin (order)",
-    glossaryCancelOrderDef: "Isara ang isang draft na hindi natuloy. Walang kinalaman na stock.",
+    glossaryCancelOrderDef: "Isara ang isang draft na hindi natuloy. Walang kinalaman na stock. Itinatago lang ng isara ang panel; piliin ang buksan para tingnan itong muli.",
 
     glossaryInventoryItemTerm: "Item sa imbentaryo",
     glossaryInventoryItemDef:

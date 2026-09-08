@@ -2264,7 +2264,8 @@ export const es = {
       + "cuenta <strong>unidades, no huevos</strong> — el campo indica la unidad y muestra el total de huevos "
       + "resultante mientras escribe (2 bandejas = 60 huevos, no 60 bandejas). Cada línea "
       + "recuerda cuántos huevos contenía su unidad cuando se agregó, así que redefinir un cartón más tarde "
-      + "nunca cambia pedidos antiguos.",
+      + "nunca cambia pedidos antiguos. Si el pedido aún se está cargando, <strong>cerrar</strong> mantiene "
+      + "el panel cerrado. Use <strong>abrir</strong> de nuevo para verlo.",
     salesConfirming:
       "<strong>Confirmar</strong> un pedido asigna existencias reales — los lotes más antiguos primero — y "
       + "es el punto donde el inventario cambia de manos.",
@@ -2808,7 +2809,7 @@ export const es = {
       + "vinieron. Requiere un motivo.",
 
     glossaryCancelOrderTerm: "Cancelar (pedido)",
-    glossaryCancelOrderDef: "Cerrar un borrador que nunca se concretó. No involucra existencias.",
+    glossaryCancelOrderDef: "Cerrar un borrador que nunca se concretó. No involucra existencias. El enlace cerrar solo oculta el panel; use abrir para verlo de nuevo.",
 
     glossaryInventoryItemTerm: "Artículo de inventario",
     glossaryInventoryItemDef:

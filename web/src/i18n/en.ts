@@ -2790,7 +2790,8 @@ export const en = {
       + "read-only). The quantity counts <strong>units, not eggs</strong> — the field is labeled with the "
       + "unit and shows the resulting egg count while you type (2 trays = 60 eggs, not 60 trays). Each "
       + "line remembers how many eggs its unit held when it was added, so redefining a carton later never "
-      + "changes old orders.",
+      + "changes old orders. Choose <strong>close</strong> while an order loads to keep the panel closed; "
+      + "choose <strong>open</strong> again to view it.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",
@@ -3312,7 +3313,7 @@ export const en = {
       "Undo of a mistaken confirm — stock returns to the exact lots it came from. Needs a reason.",
 
     glossaryCancelOrderTerm: "Cancel (order)",
-    glossaryCancelOrderDef: "Close a draft that never happened. No stock involved.",
+    glossaryCancelOrderDef: "Close a draft that never happened. No stock involved. The close link only hides the panel; use open to view it again.",
 
     glossaryInventoryItemTerm: "Inventory item",
     glossaryInventoryItemDef:
