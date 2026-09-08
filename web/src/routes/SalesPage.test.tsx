@@ -2429,3 +2429,178 @@ describe("Sales primary Open controls (#712)", () => {
     expect(screen.getByText("Dismissed order read failed")).toBeInTheDocument();
   });
 });
+
+// #713 — reconcile the live editor whenever accepted order data changes.
+describe("Sales live editor (#713)", () => {
+  const changed = (): SalesOrder => ({ ...DRAFT_TWO, items: [
+    { ...ITEM_A, quantity: 9, quantityBase: 108, unitPriceMinorUnits: 400 }, ITEM_B,
+  ] });
+  const beginEdit = async () => {
+    const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    fireEvent.click(within(row).getByRole("button", { name: i18n.t("sales:edit") }));
+  };
+  const refresh = async (order: SalesOrder) => {
+    mockGetOrder.mockResolvedValue(order);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
+  };
+  const quantity = () => screen.getByLabelText(i18n.t("sales:editQuantityAriaLabel"));
+  const price = () => screen.getByLabelText(i18n.t("sales:editUnitPriceAriaLabel"));
+  const save = () => screen.getByRole("button", { name: i18n.t("sales:save") });
+
+  it.each(["Confirmed", "Cancelled", "Voided", "UnknownFutureStatus"])("%s refresh discards the editor, including if Draft data later returns", async (status) => {
+    await beginEdit();
+    await refresh({ ...DRAFT_TWO, status });
+    expect(screen.queryByRole("button", { name: i18n.t("sales:save") })).not.toBeInTheDocument();
+    await refresh(DRAFT_TWO);
+    expect(screen.queryByRole("button", { name: i18n.t("sales:save") })).not.toBeInTheDocument();
+    expect(mockUpdateOrderItem).not.toHaveBeenCalled();
+  });
+
+  it("Confirm through the dialog ends editing after the follow-up read", async () => {
+    await beginEdit();
+    mockGetOrder.mockResolvedValue({ ...DRAFT_TWO, status: "Confirmed" });
+    vi.mocked(confirmOrder).mockResolvedValue(undefined as never);
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:confirmOrderButton") }));
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: i18n.t("sales:confirmOrderConfirmLabel") })); });
+    expect(confirmOrder).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: i18n.t("sales:save") })).not.toBeInTheDocument();
+  });
+
+  it("a removed line cannot regain its discarded editor when it reappears", async () => {
+    await beginEdit();
+    await refresh({ ...DRAFT_TWO, items: [ITEM_B] });
+    expect(screen.queryByRole("button", { name: i18n.t("sales:save") })).not.toBeInTheDocument();
+    await refresh(DRAFT_TWO);
+    expect(screen.queryByRole("button", { name: i18n.t("sales:save") })).not.toBeInTheDocument();
+  });
+
+  it("switching orders and back discards the old editor even with a reused item ID", async () => {
+    const other = { ...DRAFT_TWO, id: "other", referenceNumber: "SO-OTHER" };
+    mockListOrders.mockResolvedValue([DRAFT_TWO, other]);
+    mockGetOrder.mockImplementation(async (id) => id === other.id ? other : DRAFT_TWO);
+    await renderReady();
+    const open = async (reference: string) => {
+      await act(async () => { fireEvent.click(within(screen.getByRole("row", { name: new RegExp(reference) }))
+        .getByRole("button", { name: i18n.t("sales:open") })); });
+    };
+    await open(DRAFT_TWO.referenceNumber);
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: i18n.t("sales:edit") }));
+    await open(other.referenceNumber);
+    expect(screen.queryByRole("button", { name: i18n.t("sales:save") })).not.toBeInTheDocument();
+    await open(DRAFT_TWO.referenceNumber);
+    expect(screen.queryByRole("button", { name: i18n.t("sales:save") })).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])("clean editor follows fresh server values (changed: %s) and can Save", async (isChanged) => {
+    await beginEdit();
+    const fresh = isChanged ? changed() : DRAFT_TWO;
+    await refresh(fresh);
+    expect(quantity()).toHaveValue(fresh.items[0].quantity);
+    expect(price()).toHaveValue(fresh.items[0].unitPriceMinorUnits / 100);
+    expect(save()).toBeEnabled();
+    await act(async () => { fireEvent.click(save()); });
+    expect(mockUpdateOrderItem).toHaveBeenCalledWith(DRAFT_TWO.id, ITEM_A.id,
+      { quantity: fresh.items[0].quantity, unitPriceMinorUnits: fresh.items[0].unitPriceMinorUnits }, expect.any(String));
+  });
+
+  it("unchanged server values preserve both dirty fields and Save their values", async () => {
+    await beginEdit();
+    fireEvent.change(quantity(), { target: { value: "5" } });
+    fireEvent.change(price(), { target: { value: "6.25" } });
+    await refresh(DRAFT_TWO);
+    expect(quantity()).toHaveValue(5);
+    expect(price()).toHaveValue(6.25);
+    expect(save()).toBeEnabled();
+    await act(async () => { fireEvent.click(save()); });
+    expect(mockUpdateOrderItem).toHaveBeenCalledWith(DRAFT_TWO.id, ITEM_A.id,
+      { quantity: 5, unitPriceMinorUnits: 625 }, expect.any(String));
+  });
+
+  it.each(["quantity", "price"] as const)("a server %s conflict preserves both inputs until Reload, then Save uses the new baseline", async (field) => {
+    await beginEdit();
+    fireEvent.change(quantity(), { target: { value: "5" } });
+    const fresh = { ...DRAFT_TWO, items: [{ ...ITEM_A,
+      ...(field === "quantity" ? { quantity: 9, quantityBase: 108 } : { unitPriceMinorUnits: 400 }),
+    }, ITEM_B] };
+    await refresh(fresh);
+    expect(quantity()).toHaveValue(5);
+    expect(price()).toHaveValue(3);
+    expect(save()).toBeDisabled();
+    fireEvent.click(save());
+    expect(mockUpdateOrderItem).not.toHaveBeenCalled();
+    expect(screen.getByText(i18n.t("sales:editConflict"))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:reloadLine") }));
+    expect(quantity()).toHaveValue(fresh.items[0].quantity);
+    expect(price()).toHaveValue(fresh.items[0].unitPriceMinorUnits / 100);
+    expect(save()).toBeEnabled();
+    expect(screen.queryByText(i18n.t("sales:editConflict"))).not.toBeInTheDocument();
+    await refresh(fresh);
+    expect(save()).toBeEnabled();
+    await act(async () => { fireEvent.click(save()); });
+    expect(mockUpdateOrderItem).toHaveBeenCalledWith(DRAFT_TWO.id, ITEM_A.id,
+      { quantity: fresh.items[0].quantity, unitPriceMinorUnits: fresh.items[0].unitPriceMinorUnits }, expect.any(String));
+  });
+
+  it("blank price input is retained on conflict", async () => {
+    await beginEdit();
+    fireEvent.change(price(), { target: { value: "" } });
+    await refresh(changed());
+    expect(quantity()).toHaveValue(3);
+    expect(price()).toHaveValue(null);
+    expect(save()).toBeDisabled();
+  });
+
+  it.each([false, true])("a pending read respects later editor cancellation (cancel: %s)", async (cancel) => {
+    await beginEdit();
+    let settle!: (order: SalesOrder) => void;
+    mockGetOrder.mockReturnValueOnce(new Promise<SalesOrder>((resolve) => { settle = resolve; }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
+    if (cancel) fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:cancelEdit") }));
+    else fireEvent.change(quantity(), { target: { value: "5" } });
+    await act(async () => { settle(changed()); });
+    if (cancel) expect(screen.queryByRole("button", { name: i18n.t("sales:save") })).not.toBeInTheDocument();
+    else {
+      expect(quantity()).toHaveValue(5);
+      expect(price()).toHaveValue(3);
+      expect(save()).toBeDisabled();
+    }
+  });
+
+  it("a failed refetch retains input and a later retry detects the conflict", async () => {
+    await beginEdit();
+    fireEvent.change(quantity(), { target: { value: "5" } });
+    mockGetOrder.mockRejectedValueOnce(new Error("Refresh unavailable"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
+    expect(quantity()).toHaveValue(5);
+    expect(save()).toBeEnabled();
+    expect(screen.getByText("Refresh unavailable")).toBeInTheDocument();
+    await refresh(changed());
+    expect(quantity()).toHaveValue(5);
+    expect(save()).toBeDisabled();
+  });
+});
+
+it("#713 editor quantity steppers apply consecutive functional updates", async () => {
+  const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+  fireEvent.click(within(row).getByRole("button", { name: i18n.t("sales:edit") }));
+  const increase = within(row).getByRole("button", { name: i18n.t("numberField:increaseLabel", { label: i18n.t("sales:editQuantityAriaLabel").toLowerCase() }) });
+  fireEvent.click(increase);
+  fireEvent.click(increase);
+  expect(screen.getByLabelText(i18n.t("sales:editQuantityAriaLabel"))).toHaveValue(5);
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:save") })); });
+  expect(mockUpdateOrderItem).toHaveBeenCalledWith(DRAFT_TWO.id, ITEM_A.id,
+    { quantity: 5, unitPriceMinorUnits: 300 }, expect.any(String));
+});
+
+it("#713 clean refresh seeds from the incoming order currency scale", async () => {
+  const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+  fireEvent.click(within(row).getByRole("button", { name: i18n.t("sales:edit") }));
+  const fresh = { ...DRAFT_TWO, currencyCode: "JPY", currencyMinorUnit: 0,
+    items: [{ ...ITEM_A, unitPriceMinorUnits: 400, currencyCode: "JPY", currencyMinorUnit: 0 }, ITEM_B] };
+  mockGetOrder.mockResolvedValue(fresh);
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
+  expect(screen.getByLabelText(i18n.t("sales:editUnitPriceAriaLabel"))).toHaveValue(400);
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:save") })); });
+  expect(mockUpdateOrderItem).toHaveBeenCalledWith(DRAFT_TWO.id, ITEM_A.id,
+    { quantity: 3, unitPriceMinorUnits: 400 }, expect.any(String));
+});

@@ -8,7 +8,7 @@ import {
   listProducts, parseMoneyToMinorUnits, recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
-import type { Customer, EggUnitConversion, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
+import type { Customer, EggUnitConversion, OrderItem, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
@@ -68,6 +68,37 @@ function normalizeCanonicalGuid(raw: string | null): string {
 function priceInput(defaultPriceMinorUnits: number | null, scale: number | null): string {
   if (defaultPriceMinorUnits === null || scale === null) return "";
   return (defaultPriceMinorUnits / 10 ** scale).toFixed(scale);
+}
+
+// A live line editor retains both raw inputs until an observed conflict is reloaded.
+type EditorDraft = {
+  orderId: string;
+  itemId: string;
+  quantity: number;
+  price: string;
+  seedQuantity: number;
+  seedPrice: string;
+  serverQuantity: number;
+  serverPrice: number;
+};
+
+function lineDraft(order: SalesOrder, item: OrderItem): EditorDraft {
+  const price = priceInput(item.unitPriceMinorUnits, order.currencyMinorUnit);
+  return {
+    orderId: order.id, itemId: item.id,
+    quantity: item.quantity, price,
+    seedQuantity: item.quantity, seedPrice: price,
+    serverQuantity: item.quantity, serverPrice: item.unitPriceMinorUnits,
+  };
+}
+
+function editableLine(order: SalesOrder | null, draft: EditorDraft | null): OrderItem | undefined {
+  if (!order || !draft || order.status !== "Draft" || order.id !== draft.orderId) return;
+  return order.items.find((item) => item.id === draft.itemId);
+}
+
+function lineChanged(item: OrderItem, draft: EditorDraft): boolean {
+  return item.quantity !== draft.serverQuantity || item.unitPriceMinorUnits !== draft.serverPrice;
 }
 
 // #23 + #24 (orders half): create a draft order, add/edit/remove graded lines,
@@ -176,10 +207,26 @@ export function SalesPage() {
   // active draft being built
   const [active, setActiveState] = useState<SalesOrder | null>(null);
   const activeIdRef = useRef<string | null>(null);
+  const activeRef = useRef<SalesOrder | null>(null);
+  const [editor, setEditorState] = useState<EditorDraft | null>(null);
+  const editorRef = useRef<EditorDraft | null>(null);
+  // Async publications read the latest typing/cancellation, not their starting render.
+  const setEditor = useCallback((draft: EditorDraft | null) => {
+    editorRef.current = draft;
+    setEditorState(draft);
+  }, []);
   const setActive = useCallback((order: SalesOrder | null) => {
+    const draft = editorRef.current;
+    const item = editableLine(order, draft);
+    if (!order || !draft || !item) {
+      setEditor(null);
+    } else if (draft.quantity === draft.seedQuantity && draft.price === draft.seedPrice) {
+      setEditor(lineDraft(order, item));
+    }
+    activeRef.current = order;
     activeIdRef.current = order?.id ?? null;
     setActiveState(order);
-  }, []);
+  }, [setEditor]);
   const [productId, setProductId] = useState("");
   const [unit, setUnit] = useState("Egg");
   const [qty, setQty] = useState(30);
@@ -202,10 +249,13 @@ export function SalesPage() {
   const farmScale = farm?.currencyMinorUnit ?? null;
   const priceScale = active?.currencyMinorUnit ?? farmScale;
 
-  // per-row edit state (draft orders)
-  const [editItemId, setEditItemId] = useState<string | null>(null);
-  const [editQty, setEditQty] = useState(1);
-  const [editPrice, setEditPrice] = useState("0");
+  const editingLine = editableLine(active, editor);
+  const editConflict = !!editor && !!editingLine && lineChanged(editingLine, editor);
+  const reloadEditor = () => {
+    const order = activeRef.current;
+    const item = editableLine(order, editorRef.current);
+    if (order && item) setEditor(lineDraft(order, item));
+  };
 
   // Idempotency keys bound to (action, target) and rotated ONLY after the whole
   // action (write + refresh) succeeds: a retry after any failure — including a
@@ -456,8 +506,6 @@ export function SalesPage() {
   const closeOrderPanel = () => {
     dismissDialog("order-panel");
     setActive(null);
-    // Dismissal discards the draft now; a later Open must use its fetched line.
-    setEditItemId(null);
   };
 
   const onCreateOrder = () => run("create-order", async (current) => {
@@ -535,16 +583,19 @@ export function SalesPage() {
   });
 
   const onUpdateItem = (itemId: string) => run(`update-item:${itemId}`, async () => {
-    if (!active) return;
-    const id = active.id;
+    const order = activeRef.current;
+    const draft = editorRef.current;
+    const item = editableLine(order, draft);
+    if (!order || !draft || !item || draft.itemId !== itemId || lineChanged(item, draft)) return;
+    const id = order.id;
     // #398 — same whole-number guard as the add-line control, above.
-    if (!Number.isInteger(editQty)) throw new Error(i18n.t("sales:quantityMustBeWholeNumber"));
-    const minorUnits = parseMoneyToMinorUnits(editPrice, active.currencyMinorUnit);
+    if (!Number.isInteger(draft.quantity)) throw new Error(i18n.t("sales:quantityMustBeWholeNumber"));
+    const minorUnits = parseMoneyToMinorUnits(draft.price, order.currencyMinorUnit);
     if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
     const scope = `update-item:${itemId}`;
     await updateOrderItem(id, itemId,
-      { quantity: editQty, unitPriceMinorUnits: minorUnits }, keyFor(scope));
-    if (activeIdRef.current === id) setEditItemId(null);
+      { quantity: draft.quantity, unitPriceMinorUnits: minorUnits }, keyFor(scope));
+    if (editorRef.current === draft) setEditor(null);
     const refreshed = await getOrder(id);
     if (activeIdRef.current === id) setActive(refreshed);
     clearKey(scope);
@@ -825,28 +876,40 @@ export function SalesPage() {
                     <td>{productName(i.productId)}{" "}
                       <span className="muted">{t("perUnit", { unit: i.unit.toLowerCase() })}
                         {i.baseUnitFactor > 1 ? ` ${t("eggsCount", { count: i.baseUnitFactor })}` : ""}</span></td>
-                    {editItemId === i.id ? (
+                    {editor && editingLine?.id === i.id ? (
                       <>
                         <td className="num">
                           {/* No visible label in the cell — the sr-only one names
                               the input; the buttons carry their own names. */}
                           <label className="sr-only" htmlFor={editQtyId}>{t("editQuantityAriaLabel")}</label>
                           <NumberField id={editQtyId} label={t("editQuantityAriaLabel").toLowerCase()}
-                            value={editQty} onChange={setEditQty} min={1} />
+                            value={editor.quantity} onChange={(quantity) => {
+                              const draft = editorRef.current;
+                              if (draft) setEditor({ ...draft, quantity: typeof quantity === "function" ? quantity(draft.quantity) : quantity });
+                            }} min={1} />
                         </td>
                         {/* #445 — live: the eggs column tracks the edited
                             quantity instead of going blank, so a unit/count
                             mix-up is visible mid-edit too. */}
-                        <td className="num muted">{fmt.count(i.baseUnitFactor * editQty)}</td>
+                        <td className="num muted">{fmt.count(i.baseUnitFactor * editor.quantity)}</td>
                         <td className="num"><input className="cell" type="number" min={0}
                           aria-label={t("editUnitPriceAriaLabel")}
-                          step={10 ** -active.currencyMinorUnit} value={editPrice}
-                          onChange={(e) => setEditPrice(e.target.value)} /></td>
+                          step={10 ** -active.currencyMinorUnit} value={editor.price}
+                          onChange={(e) => {
+                            const draft = editorRef.current;
+                            if (draft) setEditor({ ...draft, price: e.target.value });
+                          }} /></td>
                         <td className="num">—</td>
                         <td>
-                          <BusyButton className="link" disabled={busy} busy={isPending(`update-item:${i.id}`)}
+                          <BusyButton className="link" disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
                             onClick={() => onUpdateItem(i.id)}>{t("save")}</BusyButton>
-                          <button className="link" onClick={() => setEditItemId(null)}>{t("cancelEdit")}</button>
+                          <button className="link" onClick={() => setEditor(null)}>{t("cancelEdit")}</button>
+                          {editConflict && (
+                            <div role="status">
+                              {t("editConflict")} {" "}
+                              <button className="link" onClick={reloadEditor}>{t("reloadLine")}</button>
+                            </div>
+                          )}
                         </td>
                       </>
                     ) : (
@@ -859,13 +922,7 @@ export function SalesPage() {
                           {active.status === "Draft" && (
                             <>
                               <button className="link" disabled={busy} onClick={() => {
-                                setEditItemId(i.id);
-                                setEditQty(i.quantity);
-                                // The ORDER's scale, not the line's own
-                                // snapshot: the edit is submitted at the
-                                // order's, and reading the row's would be the
-                                // same two-scales bug one field over.
-                                setEditPrice(priceInput(i.unitPriceMinorUnits, priceScale));
+                                setEditor(lineDraft(active, i));
                               }}>{t("edit")}</button>
                               <BusyButton className="link" disabled={busy} busy={isPending(`remove-item:${i.id}`)}
                                 onClick={() => onRemoveItem(i.id)}>{t("remove")}</BusyButton>

@@ -286,6 +286,8 @@ export const tl = {
     newDraftOrder: "Bagong draft na order",
     save: "i-save",
     cancelEdit: "kanselahin",
+    reloadLine: "i-load muli ang linya",
+    editConflict: "Nagbago ang linyang ito mula nang simulan mo ang pag-edit. Nananatili ang iyong mga inilagay. I-load muli ang linya upang gamitin ang pinakabagong halaga bago i-save.",
     edit: "i-edit",
     remove: "alisin",
     addLine: "Magdagdag ng linya",
@@ -2352,7 +2354,8 @@ export const tl = {
       + "ipinapakita nito ang kabuuang itlog habang nagta-type (2 tray = 60 itlog, hindi 60 tray). "
       + "Naaalala ng bawat linya kung ilang itlog ang laman ng unit nito noong idinagdag ito, kaya hindi "
       + "kailanman binabago ng muling pagtukoy sa isang karton ang mga lumang order. Kung naglo-load pa ang order, "
-      + "mananatiling sarado ang panel kapag pinili ang <strong>isara</strong>. Piliin muli ang <strong>buksan</strong> para tingnan ang order.",
+      + "mananatiling sarado ang panel kapag pinili ang <strong>isara</strong>. Piliin muli ang <strong>buksan</strong> para tingnan ang order."
+      + " Kapag na-refresh ang order, matatapos ang pag-edit kung hindi na ito draft o wala na ang linya. Susunod sa bagong datos ang mga field na hindi mo binago. Kung may hindi ka pa nai-save at nagbago ang dami o presyong natanggap, mananatili ang iyong mga inilagay at hindi muna magagamit ang i-save. Piliin ang <strong>i-load muli ang linya</strong> upang palitan ang parehong field ng pinakahuling natanggap na halaga. Hindi nito nakikita ang mga pagbabagong ginawa matapos ang huling pagkuha ng datos.",
     salesConfirming:
       "Ang <strong>Pagkumpirma</strong> ng isang order ay naglalaan ng aktwal na stock — pinakalumang lote "
       + "muna — at ito ang sandali kung saan lumilipat ang inventory.",
@@ -2893,7 +2896,8 @@ export const tl = {
     glossarySalesLineDef:
       "Isang produkto sa isang order: isang buong bilang na dami sa selling unit, may presyo kada unit "
       + "(maaaring may decimal ang presyo); ang mga itlog sa likod nito ay dami × ang bilang ng itlog ng "
-      + "unit.",
+      + "unit."
+      + " Kapag na-refresh ang order, matatapos ang pag-edit kung hindi na ito draft o wala na ang linya. Susunod sa bagong datos ang mga field na hindi mo binago. Kung may hindi ka pa nai-save at nagbago ang dami o presyong natanggap, mananatili ang iyong mga inilagay at hindi muna magagamit ang i-save. Piliin ang i-load muli ang linya upang palitan ang parehong field ng pinakahuling natanggap na halaga. Hindi nito nakikita ang mga pagbabagong ginawa matapos ang huling pagkuha ng datos.",
 
     glossaryConfirmOrderTerm: "Kumpirmahin (order)",
     glossaryConfirmOrderDef:
