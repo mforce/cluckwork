@@ -14,8 +14,7 @@ import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { DialogError } from "../components/DialogError";
 import { StatusBadge } from "../components/StatusBadge";
-import { useDialogErrors } from "../components/useDialogErrors";
-import { usePendingAction } from "../components/usePendingAction";
+import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 import { ROLE_VALUES, roleLabel } from "../i18n/enums";
@@ -27,6 +26,14 @@ function errText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+// The dialogs on this screen (#703). Every write below keeps its per-record
+// run scope (`update:<id>`, `assign:<user>:<flock>`, …) so `isPending` spins
+// the one control it always did, and names its dialog through `run`'s
+// `{ dialog }` option for the message slot and the session; `create` is its
+// own dialog name. flock-access loads before it opens, so its open edge is
+// `startLoad` + `openDialog` rather than `openDialog` alone.
+const DIALOG_SCOPES = ["flock-access", "create", "edit-user", "set-password", "change-role", "change-email", "disable-enable"] as const;
+
 // #73 — minimal user management: create a worker (or another admin) and see
 // who exists. The full user-administration UI belongs to the RBAC slice.
 export function UsersPage() {
@@ -34,28 +41,21 @@ export function UsersPage() {
   const { t: tc } = useTranslation("common");
 
   const [users, setUsers] = useState<User[] | null>(null);
-  // #479 — one slot per PLACE a message can appear. Five dialogs on this
-  // screen, and each used to render the one shared string unconditionally,
-  // so whichever failure happened last appeared inside every open form.
-  // Scopes are fixed per dialog rather than per row: a dialog is bound to
-  // one user at a time, the `active*` refs below already drop a verdict
-  // whose target moved on, and a fixed vocabulary keeps the mute set bounded.
-  const errors = useDialogErrors();
+  // #703 — the flight guard (#236), the per-place message slots (#479: the
+  // page, and each dialog by its own name) and the dialog-session generation
+  // (#477 part 2) come from one shared hook. Pending scopes stay per record —
+  // composite where the action is payload-bound (assign/unassign) — so
+  // `isPending(scope)` spins only the clicked control; each write names its
+  // dialog. Idempotency-key scopes are separate from all of these.
+  const { busy, isPending, errors, run, openDialog, dismissDialog, startLoad } = useDialogAction(DIALOG_SCOPES);
   const setPageError = errors.setPage;
   const [message, setMessage] = useState<string | null>(null);
-  // #236 — the shared flight guard replaces the old `busy` state. `busy`
-  // still inerts every trigger; isPending(scope) spins only the clicked one.
-  // Pending scopes are composite where the action is payload-bound
-  // (assign/unassign), and independent of the idempotency-key scopes.
-  const { busy, isPending, run } = usePendingAction();
 
   const [creating, setCreating] = useState(false); // F131: create moved into a dialog
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Worker");
   const [name, setName] = useState(""); // #163 optional display name at creation
-  const createDialogGeneration = useRef(0);
-  const activeCreate = useRef<{ generation: number } | null>(null);
 
   // #308/#360 — the caller's OWN current password. All three local password
   // states serve every create/reset/role operation. Each is transient: read
@@ -87,16 +87,14 @@ export function UsersPage() {
       setRoleStepUpPassword("");
       setStepUpPassword("");
       setFlockStepUpPassword("");
+      // `emailStepUpPassword` is cleared by the change-email effect below,
+      // which also ends that dialog's session.
     }
   }, [isAuthenticated]);
 
   // #163 edit: the user whose name is being edited, and the working value.
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editName, setEditName] = useState("");
-  // Synchronous target of the edit dialog — like activeUser for flock scoping,
-  // so a save that resolves after the dialog was closed/reopened for another
-  // user doesn't splice its result into the wrong dialog.
-  const activeEdit = useRef<string | null>(null);
 
   // #165 password reset: kept in its own dialog rather than folded into the name
   // edit — setting someone's password is a different, higher-consequence action
@@ -104,23 +102,17 @@ export function UsersPage() {
   const [pwUser, setPwUser] = useState<User | null>(null);
   const [pwValue, setPwValue] = useState("");
   const [pwConfirm, setPwConfirm] = useState("");
-  const pwDialogGeneration = useRef(0);
-  const activePw = useRef<{ targetId: string; generation: number } | null>(null);
 
   // #355 — promote/demote an existing user's role, own dialog for the same
   // reason as password reset above: a higher-consequence action than a name
   // edit, not one stray keystroke away from a typo.
   const [roleUser, setRoleUser] = useState<User | null>(null);
   const [roleValue, setRoleValue] = useState("Worker");
-  const roleDialogGeneration = useRef(0);
-  const activeRole = useRef<{ targetId: string; generation: number } | null>(null);
 
   const [emailUser, setEmailUser] = useState<User | null>(null);
   const [emailValue, setEmailValue] = useState("");
   const [emailStepUpPassword, setEmailStepUpPassword] = useState("");
   const [emailFieldError, setEmailFieldError] = useState<string | null>(null);
-  const emailDialogGeneration = useRef(0);
-  const activeEmail = useRef<{ targetId: string; generation: number } | null>(null);
   const emailHintId = useId();
   const emailErrorId = useId();
 
@@ -139,7 +131,6 @@ export function UsersPage() {
   const disableWarningId = useId();
   const [disableReason, setDisableReason] = useState("");
   const [stepUpPassword, setStepUpPassword] = useState("");
-  const activeStepUp = useRef<string | null>(null);
 
   // #103 flock scoping: expand a worker row to manage assignments.
   // #606 — assign/remove each require step-up, same as every other durable
@@ -157,23 +148,6 @@ export function UsersPage() {
   // step-up on purpose). Gates the dialog's own closability so a write in
   // this window cannot be orphaned by a close+reopen of the SAME worker.
   const [flockWriteInFlight, setFlockWriteInFlight] = useState(false);
-  const flockDialogGeneration = useRef(0);
-  // The dialog the CURRENT instance is for, tracked synchronously (before
-  // state commits) as { targetId, generation } — generation increments on
-  // every open, including a reopen of the SAME worker, so a stale assign/
-  // remove continuation from a closed-then-reopened dialog for the same
-  // worker cannot write, refresh, or report into the new one (#606; #154
-  // review covered only a DIFFERENT worker's stale continuation).
-  const activeUser = useRef<{ targetId: string; generation: number } | null>(null);
-  // Mirrors `openUser` synchronously, for the one read that happens AFTER an
-  // `await` (the displacement guard below). `openAssignments` is async; a
-  // dismissal mid-load re-renders with `openUser=null`, but this function's
-  // own closure keeps whatever `openUser` was at the render it started in —
-  // reading the state itself there is the exact stale-closure shape that
-  // made StockPage's write-off guard silently never fire. Traced safe today
-  // (pi review of #491: every reachable interleaving still evaluates
-  // correctly), but the ref removes the trap for whoever edits this next.
-  const openUserRef = useRef<string | null>(null);
   // #512 (T028/T037) — the assignment flock is committed through FlockPicker.
   // `assignFlock` is the page-controlled committed entity (a full typed flock,
   // so a retained archived identity is preserved EXACTLY); bumping
@@ -203,15 +177,16 @@ export function UsersPage() {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      const active = activeEmail.current;
-      if (active !== null) keys.current.delete(`change-email:${active.targetId}`);
-      activeEmail.current = null;
+      if (emailUser !== null) keys.current.delete(`change-email:${emailUser.id}`);
       setEmailStepUpPassword("");
       setEmailFieldError(null);
       setEmailUser(null);
-      errors.abandon("change-email");
+      // Closed out from under the user by the screen itself — the same edge as
+      // a dismissal (#703): the attempt still out is muted and its session
+      // ends, so it can neither report into nor act on the next open.
+      dismissDialog("change-email");
     }
-  }, [isAuthenticated, errors]);
+  }, [isAuthenticated, emailUser, dismissDialog]);
 
   useEffect(() => {
     // #646 — this screen no longer lists flocks at all. The list existed only
@@ -248,46 +223,51 @@ export function UsersPage() {
   // closes it. Load the assignments before opening so the panel is never empty
   // mid-flight; a load failure surfaces on the page and the dialog stays shut.
   async function openAssignments(userId: string) {
-    const dialog = { targetId: userId, generation: ++flockDialogGeneration.current };
-    activeUser.current = dialog;
-    const isCurrentDialog = () => activeUser.current?.generation === dialog.generation;
+    // The latest click wins (#703): a new session for this dialog now, so a
+    // load still out — or an attempt from the dialog on screen, a reopen of
+    // the SAME worker included (#606) — is superseded. The slot is left alone
+    // until the load lands: a load is not an attempt, and a load that fails
+    // reports to the page and changes nothing else. The try covers the load
+    // alone: once the dialog rebinds below, this load's `current()` is over.
+    const current = startLoad("flock-access");
+    let list: FlockAssignment[];
     try {
-      const list = await listFlockAssignments(userId);
-      if (!isCurrentDialog()) return; // superseded by another open/close
-      setAssignments(list);
-      // Start every worker's dialog on a FRESH controlled generation, never
-      // retaining the previous open's exploration or selection — open A, pick
-      // fl2, close, open B, and B would otherwise still show fl2, so a
-      // distracted admin could assign the wrong flock. The default is the
-      // first active flock when one is loaded; until the load resolves (or
-      // the account has none) it is a fresh BLANK (account-wide) — the
-      // optional picker admits the blank, so Assign is only ever armed once
-      // a real default exists.
-      // #646 — blank, for the reason above: a role grant should not carry a
-      // flock the admin never picked.
-      setAssignFlock(null);
-      setAssignFlockGen((g) => g + 1);
-      // Displacement only once the load actually succeeds and the dialog is
-      // about to rebind. Abandoning up front (adversarial review of #491)
-      // would fire even when THIS load fails and openUser's dialog never
-      // moves — worker A's dialog stays open per the comment above, but its
-      // verdict would already be gone, and the failed load's own message
-      // lands on the page behind it, about a worker the admin isn't looking
-      // at.
-      if (openUserRef.current !== null && openUserRef.current !== userId) errors.abandon("flock-access");
-      openUserRef.current = userId;
-      setOpenUser(userId);
-      setFlockStepUpPassword(""); // fresh re-entry per open, including same-worker reopen
+      list = await listFlockAssignments(userId);
     } catch (err) {
-      if (!isCurrentDialog()) return;
-      activeUser.current = null; // load failed → no dialog; surface on the page
-      errors.setPage(errText(err));
+      if (!current()) return;
+      errors.setPage(errText(err)); // load failed → no dialog; surface on the page
+      return;
     }
+    if (!current()) return; // superseded by another open/close
+    setAssignments(list);
+    // Start every worker's dialog on a FRESH controlled generation, never
+    // retaining the previous open's exploration or selection — open A, pick
+    // fl2, close, open B, and B would otherwise still show fl2, so a
+    // distracted admin could assign the wrong flock. The default is the
+    // first active flock when one is loaded; until the load resolves (or
+    // the account has none) it is a fresh BLANK (account-wide) — the
+    // optional picker admits the blank, so Assign is only ever armed once
+    // a real default exists.
+    // #646 — blank, for the reason above: a role grant should not carry a
+    // flock the admin never picked.
+    setAssignFlock(null);
+    setAssignFlockGen((g) => g + 1);
+    // The SLOT's edge (the mute and the clear that `openDialog` carries)
+    // only once the load actually succeeds and the dialog is about to
+    // rebind: a failed load opens nothing, so nothing is cleared for it — the
+    // session itself began at `startLoad` above. (Another worker's row is
+    // inert behind an open dialog since #480, so a displacement reaches here
+    // only after a dismissal; the test `keeps worker A's dialog and its
+    // message when worker B's load fails` drives the row directly.)
+    // Rebind: this ends the displaced dialog's session and drops its verdict
+    // — a same-worker re-entry included, exactly as every other dialog on
+    // this screen (#703).
+    openDialog("flock-access");
+    setOpenUser(userId);
+    setFlockStepUpPassword(""); // fresh re-entry per open, including same-worker reopen
   }
 
   function closeAssignments() {
-    activeUser.current = null;
-    openUserRef.current = null;
     setOpenUser(null);
     setFlockStepUpPassword(""); // #308 — never leave a typed proof password behind
     // A closed dialog must not keep a picker armed for a write that no dialog
@@ -297,78 +277,64 @@ export function UsersPage() {
     setAssignPickerOpen(false);
     setAssignFlock(null);
     setAssignFlockGen((g) => g + 1);
-    errors.abandon("flock-access");
+    dismissDialog("flock-access");
   }
 
   async function onAssign() {
     const target = openUser;
-    const dialog = activeUser.current;
     const selectedFlock = assignFlock;
     // US2 (T028) — canSubmit is the write-safety boundary, not the button:
     // a disabled button alone is bypassable (a stale click, a suppressed
     // render), so the handler refuses an uncommitted/exploring/unavailable
     // selection itself.
-    if (!target || !selectedFlock || !assignFlockSnapshot.canSubmit
-      || busy || dialog === null || dialog.targetId !== target) return;
-    const isCurrentDialog = () => activeUser.current?.generation === dialog.generation;
-    errors.beginAttempt("flock-access");
+    if (!target || !selectedFlock || !assignFlockSnapshot.canSubmit || busy) return;
     // One string serves as both the pending scope and the idempotency-key
-    // scope here — payload-bound either way.
+    // scope here — payload-bound either way; the dialog is named for the
+    // slot and the session (#703).
     const scope = `assign:${target}:${selectedFlock.id}`;
-    await run(scope, async () => {
-      try {
-        // #606/#308 — read then clear before awaiting issuance; the grant is
-        // spent on this write only, never cached across assign/remove.
-        const enteredPassword = flockStepUpPassword;
-        setFlockStepUpPassword("");
-        const stepUpToken = (await stepUp(enteredPassword)).token;
-        if (!isCurrentDialog()) return;
+    await run(scope, async (current) => {
+      // #606/#308 — read then clear before awaiting issuance; the grant is
+      // spent on this write only, never cached across assign/remove.
+      const enteredPassword = flockStepUpPassword;
+      setFlockStepUpPassword("");
+      const stepUpToken = (await stepUp(enteredPassword)).token;
+      if (!current()) return;
 
-        setFlockWriteInFlight(true);
-        try {
-          await apiAssignFlock(target, selectedFlock.id, keyFor(scope), stepUpToken);
-          const fresh = await listFlockAssignments(target);
-          clearKey(scope);
-          if (isCurrentDialog()) setAssignments(fresh);
-        } finally {
-          setFlockWriteInFlight(false);
-        }
-      } catch (err) {
-        if (isCurrentDialog()) errors.report("flock-access", errText(err));
+      setFlockWriteInFlight(true);
+      try {
+        await apiAssignFlock(target, selectedFlock.id, keyFor(scope), stepUpToken);
+        const fresh = await listFlockAssignments(target);
+        clearKey(scope);
+        if (current()) setAssignments(fresh);
+      } finally {
+        setFlockWriteInFlight(false);
       }
-    });
+    }, { dialog: "flock-access" });
   }
 
   async function onUnassign(a: FlockAssignment) {
     const target = openUser;
-    const dialog = activeUser.current;
-    if (!target || busy || dialog === null || dialog.targetId !== target) return;
-    const isCurrentDialog = () => activeUser.current?.generation === dialog.generation;
-    errors.beginAttempt("flock-access");
+    if (!target || busy) return;
     // The KEY scope stays bound to the assignment id (the exact write being
     // retried); the PENDING scope is user:flock so the row's spinner matches
     // what the admin sees themselves removing.
     const keyScope = `unassign:${a.id}`;
-    await run(`unassign:${target}:${a.flockId}`, async () => {
-      try {
-        const enteredPassword = flockStepUpPassword;
-        setFlockStepUpPassword("");
-        const stepUpToken = (await stepUp(enteredPassword)).token;
-        if (!isCurrentDialog()) return;
+    await run(`unassign:${target}:${a.flockId}`, async (current) => {
+      const enteredPassword = flockStepUpPassword;
+      setFlockStepUpPassword("");
+      const stepUpToken = (await stepUp(enteredPassword)).token;
+      if (!current()) return;
 
-        setFlockWriteInFlight(true);
-        try {
-          await unassignFlock(target, a.id, keyFor(keyScope), stepUpToken);
-          const fresh = await listFlockAssignments(target);
-          clearKey(keyScope);
-          if (isCurrentDialog()) setAssignments(fresh);
-        } finally {
-          setFlockWriteInFlight(false);
-        }
-      } catch (err) {
-        if (isCurrentDialog()) errors.report("flock-access", errText(err));
+      setFlockWriteInFlight(true);
+      try {
+        await unassignFlock(target, a.id, keyFor(keyScope), stepUpToken);
+        const fresh = await listFlockAssignments(target);
+        clearKey(keyScope);
+        if (current()) setAssignments(fresh);
+      } finally {
+        setFlockWriteInFlight(false);
       }
-    });
+    }, { dialog: "flock-access" });
   }
 
   // #512 US4 (T047/T051) — a retained assignment's name comes ONLY from the
@@ -386,48 +352,45 @@ export function UsersPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    const dialog = activeCreate.current;
-    if (dialog === null) return;
-    const isCurrentDialog = () => activeCreate.current?.generation === dialog.generation;
-    await run("create", async () => {
-      errors.beginAttempt("create");
+    // The hook clears this dialog's slot, claims its session and reports a
+    // failure into it (#703); `current()` says whether the session that
+    // started this attempt is still the one on screen.
+    await run("create", async (current) => {
       setMessage(null);
-      try {
-        // #308/#360 — every interactive creation establishes a durable login,
-        // regardless of role. Read then clear the Owner's current password
-        // before awaiting issuance; the grant is spent on this write only.
-        const enteredPassword = createStepUpPassword;
-        setCreateStepUpPassword("");
-        const stepUpToken = (await stepUp(enteredPassword)).token;
-        if (!isCurrentDialog()) return;
+      // #308/#360 — every interactive creation establishes a durable login,
+      // regardless of role. Read then clear the Owner's current password
+      // before awaiting issuance; the grant is spent on this write only.
+      const enteredPassword = createStepUpPassword;
+      setCreateStepUpPassword("");
+      const stepUpToken = (await stepUp(enteredPassword)).token;
+      if (!current()) return;
 
-        const scope = `create:${email.trim().toLowerCase()}`;
-        await createUser(
-          { email: email.trim(), password, role, name: name.trim() || undefined },
-          keyFor(scope), stepUpToken);
-        // Clear the key the instant the WRITE is confirmed — before the refresh —
-        // so a later edit of the just-created user (a changed payload) can't replay
-        // this cached response if the refresh below fails (#163 review).
-        clearKey(scope);
-        setUsers(await listUsers());
-        if (!isCurrentDialog()) return;
-        setMessage(i18n.t("users:createSuccessMessage", { role: roleLabel(role), email: email.trim() }));
-        // #336 review — close through closeCreate() rather than repeating the
-        // field resets here. The duplicated list had already drifted: it never
-        // cleared createStepUpPassword, so a successful create could leave the
-        // operator's own account password in state, visible on the next reopen.
-        // One reset path means new dialog state can only be forgotten in one
-        // place, not two — the #314 lesson, relearned.
-        closeCreate();
-      } catch (err) {
-        if (isCurrentDialog()) errors.report("create", errText(err));
-      }
+      const scope = `create:${email.trim().toLowerCase()}`;
+      await createUser(
+        { email: email.trim(), password, role, name: name.trim() || undefined },
+        keyFor(scope), stepUpToken);
+      // Clear the key the instant the WRITE is confirmed — before the refresh —
+      // so a later edit of the just-created user (a changed payload) can't replay
+      // this cached response if the refresh below fails (#163 review).
+      clearKey(scope);
+      setUsers(await listUsers());
+      // Superseded: the user exists and the list shows them, but the message
+      // and the close belong to the session on screen now (#703).
+      if (!current()) return;
+      setMessage(i18n.t("users:createSuccessMessage", { role: roleLabel(role), email: email.trim() }));
+      // #336 review — close through closeCreate() rather than repeating the
+      // field resets here. The duplicated list had already drifted: it never
+      // cleared createStepUpPassword, so a successful create could leave the
+      // operator's own account password in state, visible on the next reopen.
+      // One reset path means new dialog state can only be forgotten in one
+      // place, not two — the #314 lesson, relearned.
+      closeCreate();
     });
   }
 
   function openCreate() {
     setMessage(null);
-    activeCreate.current = { generation: ++createDialogGeneration.current };
+    openDialog("create");
     setCreating(true);
   }
 
@@ -438,70 +401,65 @@ export function UsersPage() {
   // selected on reopen, so an operator who thinks they're starting fresh can
   // grant admin by accident. Matches the full reset onCreate does on success.
   function closeCreate() {
-    activeCreate.current = null;
     setCreating(false);
     setEmail("");
     setPassword("");
     setRole("Worker");
     setName("");
     setCreateStepUpPassword(""); // #308 — never leave a typed proof password behind
-    errors.abandon("create");
+    dismissDialog("create");
   }
 
   // #163 — open the edit dialog seeded with the user's current name.
-  // Each open handler below abandons its own scope when a DIFFERENT user's
-  // dialog displaces the one still open: the displaced session ends without
-  // onClose, so nothing else empties the fixed scope, and the old user's
-  // verdict would render under the new user's email in the title. The row
-  // buttons behind the backdrop stay reachable to a screen reader's virtual
-  // cursor (#480; pi review of #491). Same-user re-entry is not a displacement.
+  // Every open handler below ends the session on screen (#703), the same
+  // user's included: each open reseeds its form, so an attempt still out
+  // belongs to a session that is over — its failure lands nowhere and its
+  // success cannot close or reset the form the user is looking at now — and
+  // a displaced user's verdict is dropped rather than rendered under the new
+  // user's email in the title. Everything behind the topmost dialog is inert
+  // (`Dialog.tsx`, #480), so a displacement reaches an open handler only
+  // after a dismissal; both edges end the session all the same.
   function openEdit(u: User) {
-    if (editUser !== null && editUser.id !== u.id) errors.abandon("edit-user");
+    openDialog("edit-user");
     setMessage(null);
     setEditName(u.displayName ?? "");
-    activeEdit.current = u.id;
     setEditUser(u);
   }
 
   function closeEdit() {
-    activeEdit.current = null;
     setEditUser(null);
-    errors.abandon("edit-user");
+    dismissDialog("edit-user");
   }
 
   // #165 — open/close the password dialog for a user.
   function openPassword(u: User) {
-    if (pwUser !== null && pwUser.id !== u.id) errors.abandon("set-password");
+    openDialog("set-password");
     setMessage(null);
     setPwValue("");
     setPwConfirm("");
     setPwStepUpPassword("");
-    activePw.current = {
-      targetId: u.id,
-      generation: ++pwDialogGeneration.current,
-    };
     setPwUser(u);
   }
 
   function closePassword() {
-    activePw.current = null;
     // Don't leave the typed plaintext sitting in component state after the
     // dialog is gone (#165 review; #308 for the step-up field).
     setPwValue("");
     setPwConfirm("");
     setPwStepUpPassword("");
     setPwUser(null);
-    errors.abandon("set-password");
+    dismissDialog("set-password");
   }
 
   async function onSetPassword(e: FormEvent) {
     e.preventDefault();
     const target = pwUser;
-    const dialog = activePw.current;
     // The mismatch check stays OUTSIDE the flight (it is validation, not
-    // work), so it keeps the old busy guard alongside the hook's.
-    if (!target || busy || dialog === null || dialog.targetId !== target.id) return;
-    const isCurrentDialog = () => activePw.current?.generation === dialog.generation;
+    // work), so it keeps the old busy guard alongside the hook's — and that
+    // guard is load-bearing for the un-mute below: without it a second submit
+    // while an abandoned attempt is still out would un-mute that attempt's
+    // failure into this dialog (#703 PR 4 review).
+    if (!target || busy) return;
     // Before the validation below, not only inside run(): a mismatch never
     // reaches run(), so without this the slot would still hold the previous
     // attempt's verdict — and a mute left by a dismissal would swallow this.
@@ -512,101 +470,79 @@ export function UsersPage() {
       return;
     }
     const keyScope = `password:${target.id}`;
-    await run(`set-password:${target.id}`, async () => {
-      try {
-        // #308/#360 — every administrative reset replaces an authenticator,
-        // regardless of target role. Read then clear before awaiting issuance.
-        const enteredPassword = pwStepUpPassword;
-        setPwStepUpPassword("");
-        const stepUpToken = (await stepUp(enteredPassword)).token;
-        if (!isCurrentDialog()) return;
+    await run(`set-password:${target.id}`, async (current) => {
+      // #308/#360 — every administrative reset replaces an authenticator,
+      // regardless of target role. Read then clear before awaiting issuance.
+      const enteredPassword = pwStepUpPassword;
+      setPwStepUpPassword("");
+      const stepUpToken = (await stepUp(enteredPassword)).token;
+      if (!current()) return;
 
-        await setUserPassword(target.id, { newPassword: pwValue }, keyFor(keyScope), stepUpToken);
-        clearKey(keyScope); // write confirmed before any refresh (#163 review)
-        if (!isCurrentDialog()) return;
-        setMessage(i18n.t("users:passwordSetMessage", { email: target.email }));
-        closePassword();
-      } catch (err) {
-        if (isCurrentDialog()) errors.report("set-password", errText(err));
-      }
-    });
+      await setUserPassword(target.id, { newPassword: pwValue }, keyFor(keyScope), stepUpToken);
+      clearKey(keyScope); // write confirmed before any refresh (#163 review)
+      if (!current()) return;
+      setMessage(i18n.t("users:passwordSetMessage", { email: target.email }));
+      closePassword();
+    }, { dialog: "set-password" });
   }
 
   // #355 — open/close the role dialog for a user, seeded with their current role.
   function openRole(u: User) {
-    if (roleUser !== null && roleUser.id !== u.id) errors.abandon("change-role");
+    openDialog("change-role");
     setMessage(null);
     setRoleValue(u.role);
     setRoleStepUpPassword("");
-    activeRole.current = {
-      targetId: u.id,
-      generation: ++roleDialogGeneration.current,
-    };
     setRoleUser(u);
   }
 
   function closeRole() {
-    activeRole.current = null;
     setRoleStepUpPassword(""); // #308 — never leave a typed proof password behind
     setRoleUser(null);
-    errors.abandon("change-role");
+    dismissDialog("change-role");
   }
 
   async function onChangeRole(e: FormEvent) {
     e.preventDefault();
     const target = roleUser;
-    const dialog = activeRole.current;
-    if (!target || busy || dialog === null || dialog.targetId !== target.id) return;
-    const isCurrentDialog = () => activeRole.current?.generation === dialog.generation;
-    errors.beginAttempt("change-role");
+    if (!target || busy) return;
     setMessage(null);
     const keyScope = `role:${target.id}`;
-    await run(`change-role:${target.id}`, async () => {
-      try {
-        // #355/#360 — every role mutation changes durable authorization. Read
-        // then clear before awaiting issuance; the grant is spent once below.
-        const enteredPassword = roleStepUpPassword;
-        setRoleStepUpPassword("");
-        const stepUpToken = (await stepUp(enteredPassword)).token;
-        if (!isCurrentDialog()) return;
+    await run(`change-role:${target.id}`, async (current) => {
+      // #355/#360 — every role mutation changes durable authorization. Read
+      // then clear before awaiting issuance; the grant is spent once below.
+      const enteredPassword = roleStepUpPassword;
+      setRoleStepUpPassword("");
+      const stepUpToken = (await stepUp(enteredPassword)).token;
+      if (!current()) return;
 
-        await changeUserRole(target.id, { role: roleValue }, keyFor(keyScope), stepUpToken);
-        clearKey(keyScope); // write confirmed before any refresh (#163 review)
-        setUsers(await listUsers());
-        if (!isCurrentDialog()) return;
-        setMessage(i18n.t("users:roleChangedMessage", { email: target.email, role: roleLabel(roleValue) }));
-        closeRole();
-      } catch (err) {
-        if (isCurrentDialog()) errors.report("change-role", errText(err));
-      }
-    });
+      await changeUserRole(target.id, { role: roleValue }, keyFor(keyScope), stepUpToken);
+      clearKey(keyScope); // write confirmed before any refresh (#163 review)
+      setUsers(await listUsers());
+      if (!current()) return;
+      setMessage(i18n.t("users:roleChangedMessage", { email: target.email, role: roleLabel(roleValue) }));
+      closeRole();
+    }, { dialog: "change-role" });
   }
 
   function openEmail(u: User) {
-    if (emailUser !== null && emailUser.id !== u.id) {
-      clearKey(`change-email:${emailUser.id}`);
-      errors.abandon("change-email");
-    }
+    // A displaced user's key is spent with their session; the same user's is
+    // kept, so a retry of an unchanged email replays rather than re-issues.
+    if (emailUser !== null && emailUser.id !== u.id) clearKey(`change-email:${emailUser.id}`);
+    openDialog("change-email");
     setMessage(null);
     setEmailValue(u.email);
     setEmailStepUpPassword("");
     setEmailFieldError(null);
-    activeEmail.current = {
-      targetId: u.id,
-      generation: ++emailDialogGeneration.current,
-    };
     setEmailUser(u);
   }
 
   function closeEmail() {
-    const active = activeEmail.current;
-    activeEmail.current = null;
-    if (active !== null) clearKey(`change-email:${active.targetId}`);
+    if (emailUser !== null) clearKey(`change-email:${emailUser.id}`);
     setEmailValue("");
     setEmailStepUpPassword("");
     setEmailFieldError(null);
     setEmailUser(null);
-    errors.abandon("change-email");
+    dismissDialog("change-email");
   }
 
   async function onChangeEmail(e: FormEvent) {
@@ -615,29 +551,30 @@ export function UsersPage() {
     if (!target || busy) return;
     const targetId = target.id;
     const scope = `change-email:${targetId}`;
-    const dialog = activeEmail.current;
-    if (dialog === null || dialog.targetId !== targetId) return;
-    const isCurrentDialog = () => activeEmail.current?.generation === dialog.generation;
-    errors.beginAttempt("change-email");
     setEmailFieldError(null);
     setMessage(null);
-    await run(scope, async () => {
+    await run(scope, async (current) => {
+      // This dialog maps three outcomes itself, so it keeps its own catch and
+      // gates every branch on `current()` — a superseded attempt lands nowhere,
+      // exactly as the hook's own report would. The order below (gate before
+      // the key clears and the list refreshes) is this dialog's own and is
+      // kept as is (#703 PR 4, owner decision 2026-09-07).
       try {
         const password = emailStepUpPassword;
         setEmailStepUpPassword("");
         const grant = await stepUp(password);
-        if (!isCurrentDialog()) return;
+        if (!current()) return;
         const trimmedEmail = emailValue.trim();
         await changeUserEmail(targetId, { email: trimmedEmail }, keyFor(scope), grant.token);
-        if (!isCurrentDialog()) return;
+        if (!current()) return;
         clearKey(scope);
         const fresh = await listUsers();
-        if (!isCurrentDialog()) return;
+        if (!current()) return;
         setUsers(fresh);
         setMessage(i18n.t("users:emailChangedMessage", { email: trimmedEmail }));
         closeEmail();
       } catch (err) {
-        if (!isCurrentDialog()) return;
+        if (!current()) return;
         if (targetId === myId && err instanceof ApiError
           && err.status === 401 && err.title === "Auth.CredentialsSuperseded") {
           return;
@@ -649,7 +586,7 @@ export function UsersPage() {
           errors.report("change-email", errText(err));
         }
       }
-    });
+    }, { dialog: "change-email" });
   }
 
   // #356 — open/close the shared disable/enable dialog. The Disable and Enable
@@ -657,29 +594,27 @@ export function UsersPage() {
   // reason is not a parameter: the dialog collects it itself, seeded blank,
   // through a controlled textarea.
   function openStepUp(u: User, mode: "disable" | "enable") {
-    // Both modes share one error scope (one dialog, one title swap), so a
-    // same-user reopen must also abandon when MODE changes, not just user:
-    // the row's Disable/Enable button flips with u.disabledAt, so a stale
+    // Every open ends the session on screen (#703) — a MODE change included:
+    // both modes share one error scope (one dialog, one title swap), and the
+    // row's Disable/Enable button flips with u.disabledAt, so a stale
     // "Cannot disable the sole remaining owner" from a failed disable attempt
-    // could otherwise still be showing when this reopens in enable mode for
-    // the same user (local review of #492's merge-driven conversion to
+    // must not still be showing when this reopens in enable mode for the
+    // same user (local review of #492's merge-driven conversion to
     // useDialogErrors) — a message about the wrong operation entirely.
-    if (stepUpUser !== null && (stepUpUser.id !== u.id || stepUpMode !== mode)) errors.abandon("disable-enable");
+    openDialog("disable-enable");
     setMessage(null);
     setStepUpPassword("");
     setDisableReason("");
-    activeStepUp.current = u.id;
     setStepUpMode(mode);
     setStepUpUser(u);
   }
 
   function closeStepUp() {
-    activeStepUp.current = null;
     setStepUpPassword(""); // #308 — never leave a typed proof password behind
     setDisableReason("");
     setStepUpMode(null);
     setStepUpUser(null);
-    errors.abandon("disable-enable");
+    dismissDialog("disable-enable");
   }
 
   async function onSubmitStepUp(e: FormEvent) {
@@ -687,49 +622,59 @@ export function UsersPage() {
     const target = stepUpUser;
     const mode = stepUpMode;
     if (!target || !mode || busy) return;
-    errors.beginAttempt("disable-enable");
     setMessage(null);
     const scope = `${mode}:${target.id}`;
-    await run(scope, async () => {
-      try {
-        // #308 — read-then-clear-before-await, same pattern as every other
-        // step-up site on this screen: the proof password never sits in state
-        // across the network call that consumes it.
-        const enteredPassword = stepUpPassword;
-        setStepUpPassword("");
+    await run(scope, async (current) => {
+      // #308 — read-then-clear-before-await, same pattern as every other
+      // step-up site on this screen: the proof password never sits in state
+      // across the network call that consumes it.
+      const enteredPassword = stepUpPassword;
+      setStepUpPassword("");
 
-        // #356 — grouped here with the password for readability, NOT because
-        // reading it after the await would be a bug. An earlier revision of
-        // this comment claimed exactly that ("defence in depth" against a
-        // late read filing one dialog's reason against another user), and a
-        // review probe disproved it: `disableReason` is a `const` this
-        // closure captured at THIS render, not a live ref. Retyping the
-        // textarea triggers a new render with a new `onSubmitStepUp` closure
-        // over a new `disableReason` binding — it cannot reach back and
-        // mutate the one this already-running invocation holds. So a read
-        // before or after the await, within one invocation, is provably the
-        // same value; unlike the password above, there is no state-exposure
-        // reason to move it either, since a reason is not a secret.
-        //
-        // Reason is optional: empty or whitespace sends null, never "".
-        const enteredReason = disableReason.trim() || null;
-        const token = (await stepUp(enteredPassword)).token;
+      // #356 — grouped here with the password for readability, NOT because
+      // reading it after the await would be a bug. An earlier revision of
+      // this comment claimed exactly that ("defence in depth" against a
+      // late read filing one dialog's reason against another user), and a
+      // review probe disproved it: `disableReason` is a `const` this
+      // closure captured at THIS render, not a live ref. Retyping the
+      // textarea triggers a new render with a new `onSubmitStepUp` closure
+      // over a new `disableReason` binding — it cannot reach back and
+      // mutate the one this already-running invocation holds. So a read
+      // before or after the await, within one invocation, is provably the
+      // same value; unlike the password above, there is no state-exposure
+      // reason to move it either, since a reason is not a secret.
+      //
+      // Reason is optional: empty or whitespace sends null, never "".
+      const enteredReason = disableReason.trim() || null;
+      const token = (await stepUp(enteredPassword)).token;
+      // Dismissed while the grant was being issued: like every other step-up
+      // write on this screen, the write is refused rather than made — the
+      // grant is dropped unspent (#703 PR 4 review; pinned by `does not let a
+      // dismissed disable continuation write`).
+      if (!current()) return;
 
-        if (mode === "disable") {
-          await disableUser(target.id, { reason: enteredReason }, keyFor(scope), token);
-        } else {
-          await enableUser(target.id, keyFor(scope), token);
-        }
-        clearKey(scope); // write confirmed before any refresh (#163 review)
-        setUsers(await listUsers());
-        if (activeStepUp.current !== target.id) return; // dialog moved on
-        setMessage(i18n.t(mode === "disable" ? "users:userDisabledMessage" : "users:userEnabledMessage",
-          { email: target.email }));
-        closeStepUp();
-      } catch (err) {
-        if (activeStepUp.current === target.id) errors.report("disable-enable", errText(err));
+      if (mode === "disable") {
+        await disableUser(target.id, { reason: enteredReason }, keyFor(scope), token);
+      } else {
+        await enableUser(target.id, keyFor(scope), token);
       }
-    });
+      clearKey(scope); // write confirmed before any refresh (#163 review)
+      setUsers(await listUsers());
+      // Dismissed, or reopened for another user, the same user, or the other
+      // MODE, while this was in flight. The old guard compared user ids, so a
+      // same-user reopen — a disable followed by an enable of the same person
+      // included — passed and this stale success closed the dialog the user
+      // had just reopened (#703); the session generation tells them apart.
+      // A mid-flight REOPEN is not reachable through the UI (both row
+      // triggers are disabled for the whole flight — pinned by `keeps both
+      // row triggers disabled…`); a mid-flight DISMISSAL is, pinned by
+      // `supersedes the disable on dismissal alone…`; the close itself by
+      // `a successful disable closes its dialog…`.
+      if (!current()) return;
+      setMessage(i18n.t(mode === "disable" ? "users:userDisabledMessage" : "users:userEnabledMessage",
+        { email: target.email }));
+      closeStepUp();
+    }, { dialog: "disable-enable" });
   }
 
   async function onUpdate(e: FormEvent) {
@@ -737,25 +682,23 @@ export function UsersPage() {
     const target = editUser;
     if (!target) return;
     const scope = `update:${target.id}`;
-    await run(scope, async () => {
-      errors.beginAttempt("edit-user");
+    await run(scope, async (current) => {
       setMessage(null);
-      try {
-        // Blank clears the name back to "—" (null); the server normalizes too.
-        await updateUser(target.id, { name: editName.trim() || null }, keyFor(scope));
-        // Clear the key once the WRITE is confirmed (before the refresh), so a
-        // follow-up edit isn't replayed against this cached response (#163 review).
-        clearKey(scope);
-        await listUsers().then(setUsers);
-        // The dialog may have been dismissed/reopened for another user while this
-        // was in flight; only touch the UI if it's still this edit (#163 review).
-        if (activeEdit.current !== target.id) return;
-        setMessage(i18n.t("users:updatedMessage", { email: target.email }));
-        closeEdit();
-      } catch (err) {
-        if (activeEdit.current === target.id) errors.report("edit-user", errText(err));
-      }
-    });
+      // Blank clears the name back to "—" (null); the server normalizes too.
+      await updateUser(target.id, { name: editName.trim() || null }, keyFor(scope));
+      // Clear the key once the WRITE is confirmed (before the refresh), so a
+      // follow-up edit isn't replayed against this cached response (#163 review).
+      clearKey(scope);
+      await listUsers().then(setUsers);
+      // The dialog may have been dismissed, or reopened — for another user OR
+      // the same one — while this was in flight. The old guard compared user
+      // ids, so a same-user reopen passed and this stale success closed the
+      // dialog the user had just reopened (#703); the session generation
+      // tells the two apart.
+      if (!current()) return;
+      setMessage(i18n.t("users:updatedMessage", { email: target.email }));
+      closeEdit();
+    }, { dialog: "edit-user" });
   }
 
   // The list read failed and there is nothing to show: a fatal page state,
@@ -892,8 +835,8 @@ export function UsersPage() {
         // finish before this dialog can be closed/reopened: escaping mid-write
         // is exactly the close/reopen race that leaves the reopened dialog
         // showing data the write's own completion can no longer reach (the
-        // {targetId, generation} guard correctly discards a write that no
-        // longer belongs to the current dialog instance).
+        // session generation — `current()` — correctly discards a write that
+        // no longer belongs to the current dialog instance).
         closeDisabled={flockWriteInFlight}
       >
         <p className="muted">

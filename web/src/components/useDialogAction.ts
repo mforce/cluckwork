@@ -14,7 +14,21 @@ export interface DialogActionOptions {
   onAttempt?: () => void;
 }
 
-export interface DialogAction {
+export interface RunOptions<S extends string = string> {
+  /**
+   * The dialog this attempt belongs to, where the run scope is not the
+   * dialog's own name. A dialog whose controls spin per PAYLOAD — Users'
+   * flock access runs `assign:<user>:<flock>` so only the clicked row's verb
+   * spins — keeps that scope for `isPending` and names its dialog here for
+   * the message slot and the session (#703 PR 4). Defaults to the scope
+   * itself when that is in `dialogScopes`, else to the page. Typed by the
+   * screen's own `dialogScopes`, so a misspelt dialog name is a compile
+   * error rather than a slot nothing renders.
+   */
+  dialog?: S;
+}
+
+export interface DialogAction<S extends string = string> {
   /** True while any action is in flight — screens inert every trigger on it. */
   busy: boolean;
   /** Whether THIS scope is the one in flight — the one control that should spin. */
@@ -27,8 +41,22 @@ export interface DialogAction {
    * that started it is still the one on screen; a scope that owns no dialog is
    * always current. Resolves the action's value, or `undefined` when the guard
    * skipped it or the action threw — never read `undefined` as success.
+   * A method signature, not a function-typed property: a screen's
+   * `DialogAction<"create" | …>` must stay assignable to a plain
+   * `DialogAction`, which a property's parameter would forbid.
    */
-  run: <T>(scope: string, action: (current: () => boolean) => Promise<T>) => Promise<T | undefined>;
+  run<T>(scope: string, action: (current: () => boolean) => Promise<T>, options?: RunOptions<S>): Promise<T | undefined>;
+  /**
+   * For a dialog that LOADS before it opens (Users' flock access): starts a
+   * new session for it NOW — so a load still out, or an attempt from the
+   * dialog on screen, is superseded the moment the user asks for another —
+   * and returns `current()` for this load. Unlike `openDialog` it neither
+   * mutes nor clears the slot: a load is not an attempt, so there is nothing
+   * of its own to mute, and the slot stays as it is until the load lands and
+   * the screen calls `openDialog` (which ends the session again and clears
+   * it). A load that fails leaves the slot as it found it.
+   */
+  startLoad: (scope: string) => () => boolean;
   /**
    * Called when a dialog OPENS. Mutes the attempt still out, so its failure
    * lands nowhere, and ends the session, so its success cannot touch the
@@ -67,22 +95,23 @@ export interface DialogAction {
  *
  * `dialogScopes` names the scopes that own a dialog. A scope outside it — a
  * panel action, a row verb — routes its failure to the page and is never
- * superseded, exactly as before this hook existed. A dialog scope the screen
- * never `openDialog`s behaves the same way (#703 finding 3, deliberately open).
+ * superseded, exactly as before this hook existed, unless the run names its
+ * dialog through `RunOptions.dialog`. A dialog scope the screen never
+ * `openDialog`s behaves the same way (#703 finding 3, deliberately open).
  */
-export function useDialogAction(
-  dialogScopes: readonly string[],
+export function useDialogAction<S extends string = string>(
+  dialogScopes: readonly S[],
   options: DialogActionOptions = {},
-): DialogAction {
+): DialogAction<S> {
   const { busy, isPending, run: runPending } = usePendingAction();
   const errors = useDialogErrors();
   const session = useDialogSession();
 
-  const run = <T,>(scope: string, action: (current: () => boolean) => Promise<T>) =>
+  const run = <T,>(scope: string, action: (current: () => boolean) => Promise<T>, opts: RunOptions<S> = {}) =>
     runPending(scope, async () => {
       // The slot this attempt owns — its dialog's, or the page's. One lookup
       // decides both where the attempt clears and where its verdict lands.
-      const slot = dialogScopes.includes(scope) ? scope : null;
+      const slot: string | null = opts.dialog ?? (dialogScopes.includes(scope as S) ? scope : null);
       // Its own slot only, and un-muted: a dialog write must not wipe a page
       // failure the user has not seen, and abandoning one attempt must not
       // mute the next.
@@ -115,11 +144,20 @@ export function useDialogAction(
   // Stable, so a screen's effect can list it as a dependency without
   // re-running every render — `abandon` and `begin` are themselves stable.
   const { abandon } = errors;
-  const { begin } = session;
+  const { begin, claim, isCurrent } = session;
   const endSession = useCallback((scope: string) => {
     abandon(scope);
     begin(scope);
   }, [abandon, begin]);
 
-  return { busy, isPending, errors, run, openDialog: endSession, dismissDialog: endSession };
+  // The latest click wins: a new session, claimed for this load, with the
+  // slot left alone (see the interface). Pinned by the hook's own
+  // `startLoad` tests (`startLoad neither mutes nor clears…`).
+  const startLoad = useCallback((scope: string) => {
+    begin(scope);
+    const claimed = claim(scope);
+    return () => isCurrent(scope, claimed);
+  }, [begin, claim, isCurrent]);
+
+  return { busy, isPending, errors, run, openDialog: endSession, dismissDialog: endSession, startLoad };
 }

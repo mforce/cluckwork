@@ -2109,6 +2109,10 @@ describe("UsersPage flock scoping", () => {
 
     await act(async () => { open(); });
     await screen.findByText(/account-wide access/);
+    // #703 PR 4 — since #646 the dialog no longer preselects a flock, so
+    // without this pick Assign is disabled and the submit below never ran:
+    // the test passed with the guard deleted (mutation row F5).
+    await pickFlock("Coop A");
     fillFlockPassword();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
@@ -3262,5 +3266,607 @@ describe("UsersPage error placement (#479)", () => {
 
     expect(within(dialog()).getByText("That email is already registered.")).toBeInTheDocument();
     expect(screen.getByText("Could not load flock access.")).toBeInTheDocument();
+  });
+});
+
+// #703 PR 4 — the abandoned-success hijack (#477 part 2) on the dialogs this
+// screen already guarded with a hand-rolled generation: create, set-password,
+// change-role, change-email. Their guards now come from the shared hook, and
+// each session EDGE is pinned on its own so neither can quietly stop ending the
+// session: a dismissal alone (Cancel, then the held write lands — nothing may be
+// claimed), and a re-entry alone (the trigger pressed again while the dialog is
+// still up, then the held write lands — the reseeded form must survive). The
+// pre-existing "dismissed step-up continuations (#360)" block above pins the
+// close-then-reopen path, where both edges fire together.
+describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 PR 4)", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((ok) => { resolve = ok; });
+    return { promise, resolve };
+  }
+  const rowButton = (rowName: RegExp, label: string | RegExp) =>
+    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: label }));
+  const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+  const fillProof = (value = OWNER_STEP_UP_PASSWORD) =>
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value } });
+  const submit = (label: string) => act(async () => {
+    fireEvent.click(within(dialog()).getByRole("button", { name: label }));
+  });
+
+  // ---- create -------------------------------------------------------------
+  const fillCreate = (email: string) => {
+    fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: email } });
+    fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0], { target: { value: crypto.randomUUID() } });
+    fillProof();
+  };
+
+  it("supersedes the create on dismissal alone: a late success after Cancel claims no message, but the list still refreshes", async () => {
+    const write = deferred<{ id: string }>();
+    mockCreateUser.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    openCreate();
+    fillCreate("late@farm.test");
+    await submit("Create user");
+    expect(mockCreateUser).toHaveBeenCalledTimes(1);
+
+    cancel();
+    await act(async () => { write.resolve({ id: "u-new" }); });
+
+    expect(mockListUsers).toHaveBeenCalledTimes(2); // mount + the refresh: the user exists whoever is watching
+    expect(screen.queryByText(/account created for late@farm\.test/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("supersedes the create on re-entry alone: New user pressed again ends the session the held write belongs to", async () => {
+    const write = deferred<{ id: string }>();
+    mockCreateUser.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    openCreate();
+    fillCreate("held@farm.test");
+    await submit("Create user");
+
+    openCreate(); // the same dialog, re-entered without a dismissal
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Typed after re-entry" } });
+    await act(async () => { write.resolve({ id: "u-new" }); });
+
+    expect(screen.getByRole("dialog", { name: "New user" })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Typed after re-entry");
+    expect(screen.queryByText(/account created for held@farm\.test/)).not.toBeInTheDocument();
+  });
+
+  // ---- set-password -------------------------------------------------------
+  const fillPassword = (value: string) => {
+    fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value } });
+    fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value } });
+    fillProof();
+  };
+
+  it("supersedes the password reset on dismissal alone: a late success after Cancel claims no message", async () => {
+    const write = deferred<void>();
+    mockSetUserPassword.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    rowButton(/worker@farm.test/, "password");
+    fillPassword(crypto.randomUUID());
+    await submit("Set password");
+    expect(mockSetUserPassword).toHaveBeenCalledTimes(1);
+
+    cancel();
+    await act(async () => { write.resolve(); });
+
+    expect(screen.queryByText(/signed out everywhere/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("supersedes the password reset on re-entry alone: the row's password button pressed again ends the session the held write belongs to", async () => {
+    const write = deferred<void>();
+    mockSetUserPassword.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    rowButton(/worker@farm.test/, "password");
+    fillPassword(crypto.randomUUID());
+    await submit("Set password");
+
+    rowButton(/worker@farm.test/, "password"); // reseeds the form blank, no dismissal
+    const retyped = crypto.randomUUID();
+    fillPassword(retyped);
+    await act(async () => { write.resolve(); });
+
+    expect(screen.getByRole("dialog", { name: /Set password — worker@farm\.test/ })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText(/New password/)).toHaveValue(retyped);
+    expect(screen.queryByText(/signed out everywhere/i)).not.toBeInTheDocument();
+  });
+
+  // ---- change-role --------------------------------------------------------
+  const fillRole = (role: string) => {
+    fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: role } });
+    fillProof();
+  };
+
+  it("supersedes the role change on dismissal alone: a late success after Cancel claims no message, but the list still refreshes", async () => {
+    const write = deferred<void>();
+    mockChangeUserRole.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    rowButton(/worker@farm.test/, "role");
+    fillRole("Manager");
+    await submit("Change role");
+    expect(mockChangeUserRole).toHaveBeenCalledTimes(1);
+
+    cancel();
+    await act(async () => { write.resolve(); });
+
+    expect(mockListUsers).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/worker@farm\.test is now Manager/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("supersedes the role change on re-entry alone: the row's role button pressed again ends the session the held write belongs to", async () => {
+    const write = deferred<void>();
+    mockChangeUserRole.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    rowButton(/worker@farm.test/, "role");
+    fillRole("Manager");
+    await submit("Change role");
+
+    rowButton(/worker@farm.test/, "role"); // reseeds the form, no dismissal
+    fillRole("ReadOnly");
+    await act(async () => { write.resolve(); });
+
+    expect(screen.getByRole("dialog", { name: /Change role — worker@farm\.test/ })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Role")).toHaveValue("ReadOnly");
+    expect(screen.queryByText(/worker@farm\.test is now Manager/)).not.toBeInTheDocument();
+  });
+
+  // ---- change-email -------------------------------------------------------
+  const fillEmail = (email: string) => {
+    fireEvent.change(within(dialog()).getByLabelText("Login email"), { target: { value: email } });
+    fillProof();
+  };
+
+  it("supersedes the email change on dismissal alone: a late success after Cancel claims no message", async () => {
+    const write = deferred<void>();
+    mockChangeUserEmail.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    rowButton(/worker@farm.test/, /change email/i);
+    fillEmail("renamed@farm.test");
+    await submit("Change email");
+    expect(mockChangeUserEmail).toHaveBeenCalledTimes(1);
+
+    cancel();
+    await act(async () => { write.resolve(); });
+
+    expect(screen.queryByText(/Login email changed to renamed@farm\.test/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("supersedes the email change on re-entry alone: the row's change-email button pressed again ends the session the held write belongs to", async () => {
+    const write = deferred<void>();
+    mockChangeUserEmail.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    rowButton(/worker@farm.test/, /change email/i);
+    fillEmail("renamed@farm.test");
+    await submit("Change email");
+
+    rowButton(/worker@farm.test/, /change email/i); // reseeds the field to the current email, no dismissal
+    expect(within(dialog()).getByLabelText("Login email")).toHaveValue("worker@farm.test");
+    await act(async () => { write.resolve(); });
+
+    expect(screen.getByRole("dialog", { name: /Change email — worker@farm\.test/ })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Login email")).toHaveValue("worker@farm.test");
+    expect(screen.queryByText(/Login email changed to renamed@farm\.test/)).not.toBeInTheDocument();
+  });
+
+  it("still rotates the password key when an abandoned reset succeeds", async () => {
+    const write = deferred<void>();
+    mockSetUserPassword.mockReturnValueOnce(write.promise);
+    await renderReady(ADMIN);
+    rowButton(/worker@farm.test/, "password");
+    fillPassword(crypto.randomUUID());
+    await submit("Set password");
+    cancel();
+    await act(async () => { write.resolve(); });
+
+    mockSetUserPassword.mockResolvedValueOnce(undefined);
+    rowButton(/worker@farm.test/, "password");
+    fillPassword(crypto.randomUUID());
+    await submit("Set password");
+
+    expect(mockSetUserPassword).toHaveBeenCalledTimes(2);
+    expect(mockSetUserPassword.mock.calls[1][2]).not.toBe(mockSetUserPassword.mock.calls[0][2]); // the spent key went with the write
+  });
+
+  it("does not let a dismissed email-change continuation write", async () => {
+    const grant = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(grant.promise);
+    mockChangeUserEmail.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+    rowButton(/worker@farm.test/, /change email/i);
+    fillEmail("renamed@farm.test");
+    await submit("Change email");
+
+    cancel();
+    rowButton(/worker@farm.test/, /change email/i); // the SAME user
+    await act(async () => { grant.resolve({ token: "late-grant", expiresAt: "2026-01-01T00:05:00Z" }); });
+
+    expect(mockChangeUserEmail).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: /Change email — worker@farm\.test/ })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Login email")).toHaveValue("worker@farm.test");
+  });
+
+  it("does not mark the reopened dialog's field when an abandoned email change is refused as a duplicate", async () => {
+    let reject!: (reason: unknown) => void;
+    mockChangeUserEmail.mockReturnValue(new Promise<void>((_ok, fail) => { reject = fail; }));
+    await renderReady(ADMIN);
+    rowButton(/worker@farm.test/, /change email/i);
+    fillEmail("taken@farm.test");
+    await submit("Change email");
+    expect(mockChangeUserEmail).toHaveBeenCalledTimes(1);
+
+    cancel();
+    rowButton(/worker@farm.test/, /change email/i); // the SAME user
+    await act(async () => {
+      reject(new ApiError(409, "Users.DuplicateEmail", "A user with this email already exists."));
+    });
+
+    expect(screen.getByRole("dialog", { name: /Change email — worker@farm\.test/ })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Login email")).toHaveAttribute("aria-invalid", "false");
+    expect(within(dialog()).queryByRole("alert")).toBeNull();
+  });
+
+  it("ends the email-change session the instant the auth session ends: a late success after logout claims nothing", async () => {
+    // Same controlled-AuthContext technique as the step-up logout tests
+    // above: the page stays mounted across the rerender, so anything the
+    // late success writes would show.
+    const write = deferred<void>();
+    mockChangeUserEmail.mockReturnValue(write.promise);
+    const me: Me = {
+      id: "u1", email: "test@farm.local", name: null, role: "Admin", language: null,
+      preferredStepperUnit: null,
+    };
+    const tree = (isAuthenticated: boolean) => (
+      <MemoryRouter initialEntries={["/"]}>
+        <AuthContext.Provider value={{
+          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
+          mustChangePassword: false,
+          unauthenticatedReason: null,
+          login: vi.fn(), logout: vi.fn(),
+        }}
+        >
+          <MeContext.Provider value={me}>
+            <FarmContext.Provider value={farmState({ farm: null })}>
+              <UsersPage />
+            </FarmContext.Provider>
+          </MeContext.Provider>
+        </AuthContext.Provider>
+      </MemoryRouter>
+    );
+    const view = render(tree(true));
+    await screen.findByText("worker@farm.test");
+    rowButton(/worker@farm.test/, /change email/i);
+    fillEmail("renamed@farm.test");
+    await submit("Change email");
+    expect(mockChangeUserEmail).toHaveBeenCalledTimes(1);
+
+    view.rerender(tree(false)); // simulated logout
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await act(async () => { write.resolve(); });
+    expect(screen.queryByText(/Login email changed to renamed@farm\.test/)).not.toBeInTheDocument();
+    expect(mockListUsers).toHaveBeenCalledTimes(1); // nothing of the ended session ran on, the refresh included
+  });
+
+  // ---- flock-access -------------------------------------------------------
+  it("keeps a page failure from another worker's failed load while a flock write runs: its writes are dialog-scoped, not page actions", async () => {
+    const WORKER_2: User = {
+      id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null,
+    };
+    mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
+    mockListAssignments
+      .mockRejectedValueOnce(new ApiError(500, "Server error", "Could not load flock access."))
+      .mockResolvedValue([]);
+    mockAssignFlock.mockResolvedValue({ id: "as-new" });
+    await renderReady(ADMIN);
+
+    await act(async () => { rowButton(/worker@farm.test/, "flocks"); });
+    expect(screen.getByText("Could not load flock access.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await act(async () => { rowButton(/worker2@farm.test/, "flocks"); });
+    await screen.findByText(/account-wide access/);
+    await pickFlock("Coop A");
+    fillFlockPassword();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Assign flock" })); });
+
+    expect(mockAssignFlock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Could not load flock access.")).toBeInTheDocument();
+  });
+
+  it("supersedes a flock assign on Done alone: a late grant after the dialog closed does not write", async () => {
+    const grant = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(grant.promise);
+    mockAssignFlock.mockResolvedValue({ id: "as-new" });
+    setAssignmentsFor("u-w", []);
+    await renderReady(ADMIN);
+    await act(async () => { rowButton(/worker@farm.test/, "flocks"); });
+    await screen.findByText(/account-wide access/);
+    await pickFlock("Coop A");
+    fillFlockPassword();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Assign flock" })); });
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await act(async () => { grant.resolve({ token: "stale-grant", expiresAt: "2026-01-01T00:05:00Z" }); });
+
+    expect(mockAssignFlock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("discards a stale post-assign refresh from a worker whose dialog was closed and reopened for another", async () => {
+    const WORKER_2: User = {
+      id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null,
+    };
+    mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
+    // Call 1: open A (empty). Call 2: A's post-assign refresh — hung. Call 3: open B (empty).
+    let resolveStale!: (v: FlockAssignment[]) => void;
+    mockListAssignments
+      .mockResolvedValueOnce([])
+      .mockImplementationOnce(() => new Promise<FlockAssignment[]>((r) => { resolveStale = r; }))
+      .mockResolvedValueOnce([]);
+    mockAssignFlock.mockResolvedValue({ id: "as-new" });
+    await renderReady(ADMIN);
+
+    await act(async () => { rowButton(/worker@farm.test/, "flocks"); });
+    await screen.findByText(/account-wide access/);
+    await pickFlock("Coop A");
+    fillFlockPassword();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Assign flock" })); });
+    expect(mockAssignFlock).toHaveBeenCalledTimes(1);
+
+    // The write landed; its refresh is still out. Close A, open B.
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await act(async () => { rowButton(/worker2@farm.test/, "flocks"); });
+    const panelB = await screen.findByRole("dialog", { name: /Flock access — worker2@farm\.test/ });
+    expect(within(panelB).getByText(/account-wide access/)).toBeInTheDocument();
+
+    await act(async () => { resolveStale([ASSIGN_1]); });
+    expect(within(panelB).queryByRole("listitem")).toBeNull();
+  });
+
+  it("shows a failed removal inside the flock dialog, not on the page", async () => {
+    mockListAssignments.mockResolvedValue([ASSIGN_1]);
+    mockUnassignFlock.mockRejectedValue(new ApiError(500, "Server error", "Removal failed."));
+    await renderReady(ADMIN);
+    await act(async () => { rowButton(/worker@farm.test/, "flocks"); });
+    const item = await screen.findByRole("listitem");
+    fillFlockPassword();
+    await act(async () => { fireEvent.click(within(item).getByRole("button", { name: "remove" })); });
+
+    expect(within(dialog()).getByText("Removal failed.")).toBeInTheDocument();
+    expect(screen.getAllByText("Removal failed.")).toHaveLength(1);
+  });
+
+  it("does not let an abandoned email change's success close the dialog reopened for the same user", async () => {
+    const write = deferred<void>();
+    mockChangeUserEmail.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    rowButton(/worker@farm.test/, /change email/i);
+    fillEmail("first@farm.test");
+    await submit("Change email");
+
+    cancel();
+    rowButton(/worker@farm.test/, /change email/i); // the SAME user
+    expect(within(dialog()).getByLabelText("Login email")).toHaveValue("worker@farm.test");
+    await act(async () => { write.resolve(); });
+
+    expect(screen.getByRole("dialog", { name: /Change email — worker@farm\.test/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Login email changed to first@farm\.test/)).not.toBeInTheDocument();
+  });
+});
+
+// #703 PR 4 — the edit dialog's guard compared user IDS, so a close-and-reopen
+// of the SAME user passed it and the abandoned save closed the dialog the user
+// had just reopened. The hook's session generation tells the two apart. The
+// first two tests are RED on the id-only guard; the last two pin the edges and
+// the facts about the world that must still run.
+describe("UsersPage abandoned edit's success (#703 PR 4)", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((ok) => { resolve = ok; });
+    return { promise, resolve };
+  }
+  const editRow = (rowName: RegExp) =>
+    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "edit" }));
+  const nameBox = () => within(dialog()).getByLabelText("Name");
+  const typeName = (value: string) => fireEvent.change(nameBox(), { target: { value } });
+  const save = () => act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
+  const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+  it("does not let an abandoned edit's success close the dialog reopened for the same user", async () => {
+    const write = deferred<void>();
+    mockUpdateUser.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    editRow(/boss@farm.test/);
+    typeName("First");
+    await save();
+    expect(mockUpdateUser).toHaveBeenCalledTimes(1);
+
+    cancel();
+    editRow(/boss@farm.test/); // the SAME user — an id-only guard cannot tell this session from the last
+    typeName("Second");
+    await act(async () => { write.resolve(); });
+
+    expect(screen.getByRole("dialog", { name: /Edit user — boss@farm\.test/ })).toBeInTheDocument();
+    expect(nameBox()).toHaveValue("Second");
+    expect(screen.queryByText(/Updated boss@farm\.test/)).not.toBeInTheDocument();
+  });
+
+  it("supersedes the edit on re-entry alone: the row's edit button pressed again ends the session the held write belongs to", async () => {
+    const write = deferred<void>();
+    mockUpdateUser.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    editRow(/boss@farm.test/);
+    typeName("First");
+    await save();
+
+    editRow(/boss@farm.test/); // reseeds the field, no dismissal
+    typeName("Second");
+    await act(async () => { write.resolve(); });
+
+    expect(screen.getByRole("dialog", { name: /Edit user — boss@farm\.test/ })).toBeInTheDocument();
+    expect(nameBox()).toHaveValue("Second");
+    expect(screen.queryByText(/Updated boss@farm\.test/)).not.toBeInTheDocument();
+  });
+
+  it("supersedes the edit on dismissal alone: a late success after Cancel claims no message", async () => {
+    const write = deferred<void>();
+    mockUpdateUser.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    editRow(/boss@farm.test/);
+    typeName("First");
+    await save();
+
+    cancel();
+    await act(async () => { write.resolve(); });
+
+    expect(screen.queryByText(/Updated boss@farm\.test/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("still rotates the update key and refreshes the list when an abandoned edit succeeds", async () => {
+    const write = deferred<void>();
+    mockUpdateUser.mockReturnValueOnce(write.promise);
+    await renderReady(ADMIN);
+    editRow(/boss@farm.test/);
+    typeName("First");
+    await save();
+    cancel();
+    await act(async () => { write.resolve(); });
+    expect(mockListUsers).toHaveBeenCalledTimes(2); // mount + the refresh: the name changed whoever is watching
+
+    mockUpdateUser.mockResolvedValueOnce(undefined);
+    editRow(/boss@farm.test/);
+    typeName("Second");
+    await save();
+
+    expect(mockUpdateUser).toHaveBeenCalledTimes(2);
+    expect(mockUpdateUser.mock.calls[1][2]).not.toBe(mockUpdateUser.mock.calls[0][2]); // the spent key went with the write
+  });
+});
+
+// #703 PR 4 — the disable/enable dialog's guard compared user IDS too, and a
+// disable followed by an enable of the same user reuses one scope, so a
+// same-user reopen would pass it. Through the UI that reopen cannot happen:
+// both row triggers are disabled for the whole flight (pinned below), so the
+// stale success has nothing to hijack. What IS reachable is dismissing
+// mid-flight, and the success path itself; both are pinned here, and the
+// guard's replacement by the session generation rides on the second.
+describe("UsersPage abandoned disable's success (#703 PR 4)", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((ok) => { resolve = ok; });
+    return { promise, resolve };
+  }
+  const disableRow = (rowName: RegExp) =>
+    within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "disable" });
+  const fillProof = (target: HTMLElement) =>
+    fireEvent.change(within(target).getByLabelText(/Your current password/), { target: { value: OWNER_STEP_UP_PASSWORD } });
+
+  it("a successful disable closes its dialog, reports it and refreshes the list (its same-user reopen is unreachable — see the block comment)", async () => {
+    mockStepUp.mockResolvedValue({ token: "grant-703", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fillProof(dlg);
+    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Disable" })); });
+
+    expect(mockDisableUser).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText(/worker@farm\.test has been disabled/)).toBeInTheDocument();
+    expect(mockListUsers).toHaveBeenCalledTimes(2);
+  });
+
+  it("supersedes the disable on dismissal alone: a late success after Cancel claims no message, but still rotates the key and refreshes the list", async () => {
+    const write = deferred<void>();
+    mockStepUp.mockResolvedValue({ token: "grant-703", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockReturnValueOnce(write.promise);
+    await renderReady(ADMIN);
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fillProof(dlg);
+    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Disable" })); });
+    expect(mockDisableUser).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(within(dlg).getByRole("button", { name: "Cancel" }));
+    await act(async () => { write.resolve(); });
+
+    expect(screen.queryByText(/worker@farm\.test has been disabled/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockListUsers).toHaveBeenCalledTimes(2); // the refresh ran: the user is disabled whoever is watching
+
+    // The mocked refresh still lists the worker as enabled, so Disable is
+    // offered again: a second disable of the SAME user runs under the same
+    // key scope, and only a real rotation on the abandoned success makes
+    // its key differ from the first.
+    mockDisableUser.mockResolvedValueOnce(undefined);
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const again = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fillProof(again);
+    await act(async () => { fireEvent.click(within(again).getByRole("button", { name: "Disable" })); });
+
+    expect(mockDisableUser).toHaveBeenCalledTimes(2);
+    expect(mockDisableUser.mock.calls[1][2]).not.toBe(mockDisableUser.mock.calls[0][2]);
+  });
+
+  it("keeps both row triggers disabled for the whole flight, so a same-user reopen mid-flight is unreachable", async () => {
+    // The reason the reopen hijack has no behaviour test here: while a
+    // disable is in flight, Disable and Enable on every row are disabled, so
+    // Cancel-then-reopen cannot happen before the write settles. If this
+    // gate is ever removed, that reopen becomes reachable and needs the
+    // close-then-reopen test the other dialogs carry.
+    const write = deferred<void>();
+    mockListUsers.mockResolvedValue([WORKER_USER, DISABLED_USER, ADMIN_USER]);
+    mockStepUp.mockResolvedValue({ token: "grant-703", expiresAt: "2026-01-01T00:05:00Z" });
+    mockDisableUser.mockReturnValue(write.promise);
+    await renderReady(ADMIN);
+    fireEvent.click(disableRow(/worker@farm.test/));
+    const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fillProof(dlg);
+    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Disable" })); });
+
+    fireEvent.click(within(dlg).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(disableRow(/worker@farm.test/)).toBeDisabled();
+    expect(within(screen.getByRole("row", { name: /disabled@farm.test/ })).getByRole("button", { name: "enable" })).toBeDisabled();
+
+    await act(async () => { write.resolve(); });
+    expect(disableRow(/worker@farm.test/)).toBeEnabled();
+  });
+});
+
+// #703 PR 4 review (authentication seat) — disable/enable was the one step-up
+// write with no `current()` check between the grant and the write, so a
+// Cancel during issuance still landed the disable. Now refused, like the
+// other five.
+describe("UsersPage dismissed disable continuation (#703 PR 4)", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((ok) => { resolve = ok; });
+    return { promise, resolve };
+  }
+
+  it("does not let a dismissed disable continuation write", async () => {
+    const grant = deferred<{ token: string; expiresAt: string }>();
+    mockStepUp.mockReturnValue(grant.promise);
+    mockDisableUser.mockResolvedValue(undefined);
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ })).getByRole("button", { name: "disable" }));
+    const dlg = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
+    fireEvent.change(within(dlg).getByLabelText(/Your current password/), { target: { value: OWNER_STEP_UP_PASSWORD } });
+    await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Disable" })); });
+
+    fireEvent.click(within(dlg).getByRole("button", { name: "Cancel" }));
+    await act(async () => { grant.resolve({ token: "late-grant", expiresAt: "2026-01-01T00:05:00Z" }); });
+
+    expect(mockDisableUser).not.toHaveBeenCalled();
+    expect(mockListUsers).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/worker@farm\.test has been disabled/)).not.toBeInTheDocument();
   });
 });

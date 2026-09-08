@@ -300,3 +300,127 @@ describe("useDialogAction", () => {
     expect(seen).toBe(false);
   });
 });
+
+// #703 PR 4 — two things a dialog that loads before it opens, and whose
+// controls spin per payload, needs from the hook: `run`'s `{ dialog }` option
+// (the slot and the session by dialog, the pending scope by payload) and
+// `startLoad` (the latest click wins, the slot left alone).
+describe("useDialogAction — `dialog` option and `startLoad` (#703 PR 4)", () => {
+  it("routes a failure to the dialog named by `dialog`, and keeps the pending scope per payload", async () => {
+    const { result } = renderHook(() => useDialogAction(DIALOGS));
+    const gate = deferred<void>();
+    let flight!: Promise<void | undefined>;
+    act(() => {
+      flight = result.current.run("assign:u1:f1", async () => { await gate.promise; throw new Error("row boom"); }, { dialog: "create" });
+    });
+    expect(result.current.isPending("assign:u1:f1")).toBe(true);
+    expect(result.current.isPending("create")).toBe(false);
+    await act(async () => {
+      gate.reject(new Error("row boom"));
+      await flight;
+    });
+
+    expect(result.current.errors.forDialog("create")).toBe("row boom");
+    expect(result.current.errors.page).toBeNull();
+  });
+
+  it("starting a `dialog`-routed attempt clears that dialog's slot, not the page's", async () => {
+    const { result } = renderHook(() => useDialogAction(DIALOGS));
+    act(() => result.current.errors.setPage("still here"));
+    await act(async () => {
+      await result.current.run("assign:u1:f1", async () => { throw new Error("row boom"); }, { dialog: "create" });
+    });
+    expect(result.current.errors.page).toBe("still here");
+
+    await act(async () => {
+      await result.current.run("assign:u1:f2", async () => undefined, { dialog: "create" });
+    });
+    expect(result.current.errors.forDialog("create")).toBeUndefined();
+    expect(result.current.errors.page).toBe("still here");
+  });
+
+  it("supersedes a `dialog`-routed attempt when that dialog is dismissed", async () => {
+    const { result } = renderHook(() => useDialogAction(DIALOGS));
+    act(() => result.current.openDialog("create"));
+    const gate = deferred<void>();
+    let seen: boolean | undefined;
+    let flight!: Promise<void | undefined>;
+    act(() => {
+      flight = result.current.run("assign:u1:f1", async (current) => {
+        await gate.promise;
+        seen = current();
+      }, { dialog: "create" });
+    });
+    act(() => result.current.dismissDialog("create"));
+    await act(async () => {
+      gate.resolve();
+      await flight;
+    });
+
+    expect(seen).toBe(false);
+  });
+
+  it("startLoad: the latest load wins — an earlier load's current() goes false, the latest stays true", () => {
+    const { result } = renderHook(() => useDialogAction(DIALOGS));
+    let first!: () => boolean;
+    let second!: () => boolean;
+    act(() => { first = result.current.startLoad("create"); });
+    expect(first()).toBe(true);
+    act(() => { second = result.current.startLoad("create"); });
+
+    expect(first()).toBe(false);
+    expect(second()).toBe(true);
+  });
+
+  it("startLoad supersedes an attempt from the dialog on screen, and a dismissal supersedes the load", async () => {
+    const { result } = renderHook(() => useDialogAction(DIALOGS));
+    act(() => result.current.openDialog("create"));
+    const gate = deferred<void>();
+    let seen: boolean | undefined;
+    let flight!: Promise<void | undefined>;
+    act(() => {
+      flight = result.current.run("create", async (current) => {
+        await gate.promise;
+        seen = current();
+      });
+    });
+    let load!: () => boolean;
+    act(() => { load = result.current.startLoad("create"); });
+    await act(async () => {
+      gate.resolve();
+      await flight;
+    });
+    expect(seen).toBe(false);
+
+    act(() => result.current.dismissDialog("create"));
+    expect(load()).toBe(false);
+  });
+
+  it("startLoad neither mutes nor clears: the dialog on screen keeps its verdict, and its attempt still out can still report", async () => {
+    const { result } = renderHook(() => useDialogAction(DIALOGS));
+    act(() => result.current.openDialog("create"));
+    await act(async () => {
+      await result.current.run("create", async () => { throw new Error("earlier verdict"); });
+    });
+    expect(result.current.errors.forDialog("create")).toBe("earlier verdict");
+
+    act(() => { result.current.startLoad("create"); });
+    expect(result.current.errors.forDialog("create")).toBe("earlier verdict");
+
+    const gate = deferred<void>();
+    let flight!: Promise<void | undefined>;
+    act(() => {
+      flight = result.current.run("create", async () => { await gate.promise; throw new Error("late verdict"); });
+    });
+    act(() => { result.current.startLoad("create"); });
+    await act(async () => {
+      gate.reject(new Error("late verdict"));
+      await flight;
+    });
+    expect(result.current.errors.forDialog("create")).toBe("late verdict");
+
+    // The load landing and the screen opening the dialog is what ends it.
+    act(() => result.current.openDialog("create"));
+    expect(result.current.errors.forDialog("create")).toBeUndefined();
+  });
+});
