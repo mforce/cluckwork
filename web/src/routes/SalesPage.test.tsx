@@ -2604,3 +2604,92 @@ it("#713 clean refresh seeds from the incoming order currency scale", async () =
   expect(mockUpdateOrderItem).toHaveBeenCalledWith(DRAFT_TWO.id, ITEM_A.id,
     { quantity: 3, unitPriceMinorUnits: 400 }, expect.any(String));
 });
+
+// #713 review — retry the same line-update payload, but give changed intent a new key.
+describe("Sales line-update retry intent (#713)", () => {
+  beforeEach(() => { mockUpdateOrderItem.mockReset().mockResolvedValue(undefined); });
+  const edit = () => fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ }))
+    .getByRole("button", { name: i18n.t("sales:edit") }));
+  const begin = async () => { await openOrder(DRAFT_TWO, /Grade A Dozen/); edit(); };
+  const quantity = (value: string) => fireEvent.change(screen.getByLabelText(i18n.t("sales:editQuantityAriaLabel")), { target: { value } });
+  const price = (value: string) => fireEvent.change(screen.getByLabelText(i18n.t("sales:editUnitPriceAriaLabel")), { target: { value } });
+  const save = async () => { await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:save") })); }); };
+  const key = (call: number) => mockUpdateOrderItem.mock.calls[call][3];
+
+  it("Reload after a lost success response gives the changed payload a new key", async () => {
+    await begin();
+    quantity("5");
+    mockUpdateOrderItem.mockRejectedValueOnce(new Error("Successful response lost"));
+    await save();
+    mockGetOrder.mockResolvedValue({ ...DRAFT_TWO, items: [{ ...ITEM_A, quantity: 9, quantityBase: 108 }, ITEM_B] });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
+    expect(screen.getByRole("button", { name: i18n.t("sales:save") })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:reloadLine") }));
+    await save();
+    expect(mockUpdateOrderItem.mock.calls.map((call) => call[2].quantity)).toEqual([5, 9]);
+    expect(key(1)).not.toBe(key(0));
+  });
+
+  it.each(["quantity", "price"])("changed %s gets a fresh key, including when returning to an earlier payload", async (field) => {
+    await begin();
+    mockUpdateOrderItem.mockRejectedValue(new Error("Response unavailable"));
+    await save();
+    if (field === "quantity") quantity("5"); else price("4.00");
+    await save();
+    if (field === "quantity") quantity("3"); else price("3.00");
+    await save();
+    expect(mockUpdateOrderItem).toHaveBeenCalledTimes(3);
+    expect(mockUpdateOrderItem.mock.calls[1][2]).not.toEqual(mockUpdateOrderItem.mock.calls[0][2]);
+    expect(mockUpdateOrderItem.mock.calls[2][2]).toEqual(mockUpdateOrderItem.mock.calls[0][2]);
+    expect(new Set([key(0), key(1), key(2)]).size).toBe(3);
+  });
+
+  it("an identical retry retains its key even after raw price formatting changes", async () => {
+    await begin();
+    quantity("5");
+    price("3.0");
+    mockUpdateOrderItem.mockRejectedValueOnce(new Error("Response unavailable"));
+    await save();
+    price("3.00");
+    await save();
+    expect(mockUpdateOrderItem).toHaveBeenCalledTimes(2);
+    expect(mockUpdateOrderItem.mock.calls[1][2]).toEqual(mockUpdateOrderItem.mock.calls[0][2]);
+    expect(key(1)).toBe(key(0));
+  });
+
+  it.each([false, true])("a failed follow-up read retains the key only for the identical payload (changed: %s)", async (changed) => {
+    await begin();
+    quantity("5");
+    mockGetOrder.mockRejectedValueOnce(new Error("Refresh unavailable"));
+    await save();
+    edit();
+    quantity(changed ? "6" : "5");
+    await save();
+    expect(mockUpdateOrderItem).toHaveBeenCalledTimes(2);
+    expect(mockUpdateOrderItem.mock.calls[1][2].quantity).toBe(changed ? 6 : 5);
+    if (changed) expect(key(1)).not.toBe(key(0)); else expect(key(1)).toBe(key(0));
+  });
+
+  it("a completed write and refresh release the key for the next intent", async () => {
+    await begin();
+    await save();
+    edit();
+    await save();
+    expect(mockUpdateOrderItem).toHaveBeenCalledTimes(2);
+    expect(mockUpdateOrderItem.mock.calls[1][2]).toEqual(mockUpdateOrderItem.mock.calls[0][2]);
+    expect(key(1)).not.toBe(key(0));
+  });
+
+  it("cancelling and reopening the editor retains an identical ambiguous retry", async () => {
+    await begin();
+    quantity("5");
+    mockUpdateOrderItem.mockRejectedValueOnce(new Error("Response unavailable"));
+    await save();
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:cancelEdit") }));
+    edit();
+    quantity("5");
+    await save();
+    expect(mockUpdateOrderItem).toHaveBeenCalledTimes(2);
+    expect(key(1)).toBe(key(0));
+  });
+});

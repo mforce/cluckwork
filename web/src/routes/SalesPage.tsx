@@ -257,7 +257,13 @@ export function SalesPage() {
     if (order && item) setEditor(lineDraft(order, item));
   };
 
-  // Idempotency keys bound to (action, target) and rotated ONLY after the whole
+  // Line updates also bind their key to the parsed payload: identical retries
+  // replay an ambiguous result, while changed input represents a new intent.
+  const itemUpdateAttempts = useRef(new Map<string, {
+    quantity: number; unitPriceMinorUnits: number; key: string;
+  }>());
+
+  // Other idempotency keys are bound to (action, target) and rotated ONLY after the whole
   // action (write + refresh) succeeds: a retry after any failure — including a
   // lost response or a failed follow-up read — replays the same key, so the
   // server dedupes instead of duplicating the write.
@@ -593,12 +599,17 @@ export function SalesPage() {
     const minorUnits = parseMoneyToMinorUnits(draft.price, order.currencyMinorUnit);
     if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
     const scope = `update-item:${itemId}`;
+    const previous = itemUpdateAttempts.current.get(scope);
+    const attempt = previous?.quantity === draft.quantity && previous.unitPriceMinorUnits === minorUnits
+      ? previous
+      : { quantity: draft.quantity, unitPriceMinorUnits: minorUnits, key: newId() };
+    itemUpdateAttempts.current.set(scope, attempt);
     await updateOrderItem(id, itemId,
-      { quantity: draft.quantity, unitPriceMinorUnits: minorUnits }, keyFor(scope));
+      { quantity: draft.quantity, unitPriceMinorUnits: minorUnits }, attempt.key);
     if (editorRef.current === draft) setEditor(null);
     const refreshed = await getOrder(id);
     if (activeIdRef.current === id) setActive(refreshed);
-    clearKey(scope);
+    itemUpdateAttempts.current.delete(scope);
   });
 
   const onRemoveItem = (itemId: string) => run(`remove-item:${itemId}`, async () => {
