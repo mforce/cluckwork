@@ -2335,16 +2335,24 @@ describe("SalesPage payment panel contracts (#703 PR 5)", () => {
   });
 });
 
-// #703 PR 5 — a late update must not clear the dismissed panel's editor state.
-it("preserves the line editor after an abandoned update and same-order reopen (#703 PR 5)", async () => {
+// #703 PR 5 — dismissal owns the editor reset; a late write cannot preserve a stale draft.
+it.each([false, true])("discards the line editor on Close before same-order reload (write pending: %s)", async (pending) => {
   let settle!: () => void;
-  mockUpdateOrderItem.mockReturnValueOnce(new Promise<void>((resolve) => { settle = resolve; }));
+  if (pending) mockUpdateOrderItem.mockReturnValueOnce(new Promise<void>((resolve) => { settle = resolve; }));
   const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
   fireEvent.click(within(row).getByRole("button", { name: "edit" }));
-  await act(async () => { fireEvent.click(within(row).getByRole("button", { name: "save" })); });
+  if (pending) await act(async () => { fireEvent.click(within(row).getByRole("button", { name: "save" })); });
   fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:close") }));
-  await act(async () => { settle(); });
   expect(document.querySelector(".order-panel")).toBeNull();
+  if (pending) await act(async () => { settle(); });
+  expect(document.querySelector(".order-panel")).toBeNull();
+  // Another writer changed the line while this panel was closed. A fresh Open
+  // must show that fetched row, not the dismissed editor's old quantity/price.
+  mockGetOrder.mockResolvedValue({ ...DRAFT_TWO, items: [{ ...ITEM_A, quantity: 9, quantityBase: 108, unitPriceMinorUnits: 400 }, ITEM_B] });
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: "open" })); });
-  expect(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "save" })).toBeInTheDocument();
+  const reopened = screen.getByRole("row", { name: /Grade A Dozen/ });
+  expect(within(reopened).queryByRole("button", { name: "save" })).not.toBeInTheDocument();
+  fireEvent.click(within(reopened).getByRole("button", { name: "edit" }));
+  expect(within(reopened).getByLabelText(i18n.t("sales:editQuantityAriaLabel"))).toHaveValue(9);
+  expect(within(reopened).getByLabelText(i18n.t("sales:editUnitPriceAriaLabel"))).toHaveValue(4);
 });

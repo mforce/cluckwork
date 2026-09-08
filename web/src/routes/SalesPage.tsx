@@ -453,6 +453,12 @@ export function SalesPage() {
     dismissDialog("record-payment");
   };
 
+  const closeOrderPanel = () => {
+    setActive(null);
+    // Dismissal discards the draft now; a later Open must use its fetched line.
+    setEditItemId(null);
+  };
+
   const onCreateOrder = () => run("create-order", async (current) => {
     // #512 (T039) — the handler's own guard: canSubmit is the write-safety
     // boundary (a disabled button alone is not). An exploring/uninitialized
@@ -939,7 +945,7 @@ export function SalesPage() {
                 </BusyButton>
                 <BusyButton className="link" disabled={busy} busy={isPending(`cancel:${active.id}`)}
                   onClick={() => void onCancel()}>{t("cancelDraft")}</BusyButton>
-                <button className="link" onClick={() => setActive(null)}>{t("close")}</button>
+                <button className="link" onClick={closeOrderPanel}>{t("close")}</button>
               </div>
             </>
           )}
@@ -1062,7 +1068,7 @@ export function SalesPage() {
               {active.status === "Confirmed" && !isAdmin && (
                 <span className="muted">{t("voidingNeedsAdmin")}</span>
               )}
-              <button className="link" onClick={() => setActive(null)}>{t("close")}</button>
+              <button className="link" onClick={closeOrderPanel}>{t("close")}</button>
             </div>
           )}
         </div>
