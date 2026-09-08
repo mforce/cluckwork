@@ -1,73 +1,29 @@
-# Type dialog session edges to a screen's declared scopes, accept the residual risk (#703)
+# Type dialog session helpers and retain the runtime default (#703)
 
-> **Rule** — the one-paragraph version lives in [`AGENTS.md`](../../AGENTS.md);
-> this file is the relocated rationale (what shipped, why the short version was
-> insufficient, what not to break).
+**Status:** accepted — owner chose typed helpers plus a decision record on 2026-09-08.
 
-**Status:** accepted
-**Date:** 2026-09-08
-**No incident.** #703's abandoned-attempt bugs and their fixes already shipped
-across PRs 1–5; this record is forward-looking, narrowing the compile-time
-contract of [`useDialogAction`](../../web/src/components/useDialogAction.ts)
-after the fact, not fixing a defect in it.
+**No incident for this residual risk.** Earlier PRs in [#703](https://github.com/mforce/cluckwork/issues/703) fixed abandoned-request successes affecting replacement dialogs. This final slice adds compile-time protection against future scope mismatches.
 
-## What happened
+## Decision
 
-`useDialogAction`'s session edges — `openDialog`, `dismissDialog`, `startLoad`
-— took a plain `string` scope, the same as `run`'s. `RunOptions.dialog` was
-already typed to the screen's own `S` (its `dialogScopes` union), so a
-misspelt dialog name passed to `run`'s `{ dialog }` option was already a
-compile error. The three session-edge methods were not: a screen could call
-`openDialog("cerate")` and the typechecker would accept it, opening a session
-for a scope no dialog on that screen owns.
+In [useDialogAction](../../web/src/components/useDialogAction.ts), `openDialog`, `dismissDialog`, and `startLoad` accept the generic scope type `S` inferred from the screen's `dialogScopes`. A caller preserving a literal union gets a compiler error for an undeclared name. `RunOptions.dialog` already has the same type constraint.
 
-## The rule
+`run` and `isPending` keep their `string` scope parameters so dynamic row and panel scopes, such as `assign:<user>:<flock>`, remain usable. No runtime branch or session behavior changes. [useDialogSession](../../web/src/components/useDialogSession.ts) still treats an unbegun scope as generation zero.
 
-`DialogAction<S>`'s `openDialog`, `dismissDialog`, and `startLoad` take `S`,
-not `string` — narrowed to exactly the literal union a screen passes as
-`dialogScopes`. `run`'s `scope` parameter, and `isPending`'s, stay `string`:
-they carry dynamic row/panel scopes (`assign:<user>:<flock>`) that are never
-members of `dialogScopes`, so narrowing them would reject legitimate calls.
-Breaking this — widening a session edge back to `string`, or narrowing `run`
-to `S` — reopens the typo hole this closes, or breaks every row/panel caller.
+## Accepted limits
 
-## Why not the obvious alternative
+- A mistyped `run` scope without an explicit `dialog` option can fall outside `dialogScopes`. Its errors then route to the page and its `current()` predicate always returns true. If that action was meant to belong to a dialog, the abandoned-success bug can return for it.
+- A declared dialog scope whose session has never begun claims generation zero and remains current until that scope is begun. Typing a name does not ensure the screen calls its session-edge helpers.
+- Membership checking cannot detect choosing the wrong valid scope or inconsistent semantic use of a consistently declared name. Widening the scope type to `string`, bypassing it with type assertions, or calling from untyped JavaScript can also bypass this protection.
 
-The obvious alternative is a runtime assertion: have `openDialog`/
-`dismissDialog` throw or warn when called with a scope outside
-`dialogScopes`. That was rejected — it is a behavior change (`AGENTS.md`'s
-"no new runtime branch" for this slice), and it buys less than it costs: a
-dev-only assertion checks membership at the same boundary the compiler
-already checks for free, but does nothing for `run`, which cannot be
-membership-checked without breaking dynamic scopes. The compile-time-only
-fix is strictly narrower in scope and has no runtime cost or risk.
+These limits are accepted. The compiler guard does not make abandoned successes impossible; screens still own correct session-edge calls and the per-statement `current()` checks that protect replacement-dialog state.
 
-## What this does NOT cover
+## Why no development assertion
 
-The compiler protects a **preserved literal union** reaching `openDialog`/
-`dismissDialog`/`startLoad` — nothing more. A screen that widens its
-`dialogScopes` array to `string[]` (dropping `as const`), or reaches an edge
-through a type assertion or plain JS, gets no protection: the type system
-only ever sees what the call site's own types say. Membership checking also
-does not catch every misspelling: a screen that consistently misspells a
-scope (declares `"cerate"` in `dialogScopes` and calls `openDialog("cerate")`
-everywhere) type-checks cleanly — the compiler proves internal consistency,
-not that the name matches what the dialog is actually called elsewhere.
-Likewise, calling an edge with a *different, valid* member of the union
-(`openDialog("edit")` where the screen meant `"create"`) is accepted; this is
-not a typo the type system can see. A declared dialog scope a screen never
-`openDialog`s claims session `0` and is treated as always current until its
-first `begin` (#703 finding 3) — that behavior is unchanged and is not "safe"
-in any stronger sense than it was before this change; the type narrowing does
-not touch it. This is a compile-time-only contract: **no runtime assertion,
-no fail-closed behavior, and no change to what any caller does at runtime.**
+A development-only check for a declared scope used before its first session could catch forgotten setup, but adds runtime code and a development/production difference. As described, it would not catch unknown `run` names: those take the page-action path and bypass session claiming. The owner chose the type-only change and recorded these remaining risks instead.
 
-## How it is enforced
+## Verification
 
-[`useDialogAction.test.ts`](../../web/src/components/useDialogAction.test.ts)'s
-`"restricts session edges to declared dialog scopes at compile time"` test
-pins the contract with `expectTypeOf` and `@ts-expect-error`, checked by
-`npm run typecheck` (`tsc -b --noEmit`) — the same gate CI's build job and the
-`web/`-touching pre-commit hook already run. Vitest itself does not exercise
-this test at runtime; the compiler rejecting the invalid-scope calls is the
-observable pass/fail.
+The `restricts session edges to declared dialog scopes at compile time` case in [useDialogAction.test.ts](../../web/src/components/useDialogAction.test.ts) pins valid and invalid names for all three helpers, and keeps `run`'s scope unrestricted.
+
+`npm run typecheck` checks its `expectTypeOf` and `@ts-expect-error` assertions. CI's `npm run build` also typechecks through `tsc -b`; the web pre-commit hook runs the typecheck script. Vitest executes the test body but does not validate TypeScript types, so a passing Vitest run alone does not prove this guard works.
