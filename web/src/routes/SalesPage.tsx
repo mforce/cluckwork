@@ -228,8 +228,8 @@ export function SalesPage() {
   // (#474 → #477 → #479 → #625 → #702); the rules and the incidents that
   // earned them live with the hook. Sales-specific is only WHICH scopes own a
   // dialog, and that the page-level success message clears on each attempt.
-  const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(
-    ["create-order", "record-payment"],
+  const { busy, isPending, errors, run, openDialog, dismissDialog, startLoad } = useDialogAction(
+    ["create-order", "record-payment", "order-panel"],
     { onAttempt: () => setMessage(null) },
   );
   // Pulled out for the payments effect's dependency list: it is stable, and
@@ -454,6 +454,7 @@ export function SalesPage() {
   };
 
   const closeOrderPanel = () => {
+    dismissDialog("order-panel");
     setActive(null);
     // Dismissal discards the draft now; a later Open must use its fetched line.
     setEditItemId(null);
@@ -705,7 +706,9 @@ export function SalesPage() {
   // Always fetch fresh on open — the list row may be stale relative to
   // mutations made through the panel since the list was loaded.
   const onOpen = (id: string) => run(`open:${id}`, async () => {
-    setActive(await getOrder(id));
+    const current = startLoad("order-panel");
+    const loaded = await getOrder(id);
+    if (current()) setActive(loaded);
   });
 
   // A list failure no longer replaces the workspace: it renders as a banner

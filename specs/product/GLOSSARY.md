@@ -434,6 +434,10 @@ Cancelled`): drafts are fully editable (add/edit/remove lines, cancel);
 exist in the status enum for later phases; nothing sets them yet, and only
 `Confirmed` orders can be voided.)
 
+Closing the order panel only hides it; it does not cancel the order. The panel
+stays closed even if an earlier open finishes loading. Use **open** again to
+view the order (#712).
+
 **Worker sale allocation policy (#612)** — one farm setting deciding how a
 restricted plain **Worker's** confirmation may draw stock: `AssignedFlocksOnly`
 (default for every farm) tries the worker's own assigned flocks first, and

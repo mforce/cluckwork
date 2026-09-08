@@ -2356,3 +2356,76 @@ it.each([false, true])("discards the line editor on Close before same-order relo
   expect(within(reopened).getByLabelText(i18n.t("sales:editQuantityAriaLabel"))).toHaveValue(9);
   expect(within(reopened).getByLabelText(i18n.t("sales:editUnitPriceAriaLabel"))).toHaveValue(4);
 });
+
+// #712 — primary Open reads respect a later panel dismissal.
+describe.each(["Draft", "Confirmed"] as const)("Sales Open dismissal (#712), %s panel", (status) => {
+  it.each([false, true])("stays closed after a held Open settles (different order: %s), then allows a fresh Open", async (different) => {
+    const original: SalesOrder = { ...DRAFT_TWO, status };
+    const target: SalesOrder = different
+      ? { ...original, id: "other-order", referenceNumber: "SO-OTHER" }
+      : original;
+    mockListOrders.mockResolvedValue(different ? [original, target] : [original]);
+    mockGetOrder.mockResolvedValue(original);
+    await renderReady();
+    const openRow = async (order: SalesOrder) => {
+      await act(async () => {
+        fireEvent.click(within(screen.getByRole("row", { name: new RegExp(order.referenceNumber) }))
+          .getByRole("button", { name: i18n.t("sales:open") }));
+      });
+    };
+    await openRow(original);
+    expect(document.querySelector(".order-panel")).not.toBeNull();
+
+    let resolveRead!: (order: SalesOrder) => void;
+    mockGetOrder.mockReturnValueOnce(new Promise<SalesOrder>((resolve) => { resolveRead = resolve; }));
+    await openRow(target);
+    const close = screen.getByRole("button", { name: i18n.t("sales:close") });
+    expect(close).toBeEnabled();
+    expect(within(screen.getByRole("row", { name: new RegExp(target.referenceNumber) }))
+      .getByRole("button", { name: i18n.t("sales:open") })).toBeDisabled();
+    fireEvent.click(close);
+    expect(document.querySelector(".order-panel")).toBeNull();
+    await act(async () => { resolveRead(target); });
+    expect(document.querySelector(".order-panel")).toBeNull();
+
+    mockGetOrder.mockResolvedValue(target);
+    await openRow(target);
+    expect(document.querySelector(".order-panel")).not.toBeNull();
+    expect(within(document.querySelector<HTMLElement>(".order-panel")!)
+      .getByText(new RegExp(target.referenceNumber))).toBeInTheDocument();
+  });
+});
+
+describe("Sales primary Open controls (#712)", () => {
+  it("opens from no panel", async () => {
+    mockListOrders.mockResolvedValue([DRAFT_TWO]);
+    mockGetOrder.mockResolvedValue(DRAFT_TWO);
+    await renderReady();
+    expect(document.querySelector(".order-panel")).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
+    expect(document.querySelector(".order-panel")).not.toBeNull();
+  });
+
+  it("shows an Open failure and allows retry", async () => {
+    mockListOrders.mockResolvedValue([DRAFT_TWO]);
+    mockGetOrder.mockRejectedValueOnce(new Error("Order read failed")).mockResolvedValue(DRAFT_TWO);
+    await renderReady();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
+    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.getByText("Order read failed")).toBeInTheDocument();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
+    expect(document.querySelector(".order-panel")).not.toBeNull();
+    expect(screen.queryByText("Order read failed")).not.toBeInTheDocument();
+  });
+
+  it("keeps a dismissed Open failure on the page and the panel closed", async () => {
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    let rejectRead!: (reason: Error) => void;
+    mockGetOrder.mockReturnValueOnce(new Promise<SalesOrder>((_, reject) => { rejectRead = reject; }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:close") }));
+    await act(async () => { rejectRead(new Error("Dismissed order read failed")); });
+    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.getByText("Dismissed order read failed")).toBeInTheDocument();
+  });
+});
