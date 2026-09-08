@@ -144,10 +144,9 @@ URLs and on printed material.
 
 ### 2. Rename
 
-Run against the production database with `psql` or the deployment repo's
-SQL runner. The `WHERE` names both the id and the current code, so the
-statement matches nothing if the account was already renamed or if the id is
-not the default account.
+The `WHERE` names both the id and the current code, so the statement matches
+nothing if the account was already renamed or if the id is not the default
+account. Save it as `rename-farm.sql`:
 
 ```sql
 UPDATE "Accounts"
@@ -156,6 +155,31 @@ SET "Slug" = 'example-farm',
 WHERE "Id" = '0000000a-0000-0000-0000-000000000001'
   AND "Slug" = 'default-farm';
 ```
+
+The Cluckwork image ships no `psql`, so run it through a Postgres client.
+With the reference compose stack, the `db` service's own image has one, and
+its `POSTGRES_USER` / `POSTGRES_DB` are already in that container's
+environment:
+
+```bash
+docker compose -f deploy/docker-compose.yml exec -T db \
+  sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < rename-farm.sql
+```
+
+Against a managed Postgres, run a throwaway client container with the same
+image the stack pins (`deploy/docker-compose.yml`, service `db`) and a
+connection URL that carries the same TLS parameters the API uses:
+
+```bash
+docker run --rm -i \
+  postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a \
+  psql -v ON_ERROR_STOP=1 "$DATABASE_URL" < rename-farm.sql
+```
+
+Keep the URL in an env var or a file, never on the command line of a shared
+host: `ps` shows it to every user. Host-specific network flags belong in the
+deployment repo.
 
 Expected: `UPDATE 1`. An `UPDATE 0` means the guard did not match; run
 `list-accounts` again before changing anything. A unique-violation error on
