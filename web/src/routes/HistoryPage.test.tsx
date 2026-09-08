@@ -1460,4 +1460,30 @@ describe("HistoryPage adjust wiring under the shared dialog session (#703)", () 
     expect(mockListDailyEntries).toHaveBeenCalledTimes(2);
     expect(screen.queryByText(i18n.t("history:entryAdjustedMessage"))).not.toBeInTheDocument();
   });
+
+  // #709 — voiding an entry from its row while that same entry's adjust dialog
+  // is open must force the adjust dialog closed on the void's SUCCESS path: a
+  // stale adjust panel for a now-voided entry would only 409 on save. The 409
+  // twin of this close is pinned by the #491 conflict tests; the success twin
+  // was unpinned (dropping the whole line kept the suite green). The row void
+  // button is reachable behind the adjust backdrop (#480), the shape the
+  // conflict tests use.
+  it("closes an open adjust dialog for the same entry when that entry is voided (#709)", async () => {
+    mockListDailyEntries.mockResolvedValue([RECONCILED]);
+    vi.mocked(voidDailyEntry).mockResolvedValue(undefined as never);
+    await openAdjustPanel(); // adjust dialog open for de1
+
+    // Reachable behind the backdrop (#480): void the same entry from its row.
+    fireEvent.click(screen.getByRole("button", { name: "void" }));
+    const voidDlg = screen.getByRole("dialog", { name: /Void the/ });
+    fireEvent.change(within(voidDlg).getByLabelText("Reason *"), { target: { value: "spoiled" } });
+    await act(async () => {
+      fireEvent.click(within(voidDlg).getByRole("button", { name: "Void entry" }));
+    });
+
+    // The void landed and force-closed the same entry's adjust dialog.
+    expect(vi.mocked(voidDailyEntry)).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText(i18n.t("history:entryVoidedMessage"))).toBeInTheDocument();
+  });
 });
