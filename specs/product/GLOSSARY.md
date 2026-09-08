@@ -438,6 +438,14 @@ Closing the order panel only hides it; it does not cancel the order. The panel
 stays closed even if an earlier open finishes loading. Use **open** again to
 view the order (#712).
 
+A live line editor belongs to an existing line on the open Draft order. Fresh
+order data ends editing when the order changes, leaves Draft, or loses the line.
+Clean inputs follow the fetched values. Unsaved inputs remain visible; if the
+fetched quantity or price differs from the edit-start values, Save is blocked.
+**Reload line** replaces both inputs with the latest fetched values and permits
+editing again. This reacts to observed data, not changes made after the last
+fetch; it does not add server-side concurrent-edit detection (#713).
+
 **Worker sale allocation policy (#612)** — one farm setting deciding how a
 restricted plain **Worker's** confirmation may draw stock: `AssignedFlocksOnly`
 (default for every farm) tries the worker's own assigned flocks first, and

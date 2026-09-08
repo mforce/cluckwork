@@ -354,6 +354,8 @@ export const en = {
     newDraftOrder: "New draft order",
     save: "save",
     cancelEdit: "cancel",
+    reloadLine: "reload line",
+    editConflict: "This line changed since you started editing. Your inputs are kept. Reload the line to use the latest values before saving.",
     edit: "edit",
     remove: "remove",
     addLine: "Add line",
@@ -2791,7 +2793,8 @@ export const en = {
       + "unit and shows the resulting egg count while you type (2 trays = 60 eggs, not 60 trays). Each "
       + "line remembers how many eggs its unit held when it was added, so redefining a carton later never "
       + "changes old orders. Choose <strong>close</strong> while an order loads to keep the panel closed; "
-      + "choose <strong>open</strong> again to view it.",
+      + "choose <strong>open</strong> again to view it."
+      + " When an order refreshes, editing ends if it is no longer a draft or the line is gone. Unedited inputs follow the refreshed line. If you have unsaved inputs and the fetched quantity or price changed, your inputs stay visible and save is blocked. Choose <strong>reload line</strong> to replace both inputs with the latest fetched values. Changes made after the last fetch are not detected here.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",
@@ -3303,7 +3306,8 @@ export const en = {
     glossarySalesLineTerm: "Sales line",
     glossarySalesLineDef:
       "One product on an order: a whole-number quantity in selling units, priced per unit (the price may "
-      + "have decimals); the eggs behind it are quantity × the unit's egg count.",
+      + "have decimals); the eggs behind it are quantity × the unit's egg count."
+      + " When an order refreshes, editing ends if it is no longer a draft or the line is gone. Unedited inputs follow the refreshed line. If you have unsaved inputs and the fetched quantity or price changed, your inputs stay visible and save is blocked. Choose reload line to replace both inputs with the latest fetched values. Changes made after the last fetch are not detected here.",
 
     glossaryConfirmOrderTerm: "Confirm (order)",
     glossaryConfirmOrderDef: "Turns a draft order into a real sale and allocates stock. Undone only by voiding.",

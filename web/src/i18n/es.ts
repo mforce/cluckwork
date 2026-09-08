@@ -274,6 +274,8 @@ export const es = {
     newDraftOrder: "Nuevo pedido borrador",
     save: "guardar",
     cancelEdit: "cancelar",
+    reloadLine: "recargar línea",
+    editConflict: "Esta línea cambió desde que comenzó a editar. Sus datos se conservan. Recargue la línea para usar los valores más recientes antes de guardar.",
     edit: "editar",
     remove: "eliminar",
     addLine: "Agregar línea",
@@ -2265,7 +2267,8 @@ export const es = {
       + "resultante mientras escribe (2 bandejas = 60 huevos, no 60 bandejas). Cada línea "
       + "recuerda cuántos huevos contenía su unidad cuando se agregó, así que redefinir un cartón más tarde "
       + "nunca cambia pedidos antiguos. Si el pedido aún se está cargando, <strong>cerrar</strong> mantiene "
-      + "el panel cerrado. Use <strong>abrir</strong> de nuevo para verlo.",
+      + "el panel cerrado. Use <strong>abrir</strong> de nuevo para verlo."
+      + " Al actualizar un pedido, la edición termina si ya no es un borrador o la línea desapareció. Los campos sin editar adoptan los valores recibidos. Si hay cambios sin guardar y la cantidad o el precio recibidos cambiaron, se conservan sus datos y se bloquea guardar. Elija <strong>recargar línea</strong> para reemplazar ambos campos con los últimos valores recibidos. Aquí no se detectan cambios posteriores a la última consulta.",
     salesConfirming:
       "<strong>Confirmar</strong> un pedido asigna existencias reales — los lotes más antiguos primero — y "
       + "es el punto donde el inventario cambia de manos.",
@@ -2797,7 +2800,8 @@ export const es = {
     glossarySalesLineDef:
       "Un producto en un pedido: una cantidad entera en unidades de venta, con precio por unidad (el "
       + "precio puede tener decimales); los huevos detrás de ella son la cantidad × el conteo de huevos de "
-      + "la unidad.",
+      + "la unidad."
+      + " Al actualizar un pedido, la edición termina si ya no es un borrador o la línea desapareció. Los campos sin editar adoptan los valores recibidos. Si hay cambios sin guardar y la cantidad o el precio recibidos cambiaron, se conservan sus datos y se bloquea guardar. Elija recargar línea para reemplazar ambos campos con los últimos valores recibidos. Aquí no se detectan cambios posteriores a la última consulta.",
 
     glossaryConfirmOrderTerm: "Confirmar (pedido)",
     glossaryConfirmOrderDef:
