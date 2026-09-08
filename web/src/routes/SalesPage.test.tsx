@@ -2063,3 +2063,296 @@ describe("SalesPage in-dialog errors (#474)", () => {
     expect(screen.getByText("That product is no longer sellable.")).toBeInTheDocument();
   });
 });
+
+// #703 PR 5 — Close remains available throughout panel writes and reads.
+describe("SalesPage panel liveness (#703 PR 5)", () => {
+  it.each(["write", "refresh"])("keeps panel closed after removal settles when closed during %s", async (phase) => {
+    let resolveWrite!: () => void;
+    let resolveRead!: (order: SalesOrder) => void;
+    const write = new Promise<void>((resolve) => { resolveWrite = resolve; });
+    const read = new Promise<SalesOrder>((resolve) => { resolveRead = resolve; });
+    vi.mocked(removeOrderItem).mockReturnValueOnce(write);
+    const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    mockGetOrder.mockReturnValueOnce(read);
+    await act(async () => {
+      fireEvent.click(within(row).getByRole("button", { name: "remove" }));
+    });
+    expect(vi.mocked(removeOrderItem)).toHaveBeenCalledTimes(1);
+    if (phase === "refresh") {
+      await act(async () => { resolveWrite(); });
+      expect(mockGetOrder).toHaveBeenCalledTimes(2);
+    }
+    const close = screen.getByRole("button", { name: i18n.t("sales:close") });
+    expect(close).toBeEnabled();
+    fireEvent.click(close);
+    expect(document.querySelector(".order-panel")).toBeNull();
+    await act(async () => {
+      resolveWrite();
+      resolveRead({ ...DRAFT_TWO, items: [ITEM_B] });
+    });
+    expect(mockGetOrder).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "open" })).toBeEnabled();
+    expect(document.querySelector(".order-panel")).toBeNull();
+  });
+});
+
+// These behavioral checks retain the real dialog, pending-action and list hooks.
+describe("SalesPage panel write contracts (#703 PR 5)", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((res) => { resolve = res; });
+    return { promise, resolve };
+  }
+
+  const CONFIRMED: SalesOrder = { ...DRAFT_TWO, status: "Confirmed" };
+  const closePanel = () => {
+    const close = screen.getByRole("button", { name: i18n.t("sales:close") });
+    expect(close).toBeEnabled();
+    fireEvent.click(close);
+    expect(document.querySelector(".order-panel")).toBeNull();
+  };
+  const openButton = () => screen.getByRole("button", { name: i18n.t("sales:open") });
+
+  async function submit(action: "add" | "update" | "confirm" | "void" | "cancel") {
+    if (action === "add") {
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:addLine") })); });
+    } else if (action === "update") {
+      const row = screen.getByRole("row", { name: /Grade A Dozen/ });
+      fireEvent.click(within(row).getByRole("button", { name: i18n.t("sales:edit") }));
+      await act(async () => { fireEvent.click(within(row).getByRole("button", { name: i18n.t("sales:save") })); });
+    } else {
+      const trigger = action === "confirm" ? "confirmOrderButton" : action === "void" ? "voidOrderButton" : "cancelDraft";
+      const accept = action === "confirm" ? "confirmOrderConfirmLabel" : action === "void" ? "voidOrderConfirmLabel" : "cancelDraft";
+      fireEvent.click(screen.getByRole("button", { name: i18n.t(`sales:${trigger}`) }));
+      if (action === "void") {
+        fireEvent.change(within(dialog()).getByLabelText(i18n.t("useConfirm:reasonLabel")), { target: { value: "wrong order" } });
+      }
+      await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: i18n.t(`sales:${accept}`) })); });
+    }
+  }
+
+  for (const action of ["add", "update", "confirm", "void"] as const) {
+    it.each(["write", "refresh"])(`does not reopen after ${action} settles following Close during %s`, async (phase) => {
+      const write = deferred<void>();
+      const read = deferred<SalesOrder>();
+      const api = vi.mocked({ add: addOrderItem, update: updateOrderItem, confirm: confirmOrder, void: voidOrder }[action]);
+      api.mockReturnValueOnce(write.promise as never);
+      const order = action === "void" ? CONFIRMED : DRAFT_TWO;
+      await openOrder(order, /Grade A Dozen/);
+      const listCalls = mockListOrders.mock.calls.length;
+      mockGetOrder.mockReturnValueOnce(read.promise);
+      await submit(action);
+      expect(api).toHaveBeenCalledTimes(1);
+      expect(api.mock.calls[0][0]).toBe(order.id);
+      if (phase === "refresh") {
+        await act(async () => { write.resolve(); });
+        expect(mockGetOrder).toHaveBeenCalledTimes(2);
+      }
+      expect(openButton()).toBeDisabled();
+      closePanel();
+      expect(openButton()).toBeDisabled();
+      await act(async () => { write.resolve(); });
+      expect(mockGetOrder).toHaveBeenLastCalledWith(order.id);
+      expect(mockGetOrder).toHaveBeenCalledTimes(2);
+      expect(openButton()).toBeDisabled();
+      await act(async () => { read.resolve({ ...order, status: action === "confirm" ? "Confirmed" : action === "void" ? "Voided" : "Draft" }); });
+      expect(openButton()).toBeEnabled();
+      expect(document.querySelector(".order-panel")).toBeNull();
+      if (action === "confirm" || action === "void") {
+        expect(screen.queryByText(i18n.t(action === "confirm" ? "sales:orderConfirmed" : "sales:orderVoided", { ref: order.referenceNumber }))).not.toBeInTheDocument();
+        expect(mockListOrders).toHaveBeenCalledTimes(listCalls + 1);
+      }
+    });
+  }
+
+  it("does not report a cancelled draft after Close but still refreshes the list", async () => {
+    const write = deferred<void>();
+    vi.mocked(cancelOrder).mockReturnValueOnce(write.promise);
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    const listCalls = mockListOrders.mock.calls.length;
+    await submit("cancel");
+    expect(vi.mocked(cancelOrder)).toHaveBeenCalledWith(DRAFT_TWO.id, expect.any(String));
+    expect(openButton()).toBeDisabled();
+    closePanel();
+    await act(async () => { write.resolve(); });
+    expect(openButton()).toBeEnabled();
+    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByText(i18n.t("sales:draftOrderCancelled"))).not.toBeInTheDocument();
+    expect(mockListOrders).toHaveBeenCalledTimes(listCalls + 1);
+  });
+
+  it("reports a current-panel successful cancel and closes it", async () => {
+    vi.mocked(cancelOrder).mockResolvedValueOnce(undefined);
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    const listCalls = mockListOrders.mock.calls.length;
+    await submit("cancel");
+    expect(vi.mocked(cancelOrder)).toHaveBeenCalledWith(DRAFT_TWO.id, expect.any(String));
+    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.getByText(i18n.t("sales:draftOrderCancelled"))).toBeInTheDocument();
+    expect(mockListOrders).toHaveBeenCalledTimes(listCalls + 1);
+  });
+
+  it("refreshes a live panel opened by create-order", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD", DRAFT_TWO.id));
+    expect(screen.queryByRole("row", { name: /Grade A Dozen/ })).not.toBeInTheDocument();
+    mockAddOrderItem.mockResolvedValueOnce({ orderId: DRAFT_TWO.id, itemId: ITEM_A.id });
+    mockGetOrder.mockResolvedValueOnce(DRAFT_TWO);
+    await submit("add");
+    expect(mockAddOrderItem).toHaveBeenCalledWith(DRAFT_TWO.id, expect.objectContaining({ productId: PRODUCT_A.id }), expect.any(String));
+    expect(screen.getByRole("row", { name: /Grade A Dozen/ })).toBeInTheDocument();
+    expect(mockGetOrder).toHaveBeenLastCalledWith(DRAFT_TWO.id);
+  });
+
+  it.each(["add", "confirm"] as const)("keeps the order/line key when the detail refresh fails for %s", async (action) => {
+    const api = vi.mocked(action === "add" ? addOrderItem : confirmOrder);
+    api.mockResolvedValue(undefined as never);
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    mockGetOrder.mockRejectedValueOnce(new Error("detail read unavailable"));
+    await submit(action);
+    expect(screen.getByText("detail read unavailable")).toBeInTheDocument();
+    expect(api).toHaveBeenCalledTimes(1);
+    const first = api.mock.calls[0];
+    const key = first[first.length - 1];
+    expect(key).toEqual(expect.any(String));
+    // Deliberately return a draft again: the fake backend lets the same
+    // status request be retried so this isolates the client key policy.
+    await submit(action);
+    expect(api).toHaveBeenCalledTimes(2);
+    expect(api.mock.calls[1]).toEqual(first);
+    expect(mockGetOrder).toHaveBeenCalledTimes(3);
+  });
+
+  it("rotates the order/line key after an abandoned successful refresh", async () => {
+    const write = deferred<Awaited<ReturnType<typeof addOrderItem>>>();
+    mockAddOrderItem.mockReturnValueOnce(write.promise);
+    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    await submit("add");
+    expect(mockAddOrderItem).toHaveBeenCalledTimes(1);
+    const first = mockAddOrderItem.mock.calls[0];
+    expect(first[2]).toEqual(expect.any(String));
+    closePanel();
+    await act(async () => { write.resolve({ orderId: DRAFT_TWO.id, itemId: ITEM_A.id }); });
+    expect(mockGetOrder).toHaveBeenCalledTimes(2);
+    expect(mockGetOrder).toHaveBeenLastCalledWith(DRAFT_TWO.id);
+    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(openButton()).toBeEnabled();
+    // The fixture deliberately remains a draft, allowing the identical add
+    // request after reopening without simulating backend line merging.
+    await act(async () => { fireEvent.click(openButton()); });
+    mockAddOrderItem.mockResolvedValueOnce({ orderId: DRAFT_TWO.id, itemId: ITEM_A.id });
+    await submit("add");
+    expect(mockAddOrderItem).toHaveBeenCalledTimes(2);
+    expect(mockAddOrderItem.mock.calls[1].slice(0, 2)).toEqual(first.slice(0, 2));
+    expect(mockAddOrderItem.mock.calls[1][2]).not.toBe(first[2]);
+    expect(mockGetOrder).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe("SalesPage payment panel contracts (#703 PR 5)", () => {
+  const order: SalesOrder = { ...DRAFT_TWO, status: "Confirmed" };
+  const ledger: Awaited<ReturnType<typeof listOrderPayments>> = {
+    items: [{
+      id: "pay1", salesOrderId: order.id, customerId: CUSTOMER.id, amountMinorUnits: 500,
+      currencyCode: "USD", currencyMinorUnit: 2, method: "Cash", paymentDate: "2026-07-20",
+      referenceNumber: "PR5 receipt", note: null, voided: false, voidReason: null, version: 3,
+    }],
+    paidMinorUnits: 500, outstandingMinorUnits: 2400, totalMinorUnits: 2900,
+    currencyCode: "USD", currencyMinorUnit: 2,
+  };
+
+  async function openPaidOrder() {
+    mockListOrderPayments.mockResolvedValue(ledger);
+    await openOrder(order, /Grade A Dozen/);
+    await screen.findByText("PR5 receipt");
+  }
+
+  async function submitVoidPayment() {
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:voidPaymentButton") }));
+    fireEvent.change(within(dialog()).getByLabelText(i18n.t("useConfirm:reasonLabel")), { target: { value: "wrong order" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: i18n.t("sales:voidPaymentConfirmLabel") }));
+    });
+  }
+
+  it.each(["refresh", "transport", "ApiError"] as const)("void-payment key policy after %s failure", async (failure) => {
+    await openPaidOrder();
+    const api = vi.mocked(voidPayment);
+    api.mockResolvedValue(undefined as never);
+    if (failure === "refresh") mockListOrderPayments.mockRejectedValueOnce(new Error("payment refresh failed"));
+    else api.mockRejectedValueOnce(failure === "transport"
+      ? new Error("payment transport failed")
+      : new ApiError(409, "Conflict", "payment version changed"));
+    await submitVoidPayment();
+    expect(api).toHaveBeenCalledTimes(1);
+    const first = api.mock.calls[0];
+    expect(first).toEqual(["pay1", { version: 3, reason: "wrong order" }, expect.any(String)]);
+    expect(screen.getByText(failure === "refresh" ? "payment refresh failed" : failure === "transport" ? "payment transport failed" : "payment version changed")).toBeInTheDocument();
+    expect(mockListOrderPayments).toHaveBeenCalledTimes(failure === "refresh" ? 2 : 1);
+    // Keep the fake ledger unvoided to retry the identical versioned request.
+    await submitVoidPayment();
+    expect(api).toHaveBeenCalledTimes(2);
+    expect(api.mock.calls[1].slice(0, 2)).toEqual(first.slice(0, 2));
+    if (failure === "transport") expect(api.mock.calls[1][2]).toBe(first[2]);
+    else expect(api.mock.calls[1][2]).not.toBe(first[2]);
+    expect(mockListOrderPayments).toHaveBeenCalledTimes(failure === "refresh" ? 3 : 2);
+  });
+
+  it.each(["write", "refresh"])("keeps page-owned payment success after Close during %s and reaches the late helper", async (phase) => {
+    let resolveWrite!: (value: Awaited<ReturnType<typeof voidPayment>>) => void;
+    let resolveRead!: (value: typeof ledger) => void;
+    const write = new Promise<Awaited<ReturnType<typeof voidPayment>>>((resolve) => { resolveWrite = resolve; });
+    const read = new Promise<typeof ledger>((resolve) => { resolveRead = resolve; });
+    await openPaidOrder();
+    vi.mocked(voidPayment).mockReturnValueOnce(write);
+    mockListOrderPayments.mockReturnValueOnce(read);
+    await submitVoidPayment();
+    expect(vi.mocked(voidPayment)).toHaveBeenCalledWith("pay1", { version: 3, reason: "wrong order" }, expect.any(String));
+    if (phase === "refresh") {
+      await act(async () => { resolveWrite(undefined as never); });
+      expect(mockListOrderPayments).toHaveBeenCalledTimes(2);
+    }
+    const close = screen.getByRole("button", { name: i18n.t("sales:close") });
+    expect(close).toBeEnabled();
+    fireEvent.click(close);
+    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.getByRole("button", { name: i18n.t("sales:open") })).toBeDisabled();
+    await act(async () => { resolveWrite(undefined as never); });
+    expect(mockListOrderPayments).toHaveBeenCalledTimes(2);
+    expect(mockListOrderPayments).toHaveBeenLastCalledWith(order.id);
+    await act(async () => { resolveRead({ ...ledger, items: [{ ...ledger.items[0], referenceNumber: "late receipt", voided: true }] }); });
+    expect(screen.getByText(i18n.t("sales:paymentVoided"))).toBeInTheDocument();
+    expect(document.querySelector(".order-panel")).toBeNull();
+    expect(screen.queryByText("late receipt")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: i18n.t("sales:open") })).toBeEnabled();
+    // DOM absence cannot observe a hidden setPayments overwrite: reopening
+    // clears payments in the existing effect. The calls plus success prove
+    // the helper completed; M7 records this observation limit separately.
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
+    expect(mockListOrderPayments).toHaveBeenCalledTimes(3);
+    expect(screen.getByText("PR5 receipt")).toBeInTheDocument();
+    expect(screen.queryByText("late receipt")).not.toBeInTheDocument();
+  });
+});
+
+// #703 PR 5 — dismissal owns the editor reset; a late write cannot preserve a stale draft.
+it.each([false, true])("discards the line editor on Close before same-order reload (write pending: %s)", async (pending) => {
+  let settle!: () => void;
+  if (pending) mockUpdateOrderItem.mockReturnValueOnce(new Promise<void>((resolve) => { settle = resolve; }));
+  const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+  fireEvent.click(within(row).getByRole("button", { name: "edit" }));
+  if (pending) await act(async () => { fireEvent.click(within(row).getByRole("button", { name: "save" })); });
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:close") }));
+  expect(document.querySelector(".order-panel")).toBeNull();
+  if (pending) await act(async () => { settle(); });
+  expect(document.querySelector(".order-panel")).toBeNull();
+  // Another writer changed the line while this panel was closed. A fresh Open
+  // must show that fetched row, not the dismissed editor's old quantity/price.
+  mockGetOrder.mockResolvedValue({ ...DRAFT_TWO, items: [{ ...ITEM_A, quantity: 9, quantityBase: 108, unitPriceMinorUnits: 400 }, ITEM_B] });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "open" })); });
+  const reopened = screen.getByRole("row", { name: /Grade A Dozen/ });
+  expect(within(reopened).queryByRole("button", { name: "save" })).not.toBeInTheDocument();
+  fireEvent.click(within(reopened).getByRole("button", { name: "edit" }));
+  expect(within(reopened).getByLabelText(i18n.t("sales:editQuantityAriaLabel"))).toHaveValue(9);
+  expect(within(reopened).getByLabelText(i18n.t("sales:editUnitPriceAriaLabel"))).toHaveValue(4);
+});

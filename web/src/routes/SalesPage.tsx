@@ -174,7 +174,12 @@ export function SalesPage() {
   // lingers (US3, same contract as the Expenses edit picker).
 
   // active draft being built
-  const [active, setActive] = useState<SalesOrder | null>(null);
+  const [active, setActiveState] = useState<SalesOrder | null>(null);
+  const activeIdRef = useRef<string | null>(null);
+  const setActive = useCallback((order: SalesOrder | null) => {
+    activeIdRef.current = order?.id ?? null;
+    setActiveState(order);
+  }, []);
   const [productId, setProductId] = useState("");
   const [unit, setUnit] = useState("Egg");
   const [qty, setQty] = useState(30);
@@ -448,6 +453,12 @@ export function SalesPage() {
     dismissDialog("record-payment");
   };
 
+  const closeOrderPanel = () => {
+    setActive(null);
+    // Dismissal discards the draft now; a later Open must use its fetched line.
+    setEditItemId(null);
+  };
+
   const onCreateOrder = () => run("create-order", async (current) => {
     // #512 (T039) — the handler's own guard: canSubmit is the write-safety
     // boundary (a disabled button alone is not). An exploring/uninitialized
@@ -482,6 +493,7 @@ export function SalesPage() {
 
   const onAddItem = () => run("add-item", async () => {
     if (!active) return;
+    const id = active.id;
     // #398 — sales quantities are whole selling units; reject a fractional
     // value BEFORE sending rather than letting the server's JSON binding
     // fail with an internal parameter-binding message. NumberField's typed
@@ -494,7 +506,7 @@ export function SalesPage() {
       minorUnits = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
       if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
     }
-    const scope = `add-item:${active.id}`;
+    const scope = `add-item:${id}`;
     // #445 — bind the previewed factor to the write: if an admin redefined
     // the unit after this page read its conversions, the server refuses
     // (SalesOrder.UnitDefinitionChanged) instead of recording a QuantityBase
@@ -502,7 +514,7 @@ export function SalesPage() {
     // was previewed (per-egg unit, or no/failed conversions read).
     const previewed = unit === "Egg" ? null : eggsPerUnit(unit);
     try {
-      await addOrderItem(active.id,
+      await addOrderItem(id,
         {
           productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits,
           expectedEggsPerUnit: previewed ?? undefined,
@@ -516,29 +528,34 @@ export function SalesPage() {
       if (err instanceof ApiError) listEggUnitConversions().then(setConversions).catch(() => {});
       throw err;
     }
-    setActive(await getOrder(active.id));
+    const refreshed = await getOrder(id);
+    if (activeIdRef.current === id) setActive(refreshed);
     clearKey(scope);
   });
 
   const onUpdateItem = (itemId: string) => run(`update-item:${itemId}`, async () => {
     if (!active) return;
+    const id = active.id;
     // #398 — same whole-number guard as the add-line control, above.
     if (!Number.isInteger(editQty)) throw new Error(i18n.t("sales:quantityMustBeWholeNumber"));
     const minorUnits = parseMoneyToMinorUnits(editPrice, active.currencyMinorUnit);
     if (!Number.isFinite(minorUnits) || minorUnits < 0) throw new Error(i18n.t("sales:invalidUnitPrice"));
     const scope = `update-item:${itemId}`;
-    await updateOrderItem(active.id, itemId,
+    await updateOrderItem(id, itemId,
       { quantity: editQty, unitPriceMinorUnits: minorUnits }, keyFor(scope));
-    setEditItemId(null);
-    setActive(await getOrder(active.id));
+    if (activeIdRef.current === id) setEditItemId(null);
+    const refreshed = await getOrder(id);
+    if (activeIdRef.current === id) setActive(refreshed);
     clearKey(scope);
   });
 
   const onRemoveItem = (itemId: string) => run(`remove-item:${itemId}`, async () => {
     if (!active) return;
+    const id = active.id;
     const scope = `remove-item:${itemId}`;
-    await removeOrderItem(active.id, itemId, keyFor(scope));
-    setActive(await getOrder(active.id));
+    await removeOrderItem(id, itemId, keyFor(scope));
+    const refreshed = await getOrder(id);
+    if (activeIdRef.current === id) setActive(refreshed);
     clearKey(scope);
   });
 
@@ -551,13 +568,16 @@ export function SalesPage() {
       confirmLabel: i18n.t("sales:confirmOrderConfirmLabel"),
     });
     if (!ok || !active) return;
-    void run(`confirm:${active.id}`, async () => {
-      const scope = `confirm:${active.id}`;
+    const id = active.id;
+    void run(`confirm:${id}`, async () => {
+      const scope = `confirm:${id}`;
       await orders.runWrite(async () => {
-        await confirmOrder(active.id, keyFor(scope));
-        const refreshed = await getOrder(active.id);
-        setActive(refreshed);
-        setMessage(i18n.t("sales:orderConfirmed", { ref: refreshed.referenceNumber }));
+        await confirmOrder(id, keyFor(scope));
+        const refreshed = await getOrder(id);
+        if (activeIdRef.current === id) {
+          setActive(refreshed);
+          setMessage(i18n.t("sales:orderConfirmed", { ref: refreshed.referenceNumber }));
+        }
       });
       clearKey(scope);
     });
@@ -573,12 +593,15 @@ export function SalesPage() {
       destructive: true,
     });
     if (!ok || !active) return;
-    void run(`cancel:${active.id}`, async () => {
-      const scope = `cancel:${active.id}`;
+    const id = active.id;
+    void run(`cancel:${id}`, async () => {
+      const scope = `cancel:${id}`;
       await orders.runWrite(async () => {
-        await cancelOrder(active.id, keyFor(scope));
-        setActive(null);
-        setMessage(i18n.t("sales:draftOrderCancelled"));
+        await cancelOrder(id, keyFor(scope));
+        if (activeIdRef.current === id) {
+          setActive(null);
+          setMessage(i18n.t("sales:draftOrderCancelled"));
+        }
       });
       clearKey(scope);
     });
@@ -587,8 +610,10 @@ export function SalesPage() {
   // Undo of a mistaken confirm (#60). Reason prompt doubles as the confirm
   // dialog, hoisted above run() like the other one-way actions; cancelling the
   // prompt aborts the void.
-  const refreshPayments = async (orderId: string) =>
-    setPayments(await listOrderPayments(orderId));
+  const refreshPayments = async (orderId: string) => {
+    const refreshed = await listOrderPayments(orderId);
+    if (activeIdRef.current === orderId) setPayments(refreshed);
+  };
 
   const onRecordPayment = () => void run("record-payment", async (current) => {
     if (!active || !payments) return;
@@ -638,6 +663,7 @@ export function SalesPage() {
     if (reason === null) return;
     void run(`void-payment:${paymentId}`, async () => {
       if (!active) return;
+      const id = active.id;
       const scope = `void-payment:${paymentId}`;
       try {
         await voidPayment(paymentId, { version, reason }, keyFor(scope));
@@ -648,7 +674,7 @@ export function SalesPage() {
         if (err instanceof ApiError) clearKey(scope);
         throw err;
       }
-      await refreshPayments(active.id);
+      await refreshPayments(id);
       setMessage(i18n.t("sales:paymentVoided"));
     });
   };
@@ -661,13 +687,16 @@ export function SalesPage() {
       destructive: true,
     });
     if (reason === null || !active) return;
-    void run(`void:${active.id}`, async () => {
-      const scope = `void:${active.id}`;
+    const id = active.id;
+    void run(`void:${id}`, async () => {
+      const scope = `void:${id}`;
       await orders.runWrite(async () => {
-        await voidOrder(active.id, reason, keyFor(scope));
-        const refreshed = await getOrder(active.id);
-        setActive(refreshed);
-        setMessage(i18n.t("sales:orderVoided", { ref: refreshed.referenceNumber }));
+        await voidOrder(id, reason, keyFor(scope));
+        const refreshed = await getOrder(id);
+        if (activeIdRef.current === id) {
+          setActive(refreshed);
+          setMessage(i18n.t("sales:orderVoided", { ref: refreshed.referenceNumber }));
+        }
       });
       clearKey(scope);
     });
@@ -916,7 +945,7 @@ export function SalesPage() {
                 </BusyButton>
                 <BusyButton className="link" disabled={busy} busy={isPending(`cancel:${active.id}`)}
                   onClick={() => void onCancel()}>{t("cancelDraft")}</BusyButton>
-                <button className="link" onClick={() => setActive(null)}>{t("close")}</button>
+                <button className="link" onClick={closeOrderPanel}>{t("close")}</button>
               </div>
             </>
           )}
@@ -1039,7 +1068,7 @@ export function SalesPage() {
               {active.status === "Confirmed" && !isAdmin && (
                 <span className="muted">{t("voidingNeedsAdmin")}</span>
               )}
-              <button className="link" onClick={() => setActive(null)}>{t("close")}</button>
+              <button className="link" onClick={closeOrderPanel}>{t("close")}</button>
             </div>
           )}
         </div>
