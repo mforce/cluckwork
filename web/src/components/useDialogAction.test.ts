@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { useDialogAction } from "./useDialogAction";
 
 // #703 — the composed wrapper, away from any screen. SalesPage's tests prove the
@@ -88,7 +88,10 @@ describe("useDialogAction", () => {
   it("treats a non-dialog scope as always current, whatever begins mid-flight", async () => {
     // A panel action has no session to be superseded by. Gating it would be
     // #703's PR 5 question, answered there — here it must behave exactly as it
-    // did before the hook existed.
+    // did before the hook existed. The mid-flight begin now has to name a
+    // declared dialog scope ("create"), since `openDialog`/`dismissDialog` are
+    // typed to `S`; it opens a dialog wholly unrelated to the "confirm" run,
+    // which is the point being pinned.
     const { result } = renderHook(() => useDialogAction(DIALOGS));
     const gate = deferred<void>();
     let seen: boolean | undefined;
@@ -99,8 +102,8 @@ describe("useDialogAction", () => {
         seen = current();
       });
     });
-    act(() => result.current.openDialog("confirm"));
-    act(() => result.current.dismissDialog("confirm"));
+    act(() => result.current.openDialog("create"));
+    act(() => result.current.dismissDialog("create"));
     await act(async () => {
       gate.resolve();
       await flight;
@@ -264,7 +267,7 @@ describe("useDialogAction", () => {
     // observable exactly one way — an onAttempt that itself ends the session
     // (a screen resetting the dialog it is about) must leave THIS attempt
     // superseded, rather than letting the attempt claim the session it created.
-    let api: ReturnType<typeof useDialogAction> | undefined;
+    let api: ReturnType<typeof useDialogAction<(typeof DIALOGS)[number]>> | undefined;
     const { result } = renderHook(() =>
       useDialogAction(DIALOGS, { onAttempt: () => api?.openDialog("create") }));
     api = result.current;
@@ -422,5 +425,22 @@ describe("useDialogAction — `dialog` option and `startLoad` (#703 PR 4)", () =
     // The load landing and the screen opening the dialog is what ends it.
     act(() => result.current.openDialog("create"));
     expect(result.current.errors.forDialog("create")).toBeUndefined();
+  });
+
+  it("restricts session edges to declared dialog scopes at compile time", () => {
+    const { result } = renderHook(() => useDialogAction(["create", "edit"] as const));
+    expectTypeOf(result.current.openDialog).toBeCallableWith("create");
+    expectTypeOf(result.current.openDialog).toBeCallableWith("edit");
+    // @ts-expect-error Unknown dialog scopes must be rejected by the typechecker.
+    expectTypeOf(result.current.openDialog).toBeCallableWith("not-a-scope");
+    expectTypeOf(result.current.dismissDialog).toBeCallableWith("create");
+    expectTypeOf(result.current.dismissDialog).toBeCallableWith("edit");
+    // @ts-expect-error Unknown dialog scopes must be rejected by the typechecker.
+    expectTypeOf(result.current.dismissDialog).toBeCallableWith("not-a-scope");
+    expectTypeOf(result.current.startLoad).toBeCallableWith("create");
+    expectTypeOf(result.current.startLoad).toBeCallableWith("edit");
+    // @ts-expect-error Unknown dialog scopes must be rejected by the typechecker.
+    expectTypeOf(result.current.startLoad).toBeCallableWith("not-a-scope");
+    expectTypeOf(result.current.run).parameter(0).toEqualTypeOf<string>();
   });
 });
