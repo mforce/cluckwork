@@ -495,6 +495,43 @@ describe("StockPage write-off (#406)", () => {
     expect(firstKey).toBe(secondKey); // a retry replays, never duplicates
   });
 
+  // #708 — the key rotation is a fact about the world: it must run even when
+  // the dialog is dismissed before the write settles, or the reopened same-lot
+  // dialog would reuse the spent key and hash-conflict an edited resubmit. The
+  // #163 ordering (`clearKey` before the refresh, both ungated by `current()`)
+  // is what guarantees this; the existing "even if the refresh fails" test only
+  // exercises the NON-superseded path, where the mutant that moves `clearKey`
+  // below the `if (!current()) return` gate still rotates. This drives the
+  // dismissal path, where that mutant does not.
+  it("rotates the write-off key even when the dialog is dismissed before the write settles (#708)", async () => {
+    let resolveWrite!: (r: typeof RESULT) => void;
+    mockRecordEggLotMovement.mockResolvedValue(RESULT); // the second (reopened) write
+    mockRecordEggLotMovement.mockReturnValueOnce(
+      new Promise<typeof RESULT>((resolve) => { resolveWrite = resolve; }) as never);
+    const lotRow = await openLotRow();
+
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
+    fillAndSubmit(); // left pending
+    // Cancel is not busy-gated (#630), so the session is superseded mid-flight.
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // The late success still rotates the key (fact about the world), but claims
+    // no message against the session the user dismissed.
+    await act(async () => { resolveWrite(RESULT); });
+    expect(screen.queryByText(/now available/)).not.toBeInTheDocument();
+
+    // Reopen the SAME lot (re-query: the settled refresh re-rendered the row):
+    // the second write-off must mint a FRESH key.
+    const reopened = await screen.findByRole("row", { name: /07\/01\/2026/ });
+    fireEvent.click(within(reopened).getByRole("button", { name: "write off" }));
+    fillAndSubmit();
+    await screen.findByText(/92 now available/);
+    expect(mockRecordEggLotMovement).toHaveBeenCalledTimes(2);
+    const [, , firstKey] = mockRecordEggLotMovement.mock.calls[0];
+    const [, , secondKey] = mockRecordEggLotMovement.mock.calls[1];
+    expect(firstKey).not.toBe(secondKey);
+  });
+
   it("reads the write-off button label from the catalog, not a hardcoded literal", async () => {
     const original = i18n.getResource("en", "stock", "writeOffButton") as string;
     i18n.addResource("en", "stock", "writeOffButton", "WRITE-OFF-MARKER");
