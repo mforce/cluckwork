@@ -87,6 +87,7 @@ erDiagram
   varchar_3_ UnitPriceCurrencyCode
   integer UnitPriceCurrencyMinorUnit
   uuid AccountId
+  bigint ListUnitPriceMinorUnits
 }
 "public.EggLots" {
   uuid Id

@@ -17,6 +17,7 @@
 | UnitPriceCurrencyCode | varchar(3) |  | false |  |  |  |
 | UnitPriceCurrencyMinorUnit | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| ListUnitPriceMinorUnits | bigint |  | true |  |  |  |
 
 ## Viewpoints
 
@@ -79,6 +80,7 @@ erDiagram
   varchar_3_ UnitPriceCurrencyCode
   integer UnitPriceCurrencyMinorUnit
   uuid AccountId
+  bigint ListUnitPriceMinorUnits
 }
 "public.SalesOrderAllocations" {
   uuid Id

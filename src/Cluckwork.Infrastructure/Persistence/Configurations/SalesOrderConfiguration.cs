@@ -85,6 +85,18 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
             m.Property(x => x.CurrencyMinorUnit).HasColumnName("UnitPriceCurrencyMinorUnit").IsRequired();
         });
 
+        // #720 — a bare long?, deliberately, where every other money value on
+        // this entity is a three-column OwnsOne Money. That is only honest
+        // because AddOrderItemHandler records it ONLY when the product's
+        // currency code AND minor unit both equal the order's, so the line's
+        // own UnitPrice columns describe this number exactly. Store it on any
+        // other condition and it becomes an integer with no denomination —
+        // which is the 100x misread SalesPage.tsx:191-203 already records as
+        // the live hazard on the explicit-price path. Nullable, no backfill:
+        // NULL is "no comparable list price" and is a real answer, not missing
+        // data.
+        builder.Property(i => i.ListUnitPriceMinorUnits);
+
         // LineTotal is computed — ignored by EF Core
         builder.Ignore(i => i.LineTotal);
     }
