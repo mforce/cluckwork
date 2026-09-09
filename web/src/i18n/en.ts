@@ -3326,6 +3326,20 @@ export const en = {
     glossaryCancelOrderTerm: "Cancel (order)",
     glossaryCancelOrderDef: "Close a draft that never happened. No stock involved.",
 
+    glossaryListPriceTerm: "List price",
+    glossaryListPriceDef:
+      "The product's price at the moment a line was added, kept with the line so a later price change "
+      + "never rewrites a past order. Shown as \"No list price\" when the product had none to compare "
+      + "against.",
+
+    glossaryDiscountTerm: "Discount",
+    glossaryDiscountDef:
+      "How much a sale line sold under its own list price, shown per line. Different from the order-level "
+      + "discount a seller can type in — this one is worked out for you, never entered.",
+
+    glossaryAboveListTerm: "Above list",
+    glossaryAboveListDef: "A line sold for more than its own list price.",
+
     glossaryInventoryItemTerm: "Inventory item",
     glossaryInventoryItemDef:
       "A catalog entry for something you stock (feed, supplements…), with a fixed unit of measure.",

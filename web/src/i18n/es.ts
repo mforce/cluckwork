@@ -2817,6 +2817,21 @@ export const es = {
     glossaryCancelOrderTerm: "Cancelar (pedido)",
     glossaryCancelOrderDef: "Cerrar un borrador que nunca se concretó. No involucra existencias.",
 
+    glossaryListPriceTerm: "Precio de lista",
+    glossaryListPriceDef:
+      "El precio del producto en el momento en que se agregó la línea, guardado junto con la línea para "
+      + "que un cambio de precio posterior nunca reescriba un pedido pasado. Se muestra como \"Sin precio "
+      + "de lista\" cuando el producto no tenía uno con el que comparar.",
+
+    glossaryDiscountTerm: "Descuento",
+    glossaryDiscountDef:
+      "Cuánto se vendió una línea por debajo de su propio precio de lista, mostrado por línea. Es "
+      + "distinto del descuento a nivel de pedido que un vendedor puede ingresar — este se calcula solo, "
+      + "nunca se ingresa.",
+
+    glossaryAboveListTerm: "Sobre el precio de lista",
+    glossaryAboveListDef: "Una línea que se vendió por más de su propio precio de lista.",
+
     glossaryInventoryItemTerm: "Artículo de inventario",
     glossaryInventoryItemDef:
       "Una entrada del catálogo para algo que usted almacena (alimento, suplementos…), con una unidad de "

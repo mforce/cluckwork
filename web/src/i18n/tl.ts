@@ -2914,6 +2914,21 @@ export const tl = {
     glossaryCancelOrderTerm: "Kanselahin (order)",
     glossaryCancelOrderDef: "Isara ang isang draft na hindi natuloy. Walang kinalaman na stock.",
 
+    glossaryListPriceTerm: "Presyo sa listahan",
+    glossaryListPriceDef:
+      "Ang presyo ng produkto nang idagdag ang linya, na iniingatan kasama ng linya para ang susunod na "
+      + "pagbabago ng presyo ay hindi na muling isulat ang isang nakaraang order. Ipinapakita bilang "
+      + "\"Walang presyo sa listahan\" kapag walang presyong maikukumpara ang produkto.",
+
+    glossaryDiscountTerm: "Diskwento",
+    glossaryDiscountDef:
+      "Gaano kababa ang naibenta ng isang linya kumpara sa sarili nitong presyo sa listahan, ipinapakita "
+      + "kada linya. Iba ito sa diskwentong maaaring ilagay ng nagbebenta sa buong order — ito ay "
+      + "awtomatikong nakukuha, hindi ilinalagay.",
+
+    glossaryAboveListTerm: "Higit sa presyo sa listahan",
+    glossaryAboveListDef: "Isang linyang naibenta nang higit sa sarili nitong presyo sa listahan.",
+
     glossaryInventoryItemTerm: "Item sa imbentaryo",
     glossaryInventoryItemDef:
       "Isang catalog entry para sa isang bagay na nasa stock mo (feed, supplement…), na may fixed na unit "
