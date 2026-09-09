@@ -246,7 +246,8 @@ public static class SaleEndpoints
         o.Items.Select(i => new SalesOrderItemResponse(
             i.Id, i.ProductId, i.EggGradeId, i.Unit.ToString(), i.BaseUnitFactor,
             i.Quantity, i.QuantityBase,
-            i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit)).ToList(),
+            i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit,
+            i.ListUnitPriceMinorUnits)).ToList(),
         p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc,
         p?.MadeOfficialAtUtc,
         customer?.Name);
@@ -360,4 +361,8 @@ public sealed record UpdateOrderItemRequest(int Quantity, long UnitPriceMinorUni
 public sealed record SalesOrderItemResponse(
     Guid Id, Guid ProductId, Guid EggGradeId, string Unit, int BaseUnitFactor,
     int Quantity, int QuantityBase,
-    long UnitPriceMinorUnits, string CurrencyCode, int CurrencyMinorUnit);
+    long UnitPriceMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
+    // #720 — the list price this line was sold against, in the SAME currency
+    // and minor unit as UnitPriceMinorUnits above. NULL means no comparable
+    // list price; read surfaces render that as "No list price", never as 0.
+    long? ListUnitPriceMinorUnits = null);

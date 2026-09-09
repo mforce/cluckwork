@@ -13,7 +13,8 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
     private sealed record ItemCreated(Guid OrderId, Guid ItemId);
     private sealed record ItemDto(
         Guid Id, Guid ProductId, Guid EggGradeId, string Unit, int BaseUnitFactor,
-        int Quantity, int QuantityBase, long UnitPriceMinorUnits);
+        int Quantity, int QuantityBase, long UnitPriceMinorUnits,
+        long? ListUnitPriceMinorUnits = null);
     private sealed record OrderDto(Guid Id, string Status, long TotalMinorUnits, List<ItemDto> Items);
     private sealed record ConversionRow(Guid Id, string UnitCode, int EggsPerUnit, bool Active, int Version);
 
