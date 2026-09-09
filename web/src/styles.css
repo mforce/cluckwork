@@ -2873,15 +2873,31 @@ button:disabled[aria-busy="true"] {
   position: relative;
 }
 
+/* #735 — the open input must read as a SEARCH FIELD, not as the first row of
+   the list under it. Same surface, hairline, radius and type as the options
+   made it exactly that (a highlighted "Sim House A" row above "Sim House A").
+   So: the inset surface the app uses for toolbars, a leading magnifier, and
+   the brand hairline while expanded. The glyph is a background image rather
+   than markup so no page, test or ARIA name changes; its grey is fixed
+   because a data-URI cannot read a custom property, and #8c8494 sits legibly
+   on both the light (#f6f1f8) and night (#2b2231) inset surfaces. */
 .named-picker-control input {
   width: 100%;
-  padding: 0.55rem 0.7rem;
+  padding: 0.55rem 0.7rem 0.55rem 2.1rem;
   border: 1px solid var(--hairline);
   border-radius: var(--r-input);
   font: inherit;
   font-size: 0.95rem;
   color: var(--ink);
-  background: var(--surface);
+  background-color: var(--surface-2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238c8494' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0.7rem center;
+  background-size: 1rem 1rem;
+}
+
+.named-picker-control input[aria-expanded="true"] {
+  border-color: var(--brand);
 }
 
 .named-picker-control input:focus {
@@ -2903,7 +2919,7 @@ button:disabled[aria-busy="true"] {
   left: 0;
   right: 0;
   z-index: 30;
-  margin: 0.25rem 0 0;
+  margin: 0.4rem 0 0;
   padding: 0;
   list-style: none;
   max-height: 22rem;
