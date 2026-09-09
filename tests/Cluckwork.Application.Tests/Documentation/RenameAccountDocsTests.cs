@@ -1,6 +1,9 @@
 namespace Cluckwork.Application.Tests.Documentation;
 
 using System.Diagnostics;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using Cluckwork.Application.Common;
 
 // #732 — the rename's prose is not enforced by anything else, and review round 2 found
 // five separate places where it said something the shipped code does not do. Each
@@ -171,24 +174,116 @@ public sealed class RenameAccountDocsTests
 
     // #732 review round 3 — the sink's own guard. The header used to claim an unsanitized
     // stderr line "cannot be added here at all", which no comment can enforce; this reads
-    // the file and makes the claim true for the shape it actually covers. Exactly one
-    // Console.Error.WriteLineAsync( in the source, and it is the one inside
-    // WriteErrorAsync — so a new error path either goes through the sink or reds here.
+    // the file and makes the claim true.
+    //
+    // Round 4 — it counted one member name, so it covered one shape of the mistake. The
+    // synchronous sibling of that member slipped straight past it: a call site rewritten
+    // to write stderr without awaiting is exactly as unsanitized and left this test green.
+    // The counted token is now the stderr stream itself, so every direct use of it is
+    // counted whichever member follows. Exactly one occurrence in the source, inside the
+    // sink expression — a new error path either goes through the sink or reds here.
+    // Occurrences reads the source TEXT, not the syntax tree, so a mention in a comment
+    // counts too; that is why nothing in that file names the token in prose.
     [Fact]
-    public void RenameVerb_HasExactlyOneStderrSink_AndItIsWriteErrorAsync()
+    public void RenameVerb_HasExactlyOneDirectStderrUse_AndItIsInsideWriteErrorAsync()
     {
         const string sinkSignature = "private static Task WriteErrorAsync(string message) =>";
         var source = File.ReadAllText(
             Path.Combine(RepoRoot(), "src/Cluckwork.Api/Cli/RenameAccountCliCommand.cs"));
 
-        var writes = Occurrences(source, "Console.Error.WriteLineAsync(");
+        var writes = Occurrences(source, "Console.Error.");
         Assert.Single(writes);
 
         var sinkStart = source.IndexOf(sinkSignature, StringComparison.Ordinal);
         Assert.True(sinkStart >= 0, $"the sink '{sinkSignature}' is gone");
         var sinkEnd = source.IndexOf(';', sinkStart);
         Assert.InRange(writes[0], sinkStart, sinkEnd);
+        Assert.Contains("ListAccountsCliCommand.SanitizeForDisplay(message)",
+            source[sinkStart..sinkEnd], StringComparison.Ordinal);
     }
+
+    // #732 review round 4, item 2. The open question was whether #731's raw-SQL procedure
+    // accepted an uppercase code that this verb now cannot reach. It did not: commit
+    // 2f6e242 constrained the operator to the domain's syntax and warned in the same step
+    // that an uppercase code there was one nobody could sign in with. Both documents must
+    // carry that finding, because the next reader will otherwise re-open it as a gap and
+    // reach for the bypass this decision declines to add.
+    [Fact]
+    public void UppercaseCodes_AreRecordedAsOutOfScope_WithThe731EvidenceAndNoBypass()
+    {
+        var decision = Normalized(Read("docs/decisions/732-farm-code-rename.md"));
+
+        Assert.Contains("commit `2f6e242`", decision, StringComparison.Ordinal);
+        Assert.Contains(
+            "\"Uppercase is not folded by the database write, so a mistyped code here is a "
+            + "code nobody can sign in with\"",
+            decision, StringComparison.Ordinal);
+        Assert.Contains("**No bypass is added**", decision, StringComparison.Ordinal);
+        Assert.Contains(
+            "This verb targets valid canonical codes only.",
+            Normalized(RenameSection()), StringComparison.Ordinal);
+    }
+
+    // #732 review round 4, item 4. The roster is a list a reader counts, so the count and
+    // the members have to agree with SystemActors rather than with each other. The
+    // equality below is what reds when a seventh verb declares an actor and leaves this
+    // paragraph saying six.
+    [Fact]
+    public void Glossary_NamesEverySystemActor_AndStatesTheirCount()
+    {
+        var actors = typeof(SystemActors)
+            .GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+            .Where(field => field is { IsLiteral: true, IsInitOnly: false })
+            .Select(field => (string)field.GetRawConstantValue()!)
+            .ToList();
+        var glossary = Normalized(Read("specs/product/GLOSSARY.md"));
+
+        Assert.Equal(6, actors.Count);
+        Assert.Contains("one of six explicit **system actors**", glossary, StringComparison.Ordinal);
+        Assert.DoesNotContain("one of five explicit", glossary, StringComparison.Ordinal);
+        Assert.Contains(
+            "and `(rename-account)` for a change to a farm's code (#732)",
+            glossary, StringComparison.Ordinal);
+        Assert.All(actors, actor =>
+            Assert.Contains("`" + actor + "`", glossary, StringComparison.Ordinal));
+    }
+
+    // #732 review round 4, item 5. The enforcement inventory is what a reviewer checks a
+    // claim against, so an inventory that omits the test enforcing the prose sends them
+    // to review wording that is already guarded — and the blanket "nothing enforces"
+    // sentence it replaced said exactly that. The two method names are quoted in the
+    // inventory, so they are resolved here rather than matched as prose.
+    [Fact]
+    public void RenameDecision_InventoriesTheDocsGuard_AndClaimsNothingWiderThanItHolds()
+    {
+        var decision = Normalized(Read("docs/decisions/732-farm-code-rename.md"));
+        var serviceTests = Read("tests/Cluckwork.Api.IntegrationTests/AccountRenameServiceTests.cs");
+
+        Assert.Contains("- `RenameAccountDocsTests`", decision, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Nothing enforces the runbook prose or the glossary wording",
+            decision, StringComparison.Ordinal);
+        Assert.Contains(
+            "What is still unenforced is the wording no review round has corrected",
+            decision, StringComparison.Ordinal);
+        foreach (var method in new[]
+        {
+            "Rename_WhenTheSourceCodeChangesAndChangesBack_",
+            "Rename_WhenTheSourceCodeChangesWithoutAVersionBump_",
+        })
+        {
+            Assert.Contains(method + "…", decision, StringComparison.Ordinal);
+            Assert.Contains("public async Task " + method, serviceTests, StringComparison.Ordinal);
+        }
+    }
+
+    private static string Read(string relativePath) =>
+        File.ReadAllText(Path.Combine(RepoRoot(), relativePath));
+
+    // Markdown wraps, and a reflow is not a claim changing. Collapsing runs of whitespace
+    // lets an assertion name a whole sentence without pinning where its line breaks fall.
+    private static string Normalized(string text) =>
+        Regex.Replace(text, @"\s+", " ");
 
     private static IReadOnlyList<int> Occurrences(string haystack, string needle)
     {

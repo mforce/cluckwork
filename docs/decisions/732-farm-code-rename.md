@@ -41,9 +41,17 @@ A farm code changes **only** through `Account.Rename` reached by the
 returns `Result` rather than throwing, bumps `Version` itself on a real change
 and deliberately does **not** bump it on a no-op. The service resolves the code
 to an id, resolves the tenant, takes the tenant-keyed `FOR UPDATE`, and then
-**re-compares the locked row's slug against the code the operator named**: the
-lookup and the lock are two statements, so a rename that committed in between
-would otherwise be silently overwritten. The unique index `IX_Accounts_Slug` is
+**re-compares the locked row against the snapshot the lookup took — both its
+slug and its `Version`**: the lookup and the lock are two statements, so a write
+that committed in between would otherwise be silently overwritten. Neither half
+of that comparison is redundant. `Version` catches the ABA schedule the slug
+alone cannot see, where a farm is renamed away and back again and the locked row
+carries the code the lookup read while sitting two committed writes further on.
+The slug comparison catches the opposite shape, a write that changed the code
+without advancing `Version` — which is exactly what a raw `UPDATE` outside the
+domain does. The cost is deliberate: `Version` also advances for a Farm Settings
+save or a suspend, so a rename that raced one of those returns
+`Account.SlugStale` and the operator re-runs. The unique index `IX_Accounts_Slug` is
 the authority on the destination code, and the `DbUpdateException` catch is the
 guarantee; the pre-read in front of it is convenience only. Break any of these
 and a rename either loses a concurrent write, ships an unusable code, or leaves
@@ -83,6 +91,25 @@ it. Both caches are cosmetic. Sessions themselves are unaffected — cookies and
 tokens bind to the account id, never to the code — and that is asserted, not
 assumed.
 
+**A stored code that is not canonical is out of scope, and that is not a
+regression.** The question is whether #731's raw-SQL procedure accepted an
+uppercase code that this verb now cannot reach. The repo answers it: that
+procedure's own step 1 constrained the operator to the domain's syntax —
+"lowercase letters, digits and hyphens; 3–32 characters; no leading or trailing
+hyphen" — and warned in the same paragraph that "Uppercase is not folded by the
+database write, so a mistyped code here is a code nobody can sign in with"
+(commit `2f6e242`, `docs/runbooks/provisioning-a-new-farm.md` as it stood before
+this work). Uppercase was never an accepted input on that path; it was a
+documented way to break the farm. So `rename-account` targets valid canonical
+codes only. Its `--slug` is case-folded like every other verb's, which reaches
+every code the domain can store and cannot reach an uppercase row. Such a row is
+database corruption produced by a write that ignored #731's own instruction, and
+repairing it is a database-level job outside this operator path. **No bypass is
+added**, because one would have to weaken either the destination validation or
+the domain's guarantee that a stored code is already lowercase — and that
+guarantee is what lets `IX_Accounts_Slug` be a plain index rather than a fifth
+un-regenerable expression index (#407).
+
 Nothing here bounds what happens *outside* the deployment: printed material and
 bookmarked `?farm=<old>` links are stale the moment the rename commits, and the
 only mitigation is telling users the new code before it lands.
@@ -92,7 +119,14 @@ only mitigation is telling users the new code before it lands.
 - `AccountRenameServiceTests` (`tests/Cluckwork.Api.IntegrationTests/`) — the
   stale-source fence, the no-op, not-found, taken-code and the two-fence race
   in which exactly one of two farms wins the destination code through the index
-  catch. Both race tests hold real row locks rather than sleeping.
+  catch. Every race test holds real row locks rather than sleeping. Three of
+  them pin the post-lock fence, one per shape a blocked writer can commit: a
+  plain rename, an away-and-back rename that leaves the code unchanged
+  (`Rename_WhenTheSourceCodeChangesAndChangesBack_…`, which the slug half alone
+  passes), and a raw code change that never advances `Version`
+  (`Rename_WhenTheSourceCodeChangesWithoutAVersionBump_…`, which the `Version`
+  half alone passes). Deleting either half of the fence reds exactly one of
+  those two.
 - `AccountSlugRaceTests.TwoConcurrentRenames_TheLoserGetsAConcurrencyConflict` —
   the `Version` token under two tracked snapshots, per the repo rule that every
   new aggregate mutation carries a parallel-race test.
@@ -108,6 +142,17 @@ only mitigation is telling users the new code before it lands.
   service's one combined `IgnoreQueryFilters()` read, discovered
   once directly and once through its forwarding caller; both occurrences carry
   justifications.
+- `RenameAccountDocsTests` (`tests/Cluckwork.Application.Tests/Documentation/`)
+  — the prose itself. It reads the tracked documents and this verb's source, and
+  pins by exact sentence every claim a review round found wrong: the runbook's
+  rename heading and its executable examples, the conditional old-code check,
+  the lost-output recovery, the three corrected client-cache claims, the three
+  retired slug-immutability claims, this file's read count and uppercase
+  evidence, the glossary's system-actor roster, the enforcement list below, and
+  the historical marker on the implementation handout. It also holds this verb's
+  single sanitized stderr sink, reading the source text so a direct write reds
+  even in a comment.
 
-Nothing enforces the runbook prose or the glossary wording; those rely on
-review.
+What is still unenforced is the wording no review round has corrected — the
+runbook's narrative paragraphs and the rest of the glossary entry. Those rely on
+review. Every claim named above is pinned; adding a claim does not pin it.

@@ -166,6 +166,15 @@ The ordinary DML-only runtime credential is enough; this needs no migrator role.
    characters, no leading or trailing hyphen, and not one of the nine reserved
    names. The verb refuses anything else before it writes.
 
+   **This verb targets valid canonical codes only.** `--slug` is folded, so it
+   reaches every code the domain can store, and it cannot reach a row whose
+   stored code is uppercase. The procedure this section replaced required
+   lowercase too, and warned that an uppercase code there was one nobody could
+   sign in with — so such a row is database corruption from a write that ignored
+   that instruction, not an input this verb declined to support. Repairing one is
+   a database-level job; there is deliberately no bypass here, because a bypass
+   would have to weaken the checks that keep every stored code canonical.
+
 3. List again and confirm the new code is the one you meant.
 
 Unlike the procedure this section replaced, the rename goes through the domain:
@@ -213,9 +222,12 @@ The verb exits `1` and prints one line naming the error code:
   Nothing was written. Choose another and re-run.
 - `Account.SlugTaken` — another farm already holds that code. Codes are unique
   across every farm on the deployment. Nothing was written.
-- `Account.SlugStale` — the farm's code changed between this command reading it
-  and locking the row, so somebody else renamed it first. Nothing was written:
-  re-run `list-accounts` and start again from the code it has now.
+- `Account.SlugStale` — the farm changed between this command reading it and
+  locking the row, so this command was written against a farm that has since
+  moved. Usually somebody renamed it first; a farm saved in Settings or
+  suspended in that window returns the same code, because the command compares
+  the whole row and not only the code. Nothing was written either way: re-run
+  `list-accounts` and start again from the code it has now.
 - `No farm with code '<code>'.` — no farm holds the code you passed to
   `--slug`. This one carries no error code: the verb resolves the code before
   it reaches the domain, and prints the same line `suspend-account` and

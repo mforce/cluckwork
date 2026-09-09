@@ -13,11 +13,15 @@ using Microsoft.EntityFrameworkCore;
 //
 // Three things have to be true at once, which is why this is a service and not a handler:
 //
-//   1. The row mutated is still the farm the operator named when lookup ran. Resolving
-//      slug -> id and taking FOR UPDATE are TWO awaited database statements, not one atomic
-//      operation: another transaction can rename that row between them. The locked row's
-//      slug is therefore compared with currentSlug before mutation. Without that fence a
-//      stale command overwrites the rename that won the race.
+//   1. The row mutated is still the row the operator named when lookup ran. Resolving
+//      slug -> id and taking FOR UPDATE are TWO awaited database statements, not one
+//      atomic operation: another transaction can write that row between them. The lookup
+//      therefore snapshots Slug AND Version, and the locked row must still match BOTH.
+//      Slug alone is not an identity: old -> other -> old commits two renames and leaves
+//      the code the lookup read, so a slug-only fence passes and overwrites both. Version
+//      is the aggregate's own change counter, so it separates "the row I looked at" from
+//      "a row that merely looks the same". Without that fence a stale command overwrites
+//      the rename that won the race.
 //   2. The destination code stays unique. IX_Accounts_Slug is UNIQUE ("Slug") with no
 //      account component, so the source row's lock reserves nothing: two farms renamed to
 //      one code both pass any pre-read and the INDEX decides. The friendly pre-read below
@@ -60,6 +64,7 @@ public sealed class AccountRenameService(
             return SlugTaken(target);
 
         var accountId = resolution.CurrentId.Value;
+        var snapshotVersion = resolution.CurrentVersion;
 
         // Resolving the tenant is a precondition for the locked read, not a formality.
         tenant.Resolve(accountId);
@@ -76,15 +81,32 @@ public sealed class AccountRenameService(
                 if (account is null)
                     return Result.Failure<AccountRenameOutcome>(Error.NotFound("Accounts", accountId));
 
-                // The slug lookup happened before this lock. A concurrent committed rename
-                // leaves the id valid but the operator's source code stale; never overwrite it.
-                if (!string.Equals(account.Slug, currentSlug, StringComparison.Ordinal))
+                // The lookup happened before this lock, and BOTH of the facts it captured
+                // can go stale in between. A committed rename leaves the id valid and the
+                // operator's source code wrong. A rename that went away and came back
+                // (old -> other -> old) leaves the code identical and the row two writes
+                // further on, which the code alone cannot detect — hence Version, the
+                // aggregate's own change counter, as the second half of the fence.
+                //
+                // Version also advances for writes that are not renames (a Farm Settings
+                // save, a suspend), so this refuses a rename that raced one of those even
+                // though the code is untouched. That is the deliberate direction: the
+                // operator re-runs after list-accounts, and no schedule silently overwrites
+                // a committed write.
+                //
+                // Neither half subsumes the other. Version catches a domain write that
+                // restored the code; the slug comparison catches a write that changed the
+                // code WITHOUT advancing Version, which is precisely what a raw UPDATE
+                // outside the domain does — #731's retired procedure being the example.
+                if (!string.Equals(account.Slug, currentSlug, StringComparison.Ordinal)
+                    || account.Version != snapshotVersion)
                 {
                     await transaction.RollbackAsync(token);
                     return Result.Failure<AccountRenameOutcome>(Error.Conflict(
                         "Account.SlugStale",
-                        $"'{currentSlug}' is no longer this farm's code. Run list-accounts and "
-                        + "re-run with the code it has now."));
+                        $"This farm changed after this command read '{currentSlug}', so the "
+                        + "command is stale and nothing was written. Run list-accounts and "
+                        + "re-run against the code it has now."));
                 }
 
                 // Read BEFORE mutating: Rename sets Slug, so asking the aggregate
@@ -141,10 +163,11 @@ public sealed class AccountRenameService(
     // reads as absent. Same justified call site as AccountSlugLookup.ResolveAsync, and
     // #536's registry needs its own row.
     //
-    // Neither half is an authority. The source id is stable but its slug is not, which
-    // is what the post-lock fence in RenameAsync is for; the destination answer is
-    // friendly UX that another transaction can invalidate the moment it is read, which
-    // is what IX_Accounts_Slug and the unique-violation catch are for.
+    // Neither half is an authority. The source row's id is stable but everything else
+    // about it can move, which is what the post-lock fence in RenameAsync is for — so
+    // Version is projected beside Slug and the fence compares both; the destination
+    // answer is friendly UX that another transaction can invalidate the moment it is
+    // read, which is what IX_Accounts_Slug and the unique-violation catch are for.
     private async Task<SlugResolution> ResolveSlugsAsync(
         string currentSlug, string target, CancellationToken ct)
     {
@@ -152,23 +175,23 @@ public sealed class AccountRenameService(
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(account => account.Slug == currentSlug || account.Slug == target)
-            .Select(account => new { account.Id, account.Slug })
+            .Select(account => new { account.Id, account.Slug, account.Version })
             .ToListAsync(ct);
         // Slug carries a global unique index, so 0 or 1 rows hold the source code.
         // Count==1 rather than SingleOrDefault so a hand-corrupted database reads as
         // "no such farm" (the quieter failure for an operator tool) instead of throwing.
-        var currentIds = matches
-            .Where(account => account.Slug == currentSlug)
-            .Select(account => account.Id)
-            .ToList();
-        var currentId = currentIds.Count == 1 ? currentIds[0] : (Guid?)null;
-        var targetTaken = currentId is not null
+        var sources = matches.Where(account => account.Slug == currentSlug).ToList();
+        var source = sources.Count == 1 ? sources[0] : null;
+        var targetTaken = source is not null
             && !string.Equals(currentSlug, target, StringComparison.Ordinal)
-            && matches.Any(account => account.Slug == target && account.Id != currentId.Value);
-        return new SlugResolution(currentId, targetTaken);
+            && matches.Any(account => account.Slug == target && account.Id != source.Id);
+        return new SlugResolution(source?.Id, source?.Version ?? 0, targetTaken);
     }
 
-    private sealed record SlugResolution(Guid? CurrentId, bool TargetTaken);
+    // CurrentVersion is the source row's Version as the lookup saw it, and is meaningful
+    // only when CurrentId is set — RenameAsync returns NotFound one statement earlier
+    // otherwise.
+    private sealed record SlugResolution(Guid? CurrentId, int CurrentVersion, bool TargetTaken);
 }
 
 // Changed = "this command changed the code", so the verb can tell an operator their

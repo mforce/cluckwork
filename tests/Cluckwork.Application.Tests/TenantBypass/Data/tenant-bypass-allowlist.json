@@ -192,6 +192,6 @@
   {
     "symbol": "Cluckwork.Infrastructure.Identity.AccountRenameService.ResolveSlugsAsync(string currentSlug, string target, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Identity/AccountRenameService.cs",
-    "justification": "One unresolved-tenant read covering both the source code and the destination code: the operator CLI runs before any tenant exists, so IgnoreQueryFilters is required rather than defensive. Neither half is an authority — the post-lock slug fence covers the source, and the global IX_Accounts_Slug index plus its unique-violation catch cover the destination (#732)."
+    "justification": "One unresolved-tenant read covering both the source code and the destination code: the operator CLI runs before any tenant exists, so IgnoreQueryFilters is required rather than defensive. Neither half is an authority — the post-lock fence covers the source by comparing the locked row's slug AND Version against this read's snapshot, and the global IX_Accounts_Slug index plus its unique-violation catch cover the destination (#732)."
   }
 ]

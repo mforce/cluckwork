@@ -106,6 +106,77 @@ public sealed class AccountRenameServiceTests(CluckworkWebApplicationFactory fac
             .CountAsync(a => a.AccountId == accountId && a.Action == "Account.Rename")));
     }
 
+    // #732 review round 4 — the ABA schedule the slug-only fence cannot see. The blocker
+    // renames the source away and back again, so the locked row carries the code the
+    // lookup read while being two committed writes further on. A fence that compares only
+    // the code passes here and overwrites both of those writes; the Version half of the
+    // snapshot is what separates "the row I looked at" from "a row that looks the same".
+    [Fact]
+    public async Task Rename_WhenTheSourceCodeChangesAndChangesBack_RefusesAndDoesNotOverwrite()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync(Unique("rename-aba"));
+        var stale = Slug(accountId);
+        var detour = Target("via", accountId);
+        var attempted = Target("aba", accountId);
+        var versionBefore = await VersionAsync(accountId);
+        var (db, tx, pid) = await FenceAccountAsync(accountId);
+        await using var _ = db;
+        await using var __ = tx;
+
+        var rename = Task.Run(() => RenameAsync(stale, attempted));
+        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(rename, pid),
+            "rename must reach and block on the source-row FOR UPDATE before the competing commits");
+        Assert.False(rename.IsCompleted, "the source-row lock must actually hold the rename");
+
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "Accounts" SET "Slug" = {detour}, "Version" = "Version" + 1 WHERE "Id" = {accountId}""");
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "Accounts" SET "Slug" = {stale}, "Version" = "Version" + 1 WHERE "Id" = {accountId}""");
+        await tx.CommitAsync();
+        var outcome = await rename;
+
+        Assert.False(outcome.Success);
+        Assert.Equal("Account.SlugStale", outcome.ErrorCode);
+        Assert.Equal(stale, await SlugAsync(accountId));
+        Assert.Equal(versionBefore + 2, await VersionAsync(accountId));
+        Assert.Equal(0, await factory.WithTenantScopeAsync(accountId, context => context.AuditEvents
+            .CountAsync(a => a.AccountId == accountId && a.Action == "Account.Rename")));
+    }
+
+    // #732 review round 4 — the other half of the same fence, so neither half can be
+    // deleted on the grounds that the other covers it. This blocker writes the row the way
+    // a raw UPDATE outside the domain does: it changes the code and leaves Version alone,
+    // which the Version comparison cannot see and the slug comparison must.
+    [Fact]
+    public async Task Rename_WhenTheSourceCodeChangesWithoutAVersionBump_RefusesAndDoesNotOverwrite()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync(Unique("rename-untokened"));
+        var stale = Slug(accountId);
+        var committed = Target("raw", accountId);
+        var attempted = Target("lost", accountId);
+        var versionBefore = await VersionAsync(accountId);
+        var (db, tx, pid) = await FenceAccountAsync(accountId);
+        await using var _ = db;
+        await using var __ = tx;
+
+        var rename = Task.Run(() => RenameAsync(stale, attempted));
+        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(rename, pid),
+            "rename must reach and block on the source-row FOR UPDATE before the competing commit");
+        Assert.False(rename.IsCompleted, "the source-row lock must actually hold the rename");
+
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "Accounts" SET "Slug" = {committed} WHERE "Id" = {accountId}""");
+        await tx.CommitAsync();
+        var outcome = await rename;
+
+        Assert.False(outcome.Success);
+        Assert.Equal("Account.SlugStale", outcome.ErrorCode);
+        Assert.Equal(committed, await SlugAsync(accountId));
+        Assert.Equal(versionBefore, await VersionAsync(accountId));
+        Assert.Equal(0, await factory.WithTenantScopeAsync(accountId, context => context.AuditEvents
+            .CountAsync(a => a.AccountId == accountId && a.Action == "Account.Rename")));
+    }
+
     [Fact]
     public async Task Rename_ToTheSameCode_ChangesNothing()
     {

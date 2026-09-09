@@ -501,11 +501,12 @@ record's own history; the audit log is the cross-cutting trail.
 
 **Every event names an actor, and nothing can write one that does not (#500).**
 For a request that is the signed-in person. For the offline operator verbs,
-which have no human by design, it is one of five explicit **system actors** —
+which have no human by design, it is one of six explicit **system actors** —
 `(bootstrap-admin)` for the default farm's first Owner, `(break-glass)` for a
 `recover-admin` password reset, `(suspend-account)` and `(reactivate-account)`
-for farm lifecycle changes, and `(provision-account)` for a new farm and its
-first Owner — chosen deliberately rather than defaulted. An
+for farm lifecycle changes, `(provision-account)` for a new farm and its first
+Owner, and `(rename-account)` for a change to a farm's code (#732) — chosen
+deliberately rather than defaulted. An
 event whose actor was never resolved is refused outright, so a record can never
 be filed with no author at all. Sample data is held to the same rule: a **demo**
 farm's records are signed by its Owner, and a **simulation** farm's by the member
