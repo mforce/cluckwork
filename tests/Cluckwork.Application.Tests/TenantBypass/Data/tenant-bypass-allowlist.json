@@ -183,5 +183,25 @@
     "symbol": "Cluckwork.Infrastructure.Repositories.AuditEventRepository.GetProvenanceAsync(string entityType, IReadOnlyCollection<Guid> entityIds, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Repositories/AuditEventRepository.cs",
     "justification": "Caller of GetProvenanceChunkAsync (a forwarding wrapper). Audit provenance reads across the tenant's own entities; the wrapped raw SQL carries WHERE \"AccountId\" = {accountId}. IgnoreQueryFilters because the provenance query joins across entities that the filter would otherwise scope to an unresolved tenant."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Identity.AccountRenameService.RenameAsync(string currentSlug, string? newSlug, string? reason, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Identity/AccountRenameService.cs",
+    "justification": "Operator CLI resolves a farm by its globally unique code before any tenant is resolved; forwards to ResolveCurrentAsync. The service's locked read is tenant-keyed. Same justified call site as AccountSlugLookup.ResolveAsync (#536)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Identity.AccountRenameService.RenameAsync(string currentSlug, string? newSlug, string? reason, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Identity/AccountRenameService.cs",
+    "justification": "Operator CLI checks global destination-code availability before any tenant is resolved; forwards to IsTargetTakenAsync. The global IX_Accounts_Slug index and unique-violation translation remain authoritative (#732)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Identity.AccountRenameService.IsTargetTakenAsync(string target, Guid sourceId, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Identity/AccountRenameService.cs",
+    "justification": "Operator CLI checks global destination-code availability before any tenant is resolved; the global IX_Accounts_Slug index and unique-violation translation remain authoritative (#732)."
+  },
+  {
+    "symbol": "Cluckwork.Infrastructure.Identity.AccountRenameService.ResolveCurrentAsync(string slug, CancellationToken ct)",
+    "file": "src/Cluckwork.Infrastructure/Identity/AccountRenameService.cs",
+    "justification": "Operator CLI resolves a farm by its globally unique code before any tenant is resolved; the service's locked read is tenant-keyed. Same justified call site as AccountSlugLookup.ResolveAsync (#536)."
   }
 ]

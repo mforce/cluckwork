@@ -1826,6 +1826,7 @@ export const tl = {
     "auditAction.Account.Suspend": "Sinuspinde ang bukid",
     "auditAction.Account.Reactivate": "Muling binuksan ang bukid",
     "auditAction.Account.Provisioned": "Ginawa ang bukid",
+    "auditAction.Account.Rename": "Binago ang code ng bukid",
     "auditAction.Product.Create": "Nagawa ang produkto",
     "auditAction.Product.Update": "Na-update ang produkto",
     "auditAction.Product.Activate": "Na-activate ang produkto",

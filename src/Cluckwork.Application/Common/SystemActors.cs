@@ -26,4 +26,7 @@ public static class SystemActors
 
     /// <summary>Operator bringing a farm back (#534). Author of the Account.Reactivate row.</summary>
     public const string ReactivateAccount = "(reactivate-account)";
+
+    /// <summary>Operator changing a farm's code (#732). Author of the Account.Rename row.</summary>
+    public const string RenameAccount = "(rename-account)";
 }

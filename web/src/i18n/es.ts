@@ -1757,6 +1757,7 @@ export const es = {
     "auditAction.Account.Suspend": "Granja suspendida",
     "auditAction.Account.Reactivate": "Granja reactivada",
     "auditAction.Account.Provisioned": "Granja aprovisionada",
+    "auditAction.Account.Rename": "Código de granja cambiado",
     "auditAction.Product.Create": "Producto creado",
     "auditAction.Product.Update": "Producto actualizado",
     "auditAction.Product.Activate": "Producto activado",

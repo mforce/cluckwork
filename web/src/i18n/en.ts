@@ -2295,6 +2295,7 @@ export const en = {
     "auditAction.Account.Suspend": "Farm suspended",
     "auditAction.Account.Reactivate": "Farm reactivated",
     "auditAction.Account.Provisioned": "Farm provisioned",
+    "auditAction.Account.Rename": "Farm code changed",
     "auditAction.Product.Create": "Product created",
     "auditAction.Product.Update": "Product updated",
     "auditAction.Product.Activate": "Product activated",

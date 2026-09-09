@@ -33,6 +33,18 @@ describe("enums module (#182)", () => {
     }
   });
 
+  // #732 — the audit filter and the row label are driven by the same three maps, and a
+  // missing locale key falls back to English silently. Pinned per locale like the
+  // Account.Provisioned case above.
+  it("resolves Account.Rename through its own key in every locale", async () => {
+    for (const [language, catalog] of Object.entries(RESOURCES)) {
+      await i18n.changeLanguage(language);
+      expect(auditActionLabel("Account.Rename")).toBe(
+        catalog.enums["auditAction.Account.Rename"],
+      );
+    }
+  });
+
   // Every family, every union member -> a real, non-empty en.enums entry.
   for (const [family, def] of Object.entries(ENUMS)) {
     describe(`${family} family`, () => {

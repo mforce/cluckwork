@@ -125,6 +125,9 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         services.AddScoped<AdminRecoveryService>();
         // #532 — no CLI or HTTP surface yet; #534's operator verbs resolve it.
         services.AddScoped<AccountSuspensionService>();
+        // #732 — the rename verb. Same always-available-in-Production posture: it has to
+        // work against a real database, and it is not environment-gated.
+        services.AddScoped<AccountRenameService>();
         // #283 — first-run admin provisioning (`bootstrap-admin`), same
         // always-available-in-Production posture as break-glass recovery: a
         // real deploy's first login depends on it.
