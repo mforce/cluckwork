@@ -70,6 +70,14 @@ function priceInput(defaultPriceMinorUnits: number | null, scale: number | null)
   return (defaultPriceMinorUnits / 10 ** scale).toFixed(scale);
 }
 
+// #720 — extracted from the initial load so the post-rejection refresh applies
+// the SAME filter. Two copies of this rule would drift, and the screen would
+// start offering a product that Add line then 422s (codex review of #100).
+function sellableProducts(products: Product[], grades: { id: string; isSaleable: boolean }[]): Product[] {
+  const saleable = new Set(grades.filter((x) => x.isSaleable).map((x) => x.id));
+  return products.filter((x) => x.active && x.eggGradeId !== null && saleable.has(x.eggGradeId));
+}
+
 // #720 — the discount a line gave away, and how it renders.
 //
 // Branch on the comparison DIRECTLY. There is no max(list - unit, 0) clamp:
@@ -353,9 +361,7 @@ export function SalesPage() {
       .then(([c, p, g]) => {
         setCustomers(c);
         setAllProducts(p);
-        const saleableGrades = new Set(g.filter((x) => x.isSaleable).map((x) => x.id));
-        const sellable = p.filter(
-          (x) => x.active && x.eggGradeId !== null && saleableGrades.has(x.eggGradeId));
+        const sellable = sellableProducts(p, g);
         setProducts(sellable);
         if (c.length > 0) {
           // #512 (T039) — the explicit first-customer default (FR-037): the
@@ -549,6 +555,12 @@ export function SalesPage() {
         {
           productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits,
           expectedEggsPerUnit: previewed ?? undefined,
+          // #720 — the list price this screen actually showed the seller. The
+          // server refuses (422 SalesOrder.ListPriceChanged) if the catalogue
+          // moved since the products list was read, rather than recording a
+          // discount against a number nobody saw.
+          expectedListUnitPriceMinorUnits:
+            products.find((p) => p.id === productId)?.defaultPriceMinorUnits ?? undefined,
         },
         keyFor(scope));
     } catch (err) {
@@ -556,7 +568,15 @@ export function SalesPage() {
       // UnitDefinitionChanged case) — refresh them so the preview and the
       // next attempt use the current factors instead of looping on stale
       // ones. Fire-and-forget: the thrown error still surfaces normally.
-      if (err instanceof ApiError) listEggUnitConversions().then(setConversions).catch(() => {});
+      // #720 — products too, not just conversions: a ListPriceChanged refusal
+      // means the catalogue moved, and without this the retry loops on the
+      // same stale price forever.
+      if (err instanceof ApiError) {
+        listEggUnitConversions().then(setConversions).catch(() => {});
+        Promise.all([listProducts({ includeInactive: true }), listEggGrades()])
+          .then(([p, g]) => { setAllProducts(p); setProducts(sellableProducts(p, g)); })
+          .catch(() => {});
+      }
       throw err;
     }
     const refreshed = await getOrder(id);
@@ -987,6 +1007,28 @@ export function SalesPage() {
                   <input type="number" min={0} step={10 ** -active.currencyMinorUnit} value={price}
                     onChange={(e) => setPrice(e.target.value)} />
                 </label>
+                {(() => {
+                  // #720 — the same amount AddOrderItemHandler would snapshot
+                  // as ListUnitPriceMinorUnits if Add line were pressed now.
+                  const list = products.find((p) => p.id === productId)?.defaultPriceMinorUnits ?? null;
+                  if (list === null) return null;
+                  const typed = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
+                  if (!Number.isFinite(typed) || typed === list) return null;
+                  const perUnit = Math.abs(typed - list);
+                  const amount = fmt.money(perUnit, active.currencyCode, active.currencyMinorUnit);
+                  if (typed < list) {
+                    return <p className="muted">
+                      {t("listPriceHintBelow", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
+                    </p>;
+                  }
+                  // A zero list price is legal (Product.cs rejects only
+                  // negatives) — dividing by it for a percent would be NaN/Infinity.
+                  return list === 0
+                    ? <p className="muted">{t("listPriceHintAboveNoPct", { amount })}</p>
+                    : <p className="muted">
+                        {t("listPriceHintAbove", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
+                      </p>;
+                })()}
                 <BusyButton disabled={busy || !productId} busy={isPending("add-item")}
                   onClick={onAddItem}>{t("addLine")}</BusyButton>
               </div>

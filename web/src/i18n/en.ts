@@ -403,6 +403,14 @@ export const en = {
     discount: "Discount",
     noListPrice: "No list price",
     aboveList: "Above list",
+    // #720 — live hints under the add-line price field, mirroring the amount
+    // the line will snapshot as ListUnitPriceMinorUnits if submitted now.
+    listPriceHintBelow: "{{amount}} below list ({{percent}}%)",
+    listPriceHintAbove: "{{amount}} above list ({{percent}}%)",
+    // A zero list price is a legal product price (Product.cs rejects only
+    // negatives) — dividing by it for a percent would be a NaN/Infinity, so
+    // this variant carries the amount only.
+    listPriceHintAboveNoPct: "{{amount}} above list",
     lineTotal: "Line total",
     reference: "Reference",
     amount: "Amount",

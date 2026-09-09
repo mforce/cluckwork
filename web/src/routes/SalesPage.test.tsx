@@ -546,6 +546,77 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     expect(await screen.findByText("= 180 eggs")).toBeInTheDocument(); // 30 × fresh 6
   });
 
+  it("sends the product's list price as the expectation on the add-item request", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    // PRODUCT_A's own default (300), not the typed price — the point is to
+    // catch the CATALOGUE moving, not to echo what the seller typed.
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    expect(mockAddOrderItem.mock.calls[0][1]).toMatchObject({ expectedListUnitPriceMinorUnits: 300 });
+  });
+
+  it("refreshes products after a ListPriceChanged rejection, so the retry carries the current list price", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockRejectedValueOnce(new ApiError(422, "SalesOrder.ListPriceChanged",
+      "This product's list price is now 999, not 300 — re-check the price and try again."));
+    mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultPriceMinorUnits: 999 }, PRODUCT_B]);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    expect(await screen.findByText(/is now 999, not 300/)).toBeInTheDocument();
+
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    // Without the refetch this would still send the stale 300.
+    expect(mockAddOrderItem.mock.calls[1][1]).toMatchObject({ expectedListUnitPriceMinorUnits: 999 });
+  });
+
+  it("hints a below-list amount and percent while the typed price undercuts the product's list price", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // PRODUCT_A lists at 300; typing 200 is 100 under, 33.3%.
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
+    expect(screen.getByText("$1.00 below list (33.3%)")).toBeInTheDocument();
+  });
+
+  it("hints an above-list amount and percent while the typed price exceeds the product's list price", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // PRODUCT_A lists at 300; typing 400 is 100 over, 33.3%.
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "4.00" } });
+    expect(screen.getByText("$1.00 above list (33.3%)")).toBeInTheDocument();
+  });
+
+  it("hints an above-list amount with NO percent when the product's list price is zero", async () => {
+    mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultPriceMinorUnits: 0 }, PRODUCT_B]);
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "5.00" } });
+    expect(screen.getByText("$5.00 above list")).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+  });
+
+  it("shows no hint when the selected product has no list price", async () => {
+    mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultPriceMinorUnits: null }, PRODUCT_B]);
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
+    expect(screen.queryByText(/list/)).not.toBeInTheDocument();
+  });
+
   it("tracks the edited quantity live in the eggs column during an inline edit", async () => {
     const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
     fireEvent.click(within(row).getByRole("button", { name: "edit" }));
