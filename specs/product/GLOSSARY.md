@@ -479,13 +479,19 @@ Price is per selling unit (decimal money, stored as integer minor units),
 prefilled from the product's default and editable per line.
 
 **List price (#720)** — a **sales line's** product's default price as it stood
-the moment the line was added, snapshotted onto the line
-(`list_unit_price_cents`, spec §10.5) so a later catalogue re-price can never
-reinterpret a recorded order. Recorded only when the product's currency code
-and minor unit both match the order's — otherwise `null`, meaning "no
-comparable list price," a real answer distinct from missing data. Adding a
-line also refuses (`SalesOrder.ListPriceChanged`) if the catalogue's price
-moved between when the seller last saw it and when the line is submitted.
+the moment the line was added, snapshotted onto the line in **minor units of
+the order's currency** — not literally cents, though the spec column is named
+`list_unit_price_cents` (spec §10.5, that section's own `_cents` naming
+convention throughout; the persisted/API name is `ListUnitPriceMinorUnits`) —
+so a later catalogue re-price can never reinterpret a recorded order.
+Recorded only when the product's currency code and minor unit both match the
+order's — otherwise `null`, meaning "no comparable list price," a real answer
+distinct from missing data. Adding a line refuses (`SalesOrder.ListPriceChanged`)
+only when the caller states what list price it last saw and that no longer
+matches the catalogue's current one: the SPA always states it — including
+stating that it saw no list price at all — but a raw API caller or either
+seeder that passes no expectation is deliberately unaffected by a catalogue
+move.
 
 **Discount (#720)** — a *derived*, *per-line* amount: the gap between a
 **sales line's** **list price** and what it actually sold for, computed for
