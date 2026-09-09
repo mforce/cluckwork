@@ -183,4 +183,25 @@ public sealed class AccountRenameServiceTests(CluckworkWebApplicationFactory fac
         var loser = outcomes[0].Success ? second : first;
         Assert.Equal(loser == first ? firstSlug : secondSlug, await SlugAsync(loser));
     }
+
+    [Fact]
+    public async Task Rename_AfterAnotherFarmClaimsARetiredCode_TargetsItsCurrentHolder()
+    {
+        var first = await factory.SeedAccountWithUserAsync(Unique("rename-retired-a"));
+        var second = await factory.SeedAccountWithUserAsync(Unique("rename-retired-b"));
+        var retired = Slug(first);
+        var firstNew = Target("left", first);
+        var secondNew = Target("now", second);
+
+        Assert.True((await RenameAsync(retired, firstNew)).Success);
+        Assert.True((await RenameAsync(Slug(second), retired)).Success);
+        var outcome = await RenameAsync(retired, secondNew);
+
+        Assert.True(outcome.Success);
+        Assert.Equal(firstNew, await SlugAsync(first));
+        Assert.Equal(secondNew, await SlugAsync(second));
+        Assert.Equal(1, await factory.WithTenantScopeAsync(second, db => db.AuditEvents
+            .CountAsync(a => a.AccountId == second && a.Action == "Account.Rename"
+                && a.DetailsJson!.Contains("\"from\":\"" + retired + "\""))));
+    }
 }
