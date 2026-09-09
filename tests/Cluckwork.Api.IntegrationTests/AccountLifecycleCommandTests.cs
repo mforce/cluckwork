@@ -387,4 +387,14 @@ public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory 
         Assert.Contains("missing-farm", result.Stderr);
         Assert.Equal(before, await VersionAsync(accountId));
     }
+
+    [Fact]
+    public async Task RenameVerb_InvalidCodeWithControlCharacters_StillWritesOneStderrLine()
+    {
+        var result = await RunRename("missing-farm", "\"bad\ncode\"");
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.DoesNotContain('\n', result.Stderr.TrimEnd('\r', '\n'));
+        Assert.Contains("'bad code' is not a valid farm code", result.Stderr);
+    }
 }

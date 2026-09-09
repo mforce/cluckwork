@@ -60,8 +60,14 @@ public sealed class RenameAccountCliCommand : ICliCommand
             var newSlug = Account.TryValidateSlug(requested);
             if (newSlug.IsFailure)
             {
+                // #732 review round 1 (F4) — the description QUOTES the rejected value,
+                // which is raw argv: a code carrying a newline (or any control character)
+                // would break this verb's one-line stderr contract and let the second line
+                // forge whatever an operator's terminal reads next. Same char.IsControl
+                // strip list-accounts applies to the tenant-controlled farm name (#560).
                 await Console.Error.WriteLineAsync(
-                    $"rename-account failed: {newSlug.Error.Code} — {newSlug.Error.Description}");
+                    $"rename-account failed: {newSlug.Error.Code} — "
+                    + ListAccountsCliCommand.SanitizeForDisplay(newSlug.Error.Description));
                 return 1;
             }
 
