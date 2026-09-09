@@ -397,4 +397,20 @@ public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory 
         Assert.DoesNotContain('\n', result.Stderr.TrimEnd('\r', '\n'));
         Assert.Contains("'bad code' is not a valid farm code", result.Stderr);
     }
+
+    // #732 review round 2 — the SECOND stderr path that quotes raw argv. The
+    // unknown-code line prints the operator's --slug value, so a code carrying a
+    // newline broke this verb's one-line contract exactly as the rejected
+    // --new-slug did. Round 1 sanitized one line; both now go through the single
+    // WriteErrorAsync sink, and this test is what makes a third unsanitized line
+    // impossible to add unnoticed.
+    [Fact]
+    public async Task RenameVerb_UnknownCurrentCodeWithControlCharacters_StillWritesOneStderrLine()
+    {
+        var result = await RunRename("\"bad\ncode\"", "valid-target");
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.DoesNotContain('\n', result.Stderr.TrimEnd('\r', '\n'));
+        Assert.Contains("No farm with code 'bad code'.", result.Stderr);
+    }
 }

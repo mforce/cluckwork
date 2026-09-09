@@ -23,9 +23,24 @@ using Microsoft.Extensions.DependencyInjection;
 //   * Existing sessions keep working: cookies and tokens bind to the account id. What
 //     goes stale is client-side and cosmetic — the remembered code on the sign-in form
 //     and the per-farm palette cache — and both refresh on the next explicit sign-in.
+//
+// EVERY stderr message this verb writes is sanitized at ONE sink (WriteErrorAsync).
+// Round 1 sanitized the rejected --new-slug line and left the unknown-code line raw,
+// which is the shape a per-line fix produces: the sink exists so an unsanitized stderr
+// line cannot be added here at all.
 public sealed class RenameAccountCliCommand : ICliCommand
 {
     public string Name => "rename-account";
+
+    // #732 review round 2 — both stderr messages that quote raw argv (the rejected
+    // --new-slug, whose description quotes the value, and the unknown --slug) would
+    // otherwise break this verb's one-line contract and let a second line forge
+    // whatever an operator's terminal reads next. Same char.IsControl strip
+    // list-accounts applies to the tenant-controlled farm name (#560), applied to the
+    // whole assembled message rather than to one interpolation: the messages that are
+    // safe by construction pay nothing, and the ones that are not cannot be missed.
+    private static Task WriteErrorAsync(string message) =>
+        Console.Error.WriteLineAsync(ListAccountsCliCommand.SanitizeForDisplay(message));
 
     public async Task<int> RunAsync(WebApplication app, string[] args)
     {
@@ -41,7 +56,7 @@ public sealed class RenameAccountCliCommand : ICliCommand
             var current = AccountSlugLookup.Normalize(CliDispatcher.ArgValue(args, "--slug"));
             if (current is null)
             {
-                await Console.Error.WriteLineAsync(
+                await WriteErrorAsync(
                     "rename-account requires --slug <current-farm-code>.");
                 return 1;
             }
@@ -52,7 +67,7 @@ public sealed class RenameAccountCliCommand : ICliCommand
             var requested = CliDispatcher.ArgValue(args, "--new-slug");
             if (requested is null)
             {
-                await Console.Error.WriteLineAsync(
+                await WriteErrorAsync(
                     "rename-account requires --new-slug <new-farm-code>.");
                 return 1;
             }
@@ -60,21 +75,18 @@ public sealed class RenameAccountCliCommand : ICliCommand
             var newSlug = Account.TryValidateSlug(requested);
             if (newSlug.IsFailure)
             {
-                // #732 review round 1 (F4) — the description QUOTES the rejected value,
-                // which is raw argv: a code carrying a newline (or any control character)
-                // would break this verb's one-line stderr contract and let the second line
-                // forge whatever an operator's terminal reads next. Same char.IsControl
-                // strip list-accounts applies to the tenant-controlled farm name (#560).
-                await Console.Error.WriteLineAsync(
-                    $"rename-account failed: {newSlug.Error.Code} — "
-                    + ListAccountsCliCommand.SanitizeForDisplay(newSlug.Error.Description));
+                // The description QUOTES the rejected value, which is raw argv. It is
+                // NOT stripped here — WriteErrorAsync strips the assembled message, so
+                // this line reads exactly like the other four.
+                await WriteErrorAsync(
+                    $"rename-account failed: {newSlug.Error.Code} — {newSlug.Error.Description}");
                 return 1;
             }
 
             var accountId = await AccountSlugLookup.ResolveAsync(scope.ServiceProvider, current);
             if (accountId is null)
             {
-                await Console.Error.WriteLineAsync($"No farm with code '{current}'.");
+                await WriteErrorAsync($"No farm with code '{current}'.");
                 return 1;
             }
 
@@ -84,7 +96,7 @@ public sealed class RenameAccountCliCommand : ICliCommand
                 CancellationToken.None);
             if (result.IsFailure)
             {
-                await Console.Error.WriteLineAsync(
+                await WriteErrorAsync(
                     $"rename-account failed: {result.Error.Code} — {result.Error.Description}");
                 return 1;
             }
@@ -105,7 +117,7 @@ public sealed class RenameAccountCliCommand : ICliCommand
             // Fail-loud per the family's contract: an unexpected error (DB unreachable, a
             // lost concurrency race) is exit 1 and one clean stderr line, never a stack
             // trace. The service's transaction rolls back, so nothing is half-changed.
-            await Console.Error.WriteLineAsync($"rename-account failed: {ex.Message}");
+            await WriteErrorAsync($"rename-account failed: {ex.Message}");
             return 1;
         }
     }
