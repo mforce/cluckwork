@@ -21,6 +21,20 @@ public sealed class AddOrderItemValidator : AbstractValidator<AddOrderItemComman
         RuleFor(x => x.ExpectedEggsPerUnit).GreaterThan(0)
             .WithErrorCode("OrderItem.ExpectedEggsPerUnit.Positive")
             .When(x => x.ExpectedEggsPerUnit is not null);
+        // #720 — GreaterThanOrEqualTo, NOT GreaterThan like its sibling above.
+        // A conversion factor is floored at 1, but a list price of ZERO is a
+        // legal product price (Product.cs rejects only negatives), so a
+        // GreaterThan(0) rule here would refuse a valid expectation for a
+        // zero-priced product. This matches UnitPriceMinorUnits' own rule.
+        RuleFor(x => x.ExpectedListUnitPriceMinorUnits).GreaterThanOrEqualTo(0)
+            .WithErrorCode("OrderItem.ExpectedListUnitPrice.NonNegative")
+            .When(x => x.ExpectedListUnitPriceMinorUnits is not null);
+        // A caller cannot both name an expected price and say it saw none.
+        RuleFor(x => x)
+            .Must(x => !(x.ExpectedListPriceIsUnset && x.ExpectedListUnitPriceMinorUnits is not null))
+            .WithName("ExpectedListPriceIsUnset")
+            .WithMessage("Cannot expect an unset list price and a value at the same time.")
+            .WithErrorCode("OrderItem.ExpectedListPrice.Contradictory");
         // quantity * price must not overflow long (Money.Multiply is unchecked) —
         // wrap-around would store a negative line/order total.
         RuleFor(x => x)

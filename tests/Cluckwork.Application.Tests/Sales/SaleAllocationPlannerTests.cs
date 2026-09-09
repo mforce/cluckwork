@@ -20,7 +20,8 @@ public sealed class SaleAllocationPlannerTests
         var order = SalesOrder.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "SO-PLAN", Today, "USD");
         foreach (var (gradeId, quantity) in lines)
-            order.AddItem(Guid.NewGuid(), ProductType.Egg, gradeId, ProductUnit.Egg, 1, quantity, Money.Zero("USD"));
+            order.AddItem(Guid.NewGuid(), ProductType.Egg, gradeId, ProductUnit.Egg, 1, quantity, Money.Zero("USD"),
+                null, ListPriceBasis.ProductUnpriced);
         return order;
     }
 

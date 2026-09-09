@@ -13,7 +13,9 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
     private sealed record IdDto(Guid Id);
     private sealed record CustomerDto(
         Guid Id, string Name, string Phone, string? Email, string? Address, string? Note, int Version);
-    private sealed record OrderItemDto(Guid Id, Guid EggGradeId, int Quantity, long UnitPriceMinorUnits);
+    private sealed record OrderItemDto(
+        Guid Id, Guid EggGradeId, int Quantity, long UnitPriceMinorUnits,
+        long? ListUnitPriceMinorUnits = null);
     private sealed record OrderDto(
         Guid Id, Guid CustomerId, string ReferenceNumber, string Status,
         long TotalMinorUnits, string CurrencyCode, List<OrderItemDto> Items);
@@ -159,6 +161,13 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
         var expected = order!.Items.Sum(i => i.Quantity * i.UnitPriceMinorUnits);
         Assert.Equal(expected, order.TotalMinorUnits);
         Assert.Equal(responses.Count(r => r.StatusCode == HttpStatusCode.Created), order.Items.Count);
+
+        // #720 — this race test previously read only Quantity x UnitPrice, so a
+        // list price dropped or corrupted on either branch was invisible to it.
+        // This fixture's product carries no default price (SetupAsync seeds it
+        // via SeedProductAsync with no defaultPriceMinorUnits), so there is no
+        // comparable list price to snapshot.
+        Assert.All(order.Items, i => Assert.Null(i.ListUnitPriceMinorUnits));
     }
 
     [Fact]

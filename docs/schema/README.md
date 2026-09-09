@@ -64,7 +64,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.InventoryLots](public.InventoryLots.md) | 12 |  | BASE TABLE |
 | [public.ProductEggGradeMappings](public.ProductEggGradeMappings.md) | 4 |  | BASE TABLE |
 | [public.Payments](public.Payments.md) | 14 |  | BASE TABLE |
-| [public.SalesOrderItems](public.SalesOrderItems.md) | 13 |  | BASE TABLE |
+| [public.SalesOrderItems](public.SalesOrderItems.md) | 15 |  | BASE TABLE |
 | [public.EggInventoryMovements](public.EggInventoryMovements.md) | 9 |  | BASE TABLE |
 | [public.InventoryMovements](public.InventoryMovements.md) | 13 |  | BASE TABLE |
 | [public.SalesOrderAllocations](public.SalesOrderAllocations.md) | 7 |  | BASE TABLE |
@@ -518,6 +518,8 @@ erDiagram
   varchar_3_ UnitPriceCurrencyCode
   integer UnitPriceCurrencyMinorUnit
   uuid AccountId
+  bigint ListUnitPriceMinorUnits
+  varchar_16_ ListPriceBasis
 }
 "public.EggInventoryMovements" {
   uuid Id

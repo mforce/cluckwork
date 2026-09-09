@@ -63,6 +63,28 @@ public sealed class AddOrderItemHandler(
                 $"The eggs-per-unit definition for '{unit}' is now {conversion.EggsPerUnit}, not {expected} — " +
                 "re-check the quantity and try again."));
 
+        // #720 — "did the catalogue move under the seller?" A bare long? cannot
+        // tell OMITTED (no opinion: raw API callers, both seeders) from
+        // EXPECTED-UNSET (the seller looked and saw no list price). Zero is a
+        // legal list price, so it cannot be a sentinel. Hence the companion
+        // flag: an expectation exists when either is present, and then the
+        // comparison runs on the raw nullable values, so ALL FOUR transitions
+        // are covered — unchanged, number→number, number→null, and null→number.
+        // That last one is the case this guard originally missed: a seller who
+        // saw "No list price" while an admin was pricing the product would
+        // otherwise have the line snapshot a number nobody had shown them.
+        var listPriceExpectationGiven =
+            command.ExpectedListUnitPriceMinorUnits is not null
+            || command.ExpectedListPriceIsUnset;
+        if (listPriceExpectationGiven
+            && command.ExpectedListUnitPriceMinorUnits != product.DefaultPriceMinorUnits)
+            return Result.Failure<Guid>(Error.Validation(
+                "SalesOrder.ListPriceChanged",
+                $"This product's list price is now " +
+                $"{(product.DefaultPriceMinorUnits?.ToString() ?? "unset")}, not " +
+                $"{(command.ExpectedListUnitPriceMinorUnits?.ToString() ?? "unset")} — " +
+                "re-check the price and try again."));
+
         // Price defaults from the product (per selling unit).
         var priceMinorUnits = command.UnitPriceMinorUnits ?? product.DefaultPriceMinorUnits;
         if (priceMinorUnits is null)
@@ -96,9 +118,42 @@ public sealed class AddOrderItemHandler(
             order.TotalAmount.CurrencyCode,
             order.TotalAmount.CurrencyMinorUnit);
 
+        // #720 — the LIST price this line was sold against, snapshotted so a
+        // later catalogue re-price can never reinterpret a recorded order
+        // (spec §10.5 — the rule BaseUnitFactor already follows).
+        //
+        // Recorded ONLY when the product's denomination matches the order's:
+        // the same currency CODE and the same MINOR UNIT. The column is a bare
+        // long? with no currency of its own, so it is meaningful only if the
+        // line's UnitPrice columns describe it — and they do exactly when this
+        // condition holds. On a mismatch we store NULL: "no comparable list
+        // price" is a true statement, where the raw integer would be a number
+        // in an unknown denomination.
+        //
+        // Note the minor-unit half. The guard above compares CODE only, which
+        // is the gap SalesPage.tsx:191-203 records: a prefill 100x out,
+        // arriving as an EXPLICIT price, on the one path that guard skips.
+        // #123's currency lock makes a mismatch unreachable through the API
+        // today; this is recorded history, so "unreachable" is not enough.
+        // #720 — the value and its BASIS are decided together, in one expression,
+        // so they cannot disagree. Every branch below is reachable: an unpriced
+        // product is legal, and the denomination branch is the backstop #123's
+        // currency lock makes unreachable through the API today.
+        var (listUnitPriceMinorUnits, listPriceBasis) =
+            product.DefaultPriceMinorUnits is not { } catalogListPrice
+                ? ((long?)null, ListPriceBasis.ProductUnpriced)
+                : !string.Equals(
+                      product.CurrencyCode,
+                      order.TotalAmount.CurrencyCode,
+                      StringComparison.OrdinalIgnoreCase)
+                  || product.CurrencyMinorUnit != order.TotalAmount.CurrencyMinorUnit
+                    ? ((long?)null, ListPriceBasis.NotComparable)
+                    : (catalogListPrice, ListPriceBasis.Recorded);
+
         var result = order.AddItem(
             product.Id, product.ProductType, grade.Id,
-            unit, conversion.EggsPerUnit, command.Quantity, unitPrice);
+            unit, conversion.EggsPerUnit, command.Quantity, unitPrice,
+            listUnitPriceMinorUnits, listPriceBasis);
         if (result.IsFailure)
             return Result.Failure<Guid>(result.Error);
 

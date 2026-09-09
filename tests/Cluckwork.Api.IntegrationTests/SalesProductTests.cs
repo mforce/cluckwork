@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 // #99 — sales lines sell products in packed units. The line snapshots the
 // grade mapping and the eggs-per-unit factor at creation; allocation runs on
@@ -13,7 +14,8 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
     private sealed record ItemCreated(Guid OrderId, Guid ItemId);
     private sealed record ItemDto(
         Guid Id, Guid ProductId, Guid EggGradeId, string Unit, int BaseUnitFactor,
-        int Quantity, int QuantityBase, long UnitPriceMinorUnits);
+        int Quantity, int QuantityBase, long UnitPriceMinorUnits,
+        long? ListUnitPriceMinorUnits = null);
     private sealed record OrderDto(Guid Id, string Status, long TotalMinorUnits, List<ItemDto> Items);
     private sealed record ConversionRow(Guid Id, string UnitCode, int EggsPerUnit, bool Active, int Version);
 
@@ -290,6 +292,37 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
             (await AddLineAsync(client, orderId, foreign, 1, price: 500)).StatusCode);
     }
 
+    [Fact]
+    public async Task AddLine_SameCurrencyCodeDifferentMinorUnit_SnapshotsNoListPrice()
+    {
+        var (client, accountId, farmId, grades, _) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        // "USD" with minor unit 0 against a USD(2) order. The CODE agrees, so
+        // the handler's pre-existing ProductPriceCurrencyMismatch guard sees
+        // nothing wrong — only #720's minor-unit clause catches this. 1234 here
+        // means $1234, not $12.34; snapshotting it would be a 100x error, and
+        // it is the exact hazard SalesPage.tsx:191-203 already documents.
+        var skewed = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Products.Add(Cluckwork.Domain.Catalog.Product.Create(
+                skewed, accountId, farmId, "Skewed-scale eggs",
+                Cluckwork.Domain.Catalog.ProductType.Egg,
+                Cluckwork.Domain.Catalog.ProductUnit.Egg,
+                defaultPriceMinorUnits: 1234, "USD", 0, notes: null));
+            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Catalog.ProductEggGradeMapping.Create(
+                Guid.NewGuid(), accountId, skewed, grades["Large"]));
+            await db.SaveChangesAsync();
+        });
+
+        Assert.Equal(HttpStatusCode.Created,
+            (await AddLineAsync(client, orderId, skewed, 1, price: 80)).StatusCode);
+
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        Assert.Null(order!.Items.Single().ListUnitPriceMinorUnits);
+    }
+
     // The trap the guard above would otherwise spring (codex review of #159).
     // An UNPRICED product does not lock the farm currency, so this sequence is
     // entirely legal: create it unpriced, change the farm currency, then give
@@ -347,6 +380,150 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         var orderId = await CreateDraftAsync(client);
         Assert.Equal(HttpStatusCode.Created,
             (await AddLineAsync(client, orderId, productId, 1)).StatusCode);
+    }
+
+    [Fact]
+    public async Task AddLine_SnapshotsTheProductsListPrice()
+    {
+        var (client, _, _, _, productId) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        await AddLineAsync(client, orderId, productId, 1, price: 80);
+
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        // 100 is SetupAsync's seeded default price, read from the fixture.
+        Assert.Equal(100, order!.Items.Single().ListUnitPriceMinorUnits);
+    }
+
+    [Fact]
+    public async Task AddLine_UnpricedProduct_SnapshotsNoListPrice()
+    {
+        var (client, _, _, _, productId) = await SetupAsync(defaultPrice: null);
+        var orderId = await CreateDraftAsync(client);
+
+        // An unpriced product needs an explicit price or the handler 422s
+        // SalesOrder.PriceRequired.
+        await AddLineAsync(client, orderId, productId, 1, price: 80);
+
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        Assert.Null(order!.Items.Single().ListUnitPriceMinorUnits);
+    }
+
+    // #720 R4 — ListPriceBasis is deliberately not on the API response (the
+    // read surfaces render all three NULL reasons alike), so these read it
+    // back through the DbContext rather than the sales GET.
+    [Fact]
+    public async Task AddLine_RecordsBasis_Recorded_WhenPricedAndComparable()
+    {
+        var (client, accountId, _, _, productId) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        await AddLineAsync(client, orderId, productId, 1, price: 80);
+
+        var basis = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.SalesOrderItems.SingleAsync(i => i.SalesOrderId == orderId)).ListPriceBasis);
+        Assert.Equal(Cluckwork.Domain.Sales.ListPriceBasis.Recorded, basis);
+    }
+
+    [Fact]
+    public async Task AddLine_RecordsBasis_ProductUnpriced_ForAnUnpricedProduct()
+    {
+        var (client, accountId, _, _, productId) = await SetupAsync(defaultPrice: null);
+        var orderId = await CreateDraftAsync(client);
+
+        await AddLineAsync(client, orderId, productId, 1, price: 80);
+
+        var basis = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.SalesOrderItems.SingleAsync(i => i.SalesOrderId == orderId)).ListPriceBasis);
+        Assert.Equal(Cluckwork.Domain.Sales.ListPriceBasis.ProductUnpriced, basis);
+    }
+
+    [Fact]
+    public async Task AddLine_RecordsBasis_NotComparable_ForAMinorUnitMismatch()
+    {
+        var (client, accountId, farmId, grades, _) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        // Same fixture shape as AddLine_SameCurrencyCodeDifferentMinorUnit_SnapshotsNoListPrice.
+        var skewed = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Products.Add(Cluckwork.Domain.Catalog.Product.Create(
+                skewed, accountId, farmId, "Skewed-scale eggs",
+                Cluckwork.Domain.Catalog.ProductType.Egg,
+                Cluckwork.Domain.Catalog.ProductUnit.Egg,
+                defaultPriceMinorUnits: 1234, "USD", 0, notes: null));
+            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Catalog.ProductEggGradeMapping.Create(
+                Guid.NewGuid(), accountId, skewed, grades["Large"]));
+            await db.SaveChangesAsync();
+        });
+
+        await AddLineAsync(client, orderId, skewed, 1, price: 80);
+
+        var basis = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.SalesOrderItems.SingleAsync(i => i.SalesOrderId == orderId)).ListPriceBasis);
+        Assert.Equal(Cluckwork.Domain.Sales.ListPriceBasis.NotComparable, basis);
+    }
+
+    [Fact]
+    public async Task AddLine_RefusesWhenTheListPriceMovedUnderTheSeller()
+    {
+        var (client, _, _, _, productId) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new
+            {
+                productId, quantity = 1, unitPriceMinorUnits = 80,
+                expectedListUnitPriceMinorUnits = 999,   // seeded default is 100
+            });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("ListPriceChanged", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task AddLine_WithoutAnExpectedListPrice_IsUnaffected()
+    {
+        var (client, _, _, _, productId) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        Assert.Equal(HttpStatusCode.Created,
+            (await AddLineAsync(client, orderId, productId, 1, price: 80)).StatusCode);
+    }
+
+    [Fact]
+    public async Task AddLine_RefusesWhenAnUnpricedProductGainedAListPrice()
+    {
+        var (client, _, _, grades, productId) = await SetupAsync(defaultPrice: null);
+        var orderId = await CreateDraftAsync(client);
+
+        // The seller saw "No list price". Price the product behind their back.
+        // This file's existing PUT-product pattern (see GradeRepoint_OldLinesKeepTheirGrade)
+        // is what updates a product; there is no PutWithKeyAsync helper here.
+        var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/products/{productId}")
+        {
+            Content = JsonContent.Create(new
+            {
+                name = "Large Eggs", defaultUnit = "Egg",
+                defaultPriceMinorUnits = (long?)500, eggGradeId = grades["Large"],
+                notes = (string?)null,
+            })
+        };
+        put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(put)).StatusCode);
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new
+            {
+                productId, quantity = 1, unitPriceMinorUnits = 80,
+                expectedListPriceIsUnset = true,
+            });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("ListPriceChanged", await response.Content.ReadAsStringAsync());
     }
 
     private sealed record SettingsView(AccountView Settings, bool CanChangeCurrency);

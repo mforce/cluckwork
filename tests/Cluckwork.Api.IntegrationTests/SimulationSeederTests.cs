@@ -642,13 +642,15 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             .ToListAsync();
 
         // A second full seed pass converges rather than doubling — same
-        // five products (#396 added the two condition grades), 101 customers
-        // (#627's over-cap band), six orders (2 draft + 2
-        // confirmed-unpaid + 1 confirmed-partially-paid + 1 recurring
+        // six products (#396 added the two condition grades; #720 added the
+        // unpriced product used for the "no comparable list price" render
+        // state), 101 customers (#627's over-cap band), six orders (2 draft +
+        // 2 confirmed-unpaid + 1 confirmed-partially-paid + 1 recurring
         // confirmed, #243 Task 3d's RecurringStartDay/RecurringCadenceDays
         // drip — exactly one point lands inside a 12-day HistoryDays window)
-        // as a single pass.
-        Assert.Equal(5, products.Count);
+        // as a single pass. #720's below/above/unpriced lines land on the two
+        // EXISTING drafts, so the order count is untouched.
+        Assert.Equal(6, products.Count);
         Assert.Equal(101, customers.Count);
         Assert.Equal(6, orders.Count);
         Assert.DoesNotContain(products.GroupBy(p => p.Name), g => g.Count() > 1);

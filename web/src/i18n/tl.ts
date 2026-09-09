@@ -328,7 +328,15 @@ export const tl = {
     // Table headers (shared across the items / payments / orders tables)
     qty: "Dami",
     eggs: "Itlog",
+    listPrice: "Presyo sa listahan",
     unitPrice: "Presyo bawat yunit",
+    discount: "Diskwento",
+    noListPrice: "Walang presyo sa listahan",
+    aboveList: "Higit sa presyo sa listahan",
+    listPriceHintBelow: "{{amount}} mas mababa sa presyo sa listahan ({{percent}}%)",
+    listPriceHintAbove: "{{amount}} higit sa presyo sa listahan ({{percent}}%)",
+    listPriceHintAboveNoPct: "{{amount}} higit sa presyo sa listahan",
+    listPriceHintBelowNoPct: "{{amount}} mas mababa sa presyo sa listahan",
     lineTotal: "Kabuuan ng linya",
     reference: "Reference",
     amount: "Halaga",
@@ -2357,6 +2365,12 @@ export const tl = {
       + "kailanman binabago ng muling pagtukoy sa isang karton ang mga lumang order. Kung naglo-load pa ang order, "
       + "mananatiling sarado ang panel kapag pinili ang <strong>isara</strong>. Piliin muli ang <strong>buksan</strong> para tingnan ang order."
       + " Kapag na-refresh ang order, matatapos ang pag-edit kung hindi na ito draft o wala na ang linya. Susunod sa bagong datos ang mga field na hindi mo binago. Kung may hindi ka pa nai-save at nagbago ang dami o presyong natanggap, mananatili ang iyong mga inilagay at hindi muna magagamit ang i-save. Piliin ang <strong>i-load muli ang linya</strong> upang palitan ang parehong field ng pinakahuling natanggap na halaga. Hindi nito nakikita ang mga pagbabagong ginawa matapos ang huling pagkuha ng datos.",
+    salesListPrice:
+      "Ipinapakita rin ng bawat linya ang <strong>Presyo sa listahan</strong> nito — ang presyo ng produkto "
+      + "noong idinagdag ang linya — katabi ng <strong>Diskwento</strong> na kinalkula mula rito: isang "
+      + "halaga at porsyento kapag naibenta sa mas mababa sa listahan, <strong>Higit sa presyo sa "
+      + "listahan</strong> kapag naibenta nang mas mataas, at \"Walang presyo sa listahan\" kapag walang "
+      + "maikukumpara.",
     salesConfirming:
       "Ang <strong>Pagkumpirma</strong> ng isang order ay naglalaan ng aktwal na stock — pinakalumang lote "
       + "muna — at ito ang sandali kung saan lumilipat ang inventory.",
@@ -2916,6 +2930,21 @@ export const tl = {
 
     glossaryCancelOrderTerm: "Kanselahin (order)",
     glossaryCancelOrderDef: "Isara ang isang draft na hindi natuloy. Walang kinalaman na stock. Itinatago lang ng isara ang panel; piliin ang buksan para tingnan itong muli.",
+
+    glossaryListPriceTerm: "Presyo sa listahan",
+    glossaryListPriceDef:
+      "Ang presyo ng produkto nang idagdag ang linya, na iniingatan kasama ng linya para ang susunod na "
+      + "pagbabago ng presyo ay hindi na muling isulat ang isang nakaraang order. Ipinapakita bilang "
+      + "\"Walang presyo sa listahan\" kapag walang presyong maikukumpara ang produkto.",
+
+    glossaryDiscountTerm: "Diskwento",
+    glossaryDiscountDef:
+      "Gaano kababa ang naibenta ng isang linya kumpara sa sarili nitong presyo sa listahan, ipinapakita "
+      + "kada linya. Iba ito sa diskwentong maaaring ilagay ng nagbebenta sa buong order — ito ay "
+      + "awtomatikong nakukuha, hindi ilinalagay.",
+
+    glossaryAboveListTerm: "Higit sa presyo sa listahan",
+    glossaryAboveListDef: "Isang linyang naibenta nang higit sa sarili nitong presyo sa listahan.",
 
     glossaryInventoryItemTerm: "Item sa imbentaryo",
     glossaryInventoryItemDef:

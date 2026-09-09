@@ -331,7 +331,8 @@ internal static class TestHarness
                     Guid.NewGuid(), accountId, product.Id, eggGradeId));
                 order.AddItem(product.Id, Cluckwork.Domain.Catalog.ProductType.Egg, eggGradeId,
                     Cluckwork.Domain.Catalog.ProductUnit.Egg, 1, quantity,
-                    Cluckwork.Domain.Common.Money.Zero("USD"));
+                    Cluckwork.Domain.Common.Money.Zero("USD"),
+                    null, Cluckwork.Domain.Sales.ListPriceBasis.ProductUnpriced);
             }
             db.SalesOrders.Add(order);
             await db.SaveChangesAsync();

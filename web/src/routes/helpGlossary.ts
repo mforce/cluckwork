@@ -70,6 +70,9 @@ const ENTRIES = [
   { key: "WorkerSaleAllocation", group: "salesMoney", spec: "Worker sale allocation policy" },
   { key: "CurrencyLock", group: "salesMoney", spec: "Currency change rule" },
   { key: "TooManyReports", group: "salesMoney", spec: "Report query bounding + concurrency limit" },
+  { key: "ListPrice", group: "salesMoney", spec: "List price" },
+  { key: "Discount", group: "salesMoney", spec: "Discount" },
+  { key: "AboveList", group: "salesMoney", spec: "Above list" },
   // Feed, water & supplies
   { key: "InventoryItem", group: "supplies", spec: "Inventory item" },
   { key: "InventoryLot", group: "supplies", spec: "Inventory lot" },

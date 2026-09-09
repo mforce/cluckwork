@@ -478,6 +478,45 @@ redefining a packed unit only affects future lines, never recorded ones.
 Price is per selling unit (decimal money, stored as integer minor units),
 prefilled from the product's default and editable per line.
 
+**List price (#720)** — a **sales line's** product's default price as it stood
+the moment the line was added, snapshotted onto the line in **minor units of
+the order's currency** — not literally cents, though the spec column is named
+`list_unit_price_cents` (spec §10.5, that section's own `_cents` naming
+convention throughout; the persisted/API name is `ListUnitPriceMinorUnits`) —
+so a later catalogue re-price can never reinterpret a recorded order.
+Recorded only when the product's currency code and minor unit both match the
+order's — otherwise `null`, meaning "no comparable list price," a real answer
+distinct from missing data. Adding a line refuses (`SalesOrder.ListPriceChanged`)
+only when the caller states what list price it last saw and that no longer
+matches the catalogue's current one: the SPA states it whenever the selected
+product is still in its current product list — including stating that it saw
+no list price at all — but sends neither field once that product has dropped
+out of the list (a pinned test covers exactly this after a rejection-triggered
+refresh), and a raw API caller or either seeder that passes no expectation is
+deliberately unaffected by a catalogue move.
+
+A `null` list price now carries a recorded reason (`list_price_basis`): the
+product had no default price, the denominations did not match, or the line
+predates this pair of columns entirely. Not on the **JSON read API**
+(`SalesOrderItemResponse`), and the **screen** renders every reason alike —
+but the **Admin-only CSV export** carries the basis by name. That last reason
+is distinguishable from the first two on purpose — a pre-migration line's
+`null` means *we do not know* whether it was discounted, while the other two
+are recorded facts that no discount is computable at all. #727 gates an
+Owner/Manager approval on that difference.
+
+**Discount (#720)** — a *derived*, *per-line* amount: the gap between a
+**sales line's** **list price** and what it actually sold for, computed for
+display only and never stored. This is a different number from
+`sales_orders.discount_cents` (spec §10.4), which is an *entered*,
+*order-level* amount a seller applies manually to the whole order — the two
+share a name and nothing else.
+
+**Above list (#720)** — the state where a **sales line** sold for more than
+its **list price**. Shown next to the List price and Discount columns on the
+order line table; a line at exactly list price shows an em dash instead of a
+discount, and a line with no comparable list price shows neither.
+
 **Void** — undo of a mistaken confirm (requires a reason): the allocated
 quantities return to the *exact* egg lots they were drawn from (recorded at
 confirm as lot-level allocations), preserving FIFO order and any withdrawal

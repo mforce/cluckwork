@@ -17,7 +17,7 @@ Customers, orders, FIFO allocations, payments, expenses, products.
 | [public.Expenses](public.Expenses.md) | 12 |  | BASE TABLE |
 | [public.ProductEggGradeMappings](public.ProductEggGradeMappings.md) | 4 |  | BASE TABLE |
 | [public.Payments](public.Payments.md) | 14 |  | BASE TABLE |
-| [public.SalesOrderItems](public.SalesOrderItems.md) | 13 |  | BASE TABLE |
+| [public.SalesOrderItems](public.SalesOrderItems.md) | 15 |  | BASE TABLE |
 | [public.SalesOrderAllocations](public.SalesOrderAllocations.md) | 7 |  | BASE TABLE |
 
 ## Relations
@@ -158,6 +158,8 @@ erDiagram
   varchar_3_ UnitPriceCurrencyCode
   integer UnitPriceCurrencyMinorUnit
   uuid AccountId
+  bigint ListUnitPriceMinorUnits
+  varchar_16_ ListPriceBasis
 }
 "public.SalesOrderAllocations" {
   uuid Id

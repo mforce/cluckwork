@@ -17,6 +17,8 @@
 | UnitPriceCurrencyCode | varchar(3) |  | false |  |  |  |
 | UnitPriceCurrencyMinorUnit | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| ListUnitPriceMinorUnits | bigint |  | true |  |  |  |
+| ListPriceBasis | varchar(16) |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -32,6 +34,7 @@
 | SalesOrderItems_BaseUnitFactor_not_null | n | NOT NULL "BaseUnitFactor" |
 | SalesOrderItems_EggGradeId_not_null | n | NOT NULL "EggGradeId" |
 | SalesOrderItems_Id_not_null | n | NOT NULL "Id" |
+| SalesOrderItems_ListPriceBasis_not_null | n | NOT NULL "ListPriceBasis" |
 | SalesOrderItems_ProductId_not_null | n | NOT NULL "ProductId" |
 | SalesOrderItems_ProductTypeSnapshot_not_null | n | NOT NULL "ProductTypeSnapshot" |
 | SalesOrderItems_QuantityBase_not_null | n | NOT NULL "QuantityBase" |
@@ -79,6 +82,8 @@ erDiagram
   varchar_3_ UnitPriceCurrencyCode
   integer UnitPriceCurrencyMinorUnit
   uuid AccountId
+  bigint ListUnitPriceMinorUnits
+  varchar_16_ ListPriceBasis
 }
 "public.SalesOrderAllocations" {
   uuid Id

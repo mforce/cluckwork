@@ -27,7 +27,7 @@ public sealed class SalesOrderTests
     public void Cancel_Confirmed_Fails()
     {
         var order = MakeDraft();
-        order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"));
+        order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"), null, ListPriceBasis.ProductUnpriced);
         order.Confirm();
 
         var result = order.Cancel();
@@ -39,8 +39,8 @@ public sealed class SalesOrderTests
     public void RemoveItem_RecalculatesTotal_AndBumpsVersion()
     {
         var order = MakeDraft();
-        var keep = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, new Money(100, "USD", 2)).Value;
-        var drop = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 5, new Money(200, "USD", 2)).Value;
+        var keep = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, new Money(100, "USD", 2), null, ListPriceBasis.ProductUnpriced).Value;
+        var drop = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 5, new Money(200, "USD", 2), null, ListPriceBasis.ProductUnpriced).Value;
         var before = order.Version;
 
         var result = order.RemoveItem(drop.Id);
@@ -56,13 +56,98 @@ public sealed class SalesOrderTests
     public void UpdateItem_RecalculatesTotal()
     {
         var order = MakeDraft();
-        var item = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, new Money(100, "USD", 2)).Value;
+        var item = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, new Money(100, "USD", 2), null, ListPriceBasis.ProductUnpriced).Value;
 
         var result = order.UpdateItem(item.Id, 4, new Money(250, "USD", 2));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1000, order.TotalAmount.MinorUnits);
         Assert.Equal(4, order.Items[0].Quantity);
+    }
+
+    [Fact]
+    public void AddItem_StoresTheListPriceItWasGiven()
+    {
+        var order = SalesOrder.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "SO-1",
+            new DateOnly(2026, 1, 1), "USD");
+
+        var item = order.AddItem(
+            Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10,
+            new Money(400, "USD", 2), listUnitPriceMinorUnits: 450, listPriceBasis: ListPriceBasis.Recorded).Value;
+
+        Assert.Equal(450, item.ListUnitPriceMinorUnits);
+    }
+
+    [Theory]
+    [InlineData(450L, ListPriceBasis.Recorded)]
+    [InlineData(null, ListPriceBasis.ProductUnpriced)]
+    [InlineData(null, ListPriceBasis.NotComparable)]
+    public void AddItem_AcceptsEveryHonestPairing(long? listPrice, ListPriceBasis basis)
+    {
+        var order = SalesOrder.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "SO-1",
+            new DateOnly(2026, 1, 1), "USD");
+
+        var item = order.AddItem(
+            Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10,
+            new Money(400, "USD", 2), listPrice, basis).Value;
+
+        Assert.Equal(listPrice, item.ListUnitPriceMinorUnits);
+        Assert.Equal(basis, item.ListPriceBasis);
+    }
+
+    [Theory]
+    [InlineData(null, ListPriceBasis.Recorded)]      // the zero-value trap
+    [InlineData(450L, ListPriceBasis.ProductUnpriced)]
+    [InlineData(450L, ListPriceBasis.NotComparable)]
+    [InlineData(450L, ListPriceBasis.PreDating)]
+    [InlineData(null, ListPriceBasis.PreDating)]
+    public void AddItem_RefusesAnImpossiblePairing(long? listPrice, ListPriceBasis basis)
+    {
+        var order = SalesOrder.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "SO-1",
+            new DateOnly(2026, 1, 1), "USD");
+
+        Assert.Throws<ArgumentException>(() => order.AddItem(
+            Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10,
+            new Money(400, "USD", 2), listPrice, basis));
+    }
+
+    // #720 R10 — a cast can mint a ListPriceBasis no member names. (ListPriceBasis)99
+    // passes the pairing check with either price shape (false != false, since it is
+    // not Recorded) and is not PreDating, so without a defined-member check it would
+    // persist. Enum.IsDefined is checked BEFORE the pairing check for exactly this.
+    [Theory]
+    [InlineData(null)]
+    [InlineData(450L)]
+    public void AddItem_RefusesAnUndefinedBasis(long? listPrice)
+    {
+        var order = SalesOrder.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "SO-1",
+            new DateOnly(2026, 1, 1), "USD");
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => order.AddItem(
+            Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10,
+            new Money(400, "USD", 2), listPrice, (ListPriceBasis)99));
+    }
+
+    [Fact]
+    public void UpdateItem_LeavesListUnitPriceUntouched()
+    {
+        var order = SalesOrder.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "SO-1",
+            new DateOnly(2026, 1, 1), "USD");
+        var item = order.AddItem(
+            Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10,
+            new Money(400, "USD", 2), listUnitPriceMinorUnits: 450, listPriceBasis: ListPriceBasis.Recorded).Value;
+
+        order.UpdateItem(item.Id, 20, new Money(300, "USD", 2));
+
+        // The line records what it was SOLD AGAINST. Editing quantity or price
+        // does not change what the list price WAS when the line was written.
+        Assert.Equal(450, item.ListUnitPriceMinorUnits);
+        Assert.Equal(300, item.UnitPrice.MinorUnits);
     }
 
     [Fact]
@@ -78,7 +163,7 @@ public sealed class SalesOrderTests
     public void RemoveItem_OnConfirmed_Fails()
     {
         var order = MakeDraft();
-        var item = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD")).Value;
+        var item = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"), null, ListPriceBasis.ProductUnpriced).Value;
         order.Confirm();
 
         var result = order.RemoveItem(item.Id);
@@ -92,7 +177,7 @@ public sealed class SalesOrderTests
         var order = MakeDraft();
         order.Cancel();
 
-        var result = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"));
+        var result = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"), null, ListPriceBasis.ProductUnpriced);
         Assert.True(result.IsFailure);
         Assert.Equal("SalesOrder.NotDraft", result.Error.Code);
     }
@@ -103,7 +188,7 @@ public sealed class SalesOrderTests
     public void CheckCanConfirm_Draft_WithItems_Succeeds_AndDoesNotMutate()
     {
         var order = MakeDraft();
-        order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"));
+        order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"), null, ListPriceBasis.ProductUnpriced);
         var before = order.Version;
 
         var result = order.CheckCanConfirm();
@@ -134,7 +219,7 @@ public sealed class SalesOrderTests
     private static SalesOrder MakeConfirmed()
     {
         var order = MakeDraft();
-        order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"));
+        order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"), null, ListPriceBasis.ProductUnpriced);
         order.Confirm();
         return order;
     }

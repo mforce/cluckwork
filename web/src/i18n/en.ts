@@ -400,7 +400,23 @@ export const en = {
     // Table headers (shared across the items / payments / orders tables)
     qty: "Qty",
     eggs: "Eggs",
+    listPrice: "List price",
     unitPrice: "Unit price",
+    discount: "Discount",
+    noListPrice: "No list price",
+    aboveList: "Above list",
+    // #720 — live hints under the add-line price field, mirroring the amount
+    // the line will snapshot as ListUnitPriceMinorUnits if submitted now.
+    listPriceHintBelow: "{{amount}} below list ({{percent}}%)",
+    listPriceHintAbove: "{{amount}} above list ({{percent}}%)",
+    // A zero list price is a legal product price (Product.cs rejects only
+    // negatives) — dividing by it for a percent would be a NaN/Infinity, so
+    // this variant carries the amount only.
+    listPriceHintAboveNoPct: "{{amount}} above list",
+    // A negative typed price (min={0} is a validation constraint, not an
+    // input filter) can reach the below branch against a zero list price —
+    // same NaN/Infinity hazard, same amount-only fallback.
+    listPriceHintBelowNoPct: "{{amount}} below list",
     lineTotal: "Line total",
     reference: "Reference",
     amount: "Amount",
@@ -2796,6 +2812,11 @@ export const en = {
       + "changes old orders. Choose <strong>close</strong> while an order loads to keep the panel closed; "
       + "choose <strong>open</strong> again to view it."
       + " When an order refreshes, editing ends if it is no longer a draft or the line is gone. Unedited inputs follow the refreshed line. If you have unsaved inputs and the fetched quantity or price changed, your inputs stay visible and save is blocked. Choose <strong>reload line</strong> to replace both inputs with the latest fetched values. Changes made after the last fetch are not detected here.",
+    salesListPrice:
+      "Each line also shows its <strong>List price</strong> — the product's price when the line was "
+      + "added — next to a <strong>Discount</strong> worked out from it: an amount and a percent when sold "
+      + "under list, <strong>Above list</strong> when sold over, and \"No list price\" when there's nothing "
+      + "to compare against.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",
@@ -3322,6 +3343,20 @@ export const en = {
 
     glossaryCancelOrderTerm: "Cancel (order)",
     glossaryCancelOrderDef: "Close a draft that never happened. No stock involved. The close link only hides the panel; use open to view it again.",
+
+    glossaryListPriceTerm: "List price",
+    glossaryListPriceDef:
+      "The product's price at the moment a line was added, kept with the line so a later price change "
+      + "never rewrites a past order. Shown as \"No list price\" when the product had none to compare "
+      + "against.",
+
+    glossaryDiscountTerm: "Discount",
+    glossaryDiscountDef:
+      "How much a sale line sold under its own list price, shown per line. Different from the order-level "
+      + "discount a seller can type in — this one is worked out for you, never entered.",
+
+    glossaryAboveListTerm: "Above list",
+    glossaryAboveListDef: "A line sold for more than its own list price.",
 
     glossaryInventoryItemTerm: "Inventory item",
     glossaryInventoryItemDef:

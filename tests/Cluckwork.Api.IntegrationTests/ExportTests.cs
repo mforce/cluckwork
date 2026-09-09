@@ -70,6 +70,79 @@ public sealed class ExportTests(CluckworkWebApplicationFactory factory)
         Assert.Contains("dirtyGradeId", entriesHeader, StringComparison.Ordinal);
     }
 
+    // #720 R6 — the two ListPriceBasis columns shipped with no test, against
+    // this file's own precedent above: header AND value, for a Recorded price
+    // and a ProductUnpriced null, not just presence. Plus a length guard —
+    // ExportQueries.cs pairs a string[] header with an object?[] value
+    // projection by hand, and nothing else stops a future column landing in
+    // one array and not the other, which would shift every cell silently.
+    [Fact]
+    public async Task Export_CarriesTheListPriceAndItsBasis()
+    {
+        var (client, accountId, farmId, _) = await SetupAsync();
+
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var grade = Domain.Eggs.EggGrade.Create(
+                Guid.NewGuid(), accountId, farmId, "Export Grade",
+                Domain.Eggs.EggGradeType.Size, 60, isSaleable: true,
+                dailyEntryKind: Domain.Eggs.DailyEntryKind.Manual);
+            db.EggGrades.Add(grade);
+
+            var priced = Domain.Catalog.Product.Create(
+                Guid.NewGuid(), accountId, farmId, "Priced export product",
+                Domain.Catalog.ProductType.Egg, Domain.Catalog.ProductUnit.Egg,
+                500, "USD", 2, notes: null);
+            var unpriced = Domain.Catalog.Product.Create(
+                Guid.NewGuid(), accountId, farmId, "Unpriced export product",
+                Domain.Catalog.ProductType.Egg, Domain.Catalog.ProductUnit.Egg,
+                null, "USD", 2, notes: null);
+            db.Products.AddRange(priced, unpriced);
+            db.ProductEggGradeMappings.AddRange(
+                Domain.Catalog.ProductEggGradeMapping.Create(Guid.NewGuid(), accountId, priced.Id, grade.Id),
+                Domain.Catalog.ProductEggGradeMapping.Create(Guid.NewGuid(), accountId, unpriced.Id, grade.Id));
+
+            var customer = Domain.Sales.Customer.Create(Guid.NewGuid(), accountId, "Export Customer", "555-0000");
+            db.Customers.Add(customer);
+
+            var orderId = Guid.NewGuid();
+            var order = Domain.Sales.SalesOrder.Create(
+                orderId, accountId, customer.Id, $"SO-{orderId.ToString()[..8]}",
+                DateOnly.FromDateTime(DateTime.UtcNow.Date), "USD");
+            order.AddItem(priced.Id, Domain.Catalog.ProductType.Egg, grade.Id,
+                Domain.Catalog.ProductUnit.Egg, 1, 5, new Domain.Common.Money(80, "USD", 2),
+                500L, Domain.Sales.ListPriceBasis.Recorded);
+            order.AddItem(unpriced.Id, Domain.Catalog.ProductType.Egg, grade.Id,
+                Domain.Catalog.ProductUnit.Egg, 1, 3, new Domain.Common.Money(80, "USD", 2),
+                null, Domain.Sales.ListPriceBasis.ProductUnpriced);
+            db.SalesOrders.Add(order);
+            await db.SaveChangesAsync();
+        });
+
+        var csv = await (await client.GetAsync("/api/v1/export/sales-order-items"))
+            .Content.ReadAsStringAsync();
+        var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var header = lines[0];
+
+        // Header, then the value — a header-only check passes against a
+        // column wired to the wrong property.
+        Assert.Contains("listUnitPriceMinorUnits", header, StringComparison.Ordinal);
+        Assert.Contains("listPriceBasis", header, StringComparison.Ordinal);
+
+        // The two new columns are the last two, right after currencyMinorUnit
+        // (2): "...,USD,2,500,Recorded" for the priced line, "...,USD,2,,ProductUnpriced"
+        // (an empty cell) for the unpriced one.
+        Assert.Contains(",USD,2,500,Recorded", csv, StringComparison.Ordinal);
+        Assert.Contains(",USD,2,,ProductUnpriced", csv, StringComparison.Ordinal);
+
+        // Length guard: nothing else stops a header column landing with no
+        // matching value column (or vice versa), which would shift every
+        // cell after it silently rather than fail loudly.
+        var headerFieldCount = header.Split(',').Length;
+        foreach (var line in lines.Skip(1))
+            Assert.Equal(headerFieldCount, line.Split(',').Length);
+    }
+
     [Fact]
     public async Task Export_IsAdminOnly_UnknownDatasetIs404()
     {

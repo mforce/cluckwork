@@ -101,6 +101,46 @@ function lineChanged(item: OrderItem, draft: EditorDraft): boolean {
   return item.quantity !== draft.serverQuantity || item.unitPriceMinorUnits !== draft.serverPrice;
 }
 
+// #720 — extracted from the initial load so the post-rejection refresh applies
+// the SAME filter. Two copies of this rule would drift, and the screen would
+// start offering a product that Add line then 422s (codex review of #100).
+function sellableProducts(products: Product[], grades: { id: string; isSaleable: boolean }[]): Product[] {
+  const saleable = new Set(grades.filter((x) => x.isSaleable).map((x) => x.id));
+  return products.filter((x) => x.active && x.eggGradeId !== null && saleable.has(x.eggGradeId));
+}
+
+// #720 — the discount a line gave away, and how it renders.
+//
+// Branch on the comparison DIRECTLY. There is no max(list - unit, 0) clamp:
+// the only branch that reads the difference is the below-list one, where it is
+// positive by construction, so a clamp there could never fire — and a guard
+// that cannot fire reads as safety without being any.
+//
+// The percent multiplier is 100, not 1000. fmt.count(value, fractionDigits?)
+// (useFormat.ts:17 — locale is already bound) renders the value AS GIVEN with
+// one fraction digit, so a x1000 scale would print
+// 111.1% where 11.1% is meant. Intl.NumberFormat's default roundingMode is
+// halfExpand — half-up for positives — which is the rounding wanted here, so
+// no rounding scaffolding is needed.
+type LineDiscount =
+  | { kind: "none" }            // no comparable list price
+  | { kind: "atList" }
+  | { kind: "below"; amountMinorUnits: number; percent: number }
+  | { kind: "above" };
+
+function lineDiscount(item: OrderItem): LineDiscount {
+  const list = item.listUnitPriceMinorUnits;
+  if (list === null) return { kind: "none" };
+  if (item.unitPriceMinorUnits > list) return { kind: "above" };
+  if (item.unitPriceMinorUnits === list) return { kind: "atList" };
+  const perUnit = list - item.unitPriceMinorUnits;
+  return {
+    kind: "below",
+    amountMinorUnits: perUnit * item.quantity,
+    percent: (perUnit * 100) / list,
+  };
+}
+
 // #23 + #24 (orders half): create a draft order, add/edit/remove graded lines,
 // confirm (FIFO allocation), cancel drafts, browse/filter the order list.
 export function SalesPage() {
@@ -386,9 +426,7 @@ export function SalesPage() {
       .then(([c, p, g]) => {
         setCustomers(c);
         setAllProducts(p);
-        const saleableGrades = new Set(g.filter((x) => x.isSaleable).map((x) => x.id));
-        const sellable = p.filter(
-          (x) => x.active && x.eggGradeId !== null && saleableGrades.has(x.eggGradeId));
+        const sellable = sellableProducts(p, g);
         setProducts(sellable);
         if (c.length > 0) {
           // #512 (T039) — the explicit first-customer default (FR-037): the
@@ -581,6 +619,15 @@ export function SalesPage() {
         {
           productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits,
           expectedEggsPerUnit: previewed ?? undefined,
+          ...(() => {
+            // #720 — presence matters: "the seller saw no list price" is an
+            // expectation, and it is not the same as having no opinion.
+            const shown = products.find((p) => p.id === productId);
+            if (!shown) return {};
+            return shown.defaultPriceMinorUnits === null
+              ? { expectedListPriceIsUnset: true }
+              : { expectedListUnitPriceMinorUnits: shown.defaultPriceMinorUnits };
+          })(),
         },
         keyFor(scope));
     } catch (err) {
@@ -588,7 +635,15 @@ export function SalesPage() {
       // UnitDefinitionChanged case) — refresh them so the preview and the
       // next attempt use the current factors instead of looping on stale
       // ones. Fire-and-forget: the thrown error still surfaces normally.
-      if (err instanceof ApiError) listEggUnitConversions().then(setConversions).catch(() => {});
+      // #720 — products too, not just conversions: a ListPriceChanged refusal
+      // means the catalogue moved, and without this the retry loops on the
+      // same stale price forever.
+      if (err instanceof ApiError) {
+        listEggUnitConversions().then(setConversions).catch(() => {});
+        Promise.all([listProducts({ includeInactive: true }), listEggGrades()])
+          .then(([p, g]) => { setAllProducts(p); setProducts(sellableProducts(p, g)); })
+          .catch(() => {});
+      }
       throw err;
     }
     const refreshed = await getOrder(id);
@@ -891,9 +946,11 @@ export function SalesPage() {
 
           {active.items.length > 0 && (
             <table className="data">
-              <thead><tr><th>{t("product")}</th><th className="num">{t("qty")}</th><th className="num">{t("eggs")}</th><th className="num">{t("unitPrice")}</th><th className="num">{t("lineTotal")}</th><th></th></tr></thead>
+              <thead><tr><th>{t("product")}</th><th className="num">{t("qty")}</th><th className="num">{t("eggs")}</th><th className="num">{t("listPrice")}</th><th className="num">{t("unitPrice")}</th><th className="num">{t("discount")}</th><th className="num">{t("lineTotal")}</th><th></th></tr></thead>
               <tbody>
-                {active.items.map((i) => (
+                {active.items.map((i) => {
+                  const discount = lineDiscount(i);
+                  return (
                   <tr key={i.id}>
                     <td>{productName(i.productId)}{" "}
                       <span className="muted">{t("perUnit", { unit: i.unit.toLowerCase() })}
@@ -914,6 +971,11 @@ export function SalesPage() {
                             quantity instead of going blank, so a unit/count
                             mix-up is visible mid-edit too. */}
                         <td className="num muted">{fmt.count(i.baseUnitFactor * editor.quantity)}</td>
+                        <td className="num muted">
+                          {i.listUnitPriceMinorUnits === null
+                            ? "—"
+                            : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
+                        </td>
                         <td className="num"><input className="cell" type="number" min={0}
                           aria-label={t("editUnitPriceAriaLabel")}
                           step={10 ** -active.currencyMinorUnit} value={editor.price}
@@ -921,6 +983,7 @@ export function SalesPage() {
                             const draft = editorRef.current;
                             if (draft) setEditor({ ...draft, price: e.target.value });
                           }} /></td>
+                        <td className="num">{discount.kind === "none" ? t("noListPrice") : "—"}</td>
                         <td className="num">—</td>
                         <td>
                           <BusyButton className="link" disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
@@ -938,7 +1001,23 @@ export function SalesPage() {
                       <>
                         <td className="num">{fmt.count(i.quantity)}</td>
                         <td className="num">{fmt.count(i.quantityBase)}</td>
+                        <td className="num">
+                          {i.listUnitPriceMinorUnits === null
+                            ? "—"
+                            : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
+                        </td>
                         <td className="num">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
+                        <td className="num">
+                          {discount.kind === "below"
+                            ? <span className="discount">
+                                {`${fmt.money(discount.amountMinorUnits, i.currencyCode, i.currencyMinorUnit)} · ${fmt.count(discount.percent, 1)}%`}
+                              </span>
+                            : discount.kind === "above"
+                              ? t("aboveList")
+                              : discount.kind === "none"
+                                ? t("noListPrice")
+                                : "—"}
+                        </td>
                         <td className="num">{fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</td>
                         <td>
                           {active.status === "Draft" && (
@@ -954,7 +1033,8 @@ export function SalesPage() {
                       </>
                     )}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -1020,6 +1100,42 @@ export function SalesPage() {
                 <BusyButton disabled={busy || !productId} busy={isPending("add-item")}
                   onClick={onAddItem}>{t("addLine")}</BusyButton>
               </div>
+              {/* #720 R11 — AFTER .form-grid, not a grid cell: a third child in
+                  a cell bottom-aligns under .form-grid's align-items:end and
+                  lifts that field's label/input above the row (R8, then R9's
+                  position:absolute chased the same shape into an overlap at
+                  420px in tl). In normal flow after the grid it wraps to any
+                  height in any locale with nothing to overlap. Knowing trade:
+                  it renders left-aligned under the whole form rather than
+                  under the Unit price input, which diverges from the artboard
+                  — the price of a layout that cannot overlap in any locale. */}
+              {(() => {
+                // #720 — the same amount AddOrderItemHandler would snapshot
+                // as ListUnitPriceMinorUnits if Add line were pressed now.
+                const list = products.find((p) => p.id === productId)?.defaultPriceMinorUnits ?? null;
+                if (list === null) return null;
+                const typed = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
+                if (!Number.isFinite(typed) || typed === list) return null;
+                const perUnit = Math.abs(typed - list);
+                const amount = fmt.money(perUnit, active.currencyCode, active.currencyMinorUnit);
+                // A zero list price is legal (Product.cs rejects only
+                // negatives) — dividing by it for a percent would be NaN/Infinity.
+                // <input min={0}> is a validation constraint, not an input
+                // filter, so a negative typed price against a zero list can
+                // still reach the below branch here.
+                if (typed < list) {
+                  return list === 0
+                    ? <p className="discount">{t("listPriceHintBelowNoPct", { amount })}</p>
+                    : <p className="discount">
+                        {t("listPriceHintBelow", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
+                      </p>;
+                }
+                return list === 0
+                  ? <p className="discount">{t("listPriceHintAboveNoPct", { amount })}</p>
+                  : <p className="discount">
+                      {t("listPriceHintAbove", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
+                    </p>;
+              })()}
               <div className="actions">
                 <BusyButton disabled={busy || active.items.length === 0}
                   busy={isPending(`confirm:${active.id}`)} onClick={() => void onConfirm()}>

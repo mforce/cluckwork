@@ -459,6 +459,29 @@ input[type="checkbox"] {
   min-width: 8rem;
 }
 
+/* #720 R11 — the live price hint. It sits AFTER .form-grid, not inside it: a
+   third child in a cell would bottom-align under align-items:end and lift
+   that field's label and input above the row (R8), and a fixed out-of-flow
+   reservation for it (R9) overlapped the Add line button once a translation
+   ran long enough to wrap past one line. In normal flow it wraps to any
+   height in any locale — es and tl are roughly twice en's length — with no
+   fixed reservation for a longer translation to overflow. Verified by
+   rendering at 1180px and 420px with the tl string. */
+.form-grid + .discount {
+  margin: 0 0 1.25rem;
+}
+
+/* #720 R11 — .form-grid is reused on eight other screens with no hint after
+   it, so this tightens ONLY the one that has one: a blanket margin-bottom
+   change on the bare .form-grid rule would have re-spaced every form on the
+   app for a gap this screen alone needed shortened. With the hint now
+   sitting right after this grid as a normal block, the ordinary 1.25rem gap
+   read as an orphaned paragraph floating between the add-line row and the
+   actions row rather than belonging to either. Checked by rendering. */
+.form-grid:has(+ .discount) {
+  margin-bottom: 0.4rem;
+}
+
 .inline-form {
   display: flex;
   gap: 0.5rem;
@@ -1107,6 +1130,15 @@ input.cell {
 .warn {
   color: var(--warn);
   font-weight: 700;
+}
+
+/* #720 — a below-list line's discount, and the live hint while typing one.
+   Same amber token as .warn (AA-checked in both themes) but its own class: a
+   discount is not a warning, and a later change to warning styling must not
+   silently restyle money. Weight matches .warn's emphasis without its meaning. */
+.discount {
+  color: var(--warn);
+  font-weight: 600;
 }
 
 /* #655 — a list/table's empty branch: icon, one sentence, the primary action. */

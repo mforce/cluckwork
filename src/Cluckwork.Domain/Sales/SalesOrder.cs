@@ -42,7 +42,8 @@ public sealed class SalesOrder : AggregateRoot<Guid>
     // recorded orders).
     public Result<SalesOrderItem> AddItem(
         Guid productId, Catalog.ProductType productTypeSnapshot, Guid eggGradeId,
-        Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice)
+        Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice,
+        long? listUnitPriceMinorUnits, ListPriceBasis listPriceBasis)
     {
         if (Status != SalesOrderStatus.Draft)
             return Result.Failure<SalesOrderItem>(Error.Domain(
@@ -57,7 +58,7 @@ public sealed class SalesOrder : AggregateRoot<Guid>
 
         var item = SalesOrderItem.Create(
             AccountId, Id, productId, productTypeSnapshot, eggGradeId,
-            unit, baseUnitFactor, quantity, unitPrice);
+            unit, baseUnitFactor, quantity, unitPrice, listUnitPriceMinorUnits, listPriceBasis);
         _items.Add(item);
         RecalculateTotal();
         // Version is the concurrency token (EF never auto-increments it): without
@@ -176,6 +177,26 @@ public sealed class SalesOrder : AggregateRoot<Guid>
 
 public enum SalesOrderStatus { Draft, Confirmed, Shipped, Invoiced, Cancelled, Voided }
 
+// #720 — why a line's ListUnitPriceMinorUnits is what it is. NULL alone cannot
+// say, and #727 gates an approval on the difference: for ProductUnpriced and
+// NotComparable, "no comparable list price" is a RECORDED FACT and no discount
+// is computable; for PreDating it means "we do not know", and the line may have
+// been deeply discounted. Those two need opposite treatment.
+//
+// PreDating is written by the backfill only. Nothing in the application ever
+// sets it — a row the code writes always knows its own basis.
+public enum ListPriceBasis
+{
+    /// <summary>A comparable list price was captured; ListUnitPriceMinorUnits is non-null.</summary>
+    Recorded,
+    /// <summary>The product had no default price at all.</summary>
+    ProductUnpriced,
+    /// <summary>The product's currency code or minor unit did not match the order's.</summary>
+    NotComparable,
+    /// <summary>The row predates the column. Backfill only — never written by the application.</summary>
+    PreDating,
+}
+
 public sealed class SalesOrderItem : Entity<Guid>
 {
     public Guid SalesOrderId { get; private set; }
@@ -191,6 +212,30 @@ public sealed class SalesOrderItem : Entity<Guid>
     public int QuantityBase { get; private set; }
     /// <summary>Price per selling unit.</summary>
     public Money UnitPrice { get; private set; } = null!;
+    /// <summary>
+    /// The product's list price at the moment this line was added, in the
+    /// ORDER's currency and minor unit — see AddOrderItemHandler, which is the
+    /// only thing that sets it and only when those agree. <see cref="Update"/>
+    /// does not re-resolve it: editing a line's quantity or price never
+    /// changes what the catalogue said when the line was added (INV-1). NULL
+    /// means "no comparable list price", which covers three cases: the product
+    /// had none, the line predates the column, or the denominations did not
+    /// match (#720). Not on the JSON read API — the ListPriceBasis property
+    /// below carries the distinction — and the screen renders all three
+    /// alike, but the Admin-only CSV export carries the basis by name. That
+    /// denomination check is what makes a bare long? honest, and it
+    /// backstops a state the #123 currency lock makes unreachable today — a
+    /// priced product locks the farm currency (CurrencyBoundRowProbe.cs:24).
+    /// </summary>
+    public long? ListUnitPriceMinorUnits { get; private set; }
+    /// <summary>
+    /// Why <see cref="ListUnitPriceMinorUnits"/> is what it is (#720). Paired with
+    /// it by construction: Recorded IFF the value is non-null — enforced by the
+    /// throw in <see cref="SalesOrderItem.Create"/>, not merely documented. Set
+    /// once at line creation and never re-resolved, exactly like the value
+    /// itself (INV-1).
+    /// </summary>
+    public ListPriceBasis ListPriceBasis { get; private set; }
     public Money LineTotal => UnitPrice.Multiply(Quantity);
 
     private SalesOrderItem() { }
@@ -208,8 +253,36 @@ public sealed class SalesOrderItem : Entity<Guid>
     internal static SalesOrderItem Create(
         Guid accountId, Guid orderId, Guid productId,
         Catalog.ProductType productTypeSnapshot, Guid eggGradeId,
-        Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice)
+        Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice,
+        long? listUnitPriceMinorUnits, ListPriceBasis listPriceBasis)
     {
+        // #720 R10 — a cast can produce a value no member names: (ListPriceBasis)99
+        // passes the pairing check below (false != false) and is not PreDating,
+        // so without this it would persist. Checked FIRST: the later guards
+        // reason about named members and are meaningless for a value that is
+        // not one.
+        if (!Enum.IsDefined(listPriceBasis))
+            throw new ArgumentOutOfRangeException(
+                nameof(listPriceBasis), listPriceBasis,
+                "ListPriceBasis must be a defined member.");
+        // #720 R5 — the pairing is enforced here, not merely documented. Recorded
+        // means "a comparable list price was captured", so it is true exactly when
+        // the value is non-null; anything else is a row that satisfies no reader —
+        // Recorded claims a fact it does not have, and #727 routes on that claim.
+        // An invariant violation, so it throws rather than returning Result:
+        // no caller can supply this by accident once the default is gone.
+        if (listUnitPriceMinorUnits is not null != (listPriceBasis == ListPriceBasis.Recorded))
+            throw new ArgumentException(
+                $"ListPriceBasis.{listPriceBasis} cannot pair with a " +
+                $"{(listUnitPriceMinorUnits is null ? "null" : "non-null")} list price.",
+                nameof(listPriceBasis));
+        // PreDating is written by the backfill only. Enforcing that here turns the
+        // enum comment into a rule the application cannot break.
+        if (listPriceBasis == ListPriceBasis.PreDating)
+            throw new ArgumentException(
+                "ListPriceBasis.PreDating is backfill-only and cannot be written by the application.",
+                nameof(listPriceBasis));
+
         return new SalesOrderItem
         {
             AccountId = accountId,
@@ -221,7 +294,9 @@ public sealed class SalesOrderItem : Entity<Guid>
             BaseUnitFactor = baseUnitFactor,
             Quantity = quantity,
             QuantityBase = quantity * baseUnitFactor,
-            UnitPrice = unitPrice
+            UnitPrice = unitPrice,
+            ListUnitPriceMinorUnits = listUnitPriceMinorUnits,
+            ListPriceBasis = listPriceBasis
         };
     }
 }

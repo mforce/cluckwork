@@ -112,6 +112,7 @@ function draftWithItem(currencyMinorUnit: number, currencyCode: string, unitPric
   const item: OrderItem = {
     id: "e1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
     quantity: 3, quantityBase: 36, unitPriceMinorUnits: unitPrice, currencyCode, currencyMinorUnit,
+    listUnitPriceMinorUnits: null,
   };
   return { ...draftEmpty(currencyMinorUnit, currencyCode, id), referenceNumber: "SO-5", items: [item], totalMinorUnits: unitPrice * 3 };
 }
@@ -121,10 +122,16 @@ function draftWithItem(currencyMinorUnit: number, currencyCode: string, unitPric
 const ITEM_A: OrderItem = {
   id: "it1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
   quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+  // 375, not 300: a list price EQUAL to unitPriceMinorUnits would render the
+  // same "$3.00" text in both the list-price and unit-price cells, breaking
+  // "shows per-line base eggs and money" below, which asserts on rowA's
+  // unit price by bare text.
+  listUnitPriceMinorUnits: 375,
 };
 const ITEM_B: OrderItem = {
   id: "it2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
   quantity: 2, quantityBase: 60, unitPriceMinorUnits: 1000, currencyCode: "USD", currencyMinorUnit: 2,
+  listUnitPriceMinorUnits: 1200,
 };
 const DRAFT_TWO: SalesOrder = {
   ...draftEmpty(2, "USD", "o2"), referenceNumber: "SO-2", totalMinorUnits: 2900, items: [ITEM_A, ITEM_B],
@@ -539,6 +546,158 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     expect(await screen.findByText("= 180 eggs")).toBeInTheDocument(); // 30 × fresh 6
   });
 
+  it("sends the product's list price as the expectation on the add-item request", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    // PRODUCT_A's own default (300), not the typed price — the point is to
+    // catch the CATALOGUE moving, not to echo what the seller typed.
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    expect(mockAddOrderItem.mock.calls[0][1]).toMatchObject({ expectedListUnitPriceMinorUnits: 300 });
+  });
+
+  it("sends expectedListPriceIsUnset when the shown product has no list price", async () => {
+    // #720 R2 — "the seller saw no list price" is an expectation, distinct
+    // from having no opinion at all; it must ride as its OWN flag, not be
+    // silently dropped alongside "no value".
+    mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultPriceMinorUnits: null }, PRODUCT_B]);
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    const body = mockAddOrderItem.mock.calls[0][1];
+    expect(body).toMatchObject({ expectedListPriceIsUnset: true });
+    expect(body).not.toHaveProperty("expectedListUnitPriceMinorUnits");
+  });
+
+  it("sends neither list-price field once the selected product drops out of the refreshed list", async () => {
+    // No opinion, not "the seller saw nothing": productId still names p1
+    // after a rejection-triggered refresh whose response no longer carries
+    // it — the same reachable-staleness shape as the refetch test below.
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockRejectedValueOnce(new ApiError(422, "SalesOrder.ListPriceChanged",
+      "This product's list price is now 999, not 300 — re-check the price and try again."));
+    mockListProducts.mockResolvedValue([PRODUCT_B]); // p1 (PRODUCT_A) is gone
+
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    expect(await screen.findByText(/is now 999, not 300/)).toBeInTheDocument();
+
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    const body = mockAddOrderItem.mock.calls[1][1];
+    expect(body).not.toHaveProperty("expectedListUnitPriceMinorUnits");
+    expect(body).not.toHaveProperty("expectedListPriceIsUnset");
+  });
+
+  it("refreshes products after a ListPriceChanged rejection, so the retry carries the current list price", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockRejectedValueOnce(new ApiError(422, "SalesOrder.ListPriceChanged",
+      "This product's list price is now 999, not 300 — re-check the price and try again."));
+    mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultPriceMinorUnits: 999 }, PRODUCT_B]);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    expect(await screen.findByText(/is now 999, not 300/)).toBeInTheDocument();
+
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    // Without the refetch this would still send the stale 300.
+    expect(mockAddOrderItem.mock.calls[1][1]).toMatchObject({ expectedListUnitPriceMinorUnits: 999 });
+  });
+
+  it("hints a below-list amount and percent while the typed price undercuts the product's list price", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // PRODUCT_A lists at 300; typing 200 is 100 under, 33.3%.
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
+    expect(screen.getByText("$1.00 below list (33.3%)")).toBeInTheDocument();
+  });
+
+  it("hints an above-list amount and percent while the typed price exceeds the product's list price", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    // PRODUCT_A lists at 300; typing 400 is 100 over, 33.3%.
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "4.00" } });
+    expect(screen.getByText("$1.00 above list (33.3%)")).toBeInTheDocument();
+  });
+
+  // #720 R11 — R8 (a hint inside its own grid cell) and R9 (position:absolute
+  // out of that cell) both broke on the SAME shape: a cell taller than its
+  // siblings floats above the row under .form-grid's align-items:end, and a
+  // fixed out-of-flow reservation for the hint overlapped Add line once a
+  // translation wrapped past one line. R11 removes the cell entirely — the
+  // hint is a normal block AFTER .form-grid, not a child of it — so the row
+  // is what holds the invariant now, not the hint's own positioning. This
+  // asserts the two facts that actually matter: every field (Unit price
+  // included) still shares one row with Add line, and the hint is NOT inside
+  // that row to begin with.
+  it("keeps the Unit price field in the same .form-grid row as Add line, with the hint OUTSIDE that row (#720 R11)", async () => {
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
+    const hint = screen.getByText("$1.00 below list (33.3%)");
+    const priceField = screen.getByLabelText(/Unit price/);
+    const addLineBtn = screen.getByRole("button", { name: "Add line" });
+    const row = priceField.closest(".form-grid");
+
+    expect(row).not.toBeNull();
+    expect(addLineBtn.closest(".form-grid")).toBe(row);
+    expect(row).not.toContainElement(hint);
+  });
+
+  it("hints an above-list amount with NO percent when the product's list price is zero", async () => {
+    mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultPriceMinorUnits: 0 }, PRODUCT_B]);
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "5.00" } });
+    expect(screen.getByText("$5.00 above list")).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+  });
+
+  it("hints a below-list amount with NO percent when the product's list price is zero", async () => {
+    // <input min={0}> is a validation constraint, not an input filter — a
+    // negative typed price is reachable (paste, keyboard) and would divide
+    // by a zero list price for the below branch's percent.
+    mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultPriceMinorUnits: 0 }, PRODUCT_B]);
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "-5.00" } });
+    expect(screen.getByText("$5.00 below list")).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+  });
+
+  it("shows no hint when the selected product has no list price", async () => {
+    mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultPriceMinorUnits: null }, PRODUCT_B]);
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
+    expect(screen.queryByText(/list/)).not.toBeInTheDocument();
+  });
+
   it("tracks the edited quantity live in the eggs column during an inline edit", async () => {
     const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
     fireEvent.click(within(row).getByRole("button", { name: "edit" }));
@@ -616,6 +775,80 @@ describe("SalesPage line display", () => {
     const row = await openOrder(draftWithItem(3, "BHD", 1500, "o4"), /Grade A Dozen/);
     expect(within(row).getByText("BHD 1.500")).toBeInTheDocument(); // unit price
     expect(within(row).getByText("BHD 4.500")).toBeInTheDocument(); // line total 1500 × 3
+  });
+});
+
+// #720 — the list price snapshot and the discount it implies, rendered per
+// line. Four states: none, at list, below list, above list.
+describe("SalesPage list price and discount (#720)", () => {
+  it('shows "No list price" when the line has none', async () => {
+    const row = await openOrder(draftWithItem(2, "USD", 500, "o-nolist"), /Grade A Dozen/);
+    expect(within(row).getByText(i18n.t("sales:noListPrice"))).toBeInTheDocument();
+  });
+
+  it("puts No list price in the DISCOUNT cell and an em dash in the LIST PRICE cell", async () => {
+    const row = await openOrder(draftWithItem(2, "USD", 500, "o-nolist-cells"), /Grade A Dozen/);
+    const cells = within(row).getAllByRole("cell");
+
+    // The design's four-state table, and the owner's mockup, put these two the
+    // way round below. It is not cosmetic: if "No list price" sits in the List
+    // price cell, the Discount cell falls through to an em dash — which is
+    // exactly what an AT-LIST line renders, so "we do not know" becomes
+    // indistinguishable from "no discount was given" (INV-3, criterion 6).
+    expect(cells[3]).toHaveTextContent("—");
+    expect(cells[5]).toHaveTextContent(i18n.t("sales:noListPrice"));
+    // #720 R7 — "we do not know" is not a discount either.
+    expect(cells[5]).not.toHaveClass("discount");
+  });
+
+  it("shows an em dash for the discount when the line sold exactly at list", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-atlist"),
+      referenceNumber: "SO-ATLIST",
+      totalMinorUnits: 900,
+      items: [{
+        id: "it-atlist", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: 300,
+      }],
+    };
+    const row = await openOrder(order, /Grade A Dozen/);
+    // The list price cell and the unit price cell show the same amount at list.
+    expect(within(row).getAllByText("$3.00")).toHaveLength(2);
+    expect(within(row).getByText("—")).toBeInTheDocument();
+    // #720 R7 — at list is not a discount; emphasising it would be the same
+    // "unknown reads as a discount" conflation this slice has already fixed
+    // twice (once for "No list price" landing in the wrong cell, R2).
+    expect(within(row).getByText("—")).not.toHaveClass("discount");
+  });
+
+  it("shows an amount and a percent when the line sold below list, emphasised", async () => {
+    // ITEM_B: sold 1000, list 1200 → 400 minor units back (200/unit × 2), 16.7%.
+    const row = await openOrder(DRAFT_TWO, /Grade B Tray/);
+    expect(within(row).getByText("$12.00")).toBeInTheDocument(); // list price
+    // #720 R7 — a text-only check would pass against an unstyled cell; the
+    // emphasis IS the point of this render, so the class is asserted too.
+    expect(within(row).getByText("$4.00 · 16.7%")).toHaveClass("discount");
+  });
+
+  it("shows Above list when the line sold above list", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-above"),
+      referenceNumber: "SO-ABOVE",
+      totalMinorUnits: 900,
+      items: [{
+        id: "it-above", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: 250,
+      }],
+    };
+    const row = await openOrder(order, /Grade A Dozen/);
+    expect(within(row).getByText("$2.50")).toBeInTheDocument(); // list price
+    expect(within(row).getByText(i18n.t("sales:aboveList"))).toBeInTheDocument();
+    // #720 R8 — a line that gave nothing away is not a discount either;
+    // applying the emphasis here survived as an untested mutant (M20) until
+    // this assertion existed.
+    expect(within(row).getByText(i18n.t("sales:aboveList"))).not.toHaveClass("discount");
   });
 });
 
@@ -731,6 +964,7 @@ describe("SalesPage price scale", () => {
         id: "e7", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 1500,
         currencyCode: "KWD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: 1200,
       }],
     };
     mockListOrders.mockResolvedValue([order]);

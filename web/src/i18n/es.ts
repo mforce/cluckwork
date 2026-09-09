@@ -312,7 +312,15 @@ export const es = {
     // Table headers (shared across the items / payments / orders tables)
     qty: "Cant.",
     eggs: "Huevos",
+    listPrice: "Precio de lista",
     unitPrice: "Precio unitario",
+    discount: "Descuento",
+    noListPrice: "Sin precio de lista",
+    aboveList: "Sobre el precio de lista",
+    listPriceHintBelow: "{{amount}} por debajo del precio de lista ({{percent}}%)",
+    listPriceHintAbove: "{{amount}} sobre el precio de lista ({{percent}}%)",
+    listPriceHintAboveNoPct: "{{amount}} sobre el precio de lista",
+    listPriceHintBelowNoPct: "{{amount}} por debajo del precio de lista",
     lineTotal: "Total de línea",
     reference: "Referencia",
     amount: "Monto",
@@ -2270,6 +2278,11 @@ export const es = {
       + "nunca cambia pedidos antiguos. Si el pedido aún se está cargando, <strong>cerrar</strong> mantiene "
       + "el panel cerrado. Use <strong>abrir</strong> de nuevo para verlo."
       + " Al actualizar un pedido, la edición termina si ya no es un borrador o la línea desapareció. Los campos sin editar adoptan los valores recibidos. Si hay cambios sin guardar y la cantidad o el precio recibidos cambiaron, se conservan sus datos y se bloquea guardar. Elija <strong>recargar línea</strong> para reemplazar ambos campos con los últimos valores recibidos. Aquí no se detectan cambios posteriores a la última consulta.",
+    salesListPrice:
+      "Cada línea también muestra su <strong>Precio de lista</strong> — el precio del producto cuando se "
+      + "agregó la línea — junto a un <strong>Descuento</strong> calculado a partir de él: un monto y un "
+      + "porcentaje cuando se vende por debajo de la lista, <strong>Sobre el precio de lista</strong> cuando "
+      + "se vende por encima, y \"Sin precio de lista\" cuando no hay nada con qué comparar.",
     salesConfirming:
       "<strong>Confirmar</strong> un pedido asigna existencias reales — los lotes más antiguos primero — y "
       + "es el punto donde el inventario cambia de manos.",
@@ -2819,6 +2832,21 @@ export const es = {
 
     glossaryCancelOrderTerm: "Cancelar (pedido)",
     glossaryCancelOrderDef: "Cerrar un borrador que nunca se concretó. No involucra existencias. El enlace cerrar solo oculta el panel; use abrir para verlo de nuevo.",
+
+    glossaryListPriceTerm: "Precio de lista",
+    glossaryListPriceDef:
+      "El precio del producto en el momento en que se agregó la línea, guardado junto con la línea para "
+      + "que un cambio de precio posterior nunca reescriba un pedido pasado. Se muestra como \"Sin precio "
+      + "de lista\" cuando el producto no tenía uno con el que comparar.",
+
+    glossaryDiscountTerm: "Descuento",
+    glossaryDiscountDef:
+      "Cuánto se vendió una línea por debajo de su propio precio de lista, mostrado por línea. Es "
+      + "distinto del descuento a nivel de pedido que un vendedor puede ingresar — este se calcula solo, "
+      + "nunca se ingresa.",
+
+    glossaryAboveListTerm: "Sobre el precio de lista",
+    glossaryAboveListDef: "Una línea que se vendió por más de su propio precio de lista.",
 
     glossaryInventoryItemTerm: "Artículo de inventario",
     glossaryInventoryItemDef:

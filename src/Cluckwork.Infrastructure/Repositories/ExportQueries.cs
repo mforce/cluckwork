@@ -169,14 +169,20 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.TotalAmount.MinorUnits, x.TotalAmount.CurrencyCode,
                       x.TotalAmount.CurrencyMinorUnit, x.VoidReason, x.Version]),
 
+            // #720 R5 (F3) — ListUnitPriceMinorUnits and ListPriceBasis included: the
+            // full-fidelity export of the table this column turned into a permanent
+            // money record, for an auditor or a #727 approver. Not #725's scope —
+            // that owns discount TOTALS in reports, not raw column fidelity here.
             "sales-order-items" => Rows(activeDb.SalesOrderItems.AsNoTracking()
                     .OrderBy(x => x.SalesOrderId).ThenBy(x => x.Id),
                 ["id", "salesOrderId", "productId", "productTypeSnapshot", "eggGradeId",
                  "unit", "baseUnitFactor", "quantity", "quantityBase",
-                 "unitPriceMinorUnits", "currencyCode", "currencyMinorUnit"],
+                 "unitPriceMinorUnits", "currencyCode", "currencyMinorUnit",
+                 "listUnitPriceMinorUnits", "listPriceBasis"],
                 x => [x.Id, x.SalesOrderId, x.ProductId, x.ProductTypeSnapshot, x.EggGradeId,
                       x.Unit, x.BaseUnitFactor, x.Quantity, x.QuantityBase,
-                      x.UnitPrice.MinorUnits, x.UnitPrice.CurrencyCode, x.UnitPrice.CurrencyMinorUnit]),
+                      x.UnitPrice.MinorUnits, x.UnitPrice.CurrencyCode, x.UnitPrice.CurrencyMinorUnit,
+                      x.ListUnitPriceMinorUnits, x.ListPriceBasis]),
 
             "sales-order-allocations" => Rows(activeDb.SalesOrderAllocations.AsNoTracking()
                     .OrderBy(x => x.SalesOrderId).ThenBy(x => x.Id),

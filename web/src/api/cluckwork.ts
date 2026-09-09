@@ -336,6 +336,11 @@ export interface OrderItem {
   unitPriceMinorUnits: number;
   currencyCode: string;
   currencyMinorUnit: number;
+  // #720 — REQUIRED, not optional, and deliberately so: an optional field is
+  // how a consumer silently forgets to render a state, and null here is a
+  // state the screen must show ("No list price"), not an absent value.
+  // Same currency and minor unit as unitPriceMinorUnits.
+  listUnitPriceMinorUnits: number | null;
 }
 
 export interface SalesOrder extends RecordHistory {
@@ -419,6 +424,8 @@ export const addOrderItem = (
     // if the definition changed in between, so the recorded QuantityBase can
     // never silently differ from the previewed one. Omit when nothing was shown.
     expectedEggsPerUnit?: number;
+    expectedListUnitPriceMinorUnits?: number;
+    expectedListPriceIsUnset?: boolean;
   },
   key?: string,
 ) => apiPost<{ orderId: string; itemId: string }>(`/sales/${orderId}/items`, body, key);
