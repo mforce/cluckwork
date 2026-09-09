@@ -42,7 +42,8 @@ public sealed class SalesOrder : AggregateRoot<Guid>
     // recorded orders).
     public Result<SalesOrderItem> AddItem(
         Guid productId, Catalog.ProductType productTypeSnapshot, Guid eggGradeId,
-        Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice)
+        Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice,
+        long? listUnitPriceMinorUnits = null)
     {
         if (Status != SalesOrderStatus.Draft)
             return Result.Failure<SalesOrderItem>(Error.Domain(
@@ -57,7 +58,7 @@ public sealed class SalesOrder : AggregateRoot<Guid>
 
         var item = SalesOrderItem.Create(
             AccountId, Id, productId, productTypeSnapshot, eggGradeId,
-            unit, baseUnitFactor, quantity, unitPrice);
+            unit, baseUnitFactor, quantity, unitPrice, listUnitPriceMinorUnits);
         _items.Add(item);
         RecalculateTotal();
         // Version is the concurrency token (EF never auto-increments it): without
@@ -191,6 +192,15 @@ public sealed class SalesOrderItem : Entity<Guid>
     public int QuantityBase { get; private set; }
     /// <summary>Price per selling unit.</summary>
     public Money UnitPrice { get; private set; } = null!;
+    /// <summary>
+    /// The product's list price at the moment this line was written, in the
+    /// ORDER's currency and minor unit — see AddOrderItemHandler, which is the
+    /// only thing that sets it and only when those agree. NULL means "no
+    /// comparable list price", which covers three cases the read surfaces
+    /// deliberately render alike: the product had none, the line predates the
+    /// column, or the denominations did not match (#720).
+    /// </summary>
+    public long? ListUnitPriceMinorUnits { get; private set; }
     public Money LineTotal => UnitPrice.Multiply(Quantity);
 
     private SalesOrderItem() { }
@@ -208,7 +218,8 @@ public sealed class SalesOrderItem : Entity<Guid>
     internal static SalesOrderItem Create(
         Guid accountId, Guid orderId, Guid productId,
         Catalog.ProductType productTypeSnapshot, Guid eggGradeId,
-        Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice)
+        Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice,
+        long? listUnitPriceMinorUnits = null)
     {
         return new SalesOrderItem
         {
@@ -221,7 +232,8 @@ public sealed class SalesOrderItem : Entity<Guid>
             BaseUnitFactor = baseUnitFactor,
             Quantity = quantity,
             QuantityBase = quantity * baseUnitFactor,
-            UnitPrice = unitPrice
+            UnitPrice = unitPrice,
+            ListUnitPriceMinorUnits = listUnitPriceMinorUnits
         };
     }
 }

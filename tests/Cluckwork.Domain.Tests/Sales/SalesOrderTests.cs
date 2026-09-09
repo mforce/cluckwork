@@ -66,6 +66,38 @@ public sealed class SalesOrderTests
     }
 
     [Fact]
+    public void AddItem_StoresTheListPriceItWasGiven()
+    {
+        var order = SalesOrder.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "SO-1",
+            new DateOnly(2026, 1, 1), "USD");
+
+        var item = order.AddItem(
+            Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10,
+            new Money(400, "USD", 2), listUnitPriceMinorUnits: 450).Value;
+
+        Assert.Equal(450, item.ListUnitPriceMinorUnits);
+    }
+
+    [Fact]
+    public void UpdateItem_LeavesListUnitPriceUntouched()
+    {
+        var order = SalesOrder.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "SO-1",
+            new DateOnly(2026, 1, 1), "USD");
+        var item = order.AddItem(
+            Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10,
+            new Money(400, "USD", 2), listUnitPriceMinorUnits: 450).Value;
+
+        order.UpdateItem(item.Id, 20, new Money(300, "USD", 2));
+
+        // The line records what it was SOLD AGAINST. Editing quantity or price
+        // does not change what the list price WAS when the line was written.
+        Assert.Equal(450, item.ListUnitPriceMinorUnits);
+        Assert.Equal(300, item.UnitPrice.MinorUnits);
+    }
+
+    [Fact]
     public void RemoveItem_UnknownItem_NotFound()
     {
         var order = MakeDraft();
