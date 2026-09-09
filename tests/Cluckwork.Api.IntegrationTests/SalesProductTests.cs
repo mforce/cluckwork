@@ -350,6 +350,33 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
             (await AddLineAsync(client, orderId, productId, 1)).StatusCode);
     }
 
+    [Fact]
+    public async Task AddLine_SnapshotsTheProductsListPrice()
+    {
+        var (client, _, _, _, productId) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        await AddLineAsync(client, orderId, productId, 1, price: 80);
+
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        // 100 is SetupAsync's seeded default price, read from the fixture.
+        Assert.Equal(100, order!.Items.Single().ListUnitPriceMinorUnits);
+    }
+
+    [Fact]
+    public async Task AddLine_UnpricedProduct_SnapshotsNoListPrice()
+    {
+        var (client, _, _, _, productId) = await SetupAsync(defaultPrice: null);
+        var orderId = await CreateDraftAsync(client);
+
+        // An unpriced product needs an explicit price or the handler 422s
+        // SalesOrder.PriceRequired.
+        await AddLineAsync(client, orderId, productId, 1, price: 80);
+
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        Assert.Null(order!.Items.Single().ListUnitPriceMinorUnits);
+    }
+
     private sealed record SettingsView(AccountView Settings, bool CanChangeCurrency);
     private sealed record AccountView(
         Guid Id, string Name, string CurrencyCode, int CurrencyMinorUnit, string CurrencySymbol,

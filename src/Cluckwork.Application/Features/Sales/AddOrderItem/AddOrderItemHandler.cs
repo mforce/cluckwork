@@ -96,9 +96,37 @@ public sealed class AddOrderItemHandler(
             order.TotalAmount.CurrencyCode,
             order.TotalAmount.CurrencyMinorUnit);
 
+        // #720 — the LIST price this line was sold against, snapshotted so a
+        // later catalogue re-price can never reinterpret a recorded order
+        // (spec §10.5 — the rule BaseUnitFactor already follows).
+        //
+        // Recorded ONLY when the product's denomination matches the order's:
+        // the same currency CODE and the same MINOR UNIT. The column is a bare
+        // long? with no currency of its own, so it is meaningful only if the
+        // line's UnitPrice columns describe it — and they do exactly when this
+        // condition holds. On a mismatch we store NULL: "no comparable list
+        // price" is a true statement, where the raw integer would be a number
+        // in an unknown denomination.
+        //
+        // Note the minor-unit half. The guard above compares CODE only, which
+        // is the gap SalesPage.tsx:191-203 records: a prefill 100x out,
+        // arriving as an EXPLICIT price, on the one path that guard skips.
+        // #123's currency lock makes a mismatch unreachable through the API
+        // today; this is recorded history, so "unreachable" is not enough.
+        var listUnitPriceMinorUnits =
+            product.DefaultPriceMinorUnits is { } catalogListPrice
+            && string.Equals(
+                product.CurrencyCode,
+                order.TotalAmount.CurrencyCode,
+                StringComparison.OrdinalIgnoreCase)
+            && product.CurrencyMinorUnit == order.TotalAmount.CurrencyMinorUnit
+                ? catalogListPrice
+                : (long?)null;
+
         var result = order.AddItem(
             product.Id, product.ProductType, grade.Id,
-            unit, conversion.EggsPerUnit, command.Quantity, unitPrice);
+            unit, conversion.EggsPerUnit, command.Quantity, unitPrice,
+            listUnitPriceMinorUnits);
         if (result.IsFailure)
             return Result.Failure<Guid>(result.Error);
 
