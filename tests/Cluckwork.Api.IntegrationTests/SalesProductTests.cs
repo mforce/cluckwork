@@ -436,6 +436,39 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
             (await AddLineAsync(client, orderId, productId, 1, price: 80)).StatusCode);
     }
 
+    [Fact]
+    public async Task AddLine_RefusesWhenAnUnpricedProductGainedAListPrice()
+    {
+        var (client, _, _, grades, productId) = await SetupAsync(defaultPrice: null);
+        var orderId = await CreateDraftAsync(client);
+
+        // The seller saw "No list price". Price the product behind their back.
+        // This file's existing PUT-product pattern (see GradeRepoint_OldLinesKeepTheirGrade)
+        // is what updates a product; there is no PutWithKeyAsync helper here.
+        var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/products/{productId}")
+        {
+            Content = JsonContent.Create(new
+            {
+                name = "Large Eggs", defaultUnit = "Egg",
+                defaultPriceMinorUnits = (long?)500, eggGradeId = grades["Large"],
+                notes = (string?)null,
+            })
+        };
+        put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(put)).StatusCode);
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new
+            {
+                productId, quantity = 1, unitPriceMinorUnits = 80,
+                expectedListPriceIsUnset = true,
+            });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("ListPriceChanged", await response.Content.ReadAsStringAsync());
+    }
+
     private sealed record SettingsView(AccountView Settings, bool CanChangeCurrency);
     private sealed record AccountView(
         Guid Id, string Name, string CurrencyCode, int CurrencyMinorUnit, string CurrencySymbol,

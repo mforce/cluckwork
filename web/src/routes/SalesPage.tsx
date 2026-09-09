@@ -618,12 +618,15 @@ export function SalesPage() {
         {
           productId, quantity: qty, unit, unitPriceMinorUnits: minorUnits,
           expectedEggsPerUnit: previewed ?? undefined,
-          // #720 — the list price this screen actually showed the seller. The
-          // server refuses (422 SalesOrder.ListPriceChanged) if the catalogue
-          // moved since the products list was read, rather than recording a
-          // discount against a number nobody saw.
-          expectedListUnitPriceMinorUnits:
-            products.find((p) => p.id === productId)?.defaultPriceMinorUnits ?? undefined,
+          ...(() => {
+            // #720 — presence matters: "the seller saw no list price" is an
+            // expectation, and it is not the same as having no opinion.
+            const shown = products.find((p) => p.id === productId);
+            if (!shown) return {};
+            return shown.defaultPriceMinorUnits === null
+              ? { expectedListPriceIsUnset: true }
+              : { expectedListUnitPriceMinorUnits: shown.defaultPriceMinorUnits };
+          })(),
         },
         keyFor(scope));
     } catch (err) {

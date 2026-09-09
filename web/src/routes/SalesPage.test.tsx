@@ -560,6 +560,49 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     expect(mockAddOrderItem.mock.calls[0][1]).toMatchObject({ expectedListUnitPriceMinorUnits: 300 });
   });
 
+  it("sends expectedListPriceIsUnset when the shown product has no list price", async () => {
+    // #720 R2 — "the seller saw no list price" is an expectation, distinct
+    // from having no opinion at all; it must ride as its OWN flag, not be
+    // silently dropped alongside "no value".
+    mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultPriceMinorUnits: null }, PRODUCT_B]);
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    const body = mockAddOrderItem.mock.calls[0][1];
+    expect(body).toMatchObject({ expectedListPriceIsUnset: true });
+    expect(body).not.toHaveProperty("expectedListUnitPriceMinorUnits");
+  });
+
+  it("sends neither list-price field once the selected product drops out of the refreshed list", async () => {
+    // No opinion, not "the seller saw nothing": productId still names p1
+    // after a rejection-triggered refresh whose response no longer carries
+    // it — the same reachable-staleness shape as the refetch test below.
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+    mockAddOrderItem.mockRejectedValueOnce(new ApiError(422, "SalesOrder.ListPriceChanged",
+      "This product's list price is now 999, not 300 — re-check the price and try again."));
+    mockListProducts.mockResolvedValue([PRODUCT_B]); // p1 (PRODUCT_A) is gone
+
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    expect(await screen.findByText(/is now 999, not 300/)).toBeInTheDocument();
+
+    mockAddOrderItem.mockResolvedValue({ orderId: "o1", itemId: "new" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add line" }));
+    });
+    const body = mockAddOrderItem.mock.calls[1][1];
+    expect(body).not.toHaveProperty("expectedListUnitPriceMinorUnits");
+    expect(body).not.toHaveProperty("expectedListPriceIsUnset");
+  });
+
   it("refreshes products after a ListPriceChanged rejection, so the retry carries the current list price", async () => {
     await renderReady();
     await createDraft(draftEmpty(2, "USD"));

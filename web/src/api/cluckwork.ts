@@ -425,6 +425,7 @@ export const addOrderItem = (
     // never silently differ from the previewed one. Omit when nothing was shown.
     expectedEggsPerUnit?: number;
     expectedListUnitPriceMinorUnits?: number;
+    expectedListPriceIsUnset?: boolean;
   },
   key?: string,
 ) => apiPost<{ orderId: string; itemId: string }>(`/sales/${orderId}/items`, body, key);

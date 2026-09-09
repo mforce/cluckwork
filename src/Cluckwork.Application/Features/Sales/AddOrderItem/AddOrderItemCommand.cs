@@ -14,4 +14,5 @@ namespace Cluckwork.Application.Features.Sales.AddOrderItem;
 public sealed record AddOrderItemCommand(
     Guid SalesOrderId, Guid ProductId, int Quantity,
     string? Unit, long? UnitPriceMinorUnits, int? ExpectedEggsPerUnit = null,
-    long? ExpectedListUnitPriceMinorUnits = null);
+    long? ExpectedListUnitPriceMinorUnits = null,
+    bool ExpectedListPriceIsUnset = false);

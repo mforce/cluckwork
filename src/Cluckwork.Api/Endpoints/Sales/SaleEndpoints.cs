@@ -110,7 +110,8 @@ public static class SaleEndpoints
 
         var command = new AddOrderItemCommand(
             id, request.ProductId, request.Quantity, request.Unit, request.UnitPriceMinorUnits,
-            request.ExpectedEggsPerUnit, request.ExpectedListUnitPriceMinorUnits);
+            request.ExpectedEggsPerUnit, request.ExpectedListUnitPriceMinorUnits,
+            request.ExpectedListPriceIsUnset);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
@@ -352,7 +353,8 @@ public sealed record VoidSaleRequest(string Reason);
 
 public sealed record AddOrderItemRequest(
     Guid ProductId, int Quantity, string? Unit, long? UnitPriceMinorUnits,
-    int? ExpectedEggsPerUnit = null, long? ExpectedListUnitPriceMinorUnits = null);
+    int? ExpectedEggsPerUnit = null, long? ExpectedListUnitPriceMinorUnits = null,
+    bool ExpectedListPriceIsUnset = false);
 
 public sealed record UpdateOrderItemRequest(int Quantity, long UnitPriceMinorUnits);
 

@@ -63,18 +63,26 @@ public sealed class AddOrderItemHandler(
                 $"The eggs-per-unit definition for '{unit}' is now {conversion.EggsPerUnit}, not {expected} — " +
                 "re-check the quantity and try again."));
 
-        // #720 — the same shape, for the LIST price. Compared against the RAW
-        // catalogue value, before the denomination condition further down:
-        // this asks "did the catalogue move under the seller?", which is a
-        // different question from "is it comparable to this order?".
-        // Deliberately also fires when the product's price was CLEARED to null
-        // while the seller had a number on screen.
-        if (command.ExpectedListUnitPriceMinorUnits is { } expectedListPrice
-            && expectedListPrice != product.DefaultPriceMinorUnits)
+        // #720 — "did the catalogue move under the seller?" A bare long? cannot
+        // tell OMITTED (no opinion: raw API callers, both seeders) from
+        // EXPECTED-UNSET (the seller looked and saw no list price). Zero is a
+        // legal list price, so it cannot be a sentinel. Hence the companion
+        // flag: an expectation exists when either is present, and then the
+        // comparison runs on the raw nullable values, so ALL FOUR transitions
+        // are covered — unchanged, number→number, number→null, and null→number.
+        // That last one is the case this guard originally missed: a seller who
+        // saw "No list price" while an admin was pricing the product would
+        // otherwise have the line snapshot a number nobody had shown them.
+        var listPriceExpectationGiven =
+            command.ExpectedListUnitPriceMinorUnits is not null
+            || command.ExpectedListPriceIsUnset;
+        if (listPriceExpectationGiven
+            && command.ExpectedListUnitPriceMinorUnits != product.DefaultPriceMinorUnits)
             return Result.Failure<Guid>(Error.Validation(
                 "SalesOrder.ListPriceChanged",
                 $"This product's list price is now " +
-                $"{(product.DefaultPriceMinorUnits?.ToString() ?? "unset")}, not {expectedListPrice} — " +
+                $"{(product.DefaultPriceMinorUnits?.ToString() ?? "unset")}, not " +
+                $"{(command.ExpectedListUnitPriceMinorUnits?.ToString() ?? "unset")} — " +
                 "re-check the price and try again."));
 
         // Price defaults from the product (per selling unit).
