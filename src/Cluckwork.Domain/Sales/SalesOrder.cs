@@ -43,7 +43,7 @@ public sealed class SalesOrder : AggregateRoot<Guid>
     public Result<SalesOrderItem> AddItem(
         Guid productId, Catalog.ProductType productTypeSnapshot, Guid eggGradeId,
         Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice,
-        long? listUnitPriceMinorUnits = null)
+        long? listUnitPriceMinorUnits = null, ListPriceBasis listPriceBasis = ListPriceBasis.Recorded)
     {
         if (Status != SalesOrderStatus.Draft)
             return Result.Failure<SalesOrderItem>(Error.Domain(
@@ -58,7 +58,7 @@ public sealed class SalesOrder : AggregateRoot<Guid>
 
         var item = SalesOrderItem.Create(
             AccountId, Id, productId, productTypeSnapshot, eggGradeId,
-            unit, baseUnitFactor, quantity, unitPrice, listUnitPriceMinorUnits);
+            unit, baseUnitFactor, quantity, unitPrice, listUnitPriceMinorUnits, listPriceBasis);
         _items.Add(item);
         RecalculateTotal();
         // Version is the concurrency token (EF never auto-increments it): without
@@ -177,6 +177,26 @@ public sealed class SalesOrder : AggregateRoot<Guid>
 
 public enum SalesOrderStatus { Draft, Confirmed, Shipped, Invoiced, Cancelled, Voided }
 
+// #720 — why a line's ListUnitPriceMinorUnits is what it is. NULL alone cannot
+// say, and #727 gates an approval on the difference: for ProductUnpriced and
+// NotComparable, "no comparable list price" is a RECORDED FACT and no discount
+// is computable; for PreDating it means "we do not know", and the line may have
+// been deeply discounted. Those two need opposite treatment.
+//
+// PreDating is written by the backfill only. Nothing in the application ever
+// sets it — a row the code writes always knows its own basis.
+public enum ListPriceBasis
+{
+    /// <summary>A comparable list price was captured; ListUnitPriceMinorUnits is non-null.</summary>
+    Recorded,
+    /// <summary>The product had no default price at all.</summary>
+    ProductUnpriced,
+    /// <summary>The product's currency code or minor unit did not match the order's.</summary>
+    NotComparable,
+    /// <summary>The row predates the column. Backfill only — never written by the application.</summary>
+    PreDating,
+}
+
 public sealed class SalesOrderItem : Entity<Guid>
 {
     public Guid SalesOrderId { get; private set; }
@@ -206,6 +226,12 @@ public sealed class SalesOrderItem : Entity<Guid>
     /// product locks the farm currency (CurrencyBoundRowProbe.cs:24).
     /// </summary>
     public long? ListUnitPriceMinorUnits { get; private set; }
+    /// <summary>
+    /// Why <see cref="ListUnitPriceMinorUnits"/> is what it is (#720). Paired with
+    /// it by construction: Recorded IFF the value is non-null. Set once at line
+    /// creation and never re-resolved, exactly like the value itself (INV-1).
+    /// </summary>
+    public ListPriceBasis ListPriceBasis { get; private set; }
     public Money LineTotal => UnitPrice.Multiply(Quantity);
 
     private SalesOrderItem() { }
@@ -224,7 +250,7 @@ public sealed class SalesOrderItem : Entity<Guid>
         Guid accountId, Guid orderId, Guid productId,
         Catalog.ProductType productTypeSnapshot, Guid eggGradeId,
         Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice,
-        long? listUnitPriceMinorUnits = null)
+        long? listUnitPriceMinorUnits = null, ListPriceBasis listPriceBasis = ListPriceBasis.Recorded)
     {
         return new SalesOrderItem
         {
@@ -238,7 +264,8 @@ public sealed class SalesOrderItem : Entity<Guid>
             Quantity = quantity,
             QuantityBase = quantity * baseUnitFactor,
             UnitPrice = unitPrice,
-            ListUnitPriceMinorUnits = listUnitPriceMinorUnits
+            ListUnitPriceMinorUnits = listUnitPriceMinorUnits,
+            ListPriceBasis = listPriceBasis
         };
     }
 }

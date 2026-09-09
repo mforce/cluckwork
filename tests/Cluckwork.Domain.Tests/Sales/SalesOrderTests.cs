@@ -79,6 +79,24 @@ public sealed class SalesOrderTests
         Assert.Equal(450, item.ListUnitPriceMinorUnits);
     }
 
+    [Theory]
+    [InlineData(450L, ListPriceBasis.Recorded)]
+    [InlineData(null, ListPriceBasis.ProductUnpriced)]
+    [InlineData(null, ListPriceBasis.NotComparable)]
+    public void AddItem_PairsTheListPriceWithItsBasis(long? listPrice, ListPriceBasis basis)
+    {
+        var order = SalesOrder.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "SO-1",
+            new DateOnly(2026, 1, 1), "USD");
+
+        var item = order.AddItem(
+            Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10,
+            new Money(400, "USD", 2), listPrice, basis).Value;
+
+        Assert.Equal(listPrice, item.ListUnitPriceMinorUnits);
+        Assert.Equal(basis, item.ListPriceBasis);
+    }
+
     [Fact]
     public void UpdateItem_LeavesListUnitPriceUntouched()
     {

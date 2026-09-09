@@ -97,6 +97,12 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
         // data.
         builder.Property(i => i.ListUnitPriceMinorUnits);
 
+        // #720 — why ListUnitPriceMinorUnits is null when it is null. Non-null,
+        // no database default (the migration drops it): a row the code writes
+        // always states its own basis, and only the backfill may leave PreDating.
+        builder.Property(i => i.ListPriceBasis)
+            .HasConversion<string>().HasMaxLength(16).IsRequired();
+
         // LineTotal is computed — ignored by EF Core
         builder.Ignore(i => i.LineTotal);
     }

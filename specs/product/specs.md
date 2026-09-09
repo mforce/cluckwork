@@ -1439,6 +1439,7 @@ sales_order_items
 - quantity_base
 - unit_price_cents
 - list_unit_price_cents      (nullable; product's list price snapshotted at line creation, see #720)
+- list_price_basis           (non-nullable; why list_unit_price_cents is null when it is, see #720)
 - line_total_cents
 - created_at
 - updated_at

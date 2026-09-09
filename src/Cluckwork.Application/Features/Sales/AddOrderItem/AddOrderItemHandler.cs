@@ -135,20 +135,25 @@ public sealed class AddOrderItemHandler(
         // arriving as an EXPLICIT price, on the one path that guard skips.
         // #123's currency lock makes a mismatch unreachable through the API
         // today; this is recorded history, so "unreachable" is not enough.
-        var listUnitPriceMinorUnits =
-            product.DefaultPriceMinorUnits is { } catalogListPrice
-            && string.Equals(
-                product.CurrencyCode,
-                order.TotalAmount.CurrencyCode,
-                StringComparison.OrdinalIgnoreCase)
-            && product.CurrencyMinorUnit == order.TotalAmount.CurrencyMinorUnit
-                ? catalogListPrice
-                : (long?)null;
+        // #720 — the value and its BASIS are decided together, in one expression,
+        // so they cannot disagree. Every branch below is reachable: an unpriced
+        // product is legal, and the denomination branch is the backstop #123's
+        // currency lock makes unreachable through the API today.
+        var (listUnitPriceMinorUnits, listPriceBasis) =
+            product.DefaultPriceMinorUnits is not { } catalogListPrice
+                ? ((long?)null, ListPriceBasis.ProductUnpriced)
+                : !string.Equals(
+                      product.CurrencyCode,
+                      order.TotalAmount.CurrencyCode,
+                      StringComparison.OrdinalIgnoreCase)
+                  || product.CurrencyMinorUnit != order.TotalAmount.CurrencyMinorUnit
+                    ? ((long?)null, ListPriceBasis.NotComparable)
+                    : (catalogListPrice, ListPriceBasis.Recorded);
 
         var result = order.AddItem(
             product.Id, product.ProductType, grade.Id,
             unit, conversion.EggsPerUnit, command.Quantity, unitPrice,
-            listUnitPriceMinorUnits);
+            listUnitPriceMinorUnits, listPriceBasis);
         if (result.IsFailure)
             return Result.Failure<Guid>(result.Error);
 

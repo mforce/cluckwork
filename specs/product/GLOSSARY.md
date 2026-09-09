@@ -493,6 +493,14 @@ stating that it saw no list price at all — but a raw API caller or either
 seeder that passes no expectation is deliberately unaffected by a catalogue
 move.
 
+A `null` list price now carries a recorded reason (`list_price_basis`, not on
+the API — the read surfaces render every reason alike): the product had no
+default price, the denominations did not match, or the line predates this
+pair of columns entirely. That last reason is distinguishable from the first
+two on purpose — a pre-migration line's `null` means *we do not know* whether
+it was discounted, while the other two are recorded facts that no discount is
+computable at all. #727 gates an Owner/Manager approval on that difference.
+
 **Discount (#720)** — a *derived*, *per-line* amount: the gap between a
 **sales line's** **list price** and what it actually sold for, computed for
 display only and never stored. This is a different number from

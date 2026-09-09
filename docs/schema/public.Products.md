@@ -89,6 +89,7 @@ erDiagram
   integer UnitPriceCurrencyMinorUnit
   uuid AccountId
   bigint ListUnitPriceMinorUnits
+  varchar_16_ ListPriceBasis
 }
 ```
 

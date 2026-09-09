@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 // #99 — sales lines sell products in packed units. The line snapshots the
 // grade mapping and the eggs-per-unit factor at creation; allocation runs on
@@ -406,6 +407,62 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
 
         var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
         Assert.Null(order!.Items.Single().ListUnitPriceMinorUnits);
+    }
+
+    // #720 R4 — ListPriceBasis is deliberately not on the API response (the
+    // read surfaces render all three NULL reasons alike), so these read it
+    // back through the DbContext rather than the sales GET.
+    [Fact]
+    public async Task AddLine_RecordsBasis_Recorded_WhenPricedAndComparable()
+    {
+        var (client, accountId, _, _, productId) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        await AddLineAsync(client, orderId, productId, 1, price: 80);
+
+        var basis = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.SalesOrderItems.SingleAsync(i => i.SalesOrderId == orderId)).ListPriceBasis);
+        Assert.Equal(Cluckwork.Domain.Sales.ListPriceBasis.Recorded, basis);
+    }
+
+    [Fact]
+    public async Task AddLine_RecordsBasis_ProductUnpriced_ForAnUnpricedProduct()
+    {
+        var (client, accountId, _, _, productId) = await SetupAsync(defaultPrice: null);
+        var orderId = await CreateDraftAsync(client);
+
+        await AddLineAsync(client, orderId, productId, 1, price: 80);
+
+        var basis = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.SalesOrderItems.SingleAsync(i => i.SalesOrderId == orderId)).ListPriceBasis);
+        Assert.Equal(Cluckwork.Domain.Sales.ListPriceBasis.ProductUnpriced, basis);
+    }
+
+    [Fact]
+    public async Task AddLine_RecordsBasis_NotComparable_ForAMinorUnitMismatch()
+    {
+        var (client, accountId, farmId, grades, _) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        // Same fixture shape as AddLine_SameCurrencyCodeDifferentMinorUnit_SnapshotsNoListPrice.
+        var skewed = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Products.Add(Cluckwork.Domain.Catalog.Product.Create(
+                skewed, accountId, farmId, "Skewed-scale eggs",
+                Cluckwork.Domain.Catalog.ProductType.Egg,
+                Cluckwork.Domain.Catalog.ProductUnit.Egg,
+                defaultPriceMinorUnits: 1234, "USD", 0, notes: null));
+            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Catalog.ProductEggGradeMapping.Create(
+                Guid.NewGuid(), accountId, skewed, grades["Large"]));
+            await db.SaveChangesAsync();
+        });
+
+        await AddLineAsync(client, orderId, skewed, 1, price: 80);
+
+        var basis = await factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.SalesOrderItems.SingleAsync(i => i.SalesOrderId == orderId)).ListPriceBasis);
+        Assert.Equal(Cluckwork.Domain.Sales.ListPriceBasis.NotComparable, basis);
     }
 
     [Fact]
