@@ -188,8 +188,10 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
 
     // #589 — vary the fixture's account Slug (the admin lives on
     // SeedDefaults.AccountId) and restore it, same raw-SQL rationale as the
-    // BootstrapAdminCommandTests helpers. Slug is immutable in the domain, so
-    // only a raw UPDATE can fabricate a distinct farm code.
+    // BootstrapAdminCommandTests helpers: a setup path establishing a precondition
+    // directly. A production rename goes through rename-account / Account.Rename
+    // (#732); this deliberately does not, so the fixture carries no audit row and
+    // no Version bump it would then have to account for.
     private async Task<string> OverrideAccountSlugAsync(string newSlug)
     {
         using var scope = _factory.Services.CreateScope();

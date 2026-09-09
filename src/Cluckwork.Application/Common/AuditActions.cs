@@ -57,6 +57,10 @@ public static class AuditActions
     // one row per actual transition rather than one per operator keystroke.
     public const string AccountSuspend = "Account.Suspend";
     public const string AccountReactivate = "Account.Reactivate";
+    // #732 — the farm code changed. Written ONLY on a real change: renaming a farm to the
+    // code it already has is a no-op and appends nothing, so the trail stays one row per
+    // actual change. The row carries from/to, because the code it names is gone.
+    public const string AccountRename = "Account.Rename";
     public const string ProductCreate = "Product.Create";
     public const string ProductUpdate = "Product.Update";
     public const string ProductActivate = "Product.Activate";

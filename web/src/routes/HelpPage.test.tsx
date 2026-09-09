@@ -323,6 +323,14 @@ describe("HelpPage", () => {
       expect(catalog.help.auditSystemActors).toContain("(provision-account)");
   });
 
+    // #732 — the actor list and the accountability sentence are the operator's only
+    // in-app explanation of what a bracketed name means; a new verb is invisible until
+    // it appears here.
+    it("names the rename-account system actor in every help catalog", () => {
+      for (const catalog of [en, es, tl])
+        expect(catalog.help.auditSystemActors).toContain("(rename-account)");
+    });
+
   it("documents farm provisioning in the in-app glossary (#533)", () => {
     const originalTerm = i18n.getResource("en", "help", "glossaryFarmProvisioningTerm") as string;
     const originalDef = i18n.getResource("en", "help", "glossaryFarmProvisioningDef") as string;

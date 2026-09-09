@@ -24,9 +24,11 @@ public sealed class Account : AggregateRoot<Guid>
     // Farm code (#531). Lowercase, URL-safe, stored ALREADY-NORMALIZED so a
     // plain unique index suffices — deliberately NOT a lower("Slug") expression
     // index (the four in InitialCreate are un-regenerable #407 fixtures; no
-    // reason to mint a fifth). Immutable this epic (decision 10): there is no
-    // ChangeSlug, on purpose — a provisioning typo has no in-epic fix, which is
-    // why #533's provision-account echoes the slug before it commits.
+    // reason to mint a fifth). Renameable since #732 by the `rename-account`
+    // verb and nothing else — there is deliberately no endpoint or Settings
+    // field, and no retired-code list: a code a farm has moved off is
+    // immediately reusable, which docs/decisions/732-farm-code-rename.md
+    // records as the accepted cost.
     public static readonly IReadOnlySet<string> ReservedSlugs =
         new HashSet<string>(StringComparer.Ordinal)
         {
@@ -141,6 +143,31 @@ public sealed class Account : AggregateRoot<Guid>
     {
         IsActive = true;
         Version++;
+    }
+
+    // #732 — the farm code is no longer immutable. Returns Result rather than throwing
+    // because an invalid or reserved code is an EXPECTED failure on a path an operator
+    // drives by hand; Create keeps the throwing ValidateSlug backstop for every other
+    // factory caller. Validation is TryValidateSlug, the same single rule provisioning
+    // uses: one regex and one reserved set own both paths.
+    //
+    // The same-code case returns success WITHOUT touching Version, and that is not
+    // cosmetic. Version is the token UpdateFarmSettingsHandler compares a Farm Settings
+    // save against, so a command that changed nothing must not advance it — the same
+    // reasoning as the stateChanged gate in AccountSuspensionService. "Every aggregate
+    // mutation bumps Version" stays true because on a no-op there is no mutation.
+    public Result Rename(string? newSlug)
+    {
+        var validated = TryValidateSlug(newSlug);
+        if (validated.IsFailure)
+            return Result.Failure(validated.Error);
+
+        if (string.Equals(validated.Value, Slug, StringComparison.Ordinal))
+            return Result.Success();
+
+        Slug = validated.Value;
+        Version++;
+        return Result.Success();
     }
 
     // #123 — the whole settings block replaced under the Version token.

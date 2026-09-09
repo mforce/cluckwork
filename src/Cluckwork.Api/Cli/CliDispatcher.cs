@@ -22,6 +22,7 @@ public static class CliDispatcher
         new ProvisionAccountCliCommand(),
         new SuspendAccountCliCommand(),
         new ReactivateAccountCliCommand(),
+        new RenameAccountCliCommand(),
     ];
 
     // Whether these args dispatch to a one-off verb rather than start the web

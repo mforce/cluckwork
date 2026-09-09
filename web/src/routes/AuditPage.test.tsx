@@ -152,6 +152,20 @@ describe("AuditPage load + render", () => {
     expect(screen.queryByRole("option", { name: "Account.SetLogo" })).not.toBeInTheDocument();
   });
 
+  // #732 — the same #247 rule: a new server-emitted action must be OFFERED in the filter,
+  // labelled, and value-preserved. When the client list drifted, rows showed only under
+  // "All actions" and no test noticed.
+  it("offers the farm code change action as filterable, labelled and value-preserved (#732)", async () => {
+    renderAudit();
+    await screen.findByText("No audit events yet.");
+    const rename = screen.getByRole("option", {
+      name: "Farm code changed",
+    }) as HTMLOptionElement;
+    expect(rename.value).toBe("Account.Rename");
+    // The raw code must not leak as the visible option text.
+    expect(screen.queryByRole("option", { name: "Account.Rename" })).not.toBeInTheDocument();
+  });
+
   // #247 — a logo row carries entityType "FarmLogo", which was absent from
   // ENTITY_TYPE_VALUES and so degraded to the raw "FarmLogo" string. It must
   // now render the friendly, translatable label through entityTypeLabel().

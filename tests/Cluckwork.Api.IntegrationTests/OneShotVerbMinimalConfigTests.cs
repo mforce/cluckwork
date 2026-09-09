@@ -107,6 +107,10 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
         // is a crash out of service registration before the verb's code runs.
         { "suspend-account --slug no-such-farm", "Production" },
         { "reactivate-account --slug no-such-farm", "Production" },
+        // #732 — Production on purpose, and both codes are absent so the verb reaches its
+        // OWN clean exit 1 rather than mutating anything. What must never happen is a crash
+        // out of service registration before the verb's code runs (#331's class).
+        { "rename-account --slug no-such-farm --new-slug no-target-farm", "Production" },
         // Seeding is deliberately blocked in Production (#280), so BOTH sides of
         // that are cases. The Testing arm is the one that actually seeds.
         { "seed --profile demo", "Testing" },
