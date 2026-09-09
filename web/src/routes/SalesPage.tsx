@@ -969,7 +969,7 @@ export function SalesPage() {
                         <td className="num muted">{fmt.count(i.baseUnitFactor * editor.quantity)}</td>
                         <td className="num muted">
                           {i.listUnitPriceMinorUnits === null
-                            ? t("noListPrice")
+                            ? "—"
                             : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
                         </td>
                         <td className="num"><input className="cell" type="number" min={0}
@@ -979,7 +979,7 @@ export function SalesPage() {
                             const draft = editorRef.current;
                             if (draft) setEditor({ ...draft, price: e.target.value });
                           }} /></td>
-                        <td className="num">—</td>
+                        <td className="num">{discount.kind === "none" ? t("noListPrice") : "—"}</td>
                         <td className="num">—</td>
                         <td>
                           <BusyButton className="link" disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
@@ -999,7 +999,7 @@ export function SalesPage() {
                         <td className="num">{fmt.count(i.quantityBase)}</td>
                         <td className="num">
                           {i.listUnitPriceMinorUnits === null
-                            ? t("noListPrice")
+                            ? "—"
                             : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
                         </td>
                         <td className="num">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
@@ -1008,7 +1008,9 @@ export function SalesPage() {
                             ? `${fmt.money(discount.amountMinorUnits, i.currencyCode, i.currencyMinorUnit)} (${fmt.count(discount.percent, 1)}%)`
                             : discount.kind === "above"
                               ? t("aboveList")
-                              : "—"}
+                              : discount.kind === "none"
+                                ? t("noListPrice")
+                                : "—"}
                         </td>
                         <td className="num">{fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</td>
                         <td>

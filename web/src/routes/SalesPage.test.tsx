@@ -705,6 +705,19 @@ describe("SalesPage list price and discount (#720)", () => {
     expect(within(row).getByText(i18n.t("sales:noListPrice"))).toBeInTheDocument();
   });
 
+  it("puts No list price in the DISCOUNT cell and an em dash in the LIST PRICE cell", async () => {
+    const row = await openOrder(draftWithItem(2, "USD", 500, "o-nolist-cells"), /Grade A Dozen/);
+    const cells = within(row).getAllByRole("cell");
+
+    // The design's four-state table, and the owner's mockup, put these two the
+    // way round below. It is not cosmetic: if "No list price" sits in the List
+    // price cell, the Discount cell falls through to an em dash — which is
+    // exactly what an AT-LIST line renders, so "we do not know" becomes
+    // indistinguishable from "no discount was given" (INV-3, criterion 6).
+    expect(cells[3]).toHaveTextContent("—");
+    expect(cells[5]).toHaveTextContent(i18n.t("sales:noListPrice"));
+  });
+
   it("shows an em dash for the discount when the line sold exactly at list", async () => {
     const order: SalesOrder = {
       ...draftEmpty(2, "USD", "o-atlist"),
