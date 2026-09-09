@@ -1438,6 +1438,7 @@ sales_order_items
 - base_unit_factor          (eggs-per-unit snapshot at line creation; see §9.7)
 - quantity_base
 - unit_price_cents
+- list_unit_price_cents      (nullable; product's list price snapshotted at line creation, see #720)
 - line_total_cents
 - created_at
 - updated_at
