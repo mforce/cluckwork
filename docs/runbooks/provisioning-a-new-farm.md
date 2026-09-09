@@ -25,8 +25,10 @@ not be given migrator credentials.
 ### 1. Choose and verify the farm code
 
 The code is lowercase letters, digits, and hyphens; 3–32 characters; and cannot
-start or end with a hyphen. It is immutable during this phase, so have a second
-person verify it before continuing.
+start or end with a hyphen. It is immutable during this phase — no verb,
+endpoint or Settings field changes it — so have a second person verify it
+before continuing. The one operator-level exception is
+[renaming the default farm's code](#renaming-the-default-farms-code) below.
 
 ```bash
 docker run --rm --env-file <runtime-credential.env> \
@@ -97,6 +99,109 @@ captured, rerun the identical command. It exits `1` with
 `Provision.SlugTakenRecoverable` and prints the account-specific recovery
 command. Run that `recover-admin` command to mint a new one-time password; it
 revokes the lost credential and records the reason.
+
+## Renaming the default farm's code
+
+**When to use this:** a database provisioned before multi-farm tenancy
+(release `v0.0.4` or earlier) was upgraded, and the migration
+`20260818235944_AddAccountSlug` stamped the pre-existing account with the
+documented code `default-farm`. Nothing asks for a code at migration time, and
+no verb changes one afterwards, so a farm that wants its own code gets it by a
+direct database write.
+
+**Not this runbook:** a farm created by `provision-account`. Its code was
+chosen on purpose; treat it as immutable.
+
+**Blast radius:** one row in `Accounts`. Nothing else stores the code:
+refresh cookies and access tokens bind to the account **id**, so every signed-in
+user stays signed in. The write bypasses the domain, so it bumps `Version` by
+hand and leaves **no audit row** — record the change in the deployment repo's
+change log instead.
+
+**Prerequisites:** the migration job has run (`list-accounts` shows the
+account), and you hold a credential with `UPDATE` on `Accounts`. The ordinary
+DML-only runtime credential is enough; do not use the migrator role.
+
+### 1. Choose and verify the new code
+
+Same rules as step 1 of the procedure above: lowercase letters, digits and
+hyphens; 3–32 characters; no leading or trailing hyphen. Uppercase is not
+folded by the database write, so a mistyped code here is a code nobody can
+sign in with. Nine names are reserved by the domain and refused by
+`provision-account`; the database write checks nothing, so refuse them
+yourself: `api`, `admin`, `www`, `health`, `app`, `static`, `assets`, `login`,
+`auth`.
+
+```bash
+docker run --rm --env-file <runtime-credential.env> \
+  ghcr.io/mforce/cluckwork@sha256:<digest> \
+  list-accounts
+```
+
+Expected: exactly one account carries `default-farm`, and the chosen code is
+absent. Have a second person verify the code; it appears in `?farm=<code>`
+URLs and on printed material.
+
+### 2. Rename
+
+The `WHERE` names both the id and the current code, so the statement matches
+nothing if the account was already renamed or if the id is not the default
+account. Save it as `rename-farm.sql`:
+
+```sql
+UPDATE "Accounts"
+SET "Slug" = 'example-farm',
+    "Version" = "Version" + 1
+WHERE "Id" = '0000000a-0000-0000-0000-000000000001'
+  AND "Slug" = 'default-farm';
+```
+
+The Cluckwork image ships no `psql`, so run it through a Postgres client.
+With the reference compose stack, the `db` service's own image has one, and
+its `POSTGRES_USER` / `POSTGRES_DB` are already in that container's
+environment:
+
+```bash
+docker compose -f deploy/docker-compose.yml exec -T db \
+  sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < rename-farm.sql
+```
+
+Against a managed Postgres, run a throwaway client container with the same
+image the stack pins (`deploy/docker-compose.yml`, service `db`) and a
+connection URL that carries the same TLS parameters the API uses:
+
+```bash
+docker run --rm -i \
+  postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a \
+  psql -v ON_ERROR_STOP=1 "$DATABASE_URL" < rename-farm.sql
+```
+
+Keep the URL in an env var or a file, never on the command line of a shared
+host: `ps` shows it to every user. Host-specific network flags belong in the
+deployment repo.
+
+Expected: `UPDATE 1`. An `UPDATE 0` means the guard did not match; run
+`list-accounts` again before changing anything. A unique-violation error on
+`IX_Accounts_Slug` means the code is already taken; choose another.
+
+### 3. Verify
+
+1. Run `list-accounts` and confirm the account now shows the new code and is
+   `active`.
+2. Sign in with the new farm code. A browser that remembers only
+   `default-farm` prefills it, so overtype it once; the new code is remembered
+   from then on, and the old one can be removed from the login form's picker.
+3. Confirm `default-farm` no longer signs in (`Auth.UnknownFarmCode`).
+
+Existing sessions keep working without a new login. Two SPA caches still name
+the old code until the user next signs in: the remembered farm code on the
+login form, and the per-farm palette cache. Both are cosmetic and refresh on
+that login; nothing needs clearing.
+
+Tell every user the new code before the change lands. Any printed material or
+bookmarked `?farm=default-farm` URL is stale from the moment the statement
+commits.
 
 ## Drill
 
