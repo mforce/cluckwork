@@ -112,6 +112,7 @@ function draftWithItem(currencyMinorUnit: number, currencyCode: string, unitPric
   const item: OrderItem = {
     id: "e1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
     quantity: 3, quantityBase: 36, unitPriceMinorUnits: unitPrice, currencyCode, currencyMinorUnit,
+    listUnitPriceMinorUnits: null,
   };
   return { ...draftEmpty(currencyMinorUnit, currencyCode, id), referenceNumber: "SO-5", items: [item], totalMinorUnits: unitPrice * 3 };
 }
@@ -121,10 +122,12 @@ function draftWithItem(currencyMinorUnit: number, currencyCode: string, unitPric
 const ITEM_A: OrderItem = {
   id: "it1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
   quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+  listUnitPriceMinorUnits: 300,
 };
 const ITEM_B: OrderItem = {
   id: "it2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
   quantity: 2, quantityBase: 60, unitPriceMinorUnits: 1000, currencyCode: "USD", currencyMinorUnit: 2,
+  listUnitPriceMinorUnits: 1200,
 };
 const DRAFT_TWO: SalesOrder = {
   ...draftEmpty(2, "USD", "o2"), referenceNumber: "SO-2", totalMinorUnits: 2900, items: [ITEM_A, ITEM_B],
@@ -731,6 +734,7 @@ describe("SalesPage price scale", () => {
         id: "e7", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 1500,
         currencyCode: "KWD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: 1200,
       }],
     };
     mockListOrders.mockResolvedValue([order]);
