@@ -1179,6 +1179,15 @@ public sealed class SimulationDataSeeder(
         ("Dirty", "Sim Dirty Eggs", 22),
     ];
 
+    // #720 — no default price at all, distinct from a below/above-list line:
+    // this is the "no comparable list price" state neither of those shows.
+    // Kept out of CatalogWanted/products (that dictionary is keyed by GRADE
+    // NAME): mapping it to "Large" like Sim Large Eggs would silently
+    // overwrite that key. No uniqueness constraint ties a grade to one
+    // product (ProductEggGradeMappingConfiguration only unique-indexes
+    // ProductId), so sharing the grade is fine.
+    private const string UnpricedProductName = "Sim Unpriced Eggs";
+
     private static readonly (string Name, string Phone, string Note)[] CustomersWanted =
     [
         ("Sim Customer 1", "555-0201", "Simulation fixture customer"),
@@ -1221,10 +1230,14 @@ public sealed class SimulationDataSeeder(
         // sales desk's (#500). Product.Create and SalesOrder.* are all audited.
         var products = await SeedProductCatalogAsync(
             accountId, grades, Pick(cast.Managers, 0, cast.Owner, "Managers"), ct);
+        var unpricedProductId = await EnsureProductAsync(
+            accountId, UnpricedProductName, grades["Large"], null,
+            Pick(cast.Managers, 0, cast.Owner, "Managers"), ct);
         var customerIds = await SeedCustomersAsync(accountId, cast, ct);
 
         var largeProductId = products["Large"];
         var mediumProductId = products["Medium"];
+        var smallProductId = products["Small"];
         var customer1 = customerIds[0];
         var customer2 = customerIds[1];
         var customer3 = customerIds[2];
@@ -1235,10 +1248,23 @@ public sealed class SimulationDataSeeder(
         SimActor Clerk(int index) => Pick(cast.Sales, index, cast.Owner, "Sales");
 
         // Draft: created, items added, never confirmed — no stock touched.
-        await EnsureDraftOrderAsync(
+        var draft1Id = await EnsureDraftOrderAsync(
             accountId, customer1, today.AddDays(-4), mediumProductId, DraftOrderQuantityEggs, Clerk(0), ct);
-        await EnsureDraftOrderAsync(
+        var draft2Id = await EnsureDraftOrderAsync(
             accountId, customer2, today.AddDays(-3), mediumProductId, DraftOrderQuantityEggs, Clerk(1), ct);
+
+        // #720 — every line seeded above sells at the product's own default
+        // (both add-item call sites pass null/null), so three of the four
+        // render states (below list, above list, no list price) were never
+        // seeded. These land on the two EXISTING drafts, not new orders, so
+        // SimulationDataSeeder's own order/line count manifest (which tracks
+        // orders, never lines or products) stays untouched.
+        await EnsureExtraLineAsync(
+            accountId, draft1Id, largeProductId, DraftOrderQuantityEggs, 35, Clerk(0), ct); // list 45 → below
+        await EnsureExtraLineAsync(
+            accountId, draft2Id, smallProductId, DraftOrderQuantityEggs, 40, Clerk(1), ct); // list 30 → above
+        await EnsureExtraLineAsync(
+            accountId, draft2Id, unpricedProductId, DraftOrderQuantityEggs, 25, Clerk(1), ct); // no list price
 
         // Confirmed (unpaid): same product/grade as every other confirmed
         // order below — see ConfirmedOrderQuantityEggs for why that matters.
@@ -1293,7 +1319,7 @@ public sealed class SimulationDataSeeder(
     }
 
     private async Task<Guid> EnsureProductAsync(
-        Guid accountId, string name, Guid eggGradeId, long priceMinorUnits, SimActor actor, CancellationToken ct)
+        Guid accountId, string name, Guid eggGradeId, long? priceMinorUnits, SimActor actor, CancellationToken ct)
     {
         var existing = await db.Products.FirstOrDefaultAsync(p => p.Name == name, ct);
         if (existing is not null) return existing.Id;
@@ -1383,6 +1409,27 @@ public sealed class SimulationDataSeeder(
         Require(added, $"add item to sales order {orderId}");
 
         return orderId;
+    }
+
+    // #720 — a SECOND line on an already-seeded draft, at an EXPLICIT price so
+    // the fixture can show a discounted, an above-list, and an unpriced-product
+    // line (every seeded line was at-list before this, since both add-item call
+    // sites passed null/null). Idempotent on (SalesOrderId, ProductId): this
+    // order's base line already occupies its own product, so a distinct
+    // product per extra line is what keeps a rerun from re-adding it.
+    private async Task EnsureExtraLineAsync(
+        Guid accountId, Guid orderId, Guid productId, int quantityEggs, long explicitPriceMinorUnits,
+        SimActor actor, CancellationToken ct)
+    {
+        var alreadyHasLine = await db.SalesOrderItems
+            .AnyAsync(i => i.SalesOrderId == orderId && i.ProductId == productId, ct);
+        if (alreadyHasLine) return;
+
+        ActAs(actor);
+        var added = await addOrderItem.HandleAsync(
+            new AddOrderItemCommand(orderId, productId, quantityEggs, null, explicitPriceMinorUnits),
+            accountId, ct);
+        Require(added, $"add extra line to sales order {orderId}");
     }
 
     private async Task<Guid> EnsureConfirmedOrderAsync(
