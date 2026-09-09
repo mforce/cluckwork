@@ -191,9 +191,11 @@ The verb exits `1` and prints one line naming the error code:
   may now belong to another farm.
 
 
-## Drill
+## Provisioning drill
 
-Safe on a scratch database only.
+This drills `provision-account`, not `rename-account`: it rehearses creating a
+farm and recovering a lost one-time password, and the rename procedure above has
+no drill of its own. Safe on a scratch database only.
 
 1. Migrate a scratch database and run the command with a DML-only role.
 2. Verify all four postconditions above.
