@@ -2490,6 +2490,8 @@ export const tl = {
       + "\"(reactivate-account)\" ay mga utos na pinapatakbo ng operator upang i-offline ang buong bukid "
       + "at ibalik ito; itinatala rin ng mga entry na iyon ang makinang pinatakbuhan at ang ibinigay na dahilan. "
       + "Ang \"(provision-account)\" ay gumagawa ng bagong bukid at unang Owner nito bago makapag-sign in ang sinuman sa bukid na iyon. "
+      + "Ang \"(rename-account)\" ay ang utos na pinapatakbo ng operator upang baguhin ang code ng bukid mo; "
+      + "itinatala ng entry na iyon ang luma at bagong code, ang makinang pinatakbuhan at ang ibinigay na dahilan. "
       + "Ang iba ay pinapangalanan ang taong gumawa.",
     auditRecordHistoryOlder:
       "Ang mga record na ginawa bago ito idagdag ay walang linyang \"ginawa ni\" — wala lang talagang "
@@ -2763,8 +2765,10 @@ export const tl = {
     glossaryFarmCodeDef:
       "Ang maikling code na nagpapaalam sa bukid mo sa screen ng sign in. Isinusulat mo ito "
       + "bago ang iyong email, dahil maaaring nasa ilang bukid ang iisang email address at ang "
-      + "code lamang ang nagsasabi kung alin ang ibig mo sabihin. Lowercase ito at hindi ito "
-      + "nagbabago. Naaalala ng screen ng sign in ang huling 10 bukid na naka-sign in ka sa "
+      + "code lamang ang nagsasabi kung alin ang ibig mo sabihin. Lowercase ito. Bihira itong "
+      + "magbago, ngunit maaari itong baguhin ng operator kapag hiniling; pagkatapos noon ay "
+      + "gagamitin mo na ang bagong code sa pag-sign in. "
+      + "Naaalala ng screen ng sign in ang huling 10 bukid na naka-sign in ka sa "
       + "device na ito, pinakabago muna, at inaalok ang bawat isa — kahit isang natatandaan "
       + "lang — sa isang pumipili para hindi mo na kailangang i-type ang code. Ang bawat "
       + "entry ay maaaring kalimutan nang hiwalay gamit ang kanyang kontrol na Kalimutan, pagkatapos "

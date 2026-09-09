@@ -2928,6 +2928,8 @@ export const en = {
       + "whole farm offline and bring it back; those entries record the machine they were run from and the "
       + "reason given too. "
       + "\"(provision-account)\" creates a new farm and its first Owner before anyone on that farm can sign in. "
+      + "\"(rename-account)\" is the command an operator runs to change your farm's code; that entry records "
+      + "the old and new codes, the machine it was run from and the reason given. "
       + "Everything else names the person who did it.",
     auditRecordHistoryOlder:
       "Records created before this was added show no \"created by\" line — there is simply no creation "
@@ -3183,7 +3185,8 @@ export const en = {
     glossaryFarmCodeDef:
       "The short code that names your farm on the sign-in screen. You type it before your "
       + "email, because the same email address can exist in several farms and only the code "
-      + "says which one you mean. It is lowercase and it does not change. The sign-in screen "
+      + "says which one you mean. It is lowercase. It rarely changes, but an operator can "
+      + "change it on request — after that you sign in with the new code. The sign-in screen "
       + "remembers the last 10 farms you have signed in with on this device, most recent "
       + "first, and offers each one — even when there is only a single remembered farm — "
       + "in a picker so you usually do not have to retype the code. Each entry can be "
