@@ -459,6 +459,22 @@ input[type="checkbox"] {
   min-width: 8rem;
 }
 
+/* A labelled field (label wraps its own plain <input>, unlike the stepper
+   above) whose live hint must stay in the SAME grid cell (#720 R8) — a bare
+   sibling <p> was a direct .form-grid child, consuming its own cell and
+   pushing Add line onto its own row. Same shape as .numfield-field, but its
+   own class: numfield-field names the stepper widget specifically, and a
+   later stepper-only change must not silently reach this wrapper too. */
+.hinted-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-grid .hinted-field {
+  min-width: 8rem;
+}
+
 .inline-form {
   display: flex;
   gap: 0.5rem;

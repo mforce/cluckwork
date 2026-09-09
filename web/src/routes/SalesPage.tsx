@@ -1093,37 +1093,47 @@ export function SalesPage() {
                       : null;
                   })()}
                 </div>
-                <label>{t("unitPriceWithCurrency", { code: active.currencyCode })}
-                  <input type="number" min={0} step={10 ** -active.currencyMinorUnit} value={price}
-                    onChange={(e) => setPrice(e.target.value)} />
-                </label>
-                {(() => {
-                  // #720 — the same amount AddOrderItemHandler would snapshot
-                  // as ListUnitPriceMinorUnits if Add line were pressed now.
-                  const list = products.find((p) => p.id === productId)?.defaultPriceMinorUnits ?? null;
-                  if (list === null) return null;
-                  const typed = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
-                  if (!Number.isFinite(typed) || typed === list) return null;
-                  const perUnit = Math.abs(typed - list);
-                  const amount = fmt.money(perUnit, active.currencyCode, active.currencyMinorUnit);
-                  // A zero list price is legal (Product.cs rejects only
-                  // negatives) — dividing by it for a percent would be NaN/Infinity.
-                  // <input min={0}> is a validation constraint, not an input
-                  // filter, so a negative typed price against a zero list can
-                  // still reach the below branch here.
-                  if (typed < list) {
+                {/* #720 R8 — wrapped, not a bare sibling <p>: the hint used to
+                    be a direct child of .form-grid, consuming its own grid
+                    cell and pushing Add line onto its own row. Mirrors
+                    numfield-field's shape (label + control + hint, one flex
+                    item) without reusing that class — numfield-field names
+                    the STEPPER widget specifically, and a later stepper-only
+                    change must not silently reach this plain input's wrapper
+                    too. */}
+                <div className="hinted-field">
+                  <label>{t("unitPriceWithCurrency", { code: active.currencyCode })}
+                    <input type="number" min={0} step={10 ** -active.currencyMinorUnit} value={price}
+                      onChange={(e) => setPrice(e.target.value)} />
+                  </label>
+                  {(() => {
+                    // #720 — the same amount AddOrderItemHandler would snapshot
+                    // as ListUnitPriceMinorUnits if Add line were pressed now.
+                    const list = products.find((p) => p.id === productId)?.defaultPriceMinorUnits ?? null;
+                    if (list === null) return null;
+                    const typed = parseMoneyToMinorUnits(price, active.currencyMinorUnit);
+                    if (!Number.isFinite(typed) || typed === list) return null;
+                    const perUnit = Math.abs(typed - list);
+                    const amount = fmt.money(perUnit, active.currencyCode, active.currencyMinorUnit);
+                    // A zero list price is legal (Product.cs rejects only
+                    // negatives) — dividing by it for a percent would be NaN/Infinity.
+                    // <input min={0}> is a validation constraint, not an input
+                    // filter, so a negative typed price against a zero list can
+                    // still reach the below branch here.
+                    if (typed < list) {
+                      return list === 0
+                        ? <p className="discount">{t("listPriceHintBelowNoPct", { amount })}</p>
+                        : <p className="discount">
+                            {t("listPriceHintBelow", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
+                          </p>;
+                    }
                     return list === 0
-                      ? <p className="discount">{t("listPriceHintBelowNoPct", { amount })}</p>
+                      ? <p className="discount">{t("listPriceHintAboveNoPct", { amount })}</p>
                       : <p className="discount">
-                          {t("listPriceHintBelow", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
+                          {t("listPriceHintAbove", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
                         </p>;
-                  }
-                  return list === 0
-                    ? <p className="discount">{t("listPriceHintAboveNoPct", { amount })}</p>
-                    : <p className="discount">
-                        {t("listPriceHintAbove", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
-                      </p>;
-                })()}
+                  })()}
+                </div>
                 <BusyButton disabled={busy || !productId} busy={isPending("add-item")}
                   onClick={onAddItem}>{t("addLine")}</BusyButton>
               </div>

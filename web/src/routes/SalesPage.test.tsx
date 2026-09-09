@@ -641,6 +641,21 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     expect(screen.getByText("$1.00 above list (33.3%)")).toBeInTheDocument();
   });
 
+  it("keeps the unit-price hint inside the field's own cell, not a sibling that displaces Add line", async () => {
+    // #720 R8 — a hint that is a bare .form-grid child consumes its own grid
+    // cell and pushes Add line onto its own row; a text-only assertion (as
+    // above) passes against that broken layout, which is exactly how it
+    // shipped. This asserts the STRUCTURAL relationship instead.
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
+    const hint = screen.getByText("$1.00 below list (33.3%)");
+    const priceField = screen.getByLabelText(/Unit price/).closest(".hinted-field");
+    expect(priceField).not.toBeNull();
+    expect(priceField).toContainElement(hint);
+  });
+
   it("hints an above-list amount with NO percent when the product's list price is zero", async () => {
     mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultPriceMinorUnits: 0 }, PRODUCT_B]);
     await renderReady();
@@ -820,6 +835,10 @@ describe("SalesPage list price and discount (#720)", () => {
     const row = await openOrder(order, /Grade A Dozen/);
     expect(within(row).getByText("$2.50")).toBeInTheDocument(); // list price
     expect(within(row).getByText(i18n.t("sales:aboveList"))).toBeInTheDocument();
+    // #720 R8 — a line that gave nothing away is not a discount either;
+    // applying the emphasis here survived as an untested mutant (M20) until
+    // this assertion existed.
+    expect(within(row).getByText(i18n.t("sales:aboveList"))).not.toHaveClass("discount");
   });
 });
 
