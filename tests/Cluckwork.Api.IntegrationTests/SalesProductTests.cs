@@ -291,6 +291,37 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
             (await AddLineAsync(client, orderId, foreign, 1, price: 500)).StatusCode);
     }
 
+    [Fact]
+    public async Task AddLine_SameCurrencyCodeDifferentMinorUnit_SnapshotsNoListPrice()
+    {
+        var (client, accountId, farmId, grades, _) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        // "USD" with minor unit 0 against a USD(2) order. The CODE agrees, so
+        // the handler's pre-existing ProductPriceCurrencyMismatch guard sees
+        // nothing wrong — only #720's minor-unit clause catches this. 1234 here
+        // means $1234, not $12.34; snapshotting it would be a 100x error, and
+        // it is the exact hazard SalesPage.tsx:191-203 already documents.
+        var skewed = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.Products.Add(Cluckwork.Domain.Catalog.Product.Create(
+                skewed, accountId, farmId, "Skewed-scale eggs",
+                Cluckwork.Domain.Catalog.ProductType.Egg,
+                Cluckwork.Domain.Catalog.ProductUnit.Egg,
+                defaultPriceMinorUnits: 1234, "USD", 0, notes: null));
+            db.ProductEggGradeMappings.Add(Cluckwork.Domain.Catalog.ProductEggGradeMapping.Create(
+                Guid.NewGuid(), accountId, skewed, grades["Large"]));
+            await db.SaveChangesAsync();
+        });
+
+        Assert.Equal(HttpStatusCode.Created,
+            (await AddLineAsync(client, orderId, skewed, 1, price: 80)).StatusCode);
+
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        Assert.Null(order!.Items.Single().ListUnitPriceMinorUnits);
+    }
+
     // The trap the guard above would otherwise spring (codex review of #159).
     // An UNPRICED product does not lock the farm currency, so this sequence is
     // entirely legal: create it unpriced, change the farm currency, then give
