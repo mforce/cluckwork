@@ -310,7 +310,11 @@ export const es = {
     // Table headers (shared across the items / payments / orders tables)
     qty: "Cant.",
     eggs: "Huevos",
+    listPrice: "Precio de lista",
     unitPrice: "Precio unitario",
+    discount: "Descuento",
+    noListPrice: "Sin precio de lista",
+    aboveList: "Sobre el precio de lista",
     lineTotal: "Total de línea",
     reference: "Referencia",
     amount: "Monto",

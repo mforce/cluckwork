@@ -8,7 +8,7 @@ import {
   listProducts, parseMoneyToMinorUnits, recordPayment,
   removeOrderItem, updateOrderItem, voidOrder, voidPayment,
 } from "../api/cluckwork";
-import type { Customer, EggUnitConversion, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
+import type { Customer, EggUnitConversion, OrderItem, OrderPayments, Product, SalesOrder } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
@@ -68,6 +68,37 @@ function normalizeCanonicalGuid(raw: string | null): string {
 function priceInput(defaultPriceMinorUnits: number | null, scale: number | null): string {
   if (defaultPriceMinorUnits === null || scale === null) return "";
   return (defaultPriceMinorUnits / 10 ** scale).toFixed(scale);
+}
+
+// #720 — the discount a line gave away, and how it renders.
+//
+// Branch on the comparison DIRECTLY. There is no max(list - unit, 0) clamp:
+// the only branch that reads the difference is the below-list one, where it is
+// positive by construction, so a clamp there could never fire — and a guard
+// that cannot fire reads as safety without being any.
+//
+// The percent multiplier is 100, not 1000. fmt.count(value, locale, 1) renders
+// the value AS GIVEN with one fraction digit, so a x1000 scale would print
+// 111.1% where 11.1% is meant. Intl.NumberFormat's default roundingMode is
+// halfExpand — half-up for positives — which is the rounding wanted here, so
+// no rounding scaffolding is needed.
+type LineDiscount =
+  | { kind: "none" }            // no comparable list price
+  | { kind: "atList" }
+  | { kind: "below"; amountMinorUnits: number; percent: number }
+  | { kind: "above" };
+
+function lineDiscount(item: OrderItem): LineDiscount {
+  const list = item.listUnitPriceMinorUnits;
+  if (list === null) return { kind: "none" };
+  if (item.unitPriceMinorUnits > list) return { kind: "above" };
+  if (item.unitPriceMinorUnits === list) return { kind: "atList" };
+  const perUnit = list - item.unitPriceMinorUnits;
+  return {
+    kind: "below",
+    amountMinorUnits: perUnit * item.quantity,
+    percent: (perUnit * 100) / list,
+  };
 }
 
 // #23 + #24 (orders half): create a draft order, add/edit/remove graded lines,
@@ -815,9 +846,11 @@ export function SalesPage() {
 
           {active.items.length > 0 && (
             <table className="data">
-              <thead><tr><th>{t("product")}</th><th className="num">{t("qty")}</th><th className="num">{t("eggs")}</th><th className="num">{t("unitPrice")}</th><th className="num">{t("lineTotal")}</th><th></th></tr></thead>
+              <thead><tr><th>{t("product")}</th><th className="num">{t("qty")}</th><th className="num">{t("eggs")}</th><th className="num">{t("listPrice")}</th><th className="num">{t("unitPrice")}</th><th className="num">{t("discount")}</th><th className="num">{t("lineTotal")}</th><th></th></tr></thead>
               <tbody>
-                {active.items.map((i) => (
+                {active.items.map((i) => {
+                  const discount = lineDiscount(i);
+                  return (
                   <tr key={i.id}>
                     <td>{productName(i.productId)}{" "}
                       <span className="muted">{t("perUnit", { unit: i.unit.toLowerCase() })}
@@ -835,10 +868,16 @@ export function SalesPage() {
                             quantity instead of going blank, so a unit/count
                             mix-up is visible mid-edit too. */}
                         <td className="num muted">{fmt.count(i.baseUnitFactor * editQty)}</td>
+                        <td className="num muted">
+                          {i.listUnitPriceMinorUnits === null
+                            ? t("noListPrice")
+                            : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
+                        </td>
                         <td className="num"><input className="cell" type="number" min={0}
                           aria-label={t("editUnitPriceAriaLabel")}
                           step={10 ** -active.currencyMinorUnit} value={editPrice}
                           onChange={(e) => setEditPrice(e.target.value)} /></td>
+                        <td className="num">—</td>
                         <td className="num">—</td>
                         <td>
                           <BusyButton className="link" disabled={busy} busy={isPending(`update-item:${i.id}`)}
@@ -850,7 +889,19 @@ export function SalesPage() {
                       <>
                         <td className="num">{fmt.count(i.quantity)}</td>
                         <td className="num">{fmt.count(i.quantityBase)}</td>
+                        <td className="num">
+                          {i.listUnitPriceMinorUnits === null
+                            ? t("noListPrice")
+                            : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
+                        </td>
                         <td className="num">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
+                        <td className="num">
+                          {discount.kind === "below"
+                            ? `${fmt.money(discount.amountMinorUnits, i.currencyCode, i.currencyMinorUnit)} (${fmt.count(discount.percent, 1)}%)`
+                            : discount.kind === "above"
+                              ? t("aboveList")
+                              : "—"}
+                        </td>
                         <td className="num">{fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</td>
                         <td>
                           {active.status === "Draft" && (
@@ -872,7 +923,8 @@ export function SalesPage() {
                       </>
                     )}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}

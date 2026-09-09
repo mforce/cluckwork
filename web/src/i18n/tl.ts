@@ -326,7 +326,11 @@ export const tl = {
     // Table headers (shared across the items / payments / orders tables)
     qty: "Dami",
     eggs: "Itlog",
+    listPrice: "Presyo sa listahan",
     unitPrice: "Presyo bawat yunit",
+    discount: "Diskwento",
+    noListPrice: "Walang presyo sa listahan",
+    aboveList: "Higit sa presyo sa listahan",
     lineTotal: "Kabuuan ng linya",
     reference: "Reference",
     amount: "Halaga",

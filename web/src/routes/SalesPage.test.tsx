@@ -122,7 +122,11 @@ function draftWithItem(currencyMinorUnit: number, currencyCode: string, unitPric
 const ITEM_A: OrderItem = {
   id: "it1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
   quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
-  listUnitPriceMinorUnits: 300,
+  // 375, not 300: a list price EQUAL to unitPriceMinorUnits would render the
+  // same "$3.00" text in both the list-price and unit-price cells, breaking
+  // "shows per-line base eggs and money" below, which asserts on rowA's
+  // unit price by bare text.
+  listUnitPriceMinorUnits: 375,
 };
 const ITEM_B: OrderItem = {
   id: "it2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
@@ -619,6 +623,55 @@ describe("SalesPage line display", () => {
     const row = await openOrder(draftWithItem(3, "BHD", 1500, "o4"), /Grade A Dozen/);
     expect(within(row).getByText("BHD 1.500")).toBeInTheDocument(); // unit price
     expect(within(row).getByText("BHD 4.500")).toBeInTheDocument(); // line total 1500 × 3
+  });
+});
+
+// #720 — the list price snapshot and the discount it implies, rendered per
+// line. Four states: none, at list, below list, above list.
+describe("SalesPage list price and discount (#720)", () => {
+  it('shows "No list price" when the line has none', async () => {
+    const row = await openOrder(draftWithItem(2, "USD", 500, "o-nolist"), /Grade A Dozen/);
+    expect(within(row).getByText(i18n.t("sales:noListPrice"))).toBeInTheDocument();
+  });
+
+  it("shows an em dash for the discount when the line sold exactly at list", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-atlist"),
+      referenceNumber: "SO-ATLIST",
+      totalMinorUnits: 900,
+      items: [{
+        id: "it-atlist", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: 300,
+      }],
+    };
+    const row = await openOrder(order, /Grade A Dozen/);
+    // The list price cell and the unit price cell show the same amount at list.
+    expect(within(row).getAllByText("$3.00")).toHaveLength(2);
+    expect(within(row).getByText("—")).toBeInTheDocument();
+  });
+
+  it("shows an amount and a percent when the line sold below list", async () => {
+    // ITEM_B: sold 1000, list 1200 → 400 minor units back (200/unit × 2), 16.7%.
+    const row = await openOrder(DRAFT_TWO, /Grade B Tray/);
+    expect(within(row).getByText("$12.00")).toBeInTheDocument(); // list price
+    expect(within(row).getByText("$4.00 (16.7%)")).toBeInTheDocument();
+  });
+
+  it("shows Above list when the line sold above list", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-above"),
+      referenceNumber: "SO-ABOVE",
+      totalMinorUnits: 900,
+      items: [{
+        id: "it-above", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: 250,
+      }],
+    };
+    const row = await openOrder(order, /Grade A Dozen/);
+    expect(within(row).getByText("$2.50")).toBeInTheDocument(); // list price
+    expect(within(row).getByText(i18n.t("sales:aboveList"))).toBeInTheDocument();
   });
 });
 
