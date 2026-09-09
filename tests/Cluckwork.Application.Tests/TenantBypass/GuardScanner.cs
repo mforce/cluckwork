@@ -51,6 +51,12 @@ public sealed record GuardReport(
     IReadOnlyList<BypassOccurrence> Unexcused,
     IReadOnlyList<AllowListMismatch> StaleEntries,
     IReadOnlyList<string> ParseErrors,
+    // #732 review round 2 — kept separate from ParseErrors on purpose. A parse error
+    // means the WALK cannot be trusted (Roslyn could not read a file); a registry error
+    // means the ALLOW-LIST contradicts itself while the walk is fine. Both fail the
+    // gate, but folding the second into the first sent whoever hit it looking for C#
+    // syntax that was never wrong.
+    IReadOnlyList<string> RegistryErrors,
     int ScannedFileCount,
     int ExpectedFileCountFloor,
     IReadOnlyList<string> RawSqlPredicateViolations,
@@ -141,6 +147,7 @@ public static class GuardScanner
 
         var occurrences = new List<BypassOccurrence>();
         var parseErrors = new List<string>();
+        var registryErrors = new List<string>();
         var rawSqlViolations = new List<string>();
         var rawSqlExecutionViolations = new List<string>();
 
@@ -427,6 +434,25 @@ public static class GuardScanner
 
         var allowList = AllowList.Load(allowListPath);
 
+        // #732 review round 1 (F7) — the key is (file, symbol) and matching below is
+        // Any(), so two rows carrying the SAME key both excuse every occurrence under
+        // it: neither can go stale on its own, and deleting one of the two sites the
+        // pair was written for fires nothing. A duplicate key is therefore refused
+        // outright rather than tolerated — fail-closed, reported as a REGISTRY error so
+        // it rides the gate Evaluate already has. Two occurrences in one symbol take ONE
+        // row whose justification covers both, exactly as this file's header requires
+        // ("one committed, reviewable line per excused bypass"). Round 2: this is not a
+        // parse error — the tree read fine, the registry is what contradicts itself.
+        foreach (var duplicate in allowList
+            .GroupBy(e => (File: NormalizePath(e.File), e.Symbol))
+            .Where(g => g.Count() > 1))
+        {
+            registryErrors.Add(
+                $"duplicate allow-list key {duplicate.Key.File} :: {duplicate.Key.Symbol} — "
+                + $"{duplicate.Count()} rows share it, so no row can go stale on its own; "
+                + "fold them into one entry whose justification covers every occurrence");
+        }
+
         // Excuse matching: file (relative) + symbol must both match exactly.
         var matches = (BypassOccurrence o, AllowListEntry e) =>
             string.Equals(o.File, NormalizePath(e.File), StringComparison.Ordinal)
@@ -446,7 +472,8 @@ public static class GuardScanner
 
         return new GuardReport(occurrences, excusedOccurrences,
             unexcusedOccurrences,
-            stale, parseErrors, files.Count, floor, rawSqlViolations, rawSqlExecutionViolations);
+            stale, parseErrors, registryErrors, files.Count, floor, rawSqlViolations,
+            rawSqlExecutionViolations);
     }
 
     // Round-4 finding F5 — all four Postgres row-lock keywords. The predicate
@@ -719,8 +746,8 @@ public static class GuardScanner
 
     /// <summary>
     /// Evaluates a report as a build gate. Every one of these must hold:
-    /// no parse errors, the file-count floor holds, nothing unexcused, no stale
-    /// entries. Returns the list of failure messages (empty = pass).
+    /// no parse errors, no registry errors, the file-count floor holds, nothing
+    /// unexcused, no stale entries. Returns the list of failure messages (empty = pass).
     /// </summary>
     public static IReadOnlyList<string> Evaluate(GuardReport report)
     {
@@ -730,6 +757,15 @@ public static class GuardScanner
         {
             failures.Add($"scan produced {report.ParseErrors.Count} parse error(s) — the walk cannot be trusted:\n  " +
                          string.Join("\n  ", report.ParseErrors.Take(10)));
+        }
+
+        // Separate from the parse-error failure above, and worded so the reader knows
+        // which of the two they are holding: the walk is trustworthy, the registry is
+        // not.
+        if (report.RegistryErrors.Count > 0)
+        {
+            failures.Add($"allow-list registry error(s): {report.RegistryErrors.Count} — the walk is sound but the registry contradicts itself:\n  " +
+                         string.Join("\n  ", report.RegistryErrors.Take(10)));
         }
 
         if (report.ScannedFileCount < report.ExpectedFileCountFloor)

@@ -645,6 +645,21 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
     void runReplacement(state.discovery.normalizedQuery, gen);
   }, [open, runReplacement]);
 
+  // #735 — an open from the trigger hands the keyboard to the search input
+  // and selects the committed name, so the first keystroke starts a search
+  // rather than appending to "Sim House A". Declared AFTER the open effect so
+  // it never runs before the input exists in the same commit. The Retry paths
+  // above still call focus() themselves: those run from a button that has
+  // already taken focus, so this effect (keyed on `open`) does not fire.
+  useEffect(() => {
+    if (!open || disabled) return;
+    const inputEl = document.getElementById(id);
+    if (inputEl instanceof HTMLInputElement) {
+      inputEl.focus();
+      inputEl.select();
+    }
+  }, [open, disabled, id]);
+
   // Arrow navigation: activation only — committing is Enter/pointer (FR-030).
   // Down Arrow at the loaded end with hasMore requests the next page (FR-032).
   const onArrow = useCallback((delta: number) => {

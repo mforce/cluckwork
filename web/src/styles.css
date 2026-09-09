@@ -2898,15 +2898,84 @@ button:disabled[aria-busy="true"] {
   position: relative;
 }
 
+/* #735 — the open input must read as a SEARCH FIELD, not as the first row of
+   the list under it. Same surface, hairline, radius and type as the options
+   made it exactly that (a highlighted "Sim House A" row above "Sim House A").
+   So: the inset surface the app uses for toolbars, a leading magnifier, and
+   the brand hairline while expanded. The glyph is DRAWN here — a bordered
+   circle and a rotated bar on the control's two pseudo-elements — rather than
+   loaded: the API serves this sheet under `img-src 'self' blob:`
+   (SecurityHeaders.cs), which CSP applies to CSS background images too, so a
+   data-URI glyph painted on the Vite dev server and vanished in production
+   (codex review of #736; styles.csp.test.ts now walks every url() for this).
+   Drawing it also lets the colour follow the theme through --muted. */
 .named-picker-control input {
   width: 100%;
-  padding: 0.55rem 0.7rem;
+  padding: 0.55rem 0.7rem 0.55rem 2.1rem;
   border: 1px solid var(--hairline);
   border-radius: var(--r-input);
   font: inherit;
   font-size: 0.95rem;
   color: var(--ink);
-  background: var(--surface);
+  background: var(--surface-2);
+}
+
+/* The magnifier: lens (::before) and handle (::after). The control is
+   position: relative and the input is its only in-flow child, so the
+   control's height IS the input's height and `top: 50%` is the field's
+   vertical centre whatever the input's padding, line-height or the phone
+   breakpoint's `min-height: 2.75rem` on `.entry-context input` make it —
+   a fixed rem offset drifted ~4px there (codex review of #736, round 2).
+   The input is not positioned, so these paint above it; pointer-events:
+   none keeps the click landing in the field. Lens: 0.6rem + 2×2px border,
+   so its radius is 0.3rem + 2px — kept as that sum, not folded into rem,
+   because the border is in px and a larger root font size would otherwise
+   pull the handle off the lens (round 3). The handle starts at the lens's
+   lower-right point (centre + r·cos45° on each axis) and runs out at 45°. */
+.named-picker-control::before,
+.named-picker-control::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.named-picker-control::before {
+  left: 0.8rem;
+  top: 50%;
+  width: 0.6rem;
+  height: 0.6rem;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+  transform: translateY(-50%);
+}
+
+.named-picker-control::after {
+  /* lens left + radius (0.3rem + 2px) + radius·cos45° (0.212rem + 1.414px) */
+  left: calc(0.8rem + 0.3rem + 2px + 0.212rem + 1.414px);
+  /* field centre + radius·cos45°, less half the bar's own 2px height */
+  top: calc(50% + 0.212rem + 1.414px - 1px);
+  width: 0.4rem;
+  height: 2px;
+  background: var(--muted);
+  border-radius: 1px;
+  transform: rotate(45deg);
+  transform-origin: 0 50%;
+}
+
+/* Disabled: the input dims itself (below) on top of the whole picker
+   dimming (`.named-picker.disabled`); the glyph is outside the input, so it
+   takes the same second step or it reads darker than its own field. Keyed
+   on the ancestor class rather than `:has(input:disabled)`: the engine sets
+   both from the one `disabled` prop, and `:has()` is dropped whole by
+   Firefox 114–120, which the build still targets (round 3). */
+.named-picker.disabled .named-picker-control::before,
+.named-picker.disabled .named-picker-control::after {
+  opacity: 0.6;
+}
+
+.named-picker-control input[aria-expanded="true"] {
+  border-color: var(--brand);
 }
 
 .named-picker-control input:focus {
@@ -2928,7 +2997,7 @@ button:disabled[aria-busy="true"] {
   left: 0;
   right: 0;
   z-index: 30;
-  margin: 0.25rem 0 0;
+  margin: 0.4rem 0 0;
   padding: 0;
   list-style: none;
   max-height: 22rem;

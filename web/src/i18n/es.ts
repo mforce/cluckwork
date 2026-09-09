@@ -1765,6 +1765,7 @@ export const es = {
     "auditAction.Account.Suspend": "Granja suspendida",
     "auditAction.Account.Reactivate": "Granja reactivada",
     "auditAction.Account.Provisioned": "Granja aprovisionada",
+    "auditAction.Account.Rename": "Código de granja cambiado",
     "auditAction.Product.Create": "Producto creado",
     "auditAction.Product.Update": "Producto actualizado",
     "auditAction.Product.Activate": "Producto activado",
@@ -2412,6 +2413,8 @@ export const es = {
       + "son los comandos que ejecuta un operador para dejar toda la granja fuera de línea y activarla de "
       + "nuevo; esas entradas también registran la máquina desde la que se ejecutaron y el motivo indicado. "
       + "\"(provision-account)\" crea una granja nueva y su primer propietario antes de que alguien de esa granja pueda iniciar sesión. "
+      + "\"(rename-account)\" es el comando que ejecuta un operador para cambiar el código de granja; esa "
+      + "entrada registra el código anterior y el nuevo, la máquina desde la que se ejecutó y el motivo indicado. "
       + "Todo lo demás nombra a la persona que lo hizo.",
     auditRecordHistoryOlder:
       "Los registros creados antes de que esto se agregara no muestran la línea de \"creado por\": "
@@ -2679,8 +2682,10 @@ export const es = {
     glossaryFarmCodeDef:
       "El código corto que identifica a su granja en la pantalla de inicio de sesión. Lo "
       + "escribe antes que su correo electrónico, porque la misma dirección puede existir en "
-      + "varias granjas y solo el código indica a cuál se refiere. Está en minúsculas y no "
-      + "cambia. La pantalla de inicio de sesión recuerda las últimas 10 granjas con las que "
+      + "varias granjas y solo el código indica a cuál se refiere. Está en minúsculas. "
+      + "Rara vez cambia, pero un operador puede cambiarlo si lo solicita; a partir de "
+      + "entonces inicia sesión con el código nuevo. "
+      + "La pantalla de inicio de sesión recuerda las últimas 10 granjas con las que "
       + "ha iniciado sesión en este dispositivo, la más reciente primero, y se las ofrece "
       + "una por una — incluso si solo recuerda una — en un selector, para que normalmente "
       + "no tenga que volver a escribir el código. Cada entrada puede olvidarse "

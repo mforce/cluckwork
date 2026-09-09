@@ -540,11 +540,12 @@ record's own history; the audit log is the cross-cutting trail.
 
 **Every event names an actor, and nothing can write one that does not (#500).**
 For a request that is the signed-in person. For the offline operator verbs,
-which have no human by design, it is one of five explicit **system actors** —
+which have no human by design, it is one of six explicit **system actors** —
 `(bootstrap-admin)` for the default farm's first Owner, `(break-glass)` for a
 `recover-admin` password reset, `(suspend-account)` and `(reactivate-account)`
-for farm lifecycle changes, and `(provision-account)` for a new farm and its
-first Owner — chosen deliberately rather than defaulted. An
+for farm lifecycle changes, `(provision-account)` for a new farm and its first
+Owner, and `(rename-account)` for a change to a farm's code (#732) — chosen
+deliberately rather than defaulted. An
 event whose actor was never resolved is refused outright, so a record can never
 be filed with no author at all. Sample data is held to the same rule: a **demo**
 farm's records are signed by its Owner, and a **simulation** farm's by the member
@@ -737,9 +738,11 @@ can belong to users in several farms. Every tenant-owned row carries
 stable, URL-safe slug (`Account.Slug`) for an account — lowercase letters,
 digits and hyphens, 3–32 characters, no leading or trailing hyphen. Unlike the
 account's internal id (a GUID), it is meant to be typed and read aloud. It is
-chosen once and **immutable** — a provisioning typo has no in-app fix this
-phase — and a handful of words are reserved (`api`, `admin`, `www`, `health`,
-`app`, `login`, `auth`, and similar). The default farm's code is
+chosen deliberately and changed only by the `rename-account` operator verb
+(#732) — there is no endpoint and no Settings field, so a farm cannot rename
+itself — and a handful of words are reserved (`api`, `admin`, `www`, `health`,
+`app`, `login`, `auth`, and similar). A code a farm has moved off is
+immediately reusable; there is no retired-code list. The default farm's code is
 `default-farm`. Operators discover the codes with the `list-accounts` command.
 The farm code is the way to disambiguate login across farms (#532): the sign-in
 form requires it before the email, because one email address can now exist in
@@ -774,9 +777,10 @@ generated one-time password and must replace it at first sign-in. A new farm
 starts in UTC; after that password change, the Owner selects the farm's IANA
 timezone in Settings. The command does not migrate the schema and is intended
 to run with the ordinary DML-only runtime database role after the migration
-job. A farm code is immutable, so the command echoes its normalized value
-before writing and the database's unique index is the final authority when two
-operators race for the same code.
+job. A farm code is chosen deliberately, so the command echoes its normalized
+value before writing and the database's unique index is the final authority
+when two operators race for the same code. Correcting one afterwards is the
+`rename-account` verb's job (#732), not a re-provision.
 
 **Account status — active / suspended (#531/#532/#534)** — an account is
 *active* by default. **Suspending** it takes the farm offline; **reactivating**

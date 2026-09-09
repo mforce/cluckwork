@@ -65,4 +65,26 @@ public sealed class AccountSlugRaceTests(CluckworkWebApplicationFactory factory)
 
         Assert.IsType<DbUpdateConcurrencyException>(conflict);
     }
+
+    [Fact]
+    public async Task TwoConcurrentRenames_TheLoserGetsAConcurrencyConflict()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync(Unique("rename"));
+
+        var conflict = await Record.ExceptionAsync(() =>
+            factory.WithTenantScopeAsync(accountId, dbA =>
+                factory.WithTenantScopeAsync(accountId, async dbB =>
+                {
+                    var a = await dbA.Accounts.FirstAsync();
+                    var b = await dbB.Accounts.FirstAsync();
+
+                    Assert.True(a.Rename("first-" + accountId.ToString("N")[..10]).IsSuccess);
+                    await dbA.SaveChangesAsync();
+
+                    Assert.True(b.Rename("second-" + accountId.ToString("N")[..10]).IsSuccess);
+                    await dbB.SaveChangesAsync();
+                })));
+
+        Assert.IsType<DbUpdateConcurrencyException>(conflict);
+    }
 }

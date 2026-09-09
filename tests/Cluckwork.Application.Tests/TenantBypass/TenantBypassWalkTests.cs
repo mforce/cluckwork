@@ -132,4 +132,41 @@ public sealed class TenantBypassWalkTests
 
     private static string AllowListPath() =>
         Path.Combine(AppContext.BaseDirectory, "Data", "tenant-bypass-allowlist.json");
+
+    // #732 review round 1 (F7) — excuse matching is Any() over (file, symbol), so two
+    // rows carrying the SAME key both "match" every occurrence under it and neither can
+    // ever go stale on its own. That reads as per-call-site precision the scheme does not
+    // provide, so a duplicate key is refused outright rather than silently tolerated.
+    //
+    // Round 2 — it is refused as a REGISTRY error, not a parse error. A registry that
+    // contradicts itself is not a source tree Roslyn could not read, and saying "parse
+    // error" sent whoever hit it looking for C# syntax that was never wrong. The gate is
+    // unchanged; only the classification and the message are.
+    [Fact]
+    public void DuplicateAllowListKeys_FailClosed()
+    {
+        var dir = Directory.CreateTempSubdirectory("t-bypass-duplicate-").FullName;
+        var src = Path.Combine(dir, "src");
+        Directory.CreateDirectory(src);
+        File.WriteAllText(Path.Combine(src, "Probe.cs"), """
+            using Microsoft.EntityFrameworkCore;
+            class Probe { void Read(DbSet<object> rows) { _ = rows.IgnoreQueryFilters(); } }
+            """);
+        var allowList = Path.Combine(dir, "allow.json");
+        File.WriteAllText(allowList, """
+            [
+              { "symbol": "Probe.Read(DbSet<object> rows)", "file": "src/Probe.cs", "justification": "first" },
+              { "symbol": "Probe.Read(DbSet<object> rows)", "file": "src/Probe.cs", "justification": "second" }
+            ]
+            """);
+
+        var report = GuardScanner.Scan(src, allowList);
+        var failures = GuardScanner.Evaluate(report);
+
+        Assert.Contains(failures, failure =>
+            failure.StartsWith("allow-list registry error(s):", StringComparison.Ordinal)
+            && failure.Contains("duplicate allow-list key", StringComparison.Ordinal));
+        Assert.Empty(report.ParseErrors);
+        Assert.NotEmpty(report.RegistryErrors);
+    }
 }

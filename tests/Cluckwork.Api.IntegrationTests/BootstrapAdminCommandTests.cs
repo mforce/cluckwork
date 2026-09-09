@@ -294,10 +294,11 @@ public sealed class BootstrapAdminCommandTests : IClassFixture<CluckworkWebAppli
 
     // #589 — set the default account's Slug to a value that is NOT the
     // migration-seeded "default-farm", and restore it. Raw SQL (not EF
-    // SaveChanges) is deliberate: Slug is immutable in the domain (#531,
-    // "no ChangeSlug"), and a raw UPDATE bypasses both the domain guard and any
-    // interceptor — exactly what a test that fabricates a distinct farm code
-    // needs. `Override` returns the original so a `finally` can restore it.
+    // SaveChanges) is deliberate and stays: this is a SETUP path establishing a
+    // precondition directly, not a production rename. A production rename goes
+    // through rename-account / Account.Rename (#732), which validates the code,
+    // bumps Version and writes an audit row this fixture neither wants nor
+    // asserts. `Override` returns the original so a `finally` can restore it.
     private async Task<string> OverrideDefaultAccountSlugAsync(string newSlug)
     {
         using var scope = _factory.Services.CreateScope();

@@ -136,6 +136,9 @@ it without disturbing the others.
 (`20260818235944_AddAccountSlug.cs:58-62`): the slug is stored already canonical, so the
 expression index would be indexing a transformation of a value that is never in any other
 form. The reasoning is repeated at `src/Cluckwork.Domain/Accounts/Account.cs:20-22`.
+Renameable since #732 by the rename-account verb; the plain unique index still
+suffices because Account.Rename writes an already-normalized value. See
+732-farm-code-rename.md.
 
 ---
 

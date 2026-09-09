@@ -41,9 +41,10 @@ public sealed class ProvisionAccountCliCommand : ICliCommand
                 return 1;
             }
 
-            // The farm code is immutable during this epic. Echo only its
-            // normalized value before any write; the name is tenant-controlled
-            // terminal text and is deliberately never echoed here (#560).
+            // Echo only the code's normalized value before any write; the name is
+            // tenant-controlled terminal text and is deliberately never echoed here
+            // (#560). The code is not fixed for life — an operator changes one through
+            // rename-account / Account.Rename (#732) — but nothing on this path does.
             await Console.Out.WriteLineAsync($"Farm code: {slug.Value}");
 
             using var scope = app.Services.CreateScope();
