@@ -2272,6 +2272,11 @@ export const es = {
       + "resultante mientras escribe (2 bandejas = 60 huevos, no 60 bandejas). Cada línea "
       + "recuerda cuántos huevos contenía su unidad cuando se agregó, así que redefinir un cartón más tarde "
       + "nunca cambia pedidos antiguos.",
+    salesListPrice:
+      "Cada línea también muestra su <strong>Precio de lista</strong> — el precio del producto cuando se "
+      + "agregó la línea — junto a un <strong>Descuento</strong> calculado a partir de él: un monto y un "
+      + "porcentaje cuando se vende por debajo de la lista, <strong>Sobre el precio de lista</strong> cuando "
+      + "se vende por encima, y \"Sin precio de lista\" cuando no hay nada con qué comparar.",
     salesConfirming:
       "<strong>Confirmar</strong> un pedido asigna existencias reales — los lotes más antiguos primero — y "
       + "es el punto donde el inventario cambia de manos.",

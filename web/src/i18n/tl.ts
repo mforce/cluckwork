@@ -2359,6 +2359,12 @@ export const tl = {
       + "ipinapakita nito ang kabuuang itlog habang nagta-type (2 tray = 60 itlog, hindi 60 tray). "
       + "Naaalala ng bawat linya kung ilang itlog ang laman ng unit nito noong idinagdag ito, kaya hindi "
       + "kailanman binabago ng muling pagtukoy sa isang karton ang mga lumang order.",
+    salesListPrice:
+      "Ipinapakita rin ng bawat linya ang <strong>Presyo sa listahan</strong> nito — ang presyo ng produkto "
+      + "noong idinagdag ang linya — katabi ng <strong>Diskwento</strong> na kinalkula mula rito: isang "
+      + "halaga at porsyento kapag naibenta sa mas mababa sa listahan, <strong>Higit sa presyo sa "
+      + "listahan</strong> kapag naibenta nang mas mataas, at \"Walang presyo sa listahan\" kapag walang "
+      + "maikukumpara.",
     salesConfirming:
       "Ang <strong>Pagkumpirma</strong> ng isang order ay naglalaan ng aktwal na stock — pinakalumang lote "
       + "muna — at ito ang sandali kung saan lumilipat ang inventory.",

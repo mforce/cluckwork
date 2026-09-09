@@ -2803,6 +2803,11 @@ export const en = {
       + "unit and shows the resulting egg count while you type (2 trays = 60 eggs, not 60 trays). Each "
       + "line remembers how many eggs its unit held when it was added, so redefining a carton later never "
       + "changes old orders.",
+    salesListPrice:
+      "Each line also shows its <strong>List price</strong> — the product's price when the line was "
+      + "added — next to a <strong>Discount</strong> worked out from it: an amount and a percent when sold "
+      + "under list, <strong>Above list</strong> when sold over, and \"No list price\" when there's nothing "
+      + "to compare against.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",

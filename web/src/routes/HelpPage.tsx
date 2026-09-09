@@ -550,6 +550,9 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="salesDrafts" components={{ strong: <strong /> }} />
         </li>
         <li>
+          <Trans ns="help" i18nKey="salesListPrice" components={{ strong: <strong /> }} />
+        </li>
+        <li>
           <Trans ns="help" i18nKey="salesConfirming" components={{ strong: <strong /> }} />
         </li>
         <li>
