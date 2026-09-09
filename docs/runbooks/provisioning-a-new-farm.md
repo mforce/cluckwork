@@ -184,6 +184,27 @@ user and your `--reason`. Nothing needs recording by hand.
    failing.
 3. Confirm an already-signed-in session still works without a new login.
 
+### If you lost the output
+
+The verb prints one line and exits, so a terminal, CI log or connection that ate
+it leaves you not knowing whether the rename committed. Two commands are
+available and only one of them is safe: **do not blindly replay
+`--slug <old> --new-slug <new>`.** That command looks idempotent and is not. If
+the rename did commit, `<old>` no longer belongs to that farm — and because a
+retired code is immediately reusable, it may by then belong to somebody else,
+whom the replay would rename.
+
+1. Run `list-accounts` and read which code the farm holds now.
+2. Confirm it in the trail. The Audit page filtered to `Account.Rename` shows one
+   row per rename, carrying the old and new codes and your `--reason`; one row
+   means one rename, whatever your terminal showed.
+3. Replay only once the farm already holds `<new>`, and only in the
+   `--slug <new> --new-slug <new>` form. That is the no-op: it exits `0`, says
+   the farm already has that code, and writes no second audit row.
+
+If step 1 shows the farm still on `<old>`, nothing committed and the original
+command is safe to re-run unchanged.
+
 ### If it fails
 
 The verb exits `1` and prints one line naming the error code:

@@ -27,10 +27,14 @@ using Microsoft.Extensions.DependencyInjection;
 //     stays on the roster until the user picks Forget, and offering it returns
 //     Auth.UnknownFarmCode unless another farm has since reused it.
 //
-// EVERY stderr message this verb writes is sanitized at ONE sink (WriteErrorAsync).
-// Round 1 sanitized the rejected --new-slug line and left the unknown-code line raw,
-// which is the shape a per-line fix produces: the sink exists so an unsanitized stderr
-// line cannot be added here at all.
+// ALL CURRENT stderr paths in this verb route through one sink, WriteErrorAsync, which
+// is where the sanitization lives. Round 1 sanitized the rejected --new-slug line and
+// left the unknown-code line raw, which is the shape a per-line fix produces. A comment
+// cannot make a second raw write impossible, so it does not claim to: the claim above is
+// checked by RenameAccountDocsTests
+// .RenameVerb_HasExactlyOneStderrSink_AndItIsWriteErrorAsync, which reads this file and
+// reds on any direct stderr write outside the sink — including one written in a comment,
+// since it counts occurrences in the source text rather than in the syntax tree.
 public sealed class RenameAccountCliCommand : ICliCommand
 {
     public string Name => "rename-account";

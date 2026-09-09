@@ -392,6 +392,41 @@ public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory 
         Assert.Equal(before, await VersionAsync(accountId));
     }
 
+    // #732 review round 3 — the lost-output recovery, pinned so the runbook's advice
+    // cannot drift from the verb. After a successful rename the operator has two commands
+    // that look interchangeable. Blindly replaying the ORIGINAL old -> new is the unsafe
+    // one: the old code no longer resolves here, and on a real deployment a retired code
+    // is immediately reusable, so the same replay could rename whoever holds it now. Only
+    // new -> the same new is the no-op, and it writes no second audit row.
+    [Fact]
+    public async Task RenameVerb_AfterSuccess_ReplayingTheOriginalCommandFails_ButTheNoOpReplayDoesNot()
+    {
+        var accountId = await factory.SeedAccountWithUserAsync($"rename-replay-{Guid.NewGuid():N}@test.local");
+        var slug = Slug(accountId);
+        // Derived from this test's own account, so no other run of the suite competes
+        // for the destination code.
+        var target = "rpl" + slug[^11..];
+
+        var rename = await RunRename(slug, target);
+        Assert.True(rename.ExitCode == 0, $"expected exit 0, got {rename.ExitCode}. stderr={rename.Stderr}");
+        var versionAfterRename = await VersionAsync(accountId);
+
+        var blindReplay = await RunRename(slug, target);
+        var noOpReplay = await RunRename(target, target);
+
+        Assert.Equal(1, blindReplay.ExitCode);
+        Assert.Contains($"No farm with code '{slug}'.", blindReplay.Stderr);
+
+        Assert.True(noOpReplay.ExitCode == 0, $"expected exit 0, got {noOpReplay.ExitCode}. stderr={noOpReplay.Stderr}");
+        Assert.Contains("already", noOpReplay.Stdout);
+
+        Assert.Equal(target, await factory.WithTenantScopeAsync(accountId, db => db.Accounts
+            .Where(a => a.Id == accountId).Select(a => a.Slug).SingleAsync()));
+        Assert.Equal(versionAfterRename, await VersionAsync(accountId));
+        Assert.Equal(1, await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents
+            .CountAsync(a => a.AccountId == accountId && a.Action == "Account.Rename")));
+    }
+
     [Fact]
     public async Task RenameVerb_InvalidCodeWithControlCharacters_StillWritesOneStderrLine()
     {

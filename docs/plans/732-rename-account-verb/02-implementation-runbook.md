@@ -1,6 +1,6 @@
 # Runbook — #732: `rename-account`, a one-shot verb that changes a farm code
 
-**Historical implementation handout; review-round fixes f069469..HEAD supersede named code blocks and mutation rows. Do not execute it against the current tree.**
+**Historical implementation handout; PR #733 review-round fixes supersede named code blocks and mutation rows. Do not execute it against the current tree.**
 
 You are an autonomous coding agent with FULL tools (read, edit, write, bash) in the `cluckwork` repo
 (.NET 10 / EF Core 10.0.11 / Npgsql / Postgres via Testcontainers; React 19 + Vite SPA; cwd = repo root
