@@ -21,8 +21,11 @@ using Microsoft.Extensions.DependencyInjection;
 //   * Run list-accounts first. A code a farm has moved off is immediately reusable, so
 //     --slug names whoever holds that code NOW, not the farm you meant last week.
 //   * Existing sessions keep working: cookies and tokens bind to the account id. What
-//     goes stale is client-side and cosmetic — the remembered code on the sign-in form
-//     and the per-farm palette cache — and both refresh on the next explicit sign-in.
+//     goes stale is client-side and cosmetic, and it does not clear itself. The next
+//     explicit sign-in with the NEW code prepends it to that device's remembered-code
+//     roster and refreshes the palette cache under the new key; the OLD remembered code
+//     stays on the roster until the user picks Forget, and offering it returns
+//     Auth.UnknownFarmCode unless another farm has since reused it.
 //
 // EVERY stderr message this verb writes is sanitized at ONE sink (WriteErrorAsync).
 // Round 1 sanitized the rejected --new-slug line and left the unknown-code line raw,

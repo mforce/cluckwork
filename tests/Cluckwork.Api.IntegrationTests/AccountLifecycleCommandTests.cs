@@ -246,13 +246,17 @@ public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory 
         var accountId = await factory.SeedAccountWithUserAsync(email);
         var slug = Slug(accountId);
 
-        var (exitCode, stdout, stderr) = await RunRename(slug, "renamed-by-verb",
+        // Derived from THIS test's seeded account, like its siblings: a literal
+        // destination is a code every run of the suite competes for, so a leftover row
+        // from an earlier run turns a real pass into Account.SlugTaken.
+        var target = "ren" + slug[^11..];
+        var (exitCode, stdout, stderr) = await RunRename(slug, target,
             " --reason \"rebrand drill\"");
 
         Assert.True(exitCode == 0, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
         Assert.Contains(slug, stdout);
-        Assert.Contains("renamed-by-verb", stdout);
-        Assert.Equal("renamed-by-verb", await factory.WithTenantScopeAsync(accountId, db => db.Accounts
+        Assert.Contains(target, stdout);
+        Assert.Equal(target, await factory.WithTenantScopeAsync(accountId, db => db.Accounts
             .Where(a => a.Id == accountId).Select(a => a.Slug).SingleAsync()));
 
         var audit = await factory.WithTenantScopeAsync(accountId, db => db.AuditEvents

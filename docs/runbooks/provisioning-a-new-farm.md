@@ -28,7 +28,7 @@ The code is lowercase letters, digits, and hyphens; 3–32 characters; and canno
 start or end with a hyphen. No endpoint and no Settings field changes it, so a
 farm cannot rename itself — but an operator can, on any farm, with the
 `rename-account` verb (#732); see
-[renaming a farm's code](#renaming-the-default-farms-code) below. Renaming is a
+[renaming a farm's code](#renaming-a-farms-code) below. Renaming is a
 deliberate, announced change rather than a cheap undo, so still have a second
 person verify the code before continuing.
 
@@ -102,33 +102,39 @@ captured, rerun the identical command. It exits `1` with
 command. Run that `recover-admin` command to mint a new one-time password; it
 revokes the lost credential and records the reason.
 
-## Renaming the default farm's code
+## Renaming a farm's code
 
-**When to use this:** a database provisioned before multi-farm tenancy
-(release `v0.0.4` or earlier) was upgraded, and the migration
-`20260818235944_AddAccountSlug` stamped the pre-existing account with the
-documented code `default-farm`. Nothing asks for a code at migration time, so a
-farm that wants its own code gets it from the `rename-account` verb.
+**When to use this:** a farm's code has to change. The commonest case is repair:
+a database provisioned before multi-farm tenancy (release `v0.0.4` or earlier)
+was upgraded, and the migration `20260818235944_AddAccountSlug` stamped the
+pre-existing account with the documented code `default-farm`. Nothing asks for a
+code at migration time, so a farm that wants its own code gets it from the
+`rename-account` verb.
 
-**Not this runbook:** a farm created by `provision-account`. Its code was chosen
-on purpose — renaming it is a deliberate rebrand, not a repair.
+**Any farm may be renamed**, not only that upgraded one — the verb does not
+distinguish them, and neither does the domain. What it is either way is an
+operator-controlled rebrand: use it to repair a farm still carrying
+`default-farm`, or to carry out a deliberate, announced rebrand of a farm
+`provision-account` created. There is no self-service path and no undo.
 
 **Blast radius:** one row in `Accounts`. Nothing else stores the code. Refresh
 cookies and access tokens bind to the account **id**, so every signed-in user
-stays signed in; the verb says so on success. Two SPA caches still name the old
-code until the user next signs in explicitly — the remembered farm code on the
-login form and the per-farm palette cache — and both are cosmetic. Anything
-outside the app that names the code is stale the moment the change commits:
-printed material, and every bookmarked `?farm=<old>` URL.
+stays signed in; the verb says so on success. Two SPA caches are cosmetic and do
+not clear themselves. An explicit sign-in with the new code prepends it to that
+device's remembered farm-code list and refreshes the per-farm palette cache under
+the new key; the OLD remembered code stays in the list until the user picks
+Forget, and offering it returns `Auth.UnknownFarmCode` unless another farm has
+since reused it. Anything outside the app that names the code is stale the moment
+the change commits: printed material, and every bookmarked `?farm=<old>` URL.
 
 **A code a farm has moved off is immediately reusable.** There is no
 retired-code list, so `--slug` names whoever holds that code *now*, which may
 not be the farm you meant last week. Run `list-accounts` immediately before you
 rename, and read its output rather than your notes.
 
-**Tell every user the new code before it lands.** The sign-in form's remembered
-code and every bookmarked `?farm=<old>` link go stale at commit time, so an
-unannounced rename looks to a user like the farm disappeared.
+**Tell every user the new code before it lands.** The sign-in form still offers
+the old code and every bookmarked `?farm=<old>` link stops working at commit
+time, so an unannounced rename looks to a user like the farm disappeared.
 
 **Prerequisites:** the migration job has run and `list-accounts` shows the farm.
 The ordinary DML-only runtime credential is enough; this needs no migrator role.
@@ -170,7 +176,12 @@ user and your `--reason`. Nothing needs recording by hand.
 ### Verify
 
 1. Sign in with the new code.
-2. Confirm the old code no longer signs in — it returns `Auth.UnknownFarmCode`.
+2. Check what the old code does now, and read `list-accounts` before you judge it.
+   If no farm has reused it, signing in with it returns `Auth.UnknownFarmCode`.
+   If another farm has taken it — there is no retired-code list — `list-accounts`
+   names that holder, and a successful sign-in with that code
+   authenticates that holder. That is the reuse working, not the rename
+   failing.
 3. Confirm an already-signed-in session still works without a new login.
 
 ### If it fails

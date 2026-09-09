@@ -73,11 +73,15 @@ rename, and `AccountRenameServiceTests` pins the reuse behaviour so it is a
 recorded fact rather than a surprise. #530's own sketch of this work assumed a
 retired-code list; shipping without one is the deliberate difference.
 
-It also does not cover the client-side caches. The sign-in form's remembered
-farm code and the per-farm palette cache still name the old code until the user
-next signs in explicitly. Both are cosmetic and both refresh on that sign-in.
-Sessions themselves are unaffected — cookies and tokens bind to the account id,
-never to the code — and that is asserted, not assumed.
+It also does not cover the client-side caches, and they do not clear themselves.
+An explicit sign-in with the new code prepends it to that device's remembered
+farm-code roster and refreshes the per-farm palette cache under the new key. The
+OLD remembered code is not removed: `removeFarmCode` (#587, the Forget control)
+is the roster's only exit, so the sign-in form keeps offering the old code, and
+offering it returns `Auth.UnknownFarmCode` unless another farm has since reused
+it. Both caches are cosmetic. Sessions themselves are unaffected — cookies and
+tokens bind to the account id, never to the code — and that is asserted, not
+assumed.
 
 Nothing here bounds what happens *outside* the deployment: printed material and
 bookmarked `?farm=<old>` links are stale the moment the rename commits, and the
@@ -101,7 +105,9 @@ only mitigation is telling users the new code before it lands.
 - `AuditVocabularyCoverageTests` — that `AuditActions.AccountRename` is a
   registry reference at the call site and is offered by the SPA.
 - `TenantBypassRealTreeTests.RealSourceTree_AllBypassesAreAllowListed` — the
-  service's two `IgnoreQueryFilters()` reads carry justifications.
+  service's one combined `IgnoreQueryFilters()` read, discovered
+  once directly and once through its forwarding caller; both occurrences carry
+  justifications.
 
 Nothing enforces the runbook prose or the glossary wording; those rely on
 review.
