@@ -137,6 +137,11 @@ public sealed class TenantBypassWalkTests
     // rows carrying the SAME key both "match" every occurrence under it and neither can
     // ever go stale on its own. That reads as per-call-site precision the scheme does not
     // provide, so a duplicate key is refused outright rather than silently tolerated.
+    //
+    // Round 2 — it is refused as a REGISTRY error, not a parse error. A registry that
+    // contradicts itself is not a source tree Roslyn could not read, and saying "parse
+    // error" sent whoever hit it looking for C# syntax that was never wrong. The gate is
+    // unchanged; only the classification and the message are.
     [Fact]
     public void DuplicateAllowListKeys_FailClosed()
     {
@@ -155,8 +160,13 @@ public sealed class TenantBypassWalkTests
             ]
             """);
 
-        var failures = GuardScanner.Evaluate(GuardScanner.Scan(src, allowList));
+        var report = GuardScanner.Scan(src, allowList);
+        var failures = GuardScanner.Evaluate(report);
 
-        Assert.Contains(failures, failure => failure.Contains("duplicate allow-list key", StringComparison.Ordinal));
+        Assert.Contains(failures, failure =>
+            failure.StartsWith("allow-list registry error(s):", StringComparison.Ordinal)
+            && failure.Contains("duplicate allow-list key", StringComparison.Ordinal));
+        Assert.Empty(report.ParseErrors);
+        Assert.NotEmpty(report.RegistryErrors);
     }
 }
