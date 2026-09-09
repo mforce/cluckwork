@@ -346,7 +346,12 @@ export function salesBundle(session, persona, idemKeyFn) {
   );
 
   const customers = safeJson(custRes) || [];
-  const products = (safeJson(prodRes) || []).filter((p) => p.active);
+  // #720 added an active, UNPRICED product to the simulation fixture (for the
+  // SPA's "No list price" state) — the add-item POST below sends no unit
+  // price, so picking that product would 422 SalesOrder.PriceRequired. Filter
+  // to products with a default price rather than tolerating the 422: this
+  // bundle is exercising the default-price path on purpose.
+  const products = (safeJson(prodRes) || []).filter((p) => p.active && p.defaultPriceMinorUnits !== null);
   if (customers.length === 0 || products.length === 0) return;
 
   const customer = customers[Math.floor(Math.random() * customers.length)];
