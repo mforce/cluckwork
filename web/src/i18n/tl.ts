@@ -336,6 +336,7 @@ export const tl = {
     listPriceHintBelow: "{{amount}} mas mababa sa presyo sa listahan ({{percent}}%)",
     listPriceHintAbove: "{{amount}} higit sa presyo sa listahan ({{percent}}%)",
     listPriceHintAboveNoPct: "{{amount}} higit sa presyo sa listahan",
+    listPriceHintBelowNoPct: "{{amount}} mas mababa sa presyo sa listahan",
     lineTotal: "Kabuuan ng linya",
     reference: "Reference",
     amount: "Halaga",

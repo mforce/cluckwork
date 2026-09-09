@@ -1103,13 +1103,18 @@ export function SalesPage() {
                   if (!Number.isFinite(typed) || typed === list) return null;
                   const perUnit = Math.abs(typed - list);
                   const amount = fmt.money(perUnit, active.currencyCode, active.currencyMinorUnit);
-                  if (typed < list) {
-                    return <p className="muted">
-                      {t("listPriceHintBelow", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
-                    </p>;
-                  }
                   // A zero list price is legal (Product.cs rejects only
                   // negatives) — dividing by it for a percent would be NaN/Infinity.
+                  // <input min={0}> is a validation constraint, not an input
+                  // filter, so a negative typed price against a zero list can
+                  // still reach the below branch here.
+                  if (typed < list) {
+                    return list === 0
+                      ? <p className="muted">{t("listPriceHintBelowNoPct", { amount })}</p>
+                      : <p className="muted">
+                          {t("listPriceHintBelow", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
+                        </p>;
+                  }
                   return list === 0
                     ? <p className="muted">{t("listPriceHintAboveNoPct", { amount })}</p>
                     : <p className="muted">

@@ -193,12 +193,17 @@ public sealed class SalesOrderItem : Entity<Guid>
     /// <summary>Price per selling unit.</summary>
     public Money UnitPrice { get; private set; } = null!;
     /// <summary>
-    /// The product's list price at the moment this line was written, in the
+    /// The product's list price at the moment this line was added, in the
     /// ORDER's currency and minor unit — see AddOrderItemHandler, which is the
-    /// only thing that sets it and only when those agree. NULL means "no
-    /// comparable list price", which covers three cases the read surfaces
-    /// deliberately render alike: the product had none, the line predates the
-    /// column, or the denominations did not match (#720).
+    /// only thing that sets it and only when those agree. <see cref="Update"/>
+    /// does not re-resolve it: editing a line's quantity or price never
+    /// changes what the catalogue said when the line was added (INV-1). NULL
+    /// means "no comparable list price", which covers three cases the read
+    /// surfaces deliberately render alike: the product had none, the line
+    /// predates the column, or the denominations did not match (#720). That
+    /// denomination check is what makes a bare long? honest, and it backstops
+    /// a state the #123 currency lock makes unreachable today — a priced
+    /// product locks the farm currency (CurrencyBoundRowProbe.cs:24).
     /// </summary>
     public long? ListUnitPriceMinorUnits { get; private set; }
     public Money LineTotal => UnitPrice.Multiply(Quantity);

@@ -651,6 +651,19 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     expect(screen.queryByText(/%/)).not.toBeInTheDocument();
   });
 
+  it("hints a below-list amount with NO percent when the product's list price is zero", async () => {
+    // <input min={0}> is a validation constraint, not an input filter — a
+    // negative typed price is reachable (paste, keyboard) and would divide
+    // by a zero list price for the below branch's percent.
+    mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultPriceMinorUnits: 0 }, PRODUCT_B]);
+    await renderReady();
+    await createDraft(draftEmpty(2, "USD"));
+
+    fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "-5.00" } });
+    expect(screen.getByText("$5.00 below list")).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+  });
+
   it("shows no hint when the selected product has no list price", async () => {
     mockListProducts.mockResolvedValue([{ ...PRODUCT_A, defaultPriceMinorUnits: null }, PRODUCT_B]);
     await renderReady();

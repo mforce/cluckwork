@@ -413,6 +413,10 @@ export const en = {
     // negatives) — dividing by it for a percent would be a NaN/Infinity, so
     // this variant carries the amount only.
     listPriceHintAboveNoPct: "{{amount}} above list",
+    // A negative typed price (min={0} is a validation constraint, not an
+    // input filter) can reach the below branch against a zero list price —
+    // same NaN/Infinity hazard, same amount-only fallback.
+    listPriceHintBelowNoPct: "{{amount}} below list",
     lineTotal: "Line total",
     reference: "Reference",
     amount: "Amount",

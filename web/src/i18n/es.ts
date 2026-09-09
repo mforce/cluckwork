@@ -320,6 +320,7 @@ export const es = {
     listPriceHintBelow: "{{amount}} por debajo del precio de lista ({{percent}}%)",
     listPriceHintAbove: "{{amount}} sobre el precio de lista ({{percent}}%)",
     listPriceHintAboveNoPct: "{{amount}} sobre el precio de lista",
+    listPriceHintBelowNoPct: "{{amount}} por debajo del precio de lista",
     lineTotal: "Total de línea",
     reference: "Referencia",
     amount: "Monto",
