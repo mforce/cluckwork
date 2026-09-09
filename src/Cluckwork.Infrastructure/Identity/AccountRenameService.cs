@@ -44,20 +44,25 @@ public sealed class AccountRenameService(
             return Result.Failure<AccountRenameOutcome>(validated.Error);
         var target = validated.Value;
 
-        // This lookup and the locked read below are separate statements. The id is stable,
-        // but the slug on that row is not; the post-lock equality fence below closes that
-        // race. Resolving the tenant remains a precondition for the locked read.
-        var accountId = await ResolveCurrentAsync(currentSlug, ct);
-        if (accountId is null)
+        // ONE friendly combined read for both codes. It answers "which farm holds the
+        // source code?" and "is the destination already someone else's?" in a single
+        // unresolved-tenant query — #732 review round 1 (F7): two separate reads meant
+        // two forwarding occurrences under one allow-list key, and that key cannot
+        // excuse them separately. This read and the locked read below are still separate
+        // statements: the id is stable, but the slug on that row is not, and the
+        // post-lock equality fence closes that race. The destination half is UX only —
+        // it can race with another farm targeting the same code, so IX_Accounts_Slug and
+        // the catch below remain the correctness guarantee.
+        var resolution = await ResolveSlugsAsync(currentSlug, target, ct);
+        if (resolution.CurrentId is null)
             return Result.Failure<AccountRenameOutcome>(Error.NotFound("Accounts", currentSlug));
-
-        // Friendly UX only. This can race with another farm targeting the same code,
-        // so IX_Accounts_Slug and the catch below remain the correctness guarantee.
-        if (!string.Equals(currentSlug, target, StringComparison.Ordinal)
-            && await IsTargetTakenAsync(target, accountId.Value, ct))
+        if (resolution.TargetTaken)
             return SlugTaken(target);
 
-        tenant.Resolve(accountId.Value);
+        var accountId = resolution.CurrentId.Value;
+
+        // Resolving the tenant is a precondition for the locked read, not a formality.
+        tenant.Resolve(accountId);
 
         // #500 — no signed-in human by design (an operator at a shell), so this declares
         // WHICH non-person it is, exactly as the suspend/reactivate/provision verbs do.
@@ -69,7 +74,7 @@ public sealed class AccountRenameService(
             {
                 var account = await accounts.GetCurrentLockedAsync(token);
                 if (account is null)
-                    return Result.Failure<AccountRenameOutcome>(Error.NotFound("Accounts", accountId.Value));
+                    return Result.Failure<AccountRenameOutcome>(Error.NotFound("Accounts", accountId));
 
                 // The slug lookup happened before this lock. A concurrent committed rename
                 // leaves the id valid but the operator's source code stale; never overwrite it.
@@ -130,29 +135,40 @@ public sealed class AccountRenameService(
             $"'{target}' is already another farm's code. Choose another; codes are unique "
             + "across every farm on this deployment."));
 
-    // A friendly early answer, never the authority: another transaction can still claim
-    // target after this read. The unique index + catch above closes that race.
-    private Task<bool> IsTargetTakenAsync(string target, Guid sourceId, CancellationToken ct) =>
-        db.Accounts.IgnoreQueryFilters().AsNoTracking()
-            .AnyAsync(account => account.Id != sourceId && account.Slug == target, ct);
-
-    // Reads ACROSS accounts with no tenant resolved, so IgnoreQueryFilters is required
-    // rather than defensive — without it the account filter matches Guid.Empty and every
-    // real farm reads as absent. This is the same justified call site as
-    // AccountSlugLookup.ResolveAsync, and #536's registry needs its own row.
-    private async Task<Guid?> ResolveCurrentAsync(string slug, CancellationToken ct)
+    // ONE unresolved-tenant read for BOTH codes (#732 review round 1, F7). Reads ACROSS
+    // accounts with no tenant resolved, so IgnoreQueryFilters is required rather than
+    // defensive — without it the account filter matches Guid.Empty and every real farm
+    // reads as absent. Same justified call site as AccountSlugLookup.ResolveAsync, and
+    // #536's registry needs its own row.
+    //
+    // Neither half is an authority. The source id is stable but its slug is not, which
+    // is what the post-lock fence in RenameAsync is for; the destination answer is
+    // friendly UX that another transaction can invalidate the moment it is read, which
+    // is what IX_Accounts_Slug and the unique-violation catch are for.
+    private async Task<SlugResolution> ResolveSlugsAsync(
+        string currentSlug, string target, CancellationToken ct)
     {
         var matches = await db.Accounts
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(account => account.Slug == slug)
-            .Select(account => account.Id)
+            .Where(account => account.Slug == currentSlug || account.Slug == target)
+            .Select(account => new { account.Id, account.Slug })
             .ToListAsync(ct);
-        // Slug carries a global unique index, so 0 or 1. Count==1 rather than
-        // SingleOrDefault so a hand-corrupted database reads as "no such farm"
-        // (the quieter failure for an operator tool) instead of throwing.
-        return matches.Count == 1 ? matches[0] : null;
+        // Slug carries a global unique index, so 0 or 1 rows hold the source code.
+        // Count==1 rather than SingleOrDefault so a hand-corrupted database reads as
+        // "no such farm" (the quieter failure for an operator tool) instead of throwing.
+        var currentIds = matches
+            .Where(account => account.Slug == currentSlug)
+            .Select(account => account.Id)
+            .ToList();
+        var currentId = currentIds.Count == 1 ? currentIds[0] : (Guid?)null;
+        var targetTaken = currentId is not null
+            && !string.Equals(currentSlug, target, StringComparison.Ordinal)
+            && matches.Any(account => account.Slug == target && account.Id != currentId.Value);
+        return new SlugResolution(currentId, targetTaken);
     }
+
+    private sealed record SlugResolution(Guid? CurrentId, bool TargetTaken);
 }
 
 // Changed = "this command changed the code", so the verb can tell an operator their

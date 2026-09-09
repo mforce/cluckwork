@@ -132,4 +132,31 @@ public sealed class TenantBypassWalkTests
 
     private static string AllowListPath() =>
         Path.Combine(AppContext.BaseDirectory, "Data", "tenant-bypass-allowlist.json");
+
+    // #732 review round 1 (F7) — excuse matching is Any() over (file, symbol), so two
+    // rows carrying the SAME key both "match" every occurrence under it and neither can
+    // ever go stale on its own. That reads as per-call-site precision the scheme does not
+    // provide, so a duplicate key is refused outright rather than silently tolerated.
+    [Fact]
+    public void DuplicateAllowListKeys_FailClosed()
+    {
+        var dir = Directory.CreateTempSubdirectory("t-bypass-duplicate-").FullName;
+        var src = Path.Combine(dir, "src");
+        Directory.CreateDirectory(src);
+        File.WriteAllText(Path.Combine(src, "Probe.cs"), """
+            using Microsoft.EntityFrameworkCore;
+            class Probe { void Read(DbSet<object> rows) { _ = rows.IgnoreQueryFilters(); } }
+            """);
+        var allowList = Path.Combine(dir, "allow.json");
+        File.WriteAllText(allowList, """
+            [
+              { "symbol": "Probe.Read(DbSet<object> rows)", "file": "src/Probe.cs", "justification": "first" },
+              { "symbol": "Probe.Read(DbSet<object> rows)", "file": "src/Probe.cs", "justification": "second" }
+            ]
+            """);
+
+        var failures = GuardScanner.Evaluate(GuardScanner.Scan(src, allowList));
+
+        Assert.Contains(failures, failure => failure.Contains("duplicate allow-list key", StringComparison.Ordinal));
+    }
 }

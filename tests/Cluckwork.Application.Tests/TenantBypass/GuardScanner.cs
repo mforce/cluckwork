@@ -427,6 +427,24 @@ public static class GuardScanner
 
         var allowList = AllowList.Load(allowListPath);
 
+        // #732 review round 1 (F7) — the key is (file, symbol) and matching below is
+        // Any(), so two rows carrying the SAME key both excuse every occurrence under
+        // it: neither can go stale on its own, and deleting one of the two sites the
+        // pair was written for fires nothing. A duplicate key is therefore refused
+        // outright rather than tolerated — fail-closed, reported as a parse error so it
+        // rides the gate Evaluate already has. Two occurrences in one symbol take ONE
+        // row whose justification covers both, exactly as this file's header requires
+        // ("one committed, reviewable line per excused bypass").
+        foreach (var duplicate in allowList
+            .GroupBy(e => (File: NormalizePath(e.File), e.Symbol))
+            .Where(g => g.Count() > 1))
+        {
+            parseErrors.Add(
+                $"duplicate allow-list key {duplicate.Key.File} :: {duplicate.Key.Symbol} — "
+                + $"{duplicate.Count()} rows share it, so no row can go stale on its own; "
+                + "fold them into one entry whose justification covers every occurrence");
+        }
+
         // Excuse matching: file (relative) + symbol must both match exactly.
         var matches = (BypassOccurrence o, AllowListEntry e) =>
             string.Equals(o.File, NormalizePath(e.File), StringComparison.Ordinal)
