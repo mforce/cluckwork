@@ -43,7 +43,7 @@ public sealed class SalesOrder : AggregateRoot<Guid>
     public Result<SalesOrderItem> AddItem(
         Guid productId, Catalog.ProductType productTypeSnapshot, Guid eggGradeId,
         Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice,
-        long? listUnitPriceMinorUnits = null, ListPriceBasis listPriceBasis = ListPriceBasis.Recorded)
+        long? listUnitPriceMinorUnits, ListPriceBasis listPriceBasis)
     {
         if (Status != SalesOrderStatus.Draft)
             return Result.Failure<SalesOrderItem>(Error.Domain(
@@ -228,8 +228,10 @@ public sealed class SalesOrderItem : Entity<Guid>
     public long? ListUnitPriceMinorUnits { get; private set; }
     /// <summary>
     /// Why <see cref="ListUnitPriceMinorUnits"/> is what it is (#720). Paired with
-    /// it by construction: Recorded IFF the value is non-null. Set once at line
-    /// creation and never re-resolved, exactly like the value itself (INV-1).
+    /// it by construction: Recorded IFF the value is non-null — enforced by the
+    /// throw in <see cref="SalesOrderItem.Create"/>, not merely documented. Set
+    /// once at line creation and never re-resolved, exactly like the value
+    /// itself (INV-1).
     /// </summary>
     public ListPriceBasis ListPriceBasis { get; private set; }
     public Money LineTotal => UnitPrice.Multiply(Quantity);
@@ -250,8 +252,26 @@ public sealed class SalesOrderItem : Entity<Guid>
         Guid accountId, Guid orderId, Guid productId,
         Catalog.ProductType productTypeSnapshot, Guid eggGradeId,
         Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice,
-        long? listUnitPriceMinorUnits = null, ListPriceBasis listPriceBasis = ListPriceBasis.Recorded)
+        long? listUnitPriceMinorUnits, ListPriceBasis listPriceBasis)
     {
+        // #720 R5 — the pairing is enforced here, not merely documented. Recorded
+        // means "a comparable list price was captured", so it is true exactly when
+        // the value is non-null; anything else is a row that satisfies no reader —
+        // Recorded claims a fact it does not have, and #727 routes on that claim.
+        // An invariant violation, so it throws rather than returning Result:
+        // no caller can supply this by accident once the default is gone.
+        if (listUnitPriceMinorUnits is not null != (listPriceBasis == ListPriceBasis.Recorded))
+            throw new ArgumentException(
+                $"ListPriceBasis.{listPriceBasis} cannot pair with a " +
+                $"{(listUnitPriceMinorUnits is null ? "null" : "non-null")} list price.",
+                nameof(listPriceBasis));
+        // PreDating is written by the backfill only. Enforcing that here turns the
+        // enum comment into a rule the application cannot break.
+        if (listPriceBasis == ListPriceBasis.PreDating)
+            throw new ArgumentException(
+                "ListPriceBasis.PreDating is backfill-only and cannot be written by the application.",
+                nameof(listPriceBasis));
+
         return new SalesOrderItem
         {
             AccountId = accountId,

@@ -99,7 +99,9 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
 
         // #720 — why ListUnitPriceMinorUnits is null when it is null. Non-null,
         // no database default (the migration drops it): a row the code writes
-        // always states its own basis, and only the backfill may leave PreDating.
+        // always states its own basis — enforced by SalesOrderItem.Create's
+        // pairing throw, not merely by omitting a default — and only the
+        // backfill may leave PreDating.
         builder.Property(i => i.ListPriceBasis)
             .HasConversion<string>().HasMaxLength(16).IsRequired();
 
