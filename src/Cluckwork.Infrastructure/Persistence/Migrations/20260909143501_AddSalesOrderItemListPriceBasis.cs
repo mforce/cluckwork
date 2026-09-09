@@ -14,6 +14,12 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
             // one value the application never writes), then is dropped so no
             // FUTURE insert can silently inherit a basis: a row the code writes
             // always states its own.
+            //
+            // Down() is destructive to the basis, not just the column: a re-Up
+            // after a Down relabels EVERY row PreDating, including rows the
+            // application itself wrote with a real basis moments before — a
+            // re-added column cannot distinguish a row it just destroyed from a
+            // genuinely pre-migration one.
             migrationBuilder.AddColumn<string>(
                 name: "ListPriceBasis",
                 table: "SalesOrderItems",

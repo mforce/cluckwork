@@ -488,10 +488,12 @@ Recorded only when the product's currency code and minor unit both match the
 order's — otherwise `null`, meaning "no comparable list price," a real answer
 distinct from missing data. Adding a line refuses (`SalesOrder.ListPriceChanged`)
 only when the caller states what list price it last saw and that no longer
-matches the catalogue's current one: the SPA always states it — including
-stating that it saw no list price at all — but a raw API caller or either
-seeder that passes no expectation is deliberately unaffected by a catalogue
-move.
+matches the catalogue's current one: the SPA states it whenever the selected
+product is still in its current product list — including stating that it saw
+no list price at all — but sends neither field once that product has dropped
+out of the list (a pinned test covers exactly this after a rejection-triggered
+refresh), and a raw API caller or either seeder that passes no expectation is
+deliberately unaffected by a catalogue move.
 
 A `null` list price now carries a recorded reason (`list_price_basis`, not on
 the API — the read surfaces render every reason alike): the product had no

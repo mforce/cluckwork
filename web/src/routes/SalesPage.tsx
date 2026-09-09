@@ -116,8 +116,9 @@ function sellableProducts(products: Product[], grades: { id: string; isSaleable:
 // positive by construction, so a clamp there could never fire — and a guard
 // that cannot fire reads as safety without being any.
 //
-// The percent multiplier is 100, not 1000. fmt.count(value, locale, 1) renders
-// the value AS GIVEN with one fraction digit, so a x1000 scale would print
+// The percent multiplier is 100, not 1000. fmt.count(value, fractionDigits?)
+// (useFormat.ts:17 — locale is already bound) renders the value AS GIVEN with
+// one fraction digit, so a x1000 scale would print
 // 111.1% where 11.1% is meant. Intl.NumberFormat's default roundingMode is
 // halfExpand — half-up for positives — which is the rounding wanted here, so
 // no rounding scaffolding is needed.
