@@ -2877,10 +2877,13 @@ button:disabled[aria-busy="true"] {
    the list under it. Same surface, hairline, radius and type as the options
    made it exactly that (a highlighted "Sim House A" row above "Sim House A").
    So: the inset surface the app uses for toolbars, a leading magnifier, and
-   the brand hairline while expanded. The glyph is a background image rather
-   than markup so no page, test or ARIA name changes; its grey is fixed
-   because a data-URI cannot read a custom property, and #8c8494 sits legibly
-   on both the light (#f6f1f8) and night (#2b2231) inset surfaces. */
+   the brand hairline while expanded. The glyph is DRAWN here — a bordered
+   circle and a rotated bar on the control's two pseudo-elements — rather than
+   loaded: the API serves this sheet under `img-src 'self' blob:`
+   (SecurityHeaders.cs), which CSP applies to CSS background images too, so a
+   data-URI glyph painted on the Vite dev server and vanished in production
+   (codex review of #736; styles.csp.test.ts now walks every url() for this).
+   Drawing it also lets the colour follow the theme through --muted. */
 .named-picker-control input {
   width: 100%;
   padding: 0.55rem 0.7rem 0.55rem 2.1rem;
@@ -2889,11 +2892,41 @@ button:disabled[aria-busy="true"] {
   font: inherit;
   font-size: 0.95rem;
   color: var(--ink);
-  background-color: var(--surface-2);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238c8494' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: 0.7rem center;
-  background-size: 1rem 1rem;
+  background: var(--surface-2);
+}
+
+/* The magnifier: lens (::before) and handle (::after). The control is
+   position: relative and the input is not positioned, so these paint above
+   it; pointer-events: none keeps the click landing in the field. Geometry is
+   in rem off the input's own padding (0.55rem) and type (0.95rem), centred on
+   the ~2.35rem field height; the handle starts at the lens's lower-right
+   point and runs out at 45°. */
+.named-picker-control::before,
+.named-picker-control::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.named-picker-control::before {
+  left: 0.8rem;
+  top: 0.72rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+}
+
+.named-picker-control::after {
+  left: 1.5rem;
+  top: 1.42rem;
+  width: 0.4rem;
+  height: 2px;
+  background: var(--muted);
+  border-radius: 1px;
+  transform: rotate(45deg);
+  transform-origin: 0 50%;
 }
 
 .named-picker-control input[aria-expanded="true"] {
