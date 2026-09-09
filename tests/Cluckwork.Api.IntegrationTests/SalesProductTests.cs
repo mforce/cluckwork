@@ -377,6 +377,34 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         Assert.Null(order!.Items.Single().ListUnitPriceMinorUnits);
     }
 
+    [Fact]
+    public async Task AddLine_RefusesWhenTheListPriceMovedUnderTheSeller()
+    {
+        var (client, _, _, _, productId) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new
+            {
+                productId, quantity = 1, unitPriceMinorUnits = 80,
+                expectedListUnitPriceMinorUnits = 999,   // seeded default is 100
+            });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("ListPriceChanged", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task AddLine_WithoutAnExpectedListPrice_IsUnaffected()
+    {
+        var (client, _, _, _, productId) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+
+        Assert.Equal(HttpStatusCode.Created,
+            (await AddLineAsync(client, orderId, productId, 1, price: 80)).StatusCode);
+    }
+
     private sealed record SettingsView(AccountView Settings, bool CanChangeCurrency);
     private sealed record AccountView(
         Guid Id, string Name, string CurrencyCode, int CurrencyMinorUnit, string CurrencySymbol,

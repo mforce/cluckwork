@@ -13,4 +13,5 @@ namespace Cluckwork.Application.Features.Sales.AddOrderItem;
 // callers and the seeders, which show no preview, skip the check with null.
 public sealed record AddOrderItemCommand(
     Guid SalesOrderId, Guid ProductId, int Quantity,
-    string? Unit, long? UnitPriceMinorUnits, int? ExpectedEggsPerUnit = null);
+    string? Unit, long? UnitPriceMinorUnits, int? ExpectedEggsPerUnit = null,
+    long? ExpectedListUnitPriceMinorUnits = null);

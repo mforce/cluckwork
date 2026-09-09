@@ -63,6 +63,20 @@ public sealed class AddOrderItemHandler(
                 $"The eggs-per-unit definition for '{unit}' is now {conversion.EggsPerUnit}, not {expected} — " +
                 "re-check the quantity and try again."));
 
+        // #720 — the same shape, for the LIST price. Compared against the RAW
+        // catalogue value, before the denomination condition further down:
+        // this asks "did the catalogue move under the seller?", which is a
+        // different question from "is it comparable to this order?".
+        // Deliberately also fires when the product's price was CLEARED to null
+        // while the seller had a number on screen.
+        if (command.ExpectedListUnitPriceMinorUnits is { } expectedListPrice
+            && expectedListPrice != product.DefaultPriceMinorUnits)
+            return Result.Failure<Guid>(Error.Validation(
+                "SalesOrder.ListPriceChanged",
+                $"This product's list price is now " +
+                $"{(product.DefaultPriceMinorUnits?.ToString() ?? "unset")}, not {expectedListPrice} — " +
+                "re-check the price and try again."));
+
         // Price defaults from the product (per selling unit).
         var priceMinorUnits = command.UnitPriceMinorUnits ?? product.DefaultPriceMinorUnits;
         if (priceMinorUnits is null)
