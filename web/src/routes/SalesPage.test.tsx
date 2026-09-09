@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { useLocation, useNavigate } from "react-router";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import postcss from "postcss";
 import { SalesPage } from "./SalesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
@@ -644,41 +641,29 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     expect(screen.getByText("$1.00 above list (33.3%)")).toBeInTheDocument();
   });
 
-  it("keeps the unit-price hint inside the field's own cell, not a sibling that displaces Add line", async () => {
-    // #720 R8 — a hint that is a bare .form-grid child consumes its own grid
-    // cell and pushes Add line onto its own row; a text-only assertion (as
-    // above) passes against that broken layout, which is exactly how it
-    // shipped. This asserts the STRUCTURAL relationship instead.
+  // #720 R11 — R8 (a hint inside its own grid cell) and R9 (position:absolute
+  // out of that cell) both broke on the SAME shape: a cell taller than its
+  // siblings floats above the row under .form-grid's align-items:end, and a
+  // fixed out-of-flow reservation for the hint overlapped Add line once a
+  // translation wrapped past one line. R11 removes the cell entirely — the
+  // hint is a normal block AFTER .form-grid, not a child of it — so the row
+  // is what holds the invariant now, not the hint's own positioning. This
+  // asserts the two facts that actually matter: every field (Unit price
+  // included) still shares one row with Add line, and the hint is NOT inside
+  // that row to begin with.
+  it("keeps the Unit price field in the same .form-grid row as Add line, with the hint OUTSIDE that row (#720 R11)", async () => {
     await renderReady();
     await createDraft(draftEmpty(2, "USD"));
 
     fireEvent.change(screen.getByLabelText(/Unit price/), { target: { value: "2.00" } });
     const hint = screen.getByText("$1.00 below list (33.3%)");
-    const priceField = screen.getByLabelText(/Unit price/).closest(".hinted-field");
-    expect(priceField).not.toBeNull();
-    expect(priceField).toContainElement(hint);
-  });
+    const priceField = screen.getByLabelText(/Unit price/);
+    const addLineBtn = screen.getByRole("button", { name: "Add line" });
+    const row = priceField.closest(".form-grid");
 
-  // #720 R9 — the assertion above only checks the hint is a DESCENDANT of the
-  // field, which the R8 layout (a bare in-flow sibling inside .hinted-field)
-  // already satisfied while still floating the label/input above the row and
-  // dropping the hint onto the shared baseline. jsdom computes no layout, so
-  // there is no DOM-only way to see that; the guarantee that actually matters
-  // — the hint is taken OUT of flow so it cannot push the row around — is a
-  // CSS declaration, read the same way styles.num.test.ts and
-  // Login.styles.test.ts read one.
-  it("takes the unit-price hint out of flow, so it cannot push Add line onto its own row (#720 R9)", () => {
-    const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
-    const root = postcss.parse(css);
-    let position: string | undefined;
-    root.walkRules((rule) => {
-      if (!rule.selectors.includes(".hinted-field > .discount")) return;
-      rule.walkDecls("position", (decl) => { position = decl.value; });
-    });
-    expect(
-      position,
-      "no \".hinted-field > .discount\" rule declares \"position\" — the hint would sit in flow again",
-    ).toBe("absolute");
+    expect(row).not.toBeNull();
+    expect(addLineBtn.closest(".form-grid")).toBe(row);
+    expect(row).not.toContainElement(hint);
   });
 
   it("hints an above-list amount with NO percent when the product's list price is zero", async () => {

@@ -459,37 +459,27 @@ input[type="checkbox"] {
   min-width: 8rem;
 }
 
-/* A labelled field (label wraps its own plain <input>, unlike the stepper
-   above). Same shape as .numfield-field, but its own class: numfield-field
-   names the stepper widget specifically, and a later stepper-only change
-   must not silently reach this wrapper too. */
-.hinted-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  /* #720 — the hint hangs BELOW this cell instead of growing it. .form-grid is
-     align-items:end, so a third child would bottom-align the hint and lift the
-     label and input above the row the other fields sit on. */
-  position: relative;
+/* #720 R11 — the live price hint. It sits AFTER .form-grid, not inside it: a
+   third child in a cell would bottom-align under align-items:end and lift
+   that field's label and input above the row (R8), and a fixed out-of-flow
+   reservation for it (R9) overlapped the Add line button once a translation
+   ran long enough to wrap past one line. In normal flow it wraps to any
+   height in any locale — es and tl are roughly twice en's length — with no
+   fixed reservation for a longer translation to overflow. Verified by
+   rendering at 1180px and 420px with the tl string. */
+.form-grid + .discount {
+  margin: 0 0 1.25rem;
 }
 
-.hinted-field > .discount {
-  position: absolute;
-  top: calc(100% + 0.3rem);
-  left: 0;
-  margin: 0;
-  max-width: 22rem;
-}
-
-.form-grid .hinted-field {
-  min-width: 8rem;
-}
-
-/* Reserve the hanging hint's space only when one is actually rendered — no
-   gap under a form that has no discount to report. `:has()` is already used
-   five times in this stylesheet. */
-.form-grid:has(.hinted-field > .discount) {
-  margin-bottom: 2.4rem;
+/* #720 R11 — .form-grid is reused on eight other screens with no hint after
+   it, so this tightens ONLY the one that has one: a blanket margin-bottom
+   change on the bare .form-grid rule would have re-spaced every form on the
+   app for a gap this screen alone needed shortened. With the hint now
+   sitting right after this grid as a normal block, the ordinary 1.25rem gap
+   read as an orphaned paragraph floating between the add-line row and the
+   actions row rather than belonging to either. Checked by rendering. */
+.form-grid:has(+ .discount) {
+  margin-bottom: 0.4rem;
 }
 
 .inline-form {
