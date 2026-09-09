@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { useLocation, useNavigate } from "react-router";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import postcss from "postcss";
 import { SalesPage } from "./SalesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
@@ -654,6 +657,28 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     const priceField = screen.getByLabelText(/Unit price/).closest(".hinted-field");
     expect(priceField).not.toBeNull();
     expect(priceField).toContainElement(hint);
+  });
+
+  // #720 R9 — the assertion above only checks the hint is a DESCENDANT of the
+  // field, which the R8 layout (a bare in-flow sibling inside .hinted-field)
+  // already satisfied while still floating the label/input above the row and
+  // dropping the hint onto the shared baseline. jsdom computes no layout, so
+  // there is no DOM-only way to see that; the guarantee that actually matters
+  // — the hint is taken OUT of flow so it cannot push the row around — is a
+  // CSS declaration, read the same way styles.num.test.ts and
+  // Login.styles.test.ts read one.
+  it("takes the unit-price hint out of flow, so it cannot push Add line onto its own row (#720 R9)", () => {
+    const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+    const root = postcss.parse(css);
+    let position: string | undefined;
+    root.walkRules((rule) => {
+      if (!rule.selectors.includes(".hinted-field > .discount")) return;
+      rule.walkDecls("position", (decl) => { position = decl.value; });
+    });
+    expect(
+      position,
+      "no \".hinted-field > .discount\" rule declares \"position\" — the hint would sit in flow again",
+    ).toBe("absolute");
   });
 
   it("hints an above-list amount with NO percent when the product's list price is zero", async () => {

@@ -460,19 +460,36 @@ input[type="checkbox"] {
 }
 
 /* A labelled field (label wraps its own plain <input>, unlike the stepper
-   above) whose live hint must stay in the SAME grid cell (#720 R8) — a bare
-   sibling <p> was a direct .form-grid child, consuming its own cell and
-   pushing Add line onto its own row. Same shape as .numfield-field, but its
-   own class: numfield-field names the stepper widget specifically, and a
-   later stepper-only change must not silently reach this wrapper too. */
+   above). Same shape as .numfield-field, but its own class: numfield-field
+   names the stepper widget specifically, and a later stepper-only change
+   must not silently reach this wrapper too. */
 .hinted-field {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  /* #720 — the hint hangs BELOW this cell instead of growing it. .form-grid is
+     align-items:end, so a third child would bottom-align the hint and lift the
+     label and input above the row the other fields sit on. */
+  position: relative;
+}
+
+.hinted-field > .discount {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  margin: 0;
+  max-width: 22rem;
 }
 
 .form-grid .hinted-field {
   min-width: 8rem;
+}
+
+/* Reserve the hanging hint's space only when one is actually rendered — no
+   gap under a form that has no discount to report. `:has()` is already used
+   five times in this stylesheet. */
+.form-grid:has(.hinted-field > .discount) {
+  margin-bottom: 2.4rem;
 }
 
 .inline-form {
