@@ -105,103 +105,79 @@ revokes the lost credential and records the reason.
 **When to use this:** a database provisioned before multi-farm tenancy
 (release `v0.0.4` or earlier) was upgraded, and the migration
 `20260818235944_AddAccountSlug` stamped the pre-existing account with the
-documented code `default-farm`. Nothing asks for a code at migration time, and
-no verb changes one afterwards, so a farm that wants its own code gets it by a
-direct database write.
+documented code `default-farm`. Nothing asks for a code at migration time, so a
+farm that wants its own code gets it from the `rename-account` verb.
 
-**Not this runbook:** a farm created by `provision-account`. Its code was
-chosen on purpose; treat it as immutable.
+**Not this runbook:** a farm created by `provision-account`. Its code was chosen
+on purpose — renaming it is a deliberate rebrand, not a repair.
 
-**Blast radius:** one row in `Accounts`. Nothing else stores the code:
-refresh cookies and access tokens bind to the account **id**, so every signed-in
-user stays signed in. The write bypasses the domain, so it bumps `Version` by
-hand and leaves **no audit row** — record the change in the deployment repo's
-change log instead.
+**Blast radius:** one row in `Accounts`. Nothing else stores the code. Refresh
+cookies and access tokens bind to the account **id**, so every signed-in user
+stays signed in; the verb says so on success. Two SPA caches still name the old
+code until the user next signs in explicitly — the remembered farm code on the
+login form and the per-farm palette cache — and both are cosmetic. Anything
+outside the app that names the code is stale the moment the change commits:
+printed material, and every bookmarked `?farm=<old>` URL.
 
-**Prerequisites:** the migration job has run (`list-accounts` shows the
-account), and you hold a credential with `UPDATE` on `Accounts`. The ordinary
-DML-only runtime credential is enough; do not use the migrator role.
+**A code a farm has moved off is immediately reusable.** There is no
+retired-code list, so `--slug` names whoever holds that code *now*, which may
+not be the farm you meant last week. Run `list-accounts` immediately before you
+rename, and read its output rather than your notes.
 
-### 1. Choose and verify the new code
+**Tell every user the new code before it lands.** The sign-in form's remembered
+code and every bookmarked `?farm=<old>` link go stale at commit time, so an
+unannounced rename looks to a user like the farm disappeared.
 
-Same rules as step 1 of the procedure above: lowercase letters, digits and
-hyphens; 3–32 characters; no leading or trailing hyphen. Uppercase is not
-folded by the database write, so a mistyped code here is a code nobody can
-sign in with. Nine names are reserved by the domain and refused by
-`provision-account`; the database write checks nothing, so refuse them
-yourself: `api`, `admin`, `www`, `health`, `app`, `static`, `assets`, `login`,
-`auth`.
+**Prerequisites:** the migration job has run and `list-accounts` shows the farm.
+The ordinary DML-only runtime credential is enough; this needs no migrator role.
 
-```bash
-docker run --rm --env-file <runtime-credential.env> \
-  ghcr.io/mforce/cluckwork@sha256:<digest> \
-  list-accounts
-```
+### Procedure
 
-Expected: exactly one account carries `default-farm`, and the chosen code is
-absent. Have a second person verify the code; it appears in `?farm=<code>`
-URLs and on printed material.
+1. List the farms and copy the code exactly as it is stored:
 
-### 2. Rename
+   ```bash
+   list-accounts
+   ```
 
-The `WHERE` names both the id and the current code, so the statement matches
-nothing if the account was already renamed or if the id is not the default
-account. Save it as `rename-farm.sql`:
+2. Rename it. The `--reason` text is stored on the audit row, so give it the
+   change reference somebody will search for later:
 
-```sql
-UPDATE "Accounts"
-SET "Slug" = 'example-farm',
-    "Version" = "Version" + 1
-WHERE "Id" = '0000000a-0000-0000-0000-000000000001'
-  AND "Slug" = 'default-farm';
-```
+   ```bash
+   rename-account --slug <current> --new-slug <new> --reason "<change ref>"
+   ```
 
-The Cluckwork image ships no `psql`, so run it through a Postgres client.
-With the reference compose stack, the `db` service's own image has one, and
-its `POSTGRES_USER` / `POSTGRES_DB` are already in that container's
-environment:
+   The current code is matched case-insensitively. The new code is **not**
+   folded: it must already be lowercase letters, digits and hyphens, 3–32
+   characters, no leading or trailing hyphen, and not one of the nine reserved
+   names. The verb refuses anything else before it writes.
 
-```bash
-docker compose -f deploy/docker-compose.yml exec -T db \
-  sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
-  < rename-farm.sql
-```
+3. List again and confirm the new code is the one you meant.
 
-Against a managed Postgres, run a throwaway client container with the same
-image the stack pins (`deploy/docker-compose.yml`, service `db`) and a
-connection URL that carries the same TLS parameters the API uses:
+Unlike the procedure this section replaced, the rename goes through the domain:
+it validates the code, bumps `Version` itself, and writes an `Account.Rename`
+audit row carrying the old and new codes, the machine, the operating-system
+user and your `--reason`. Nothing needs recording by hand.
 
-```bash
-docker run --rm -i \
-  postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a \
-  psql -v ON_ERROR_STOP=1 "$DATABASE_URL" < rename-farm.sql
-```
+### Verify
 
-Keep the URL in an env var or a file, never on the command line of a shared
-host: `ps` shows it to every user. Host-specific network flags belong in the
-deployment repo.
+1. Sign in with the new code.
+2. Confirm the old code no longer signs in — it returns `Auth.UnknownFarmCode`.
+3. Confirm an already-signed-in session still works without a new login.
 
-Expected: `UPDATE 1`. An `UPDATE 0` means the guard did not match; run
-`list-accounts` again before changing anything. A unique-violation error on
-`IX_Accounts_Slug` means the code is already taken; choose another.
+### If it fails
 
-### 3. Verify
+The verb exits `1` and prints one line naming the error code:
 
-1. Run `list-accounts` and confirm the account now shows the new code and is
-   `active`.
-2. Sign in with the new farm code. A browser that remembers only
-   `default-farm` prefills it, so overtype it once; the new code is remembered
-   from then on, and the old one can be removed from the login form's picker.
-3. Confirm `default-farm` no longer signs in (`Auth.UnknownFarmCode`).
+- `Account.SlugInvalid` — the new code breaks the pattern or is reserved.
+  Nothing was written. Choose another and re-run.
+- `Account.SlugTaken` — another farm already holds that code. Codes are unique
+  across every farm on the deployment. Nothing was written.
+- `Account.SlugStale` — the farm's code changed between this command reading it
+  and locking the row, so somebody else renamed it first. Nothing was written:
+  re-run `list-accounts` and start again from the code it has now.
+- `Accounts.NotFound` — no farm holds the code you passed to `--slug`. Check
+  `list-accounts`; remember a retired code may now belong to another farm.
 
-Existing sessions keep working without a new login. Two SPA caches still name
-the old code until the user next signs in: the remembered farm code on the
-login form, and the per-farm palette cache. Both are cosmetic and refresh on
-that login; nothing needs clearing.
-
-Tell every user the new code before the change lands. Any printed material or
-bookmarked `?farm=default-farm` URL is stale from the moment the statement
-commits.
 
 ## Drill
 
