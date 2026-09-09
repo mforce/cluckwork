@@ -2896,11 +2896,15 @@ button:disabled[aria-busy="true"] {
 }
 
 /* The magnifier: lens (::before) and handle (::after). The control is
-   position: relative and the input is not positioned, so these paint above
-   it; pointer-events: none keeps the click landing in the field. Geometry is
-   in rem off the input's own padding (0.55rem) and type (0.95rem), centred on
-   the ~2.35rem field height; the handle starts at the lens's lower-right
-   point and runs out at 45°. */
+   position: relative and the input is its only in-flow child, so the
+   control's height IS the input's height and `top: 50%` is the field's
+   vertical centre whatever the input's padding, line-height or the phone
+   breakpoint's `min-height: 2.75rem` on `.entry-context input` make it —
+   a fixed rem offset drifted ~4px there (codex review of #736, round 2).
+   The input is not positioned, so these paint above it; pointer-events:
+   none keeps the click landing in the field. Lens: 0.6rem + 2×2px border,
+   radius ≈ 0.425rem; the handle starts at the lens's lower-right point
+   (centre + r·cos45° ≈ 0.3rem on each axis) and runs out at 45°. */
 .named-picker-control::before,
 .named-picker-control::after {
   content: "";
@@ -2911,22 +2915,31 @@ button:disabled[aria-busy="true"] {
 
 .named-picker-control::before {
   left: 0.8rem;
-  top: 0.72rem;
+  top: 50%;
   width: 0.6rem;
   height: 0.6rem;
   border: 2px solid var(--muted);
   border-radius: 50%;
+  transform: translateY(-50%);
 }
 
 .named-picker-control::after {
-  left: 1.5rem;
-  top: 1.42rem;
+  left: calc(0.8rem + 0.425rem + 0.3rem);
+  top: calc(50% + 0.3rem - 1px);
   width: 0.4rem;
   height: 2px;
   background: var(--muted);
   border-radius: 1px;
   transform: rotate(45deg);
   transform-origin: 0 50%;
+}
+
+/* Disabled: the input dims itself (below) on top of the whole picker
+   dimming (`.named-picker.disabled`); the glyph is outside the input, so it
+   takes the same second step or it reads darker than its own field. */
+.named-picker-control:has(input:disabled)::before,
+.named-picker-control:has(input:disabled)::after {
+  opacity: 0.6;
 }
 
 .named-picker-control input[aria-expanded="true"] {
