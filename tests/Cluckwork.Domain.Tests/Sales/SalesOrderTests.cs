@@ -114,6 +114,24 @@ public sealed class SalesOrderTests
             new Money(400, "USD", 2), listPrice, basis));
     }
 
+    // #720 R10 — a cast can mint a ListPriceBasis no member names. (ListPriceBasis)99
+    // passes the pairing check with either price shape (false != false, since it is
+    // not Recorded) and is not PreDating, so without a defined-member check it would
+    // persist. Enum.IsDefined is checked BEFORE the pairing check for exactly this.
+    [Theory]
+    [InlineData(null)]
+    [InlineData(450L)]
+    public void AddItem_RefusesAnUndefinedBasis(long? listPrice)
+    {
+        var order = SalesOrder.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "SO-1",
+            new DateOnly(2026, 1, 1), "USD");
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => order.AddItem(
+            Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10,
+            new Money(400, "USD", 2), listPrice, (ListPriceBasis)99));
+    }
+
     [Fact]
     public void UpdateItem_LeavesListUnitPriceUntouched()
     {

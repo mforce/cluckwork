@@ -256,6 +256,15 @@ public sealed class SalesOrderItem : Entity<Guid>
         Catalog.ProductUnit unit, int baseUnitFactor, int quantity, Money unitPrice,
         long? listUnitPriceMinorUnits, ListPriceBasis listPriceBasis)
     {
+        // #720 R10 — a cast can produce a value no member names: (ListPriceBasis)99
+        // passes the pairing check below (false != false) and is not PreDating,
+        // so without this it would persist. Checked FIRST: the later guards
+        // reason about named members and are meaningless for a value that is
+        // not one.
+        if (!Enum.IsDefined(listPriceBasis))
+            throw new ArgumentOutOfRangeException(
+                nameof(listPriceBasis), listPriceBasis,
+                "ListPriceBasis must be a defined member.");
         // #720 R5 — the pairing is enforced here, not merely documented. Recorded
         // means "a comparable list price was captured", so it is true exactly when
         // the value is non-null; anything else is a row that satisfies no reader —
