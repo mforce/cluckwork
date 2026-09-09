@@ -15,6 +15,16 @@ import postcss from "postcss";
 const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 const root = postcss.parse(css);
 
+// CSS escapes are decoded by the browser (and re-emitted decoded by the
+// bundler) BEFORE the URL is fetched, so `url(d\61 ta:x)` and `u\72l(data:x)`
+// are the same blocked request as `url(data:x)`. Classify the decoded text,
+// never the raw source (codex review of #736, round 3): hex escapes
+// (`\61`, `\000061`, with one optional trailing whitespace) and single-char
+// escapes (`\:`) are resolved here the way the tokenizer resolves them.
+export const unescapeCss = (raw: string) =>
+  raw.replace(/\\(?:([0-9a-f]{1,6})[ \t\n\f\r]?|(.))/gi, (_, hex: string | undefined, ch: string | undefined) =>
+    hex !== undefined ? String.fromCodePoint(parseInt(hex, 16)) : (ch ?? ""));
+
 // CSS function names are case-insensitive — `URL("data:…")` is valid and just
 // as blocked — so the token match is /i (codex review of #736, round 2).
 const urlToken = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/gi;
@@ -31,7 +41,7 @@ describe("styles.css url() references satisfy the served CSP", () => {
   it("names no scheme — only same-origin paths or fragments", () => {
     const offenders: string[] = [];
     root.walkDecls((decl) => {
-      for (const m of decl.value.matchAll(urlToken)) {
+      for (const m of unescapeCss(decl.value).matchAll(urlToken)) {
         const target = (m[1] ?? m[2] ?? m[3] ?? "").trim();
         if (!isSameOrigin(target)) {
           offenders.push(`${decl.source?.start?.line ?? "?"}: ${decl.prop}: ${target.slice(0, 60)}`);

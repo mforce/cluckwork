@@ -2903,8 +2903,10 @@ button:disabled[aria-busy="true"] {
    a fixed rem offset drifted ~4px there (codex review of #736, round 2).
    The input is not positioned, so these paint above it; pointer-events:
    none keeps the click landing in the field. Lens: 0.6rem + 2×2px border,
-   radius ≈ 0.425rem; the handle starts at the lens's lower-right point
-   (centre + r·cos45° ≈ 0.3rem on each axis) and runs out at 45°. */
+   so its radius is 0.3rem + 2px — kept as that sum, not folded into rem,
+   because the border is in px and a larger root font size would otherwise
+   pull the handle off the lens (round 3). The handle starts at the lens's
+   lower-right point (centre + r·cos45° on each axis) and runs out at 45°. */
 .named-picker-control::before,
 .named-picker-control::after {
   content: "";
@@ -2924,8 +2926,10 @@ button:disabled[aria-busy="true"] {
 }
 
 .named-picker-control::after {
-  left: calc(0.8rem + 0.425rem + 0.3rem);
-  top: calc(50% + 0.3rem - 1px);
+  /* lens left + radius (0.3rem + 2px) + radius·cos45° (0.212rem + 1.414px) */
+  left: calc(0.8rem + 0.3rem + 2px + 0.212rem + 1.414px);
+  /* field centre + radius·cos45°, less half the bar's own 2px height */
+  top: calc(50% + 0.212rem + 1.414px - 1px);
   width: 0.4rem;
   height: 2px;
   background: var(--muted);
@@ -2936,9 +2940,12 @@ button:disabled[aria-busy="true"] {
 
 /* Disabled: the input dims itself (below) on top of the whole picker
    dimming (`.named-picker.disabled`); the glyph is outside the input, so it
-   takes the same second step or it reads darker than its own field. */
-.named-picker-control:has(input:disabled)::before,
-.named-picker-control:has(input:disabled)::after {
+   takes the same second step or it reads darker than its own field. Keyed
+   on the ancestor class rather than `:has(input:disabled)`: the engine sets
+   both from the one `disabled` prop, and `:has()` is dropped whole by
+   Firefox 114–120, which the build still targets (round 3). */
+.named-picker.disabled .named-picker-control::before,
+.named-picker.disabled .named-picker-control::after {
   opacity: 0.6;
 }
 
