@@ -772,6 +772,8 @@ describe("SalesPage list price and discount (#720)", () => {
     // indistinguishable from "no discount was given" (INV-3, criterion 6).
     expect(cells[3]).toHaveTextContent("—");
     expect(cells[5]).toHaveTextContent(i18n.t("sales:noListPrice"));
+    // #720 R7 — "we do not know" is not a discount either.
+    expect(cells[5]).not.toHaveClass("discount");
   });
 
   it("shows an em dash for the discount when the line sold exactly at list", async () => {
@@ -789,13 +791,19 @@ describe("SalesPage list price and discount (#720)", () => {
     // The list price cell and the unit price cell show the same amount at list.
     expect(within(row).getAllByText("$3.00")).toHaveLength(2);
     expect(within(row).getByText("—")).toBeInTheDocument();
+    // #720 R7 — at list is not a discount; emphasising it would be the same
+    // "unknown reads as a discount" conflation this slice has already fixed
+    // twice (once for "No list price" landing in the wrong cell, R2).
+    expect(within(row).getByText("—")).not.toHaveClass("discount");
   });
 
-  it("shows an amount and a percent when the line sold below list", async () => {
+  it("shows an amount and a percent when the line sold below list, emphasised", async () => {
     // ITEM_B: sold 1000, list 1200 → 400 minor units back (200/unit × 2), 16.7%.
     const row = await openOrder(DRAFT_TWO, /Grade B Tray/);
     expect(within(row).getByText("$12.00")).toBeInTheDocument(); // list price
-    expect(within(row).getByText("$4.00 (16.7%)")).toBeInTheDocument();
+    // #720 R7 — a text-only check would pass against an unstyled cell; the
+    // emphasis IS the point of this render, so the class is asserted too.
+    expect(within(row).getByText("$4.00 · 16.7%")).toHaveClass("discount");
   });
 
   it("shows Above list when the line sold above list", async () => {

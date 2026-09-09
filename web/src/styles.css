@@ -1109,6 +1109,15 @@ input.cell {
   font-weight: 700;
 }
 
+/* #720 — a below-list line's discount, and the live hint while typing one.
+   Same amber token as .warn (AA-checked in both themes) but its own class: a
+   discount is not a warning, and a later change to warning styling must not
+   silently restyle money. Weight matches .warn's emphasis without its meaning. */
+.discount {
+  color: var(--warn);
+  font-weight: 600;
+}
+
 /* #655 — a list/table's empty branch: icon, one sentence, the primary action. */
 .empty-state {
   display: flex;

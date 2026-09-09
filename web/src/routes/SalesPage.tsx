@@ -1009,7 +1009,9 @@ export function SalesPage() {
                         <td className="num">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
                         <td className="num">
                           {discount.kind === "below"
-                            ? `${fmt.money(discount.amountMinorUnits, i.currencyCode, i.currencyMinorUnit)} (${fmt.count(discount.percent, 1)}%)`
+                            ? <span className="discount">
+                                {`${fmt.money(discount.amountMinorUnits, i.currencyCode, i.currencyMinorUnit)} · ${fmt.count(discount.percent, 1)}%`}
+                              </span>
                             : discount.kind === "above"
                               ? t("aboveList")
                               : discount.kind === "none"
@@ -1111,14 +1113,14 @@ export function SalesPage() {
                   // still reach the below branch here.
                   if (typed < list) {
                     return list === 0
-                      ? <p className="muted">{t("listPriceHintBelowNoPct", { amount })}</p>
-                      : <p className="muted">
+                      ? <p className="discount">{t("listPriceHintBelowNoPct", { amount })}</p>
+                      : <p className="discount">
                           {t("listPriceHintBelow", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
                         </p>;
                   }
                   return list === 0
-                    ? <p className="muted">{t("listPriceHintAboveNoPct", { amount })}</p>
-                    : <p className="muted">
+                    ? <p className="discount">{t("listPriceHintAboveNoPct", { amount })}</p>
+                    : <p className="discount">
                         {t("listPriceHintAbove", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
                       </p>;
                 })()}
