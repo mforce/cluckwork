@@ -25,10 +25,12 @@ not be given migrator credentials.
 ### 1. Choose and verify the farm code
 
 The code is lowercase letters, digits, and hyphens; 3–32 characters; and cannot
-start or end with a hyphen. It is immutable during this phase — no verb,
-endpoint or Settings field changes it — so have a second person verify it
-before continuing. The one operator-level exception is
-[renaming the default farm's code](#renaming-the-default-farms-code) below.
+start or end with a hyphen. No endpoint and no Settings field changes it, so a
+farm cannot rename itself — but an operator can, on any farm, with the
+`rename-account` verb (#732); see
+[renaming a farm's code](#renaming-the-default-farms-code) below. Renaming is a
+deliberate, announced change rather than a cheap undo, so still have a second
+person verify the code before continuing.
 
 ```bash
 docker run --rm --env-file <runtime-credential.env> \
@@ -136,14 +138,21 @@ The ordinary DML-only runtime credential is enough; this needs no migrator role.
 1. List the farms and copy the code exactly as it is stored:
 
    ```bash
-   list-accounts
+   docker run --rm --env-file <runtime-credential.env> \
+     ghcr.io/mforce/cluckwork@sha256:<digest> \
+     list-accounts
    ```
 
 2. Rename it. The `--reason` text is stored on the audit row, so give it the
    change reference somebody will search for later:
 
    ```bash
-   rename-account --slug <current> --new-slug <new> --reason "<change ref>"
+   docker run --rm --env-file <runtime-credential.env> \
+     ghcr.io/mforce/cluckwork@sha256:<digest> \
+     rename-account \
+     --slug <current> \
+     --new-slug <new> \
+     --reason "<change ref>"
    ```
 
    The current code is matched case-insensitively. The new code is **not**
@@ -175,8 +184,11 @@ The verb exits `1` and prints one line naming the error code:
 - `Account.SlugStale` — the farm's code changed between this command reading it
   and locking the row, so somebody else renamed it first. Nothing was written:
   re-run `list-accounts` and start again from the code it has now.
-- `Accounts.NotFound` — no farm holds the code you passed to `--slug`. Check
-  `list-accounts`; remember a retired code may now belong to another farm.
+- `No farm with code '<code>'.` — no farm holds the code you passed to
+  `--slug`. This one carries no error code: the verb resolves the code before
+  it reaches the domain, and prints the same line `suspend-account` and
+  `reactivate-account` print. Check `list-accounts`; remember a retired code
+  may now belong to another farm.
 
 
 ## Drill
