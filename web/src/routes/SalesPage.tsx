@@ -1130,6 +1130,17 @@ export function SalesPage() {
                 </p>
               );
             }
+            // Round 2 — `unknown` reached this bail and rendered nothing, while
+            // the Orders list said "Unknown" for the same order. Two screens
+            // disagreeing about whether an order is measurable is worse than
+            // either answer alone.
+            if (orderLevel.kind === "unknown") {
+              return (
+                <p className="discount-note" data-testid="order-discount-unknown">
+                  {t("discountUnknownOrder")}
+                </p>
+              );
+            }
             if (orderLevel.kind !== "below") return null;
             const amount = fmt.money(orderLevel.amountMinorUnits, active.currencyCode, active.currencyMinorUnit);
             return (
@@ -1523,7 +1534,7 @@ export function SalesPage() {
                             ? t("discountBadgeNoPct", { amount })
                             : t("discountBadge", { amount, percent: fmt.count(d.percent, 1) })}
                         </span>
-                        {d.partial ? <><br /><span className="muted">{t("discountPartialNote")}</span></> : null}
+                        {d.partial ? <><br /><span className="muted discount-note">{t("discountPartialNote")}</span></> : null}
                       </>
                     );
                   })()}</td>

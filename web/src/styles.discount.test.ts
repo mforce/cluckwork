@@ -21,6 +21,12 @@ function declarationsFor(selector: string): Map<string, string> {
   return decls;
 }
 
+// Every custom property the stylesheet actually declares. A reference to a token
+// that is never declared resolves to nothing at runtime — the rule is inert and
+// the row is untinted — so "is it a var()?" is not the question worth asking.
+const declaredTokens = new Set<string>();
+root.walkDecls((d) => { if (d.prop.startsWith("--")) declaredTokens.add(d.prop); });
+
 describe("tr.discounted td", () => {
   const decls = declarationsFor("tr.discounted td");
 
@@ -28,9 +34,16 @@ describe("tr.discounted td", () => {
     expect(decls.get("background")).toBeDefined();
   });
 
-  it("tints it through a token, never a raw literal", () => {
-    // A raw colour here would bypass the per-brand palettes styles.test.ts pins.
-    expect(decls.get("background")).toMatch(/^var\(--[a-z-]+\)$/);
+  it("tints it with a TINT token that the stylesheet actually declares", () => {
+    const value = decls.get("background") ?? "";
+    const match = /^var\((--[a-z0-9-]+)\)$/.exec(value);
+    expect(match, `expected a single var() token, got "${value}"`).not.toBeNull();
+    const token = match![1];
+    // A tint, not merely any token: `var(--surface)` would satisfy a shape check
+    // while leaving a discounted row indistinguishable from every other row.
+    expect(token, `"${token}" is not a --tint-* token`).toMatch(/^--tint-/);
+    // And one that exists: an undeclared token is an inert rule.
+    expect(declaredTokens.has(token), `"${token}" is referenced but never declared`).toBe(true);
   });
 });
 

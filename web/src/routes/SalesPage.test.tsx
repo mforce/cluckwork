@@ -883,7 +883,11 @@ describe("SalesPage list price and discount (#720)", () => {
     const row = await openOrder(order, /Grade A Dozen/);
     expect(within(row).queryByText(i18n.t("sales:belowListBadge"))).toBeNull();
     expect(row).not.toHaveClass("discounted");
-    expect(within(row).getAllByText("$3.00")[0].closest("s")).toBeNull();
+    // The fixture renders $3.00 in the List price AND the Unit price cell.
+    // Checking only the first let an implementation that struck the other pass.
+    for (const match of within(row).getAllByText("$3.00")) {
+      expect(match.closest("s")).toBeNull();
+    }
   });
 
   it("chips a no-list-price row without marking it discounted", async () => {
@@ -900,7 +904,13 @@ describe("SalesPage list price and discount (#720)", () => {
     const row = await openOrder(order, /Grade A Dozen/);
     // The chip names the state beside the product; the Discount cell keeps the
     // wording #720 shipped and the Help text documents. Both, deliberately.
-    expect(within(row).getAllByText(i18n.t("sales:noListPrice"))).toHaveLength(2);
+    const noListMatches = within(row).getAllByText(i18n.t("sales:noListPrice"));
+    expect(noListMatches).toHaveLength(2);
+    // One is the chip beside the product (cell 0), the other is the Discount
+    // cell's own wording. Counting alone let two plain strings in any two cells
+    // satisfy a test named for a chip.
+    const productCell = within(row).getAllByRole("cell")[0];
+    expect(within(productCell).getByText(i18n.t("sales:noListPrice"))).toHaveClass("badge");
     expect(row).not.toHaveClass("discounted");
   });
 
@@ -1033,7 +1043,27 @@ describe("SalesPage list price and discount (#720)", () => {
       ],
     };
     await openOrder(order, /Grade A Dozen/);
-    expect(screen.getByTestId("order-discount-partial")).toBeInTheDocument();
+    expect(screen.getByTestId("order-discount-partial"))
+      .toHaveTextContent(i18n.t("sales:discountPartialOnly"));
+  });
+
+  // Round 2. The Orders list says "Unknown" for an order no line of which can
+  // be measured; the panel said nothing at all, so opening the order made the
+  // warning disappear.
+  it("says the order cannot be measured at all when no line has a list price", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-unknown-panel"),
+      referenceNumber: "SO-UNKNOWN-PANEL",
+      totalMinorUnits: 900,
+      items: [{
+        id: "it-up1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: null,
+      }],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    expect(screen.getByTestId("order-discount-unknown"))
+      .toHaveTextContent(i18n.t("sales:discountUnknownOrder"));
   });
 });
 

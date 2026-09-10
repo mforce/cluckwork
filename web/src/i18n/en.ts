@@ -421,6 +421,7 @@ export const en = {
     // measurement never presents as a whole-order one.
     discountPartialNote: "part of this order has no list price",
     discountPartialOnly: "No discount on the lines that can be measured — part of this order has no list price.",
+    discountUnknownOrder: "No list price on any line — this order's discount cannot be worked out.",
     // #724 — the Orders-table cell. Percent LEADS the amount: a reviewer
     // scanning a month of orders is reading for outliers, and only the
     // percentage makes an outlier visible without arithmetic.

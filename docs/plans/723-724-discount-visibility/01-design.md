@@ -130,7 +130,8 @@ because it divides by `total + discount`; per C2 that number is not the specific
   `kind === "none"`. Reuse `.badge` + an existing variant; new i18n keys.
 - **Discount paragraph.** Immediately above the order-total `<p>` at `SalesPage.tsx:1041`, rendered
   only when `orderDiscount().kind === "below"`. Text follows the mockup:
-  `Discount: −$33.60 · 9.0% of list`.
+  `Discount: −$33.60 · 9.7% of list` — 9.7%, not the mockup's 9.0%: §5.1's denominator is the
+  comparable lines only, and C2 records that the mockup's percentages are layout illustrations.
 - **Inline-edit branch.** The row keeps whatever marking the **server** line carries; the typed price
   is not yet the line's price, and #720's live hint below the form already covers the in-flight value.
 
