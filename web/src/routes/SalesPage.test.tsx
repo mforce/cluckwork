@@ -1014,6 +1014,71 @@ describe("SalesPage list price and discount (#720)", () => {
   });
 });
 
+describe("SalesPage Orders-list discount column (#724)", () => {
+  // `renderReady()` is this file's own mount helper (SalesPage.test.tsx:171):
+  // it renders <SalesPage/> with the ADMIN token and awaits the "New order"
+  // button, and the file's beforeEach already stubs every other network call.
+  // Do NOT call renderWithProviders directly here — the page would race its
+  // own setup reads.
+  // The list route returns items — SaleEndpoints.ToResponse projects
+  // o.Items for both /sales and /sales/{id}, and SalesOrderRepository.ListAsync
+  // Includes them — so the cell is computed from data already on the page.
+  function listedOrder(id: string, items: OrderItem[], totalMinorUnits: number): SalesOrder {
+    return {
+      ...NO_RECORD_HISTORY,
+      id, customerId: "c1", customerName: "Acme Eggs", referenceNumber: `SO-${id}`,
+      orderDate: "2026-07-20", status: "Confirmed", totalMinorUnits,
+      currencyCode: "USD", currencyMinorUnit: 2, voidReason: null, items,
+    };
+  }
+
+  it("badges a discounted order with the percent leading the amount", async () => {
+    mockListOrders.mockResolvedValue([listedOrder("disc", [ITEM_A, ITEM_B], 2900)]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-disc/ });
+    expect(within(row).getByText(
+      i18n.t("sales:discountBadge", { percent: "17.7", amount: "$6.25" }),
+    )).toBeInTheDocument();
+  });
+
+  it("shows an em dash for an order sold entirely at list", async () => {
+    const atList: OrderItem = { ...ITEM_A, id: "at1", listUnitPriceMinorUnits: 300 };
+    mockListOrders.mockResolvedValue([listedOrder("atlist", [atList], 900)]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-atlist/ });
+    // Assert the CELL, by index. A bare text lookup for "—" is ambiguous: the
+    // row's ProvenanceCell also renders one under NO_RECORD_HISTORY
+    // (ProvenanceCell.tsx:57). Cells are Reference, Date, Customer, Status,
+    // Discount, Total, Provenance, actions — so the new column is index 4.
+    // Without this, an implementation returning null for every non-below order
+    // leaves the cell EMPTY and both negative assertions still pass.
+    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("—");
+    expect(within(row).queryByText(/%/)).toBeNull();
+  });
+
+  it("an order with no lines reads as an em dash, not as Unknown", async () => {
+    // The Orders list ALREADY renders empty orders — SalesPage.test.tsx:1310
+    // lists HISTORY_ORDER, built from draftEmpty (:102) with items: []. An
+    // empty draft is not an order we cannot measure; calling it Unknown would
+    // be a user-visible lie, so the empty case is pinned here rather than left
+    // to the "no comparable line" branch.
+    mockListOrders.mockResolvedValue([listedOrder("empty", [], 0)]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-empty/ });
+    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("—");
+    expect(within(row).queryByText(i18n.t("sales:discountUnknown"))).toBeNull();
+  });
+
+  it("reads Unknown for an order predating the list-price snapshot", async () => {
+    const preSnapshot: OrderItem = { ...ITEM_A, id: "pre1", listUnitPriceMinorUnits: null };
+    mockListOrders.mockResolvedValue([listedOrder("pre", [preSnapshot], 900)]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-pre/ });
+    // #719: an order with no snapshot reads as unknown, never as a clean zero.
+    expect(within(row).getByText(i18n.t("sales:discountUnknown"))).toBeInTheDocument();
+  });
+});
+
 describe("SalesPage unit-price parsing", () => {
   // Different currency scales prove parseMoneyToMinorUnits uses the order's
   // currencyMinorUnit: "5" is 5 in JPY (0dp) but would be 500 at 2dp.

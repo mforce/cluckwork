@@ -1483,7 +1483,7 @@ export function SalesPage() {
         <>
           <table className="data">
             <thead>
-              <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}<GlossaryLink term="ConfirmOrder" /></th><th className="num">{t("total")}</th><th>{tc("recordHistoryHeader")}</th><th></th></tr>
+              <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}<GlossaryLink term="ConfirmOrder" /></th><th className="num">{t("discount")}</th><th className="num">{t("total")}</th><th>{tc("recordHistoryHeader")}</th><th></th></tr>
             </thead>
             <tbody>
               {orders.rows.map((o) => (
@@ -1492,6 +1492,25 @@ export function SalesPage() {
                   <td className="nowrap"><FarmDate iso={o.orderDate} /></td>
                   <td>{rowCustomerName(o)}</td>
                   <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
+                  {/* #724 — one column on the only per-order list in the app.
+                      class="num" per #650: styles.num.test.ts pins td.num to
+                      right-aligned tabular figures that never wrap. */}
+                  <td className="num">{(() => {
+                    const d = orderDiscount(o.items);
+                    if (d.kind === "unknown") return <span className="muted">{t("discountUnknown")}</span>;
+                    if (d.kind !== "below") return "—";
+                    const amount = fmt.money(d.amountMinorUnits, o.currencyCode, o.currencyMinorUnit);
+                    return (
+                      <>
+                        <span className="badge badge-warn">
+                          {d.percent === null
+                            ? t("discountBadgeNoPct", { amount })
+                            : t("discountBadge", { amount, percent: fmt.count(d.percent, 1) })}
+                        </span>
+                        {d.partial ? <><br /><span className="muted">{t("discountPartialNote")}</span></> : null}
+                      </>
+                    );
+                  })()}</td>
                   <td className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   <ProvenanceCell history={o} official="confirmed" />
                   <td>
