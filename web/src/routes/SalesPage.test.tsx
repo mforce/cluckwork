@@ -3323,3 +3323,74 @@ describe("Sales accepted edit baseline (#713)", () => {
     expect(mockUpdateOrderItem.mock.calls[1][3]).toBe(mockUpdateOrderItem.mock.calls[0][3]);
   });
 });
+
+// #752 — the discount treatment under inline edit, and the rounding boundary.
+describe("SalesPage discount markers under inline edit (#752)", () => {
+  // Cell order inside an editing row: product, quantity, eggs, list, price,
+  // DISCOUNT, line total, actions.
+  const DISCOUNT_CELL = 5;
+
+  const beginEdit = async () => {
+    const row = await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    fireEvent.click(within(row).getByRole("button", { name: i18n.t("sales:edit") }));
+    return row;
+  };
+  const typePrice = (value: string) =>
+    fireEvent.change(screen.getByLabelText(i18n.t("sales:editUnitPriceAriaLabel")), { target: { value } });
+
+  it("keeps the tint, the chip and the Discount cell agreeing as the price is edited", async () => {
+    const row = await beginEdit();
+    // ITEM_A: 3 x $3.00 against a $3.75 list — below list before a key is pressed.
+    expect(row).toHaveClass("discounted");
+    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toBeInTheDocument();
+    expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent("$2.25");
+
+    // Typed UP to the list price: no longer a discount, so every marker goes.
+    typePrice("3.75");
+    expect(row).not.toHaveClass("discounted");
+    expect(within(row).queryByText(i18n.t("sales:belowListBadge"))).toBeNull();
+    expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent("—");
+
+    // Typed ABOVE list: the Discount cell is this line's only marker, and it
+    // used to be blanked to "—" for the whole edit.
+    typePrice("4.00");
+    expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent(i18n.t("sales:aboveList"));
+    expect(row).not.toHaveClass("discounted");
+
+    // Back below list: the markers come back rather than sticking.
+    typePrice("2.00");
+    expect(row).toHaveClass("discounted");
+    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toBeInTheDocument();
+  });
+
+  it("falls back to the saved line rather than flickering when the price box is unparseable", async () => {
+    const row = await beginEdit();
+    typePrice("");
+    expect(row).toHaveClass("discounted");
+    expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).not.toHaveTextContent(i18n.t("sales:noListPrice"));
+  });
+
+  it("says <0.1% rather than 0.0% when a real discount rounds below the rendered precision", async () => {
+    // 1 minor unit off a 1,000,000 list is 0.0001% — non-zero, and "0.0%"
+    // beside a non-zero amount contradicts itself.
+    const tiny: OrderItem = {
+      ...ITEM_A, id: "tiny", quantity: 1, quantityBase: 12,
+      unitPriceMinorUnits: 999_999, listUnitPriceMinorUnits: 1_000_000,
+    };
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "otiny"), referenceNumber: "SO-tiny",
+      totalMinorUnits: 999_999, items: [tiny],
+    };
+    const row = await openOrder(order, /SO-tiny/);
+    // By content, not column index: a non-editing row has a different column
+    // count from the editing row DISCOUNT_CELL is measured against.
+    const cell = within(row).getByText(/·/).closest("td");
+    expect(cell).toHaveTextContent("$0.01");
+    expect(cell).toHaveTextContent("<0.1%");
+    expect(cell).not.toHaveTextContent("0.0%");
+
+    const panel = screen.getByTestId("order-discount");
+    expect(panel).toHaveTextContent("<0.1%");
+    expect(panel).not.toHaveTextContent("0.0%");
+  });
+});
