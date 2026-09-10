@@ -74,8 +74,16 @@ public sealed class UpdateProductHandler(
             // (part 2), so history never reinterprets.
             mapping.Repoint(grade.Id);
 
+            // #746 — see CreateProductHandler: the NAME, never the ordinal.
+            // Pinned by UpdateProduct_RecordsDefaultUnitByName.
             await audit.WriteAsync(AuditActions.ProductUpdate, nameof(Product), product.Id,
-                details: new { product.Name, product.DefaultUnit, product.DefaultPriceMinorUnits, EggGrade = grade.Name },
+                details: new
+                {
+                    product.Name,
+                    DefaultUnit = product.DefaultUnit.ToString(),
+                    product.DefaultPriceMinorUnits,
+                    EggGrade = grade.Name,
+                },
                 ct: transactionCt);
 
             outcome = Result.Success();

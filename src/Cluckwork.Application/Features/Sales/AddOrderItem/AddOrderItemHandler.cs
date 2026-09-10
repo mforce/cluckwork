@@ -174,6 +174,13 @@ public sealed class AddOrderItemHandler(
         // because a joined scope's RollbackAsync is a no-op
         // (AmbientTransaction.cs:95).
         //
+        // #743 — and nothing may exit this delegate BELOW the inner save.
+        // A rollback then leaves the order and the item tracked as Unchanged,
+        // so a later flush on this same context drops them silently instead of
+        // re-writing them (#159's shape, one step worse). Enforced by
+        // TransactionDelegateShapeTests; if you need an exit there, add a
+        // DiscardChanges-style cleanup the way UpdateFarmSettingsHandler does.
+        //
         // Nullable, not a placeholder failure: a future branch that forgets to
         // set it NREs loudly at `return outcome!`, where a synthetic
         // Error.Validation would instead return a silent 400 carrying an error
