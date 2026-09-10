@@ -1157,6 +1157,23 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     expect(cell).toHaveTextContent(i18n.t("sales:discountPartialNote"));
     expect(cell.textContent?.trim()).not.toBe("—");
   });
+
+  // The BELOW-list partial branch: a discounted order that also carries an
+  // unmeasurable line. The at-list partial test above never enters it, which
+  // left SalesPage.tsx:1537 the one `discount-note` call site with no assertion
+  // — so the class could be dropped there and the note would stop wrapping
+  // inside td.num, with the suite green. Found by CodeRabbit on 0c65418.
+  it("wraps the partial note on a DISCOUNTED order that also has an unmeasurable line", async () => {
+    const below: OrderItem = { ...ITEM_A, id: "bp1", listUnitPriceMinorUnits: 375 };
+    const noList: OrderItem = { ...ITEM_B, id: "bp2", listUnitPriceMinorUnits: null };
+    mockListOrders.mockResolvedValue([listedOrder("belowpartial", [below, noList], 2900)]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-belowpartial/ });
+    const cell = within(row).getAllByRole("cell")[4];
+    // The badge renders (it IS discounted) AND the partial note is present and wrappable.
+    expect(within(cell).getByText(/%/)).toHaveClass("badge");
+    expect(within(cell).getByText(i18n.t("sales:discountPartialNote"))).toHaveClass("discount-note");
+  });
 });
 
 describe("SalesPage unit-price parsing", () => {
