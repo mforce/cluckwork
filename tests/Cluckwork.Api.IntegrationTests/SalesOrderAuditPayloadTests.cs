@@ -20,8 +20,16 @@ public sealed class SalesOrderAuditPayloadTests(CluckworkWebApplicationFactory f
     private sealed record AddedItemDto(Guid OrderId, Guid ItemId);
     private sealed record AuditRow(Guid Id, string Action, Guid EntityId, string? DetailsJson);
 
-    private const long ListPrice = 500;
-    private const long DiscountedPrice = 400;
+    // Every value distinct, pairwise, on purpose. Review round 1 found that a
+    // fixture with the line added AT the list price made a swap of
+    // before.unitPriceMinorUnits and listUnitPriceMinorUnits undetectable —
+    // both read 500, so both assertions passed either way. Three prices and
+    // two quantities mean any transposition of any two payload fields reddens.
+    private const long ListPrice = 500;          // the product's catalogue price
+    private const long AddedAtPrice = 450;       // what the line was first sold at
+    private const long DiscountedPrice = 400;    // what it was then edited down to
+    private const int AddedQuantity = 10;
+    private const int EditedQuantity = 7;
 
     // The product is seeded WITH a default price on purpose: ListPriceBasis is
     // Recorded only when the product has one in the order's currency
@@ -71,13 +79,13 @@ public sealed class SalesOrderAuditPayloadTests(CluckworkWebApplicationFactory f
 
         var added = await client.PostWithKeyAsync(
             $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
-            new { productId, quantity = 10, unitPriceMinorUnits = ListPrice });
+            new { productId, quantity = AddedQuantity, unitPriceMinorUnits = AddedAtPrice });
         Assert.Equal(HttpStatusCode.Created, added.StatusCode);
         var itemId = (await added.Content.ReadFromJsonAsync<AddedItemDto>())!.ItemId;
 
         var edited = await client.PutWithKeyAsync(
             $"/api/v1/sales/{orderId}/items/{itemId}", Guid.NewGuid().ToString(),
-            new { quantity = 10, unitPriceMinorUnits = DiscountedPrice });
+            new { quantity = EditedQuantity, unitPriceMinorUnits = DiscountedPrice });
         // 204, not 200: SaleEndpoints.UpdateOrderItem returns Results.NoContent()
         // on success (SaleEndpoints.cs:156).
         Assert.Equal(HttpStatusCode.NoContent, edited.StatusCode);
@@ -95,16 +103,34 @@ public sealed class SalesOrderAuditPayloadTests(CluckworkWebApplicationFactory f
         // The price it changed FROM and the price it changed TO. Reading these
         // through a reference held across order.UpdateItem would make them
         // equal — SalesOrderItem.Update mutates the tracked instance in place.
+        //
+        // All three prices differ, so this also pins WHICH field is which: a
+        // transposition of before.unitPriceMinorUnits and
+        // listUnitPriceMinorUnits reddens here, where a fixture that added the
+        // line at the list price could not see it (review round 1).
         var before = root.GetProperty("before").GetProperty("unitPriceMinorUnits").GetInt64();
         var after = root.GetProperty("after").GetProperty("unitPriceMinorUnits").GetInt64();
-        Assert.Equal(ListPrice, before);
+        Assert.Equal(AddedAtPrice, before);
         Assert.Equal(DiscountedPrice, after);
         Assert.NotEqual(before, after);
+
+        // Quantity moved too, so before and after are distinguishable. Without
+        // this the payload could duplicate or reverse them undetected.
+        var beforeQty = root.GetProperty("before").GetProperty("quantity").GetInt32();
+        var afterQty = root.GetProperty("after").GetProperty("quantity").GetInt32();
+        Assert.Equal(AddedQuantity, beforeQty);
+        Assert.Equal(EditedQuantity, afterQty);
+        Assert.NotEqual(beforeQty, afterQty);
 
         // The basis by NAME, never its ordinal (Recorded is 0). GetString()
         // throws on a number, so a stored 0 fails loudly here.
         Assert.Equal("Recorded", root.GetProperty("listPriceBasis").GetString());
         Assert.Equal(ListPrice, root.GetProperty("listUnitPriceMinorUnits").GetInt64());
+
+        // The denomination every money value above is in. Written by the
+        // handler and, until review round 1, asserted on the Add path only.
+        Assert.Equal("USD", root.GetProperty("currencyCode").GetString());
+        Assert.Equal(2, root.GetProperty("currencyMinorUnit").GetInt32());
     }
 
     [Fact]
