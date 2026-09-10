@@ -141,6 +141,70 @@ function lineDiscount(item: OrderItem): LineDiscount {
   };
 }
 
+// #723/#724 — the ORDER's discount, aggregated from its lines.
+//
+// "Comparable" means listUnitPriceMinorUnits !== null. An at-list line and an
+// ABOVE-list line are both comparable and both belong in the denominator: the
+// figure answers "how much of this order's list value was given away", and a
+// line sold over list still contributed list value. An earlier draft excluded
+// above-list lines and overstated a mixed order — one $100-at-$110 line beside
+// one $100-at-$90 line reported 10% where 5% is the truth.
+//
+// `partial` sits on BOTH populated variants, not only on "below". An order of
+// one no-list-price line plus one at-list line otherwise has no representable
+// state and reads as a measured zero, which is exactly the "a discount hides
+// behind an unpriced product" failure #719 exists to stop.
+//
+// A ZERO list price is legal — Product.cs:38 and :66 reject only negatives — so
+// listValueMinorUnits can be 0 while comparable lines exist. But reaching the
+// division with a zero denominator ALSO needs a below-list line against that
+// zero list, which needs a NEGATIVE unit price, and
+// UpdateOrderItemValidator.cs:11 requires UnitPriceMinorUnits >= 0.
+//
+// So this guard cannot fire against data the API will persist. It is kept
+// anyway, for one reason stated plainly rather than dressed up as safety: this
+// function consumes an API RESPONSE in a display path, and what it prevents is
+// rendering "∞%" to a user. It is not a clamp masking a wrong value — the null
+// selects a different, already-translated string, the same shape #720 ships as
+// listPriceHintBelowNoPct.
+type OrderDiscount =
+  | { kind: "unknown" }
+  | { kind: "atList"; partial: boolean }
+  | { kind: "below"; amountMinorUnits: number; percent: number | null; partial: boolean };
+
+function orderDiscount(items: OrderItem[]): OrderDiscount {
+  // An order with no lines has nothing to be unknown ABOUT: "unknown" is
+  // reserved for an order whose lines exist but predate the snapshot.
+  if (items.length === 0) return { kind: "atList", partial: false };
+
+  let amountMinorUnits = 0;
+  let listValueMinorUnits = 0;
+  let comparable = 0;
+  let partial = false;
+
+  for (const item of items) {
+    const line = lineDiscount(item);
+    if (line.kind === "none") {
+      partial = true;
+      continue;
+    }
+    comparable += 1;
+    // Non-null on every branch lineDiscount reaches past "none"; the ?? 0 is a
+    // type narrowing, not a fallback, and can never supply a value.
+    listValueMinorUnits += (item.listUnitPriceMinorUnits ?? 0) * item.quantity;
+    if (line.kind === "below") amountMinorUnits += line.amountMinorUnits;
+  }
+
+  if (comparable === 0) return { kind: "unknown" };
+  if (amountMinorUnits === 0) return { kind: "atList", partial };
+  return {
+    kind: "below",
+    amountMinorUnits,
+    percent: listValueMinorUnits > 0 ? (amountMinorUnits * 100) / listValueMinorUnits : null,
+    partial,
+  };
+}
+
 // #23 + #24 (orders half): create a draft order, add/edit/remove graded lines,
 // confirm (FIFO allocation), cancel drafts, browse/filter the order list.
 export function SalesPage() {
@@ -951,10 +1015,19 @@ export function SalesPage() {
                 {active.items.map((i) => {
                   const discount = lineDiscount(i);
                   return (
-                  <tr key={i.id}>
+                  <tr key={i.id} className={discount.kind === "below" ? "discounted" : undefined}>
                     <td>{productName(i.productId)}{" "}
                       <span className="muted">{t("perUnit", { unit: i.unit.toLowerCase() })}
-                        {i.baseUnitFactor > 1 ? ` ${t("eggsCount", { count: i.baseUnitFactor })}` : ""}</span></td>
+                        {i.baseUnitFactor > 1 ? ` ${t("eggsCount", { count: i.baseUnitFactor })}` : ""}</span>
+                      {/* #723 — the text marker, beside the product rather than
+                          in the Discount cell, so it is legible on a row whose
+                          numeric cells are being scanned as a column. */}
+                      {discount.kind === "below" && (
+                        <> <span className="badge badge-warn">{t("belowListBadge")}</span></>
+                      )}
+                      {discount.kind === "none" && (
+                        <> <span className="badge">{t("noListPrice")}</span></>
+                      )}</td>
                     {editor && editingLine?.id === i.id ? (
                       <>
                         <td className="num">
@@ -1004,7 +1077,9 @@ export function SalesPage() {
                         <td className="num">
                           {i.listUnitPriceMinorUnits === null
                             ? "—"
-                            : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
+                            : discount.kind === "below"
+                              ? <s>{fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</s>
+                              : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
                         </td>
                         <td className="num">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
                         <td className="num">
@@ -1038,6 +1113,45 @@ export function SalesPage() {
               </tbody>
             </table>
           )}
+          {/* #723 — the order's give-away, directly above the total it was
+              taken from. A sibling <p>, not a <tfoot>: the order total has
+              never been a table footer and the only <tfoot> in the app is
+              ReportsPage's. Rendered ONLY for a below-list order — #723's
+              acceptance is that an at-list order carries no treatment at all. */}
+          {(() => {
+            const orderLevel = orderDiscount(active.items);
+            // Round 1 — read `partial` BEFORE bailing on kind. An order with
+            // nothing discounted but a line we cannot measure is not an at-list
+            // order, and rendering nothing here let it read as one.
+            if (orderLevel.kind === "atList" && orderLevel.partial) {
+              return (
+                <p className="discount-note" data-testid="order-discount-partial">
+                  {t("discountPartialOnly")}
+                </p>
+              );
+            }
+            // Round 2 — `unknown` reached this bail and rendered nothing, while
+            // the Orders list said "Unknown" for the same order. Two screens
+            // disagreeing about whether an order is measurable is worse than
+            // either answer alone.
+            if (orderLevel.kind === "unknown") {
+              return (
+                <p className="discount-note" data-testid="order-discount-unknown">
+                  {t("discountUnknownOrder")}
+                </p>
+              );
+            }
+            if (orderLevel.kind !== "below") return null;
+            const amount = fmt.money(orderLevel.amountMinorUnits, active.currencyCode, active.currencyMinorUnit);
+            return (
+              <p className="discount" data-testid="order-discount">
+                {orderLevel.percent === null
+                  ? t("discountTotalNoPct", { amount })
+                  : t("discountTotal", { amount, percent: fmt.count(orderLevel.percent, 1) })}
+                {orderLevel.partial ? ` (${t("discountPartialNote")})` : ""}
+              </p>
+            );
+          })()}
           <p><strong>{t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })}</strong></p>
 
           {active.status === "Draft" && (
@@ -1390,7 +1504,7 @@ export function SalesPage() {
         <>
           <table className="data">
             <thead>
-              <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}<GlossaryLink term="ConfirmOrder" /></th><th className="num">{t("total")}</th><th>{tc("recordHistoryHeader")}</th><th></th></tr>
+              <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}<GlossaryLink term="ConfirmOrder" /></th><th className="num">{t("discount")}</th><th className="num">{t("total")}</th><th>{tc("recordHistoryHeader")}</th><th></th></tr>
             </thead>
             <tbody>
               {orders.rows.map((o) => (
@@ -1399,6 +1513,31 @@ export function SalesPage() {
                   <td className="nowrap"><FarmDate iso={o.orderDate} /></td>
                   <td>{rowCustomerName(o)}</td>
                   <td><StatusBadge status={o.status} label={statusLabel(o.status)} /></td>
+                  {/* #724 — one column on the only per-order list in the app.
+                      class="num" per #650: styles.num.test.ts pins td.num to
+                      right-aligned tabular figures that never wrap. */}
+                  <td className="num">{(() => {
+                    const d = orderDiscount(o.items);
+                    if (d.kind === "unknown") return <span className="muted discount-note">{t("discountUnknown")}</span>;
+                    // Round 1 — the em dash means "sold at list". An order only
+                    // part of which is measurable must not borrow that glyph.
+                    if (d.kind !== "below") {
+                      return d.partial
+                        ? <span className="muted discount-note">{t("discountPartialNote")}</span>
+                        : "—";
+                    }
+                    const amount = fmt.money(d.amountMinorUnits, o.currencyCode, o.currencyMinorUnit);
+                    return (
+                      <>
+                        <span className="badge badge-warn">
+                          {d.percent === null
+                            ? t("discountBadgeNoPct", { amount })
+                            : t("discountBadge", { amount, percent: fmt.count(d.percent, 1) })}
+                        </span>
+                        {d.partial ? <><br /><span className="muted discount-note">{t("discountPartialNote")}</span></> : null}
+                      </>
+                    );
+                  })()}</td>
                   <td className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   <ProvenanceCell history={o} official="confirmed" />
                   <td>

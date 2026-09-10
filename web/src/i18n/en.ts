@@ -405,6 +405,31 @@ export const en = {
     discount: "Discount",
     noListPrice: "No list price",
     aboveList: "Above list",
+    // #723 — the row's text marker. Colour alone fails greyscale and fails a
+    // colour-blind reader, so the tint never travels without this chip.
+    // Ends in `Badge`, so badgeCase.test.ts holds it to a capital first letter
+    // in all three locales the day it lands.
+    belowListBadge: "Below list",
+    // #723 — the order's give-away, above the order total. The minus sign is
+    // U+2212 MINUS SIGN, not a hyphen: it is a quantity, not a word break.
+    discountTotal: "Discount: −{{amount}} · {{percent}}% of list",
+    // A zero list price is legal (Product.cs:38 rejects only negatives), so the
+    // denominator can be zero with comparable lines present. Same amount-only
+    // fallback #720 already ships for the line-level hint.
+    discountTotalNoPct: "Discount: −{{amount}} off list",
+    // Rendered beside the figure when some line has no list price, so a partial
+    // measurement never presents as a whole-order one.
+    discountPartialNote: "part of this order has no list price",
+    discountPartialOnly: "No discount on the lines that can be measured — part of this order has no list price.",
+    discountUnknownOrder: "No list price on any line — this order's discount cannot be worked out.",
+    // #724 — the Orders-table cell. Percent LEADS the amount: a reviewer
+    // scanning a month of orders is reading for outliers, and only the
+    // percentage makes an outlier visible without arithmetic.
+    discountBadge: "{{percent}}% · {{amount}}",
+    discountBadgeNoPct: "{{amount}} off list",
+    // An order predating the list-price snapshot reads as unknown, never as a
+    // clean zero. #719: data starts on the day #720 shipped.
+    discountUnknown: "Unknown",
     // #720 — live hints under the add-line price field, mirroring the amount
     // the line will snapshot as ListUnitPriceMinorUnits if submitted now.
     listPriceHintBelow: "{{amount}} below list ({{percent}}%)",
@@ -2816,7 +2841,13 @@ export const en = {
       "Each line also shows its <strong>List price</strong> — the product's price when the line was "
       + "added — next to a <strong>Discount</strong> worked out from it: an amount and a percent when sold "
       + "under list, <strong>Above list</strong> when sold over, and \"No list price\" when there's nothing "
-      + "to compare against.",
+      + "to compare against. A line sold under list is marked three ways so it survives a greyscale print: "
+      + "a <strong>Below list</strong> tag beside the product, its List price struck through, and a tinted "
+      + "row. The order's <strong>Discount</strong> is totalled directly above the order total, as an "
+      + "amount and a percent of list; where part of the order has no list price, the total says so rather "
+      + "than pretending to cover it. The Orders list carries the same figure in its own "
+      + "<strong>Discount</strong> column, so a discounted order is visible without opening it — and an "
+      + "order taken before list prices were recorded reads \"Unknown\" there, never zero.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",
@@ -3352,8 +3383,12 @@ export const en = {
 
     glossaryDiscountTerm: "Discount",
     glossaryDiscountDef:
-      "How much a sale line sold under its own list price, shown per line. Different from the order-level "
-      + "discount a seller can type in — this one is worked out for you, never entered.",
+      "How much a sale line sold under its own list price, shown per line — and summed for the whole "
+      + "order, as an amount and a percent of the list value of the lines that have a list price. An order "
+      + "that has lines but no list price on any of them reads as \"Unknown\"; an order with no lines at "
+      + "all has nothing to measure and reads as a dash in the Orders list, with no discount line on the "
+      + "order itself. Different from the order-level discount a seller "
+      + "can type in — this one is worked out for you, never entered.",
 
     glossaryAboveListTerm: "Above list",
     glossaryAboveListDef: "A line sold for more than its own list price.",

@@ -317,6 +317,15 @@ export const es = {
     discount: "Descuento",
     noListPrice: "Sin precio de lista",
     aboveList: "Sobre el precio de lista",
+    belowListBadge: "Por debajo de lista",
+    discountTotal: "Descuento: −{{amount}} · {{percent}}% del precio de lista",
+    discountTotalNoPct: "Descuento: −{{amount}} respecto al precio de lista",
+    discountPartialNote: "parte de este pedido no tiene precio de lista",
+    discountPartialOnly: "Sin descuento en las líneas que se pueden medir — parte de este pedido no tiene precio de lista.",
+    discountUnknownOrder: "Ninguna línea tiene precio de lista — no se puede calcular el descuento de este pedido.",
+    discountBadge: "{{percent}}% · {{amount}}",
+    discountBadgeNoPct: "{{amount}} respecto al precio de lista",
+    discountUnknown: "Desconocido",
     listPriceHintBelow: "{{amount}} por debajo del precio de lista ({{percent}}%)",
     listPriceHintAbove: "{{amount}} sobre el precio de lista ({{percent}}%)",
     listPriceHintAboveNoPct: "{{amount}} sobre el precio de lista",
@@ -2282,7 +2291,16 @@ export const es = {
       "Cada línea también muestra su <strong>Precio de lista</strong> — el precio del producto cuando se "
       + "agregó la línea — junto a un <strong>Descuento</strong> calculado a partir de él: un monto y un "
       + "porcentaje cuando se vende por debajo de la lista, <strong>Sobre el precio de lista</strong> cuando "
-      + "se vende por encima, y \"Sin precio de lista\" cuando no hay nada con qué comparar.",
+      + "se vende por encima, y \"Sin precio de lista\" cuando no hay nada con qué comparar. Una línea "
+      + "vendida por debajo de la lista se marca de tres maneras, para que siga siendo legible en una "
+      + "impresión en escala de grises: una etiqueta <strong>Por debajo de lista</strong> junto al producto, "
+      + "su Precio de lista tachado y una fila con color de fondo. El <strong>Descuento</strong> del pedido "
+      + "se totaliza justo encima del total del pedido, como un monto y un porcentaje del precio de lista; "
+      + "cuando parte del pedido no tiene precio de lista, el total lo indica en lugar de pretender "
+      + "abarcarlo. La lista de pedidos lleva la misma cifra en su propia columna "
+      + "<strong>Descuento</strong>, así que un pedido con descuento se ve sin abrirlo — y un pedido "
+      + "tomado antes de que se registraran los precios de lista se lee allí como \"Desconocido\", nunca "
+      + "como cero.",
     salesConfirming:
       "<strong>Confirmar</strong> un pedido asigna existencias reales — los lotes más antiguos primero — y "
       + "es el punto donde el inventario cambia de manos.",
@@ -2841,7 +2859,11 @@ export const es = {
 
     glossaryDiscountTerm: "Descuento",
     glossaryDiscountDef:
-      "Cuánto se vendió una línea por debajo de su propio precio de lista, mostrado por línea. Es "
+      "Cuánto se vendió una línea por debajo de su propio precio de lista, mostrado por línea — y sumado "
+      + "para todo el pedido, como un monto y un porcentaje del valor de lista de las líneas que tienen "
+      + "precio de lista. Un pedido que tiene líneas pero ninguna con precio de lista se lee como "
+      + "\"Desconocido\"; un pedido sin líneas no tiene nada que medir y se lee como una raya en la lista "
+      + "de pedidos, sin línea de descuento en el pedido mismo. Es "
       + "distinto del descuento a nivel de pedido que un vendedor puede ingresar — este se calcula solo, "
       + "nunca se ingresa.",
 

@@ -781,9 +781,13 @@ describe("SalesPage line display", () => {
 // #720 — the list price snapshot and the discount it implies, rendered per
 // line. Four states: none, at list, below list, above list.
 describe("SalesPage list price and discount (#720)", () => {
-  it('shows "No list price" when the line has none', async () => {
+  it('shows "No list price" when the line has none — in the chip AND in the discount cell', async () => {
     const row = await openOrder(draftWithItem(2, "USD", 500, "o-nolist"), /Grade A Dozen/);
-    expect(within(row).getByText(i18n.t("sales:noListPrice"))).toBeInTheDocument();
+    // #723 — TWO mentions, deliberately: the chip beside the product names the
+    // state where the eye lands, and the Discount cell keeps the wording #720
+    // shipped and the Help text documents. Pinned at exactly 2 so a future
+    // change that drops either one goes red rather than silently halving it.
+    expect(within(row).getAllByText(i18n.t("sales:noListPrice"))).toHaveLength(2);
   });
 
   it("puts No list price in the DISCOUNT cell and an em dash in the LIST PRICE cell", async () => {
@@ -849,6 +853,326 @@ describe("SalesPage list price and discount (#720)", () => {
     // applying the emphasis here survived as an untested mutant (M20) until
     // this assertion existed.
     expect(within(row).getByText(i18n.t("sales:aboveList"))).not.toHaveClass("discount");
+  });
+
+  // #723 — colour is not the only signal. A discounted row carries a text chip
+  // and a struck-through list price, both of which survive greyscale; the tint
+  // is the third layer, asserted through the row's class because jsdom computes
+  // no layout.
+  it("marks a below-list row with a chip, a struck list price and the row class", async () => {
+    // ITEM_B: sold 1000 against a list of 1200 → below list.
+    const row = await openOrder(DRAFT_TWO, /Grade B Tray/);
+    // Both classes: `badge` is the pill, `badge-warn` is what the stylesheet's
+    // `tr.discounted .badge-warn` rule keys on to lift the chip off the row's
+    // own tint. Asserting only `badge` let the JSX drop `badge-warn`, orphaning
+    // that rule and restoring the invisible-chip defect with the suite green.
+    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("badge", "badge-warn");
+    expect(row).toHaveClass("discounted");
+    // The list-price money is struck through — the <s> element, not a class, so
+    // it survives a stylesheet change and reads as struck to a screen reader.
+    expect(within(row).getByText("$12.00").closest("s")).not.toBeNull();
+  });
+
+  it("gives an at-list row no chip, no strikethrough and no row class", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-atlist-mark"),
+      referenceNumber: "SO-ATLIST-MARK",
+      totalMinorUnits: 900,
+      items: [{
+        id: "it-atlist-mark", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: 300,
+      }],
+    };
+    const row = await openOrder(order, /Grade A Dozen/);
+    expect(within(row).queryByText(i18n.t("sales:belowListBadge"))).toBeNull();
+    expect(row).not.toHaveClass("discounted");
+    // The fixture renders $3.00 in the List price AND the Unit price cell.
+    // Checking only the first let an implementation that struck the other pass.
+    for (const match of within(row).getAllByText("$3.00")) {
+      expect(match.closest("s")).toBeNull();
+    }
+  });
+
+  it("chips a no-list-price row without marking it discounted", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-null-mark"),
+      referenceNumber: "SO-NULL-MARK",
+      totalMinorUnits: 900,
+      items: [{
+        id: "it-null-mark", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: null,
+      }],
+    };
+    const row = await openOrder(order, /Grade A Dozen/);
+    // The chip names the state beside the product; the Discount cell keeps the
+    // wording #720 shipped and the Help text documents. Both, deliberately.
+    const noListMatches = within(row).getAllByText(i18n.t("sales:noListPrice"));
+    expect(noListMatches).toHaveLength(2);
+    // One is the chip beside the product (cell 0), the other is the Discount
+    // cell's own wording. Counting alone let two plain strings in any two cells
+    // satisfy a test named for a chip.
+    const productCell = within(row).getAllByRole("cell")[0];
+    expect(within(productCell).getByText(i18n.t("sales:noListPrice"))).toHaveClass("badge");
+    expect(row).not.toHaveClass("discounted");
+  });
+
+  // #723 — the order-level figure. Percent is off LIST, over comparable lines
+  // only: DRAFT_TWO is ITEM_A (3 x 300 against list 375) + ITEM_B (2 x 1000
+  // against list 1200), so the give-away is 3x75 + 2x200 = 625 and the list
+  // value is 3x375 + 2x1200 = 3525 → 17.7%.
+  it("totals the order's discount above the order total", async () => {
+    await openOrder(DRAFT_TWO, /Grade B Tray/);
+    const paragraph = screen.getByTestId("order-discount");
+    expect(paragraph).toHaveTextContent(i18n.t("sales:discountTotal", { amount: "$6.25", percent: "17.7" }));
+    // ABOVE is half the requirement and was the untested half: the element
+    // immediately following the paragraph is the order total.
+    expect(paragraph.nextElementSibling?.textContent).toContain("$29.00");
+  });
+
+  // The one arithmetic error the PROTECTED helper exists to prevent: an
+  // ABOVE-list line is comparable and belongs in the DENOMINATOR, never in the
+  // numerator. Line 1 sells 110 against a list of 100 (above); line 2 sells 90
+  // against a list of 100 (below, giving 10 back). List value is 100 + 100 =
+  // 200, so the answer is $0.10 and 5.0% — not the 10% an implementation that
+  // drops above-list lines from the denominator would print.
+  it("counts an above-list line in the denominator but never in the discount", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-above-mix"),
+      referenceNumber: "SO-ABOVE-MIX",
+      totalMinorUnits: 200,
+      items: [
+        { id: "it-am1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+          quantity: 1, quantityBase: 12, unitPriceMinorUnits: 110, currencyCode: "USD", currencyMinorUnit: 2,
+          listUnitPriceMinorUnits: 100 },
+        { id: "it-am2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
+          quantity: 1, quantityBase: 30, unitPriceMinorUnits: 90, currencyCode: "USD", currencyMinorUnit: 2,
+          listUnitPriceMinorUnits: 100 },
+      ],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    expect(screen.getByTestId("order-discount"))
+      .toHaveTextContent(i18n.t("sales:discountTotal", { amount: "$0.10", percent: "5.0" }));
+  });
+
+  it("says the figure covers only part of an order carrying a no-list-price line", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-partial"),
+      referenceNumber: "SO-PARTIAL",
+      totalMinorUnits: 1200,
+      items: [
+        { id: "it-p1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+          quantity: 1, quantityBase: 12, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+          listUnitPriceMinorUnits: 400 },
+        { id: "it-p2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
+          quantity: 1, quantityBase: 30, unitPriceMinorUnits: 900, currencyCode: "USD", currencyMinorUnit: 2,
+          listUnitPriceMinorUnits: null },
+      ],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    // Scoped to the paragraph. `openOrder` stubs listOrders with this SAME
+    // order (SalesPage.test.tsx:197-205) and the Orders table renders outside
+    // the `{active && …}` panel, so once Increment 3 lands its cell prints the
+    // same note a second time — and a page-wide getByText throws on two
+    // matches. Scoping here keeps Increment 2's test green at 3c.
+    expect(within(screen.getByTestId("order-discount"))
+      .getByText(i18n.t("sales:discountPartialNote"), { exact: false })).toBeInTheDocument();
+  });
+
+  it("shows no Discount total when every comparable line sold at list", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-atlist-total"),
+      referenceNumber: "SO-ATLIST-TOTAL",
+      totalMinorUnits: 900,
+      items: [{
+        id: "it-atlist-total", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: 300,
+      }],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    // #723 acceptance: an at-list order carries no discount treatment at all.
+    // Asserted on the paragraph's own hook, NOT on a regex: a regex built from
+    // another fixture's numbers matches nothing whatever the code does, so it
+    // is a test that cannot fail. This one goes red if the paragraph renders
+    // for an at-list order at all — including as "−$0.00 · 0.0% of list".
+    expect(screen.queryByTestId("order-discount")).toBeNull();
+  });
+
+  // A ZERO list price is legal — Product.cs:38 rejects only negatives — so the
+  // denominator can be zero with a comparable line present. Dividing by it
+  // yields Infinity, which would render as an "∞%" discount.
+  it("omits the percent when every comparable line has a zero list price", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-zero-list"),
+      referenceNumber: "SO-ZERO-LIST",
+      totalMinorUnits: 0,
+      items: [{
+        id: "it-zero-list", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 1, quantityBase: 12, unitPriceMinorUnits: -100, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: 0,
+      }],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    // Both assertions are scoped to the ORDER paragraph, which is what this
+    // test is named for. A page-wide sweep for ∞ also catches #720's shipped
+    // per-LINE Discount cell, which has no such fallback and does render "∞%"
+    // for this fixture — a different surface, owned by a shipped slice, and one
+    // no API caller can reach: UpdateOrderItemValidator.cs:11 requires
+    // UnitPriceMinorUnits >= 0, and a below-list line against a zero list price
+    // needs a NEGATIVE unit price.
+    const paragraph = screen.getByTestId("order-discount");
+    expect(paragraph).toHaveTextContent(i18n.t("sales:discountTotalNoPct", { amount: "$1.00" }));
+    // textContent, not within(...).queryByText: the percent is text in the <p>
+    // itself, not in a descendant element, so a queryByText inside the
+    // paragraph would return null however wrong the code went.
+    expect(paragraph.textContent).not.toMatch(/∞|Infinity|NaN/);
+  });
+
+  // Round 1, render-states seat. An order with nothing discounted but something
+  // unmeasurable must NOT read as a measured at-list order.
+  it("says so when nothing was discounted but part of the order has no list price", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-atlist-partial"),
+      referenceNumber: "SO-ATLIST-PARTIAL",
+      totalMinorUnits: 1200,
+      items: [
+        { id: "it-ap1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+          quantity: 1, quantityBase: 12, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+          listUnitPriceMinorUnits: 300 },
+        { id: "it-ap2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
+          quantity: 1, quantityBase: 30, unitPriceMinorUnits: 900, currencyCode: "USD", currencyMinorUnit: 2,
+          listUnitPriceMinorUnits: null },
+      ],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    expect(screen.getByTestId("order-discount-partial"))
+      .toHaveTextContent(i18n.t("sales:discountPartialOnly"));
+    expect(screen.getByTestId("order-discount-partial")).toHaveClass("discount-note");
+  });
+
+  // Round 2. The Orders list says "Unknown" for an order no line of which can
+  // be measured; the panel said nothing at all, so opening the order made the
+  // warning disappear.
+  it("says the order cannot be measured at all when no line has a list price", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-unknown-panel"),
+      referenceNumber: "SO-UNKNOWN-PANEL",
+      totalMinorUnits: 900,
+      items: [{
+        id: "it-up1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: null,
+      }],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    expect(screen.getByTestId("order-discount-unknown"))
+      .toHaveTextContent(i18n.t("sales:discountUnknownOrder"));
+    expect(screen.getByTestId("order-discount-unknown")).toHaveClass("discount-note");
+  });
+});
+
+describe("SalesPage Orders-list discount column (#724)", () => {
+  // `renderReady()` is this file's own mount helper (SalesPage.test.tsx:171):
+  // it renders <SalesPage/> with the ADMIN token and awaits the "New order"
+  // button, and the file's beforeEach already stubs every other network call.
+  // Do NOT call renderWithProviders directly here — the page would race its
+  // own setup reads.
+  // The list route returns items — SaleEndpoints.ToResponse projects
+  // o.Items for both /sales and /sales/{id}, and SalesOrderRepository.ListAsync
+  // Includes them — so the cell is computed from data already on the page.
+  function listedOrder(id: string, items: OrderItem[], totalMinorUnits: number): SalesOrder {
+    return {
+      ...NO_RECORD_HISTORY,
+      id, customerId: "c1", customerName: "Acme Eggs", referenceNumber: `SO-${id}`,
+      orderDate: "2026-07-20", status: "Confirmed", totalMinorUnits,
+      currencyCode: "USD", currencyMinorUnit: 2, voidReason: null, items,
+    };
+  }
+
+  it("badges a discounted order with the percent leading the amount", async () => {
+    mockListOrders.mockResolvedValue([listedOrder("disc", [ITEM_A, ITEM_B], 2900)]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-disc/ });
+    // Cell 4 is the Discount column: Reference, Date, Customer, Status,
+    // Discount, Total, Provenance, actions. Scoping to the row alone let the
+    // text pass from any cell, and let a plain string pass as a badge.
+    const cell = within(row).getAllByRole("cell")[4];
+    expect(within(cell).getByText(
+      i18n.t("sales:discountBadge", { percent: "17.7", amount: "$6.25" }),
+    )).toHaveClass("badge");
+  });
+
+  it("shows an em dash for an order sold entirely at list", async () => {
+    const atList: OrderItem = { ...ITEM_A, id: "at1", listUnitPriceMinorUnits: 300 };
+    mockListOrders.mockResolvedValue([listedOrder("atlist", [atList], 900)]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-atlist/ });
+    // Assert the CELL, by index. A bare text lookup for "—" is ambiguous: the
+    // row's ProvenanceCell also renders one under NO_RECORD_HISTORY
+    // (ProvenanceCell.tsx:57). Cells are Reference, Date, Customer, Status,
+    // Discount, Total, Provenance, actions — so the new column is index 4.
+    // Without this, an implementation returning null for every non-below order
+    // leaves the cell EMPTY and both negative assertions still pass.
+    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("—");
+    expect(within(row).queryByText(/%/)).toBeNull();
+  });
+
+  it("an order with no lines reads as an em dash, not as Unknown", async () => {
+    // The Orders list ALREADY renders empty orders — SalesPage.test.tsx:1310
+    // lists HISTORY_ORDER, built from draftEmpty (:102) with items: []. An
+    // empty draft is not an order we cannot measure; calling it Unknown would
+    // be a user-visible lie, so the empty case is pinned here rather than left
+    // to the "no comparable line" branch.
+    mockListOrders.mockResolvedValue([listedOrder("empty", [], 0)]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-empty/ });
+    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("—");
+    expect(within(row).queryByText(i18n.t("sales:discountUnknown"))).toBeNull();
+  });
+
+  it("reads Unknown for an order predating the list-price snapshot", async () => {
+    const preSnapshot: OrderItem = { ...ITEM_A, id: "pre1", listUnitPriceMinorUnits: null };
+    mockListOrders.mockResolvedValue([listedOrder("pre", [preSnapshot], 900)]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-pre/ });
+    // #719: an order with no snapshot reads as unknown, never as a clean zero.
+    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent(i18n.t("sales:discountUnknown"));
+    // The wrap class is applied here, not just declared in the stylesheet: this
+    // cell is inside td.num, which is pinned white-space: nowrap.
+    expect(within(within(row).getAllByRole("cell")[4]).getByText(i18n.t("sales:discountUnknown")))
+      .toHaveClass("discount-note");
+  });
+
+  it("does not print a bare em dash for an order only part of which can be measured", async () => {
+    const atList: OrderItem = { ...ITEM_A, id: "ap1", listUnitPriceMinorUnits: 300 };
+    const noList: OrderItem = { ...ITEM_B, id: "ap2", listUnitPriceMinorUnits: null };
+    mockListOrders.mockResolvedValue([listedOrder("partial", [atList, noList], 2900)]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-partial/ });
+    const cell = within(row).getAllByRole("cell")[4];
+    // The em dash means "sold at list". This order was not fully measured, so
+    // the cell must carry the note instead.
+    expect(cell).toHaveTextContent(i18n.t("sales:discountPartialNote"));
+    expect(cell.textContent?.trim()).not.toBe("—");
+  });
+
+  // The BELOW-list partial branch: a discounted order that also carries an
+  // unmeasurable line. The at-list partial test above never enters it, which
+  // left SalesPage.tsx:1537 the one `discount-note` call site with no assertion
+  // — so the class could be dropped there and the note would stop wrapping
+  // inside td.num, with the suite green. Found by CodeRabbit on 0c65418.
+  it("wraps the partial note on a DISCOUNTED order that also has an unmeasurable line", async () => {
+    const below: OrderItem = { ...ITEM_A, id: "bp1", listUnitPriceMinorUnits: 375 };
+    const noList: OrderItem = { ...ITEM_B, id: "bp2", listUnitPriceMinorUnits: null };
+    mockListOrders.mockResolvedValue([listedOrder("belowpartial", [below, noList], 2900)]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-belowpartial/ });
+    const cell = within(row).getAllByRole("cell")[4];
+    // The badge renders (it IS discounted) AND the partial note is present and wrappable.
+    expect(within(cell).getByText(/%/)).toHaveClass("badge");
+    expect(within(cell).getByText(i18n.t("sales:discountPartialNote"))).toHaveClass("discount-note");
   });
 });
 

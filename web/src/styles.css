@@ -1141,6 +1141,35 @@ input.cell {
   font-weight: 600;
 }
 
+/* #723 — a discounted row's tint. The SAME token .badge-warn already uses, so
+   no new brand literal enters styles.test.ts's 4-brands x 2-modes matrix.
+   Background only: styles.elevation.test.ts and styles.caps.test.ts both assert
+   EQUALITY over the whole parsed stylesheet, so a shadow or an uppercase
+   transform here fails a guard that has nothing to do with this screen.
+   The tint is the third layer, never the only one — the row also carries the
+   Below-list chip and a struck list price, which survive greyscale. */
+tr.discounted td {
+  background: var(--tint-warn);
+}
+
+/* #723 round 1 — the partial note is PROSE and it renders inside td.num, which
+   styles.num.test.ts pins to `white-space: nowrap` so figures never break
+   mid-token. Prose has to wrap, and the figure rule must not be relaxed to let
+   it: the note carries its own class instead. No shadow, no uppercase, no new
+   token — the whole-stylesheet equality guards stay satisfied. */
+.discount-note {
+  white-space: normal;
+}
+
+/* #723 round 3 — the chip and the row tint use the same token and render under
+   the same condition, so the pill dissolved into its own cell and only the
+   amber text distinguished it. Lifting the chip back onto the surface colour
+   restores the pill on exactly the rows that carry it. Background only: no
+   shadow, no uppercase, no new token. */
+tr.discounted .badge-warn {
+  background: var(--surface);
+}
+
 /* #655 — a list/table's empty branch: icon, one sentence, the primary action. */
 .empty-state {
   display: flex;

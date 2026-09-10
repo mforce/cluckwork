@@ -505,9 +505,18 @@ is distinguishable from the first two on purpose — a pre-migration line's
 are recorded facts that no discount is computable at all. #727 gates an
 Owner/Manager approval on that difference.
 
-**Discount (#720)** — a *derived*, *per-line* amount: the gap between a
-**sales line's** **list price** and what it actually sold for, computed for
-display only and never stored. This is a different number from
+**Discount (#720, #723, #724)** — a *derived* amount at two levels, computed
+for display only and never stored. **Per line:** the gap between a **sales
+line's** **list price** and what it actually sold for. **Per order:** the sum
+of those below-list line amounts, with a percent taken over the *list value of
+the order's comparable lines* — every line that HAS a list price, including
+lines sold at or above it, since each contributed list value. An above-list
+line therefore sits in the denominator and never nets against the amount. An
+order that HAS lines, none of which carries a list price, reads as **unknown**,
+never as a clean zero; one in which **some** line has none reports that its
+figure covers only part of the order. An order with no lines at all is not
+unknown — there is nothing to measure — and reads as an em dash in the Orders
+list, with no discount line shown on the order panel. Both are a different number from
 `sales_orders.discount_cents` (spec §10.4), which is an *entered*,
 *order-level* amount a seller applies manually to the whole order — the two
 share a name and nothing else.
