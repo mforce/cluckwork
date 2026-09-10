@@ -1120,6 +1120,16 @@ export function SalesPage() {
               acceptance is that an at-list order carries no treatment at all. */}
           {(() => {
             const orderLevel = orderDiscount(active.items);
+            // Round 1 — read `partial` BEFORE bailing on kind. An order with
+            // nothing discounted but a line we cannot measure is not an at-list
+            // order, and rendering nothing here let it read as one.
+            if (orderLevel.kind === "atList" && orderLevel.partial) {
+              return (
+                <p className="discount-note" data-testid="order-discount-partial">
+                  {t("discountPartialOnly")}
+                </p>
+              );
+            }
             if (orderLevel.kind !== "below") return null;
             const amount = fmt.money(orderLevel.amountMinorUnits, active.currencyCode, active.currencyMinorUnit);
             return (
@@ -1498,7 +1508,13 @@ export function SalesPage() {
                   <td className="num">{(() => {
                     const d = orderDiscount(o.items);
                     if (d.kind === "unknown") return <span className="muted">{t("discountUnknown")}</span>;
-                    if (d.kind !== "below") return "—";
+                    // Round 1 — the em dash means "sold at list". An order only
+                    // part of which is measurable must not borrow that glyph.
+                    if (d.kind !== "below") {
+                      return d.partial
+                        ? <span className="muted discount-note">{t("discountPartialNote")}</span>
+                        : "—";
+                    }
                     const amount = fmt.money(d.amountMinorUnits, o.currencyCode, o.currencyMinorUnit);
                     return (
                       <>

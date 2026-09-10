@@ -321,6 +321,7 @@ export const es = {
     discountTotal: "Descuento: −{{amount}} · {{percent}}% del precio de lista",
     discountTotalNoPct: "Descuento: −{{amount}} respecto al precio de lista",
     discountPartialNote: "parte de este pedido no tiene precio de lista",
+    discountPartialOnly: "Sin descuento en las líneas que se pueden medir — parte de este pedido no tiene precio de lista.",
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} respecto al precio de lista",
     discountUnknown: "Desconocido",

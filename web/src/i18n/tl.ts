@@ -337,6 +337,7 @@ export const tl = {
     discountTotal: "Diskwento: −{{amount}} · {{percent}}% ng presyo sa listahan",
     discountTotalNoPct: "Diskwento: −{{amount}} mula sa presyo sa listahan",
     discountPartialNote: "may bahagi ng order na walang presyo sa listahan",
+    discountPartialOnly: "Walang diskwento sa mga linyang masusukat — may bahagi ng order na walang presyo sa listahan.",
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} mula sa presyo sa listahan",
     discountUnknown: "Hindi alam",

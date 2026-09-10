@@ -1012,6 +1012,26 @@ describe("SalesPage list price and discount (#720)", () => {
     // paragraph would return null however wrong the code went.
     expect(paragraph.textContent).not.toMatch(/∞|Infinity|NaN/);
   });
+
+  // Round 1, render-states seat. An order with nothing discounted but something
+  // unmeasurable must NOT read as a measured at-list order.
+  it("says so when nothing was discounted but part of the order has no list price", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-atlist-partial"),
+      referenceNumber: "SO-ATLIST-PARTIAL",
+      totalMinorUnits: 1200,
+      items: [
+        { id: "it-ap1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+          quantity: 1, quantityBase: 12, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+          listUnitPriceMinorUnits: 300 },
+        { id: "it-ap2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
+          quantity: 1, quantityBase: 30, unitPriceMinorUnits: 900, currencyCode: "USD", currencyMinorUnit: 2,
+          listUnitPriceMinorUnits: null },
+      ],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    expect(screen.getByTestId("order-discount-partial")).toBeInTheDocument();
+  });
 });
 
 describe("SalesPage Orders-list discount column (#724)", () => {
@@ -1076,6 +1096,19 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     const row = screen.getByRole("row", { name: /SO-pre/ });
     // #719: an order with no snapshot reads as unknown, never as a clean zero.
     expect(within(row).getByText(i18n.t("sales:discountUnknown"))).toBeInTheDocument();
+  });
+
+  it("does not print a bare em dash for an order only part of which can be measured", async () => {
+    const atList: OrderItem = { ...ITEM_A, id: "ap1", listUnitPriceMinorUnits: 300 };
+    const noList: OrderItem = { ...ITEM_B, id: "ap2", listUnitPriceMinorUnits: null };
+    mockListOrders.mockResolvedValue([listedOrder("partial", [atList, noList], 2900)]);
+    await renderReady();
+    const row = screen.getByRole("row", { name: /SO-partial/ });
+    const cell = within(row).getAllByRole("cell")[4];
+    // The em dash means "sold at list". This order was not fully measured, so
+    // the cell must carry the note instead.
+    expect(cell).toHaveTextContent(i18n.t("sales:discountPartialNote"));
+    expect(cell.textContent?.trim()).not.toBe("—");
   });
 });
 
