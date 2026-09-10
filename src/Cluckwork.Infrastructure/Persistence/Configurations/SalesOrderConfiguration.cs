@@ -14,6 +14,15 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
         builder.Property(o => o.Status)
             .HasConversion<string>().HasMaxLength(32).IsRequired();
         builder.Property(o => o.VoidReason).HasMaxLength(SalesOrder.MaxVoidReasonLength);
+
+        // #721 — stored BY NAME, like Status above and ListPriceBasis below, so
+        // reordering the enum cannot silently relabel historical rows. Nullable
+        // with no default and no backfill: NULL on a confirmed order means "not
+        // recorded", never "no discount".
+        builder.Property(o => o.DiscountReasonCode)
+            .HasConversion<string>().HasMaxLength(32);
+        builder.Property(o => o.DiscountReasonNote)
+            .HasMaxLength(SalesOrder.MaxDiscountReasonNoteLength);
         builder.Property(o => o.Version).IsConcurrencyToken();
 
         // Reference numbers are 8-hex truncations — the index turns a birthday

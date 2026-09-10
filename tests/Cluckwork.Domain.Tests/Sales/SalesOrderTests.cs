@@ -28,7 +28,7 @@ public sealed class SalesOrderTests
     {
         var order = MakeDraft();
         order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"), null, ListPriceBasis.ProductUnpriced);
-        order.Confirm();
+        order.Confirm(null, null);
 
         var result = order.Cancel();
         Assert.True(result.IsFailure);
@@ -164,7 +164,7 @@ public sealed class SalesOrderTests
     {
         var order = MakeDraft();
         var item = order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"), null, ListPriceBasis.ProductUnpriced).Value;
-        order.Confirm();
+        order.Confirm(null, null);
 
         var result = order.RemoveItem(item.Id);
         Assert.True(result.IsFailure);
@@ -220,7 +220,7 @@ public sealed class SalesOrderTests
     {
         var order = MakeDraft();
         order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"), null, ListPriceBasis.ProductUnpriced);
-        order.Confirm();
+        order.Confirm(null, null);
         return order;
     }
 

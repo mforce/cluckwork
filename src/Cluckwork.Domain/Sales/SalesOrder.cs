@@ -3,6 +3,7 @@ namespace Cluckwork.Domain.Sales;
 public sealed class SalesOrder : AggregateRoot<Guid>
 {
     public const int MaxVoidReasonLength = 500;
+    public const int MaxDiscountReasonNoteLength = 500;
 
     private readonly List<SalesOrderItem> _items = [];
 
@@ -12,6 +13,19 @@ public sealed class SalesOrder : AggregateRoot<Guid>
     public DateOnly OrderDate { get; private set; }
     public Money TotalAmount { get; private set; } = null!;
     public string? VoidReason { get; private set; }
+    /// <summary>
+    /// Why this order was sold below list (#721). Set at confirm time and only
+    /// then, so a draft never carries a reason it may never use. NULL on a
+    /// confirmed order means "not recorded" — an order confirmed before this
+    /// shipped, never "no discount"; there is no backfill.
+    /// </summary>
+    public DiscountReasonCode? DiscountReasonCode { get; private set; }
+    /// <summary>
+    /// Free text beside <see cref="DiscountReasonCode"/>. Optional for every
+    /// code except <see cref="Sales.DiscountReasonCode.Other"/>, which is
+    /// meaningless without it. Never non-null while the code is null.
+    /// </summary>
+    public string? DiscountReasonNote { get; private set; }
     public int Version { get; private set; }
 
     public IReadOnlyList<SalesOrderItem> Items => _items.AsReadOnly();
@@ -138,11 +152,61 @@ public sealed class SalesOrder : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    public Result Confirm()
+    /// <summary>
+    /// True when at least one line was sold under a comparable list price.
+    /// A NULL list price is not a discount (the catalogue said nothing to
+    /// compare against) and neither is a price ABOVE list, so the comparison is
+    /// a strict <c>&lt;</c> — the same two branches the SPA's lineDiscount uses.
+    /// </summary>
+    public bool HasBelowListLine => _items.Any(
+        i => i.ListUnitPriceMinorUnits is { } list && i.UnitPrice.MinorUnits < list);
+
+    // #721 — the reason is required at confirm, not at draft time, and the
+    // whole rule lives here rather than in a validator because the seeders call
+    // the handler directly and never see one (#394).
+    public Result Confirm(DiscountReasonCode? discountReasonCode, string? discountReasonNote)
     {
         var guard = CheckCanConfirm();
         if (guard.IsFailure) return guard;
 
+        // #720 R10, same reasoning: a cast can produce a value no member names,
+        // and it must not persist. Checked before the rules below, which reason
+        // about named members and are meaningless for a value that is not one.
+        if (discountReasonCode is { } code && !Enum.IsDefined(code))
+            throw new ArgumentOutOfRangeException(
+                nameof(discountReasonCode), discountReasonCode,
+                "DiscountReasonCode must be a defined member.");
+
+        var note = discountReasonNote?.Trim();
+        if (note?.Length == 0) note = null;
+
+        if (HasBelowListLine && discountReasonCode is null)
+            return Result.Failure(Error.Validation(
+                "SalesOrder.DiscountReasonRequired",
+                "A discount reason is required: at least one line is priced below its list price."));
+        if (discountReasonCode == Sales.DiscountReasonCode.Other && note is null)
+            return Result.Failure(Error.Validation(
+                "SalesOrder.DiscountReasonNoteRequired",
+                "A note is required when the discount reason is Other."));
+        // A deliberate refusal, not a convenience. Storing a reason against an
+        // order that gave nothing away would put a row in #725's "discounts by
+        // reason" totals that is not a discount, and dropping it silently is
+        // data loss dressed up as tolerance. The cost is a real race: a line
+        // edit committing between the dialog and this call can leave the seller
+        // holding a reason they were correctly asked for. The order is under
+        // FOR UPDATE and the same race already exists here for stock, so the
+        // caller recovers the same way — refetch and retry.
+        if ((discountReasonCode is not null || note is not null) && !HasBelowListLine)
+            return Result.Failure(Error.Validation(
+                "SalesOrder.DiscountReasonNotApplicable",
+                "No line is priced below its list price, so this order takes no discount reason."));
+        if (note is { Length: > MaxDiscountReasonNoteLength })
+            return Result.Failure(Error.Validation(
+                "SalesOrder.DiscountReasonNoteTooLong",
+                $"Discount reason note must be at most {MaxDiscountReasonNoteLength} characters."));
+
+        DiscountReasonCode = discountReasonCode;
+        DiscountReasonNote = note;
         Status = SalesOrderStatus.Confirmed;
         Version++;
         RaiseDomainEvent(new SalesOrderConfirmedEvent(Id, AccountId));
@@ -176,6 +240,22 @@ public sealed class SalesOrder : AggregateRoot<Guid>
 }
 
 public enum SalesOrderStatus { Draft, Confirmed, Shipped, Invoiced, Cancelled, Voided }
+
+// #721 — why an order was sold below list. Persisted BY NAME, so reordering
+// these members cannot silently relabel historical rows.
+public enum DiscountReasonCode
+{
+    /// <summary>A bulk order earned a lower unit price.</summary>
+    Volume,
+    /// <summary>The goods were sold cheap because of their condition.</summary>
+    DamagedStock,
+    /// <summary>A standing customer's negotiated price.</summary>
+    LongStandingCustomer,
+    /// <summary>A manager authorised the price off the catalogue.</summary>
+    ManagerApproved,
+    /// <summary>Anything else. Meaningless without a note, so a note is required.</summary>
+    Other,
+}
 
 // #720 — why a line's ListUnitPriceMinorUnits is what it is. NULL alone cannot
 // say, and #727 gates an approval on the difference: for ProductUnpriced and

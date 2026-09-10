@@ -58,6 +58,22 @@ public sealed class ConfirmSaleHandler(
     public async Task<Result<ConfirmSaleResponse>> HandleAsync(
         ConfirmSaleCommand command, Guid accountId, Guid actingUserId, CancellationToken ct)
     {
+        // Parsed before the transaction: an unknown code is the cheapest
+        // possible refusal and must never reach a lock. ConfirmSaleValidator
+        // turns the same input into a 400 for API callers, but the seeders
+        // build this command directly and never see a validator (#394), so the
+        // handler refuses rather than letting Enum.Parse throw a 500.
+        DiscountReasonCode? discountReasonCode = null;
+        if (command.DiscountReasonCode is { } rawDiscountReasonCode)
+        {
+            if (!Enum.TryParse(rawDiscountReasonCode, ignoreCase: false, out DiscountReasonCode parsed)
+                || !Enum.IsDefined(parsed))
+                return Result.Failure<ConfirmSaleResponse>(Error.Validation(
+                    "SalesOrder.DiscountReasonUnknown",
+                    $"'{rawDiscountReasonCode}' is not a known discount reason."));
+            discountReasonCode = parsed;
+        }
+
         Result<ConfirmSaleResponse>? failure = null;
         SalesOrder? confirmedOrder = null;
         var allocationDate = default(DateOnly);
@@ -243,7 +259,7 @@ public sealed class ConfirmSaleHandler(
                     -draw.Quantity, nameof(SalesOrderAllocation), allocation.Id, clock.UtcNow), transactionCt);
             }
 
-            var confirmResult = order.Confirm();
+            var confirmResult = order.Confirm(discountReasonCode, command.DiscountReasonNote);
             if (confirmResult.IsFailure)
                 throw new InvalidOperationException(
                     $"SalesOrder.Confirm contradicted its own CheckCanConfirm for order {order.Id}: " +
