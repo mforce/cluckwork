@@ -862,7 +862,11 @@ describe("SalesPage list price and discount (#720)", () => {
   it("marks a below-list row with a chip, a struck list price and the row class", async () => {
     // ITEM_B: sold 1000 against a list of 1200 → below list.
     const row = await openOrder(DRAFT_TWO, /Grade B Tray/);
-    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("badge");
+    // Both classes: `badge` is the pill, `badge-warn` is what the stylesheet's
+    // `tr.discounted .badge-warn` rule keys on to lift the chip off the row's
+    // own tint. Asserting only `badge` let the JSX drop `badge-warn`, orphaning
+    // that rule and restoring the invisible-chip defect with the suite green.
+    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("badge", "badge-warn");
     expect(row).toHaveClass("discounted");
     // The list-price money is struck through — the <s> element, not a class, so
     // it survives a stylesheet change and reads as struck to a screen reader.
