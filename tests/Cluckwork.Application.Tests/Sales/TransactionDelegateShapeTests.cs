@@ -19,12 +19,19 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 // exit below the save (verified: inserting one there still builds clean).
 //
 // This is necessarily SYNTACTIC, not behavioural: the hazard does not exist
-// on the current tree, so no runtime test can exercise it. Its stated limit:
-// it catches a syntactic `return false;` or `throw` statement below the save.
-// It does NOT catch an exception thrown by a call below the save that isn't a
-// `throw` statement in this delegate (e.g. a nested call that itself throws)
-// — banning every call below the save would ban the audit write itself. That
-// case is real but already covered behaviourally by
+// on the current tree, so no runtime test can exercise it. The rule is an
+// ALLOW-LIST, not a ban-list: `ExecuteInTransactionAsync`'s delegate signals
+// "commit" with exactly `return true;`, so below the last save, every
+// `return` whose expression is not the literal `true` is flagged — a bare
+// `return false;`, a variable, a ternary, a call, all of it — because every
+// one of those means "do not commit", which is the #743 hazard. (Review
+// round 2 found that matching only the literal `false` missed
+// `return shouldAbort ? false : true;` and any non-literal return entirely.)
+// Its stated limit: it catches any `return` or `throw` STATEMENT below the
+// save. It does NOT catch an exception thrown by a call below the save that
+// isn't itself a `throw` statement in this delegate (e.g. a nested call that
+// throws) — banning every call below the save would ban the audit write
+// itself. That case is real but already covered behaviourally by
 // SalesOrderAuditPayloadTests.AddItem_WhenTheAuditWriteFails_RollsBackTheLine,
 // which drives the actual rollback-after-save path that exists today (the
 // audit write, which is itself after the save).
@@ -143,13 +150,18 @@ public sealed class TransactionDelegateShapeTests
                 inScope.Add(new InScopeDelegate(relFile, line));
                 var lastSaveEnd = saveCalls.Max(s => s.Span.End);
 
+                // Allow-list, not a ban-list: the only legitimate exit below
+                // the save is `return true;` (commit). Any other return
+                // value — a literal `false`, a variable, a ternary, a call —
+                // means "do not commit", which is the hazard, so it is
+                // flagged regardless of how it is spelled.
                 var exitsAfterSave = DescendantsExcludingNestedLambdas(anon.Block)
                     .Where(n => n.SpanStart > lastSaveEnd)
                     .Where(n =>
                         n is ThrowStatementSyntax
                         || (n is ReturnStatementSyntax ret
-                            && ret.Expression is LiteralExpressionSyntax lit
-                            && lit.IsKind(SyntaxKind.FalseLiteralExpression)));
+                            && !(ret.Expression is LiteralExpressionSyntax retLit
+                                 && retLit.IsKind(SyntaxKind.TrueLiteralExpression))));
 
                 foreach (var exit in exitsAfterSave)
                 {
