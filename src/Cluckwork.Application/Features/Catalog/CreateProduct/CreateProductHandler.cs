@@ -61,8 +61,15 @@ public sealed class CreateProductHandler(
                 ProductEggGradeMapping.Create(Guid.NewGuid(), accountId, product.Id, grade.Id),
                 transactionCt);
 
+            // #746 — the NAME, never the ordinal. AuditWriter serialises `details` with
+            // new JsonSerializerOptions(JsonSerializerDefaults.Web) and registers no
+            // JsonStringEnumConverter, so a bare enum stores as its underlying integer —
+            // meaningful only against the member order at write time, and silently
+            // re-read as a different member after any reorder. This is the house idiom
+            // (UpdateFarmSettingsHandler.cs:158-164). Pinned by
+            // CreateProduct_RecordsProductTypeByName.
             await audit.WriteAsync(AuditActions.ProductCreate, nameof(Product), product.Id,
-                details: new { product.Name, product.ProductType, EggGrade = grade.Name }, ct: transactionCt);
+                details: new { product.Name, ProductType = product.ProductType.ToString(), EggGrade = grade.Name }, ct: transactionCt);
 
             outcome = Result.Success(product.Id);
             return true;
