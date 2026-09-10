@@ -212,9 +212,12 @@ export function useConfirm() {
           <div className="confirm-body" id={bodyId}>{pending.body}</div>
           {pending.kind === "choice" && (
             <>
+              {/* fieldset + legend, matching SettingsPage's palette picker.
+                  No aria-invalid: a fieldset maps to role="group", which does
+                  not support it, so it would read as accessibility that is not
+                  there. aria-describedby IS global, and carries the error. */}
               <fieldset
                 className="choice-set"
-                aria-invalid={choiceError !== null}
                 aria-describedby={choiceError ? choiceErrorId : undefined}
               >
                 <legend>{pending.choiceLabel}</legend>
