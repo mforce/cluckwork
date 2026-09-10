@@ -191,7 +191,7 @@ public sealed class SalesOrderTests
         order.AddItem(Guid.NewGuid(), ProductType.Egg, Guid.NewGuid(), ProductUnit.Egg, 1, 10, Money.Zero("USD"), null, ListPriceBasis.ProductUnpriced);
         var before = order.Version;
 
-        var result = order.CheckCanConfirm();
+        var result = order.CheckCanConfirm(null, null);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(SalesOrderStatus.Draft, order.Status);
@@ -202,7 +202,7 @@ public sealed class SalesOrderTests
     public void CheckCanConfirm_NoItems_Fails_SameCodeAsConfirm()
     {
         var order = MakeDraft();
-        var result = order.CheckCanConfirm();
+        var result = order.CheckCanConfirm(null, null);
         Assert.True(result.IsFailure);
         Assert.Equal("SalesOrder.NoItems", result.Error.Code);
     }
@@ -211,7 +211,7 @@ public sealed class SalesOrderTests
     public void CheckCanConfirm_NotDraft_Fails_SameCodeAsConfirm()
     {
         var order = MakeConfirmed();
-        var result = order.CheckCanConfirm();
+        var result = order.CheckCanConfirm(null, null);
         Assert.True(result.IsFailure);
         Assert.Equal("SalesOrder.NotDraft", result.Error.Code);
     }

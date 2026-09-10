@@ -263,6 +263,39 @@ public sealed class SalesOrderDiscountReasonTests
         Assert.IsType<SalesOrderConfirmedEvent>(order.DomainEvents[0]);
     }
 
+    // The wire parser, shared by ConfirmSaleValidator and ConfirmSaleHandler so
+    // the boundary and the fail-closed handler branch cannot disagree.
+    [Theory]
+    [InlineData("Volume", DiscountReasonCode.Volume)]
+    [InlineData("Other", DiscountReasonCode.Other)]
+    [InlineData("LongStandingCustomer", DiscountReasonCode.LongStandingCustomer)]
+    public void TryParseCode_AcceptsAnExactMemberName(string raw, DiscountReasonCode expected)
+    {
+        Assert.True(DiscountReason.TryParseCode(raw, out var code));
+        Assert.Equal(expected, code);
+    }
+
+    [Fact]
+    public void TryParseCode_TreatsNullAsAValidAbsence()
+    {
+        Assert.True(DiscountReason.TryParseCode(null, out var code));
+        Assert.Null(code);
+    }
+
+    [Theory]
+    [InlineData("")]                // Enum.TryParse rejects this outright
+    [InlineData("volume")]          // right member, wrong case
+    [InlineData(" Volume")]         // Enum.TryParse would trim this
+    [InlineData("Discount")]        // not a member
+    [InlineData("0")]               // Enum.TryParse accepts a numeric string
+    [InlineData("99")]              // ... including one no member names
+    [InlineData("Volume,Other")]    // a non-flags enum still parses a combination
+    public void TryParseCode_RejectsAnythingElse(string raw)
+    {
+        Assert.False(DiscountReason.TryParseCode(raw, out var code));
+        Assert.Null(code);
+    }
+
     [Fact]
     public void Confirm_AtList_WithNoReason_ConfirmsAndLeavesBothFieldsNull()
     {

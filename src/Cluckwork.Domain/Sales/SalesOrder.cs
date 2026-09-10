@@ -140,8 +140,15 @@ public sealed class SalesOrder : AggregateRoot<Guid>
 
     // #612 — the precondition, without mutating, so ConfirmSaleHandler can
     // check it before touching stock (a NotDraft/NoItems refusal must never
-    // even attempt a lock or a FIFO query).
-    public Result CheckCanConfirm()
+    // even attempt a lock or a FIFO query). #721 put the discount-reason rules
+    // here for that same reason, rather than only inside Confirm: a missing
+    // reason would otherwise plan and apply a whole FIFO allocation before
+    // rolling it back.
+    //
+    // The ORDER of these checks is what decides which error a caller sees when
+    // two could fire, so it is pinned test by test in
+    // SalesOrderDiscountReasonTests.
+    public Result CheckCanConfirm(DiscountReasonCode? discountReasonCode, string? discountReasonNote)
     {
         if (Status != SalesOrderStatus.Draft)
             return Result.Failure(Error.Domain(
@@ -149,25 +156,6 @@ public sealed class SalesOrder : AggregateRoot<Guid>
         if (_items.Count == 0)
             return Result.Failure(Error.Domain(
                 "SalesOrder.NoItems", "Cannot confirm an order with no items."));
-        return Result.Success();
-    }
-
-    /// <summary>
-    /// True when at least one line was sold under a comparable list price.
-    /// A NULL list price is not a discount (the catalogue said nothing to
-    /// compare against) and neither is a price ABOVE list, so the comparison is
-    /// a strict <c>&lt;</c> — the same two branches the SPA's lineDiscount uses.
-    /// </summary>
-    public bool HasBelowListLine => _items.Any(
-        i => i.ListUnitPriceMinorUnits is { } list && i.UnitPrice.MinorUnits < list);
-
-    // #721 — the reason is required at confirm, not at draft time, and the
-    // whole rule lives here rather than in a validator because the seeders call
-    // the handler directly and never see one (#394).
-    public Result Confirm(DiscountReasonCode? discountReasonCode, string? discountReasonNote)
-    {
-        var guard = CheckCanConfirm();
-        if (guard.IsFailure) return guard;
 
         // #720 R10, same reasoning: a cast can produce a value no member names,
         // and it must not persist. Checked before the rules below, which reason
@@ -177,9 +165,7 @@ public sealed class SalesOrder : AggregateRoot<Guid>
                 nameof(discountReasonCode), discountReasonCode,
                 "DiscountReasonCode must be a defined member.");
 
-        var note = discountReasonNote?.Trim();
-        if (note?.Length == 0) note = null;
-
+        var note = NormalizeNote(discountReasonNote);
         if (HasBelowListLine && discountReasonCode is null)
             return Result.Failure(Error.Validation(
                 "SalesOrder.DiscountReasonRequired",
@@ -205,8 +191,36 @@ public sealed class SalesOrder : AggregateRoot<Guid>
                 "SalesOrder.DiscountReasonNoteTooLong",
                 $"Discount reason note must be at most {MaxDiscountReasonNoteLength} characters."));
 
+        return Result.Success();
+    }
+
+    // Blank is the same as absent — the caller cannot express "a note made only
+    // of spaces", and the column must not hold one.
+    private static string? NormalizeNote(string? note)
+    {
+        var trimmed = note?.Trim();
+        return trimmed?.Length == 0 ? null : trimmed;
+    }
+
+    /// <summary>
+    /// True when at least one line was sold under a comparable list price.
+    /// A NULL list price is not a discount (the catalogue said nothing to
+    /// compare against) and neither is a price ABOVE list, so the comparison is
+    /// a strict <c>&lt;</c> — the same two branches the SPA's lineDiscount uses.
+    /// </summary>
+    public bool HasBelowListLine => _items.Any(
+        i => i.ListUnitPriceMinorUnits is { } list && i.UnitPrice.MinorUnits < list);
+
+    // #721 — the reason is required at confirm, not at draft time, and the rule
+    // lives on the aggregate rather than in a validator because the seeders
+    // call the handler directly and never see one (#394).
+    public Result Confirm(DiscountReasonCode? discountReasonCode, string? discountReasonNote)
+    {
+        var guard = CheckCanConfirm(discountReasonCode, discountReasonNote);
+        if (guard.IsFailure) return guard;
+
         DiscountReasonCode = discountReasonCode;
-        DiscountReasonNote = note;
+        DiscountReasonNote = NormalizeNote(discountReasonNote);
         Status = SalesOrderStatus.Confirmed;
         Version++;
         RaiseDomainEvent(new SalesOrderConfirmedEvent(Id, AccountId));
@@ -255,6 +269,36 @@ public enum DiscountReasonCode
     ManagerApproved,
     /// <summary>Anything else. Meaningless without a note, so a note is required.</summary>
     Other,
+}
+
+public static class DiscountReason
+{
+    /// <summary>
+    /// Parses the wire form of <see cref="DiscountReasonCode"/>: the exact
+    /// member name, nothing else. A null input is a valid absence, not a
+    /// failure. This is the ONE parser — the confirm endpoint's validator uses
+    /// it to turn a malformed request into a 400, and ConfirmSaleHandler uses
+    /// it to refuse a caller that never passes a validator (#394) — so the two
+    /// cannot disagree about what a legal code is.
+    /// </summary>
+    /// <remarks>
+    /// Three things Enum.TryParse alone would let through, each rejected here:
+    /// a numeric string ("0"), a number no member names ("99"), and a
+    /// comma-separated combination ("Volume,Other", which a non-flags enum
+    /// still parses). The round-trip comparison against the member name is what
+    /// catches the first and third.
+    /// </remarks>
+    public static bool TryParseCode(string? raw, out DiscountReasonCode? code)
+    {
+        code = null;
+        if (raw is null) return true;
+        if (!Enum.TryParse(raw, ignoreCase: false, out DiscountReasonCode parsed)
+            || !Enum.IsDefined(parsed)
+            || parsed.ToString() != raw)
+            return false;
+        code = parsed;
+        return true;
+    }
 }
 
 // #720 — why a line's ListUnitPriceMinorUnits is what it is. NULL alone cannot

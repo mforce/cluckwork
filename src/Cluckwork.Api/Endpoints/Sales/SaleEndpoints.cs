@@ -258,7 +258,8 @@ public static class SaleEndpoints
             i.ListUnitPriceMinorUnits)).ToList(),
         p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc,
         p?.MadeOfficialAtUtc,
-        customer?.Name);
+        customer?.Name,
+        o.DiscountReasonCode?.ToString(), o.DiscountReasonNote);
 
     private static async Task<IResult> VoidSale(
         Guid id,
@@ -297,6 +298,7 @@ public static class SaleEndpoints
         Guid id,
         ConfirmSaleRequest? request,
         ConfirmSaleHandler handler,
+        IValidator<ConfirmSaleCommand> validator,
         TenantContext tenant,
         ICurrentUser currentUser,
         CancellationToken ct)
@@ -304,9 +306,14 @@ public static class SaleEndpoints
         if (!tenant.IsResolved || !currentUser.IsResolved)
             return Results.Unauthorized();
 
+        var command = new ConfirmSaleCommand(
+            id, request?.DiscountReasonCode, request?.DiscountReasonNote);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
         var result = await handler.HandleAsync(
-            new ConfirmSaleCommand(id, request?.DiscountReasonCode, request?.DiscountReasonNote),
-            tenant.AccountId, currentUser.UserId, ct);
+            command, tenant.AccountId, currentUser.UserId, ct);
 
         // TenantMismatch is surfaced as NotFound to avoid revealing that the
         // resource exists but belongs to a different tenant.
@@ -354,7 +361,12 @@ public sealed record SalesOrderResponse(
     // #512 US4 — the customer's CURRENT name, additive, so a sales list row reads
     // as a customer rather than an id. Null only when the customer is outside the
     // caller's tenant.
-    string? CustomerName = null);
+    string? CustomerName = null,
+    // #721 — why this order was sold below list. Both NULL on an order confirmed
+    // before that shipped (no backfill), which reads as "not recorded", never as
+    // "no discount". The code is the enum MEMBER NAME; the SPA renders it
+    // through i18n/enums.ts and never displays it raw.
+    string? DiscountReasonCode = null, string? DiscountReasonNote = null);
 
 public sealed record CreateSalesOrderRequest(Guid CustomerId, DateOnly OrderDate);
 

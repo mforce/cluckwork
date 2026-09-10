@@ -48,7 +48,7 @@ public sealed class ConfirmSaleHandler(
     //   BEGIN
     //     SELECT Account FOR SHARE (source of the farm date AND the policy)
     //     SELECT SalesOrder FOR UPDATE (fresh — never a pre-transaction read)
-    //     CheckCanConfirm() before touching stock
+    //     CheckCanConfirm(discount reason) before touching stock
     //     re-read the caller's effective role; a now-forbidden caller -> 403
     //     for a plain Worker, read committed UserRoleAssignment rows
     //     SELECT candidate egg_lots FOR UPDATE (ONE statement, farm-wide)
@@ -63,16 +63,10 @@ public sealed class ConfirmSaleHandler(
         // turns the same input into a 400 for API callers, but the seeders
         // build this command directly and never see a validator (#394), so the
         // handler refuses rather than letting Enum.Parse throw a 500.
-        DiscountReasonCode? discountReasonCode = null;
-        if (command.DiscountReasonCode is { } rawDiscountReasonCode)
-        {
-            if (!Enum.TryParse(rawDiscountReasonCode, ignoreCase: false, out DiscountReasonCode parsed)
-                || !Enum.IsDefined(parsed))
-                return Result.Failure<ConfirmSaleResponse>(Error.Validation(
-                    "SalesOrder.DiscountReasonUnknown",
-                    $"'{rawDiscountReasonCode}' is not a known discount reason."));
-            discountReasonCode = parsed;
-        }
+        if (!DiscountReason.TryParseCode(command.DiscountReasonCode, out var discountReasonCode))
+            return Result.Failure<ConfirmSaleResponse>(Error.Validation(
+                "SalesOrder.DiscountReasonUnknown",
+                $"'{command.DiscountReasonCode}' is not a known discount reason."));
 
         Result<ConfirmSaleResponse>? failure = null;
         SalesOrder? confirmedOrder = null;
@@ -127,7 +121,7 @@ public sealed class ConfirmSaleHandler(
 
             // 4 — the precondition BEFORE touching stock: a NotDraft/NoItems
             // order must never even attempt a FIFO lock.
-            var canConfirm = order.CheckCanConfirm();
+            var canConfirm = order.CheckCanConfirm(discountReasonCode, command.DiscountReasonNote);
             if (canConfirm.IsFailure)
             {
                 failure = Result.Failure<ConfirmSaleResponse>(canConfirm.Error);
