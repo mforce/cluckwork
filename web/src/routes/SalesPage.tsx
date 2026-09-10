@@ -141,6 +141,70 @@ function lineDiscount(item: OrderItem): LineDiscount {
   };
 }
 
+// #723/#724 — the ORDER's discount, aggregated from its lines.
+//
+// "Comparable" means listUnitPriceMinorUnits !== null. An at-list line and an
+// ABOVE-list line are both comparable and both belong in the denominator: the
+// figure answers "how much of this order's list value was given away", and a
+// line sold over list still contributed list value. An earlier draft excluded
+// above-list lines and overstated a mixed order — one $100-at-$110 line beside
+// one $100-at-$90 line reported 10% where 5% is the truth.
+//
+// `partial` sits on BOTH populated variants, not only on "below". An order of
+// one no-list-price line plus one at-list line otherwise has no representable
+// state and reads as a measured zero, which is exactly the "a discount hides
+// behind an unpriced product" failure #719 exists to stop.
+//
+// A ZERO list price is legal — Product.cs:38 and :66 reject only negatives — so
+// listValueMinorUnits can be 0 while comparable lines exist. But reaching the
+// division with a zero denominator ALSO needs a below-list line against that
+// zero list, which needs a NEGATIVE unit price, and
+// UpdateOrderItemValidator.cs:11 requires UnitPriceMinorUnits >= 0.
+//
+// So this guard cannot fire against data the API will persist. It is kept
+// anyway, for one reason stated plainly rather than dressed up as safety: this
+// function consumes an API RESPONSE in a display path, and what it prevents is
+// rendering "∞%" to a user. It is not a clamp masking a wrong value — the null
+// selects a different, already-translated string, the same shape #720 ships as
+// listPriceHintBelowNoPct.
+type OrderDiscount =
+  | { kind: "unknown" }
+  | { kind: "atList"; partial: boolean }
+  | { kind: "below"; amountMinorUnits: number; percent: number | null; partial: boolean };
+
+function orderDiscount(items: OrderItem[]): OrderDiscount {
+  // An order with no lines has nothing to be unknown ABOUT: "unknown" is
+  // reserved for an order whose lines exist but predate the snapshot.
+  if (items.length === 0) return { kind: "atList", partial: false };
+
+  let amountMinorUnits = 0;
+  let listValueMinorUnits = 0;
+  let comparable = 0;
+  let partial = false;
+
+  for (const item of items) {
+    const line = lineDiscount(item);
+    if (line.kind === "none") {
+      partial = true;
+      continue;
+    }
+    comparable += 1;
+    // Non-null on every branch lineDiscount reaches past "none"; the ?? 0 is a
+    // type narrowing, not a fallback, and can never supply a value.
+    listValueMinorUnits += (item.listUnitPriceMinorUnits ?? 0) * item.quantity;
+    if (line.kind === "below") amountMinorUnits += line.amountMinorUnits;
+  }
+
+  if (comparable === 0) return { kind: "unknown" };
+  if (amountMinorUnits === 0) return { kind: "atList", partial };
+  return {
+    kind: "below",
+    amountMinorUnits,
+    percent: listValueMinorUnits > 0 ? (amountMinorUnits * 100) / listValueMinorUnits : null,
+    partial,
+  };
+}
+
 // #23 + #24 (orders half): create a draft order, add/edit/remove graded lines,
 // confirm (FIFO allocation), cancel drafts, browse/filter the order list.
 export function SalesPage() {
@@ -1049,6 +1113,24 @@ export function SalesPage() {
               </tbody>
             </table>
           )}
+          {/* #723 — the order's give-away, directly above the total it was
+              taken from. A sibling <p>, not a <tfoot>: the order total has
+              never been a table footer and the only <tfoot> in the app is
+              ReportsPage's. Rendered ONLY for a below-list order — #723's
+              acceptance is that an at-list order carries no treatment at all. */}
+          {(() => {
+            const orderLevel = orderDiscount(active.items);
+            if (orderLevel.kind !== "below") return null;
+            const amount = fmt.money(orderLevel.amountMinorUnits, active.currencyCode, active.currencyMinorUnit);
+            return (
+              <p className="discount" data-testid="order-discount">
+                {orderLevel.percent === null
+                  ? t("discountTotalNoPct", { amount })
+                  : t("discountTotal", { amount, percent: fmt.count(orderLevel.percent, 1) })}
+                {orderLevel.partial ? ` (${t("discountPartialNote")})` : ""}
+              </p>
+            );
+          })()}
           <p><strong>{t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })}</strong></p>
 
           {active.status === "Draft" && (

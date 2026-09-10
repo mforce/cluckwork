@@ -410,6 +410,24 @@ export const en = {
     // Ends in `Badge`, so badgeCase.test.ts holds it to a capital first letter
     // in all three locales the day it lands.
     belowListBadge: "Below list",
+    // #723 — the order's give-away, above the order total. The minus sign is
+    // U+2212 MINUS SIGN, not a hyphen: it is a quantity, not a word break.
+    discountTotal: "Discount: −{{amount}} · {{percent}}% of list",
+    // A zero list price is legal (Product.cs:38 rejects only negatives), so the
+    // denominator can be zero with comparable lines present. Same amount-only
+    // fallback #720 already ships for the line-level hint.
+    discountTotalNoPct: "Discount: −{{amount}} off list",
+    // Rendered beside the figure when some line has no list price, so a partial
+    // measurement never presents as a whole-order one.
+    discountPartialNote: "part of this order has no list price",
+    // #724 — the Orders-table cell. Percent LEADS the amount: a reviewer
+    // scanning a month of orders is reading for outliers, and only the
+    // percentage makes an outlier visible without arithmetic.
+    discountBadge: "{{percent}}% · {{amount}}",
+    discountBadgeNoPct: "{{amount}} off list",
+    // An order predating the list-price snapshot reads as unknown, never as a
+    // clean zero. #719: data starts on the day #720 shipped.
+    discountUnknown: "Unknown",
     // #720 — live hints under the add-line price field, mirroring the amount
     // the line will snapshot as ListUnitPriceMinorUnits if submitted now.
     listPriceHintBelow: "{{amount}} below list ({{percent}}%)",

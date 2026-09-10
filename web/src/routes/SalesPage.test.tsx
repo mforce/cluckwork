@@ -903,6 +903,115 @@ describe("SalesPage list price and discount (#720)", () => {
     expect(within(row).getAllByText(i18n.t("sales:noListPrice"))).toHaveLength(2);
     expect(row).not.toHaveClass("discounted");
   });
+
+  // #723 — the order-level figure. Percent is off LIST, over comparable lines
+  // only: DRAFT_TWO is ITEM_A (3 x 300 against list 375) + ITEM_B (2 x 1000
+  // against list 1200), so the give-away is 3x75 + 2x200 = 625 and the list
+  // value is 3x375 + 2x1200 = 3525 → 17.7%.
+  it("totals the order's discount above the order total", async () => {
+    await openOrder(DRAFT_TWO, /Grade B Tray/);
+    expect(screen.getByTestId("order-discount"))
+      .toHaveTextContent(i18n.t("sales:discountTotal", { amount: "$6.25", percent: "17.7" }));
+  });
+
+  // The one arithmetic error the PROTECTED helper exists to prevent: an
+  // ABOVE-list line is comparable and belongs in the DENOMINATOR, never in the
+  // numerator. Line 1 sells 110 against a list of 100 (above); line 2 sells 90
+  // against a list of 100 (below, giving 10 back). List value is 100 + 100 =
+  // 200, so the answer is $0.10 and 5.0% — not the 10% an implementation that
+  // drops above-list lines from the denominator would print.
+  it("counts an above-list line in the denominator but never in the discount", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-above-mix"),
+      referenceNumber: "SO-ABOVE-MIX",
+      totalMinorUnits: 200,
+      items: [
+        { id: "it-am1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+          quantity: 1, quantityBase: 12, unitPriceMinorUnits: 110, currencyCode: "USD", currencyMinorUnit: 2,
+          listUnitPriceMinorUnits: 100 },
+        { id: "it-am2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
+          quantity: 1, quantityBase: 30, unitPriceMinorUnits: 90, currencyCode: "USD", currencyMinorUnit: 2,
+          listUnitPriceMinorUnits: 100 },
+      ],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    expect(screen.getByTestId("order-discount"))
+      .toHaveTextContent(i18n.t("sales:discountTotal", { amount: "$0.10", percent: "5.0" }));
+  });
+
+  it("says the figure covers only part of an order carrying a no-list-price line", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-partial"),
+      referenceNumber: "SO-PARTIAL",
+      totalMinorUnits: 1200,
+      items: [
+        { id: "it-p1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+          quantity: 1, quantityBase: 12, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+          listUnitPriceMinorUnits: 400 },
+        { id: "it-p2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
+          quantity: 1, quantityBase: 30, unitPriceMinorUnits: 900, currencyCode: "USD", currencyMinorUnit: 2,
+          listUnitPriceMinorUnits: null },
+      ],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    // Scoped to the paragraph. `openOrder` stubs listOrders with this SAME
+    // order (SalesPage.test.tsx:197-205) and the Orders table renders outside
+    // the `{active && …}` panel, so once Increment 3 lands its cell prints the
+    // same note a second time — and a page-wide getByText throws on two
+    // matches. Scoping here keeps Increment 2's test green at 3c.
+    expect(within(screen.getByTestId("order-discount"))
+      .getByText(i18n.t("sales:discountPartialNote"), { exact: false })).toBeInTheDocument();
+  });
+
+  it("shows no Discount total when every comparable line sold at list", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-atlist-total"),
+      referenceNumber: "SO-ATLIST-TOTAL",
+      totalMinorUnits: 900,
+      items: [{
+        id: "it-atlist-total", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: 300,
+      }],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    // #723 acceptance: an at-list order carries no discount treatment at all.
+    // Asserted on the paragraph's own hook, NOT on a regex: a regex built from
+    // another fixture's numbers matches nothing whatever the code does, so it
+    // is a test that cannot fail. This one goes red if the paragraph renders
+    // for an at-list order at all — including as "−$0.00 · 0.0% of list".
+    expect(screen.queryByTestId("order-discount")).toBeNull();
+  });
+
+  // A ZERO list price is legal — Product.cs:38 rejects only negatives — so the
+  // denominator can be zero with a comparable line present. Dividing by it
+  // yields Infinity, which would render as an "∞%" discount.
+  it("omits the percent when every comparable line has a zero list price", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-zero-list"),
+      referenceNumber: "SO-ZERO-LIST",
+      totalMinorUnits: 0,
+      items: [{
+        id: "it-zero-list", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 1, quantityBase: 12, unitPriceMinorUnits: -100, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: 0,
+      }],
+    };
+    await openOrder(order, /Grade A Dozen/);
+    // Both assertions are scoped to the ORDER paragraph, which is what this
+    // test is named for. A page-wide sweep for ∞ also catches #720's shipped
+    // per-LINE Discount cell, which has no such fallback and does render "∞%"
+    // for this fixture — a different surface, owned by a shipped slice, and one
+    // no API caller can reach: UpdateOrderItemValidator.cs:11 requires
+    // UnitPriceMinorUnits >= 0, and a below-list line against a zero list price
+    // needs a NEGATIVE unit price.
+    const paragraph = screen.getByTestId("order-discount");
+    expect(paragraph).toHaveTextContent(i18n.t("sales:discountTotalNoPct", { amount: "$1.00" }));
+    // textContent, not within(...).queryByText: the percent is text in the <p>
+    // itself, not in a descendant element, so a queryByText inside the
+    // paragraph would return null however wrong the code went.
+    expect(paragraph.textContent).not.toMatch(/∞|Infinity|NaN/);
+  });
 });
 
 describe("SalesPage unit-price parsing", () => {
