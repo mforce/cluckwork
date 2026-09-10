@@ -430,6 +430,19 @@ export const en = {
     // An order predating the list-price snapshot reads as unknown, never as a
     // clean zero. #719: data starts on the day #720 shipped.
     discountUnknown: "Unknown",
+    // #721 — the discount-reason dialog, shown instead of the plain yes/no
+    // above when at least one line is priced below its list price.
+    discountReasonTitle: "Why is this order below list price?",
+    discountReasonBody:
+      "At least one line is priced under the product's list price. Record why before " +
+      "the stock is allocated — the reason is stored on the order and cannot be added later.",
+    discountReasonLabel: "Discount reason",
+    discountReasonRequired: "Choose a discount reason.",
+    discountReasonNoteLabel: "Note (required for Other)",
+    discountReasonNoteRequired: "Describe the reason.",
+    // The stored reason, on the confirmed order and in the Orders list.
+    discountReasonSummary: "Discount reason: {{reason}}",
+    discountReasonSummaryWithNote: "Discount reason: {{reason}} ({{note}})",
     // #720 — live hints under the add-line price field, mirroring the amount
     // the line will snapshot as ListUnitPriceMinorUnits if submitted now.
     listPriceHintBelow: "{{amount}} below list ({{percent}}%)",
@@ -2232,6 +2245,11 @@ export const en = {
     "role.ReadOnly": "Read-only",
 
     // water source (WaterPage picker) — WaterSource enum.
+    "discountReason.Volume": "Volume",
+    "discountReason.DamagedStock": "Damaged stock",
+    "discountReason.LongStandingCustomer": "Long-standing customer",
+    "discountReason.ManagerApproved": "Manager approved",
+    "discountReason.Other": "Other",
     "waterSource.Well": "Well",
     "waterSource.Municipal": "Municipal",
     "waterSource.Tank": "Tank",

@@ -342,6 +342,17 @@ export const tl = {
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} mula sa presyo sa listahan",
     discountUnknown: "Hindi alam",
+    // #721
+    discountReasonTitle: "Bakit mas mababa sa presyo sa listahan ang order na ito?",
+    discountReasonBody:
+      "May kahit isang linyang mas mababa ang presyo kaysa sa presyo sa listahan ng produkto. Itala " +
+      "ang dahilan bago ilaan ang stock — nakaimbak ang dahilan sa order at hindi na ito maidaragdag pagkatapos.",
+    discountReasonLabel: "Dahilan ng diskwento",
+    discountReasonRequired: "Pumili ng dahilan ng diskwento.",
+    discountReasonNoteLabel: "Tala (kailangan para sa Iba pa)",
+    discountReasonNoteRequired: "Ilarawan ang dahilan.",
+    discountReasonSummary: "Dahilan ng diskwento: {{reason}}",
+    discountReasonSummaryWithNote: "Dahilan ng diskwento: {{reason}} ({{note}})",
     listPriceHintBelow: "{{amount}} mas mababa sa presyo sa listahan ({{percent}}%)",
     listPriceHintAbove: "{{amount}} higit sa presyo sa listahan ({{percent}}%)",
     listPriceHintAboveNoPct: "{{amount}} higit sa presyo sa listahan",
@@ -1738,6 +1749,11 @@ export const tl = {
     "role.ReadOnly": "Read-only",
 
     // water source
+    "discountReason.Volume": "Malaking dami",
+    "discountReason.DamagedStock": "Sirang stock",
+    "discountReason.LongStandingCustomer": "Matagal nang kliyente",
+    "discountReason.ManagerApproved": "Aprubado ng manager",
+    "discountReason.Other": "Iba pa",
     "waterSource.Well": "Poso",
     "waterSource.Municipal": "Munisipal",
     "waterSource.Tank": "Tangke",

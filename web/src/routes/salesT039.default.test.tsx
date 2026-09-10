@@ -55,7 +55,8 @@ function draftEmpty(id = "o1"): SalesOrder {
   return {
     ...NO_RECORD_HISTORY,
     id, customerId: "c1", customerName: "Acme Eggs", referenceNumber: "SO-1", orderDate: "2026-07-20",
-    status: "Draft", totalMinorUnits: 0, currencyCode: "USD", currencyMinorUnit: 2, voidReason: null, items: [],
+    status: "Draft", totalMinorUnits: 0, currencyCode: "USD", currencyMinorUnit: 2, voidReason: null,
+    discountReasonCode: null, discountReasonNote: null, items: [],
   };
 }
 

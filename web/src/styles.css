@@ -673,6 +673,40 @@ input.cell {
   justify-content: flex-start;
 }
 
+/* #721 — the discount-reason picklist. A fieldset because the options are one
+   question, not five independent controls; borderless because the dialog is
+   already the frame and a second box inside it reads as a nested form. */
+.dialog .choice-set {
+  border: 0;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.dialog .choice-set legend {
+  padding: 0;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+/* Row, not the column .dialog label defaults to: the radio belongs beside its
+   text, and the whole row is the hit target. */
+.dialog label.choice {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.55rem;
+  cursor: pointer;
+}
+
+.dialog label.choice input[type="radio"] {
+  width: 1rem;
+  flex: none;
+  margin: 0;
+}
+
 .dialog .dialog-foot {
   display: flex;
   justify-content: flex-end;

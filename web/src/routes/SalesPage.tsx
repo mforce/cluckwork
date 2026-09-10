@@ -29,7 +29,7 @@ import { GlossaryLink } from "../components/GlossaryLink";
 import { newId } from "../lib/ids";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import i18n from "../i18n";
-import { statusLabel } from "../i18n/enums";
+import { DISCOUNT_REASON_VALUES, discountReasonLabel, statusLabel } from "../i18n/enums";
 
 const PAGE = 50;
 
@@ -226,7 +226,7 @@ export function SalesPage() {
   // Payments are the Sales tier (#104): Owner/Manager/Sales see and record;
   // voiding a payment stays corrective (Owner/Manager) like every other undo.
   const canSettle = isAdmin || role === "Sales";
-  const { confirm, askReason, confirmDialog } = useConfirm();
+  const { confirm, askReason, askChoice, confirmDialog } = useConfirm();
   const [customers, setCustomers] = useState<Customer[]>([]);
   // #99: lines sell PRODUCTS. Active ones feed the picker; the full list
   // (inactive included) resolves display names on existing lines.
@@ -761,17 +761,44 @@ export function SalesPage() {
   // One-way actions (#59). Confirm BEFORE run() so buttons don't flash
   // disabled while the user decides.
   const onConfirm = async () => {
-    const ok = await confirm({
-      title: i18n.t("sales:confirmOrderTitle"),
-      body: i18n.t("sales:confirmOrderBody"),
-      confirmLabel: i18n.t("sales:confirmOrderConfirmLabel"),
-    });
-    if (!ok || !active) return;
+    if (!active) return;
+    // #721 — a below-list order must carry a reason, and the server refuses one
+    // on an order that has nothing below list, so the same predicate decides
+    // both which dialog opens and whether a body is sent. lineDiscount is that
+    // predicate already; a second one here could drift from it.
+    const belowList = active.items.some((item) => lineDiscount(item).kind === "below");
+    let body: { discountReasonCode: string; discountReasonNote?: string } | undefined;
+    if (belowList) {
+      const picked = await askChoice({
+        title: i18n.t("sales:discountReasonTitle"),
+        body: i18n.t("sales:discountReasonBody"),
+        confirmLabel: i18n.t("sales:confirmOrderConfirmLabel"),
+        choiceLabel: i18n.t("sales:discountReasonLabel"),
+        choices: DISCOUNT_REASON_VALUES.map((value) => ({
+          value,
+          label: discountReasonLabel(value),
+        })),
+        noteRequiredFor: ["Other"],
+        noteLabel: i18n.t("sales:discountReasonNoteLabel"),
+        noteRequiredMessage: i18n.t("sales:discountReasonNoteRequired"),
+        choiceRequiredMessage: i18n.t("sales:discountReasonRequired"),
+      });
+      if (picked === null) return;
+      body = { discountReasonCode: picked.value };
+      if (picked.note !== null) body.discountReasonNote = picked.note;
+    } else {
+      const ok = await confirm({
+        title: i18n.t("sales:confirmOrderTitle"),
+        body: i18n.t("sales:confirmOrderBody"),
+        confirmLabel: i18n.t("sales:confirmOrderConfirmLabel"),
+      });
+      if (!ok) return;
+    }
     const id = active.id;
     void run(`confirm:${id}`, async () => {
       const scope = `confirm:${id}`;
       await orders.runWrite(async () => {
-        await confirmOrder(id, keyFor(scope));
+        await confirmOrder(id, body, keyFor(scope));
         const refreshed = await getOrder(id);
         if (activeIdRef.current === id) {
           setActive(refreshed);
@@ -1174,6 +1201,21 @@ export function SalesPage() {
               </p>
             );
           })()}
+          {/* #721 — the reason the order was allowed below list, beside the
+              give-away it explains. Absent on an order confirmed before that
+              shipped: no backfill, so nothing here means "not recorded". */}
+          {active.discountReasonCode && (
+            <p className="discount-note" data-testid="order-discount-reason">
+              {active.discountReasonNote
+                ? t("discountReasonSummaryWithNote", {
+                    reason: discountReasonLabel(active.discountReasonCode),
+                    note: active.discountReasonNote,
+                  })
+                : t("discountReasonSummary", {
+                    reason: discountReasonLabel(active.discountReasonCode),
+                  })}
+            </p>
+          )}
           <p><strong>{t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })}</strong></p>
 
           {active.status === "Draft" && (
@@ -1559,7 +1601,15 @@ export function SalesPage() {
                         {d.partial ? <><br /><span className="muted discount-note">{t("discountPartialNote")}</span></> : null}
                       </>
                     );
-                  })()}</td>
+                  })()}
+                  {/* Outside the branch above, deliberately: the reason is a
+                      stored fact about the order, not a property of what the
+                      measurement currently says about its lines. */}
+                  {o.discountReasonCode && (
+                    <><br /><span className="muted discount-note" data-testid="row-discount-reason">
+                      {discountReasonLabel(o.discountReasonCode)}
+                    </span></>
+                  )}</td>
                   <td className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   <ProvenanceCell history={o} official="confirmed" />
                   <td>

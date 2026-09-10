@@ -326,6 +326,17 @@ export const es = {
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} respecto al precio de lista",
     discountUnknown: "Desconocido",
+    // #721
+    discountReasonTitle: "¿Por qué este pedido está por debajo del precio de lista?",
+    discountReasonBody:
+      "Al menos una línea tiene un precio inferior al precio de lista del producto. Registre el " +
+      "motivo antes de asignar las existencias: el motivo se guarda en el pedido y no se puede agregar después.",
+    discountReasonLabel: "Motivo del descuento",
+    discountReasonRequired: "Elija un motivo del descuento.",
+    discountReasonNoteLabel: "Nota (obligatoria para Otro)",
+    discountReasonNoteRequired: "Describa el motivo.",
+    discountReasonSummary: "Motivo del descuento: {{reason}}",
+    discountReasonSummaryWithNote: "Motivo del descuento: {{reason}} ({{note}})",
     listPriceHintBelow: "{{amount}} por debajo del precio de lista ({{percent}}%)",
     listPriceHintAbove: "{{amount}} sobre el precio de lista ({{percent}}%)",
     listPriceHintAboveNoPct: "{{amount}} sobre el precio de lista",
@@ -1674,6 +1685,11 @@ export const es = {
     "role.ReadOnly": "Solo lectura",
 
     // water source
+    "discountReason.Volume": "Volumen",
+    "discountReason.DamagedStock": "Mercancía dañada",
+    "discountReason.LongStandingCustomer": "Cliente de larga trayectoria",
+    "discountReason.ManagerApproved": "Aprobado por el gerente",
+    "discountReason.Other": "Otro",
     "waterSource.Well": "Pozo",
     "waterSource.Municipal": "Municipal",
     "waterSource.Tank": "Tanque",

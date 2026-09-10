@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useConfirm } from "./useConfirm";
+import type { ChoiceResult } from "./useConfirm";
 import i18n from "../i18n";
 
 // A realistic host: real triggers, so focus has somewhere to return to, and the
@@ -265,5 +266,142 @@ describe("useConfirm i18n wiring (#182, Task 9)", () => {
       expect(screen.getByRole("button", { name: "CANCEL-MARKER" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     });
+  });
+});
+
+// #721 — the third shape. Its own host, so the two shapes above stay exactly as
+// they were: the union widened underneath them and nothing else may have moved.
+function ChoiceHost({ onSettle = () => {} }: { onSettle?: (value: ChoiceResult | null) => void } = {}) {
+  const { askChoice, confirmDialog } = useConfirm();
+  return (
+    <>
+      <button
+        onClick={() => void askChoice({
+          title: "Why is this order below list price?",
+          body: "At least one line is priced under list.",
+          confirmLabel: "Confirm order",
+          choiceLabel: "Discount reason",
+          choices: [
+            { value: "Volume", label: "Volume" },
+            { value: "Other", label: "Other" },
+          ],
+          noteRequiredFor: ["Other"],
+          noteLabel: "Note",
+          noteRequiredMessage: "Describe the reason.",
+          choiceRequiredMessage: "Choose a discount reason.",
+        }).then(onSettle)}
+      >
+        confirm order
+      </button>
+      {confirmDialog}
+    </>
+  );
+}
+
+const openChoice = async (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole("button", { name: "confirm order" }));
+
+describe("useConfirm askChoice (#721)", () => {
+  it("resolves the chosen value with a null note when none is typed", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    render(<ChoiceHost onSettle={onSettle} />);
+    await openChoice(user);
+
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+    await user.click(screen.getByRole("button", { name: "Confirm order" }));
+
+    await waitFor(() => expect(onSettle).toHaveBeenCalledWith({ value: "Volume", note: null }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("trims the note it resolves", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    render(<ChoiceHost onSettle={onSettle} />);
+    await openChoice(user);
+
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+    await user.type(screen.getByLabelText("Note"), "  bulk order  ");
+    await user.click(screen.getByRole("button", { name: "Confirm order" }));
+
+    await waitFor(() =>
+      expect(onSettle).toHaveBeenCalledWith({ value: "Volume", note: "bulk order" }));
+  });
+
+  it("refuses with nothing chosen, inline, and keeps the dialog open", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    render(<ChoiceHost onSettle={onSettle} />);
+    await openChoice(user);
+
+    await user.click(screen.getByRole("button", { name: "Confirm order" }));
+
+    expect(await screen.findByText("Choose a discount reason.")).toBeInTheDocument();
+    expect(onSettle).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    // Back to the field that refused, not left on the button (same rule the
+    // blank-reason path follows).
+    expect(screen.getByRole("radio", { name: "Volume" })).toHaveFocus();
+  });
+
+  it("demands the note only for the options that name nothing on their own", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    render(<ChoiceHost onSettle={onSettle} />);
+    await openChoice(user);
+
+    await user.click(screen.getByRole("radio", { name: "Other" }));
+    await user.click(screen.getByRole("button", { name: "Confirm order" }));
+
+    expect(await screen.findByText("Describe the reason.")).toBeInTheDocument();
+    expect(onSettle).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Note")).toHaveFocus();
+    // The choice survives the refusal — the whole point of settling inline.
+    expect(screen.getByRole("radio", { name: "Other" })).toBeChecked();
+
+    await user.type(screen.getByLabelText("Note"), "agreed with the buyer");
+    await user.click(screen.getByRole("button", { name: "Confirm order" }));
+    await waitFor(() =>
+      expect(onSettle).toHaveBeenCalledWith({ value: "Other", note: "agreed with the buyer" }));
+  });
+
+  it("clears a stale note error when the chosen option changes", async () => {
+    const user = userEvent.setup();
+    render(<ChoiceHost />);
+    await openChoice(user);
+
+    await user.click(screen.getByRole("radio", { name: "Other" }));
+    await user.click(screen.getByRole("button", { name: "Confirm order" }));
+    expect(await screen.findByText("Describe the reason.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+
+    expect(screen.queryByText("Describe the reason.")).toBeNull();
+  });
+
+  it("resolves null on Cancel", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    render(<ChoiceHost onSettle={onSettle} />);
+    await openChoice(user);
+
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(onSettle).toHaveBeenCalledWith(null));
+  });
+
+  it("forgets a previous answer when the same question is asked again", async () => {
+    const user = userEvent.setup();
+    render(<ChoiceHost />);
+    await openChoice(user);
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await openChoice(user);
+
+    expect(screen.getByRole("radio", { name: "Volume" })).not.toBeChecked();
+    expect(screen.getByLabelText("Note")).toHaveValue("");
   });
 });
