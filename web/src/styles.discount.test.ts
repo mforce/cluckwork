@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import postcss from "postcss";
 import type { Rule } from "postcss";
+import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
+import { contrast, resolveTokens, type Mode } from "./test/cssTokens";
 
 // #723 — the discount treatment's two stylesheet-only declarations. Neither is
 // reachable from jsdom (it computes no layout), so without this file a mutant
@@ -21,30 +23,46 @@ function declarationsFor(selector: string): Map<string, string> {
   return decls;
 }
 
-// Every custom property the stylesheet actually declares. A reference to a token
-// that is never declared resolves to nothing at runtime — the rule is inert and
-// the row is untinted — so "is it a var()?" is not the question worth asking.
-const declaredTokens = new Set<string>();
-root.walkDecls((d) => { if (d.prop.startsWith("--")) declaredTokens.add(d.prop); });
+const MODES: Mode[] = ["light", "dark"];
+const attrFor = (brand: string) => (brand === DEFAULT_BRAND ? null : brand);
 
-describe("tr.discounted td", () => {
+// Three revisions of this guard asserted, in turn, that the value was a var(),
+// then that it was a --tint-* var, then that the token was declared. Each was
+// one level further from the only thing that matters — whether a discounted row
+// LOOKS different from an undiscounted one — and each was defeated by a change
+// one level further out. This resolves the token per brand and mode, the way
+// styles.caps.test.ts already does, and asserts the thing itself.
+describe("tr.discounted td — the row tint is real in every brand and mode", () => {
   const decls = declarationsFor("tr.discounted td");
 
-  it("tints the row", () => {
-    expect(decls.get("background")).toBeDefined();
+  it("tints the row through a token", () => {
+    expect(decls.get("background")).toMatch(/^var\(--[a-z0-9-]+\)$/);
   });
 
-  it("tints it with a TINT token that the stylesheet actually declares", () => {
-    const value = decls.get("background") ?? "";
-    const match = /^var\((--[a-z0-9-]+)\)$/.exec(value);
-    expect(match, `expected a single var() token, got "${value}"`).not.toBeNull();
-    const token = match![1];
-    // A tint, not merely any token: `var(--surface)` would satisfy a shape check
-    // while leaving a discounted row indistinguishable from every other row.
-    expect(token, `"${token}" is not a --tint-* token`).toMatch(/^--tint-/);
-    // And one that exists: an undeclared token is an inert rule.
-    expect(declaredTokens.has(token), `"${token}" is referenced but never declared`).toBe(true);
-  });
+  const token = /^var\((--[a-z0-9-]+)\)$/.exec(decls.get("background") ?? "")?.[1];
+
+  describe.each(BRANDS.flatMap((brand) => MODES.map((mode) => [brand, mode] as const)))(
+    "%s / %s",
+    (brand, mode) => {
+      const resolved = resolveTokens(attrFor(brand), mode);
+
+      it("resolves the tint to a real colour, not transparent", () => {
+        const value = resolved.get(token!);
+        expect(value, `${token} is not declared for ${brand}/${mode}`).toBeDefined();
+        expect(value!.trim().toLowerCase(), `${token} resolves to "${value}"`)
+          .not.toMatch(/^(transparent|none|inherit|initial|unset)$/);
+      });
+
+      it("is visibly different from the surface the row would otherwise have", () => {
+        const tint = resolved.get(token!)!;
+        const surface = resolved.get("--surface") ?? resolved.get("--bg") ?? "#ffffff";
+        // Not an accessibility threshold — a sameness check. Identical colours
+        // give exactly 1.0, and that is the regression: a "tint" that tints
+        // nothing. Anything genuinely different clears this comfortably.
+        expect(contrast(tint, surface), `tint ${tint} vs surface ${surface}`).toBeGreaterThan(1.02);
+      });
+    },
+  );
 });
 
 describe(".discount-note", () => {

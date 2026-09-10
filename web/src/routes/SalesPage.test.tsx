@@ -1132,7 +1132,7 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-pre/ });
     // #719: an order with no snapshot reads as unknown, never as a clean zero.
-    expect(within(row).getByText(i18n.t("sales:discountUnknown"))).toBeInTheDocument();
+    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent(i18n.t("sales:discountUnknown"));
   });
 
   it("does not print a bare em dash for an order only part of which can be measured", async () => {

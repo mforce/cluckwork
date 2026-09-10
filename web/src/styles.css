@@ -1161,6 +1161,15 @@ tr.discounted td {
   white-space: normal;
 }
 
+/* #723 round 3 — the chip and the row tint use the same token and render under
+   the same condition, so the pill dissolved into its own cell and only the
+   amber text distinguished it. Lifting the chip back onto the surface colour
+   restores the pill on exactly the rows that carry it. Background only: no
+   shadow, no uppercase, no new token. */
+tr.discounted .badge-warn {
+  background: var(--surface);
+}
+
 /* #655 — a list/table's empty branch: icon, one sentence, the primary action. */
 .empty-state {
   display: flex;

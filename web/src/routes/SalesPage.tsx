@@ -1518,7 +1518,7 @@ export function SalesPage() {
                       right-aligned tabular figures that never wrap. */}
                   <td className="num">{(() => {
                     const d = orderDiscount(o.items);
-                    if (d.kind === "unknown") return <span className="muted">{t("discountUnknown")}</span>;
+                    if (d.kind === "unknown") return <span className="muted discount-note">{t("discountUnknown")}</span>;
                     // Round 1 — the em dash means "sold at list". An order only
                     // part of which is measurable must not borrow that glyph.
                     if (d.kind !== "below") {
