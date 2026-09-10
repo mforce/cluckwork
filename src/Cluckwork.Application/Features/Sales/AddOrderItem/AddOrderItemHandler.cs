@@ -150,18 +150,72 @@ public sealed class AddOrderItemHandler(
                     ? ((long?)null, ListPriceBasis.NotComparable)
                     : (catalogListPrice, ListPriceBasis.Recorded);
 
-        var result = order.AddItem(
-            product.Id, product.ProductType, grade.Id,
-            unit, conversion.EggsPerUnit, command.Quantity, unitPrice,
-            listUnitPriceMinorUnits, listPriceBasis);
-        if (result.IsFailure)
-            return Result.Failure<Guid>(result.Error);
+        // #722 — the audit row names the LINE, not just the order, so a
+        // discount is attributable on an order carrying the same product on
+        // several lines, which is the normal case here. SalesOrderItem.Id is
+        // assigned by EF during SaveChanges (SalesOrderItem.Create leaves it
+        // unset — SalesOrder.cs:250), so the row can only be written after a
+        // save. Pinned by AddItem_RecordsTheLineIdItCreated.
+        //
+        // ExecuteInTransactionAsync is what keeps #93's guarantee across that
+        // save: the audit row commits or rolls back with the sale. It JOINS
+        // IdempotencyMiddleware's request-wide transaction on the HTTP path and
+        // OWNS one for a direct caller — both seeders and the CLI, which have
+        // no ambient transaction and would otherwise get two independent
+        // commits (AmbientTransaction.cs:7-22). Its owned branch runs through
+        // SingleAttemptExecution and is never replayed (#269), so the pair
+        // cannot double-write. Pinned by
+        // AddItem_WhenTheAuditWriteFails_RollsBackTheLine.
+        //
+        // Every validation above this point runs OUTSIDE the transaction on
+        // purpose. The only failure left inside is AddItem's own, and all three
+        // of its failure paths return before _items.Add (SalesOrder.cs:48-58),
+        // so the `return false` below leaves nothing tracked — which matters
+        // because a joined scope's RollbackAsync is a no-op
+        // (AmbientTransaction.cs:95).
+        //
+        // Nullable, not a placeholder failure: a future branch that forgets to
+        // set it NREs loudly at `return outcome!`, where a synthetic
+        // Error.Validation would instead return a silent 400 carrying an error
+        // code no validator, no locale and no coverage test knows. This is
+        // CreateProductHandler.cs:40's shape and the reason for it.
+        Result<Guid>? outcome = null;
 
-        // #494 — see RemoveOrderItemHandler: draft-only, recorded for attribution.
-        await audit.WriteAsync(AuditActions.SalesOrderAddItem, nameof(SalesOrder), order.Id, ct: ct);
+        await unitOfWork.ExecuteInTransactionAsync(async token =>
+        {
+            var result = order.AddItem(
+                product.Id, product.ProductType, grade.Id,
+                unit, conversion.EggsPerUnit, command.Quantity, unitPrice,
+                listUnitPriceMinorUnits, listPriceBasis);
+            if (result.IsFailure)
+            {
+                outcome = Result.Failure<Guid>(result.Error);
+                return false;
+            }
 
-        // EF assigns the item id during save (deliberately not client-set).
-        await unitOfWork.SaveChangesAsync(ct);
-        return Result.Success(result.Value.Id);
+            // Assigns result.Value.Id.
+            await unitOfWork.SaveChangesAsync(token);
+
+            // #494 — see RemoveOrderItemHandler: draft-only, recorded for attribution.
+            await audit.WriteAsync(
+                AuditActions.SalesOrderAddItem, nameof(SalesOrder), order.Id,
+                details: new
+                {
+                    salesOrderItemId = result.Value.Id,
+                    productId = product.Id,
+                    quantity = command.Quantity,
+                    unitPriceMinorUnits = unitPrice.MinorUnits,
+                    listUnitPriceMinorUnits,
+                    listPriceBasis = listPriceBasis.ToString(),
+                    currencyCode = order.TotalAmount.CurrencyCode,
+                    currencyMinorUnit = order.TotalAmount.CurrencyMinorUnit,
+                },
+                ct: token);
+
+            outcome = Result.Success(result.Value.Id);
+            return true;
+        }, ct);
+
+        return outcome!;
     }
 }

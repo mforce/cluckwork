@@ -106,4 +106,96 @@ public sealed class SalesOrderAuditPayloadTests(CluckworkWebApplicationFactory f
         Assert.Equal("Recorded", root.GetProperty("listPriceBasis").GetString());
         Assert.Equal(ListPrice, root.GetProperty("listUnitPriceMinorUnits").GetInt64());
     }
+
+    [Fact]
+    public async Task AddItem_RecordsTheLineIdItCreated()
+    {
+        var (client, _, productId) = await SetupAsync();
+        var orderId = await DraftOrderAsync(client);
+
+        var added = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { productId, quantity = 10, unitPriceMinorUnits = DiscountedPrice });
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        var itemId = (await added.Content.ReadFromJsonAsync<AddedItemDto>())!.ItemId;
+
+        // Control: the endpoint's own id is real, so a Guid.Empty below is the
+        // payload's fault and not the fixture's.
+        Assert.NotEqual(Guid.Empty, itemId);
+
+        var row = await SingleAuditRowAsync(client, "SalesOrder.AddItem", orderId);
+        using var details = JsonDocument.Parse(row.DetailsJson!);
+
+        // EF assigns SalesOrderItem.Id during SaveChanges. Serialising the
+        // payload before that save stores Guid.Empty, silently and forever —
+        // which is why the audit write follows an interleaved save inside one
+        // transaction. Pinned here; mutation row M3 is the proof.
+        var recorded = details.RootElement.GetProperty("salesOrderItemId").GetGuid();
+        Assert.NotEqual(Guid.Empty, recorded);
+        Assert.Equal(itemId, recorded);
+    }
+
+    [Fact]
+    public async Task AddItem_RecordsListPriceBasisByName()
+    {
+        var (client, _, productId) = await SetupAsync();
+        var orderId = await DraftOrderAsync(client);
+
+        var added = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { productId, quantity = 10, unitPriceMinorUnits = DiscountedPrice });
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+
+        var row = await SingleAuditRowAsync(client, "SalesOrder.AddItem", orderId);
+        using var details = JsonDocument.Parse(row.DetailsJson!);
+        var root = details.RootElement;
+
+        // The NAME, never the ordinal. AuditWriter's JsonSerializerOptions
+        // register no enum converter, so a bare enum stores as 0 — and a stored
+        // 0 re-reads as a different member the moment anyone reorders
+        // ListPriceBasis. GetString() throws on a number, so this fails loudly.
+        Assert.Equal("Recorded", root.GetProperty("listPriceBasis").GetString());
+
+        // Sold below list: this pair is the discount, recorded at the moment it
+        // was given rather than derived later against a catalogue that moves.
+        Assert.Equal(ListPrice, root.GetProperty("listUnitPriceMinorUnits").GetInt64());
+        Assert.Equal(DiscountedPrice, root.GetProperty("unitPriceMinorUnits").GetInt64());
+        Assert.Equal(productId, root.GetProperty("productId").GetGuid());
+        Assert.Equal(10, root.GetProperty("quantity").GetInt32());
+        Assert.Equal("USD", root.GetProperty("currencyCode").GetString());
+        Assert.Equal(2, root.GetProperty("currencyMinorUnit").GetInt32());
+    }
+
+    [Fact]
+    public async Task AddItem_WhenTheAuditWriteFails_RollsBackTheLine()
+    {
+        var (client, accountId, productId) = await SetupAsync();
+        var orderId = await DraftOrderAsync(client);
+
+        // The OWNED transaction path: a direct handler call, so there is no
+        // ambient transaction from IdempotencyMiddleware for the unit of work
+        // to join — the shape both seeders run in. Tenant resolved, actor
+        // deliberately NOT: AuditWriter then throws at its own actor guard
+        // (#500), which is a fault BETWEEN the save that assigns the line id
+        // and the commit. Driving this over HTTP would prove nothing — the
+        // middleware's transaction rolls every design back identically.
+        using (var scope = factory.Services.CreateScope())
+        {
+            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+            var handler = scope.ServiceProvider.GetRequiredService<AddOrderItemHandler>();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                handler.HandleAsync(
+                    new AddOrderItemCommand(orderId, productId, 10, null, DiscountedPrice),
+                    accountId,
+                    CancellationToken.None));
+        }
+
+        // The sale must not have survived the fault.
+        var lines = await factory.WithTenantScopeAsync(accountId, db =>
+            db.SalesOrderItems.AsNoTracking()
+                .Where(i => i.SalesOrderId == orderId)
+                .CountAsync());
+        Assert.Equal(0, lines);
+    }
 }
