@@ -37,6 +37,13 @@ import { tEn } from "../src/i18n";
 const PRODUCT = "Sim Large Eggs";
 
 const QUANTITY = 10;
+/**
+ * At or ABOVE the seeded list price above, and it must stay that way. #721 puts
+ * a discount-reason picklist between the confirm button and the /confirm POST
+ * for any order with a line priced below list, so dropping this under 0.45
+ * would silently reroute this spec through a dialog it never drives — a hang,
+ * not a failure. worker-sale-allocation.spec.ts covers the below-list path.
+ */
 const UNIT_PRICE = "0.50";
 /** 10 x $0.50. Asserted as a number, not a formatted string — see below. */
 const EXPECTED_TOTAL_MINOR = 500;

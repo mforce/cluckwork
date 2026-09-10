@@ -1259,6 +1259,12 @@ public sealed class SimulationDataSeeder(
         // seeded. These land on the two EXISTING drafts, not new orders, so
         // SimulationDataSeeder's own order/line count manifest (which tracks
         // orders, never lines or products) stays untouched.
+        //
+        // #721 — the BELOW-list line must stay on a draft. Confirming an order
+        // that carries one now requires a discount reason, and the seeders build
+        // ConfirmSaleCommand directly with none, so moving this onto an order
+        // EnsureConfirmedOrderAsync touches would fail the seed at runtime in a
+        // verb nothing in CI runs.
         await EnsureExtraLineAsync(
             accountId, draft1Id, largeProductId, DraftOrderQuantityEggs, 35, Clerk(0), ct); // list 45 → below
         await EnsureExtraLineAsync(
