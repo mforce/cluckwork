@@ -99,6 +99,10 @@ public sealed class SalesOrderAuditPayloadTests(CluckworkWebApplicationFactory f
         // later removal, which cascades the row away.
         Assert.Equal(itemId, root.GetProperty("salesOrderItemId").GetGuid());
         Assert.Equal(productId, root.GetProperty("productId").GetGuid());
+        // #747 — same snapshot on the edit path. Read at the moment of the
+        // edit, which is the right question for an UpdateItem row.
+        Assert.Equal("Large Eggs", root.GetProperty("productName").GetString());
+        Assert.Equal("Egg", root.GetProperty("unit").GetString());
 
         // The price it changed FROM and the price it changed TO. Reading these
         // through a reference held across order.UpdateItem would make them
@@ -187,6 +191,12 @@ public sealed class SalesOrderAuditPayloadTests(CluckworkWebApplicationFactory f
         Assert.Equal(ListPrice, root.GetProperty("listUnitPriceMinorUnits").GetInt64());
         Assert.Equal(DiscountedPrice, root.GetProperty("unitPriceMinorUnits").GetInt64());
         Assert.Equal(productId, root.GetProperty("productId").GetGuid());
+        // #747 — the NAME and the UNIT, snapshotted. A reader resolving the id
+        // live would get today's name, so a renamed product would re-render
+        // history under a name the seller never saw. "Large Eggs" and "Egg" are
+        // distinct strings, so transposing the two fields reddens here.
+        Assert.Equal("Large Eggs", root.GetProperty("productName").GetString());
+        Assert.Equal("Egg", root.GetProperty("unit").GetString());
         Assert.Equal(10, root.GetProperty("quantity").GetInt32());
         Assert.Equal("USD", root.GetProperty("currencyCode").GetString());
         Assert.Equal(2, root.GetProperty("currencyMinorUnit").GetInt32());
