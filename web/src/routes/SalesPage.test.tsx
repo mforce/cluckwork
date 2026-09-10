@@ -862,7 +862,7 @@ describe("SalesPage list price and discount (#720)", () => {
   it("marks a below-list row with a chip, a struck list price and the row class", async () => {
     // ITEM_B: sold 1000 against a list of 1200 → below list.
     const row = await openOrder(DRAFT_TWO, /Grade B Tray/);
-    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toBeInTheDocument();
+    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toHaveClass("badge");
     expect(row).toHaveClass("discounted");
     // The list-price money is struck through — the <s> element, not a class, so
     // it survives a stylesheet change and reads as struck to a screen reader.
@@ -910,8 +910,11 @@ describe("SalesPage list price and discount (#720)", () => {
   // value is 3x375 + 2x1200 = 3525 → 17.7%.
   it("totals the order's discount above the order total", async () => {
     await openOrder(DRAFT_TWO, /Grade B Tray/);
-    expect(screen.getByTestId("order-discount"))
-      .toHaveTextContent(i18n.t("sales:discountTotal", { amount: "$6.25", percent: "17.7" }));
+    const paragraph = screen.getByTestId("order-discount");
+    expect(paragraph).toHaveTextContent(i18n.t("sales:discountTotal", { amount: "$6.25", percent: "17.7" }));
+    // ABOVE is half the requirement and was the untested half: the element
+    // immediately following the paragraph is the order total.
+    expect(paragraph.nextElementSibling?.textContent).toContain("$29.00");
   });
 
   // The one arithmetic error the PROTECTED helper exists to prevent: an
@@ -1056,9 +1059,13 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     mockListOrders.mockResolvedValue([listedOrder("disc", [ITEM_A, ITEM_B], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-disc/ });
-    expect(within(row).getByText(
+    // Cell 4 is the Discount column: Reference, Date, Customer, Status,
+    // Discount, Total, Provenance, actions. Scoping to the row alone let the
+    // text pass from any cell, and let a plain string pass as a badge.
+    const cell = within(row).getAllByRole("cell")[4];
+    expect(within(cell).getByText(
       i18n.t("sales:discountBadge", { percent: "17.7", amount: "$6.25" }),
-    )).toBeInTheDocument();
+    )).toHaveClass("badge");
   });
 
   it("shows an em dash for an order sold entirely at list", async () => {

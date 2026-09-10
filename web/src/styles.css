@@ -1152,6 +1152,15 @@ tr.discounted td {
   background: var(--tint-warn);
 }
 
+/* #723 round 1 — the partial note is PROSE and it renders inside td.num, which
+   styles.num.test.ts pins to `white-space: nowrap` so figures never break
+   mid-token. Prose has to wrap, and the figure rule must not be relaxed to let
+   it: the note carries its own class instead. No shadow, no uppercase, no new
+   token — the whole-stylesheet equality guards stay satisfied. */
+.discount-note {
+  white-space: normal;
+}
+
 /* #655 — a list/table's empty branch: icon, one sentence, the primary action. */
 .empty-state {
   display: flex;

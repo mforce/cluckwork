@@ -2860,7 +2860,8 @@ export const es = {
     glossaryDiscountDef:
       "Cuánto se vendió una línea por debajo de su propio precio de lista, mostrado por línea — y sumado "
       + "para todo el pedido, como un monto y un porcentaje del valor de lista de las líneas que tienen "
-      + "precio de lista. Un pedido en el que ninguna línea lo tiene se lee como \"Desconocido\". Es "
+      + "precio de lista. Un pedido que tiene líneas pero ninguna con precio de lista se lee como "
+      + "\"Desconocido\"; un pedido sin líneas no tiene nada que medir y se lee como una raya. Es "
       + "distinto del descuento a nivel de pedido que un vendedor puede ingresar — este se calcula solo, "
       + "nunca se ingresa.",
 

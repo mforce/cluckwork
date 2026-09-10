@@ -2957,8 +2957,9 @@ export const tl = {
     glossaryDiscountDef:
       "Gaano kababa ang naibenta ng isang linya kumpara sa sarili nitong presyo sa listahan, ipinapakita "
       + "kada linya — at itinototal para sa buong order, bilang halaga at porsyento ng halaga sa listahan "
-      + "ng mga linyang may presyo sa listahan. Ang order na walang kahit isang linyang may presyo sa "
-      + "listahan ay nakikitang \"Hindi alam\". Iba ito sa diskwentong maaaring ilagay ng nagbebenta sa "
+      + "ng mga linyang may presyo sa listahan. Ang order na may mga linya ngunit walang kahit isang "
+      + "linyang may presyo sa listahan ay nakikitang \"Hindi alam\"; ang order na walang anumang linya ay "
+      + "walang masusukat at nakikitang gitling. Iba ito sa diskwentong maaaring ilagay ng nagbebenta sa "
       + "buong order — ito ay awtomatikong nakukuha, hindi ilinalagay.",
 
     glossaryAboveListTerm: "Higit sa presyo sa listahan",
