@@ -2377,7 +2377,15 @@ export const tl = {
       + "noong idinagdag ang linya — katabi ng <strong>Diskwento</strong> na kinalkula mula rito: isang "
       + "halaga at porsyento kapag naibenta sa mas mababa sa listahan, <strong>Higit sa presyo sa "
       + "listahan</strong> kapag naibenta nang mas mataas, at \"Walang presyo sa listahan\" kapag walang "
-      + "maikukumpara.",
+      + "maikukumpara. Ang linyang naibenta sa mas mababa sa listahan ay minamarkahan sa tatlong paraan, "
+      + "para manatiling nababasa kahit sa greyscale na print: isang tag na <strong>Mas mababa sa "
+      + "lista</strong> katabi ng produkto, may guhit sa Presyo sa listahan nito, at may kulay ang hilera. "
+      + "Ang <strong>Diskwento</strong> ng order ay itinototal mismo sa itaas ng total ng order, bilang "
+      + "halaga at porsyento ng presyo sa listahan; kapag may bahagi ng order na walang presyo sa "
+      + "listahan, sinasabi ito ng total kaysa magpanggap na sakop ito. Ang listahan ng mga order ay may "
+      + "parehong bilang sa sariling kolum na <strong>Diskwento</strong> nito, kaya makikita ang order na "
+      + "may diskwento nang hindi ito binubuksan — at ang order na naitala bago pa naitala ang mga presyo "
+      + "sa listahan ay nakikitang \"Hindi alam\" doon, hindi kailanman zero.",
     salesConfirming:
       "Ang <strong>Pagkumpirma</strong> ng isang order ay naglalaan ng aktwal na stock — pinakalumang lote "
       + "muna — at ito ang sandali kung saan lumilipat ang inventory.",
@@ -2947,8 +2955,10 @@ export const tl = {
     glossaryDiscountTerm: "Diskwento",
     glossaryDiscountDef:
       "Gaano kababa ang naibenta ng isang linya kumpara sa sarili nitong presyo sa listahan, ipinapakita "
-      + "kada linya. Iba ito sa diskwentong maaaring ilagay ng nagbebenta sa buong order — ito ay "
-      + "awtomatikong nakukuha, hindi ilinalagay.",
+      + "kada linya — at itinototal para sa buong order, bilang halaga at porsyento ng halaga sa listahan "
+      + "ng mga linyang may presyo sa listahan. Ang order na walang kahit isang linyang may presyo sa "
+      + "listahan ay nakikitang \"Hindi alam\". Iba ito sa diskwentong maaaring ilagay ng nagbebenta sa "
+      + "buong order — ito ay awtomatikong nakukuha, hindi ilinalagay.",
 
     glossaryAboveListTerm: "Higit sa presyo sa listahan",
     glossaryAboveListDef: "Isang linyang naibenta nang higit sa sarili nitong presyo sa listahan.",

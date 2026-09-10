@@ -2839,7 +2839,13 @@ export const en = {
       "Each line also shows its <strong>List price</strong> — the product's price when the line was "
       + "added — next to a <strong>Discount</strong> worked out from it: an amount and a percent when sold "
       + "under list, <strong>Above list</strong> when sold over, and \"No list price\" when there's nothing "
-      + "to compare against.",
+      + "to compare against. A line sold under list is marked three ways so it survives a greyscale print: "
+      + "a <strong>Below list</strong> tag beside the product, its List price struck through, and a tinted "
+      + "row. The order's <strong>Discount</strong> is totalled directly above the order total, as an "
+      + "amount and a percent of list; where part of the order has no list price, the total says so rather "
+      + "than pretending to cover it. The Orders list carries the same figure in its own "
+      + "<strong>Discount</strong> column, so a discounted order is visible without opening it — and an "
+      + "order taken before list prices were recorded reads \"Unknown\" there, never zero.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",
@@ -3375,8 +3381,10 @@ export const en = {
 
     glossaryDiscountTerm: "Discount",
     glossaryDiscountDef:
-      "How much a sale line sold under its own list price, shown per line. Different from the order-level "
-      + "discount a seller can type in — this one is worked out for you, never entered.",
+      "How much a sale line sold under its own list price, shown per line — and summed for the whole "
+      + "order, as an amount and a percent of the list value of the lines that have a list price. An order "
+      + "where no line has one reads as \"Unknown\". Different from the order-level discount a seller can "
+      + "type in — this one is worked out for you, never entered.",
 
     glossaryAboveListTerm: "Above list",
     glossaryAboveListDef: "A line sold for more than its own list price.",
