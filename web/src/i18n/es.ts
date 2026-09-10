@@ -2887,6 +2887,15 @@ export const es = {
       + "distinto del descuento a nivel de pedido que un vendedor puede ingresar — este se calcula solo, "
       + "nunca se ingresa.",
 
+    glossaryDiscountReasonTerm: "Motivo del descuento",
+    glossaryDiscountReasonDef:
+      "Por qué se permitió vender un pedido por debajo del precio de lista: Volumen, Mercancía "
+      + "dañada, Cliente de larga trayectoria, Aprobado por el gerente u Otro. Se pide al confirmar "
+      + "un pedido que tiene una línea con precio inferior al de lista, y solo entonces — un pedido "
+      + "vendido al precio de lista o por encima no admite motivo. Otro necesita una nota; los demás "
+      + "la admiten si quiere agregarla. Un pedido confirmado antes de que esto existiera no lleva "
+      + "motivo, lo que significa que no se registró, no que no se haya dado nada.",
+
     glossaryAboveListTerm: "Sobre el precio de lista",
     glossaryAboveListDef: "Una línea que se vendió por más de su propio precio de lista.",
 

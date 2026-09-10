@@ -3417,6 +3417,14 @@ export const en = {
       + "order itself. Different from the order-level discount a seller "
       + "can type in — this one is worked out for you, never entered.",
 
+    glossaryDiscountReasonTerm: "Discount reason",
+    glossaryDiscountReasonDef:
+      "Why an order was allowed to sell below list price: Volume, Damaged stock, Long-standing "
+      + "customer, Manager approved, or Other. Asked for when you confirm an order that has a line "
+      + "priced under list, and only then — an order sold at or above list takes no reason. Other "
+      + "needs a note; the rest take one if you want to add it. An order confirmed before this "
+      + "existed carries no reason, which means it was not recorded, not that nothing was given away.",
+
     glossaryAboveListTerm: "Above list",
     glossaryAboveListDef: "A line sold for more than its own list price.",
 

@@ -2984,6 +2984,16 @@ export const tl = {
       + "mismong order. Iba ito sa diskwentong maaaring ilagay ng nagbebenta sa "
       + "buong order — ito ay awtomatikong nakukuha, hindi ilinalagay.",
 
+    glossaryDiscountReasonTerm: "Dahilan ng diskwento",
+    glossaryDiscountReasonDef:
+      "Kung bakit pinayagang maibenta ang order nang mas mababa sa presyo sa listahan: Malaking dami, "
+      + "Sirang stock, Matagal nang kliyente, Aprubado ng manager, o Iba pa. Hinihingi ito kapag "
+      + "kinukumpirma ang order na may linyang mas mababa sa presyo sa listahan, at doon lamang — ang "
+      + "order na naibenta sa o higit sa presyo sa listahan ay hindi tumatanggap ng dahilan. Ang Iba pa "
+      + "ay nangangailangan ng tala; ang iba ay tumatanggap nito kung nais mong idagdag. Ang order na "
+      + "kinumpirma bago pa ito umiral ay walang dahilan, na ang ibig sabihin ay hindi ito naitala, "
+      + "hindi na walang ibinigay na diskwento.",
+
     glossaryAboveListTerm: "Higit sa presyo sa listahan",
     glossaryAboveListDef: "Isang linyang naibenta nang higit sa sarili nitong presyo sa listahan.",
 
