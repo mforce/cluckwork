@@ -82,10 +82,13 @@ public sealed class TransactionDelegateShapeTests
         var files = EnumerateSrcFiles(root);
 
         // A path-filter bug that silently excludes a subtree would otherwise
-        // read as "no violations". 300 is comfortably below the ~350+ .cs
-        // files under src/ today, leaving headroom for growth.
-        Assert.True(files.Count >= 300,
-            $"walk saw only {files.Count} .cs files under src/ — the floor is 300. The scanner is not seeing the tree.");
+        // read as "no violations". Measured 2026-09-10:
+        // `find src -name '*.cs' -not -path '*/bin/*' -not -path '*/obj/*' | wc -l`
+        // returns 454; the floor is 400 to match the sibling guard on the same
+        // tree, GuardScanner.RealTreeFileFloor, leaving headroom for growth
+        // while still catching a walk that silently excluded a whole subtree.
+        Assert.True(files.Count >= 400,
+            $"walk saw only {files.Count} .cs files under src/ — the floor is 400. The scanner is not seeing the tree.");
 
         var parseErrors = new List<string>();
         var violations = new List<string>();
@@ -161,12 +164,18 @@ public sealed class TransactionDelegateShapeTests
             }
         }
 
-        // A file Roslyn cannot read is a hole, not a pass.
-        Assert.Empty(parseErrors);
+        // A file Roslyn cannot read is a hole, not a pass. Assert.True with an
+        // explicit message (not Assert.Empty) because xUnit's collection
+        // preview truncates around 100 chars — Assert.Empty here would hide
+        // exactly the text (file, line, what to do) the next reader needs.
+        Assert.True(parseErrors.Count == 0,
+            "Roslyn could not parse:\n" + string.Join("\n", parseErrors));
         // The guard's shape assumptions must be re-taught explicitly, never silently skipped.
-        Assert.Empty(siteShapeFailures);
+        Assert.True(siteShapeFailures.Count == 0,
+            string.Join("\n\n", siteShapeFailures));
 
-        Assert.Empty(violations);
+        Assert.True(violations.Count == 0,
+            string.Join("\n\n", violations));
 
         // Assert the guard has something to guard: if a future refactor moves
         // the save out of every ExecuteInTransactionAsync delegate, THIS is
