@@ -210,6 +210,12 @@ function orderDiscount(items: OrderItem[]): OrderDiscount {
 export function SalesPage() {
   const { t } = useTranslation("sales");
   const fmt = useFormat();
+  // #752 — a percent under 0.05 rounds to "0.0" and sits beside a NON-zero
+  // amount, so the pair contradicts itself. Below the rendering threshold say
+  // "<0.1" instead. Built from fmt.count rather than a literal so the decimal
+  // separator stays the locale's — es writes 0,1.
+  const discountPercent = (percent: number) =>
+    percent > 0 && percent < 0.05 ? `<${fmt.count(0.1, 1)}` : fmt.count(percent, 1);
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
@@ -1013,7 +1019,30 @@ export function SalesPage() {
               <thead><tr><th>{t("product")}</th><th className="num">{t("qty")}</th><th className="num">{t("eggs")}</th><th className="num">{t("listPrice")}</th><th className="num">{t("unitPrice")}</th><th className="num">{t("discount")}</th><th className="num">{t("lineTotal")}</th><th></th></tr></thead>
               <tbody>
                 {active.items.map((i) => {
-                  const discount = lineDiscount(i);
+                  // #752 — ONE discount per row. The tint, the chip and the
+                  // Discount cell all read this, so they cannot disagree.
+                  // While this row is being edited it describes the TYPED
+                  // price, the same way #445 made the eggs column live: a row
+                  // that still claims its saved discount while you retype the
+                  // price is telling you about a line that no longer exists.
+                  // An unparseable box (mid-keystroke, empty) falls back to
+                  // the saved line rather than flickering to "no list price".
+                  const editingThis = !!editor && editingLine?.id === i.id;
+                  const typed = editingThis
+                    ? parseMoneyToMinorUnits(editor.price, active.currencyMinorUnit)
+                    : Number.NaN;
+                  const discount = editingThis && Number.isFinite(typed)
+                    ? lineDiscount({ ...i, unitPriceMinorUnits: typed, quantity: editor.quantity })
+                    : lineDiscount(i);
+                  // Rendered identically in BOTH branches below. Two copies
+                  // of this that drifted apart is what #752 was.
+                  const discountCell = discount.kind === "below"
+                    ? <span className="discount">
+                        {`${fmt.money(discount.amountMinorUnits, i.currencyCode, i.currencyMinorUnit)} · ${discountPercent(discount.percent)}%`}
+                      </span>
+                    : discount.kind === "above" ? t("aboveList")
+                      : discount.kind === "none" ? t("noListPrice")
+                        : "—";
                   return (
                   <tr key={i.id} className={discount.kind === "below" ? "discounted" : undefined}>
                     <td>{productName(i.productId)}{" "}
@@ -1056,7 +1085,10 @@ export function SalesPage() {
                             const draft = editorRef.current;
                             if (draft) setEditor({ ...draft, price: e.target.value });
                           }} /></td>
-                        <td className="num">{discount.kind === "none" ? t("noListPrice") : "—"}</td>
+                        {/* #752 — was a flat "—", which contradicted the tint
+                            and chip this same row still carried, and erased an
+                            above-list line's ONLY marker for the whole edit. */}
+                        <td className="num">{discountCell}</td>
                         <td className="num">—</td>
                         <td>
                           <BusyButton className="link" disabled={busy || editConflict} busy={isPending(`update-item:${i.id}`)}
@@ -1082,17 +1114,7 @@ export function SalesPage() {
                               : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
                         </td>
                         <td className="num">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
-                        <td className="num">
-                          {discount.kind === "below"
-                            ? <span className="discount">
-                                {`${fmt.money(discount.amountMinorUnits, i.currencyCode, i.currencyMinorUnit)} · ${fmt.count(discount.percent, 1)}%`}
-                              </span>
-                            : discount.kind === "above"
-                              ? t("aboveList")
-                              : discount.kind === "none"
-                                ? t("noListPrice")
-                                : "—"}
-                        </td>
+                        <td className="num">{discountCell}</td>
                         <td className="num">{fmt.money(i.unitPriceMinorUnits * i.quantity, i.currencyCode, i.currencyMinorUnit)}</td>
                         <td>
                           {active.status === "Draft" && (
@@ -1147,7 +1169,7 @@ export function SalesPage() {
               <p className="discount" data-testid="order-discount">
                 {orderLevel.percent === null
                   ? t("discountTotalNoPct", { amount })
-                  : t("discountTotal", { amount, percent: fmt.count(orderLevel.percent, 1) })}
+                  : t("discountTotal", { amount, percent: discountPercent(orderLevel.percent) })}
                 {orderLevel.partial ? ` (${t("discountPartialNote")})` : ""}
               </p>
             );
@@ -1241,13 +1263,13 @@ export function SalesPage() {
                   return list === 0
                     ? <p className="discount">{t("listPriceHintBelowNoPct", { amount })}</p>
                     : <p className="discount">
-                        {t("listPriceHintBelow", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
+                        {t("listPriceHintBelow", { amount, percent: discountPercent((perUnit * 100) / list) })}
                       </p>;
                 }
                 return list === 0
                   ? <p className="discount">{t("listPriceHintAboveNoPct", { amount })}</p>
                   : <p className="discount">
-                      {t("listPriceHintAbove", { amount, percent: fmt.count((perUnit * 100) / list, 1) })}
+                      {t("listPriceHintAbove", { amount, percent: discountPercent((perUnit * 100) / list) })}
                     </p>;
               })()}
               <div className="actions">
@@ -1532,7 +1554,7 @@ export function SalesPage() {
                         <span className="badge badge-warn">
                           {d.percent === null
                             ? t("discountBadgeNoPct", { amount })
-                            : t("discountBadge", { amount, percent: fmt.count(d.percent, 1) })}
+                            : t("discountBadge", { amount, percent: discountPercent(d.percent) })}
                         </span>
                         {d.partial ? <><br /><span className="muted discount-note">{t("discountPartialNote")}</span></> : null}
                       </>
