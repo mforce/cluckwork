@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useFormat } from "../farm/useFormat";
 import { useSearchParams } from "react-router";
-import { listAuditEvents } from "../api/cluckwork";
+import { listAuditEvents, type AuditEvent } from "../api/cluckwork";
 import { usePagedList } from "../components/usePagedList";
 import { isIsoCalendarDate } from "../lib/dates";
 import {
@@ -60,6 +61,73 @@ export function isFetchStale(committedFetchPage: unknown, currentFetchPage: unkn
 // `updateActionFilter`, `updateEntityTypeFilter` and `updateDateFilter` —
 // builds a full copy from the CURRENT params rather than a partial object
 // (INV-2).
+// #745 — the Details cell. Renders the sales-line audit payloads as the summary
+// the #722 artboard draws, and falls back to the row's reason, then an em dash.
+//
+// Everything it renders comes from the row's OWN payload. It never resolves
+// productId against the catalogue: that would print a renamed product's CURRENT
+// name on a historical row, which is exactly what #747's productName snapshot
+// exists to prevent. A fetch in here is a defect, not an optimisation.
+//
+// Money goes through useFormat().money, which is farm-locale bound (§4.5/#650).
+// formatMoney keyed off i18n.language is what formattingIndependence.test.ts
+// exists to catch.
+function AuditDetails({ event }: { event: AuditEvent }) {
+  const { t } = useTranslation("audit");
+  const fmt = useFormat();
+
+  const summary = (() => {
+    if (!event.detailsJson) return null;
+    let d: Record<string, unknown>;
+    try {
+      d = JSON.parse(event.detailsJson) as Record<string, unknown>;
+    } catch {
+      // A payload we cannot parse is not an error worth showing a user: fall
+      // through to the reason, exactly as a row with no payload does.
+      return null;
+    }
+
+    const name = typeof d.productName === "string" ? d.productName : null;
+    const code = typeof d.currencyCode === "string" ? d.currencyCode : null;
+    const minor = typeof d.currencyMinorUnit === "number" ? d.currencyMinorUnit : null;
+    if (name === null || code === null || minor === null) return null;
+    const money = (v: number) => fmt.money(v, code, minor);
+
+    // listUnitPriceMinorUnits is nullable and listPriceBasis says why (#720).
+    // A null must never render as a zero price.
+    const list = typeof d.listUnitPriceMinorUnits === "number" ? d.listUnitPriceMinorUnits : null;
+
+    if (event.action === "SalesOrder.AddItem") {
+      const qty = typeof d.quantity === "number" ? d.quantity : null;
+      const unit = typeof d.unitPriceMinorUnits === "number" ? d.unitPriceMinorUnits : null;
+      if (qty === null || unit === null) return null;
+      return (
+        <>
+          {name} ×{qty}{" "}
+          {list === null ? t("detailsAtPrice", { amount: money(unit) })
+                         : t("detailsAtList", { amount: money(list) })}
+        </>
+      );
+    }
+
+    if (event.action === "SalesOrder.UpdateItem") {
+      const before = (d.before as { unitPriceMinorUnits?: unknown } | undefined)?.unitPriceMinorUnits;
+      const after = (d.after as { unitPriceMinorUnits?: unknown } | undefined)?.unitPriceMinorUnits;
+      if (typeof before !== "number" || typeof after !== "number") return null;
+      return (
+        <>
+          {name} <s>{money(before)}</s> → <strong>{money(after)}</strong>{" "}
+          {list === null ? t("detailsNoListPrice") : t("detailsListParen", { amount: money(list) })}
+        </>
+      );
+    }
+
+    return null;
+  })();
+
+  return <>{summary ?? event.reason ?? "—"}</>;
+}
+
 export function AuditPage() {
   const { t } = useTranslation("audit");
   const { t: tc } = useTranslation("common");
@@ -401,7 +469,7 @@ export function AuditPage() {
                     entity; repeating it up to 100 times is noise, not a
                     neutral no-op, so it's hidden rather than left in. */}
                 {!entityId && <th>{t("entityHeader")}</th>}
-                <th>{t("reasonHeader")}</th>
+                <th>{t("detailsHeader")}</th>
               </tr>
             </thead>
             <tbody>
@@ -411,7 +479,7 @@ export function AuditPage() {
                   <td>{e.actorEmail}</td>
                   <td>{auditActionLabel(e.action)}</td>
                   {!entityId && <td>{entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}</td>}
-                  <td>{e.reason ?? "—"}</td>
+                  <td><AuditDetails event={e} /></td>
                 </tr>
               ))}
             </tbody>
