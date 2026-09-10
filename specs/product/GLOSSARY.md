@@ -515,7 +515,8 @@ line therefore sits in the denominator and never nets against the amount. An
 order that HAS lines, none of which carries a list price, reads as **unknown**,
 never as a clean zero; one in which **some** line has none reports that its
 figure covers only part of the order. An order with no lines at all is not
-unknown — there is nothing to measure — and reads as an em dash. Both are a different number from
+unknown — there is nothing to measure — and reads as an em dash in the Orders
+list, with no discount line shown on the order panel. Both are a different number from
 `sales_orders.discount_cents` (spec §10.4), which is an *entered*,
 *order-level* amount a seller applies manually to the whole order — the two
 share a name and nothing else.

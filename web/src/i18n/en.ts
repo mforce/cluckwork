@@ -3386,7 +3386,8 @@ export const en = {
       "How much a sale line sold under its own list price, shown per line — and summed for the whole "
       + "order, as an amount and a percent of the list value of the lines that have a list price. An order "
       + "that has lines but no list price on any of them reads as \"Unknown\"; an order with no lines at "
-      + "all has nothing to measure and reads as a dash. Different from the order-level discount a seller "
+      + "all has nothing to measure and reads as a dash in the Orders list, with no discount line on the "
+      + "order itself. Different from the order-level discount a seller "
       + "can type in — this one is worked out for you, never entered.",
 
     glossaryAboveListTerm: "Above list",

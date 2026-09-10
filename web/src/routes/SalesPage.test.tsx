@@ -1045,6 +1045,7 @@ describe("SalesPage list price and discount (#720)", () => {
     await openOrder(order, /Grade A Dozen/);
     expect(screen.getByTestId("order-discount-partial"))
       .toHaveTextContent(i18n.t("sales:discountPartialOnly"));
+    expect(screen.getByTestId("order-discount-partial")).toHaveClass("discount-note");
   });
 
   // Round 2. The Orders list says "Unknown" for an order no line of which can
@@ -1064,6 +1065,7 @@ describe("SalesPage list price and discount (#720)", () => {
     await openOrder(order, /Grade A Dozen/);
     expect(screen.getByTestId("order-discount-unknown"))
       .toHaveTextContent(i18n.t("sales:discountUnknownOrder"));
+    expect(screen.getByTestId("order-discount-unknown")).toHaveClass("discount-note");
   });
 });
 
@@ -1133,6 +1135,10 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     const row = screen.getByRole("row", { name: /SO-pre/ });
     // #719: an order with no snapshot reads as unknown, never as a clean zero.
     expect(within(row).getAllByRole("cell")[4]).toHaveTextContent(i18n.t("sales:discountUnknown"));
+    // The wrap class is applied here, not just declared in the stylesheet: this
+    // cell is inside td.num, which is pinned white-space: nowrap.
+    expect(within(within(row).getAllByRole("cell")[4]).getByText(i18n.t("sales:discountUnknown")))
+      .toHaveClass("discount-note");
   });
 
   it("does not print a bare em dash for an order only part of which can be measured", async () => {

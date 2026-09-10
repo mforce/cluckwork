@@ -72,3 +72,35 @@ describe(".discount-note", () => {
     expect(decls.get("white-space")).toBe("normal");
   });
 });
+
+describe("tr.discounted .badge-warn — the chip stays visible on the row it sits on", () => {
+  const chip = declarationsFor("tr.discounted .badge-warn");
+  const row = declarationsFor("tr.discounted td");
+
+  it("overrides the chip's fill on a discounted row", () => {
+    expect(chip.get("background")).toBeDefined();
+  });
+
+  it("does not repaint the chip in the row's own tint", () => {
+    // The whole point: .badge-warn and tr.discounted td both use --tint-warn,
+    // and they render under the SAME condition, so an un-overridden chip is
+    // invisible against its own cell.
+    expect(chip.get("background")).not.toBe(row.get("background"));
+  });
+
+  describe.each(BRANDS.flatMap((brand) => MODES.map((mode) => [brand, mode] as const)))(
+    "%s / %s",
+    (brand, mode) => {
+      it("resolves to a colour that contrasts with the row tint", () => {
+        const resolved = resolveTokens(attrFor(brand), mode);
+        const tok = (v: string | undefined) => /^var\((--[a-z0-9-]+)\)$/.exec(v ?? "")?.[1];
+        const chipColour = resolved.get(tok(chip.get("background"))!);
+        const rowColour = resolved.get(tok(row.get("background"))!);
+        expect(chipColour, "chip fill does not resolve").toBeDefined();
+        expect(rowColour, "row tint does not resolve").toBeDefined();
+        expect(contrast(chipColour!, rowColour!), `chip ${chipColour} vs row ${rowColour}`)
+          .toBeGreaterThan(1.02);
+      });
+    },
+  );
+});
