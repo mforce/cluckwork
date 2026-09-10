@@ -137,6 +137,13 @@ export const tl = {
       "Wala pang sapat na stock ang mga kawan na nakatalaga sa iyo para sa "
       + "bentang ito. Maaaring paganahin ng isang Owner o Manager ang pagbenta "
       + "mula sa ibang kawan sa Mga setting ng bukid.",
+    // #721
+    "SalesOrder.DiscountReasonRequired":
+      "May linya na sa order na ito na mas mababa na ngayon sa presyo sa listahan. I-reload "
+      + "ang order at kumpirmahin muli — kailangan nito ng dahilan ng diskwento.",
+    "SalesOrder.DiscountReasonNotApplicable":
+      "Wala nang linya sa order na ito na mas mababa sa presyo sa listahan, kaya hindi ito "
+      + "tumatanggap ng dahilan ng diskwento. I-reload ang order at kumpirmahin muli.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -343,11 +350,11 @@ export const tl = {
     discountBadgeNoPct: "{{amount}} mula sa presyo sa listahan",
     discountUnknown: "Hindi alam",
     // #721
-    discountReasonTitle: "Bakit mas mababa sa presyo sa listahan ang order na ito?",
-    discountReasonBody:
-      "May kahit isang linyang mas mababa ang presyo kaysa sa presyo sa listahan ng produkto. Itala " +
-      "ang dahilan bago ilaan ang stock — nakaimbak ang dahilan sa order at hindi na ito maidaragdag pagkatapos.",
-    discountReasonLabel: "Dahilan ng diskwento",
+    discountReasonHeadline: "Ang order na ito ay {{amount}} mas mababa sa presyo sa listahan, {{percent}}% ng order, sa {{below}} sa {{total}} linya.",
+    discountReasonHeadlineNoPct: "Ang order na ito ay {{amount}} mas mababa sa presyo sa listahan, sa {{below}} sa {{total}} linya.",
+    discountReasonLine: "{{percent}}% · {{amount}}",
+    discountReasonLineNoPct: "{{amount}} mula sa presyo sa listahan",
+    discountReasonLabel: "Dahilan ng diskwento *",
     discountReasonRequired: "Pumili ng dahilan ng diskwento.",
     discountReasonNoteLabel: "Tala (kailangan para sa Iba pa)",
     discountReasonNoteRequired: "Ilarawan ang dahilan.",
@@ -1748,12 +1755,14 @@ export const tl = {
     "role.Sales": "Benta",
     "role.ReadOnly": "Read-only",
 
-    // water source
+    // discount reason (SalesPage confirm dialog) — DiscountReasonCode.
     "discountReason.Volume": "Malaking dami",
     "discountReason.DamagedStock": "Sirang stock",
     "discountReason.LongStandingCustomer": "Matagal nang kliyente",
     "discountReason.ManagerApproved": "Aprubado ng manager",
     "discountReason.Other": "Iba pa",
+
+    // water source
     "waterSource.Well": "Poso",
     "waterSource.Municipal": "Munisipal",
     "waterSource.Tank": "Tangke",

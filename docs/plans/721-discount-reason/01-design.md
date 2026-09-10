@@ -102,7 +102,12 @@ public bool HasBelowListLine => _items.Any(
    member names, and it must not persist.
 3. `HasBelowListLine && code is null` → `SalesOrder.DiscountReasonRequired`.
 4. `code == Other && note is blank` → `SalesOrder.DiscountReasonNoteRequired`.
-5. `code is not null && !HasBelowListLine` → `SalesOrder.DiscountReasonNotApplicable`.
+5. `code is not null || note is not null`, and `!HasBelowListLine` →
+   `SalesOrder.DiscountReasonNotApplicable`. **Amended while implementing:** the
+   rule as first written was `code is not null` alone, which let a note with no
+   code beside it persist on an undiscounted order — the pair out of step, and
+   the same row `#725` would miscount that rule 5 exists to prevent. Pinned by
+   `Confirm_WithANoteAndNoCode_OnAnOrderThatIsNotDiscounted_IsRefused`.
 6. `note` trimmed; blank becomes `null`; over the cap →
    `SalesOrder.DiscountReasonNoteTooLong`.
 7. Store, set `Confirmed`, `Version++`, raise the event.
@@ -117,6 +122,15 @@ already exists on this path for stock (`EggLot.InsufficientStock`) and the
 order is under `FOR UPDATE`, so the refusal is at least consistent and the SPA
 recovers by refetching. Recorded here so #727 does not rediscover it.
 
+**Amended while implementing:** all six checks live in `CheckCanConfirm`, not
+in `Confirm`, and `Confirm` delegates to it. The design put them in `Confirm`,
+which meant a missing reason was refused only *after* `ConfirmSaleHandler` had
+planned and applied a whole FIFO allocation, and the handler's
+"contradicted its own CheckCanConfirm" throw turned that refusal into a 500.
+`CheckCanConfirm` is the method #612 added precisely so the handler can refuse
+before touching stock, so the discount rules belong beside `NotDraft` and
+`NoItems` in it. The handler passes the reason to both calls.
+
 **Where each rule is enforced.** The domain owns all of them, because the
 seeders call `ConfirmSaleHandler` directly and never see a validator (#394 —
 a validator-only rule is invisible to every seeder test). `ConfirmSaleValidator`
@@ -130,7 +144,16 @@ public sealed record ConfirmSaleRequest(string? DiscountReasonCode = null, strin
 ```
 
 `ConfirmSale(Guid id, ConfirmSaleRequest? request, ...)`, read as
-`request?.DiscountReasonCode`. The code crosses the wire as a **string** and is
+`request?.DiscountReasonCode`. **Amended while implementing:** the nullable
+parameter is necessary but not sufficient. A typed body parameter attaches
+`application/json` Accepts metadata, which the consumes matcher turns into a
+route CONSTRAINT, so a POST with no `Content-Type` at all — which is what every
+existing caller sends — stopped matching the route and fell through to
+Program.cs's `/api/{**rest}` catch-all as a 404. The route therefore also
+declares `*/*`. `DisableUser` does not disprove this; it has the same 404, pinned
+by `Disable_WithNoContentTypeAtAll_Is404_NotUnsupportedMediaType`, and its
+callers all send a content type. Pinned here by
+`Confirm_WithNoContentTypeAtAll_StillConfirms`. The code crosses the wire as a **string** and is
 parsed with `Enum.TryParse(..., ignoreCase: false)`, the same shape
 `AddOrderItemRequest.Unit` already uses — an unparseable value is a 400 from the
 validator, never a silent default.

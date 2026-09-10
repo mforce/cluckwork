@@ -60,9 +60,19 @@ public sealed class ConfirmSaleHandler(
     {
         // Parsed before the transaction: an unknown code is the cheapest
         // possible refusal and must never reach a lock. ConfirmSaleValidator
-        // turns the same input into a 400 for API callers, but the seeders
-        // build this command directly and never see a validator (#394), so the
-        // handler refuses rather than letting Enum.Parse throw a 500.
+        // turns the same input into a 400 for API callers using this SAME
+        // parser, so over HTTP this branch is unreachable; it exists for the
+        // seeders, which build the command directly and never see a validator
+        // (#394), and it is why they get a Result rather than the 500 that
+        // AddOrderItem's Enum.Parse would throw on the same input.
+        //
+        // NOT COVERED BY ANY TEST, stated rather than left to be assumed
+        // (confirmed by mutation: making the condition unreachable leaves the
+        // whole suite green). Reaching it needs a direct handler caller passing
+        // a malformed code, and no such caller exists — building one means 12
+        // hand-written null dependencies, which is scaffolding, not a guard.
+        // The parse itself is covered: DiscountReason.TryParseCode has eleven
+        // cases in SalesOrderDiscountReasonTests.
         if (!DiscountReason.TryParseCode(command.DiscountReasonCode, out var discountReasonCode))
             return Result.Failure<ConfirmSaleResponse>(Error.Validation(
                 "SalesOrder.DiscountReasonUnknown",

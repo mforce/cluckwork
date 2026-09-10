@@ -271,10 +271,27 @@ describe("useConfirm i18n wiring (#182, Task 9)", () => {
 
 // #721 — the third shape. Its own host, so the two shapes above stay exactly as
 // they were: the union widened underneath them and nothing else may have moved.
-function ChoiceHost({ onSettle = () => {} }: { onSettle?: (value: ChoiceResult | null) => void } = {}) {
-  const { askChoice, confirmDialog } = useConfirm();
+function ChoiceHost({
+  onSettle = () => {},
+  onOtherSettle = () => {},
+}: {
+  onSettle?: (value: ChoiceResult | null) => void;
+  onOtherSettle?: (value: boolean) => void;
+} = {}) {
+  const { askChoice, confirm, confirmDialog } = useConfirm();
   return (
     <>
+      {/* A second shape on the same host, so the supersede case below can ask
+          one over the other the way the two older shapes are tested. */}
+      <button
+        onClick={() => void confirm({
+          title: "Deplete this flock?",
+          body: "The flock stops accepting new entries.",
+          confirmLabel: "Deplete flock",
+        }).then(onOtherSettle)}
+      >
+        deplete
+      </button>
       <button
         onClick={() => void askChoice({
           title: "Why is this order below list price?",
@@ -388,6 +405,50 @@ describe("useConfirm askChoice (#721)", () => {
 
     await user.click(screen.getByRole("radio", { name: "Volume" }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(onSettle).toHaveBeenCalledWith(null));
+  });
+
+  // Design §6 Risk 2: widening the settle union is what this slice does to a
+  // hook two screens share, so the new shape owes the same two lifecycle tests
+  // the older ones carry.
+  it("settles a pending choice when another question is asked over it", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    render(<ChoiceHost onSettle={onSettle} />);
+
+    await openChoice(user);
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+    await user.click(screen.getByRole("button", { name: "deplete" }));
+
+    // null, not the half-answered choice: they never went through with it.
+    await waitFor(() => expect(onSettle).toHaveBeenCalledWith(null));
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("Deplete this flock?");
+  });
+
+  it("settles a pending confirmation when a choice is asked over it", async () => {
+    const user = userEvent.setup();
+    const onOtherSettle = vi.fn();
+    render(<ChoiceHost onOtherSettle={onOtherSettle} />);
+
+    await user.click(screen.getByRole("button", { name: "deplete" }));
+    await openChoice(user);
+
+    // false, the confirm shape's own dismissal value — the widened union must
+    // not leak the incoming shape's null into the outgoing promise.
+    await waitFor(() => expect(onOtherSettle).toHaveBeenCalledWith(false));
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(
+      "Why is this order below list price?");
+  });
+
+  it("settles a pending choice when the screen unmounts under it", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    const { unmount } = render(<ChoiceHost onSettle={onSettle} />);
+
+    await openChoice(user);
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+    unmount();
 
     await waitFor(() => expect(onSettle).toHaveBeenCalledWith(null));
   });

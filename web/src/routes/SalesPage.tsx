@@ -30,6 +30,7 @@ import { newId } from "../lib/ids";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import i18n from "../i18n";
 import { DISCOUNT_REASON_VALUES, discountReasonLabel, statusLabel } from "../i18n/enums";
+import type { DiscountReasonValue } from "../i18n/enums";
 
 const PAGE = 50;
 
@@ -385,6 +386,14 @@ export function SalesPage() {
   // action (write + refresh) succeeds: a retry after any failure — including a
   // lost response or a failed follow-up read — replays the same key, so the
   // server dedupes instead of duplicating the write.
+  //
+  // Replays it, that is, when the retry sends the SAME BODY. The middleware
+  // hashes the body, so a retry that answers the dialog differently — a
+  // different void reason, or since #721 a different discount reason — is a
+  // different request under a used key and gets the 409 that says so, not a
+  // replay. That is the contract working rather than a gap: the first write
+  // committed, and the page recovers on its next read. Void has had this shape
+  // since it gained a free-text reason.
   const keys = useRef(new Map<string, string>());
   const keyFor = (scope: string) => {
     const existing = keys.current.get(scope);
@@ -758,6 +767,41 @@ export function SalesPage() {
     clearKey(scope);
   });
 
+  // #721 — the two figures the confirm dialog shows before it asks for a
+  // reason. Both read the SAME orderDiscount/lineDiscount the order panel and
+  // the Orders list already render, so the dialog can never quote a different
+  // number from the screen behind it.
+  const discountHeadline = (order: SalesOrder) => {
+    const level = orderDiscount(order.items);
+    if (level.kind !== "below") return null;
+    const amount = fmt.money(level.amountMinorUnits, order.currencyCode, order.currencyMinorUnit);
+    const counts = {
+      below: order.items.filter((i) => lineDiscount(i).kind === "below").length,
+      total: order.items.length,
+    };
+    return (
+      <p className="discount" data-testid="confirm-discount-headline">
+        {level.percent === null
+          ? t("discountReasonHeadlineNoPct", { amount, ...counts })
+          : t("discountReasonHeadline",
+              { amount, percent: discountPercent(level.percent), ...counts })}
+      </p>
+    );
+  };
+
+  const lineDiscountText = (item: OrderItem) => {
+    const line = lineDiscount(item);
+    if (line.kind !== "below") return null;
+    const amount = fmt.money(line.amountMinorUnits, item.currencyCode, item.currencyMinorUnit);
+    // A zero list price cannot reach here — lineDiscount's "below" needs a
+    // negative unit price, which the validator refuses — but percent is still
+    // computed from `list`, so the amount-only variant stays as the honest
+    // fallback rather than a division nobody can read.
+    return line.percent > 0
+      ? t("discountReasonLine", { amount, percent: discountPercent(line.percent) })
+      : t("discountReasonLineNoPct", { amount });
+  };
+
   // One-way actions (#59). Confirm BEFORE run() so buttons don't flash
   // disabled while the user decides.
   const onConfirm = async () => {
@@ -766,19 +810,39 @@ export function SalesPage() {
     // on an order that has nothing below list, so the same predicate decides
     // both which dialog opens and whether a body is sent. lineDiscount is that
     // predicate already; a second one here could drift from it.
-    const belowList = active.items.some((item) => lineDiscount(item).kind === "below");
+    const belowLines = active.items.filter((item) => lineDiscount(item).kind === "below");
     let body: { discountReasonCode: string; discountReasonNote?: string } | undefined;
-    if (belowList) {
+    if (belowLines.length > 0) {
       const picked = await askChoice({
-        title: i18n.t("sales:discountReasonTitle"),
-        body: i18n.t("sales:discountReasonBody"),
+        title: i18n.t("sales:confirmOrderTitle"),
+        // The FIFO prose the plain confirmation has always carried, then what
+        // this order gives away, then the lines it gives it away on: the person
+        // confirming sees the number before they justify it.
+        body: (
+          <>
+            <p>{i18n.t("sales:confirmOrderBody")}</p>
+            {discountHeadline(active)}
+            <ul className="discount-breakdown" data-testid="confirm-discount-lines">
+              {belowLines.map((item) => (
+                <li key={item.id}>
+                  <span>{productName(item.productId)}</span>
+                  <span className="discount">{lineDiscountText(item)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ),
         confirmLabel: i18n.t("sales:confirmOrderConfirmLabel"),
         choiceLabel: i18n.t("sales:discountReasonLabel"),
         choices: DISCOUNT_REASON_VALUES.map((value) => ({
           value,
           label: discountReasonLabel(value),
         })),
-        noteRequiredFor: ["Other"],
+        // `satisfies` so a rename of the server member that reaches
+        // DISCOUNT_REASON_VALUES fails typecheck here rather than silently
+        // dropping the inline note requirement. Pinned from the C# side too by
+        // DiscountReasonVocabularyTests.
+        noteRequiredFor: ["Other" satisfies DiscountReasonValue],
         noteLabel: i18n.t("sales:discountReasonNoteLabel"),
         noteRequiredMessage: i18n.t("sales:discountReasonNoteRequired"),
         choiceRequiredMessage: i18n.t("sales:discountReasonRequired"),

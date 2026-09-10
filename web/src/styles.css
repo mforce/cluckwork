@@ -673,6 +673,25 @@ input.cell {
   justify-content: flex-start;
 }
 
+/* #721 — the below-list lines the confirm dialog itemises before it asks for a
+   reason. Reuses --tint-warn, the token .badge-warn and the discounted row
+   tint (#723) already carry, so no new brand literal enters styles.test.ts's
+   4-brands x 2-modes matrix. Background only: styles.elevation.test.ts and
+   styles.caps.test.ts assert equality over the whole parsed stylesheet. */
+.dialog .discount-breakdown {
+  list-style: none;
+  margin: 0 0 1.1rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--tint-warn);
+  border-radius: 0.5rem;
+}
+
+.dialog .discount-breakdown li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 /* #721 — the discount-reason picklist. A fieldset because the options are one
    question, not five independent controls; borderless because the dialog is
    already the frame and a second box inside it reads as a nested form. */

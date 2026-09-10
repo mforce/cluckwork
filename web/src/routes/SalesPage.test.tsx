@@ -5,7 +5,6 @@ import { SalesPage } from "./SalesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 import i18n from "../i18n";
-import { DISCOUNT_REASON_VALUES } from "../i18n/enums";
 import type { DiscountReasonValue } from "../i18n/enums";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getCustomer, getOrder, listCustomers, listEggGrades,
@@ -1479,15 +1478,59 @@ describe("SalesPage one-way actions", () => {
     it("asks for a reason instead of the plain confirmation", async () => {
       await openBelowListAndAsk();
 
-      expect(dialog()).toHaveAccessibleName(i18n.t("sales:discountReasonTitle"));
+      // Same title and same FIFO prose as the plain confirmation — the reason
+      // is one more required field on the confirm, not a separate scolding.
+      expect(dialog()).toHaveAccessibleName(i18n.t("sales:confirmOrderTitle"));
+      expect(within(dialog()).getByText(i18n.t("sales:confirmOrderBody"))).toBeInTheDocument();
+      expect(within(dialog()).getAllByRole("radio").length).toBeGreaterThan(0);
       expect(vi.mocked(confirmOrder)).not.toHaveBeenCalled();
     });
 
-    it("offers every reason the server accepts, in the catalogue's order", async () => {
+    // The mockup on #721: "the person confirming sees what they are giving away
+    // before they justify it." Both figures come from the same
+    // orderDiscount/lineDiscount the screen behind the dialog renders.
+    it("shows what the order gives away, and on which lines", async () => {
       await openBelowListAndAsk();
 
-      expect(within(dialog()).getAllByRole("radio").map((r) => r.getAttribute("value")))
-        .toEqual([...DISCOUNT_REASON_VALUES]);
+      // ITEM_A: 375 list, sold at 300, x3 -> 2.25 off, 20%.
+      // ITEM_B: 1200 list, sold at 1000, x2 -> 4.00 off, 16.7%.
+      // Order: 6.25 off a list value of 375x3 + 1200x2 = 3525 -> 17.7%.
+      expect(screen.getByTestId("confirm-discount-headline")).toHaveTextContent(
+        "This order is $6.25 below list price, 17.7% of the order, across 2 of 2 lines.");
+      const lines = within(screen.getByTestId("confirm-discount-lines")).getAllByRole("listitem");
+      expect(lines.map((li) => li.textContent)).toEqual([
+        "Grade A Dozen20.0% · $2.25",
+        "Grade B Tray16.7% · $4.00",
+      ]);
+    });
+
+    it("lists only the lines that are actually below list", async () => {
+      const atList = { ...ITEM_B, id: "atlist", listUnitPriceMinorUnits: ITEM_B.unitPriceMinorUnits };
+      await openOrder({ ...DRAFT_TWO, items: [ITEM_A, atList] }, /Grade A Dozen/);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:confirmOrderButton") }));
+      });
+
+      const lines = within(screen.getByTestId("confirm-discount-lines")).getAllByRole("listitem");
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toHaveTextContent("Grade A Dozen");
+      expect(screen.getByTestId("confirm-discount-headline")).toHaveTextContent("across 1 of 2 lines");
+    });
+
+    // Literal labels, not a map over the same constant SalesPage renders: that
+    // comparison moves with any rename and would stay green. The wire VALUES
+    // are pinned against the C# enum from the other side, by
+    // DiscountReasonVocabularyTests.
+    it("offers every reason, labelled, most routine first", async () => {
+      await openBelowListAndAsk();
+
+      const radios = within(dialog()).getAllByRole("radio");
+      expect(radios.map((r) => r.getAttribute("value"))).toEqual([
+        "Volume", "DamagedStock", "LongStandingCustomer", "ManagerApproved", "Other",
+      ]);
+      expect(radios.map((r) => r.closest("label")?.textContent)).toEqual([
+        "Volume", "Damaged stock", "Long-standing customer", "Manager approved", "Other",
+      ]);
     });
 
     it("sends the chosen reason with the confirm", async () => {

@@ -128,6 +128,13 @@ export const es = {
       "Tus parvadas asignadas no tienen suficiente stock para esta venta. Un "
       + "propietario o gerente puede habilitar la venta desde otras parvadas "
       + "en Configuración de la granja.",
+    // #721
+    "SalesOrder.DiscountReasonRequired":
+      "Una línea de este pedido ahora tiene un precio por debajo del de lista. Vuelva a "
+      + "cargar el pedido y confírmelo otra vez: necesita un motivo del descuento.",
+    "SalesOrder.DiscountReasonNotApplicable":
+      "Ninguna línea de este pedido está ya por debajo del precio de lista, así que no "
+      + "admite motivo del descuento. Vuelva a cargar el pedido y confírmelo otra vez.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -327,11 +334,11 @@ export const es = {
     discountBadgeNoPct: "{{amount}} respecto al precio de lista",
     discountUnknown: "Desconocido",
     // #721
-    discountReasonTitle: "¿Por qué este pedido está por debajo del precio de lista?",
-    discountReasonBody:
-      "Al menos una línea tiene un precio inferior al precio de lista del producto. Registre el " +
-      "motivo antes de asignar las existencias: el motivo se guarda en el pedido y no se puede agregar después.",
-    discountReasonLabel: "Motivo del descuento",
+    discountReasonHeadline: "Este pedido está {{amount}} por debajo del precio de lista, {{percent}}% del pedido, en {{below}} de {{total}} líneas.",
+    discountReasonHeadlineNoPct: "Este pedido está {{amount}} por debajo del precio de lista, en {{below}} de {{total}} líneas.",
+    discountReasonLine: "{{percent}}% · {{amount}}",
+    discountReasonLineNoPct: "{{amount}} respecto al precio de lista",
+    discountReasonLabel: "Motivo del descuento *",
     discountReasonRequired: "Elija un motivo del descuento.",
     discountReasonNoteLabel: "Nota (obligatoria para Otro)",
     discountReasonNoteRequired: "Describa el motivo.",
@@ -1684,12 +1691,14 @@ export const es = {
     "role.Sales": "Ventas",
     "role.ReadOnly": "Solo lectura",
 
-    // water source
+    // discount reason (SalesPage confirm dialog) — DiscountReasonCode.
     "discountReason.Volume": "Volumen",
     "discountReason.DamagedStock": "Mercancía dañada",
     "discountReason.LongStandingCustomer": "Cliente de larga trayectoria",
     "discountReason.ManagerApproved": "Aprobado por el gerente",
     "discountReason.Other": "Otro",
+
+    // water source
     "waterSource.Well": "Pozo",
     "waterSource.Municipal": "Municipal",
     "waterSource.Tank": "Tanque",
