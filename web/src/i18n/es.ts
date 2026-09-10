@@ -317,6 +317,7 @@ export const es = {
     discount: "Descuento",
     noListPrice: "Sin precio de lista",
     aboveList: "Sobre el precio de lista",
+    belowListBadge: "Por debajo de lista",
     listPriceHintBelow: "{{amount}} por debajo del precio de lista ({{percent}}%)",
     listPriceHintAbove: "{{amount}} sobre el precio de lista ({{percent}}%)",
     listPriceHintAboveNoPct: "{{amount}} sobre el precio de lista",

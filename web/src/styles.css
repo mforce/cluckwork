@@ -1141,6 +1141,17 @@ input.cell {
   font-weight: 600;
 }
 
+/* #723 — a discounted row's tint. The SAME token .badge-warn already uses, so
+   no new brand literal enters styles.test.ts's 4-brands x 2-modes matrix.
+   Background only: styles.elevation.test.ts and styles.caps.test.ts both assert
+   EQUALITY over the whole parsed stylesheet, so a shadow or an uppercase
+   transform here fails a guard that has nothing to do with this screen.
+   The tint is the third layer, never the only one — the row also carries the
+   Below-list chip and a struck list price, which survive greyscale. */
+tr.discounted td {
+  background: var(--tint-warn);
+}
+
 /* #655 — a list/table's empty branch: icon, one sentence, the primary action. */
 .empty-state {
   display: flex;

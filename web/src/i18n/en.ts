@@ -405,6 +405,11 @@ export const en = {
     discount: "Discount",
     noListPrice: "No list price",
     aboveList: "Above list",
+    // #723 — the row's text marker. Colour alone fails greyscale and fails a
+    // colour-blind reader, so the tint never travels without this chip.
+    // Ends in `Badge`, so badgeCase.test.ts holds it to a capital first letter
+    // in all three locales the day it lands.
+    belowListBadge: "Below list",
     // #720 — live hints under the add-line price field, mirroring the amount
     // the line will snapshot as ListUnitPriceMinorUnits if submitted now.
     listPriceHintBelow: "{{amount}} below list ({{percent}}%)",

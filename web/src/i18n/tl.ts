@@ -333,6 +333,7 @@ export const tl = {
     discount: "Diskwento",
     noListPrice: "Walang presyo sa listahan",
     aboveList: "Higit sa presyo sa listahan",
+    belowListBadge: "Mas mababa sa lista",
     listPriceHintBelow: "{{amount}} mas mababa sa presyo sa listahan ({{percent}}%)",
     listPriceHintAbove: "{{amount}} higit sa presyo sa listahan ({{percent}}%)",
     listPriceHintAboveNoPct: "{{amount}} higit sa presyo sa listahan",

@@ -951,10 +951,19 @@ export function SalesPage() {
                 {active.items.map((i) => {
                   const discount = lineDiscount(i);
                   return (
-                  <tr key={i.id}>
+                  <tr key={i.id} className={discount.kind === "below" ? "discounted" : undefined}>
                     <td>{productName(i.productId)}{" "}
                       <span className="muted">{t("perUnit", { unit: i.unit.toLowerCase() })}
-                        {i.baseUnitFactor > 1 ? ` ${t("eggsCount", { count: i.baseUnitFactor })}` : ""}</span></td>
+                        {i.baseUnitFactor > 1 ? ` ${t("eggsCount", { count: i.baseUnitFactor })}` : ""}</span>
+                      {/* #723 — the text marker, beside the product rather than
+                          in the Discount cell, so it is legible on a row whose
+                          numeric cells are being scanned as a column. */}
+                      {discount.kind === "below" && (
+                        <> <span className="badge badge-warn">{t("belowListBadge")}</span></>
+                      )}
+                      {discount.kind === "none" && (
+                        <> <span className="badge">{t("noListPrice")}</span></>
+                      )}</td>
                     {editor && editingLine?.id === i.id ? (
                       <>
                         <td className="num">
@@ -1004,7 +1013,9 @@ export function SalesPage() {
                         <td className="num">
                           {i.listUnitPriceMinorUnits === null
                             ? "—"
-                            : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
+                            : discount.kind === "below"
+                              ? <s>{fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</s>
+                              : fmt.money(i.listUnitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}
                         </td>
                         <td className="num">{fmt.money(i.unitPriceMinorUnits, i.currencyCode, i.currencyMinorUnit)}</td>
                         <td className="num">

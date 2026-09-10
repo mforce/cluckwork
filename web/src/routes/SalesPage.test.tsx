@@ -781,9 +781,13 @@ describe("SalesPage line display", () => {
 // #720 — the list price snapshot and the discount it implies, rendered per
 // line. Four states: none, at list, below list, above list.
 describe("SalesPage list price and discount (#720)", () => {
-  it('shows "No list price" when the line has none', async () => {
+  it('shows "No list price" when the line has none — in the chip AND in the discount cell', async () => {
     const row = await openOrder(draftWithItem(2, "USD", 500, "o-nolist"), /Grade A Dozen/);
-    expect(within(row).getByText(i18n.t("sales:noListPrice"))).toBeInTheDocument();
+    // #723 — TWO mentions, deliberately: the chip beside the product names the
+    // state where the eye lands, and the Discount cell keeps the wording #720
+    // shipped and the Help text documents. Pinned at exactly 2 so a future
+    // change that drops either one goes red rather than silently halving it.
+    expect(within(row).getAllByText(i18n.t("sales:noListPrice"))).toHaveLength(2);
   });
 
   it("puts No list price in the DISCOUNT cell and an em dash in the LIST PRICE cell", async () => {
@@ -849,6 +853,55 @@ describe("SalesPage list price and discount (#720)", () => {
     // applying the emphasis here survived as an untested mutant (M20) until
     // this assertion existed.
     expect(within(row).getByText(i18n.t("sales:aboveList"))).not.toHaveClass("discount");
+  });
+
+  // #723 — colour is not the only signal. A discounted row carries a text chip
+  // and a struck-through list price, both of which survive greyscale; the tint
+  // is the third layer, asserted through the row's class because jsdom computes
+  // no layout.
+  it("marks a below-list row with a chip, a struck list price and the row class", async () => {
+    // ITEM_B: sold 1000 against a list of 1200 → below list.
+    const row = await openOrder(DRAFT_TWO, /Grade B Tray/);
+    expect(within(row).getByText(i18n.t("sales:belowListBadge"))).toBeInTheDocument();
+    expect(row).toHaveClass("discounted");
+    // The list-price money is struck through — the <s> element, not a class, so
+    // it survives a stylesheet change and reads as struck to a screen reader.
+    expect(within(row).getByText("$12.00").closest("s")).not.toBeNull();
+  });
+
+  it("gives an at-list row no chip, no strikethrough and no row class", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-atlist-mark"),
+      referenceNumber: "SO-ATLIST-MARK",
+      totalMinorUnits: 900,
+      items: [{
+        id: "it-atlist-mark", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: 300,
+      }],
+    };
+    const row = await openOrder(order, /Grade A Dozen/);
+    expect(within(row).queryByText(i18n.t("sales:belowListBadge"))).toBeNull();
+    expect(row).not.toHaveClass("discounted");
+    expect(within(row).getAllByText("$3.00")[0].closest("s")).toBeNull();
+  });
+
+  it("chips a no-list-price row without marking it discounted", async () => {
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-null-mark"),
+      referenceNumber: "SO-NULL-MARK",
+      totalMinorUnits: 900,
+      items: [{
+        id: "it-null-mark", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
+        quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
+        listUnitPriceMinorUnits: null,
+      }],
+    };
+    const row = await openOrder(order, /Grade A Dozen/);
+    // The chip names the state beside the product; the Discount cell keeps the
+    // wording #720 shipped and the Help text documents. Both, deliberately.
+    expect(within(row).getAllByText(i18n.t("sales:noListPrice"))).toHaveLength(2);
+    expect(row).not.toHaveClass("discounted");
   });
 });
 
