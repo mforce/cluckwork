@@ -712,7 +712,11 @@ describe("StockPage error placement (#479)", () => {
 // #465 — the drill-down used to show only the API's newest-50 default page,
 // making older lots (the very ones a write-off targets) unreachable. Now the
 // panel pages ("load more") and filters by production date, both server-side.
-describe("StockPage lot paging + date filter (#465)", () => {
+// #750 — raised per-test budget for this suite only; see the note on
+// CustomersPage's paging describe for the measurements and the reasoning.
+// The write-off test here takes 1642ms against the 5000ms default (33.8%),
+// and "releases the loading flag" 1763ms (35.3%).
+describe("StockPage lot paging + date filter (#465)", { timeout: 15_000 }, () => {
   const PAGE = 50;
 
   function makeLots(count: number, startDay = 1, month = "07"): EggLotRow[] {

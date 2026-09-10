@@ -856,7 +856,23 @@ const customerPage = (n: number, prefix = "p") =>
     version: i,
   })) as Customer[];
 
-describe("CustomersPage paging (#511)", () => {
+// #750 — a raised per-test budget for THIS suite only, not for the run.
+//
+// These tests drive a paged list through several SEQUENTIAL fetch-and-rerender
+// cycles, so a CPU squeeze costs them once per await rather than once overall.
+// Measured on an idle 12-core box against the 5000ms default: the worst here
+// takes 1923ms, 38.6% of budget, so a 2.6x slowdown fails it — reachable with
+// twelve vitest workers beside a Testcontainers run. Its siblings sit at
+// 29-35%, which is why the budget is raised for the SUITE and not for the
+// three tests that happened to fail first.
+//
+// The cheap fix is already spent: #557 replaced the accessible-name row query
+// with a text query here for this exact reason (616ms -> 71ms). What is left
+// is inherent to the paging dance.
+//
+// Deliberately NOT the global testTimeout. A suite-wide raise would also mask
+// a genuine hang, which is the thing the 5s default is good for.
+describe("CustomersPage paging (#511)", { timeout: 15_000 }, () => {
   it("reaches a customer past the first server page through load more", async () => {
     mockList.mockResolvedValueOnce(customerPage(100));
     renderWithProviders(<CustomersPage />, { token: WORKER });
