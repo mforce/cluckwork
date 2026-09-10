@@ -1,12 +1,14 @@
 namespace Cluckwork.Application.Features.Sales.UpdateOrderItem;
 
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Features.Catalog;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Sales;
 
 public sealed class UpdateOrderItemHandler(
     ISalesOrderRepository orders,
+    IProductRepository products,
     IAuditWriter audit,
     IUnitOfWork unitOfWork)
 {
@@ -40,6 +42,15 @@ public sealed class UpdateOrderItemHandler(
         var beforeProductId = existing?.ProductId;
         var beforeListUnitPriceMinorUnits = existing?.ListUnitPriceMinorUnits;
         var beforeListPriceBasis = existing?.ListPriceBasis.ToString();
+        // #747 — the unit comes off the line's own snapshot; the name needs a
+        // product read, because SalesOrderItem carries ProductId and no name.
+        // Read HERE, at the moment of the edit: that is what this row is a
+        // record of. Null only if the product row is gone, which leaves the id
+        // in the payload as the stable join key.
+        var beforeUnit = existing?.Unit.ToString();
+        var beforeProductName = existing is null
+            ? null
+            : (await products.GetByIdAsync(existing.ProductId, ct))?.Name;
 
         var result = order.UpdateItem(command.ItemId, command.Quantity, unitPrice);
         if (result.IsFailure)
@@ -56,6 +67,8 @@ public sealed class UpdateOrderItemHandler(
             {
                 salesOrderItemId = command.ItemId,
                 productId = beforeProductId!.Value,
+                productName = beforeProductName,
+                unit = beforeUnit,
                 before = new
                 {
                     quantity = beforeQuantity!.Value,

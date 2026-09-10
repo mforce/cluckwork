@@ -203,6 +203,13 @@ public sealed class AddOrderItemHandler(
                 {
                     salesOrderItemId = result.Value.Id,
                     productId = product.Id,
+                    // #747 — snapshotted, never resolved by a reader later: a
+                    // renamed product would otherwise re-render this row under
+                    // a name the seller never saw (#720's rule, applied to the
+                    // name). The unit is here because quantity alone is
+                    // ambiguous — 8 trays and 8 eggs are both "8".
+                    productName = product.Name,
+                    unit = unit.ToString(),
                     quantity = command.Quantity,
                     unitPriceMinorUnits = unitPrice.MinorUnits,
                     listUnitPriceMinorUnits,
