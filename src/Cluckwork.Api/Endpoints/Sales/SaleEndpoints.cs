@@ -51,6 +51,13 @@ public static class SaleEndpoints
         group.MapPost("/{id:guid}/confirm", ConfirmSale)
             .WithName("ConfirmSale")
             .WithSummary("Confirm a sales order and allocate egg lots via FIFO (online-only).")
+            // #721 — the body is optional, and `*/*` is load-bearing. A typed
+            // body parameter alone attaches application/json Accepts metadata,
+            // which the consumes matcher turns into a route constraint, so a
+            // POST with NO Content-Type stops matching and Program.cs's
+            // `/api/{**rest}` catch-all answers 404. That is what every existing
+            // caller sends. Pinned by Confirm_WithNoContentTypeAtAll_StillConfirms.
+            .Accepts<ConfirmSaleRequest>(isOptional: true, contentType: "application/json", "*/*")
             .RequireAuthorization(AuthPolicies.SalesFlow);
 
         // Voiding undoes a confirmed sale — admin-only (#73). The draft
@@ -288,6 +295,7 @@ public static class SaleEndpoints
 
     private static async Task<IResult> ConfirmSale(
         Guid id,
+        ConfirmSaleRequest? request,
         ConfirmSaleHandler handler,
         TenantContext tenant,
         ICurrentUser currentUser,
@@ -297,7 +305,8 @@ public static class SaleEndpoints
             return Results.Unauthorized();
 
         var result = await handler.HandleAsync(
-            new ConfirmSaleCommand(id), tenant.AccountId, currentUser.UserId, ct);
+            new ConfirmSaleCommand(id, request?.DiscountReasonCode, request?.DiscountReasonNote),
+            tenant.AccountId, currentUser.UserId, ct);
 
         // TenantMismatch is surfaced as NotFound to avoid revealing that the
         // resource exists but belongs to a different tenant.
@@ -350,6 +359,12 @@ public sealed record SalesOrderResponse(
 public sealed record CreateSalesOrderRequest(Guid CustomerId, DateOnly OrderDate);
 
 public sealed record VoidSaleRequest(string Reason);
+
+// Optional on purpose: every existing caller POSTs /confirm with no body at all.
+// See the `.Accepts` call on the route for why the wildcard content type there
+// is what makes that keep working.
+public sealed record ConfirmSaleRequest(
+    string? DiscountReasonCode = null, string? DiscountReasonNote = null);
 
 public sealed record AddOrderItemRequest(
     Guid ProductId, int Quantity, string? Unit, long? UnitPriceMinorUnits,

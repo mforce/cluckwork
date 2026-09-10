@@ -297,6 +297,40 @@ public sealed class CustomerAndOrderTests(CluckworkWebApplicationFactory factory
     }
 
     [Fact]
+    public async Task Confirm_WithNoContentTypeAtAll_StillConfirms()
+    {
+        // #721 gave /confirm an OPTIONAL request body. Declaring a typed body
+        // parameter attaches application/json Accepts metadata, and the consumes
+        // matcher turns that into a route constraint: a POST carrying no
+        // Content-Type stops matching the route, and Program.cs's
+        // `/api/{**rest}` catch-all answers 404 — the same mechanism
+        // Disable_WithNoContentTypeAtAll_Is404_NotUnsupportedMediaType pins for
+        // /users/{id}/disable. Every confirm caller (this suite, both seeders,
+        // the Playwright specs) POSTs with no Content at all, so the route
+        // declares `*/*` alongside application/json. Drop that and this is a 404.
+        //
+        // The request is built by hand rather than through PostWithKeyAsync so
+        // that a future change to that helper cannot silently stop this test
+        // from exercising the bodyless case.
+        var (client, accountId, _, grades, products) = await SetupAsync("Large");
+        await factory.SeedEggLotAsync(accountId, grades["Large"], 500);
+        var customerId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/customers", Guid.NewGuid().ToString(), new { name = "C", phone = "1" }));
+        var orderId = await CreatedId(await client.PostWithKeyAsync(
+            "/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date) }));
+        await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { productId = products["Large"], quantity = 10, unitPriceMinorUnits = 100 });
+
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/sales/{orderId}/confirm");
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        Assert.Null(request.Content);
+
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(request)).StatusCode);
+    }
+
+    [Fact]
     public async Task CancelDraft_Succeeds_CancelConfirmed_409()
     {
         var (client, accountId, _, grades, products) = await SetupAsync("Large");
