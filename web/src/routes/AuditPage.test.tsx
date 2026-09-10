@@ -220,6 +220,96 @@ describe("AuditPage load + render", () => {
     // controls — and 'load more' only appears when a full page came back.
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
+
+  it("renders an AddItem payload as the artboard's summary, from the payload alone", async () => {
+    mockListAuditEvents.mockResolvedValue([{
+      id: "d1",
+      occurredAtUtc: "2026-09-08T14:16:00Z",
+      actorEmail: "admin@farm.test",
+      action: "SalesOrder.AddItem",
+      entityType: "SalesOrder",
+      entityId: "10d2c04d-0000",
+      reason: null,
+      detailsJson: JSON.stringify({
+        salesOrderItemId: "11111111-0000", productId: "22222222-0000",
+        productName: "Large Eggs", unit: "Egg", quantity: 240,
+        unitPriceMinorUnits: 40, listUnitPriceMinorUnits: 45,
+        listPriceBasis: "Recorded", currencyCode: "USD", currencyMinorUnit: 2,
+      }),
+    }]);
+    renderAudit();
+
+    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expect(within(row).getByText(/Large Eggs ×240/)).toBeInTheDocument();
+    expect(within(row).getByText(/\$0\.45/)).toBeInTheDocument();
+  });
+
+  it("renders an UpdateItem payload with the old price struck through and the new one bold", async () => {
+    mockListAuditEvents.mockResolvedValue([{
+      id: "d2",
+      occurredAtUtc: "2026-09-08T14:19:00Z",
+      actorEmail: "admin@farm.test",
+      action: "SalesOrder.UpdateItem",
+      entityType: "SalesOrder",
+      entityId: "10d2c04d-0000",
+      reason: null,
+      detailsJson: JSON.stringify({
+        salesOrderItemId: "11111111-0000", productId: "22222222-0000",
+        productName: "Medium Eggs", unit: "Dozen",
+        before: { quantity: 20, unitPriceMinorUnits: 540 },
+        after: { quantity: 20, unitPriceMinorUnits: 432 },
+        listUnitPriceMinorUnits: 540, listPriceBasis: "Recorded",
+        currencyCode: "USD", currencyMinorUnit: 2,
+      }),
+    }]);
+    renderAudit();
+
+    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expect(within(row).getByText("Medium Eggs", { exact: false })).toBeInTheDocument();
+    // The artboard strikes the OLD price and bolds the NEW one. Asserting the
+    // element, not just the text, is what makes that a real check.
+    expect(within(row).getByText("$5.40", { selector: "s" })).toBeInTheDocument();
+    expect(within(row).getByText("$4.32", { selector: "strong" })).toBeInTheDocument();
+  });
+
+  it("shows no-list-price wording rather than a zero price when the list price is null", async () => {
+    mockListAuditEvents.mockResolvedValue([{
+      id: "d3",
+      occurredAtUtc: "2026-09-08T14:20:00Z",
+      actorEmail: "admin@farm.test",
+      action: "SalesOrder.UpdateItem",
+      entityType: "SalesOrder",
+      entityId: "10d2c04d-0000",
+      reason: null,
+      detailsJson: JSON.stringify({
+        salesOrderItemId: "11111111-0000", productId: "22222222-0000",
+        productName: "Cracked Eggs", unit: "Egg",
+        before: { quantity: 150, unitPriceMinorUnits: 20 },
+        after: { quantity: 150, unitPriceMinorUnits: 18 },
+        listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced",
+        currencyCode: "USD", currencyMinorUnit: 2,
+      }),
+    }]);
+    renderAudit();
+
+    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    // #720: a null list price is "no list price", never a zero discount.
+    expect(within(row).getByText(/no list price/i)).toBeInTheDocument();
+    expect(within(row).queryByText("$0.00")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the reason, then an em dash, and never throws on a malformed payload", async () => {
+    mockListAuditEvents.mockResolvedValue([
+      { ...EVENT_A, detailsJson: "{not json" },
+      EVENT_B,
+    ]);
+    renderAudit();
+
+    const rowA = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expect(within(rowA).getByText("culled sick birds")).toBeInTheDocument();
+    const rowB = screen.getByRole("row", { name: /manager@farm\.test/ });
+    expect(within(rowB).getByText("—")).toBeInTheDocument();
+  });
 });
 
 describe("AuditPage filter", () => {
@@ -646,7 +736,7 @@ describe("AuditPage i18n wiring (#182, Task 29)", () => {
       ["whoHeader", "WHO-MARKER", "Who"],
       ["actionHeader", "ACTION-HEADER-MARKER", "Action"],
       ["entityHeader", "ENTITY-MARKER", "Entity"],
-      ["reasonHeader", "REASON-MARKER", "Reason"],
+      ["detailsHeader", "DETAILS-MARKER", "Details"],
     ] as const) {
       await withOverride("audit", key, marker, async () => {
         // Unmounted at the end of this iteration (afterEach's cleanup() only

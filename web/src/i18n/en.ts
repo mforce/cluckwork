@@ -2100,7 +2100,16 @@ export const en = {
     whoHeader: "Who",
     actionHeader: "Action",
     entityHeader: "Entity",
-    reasonHeader: "Reason",
+    // #745 — the column shows the audit payload as a readable summary where one
+    // is available, and falls back to the row's reason. Renamed from
+    // reasonHeader; AuditPage.test.tsx's header-marker table names the new key.
+    detailsHeader: "Details",
+    // Sales-line summaries. The product name and unit come from the payload
+    // itself (#747), never a lookup, so a renamed product cannot rewrite history.
+    detailsAtList: "at list {{amount}}",
+    detailsAtPrice: "at {{amount}}",
+    detailsListParen: "(list {{amount}})",
+    detailsNoListPrice: "(no list price)",
     // #666 — the date window. Inclusive calendar days over the UTC timestamp,
     // matching this screen's own "When (UTC)" column.
     fromLabel: "From",
