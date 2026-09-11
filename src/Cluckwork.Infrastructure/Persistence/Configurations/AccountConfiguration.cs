@@ -52,6 +52,20 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
             .HasMaxLength(FarmBrands.MaxLength)
             .IsRequired();
 
+        // #727 — the range fails closed in BOTH layers, per #673's precedent.
+        // Account.MaxDiscount calls DiscountCeiling.FromBasisPoints, which
+        // THROWS outside 0–10 000, and that getter is read on the
+        // role-agnostic GET /account every authenticated page load hits — so a
+        // single out-of-range row would 500 the whole farm, including the
+        // Settings screen that would correct it. The application range-check in
+        // Account.UpdateSettings is a guard on the write path; this makes the
+        // getter's throw unreachable rather than merely unlikely, and #732
+        // records that raw UPDATEs against this table do happen.
+        builder.ToTable(t => t.HasCheckConstraint(
+            "CK_Accounts_MaxDiscountBasisPoints",
+            "\"MaxDiscountBasisPoints\" IS NULL "
+                + "OR \"MaxDiscountBasisPoints\" BETWEEN 0 AND 10000"));
+
         builder.Property(e => e.Version).IsConcurrencyToken();
 
         // Derived from the stored symbol/code — not a column.
