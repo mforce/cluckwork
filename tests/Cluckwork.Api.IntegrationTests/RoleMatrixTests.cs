@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
+using System.Text.Json;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
@@ -496,6 +497,82 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
     private sealed record PaymentCreated(Guid Id);
     private sealed record PaymentItem(Guid Id, int Version);
     private sealed record PaymentsPage(List<PaymentItem> Items);
+
+    // #769 — read the sales list as RAW JSON. A typed DTO with a `long?`
+    // property cannot tell an absent field from a null one, so it would pass
+    // whether or not the tier gate exists; the point of this arm is the
+    // difference between a number and no number.
+    private static async Task<JsonElement> SalesRowAsync(
+        HttpClient client, Guid orderId, string query = "")
+    {
+        var response = await client.GetAsync($"/api/v1/sales{query}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return doc.RootElement.EnumerateArray()
+            .Single(o => o.GetProperty("id").GetGuid() == orderId)
+            .Clone();
+    }
+
+    private static long? Outstanding(JsonElement row) =>
+        row.TryGetProperty("outstandingMinorUnits", out var value)
+            && value.ValueKind != JsonValueKind.Null
+            ? value.GetInt64()
+            : null;
+
+    // #769 — the orders list is SalesFlow (workers build orders, so they keep
+    // reaching it) but the MONEY inside it is SalesAccess. Nothing else in this
+    // suite distinguishes "sees the list" from "sees the money", so without this
+    // arm the tier gate could be deleted and every test would stay green.
+    [Fact]
+    public async Task SalesListOutstanding_IsTheSalesTier_WorkerSeesTheListWithoutTheMoney()
+    {
+        var (accountId, farmId, _, gradeId) = await SeedFarmAsync();
+        var owner = await ClientAsync(accountId, Roles.Owner);
+        var manager = await ClientAsync(accountId, Roles.Manager);
+        var salesperson = await ClientAsync(accountId, Roles.Sales);
+        var worker = await ClientAsync(accountId, (string?)null);
+        // 10 x 100 = 1000 minor units, 300 of it paid.
+        var (orderId, _) = await ConfirmedOrderWithPaymentAsync(accountId, farmId, gradeId, owner);
+
+        // The control for the assertion below: with the SAME field name, the
+        // money tier gets a real number. Without it, a typo in the name would
+        // make the worker's "no figure" assertion pass vacuously.
+        foreach (var inTier in new[] { owner, manager, salesperson })
+            Assert.Equal(700, Outstanding(await SalesRowAsync(inTier, orderId)));
+
+        // The worker reaches the same row and receives no figure at all.
+        var workerRow = await SalesRowAsync(worker, orderId);
+        Assert.Equal(orderId, workerRow.GetProperty("id").GetGuid());
+        Assert.Null(Outstanding(workerRow));
+
+        // Detail answers identically for both tiers (#512).
+        Assert.Equal(700, Outstanding(
+            (await owner.GetFromJsonAsync<JsonElement>($"/api/v1/sales/{orderId}"))));
+        Assert.Null(Outstanding(
+            (await worker.GetFromJsonAsync<JsonElement>($"/api/v1/sales/{orderId}"))));
+    }
+
+    // Refused, not ignored. Silently dropping the parameter would answer a
+    // different question than the one asked — the exact defect #769 exists to
+    // end — and would let a worker page through a list that reads as complete.
+    [Fact]
+    public async Task SalesListUnpaidFilter_IsRefusedOutsideTheSalesTier()
+    {
+        var (accountId, _, _, _) = await SeedFarmAsync();
+        var worker = await ClientAsync(accountId, (string?)null);
+        var salesperson = await ClientAsync(accountId, Roles.Sales);
+
+        var refused = await worker.GetAsync("/api/v1/sales?unpaid=true");
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+
+        // The worker keeps the list itself, and the Sales tier keeps the filter.
+        Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync("/api/v1/sales")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await salesperson.GetAsync("/api/v1/sales?unpaid=true")).StatusCode);
+        // `unpaid=false` asks for no filter, so it is not a refusal.
+        Assert.Equal(HttpStatusCode.OK,
+            (await worker.GetAsync("/api/v1/sales?unpaid=false")).StatusCode);
+    }
 
     [Fact]
     public async Task Assignments_AreTenantIsolated()
