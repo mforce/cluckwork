@@ -15,6 +15,7 @@ using FluentValidation;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Application.Features.Customers;
+using Microsoft.AspNetCore.Authorization;
 
 public static class SaleEndpoints
 {
@@ -77,7 +78,7 @@ public static class SaleEndpoints
 
         group.MapGet("/", ListSalesOrders)
             .WithName("ListSalesOrders")
-            .WithSummary("List sales orders, newest first (optional status/customer filters, paged).")
+            .WithSummary("List sales orders, newest first (optional status/customer/unpaid filters, paged).")
             .RequireAuthorization(AuthPolicies.SalesFlow);
 
         return group;
@@ -194,7 +195,9 @@ public static class SaleEndpoints
 
     private static async Task<IResult> GetSalesOrder(
         Guid id, ISalesOrderRepository orders, ICustomerRepository customers,
-        IAuditEventRepository audit, TenantContext tenant, CancellationToken ct)
+        IAuditEventRepository audit, IPaymentRepository payments,
+        IAuthorizationService authorization, HttpContext http,
+        TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var order = await orders.GetReadOnlyAsync(id, ct);
@@ -203,17 +206,39 @@ public static class SaleEndpoints
         // Detail and list must answer identically (#512): same read, one id.
         var customer = (await customers.GetDisplayNamesAsync([order.CustomerId], ct))
             .GetValueOrDefault(order.CustomerId);
-        return Results.Ok(ToResponse(order, provenance.GetValueOrDefault(id), customer));
+        // #769 — same figure, same tier, same NULL-off-Confirmed rule as the
+        // list. Leaving this null while the list carries it would make the two
+        // surfaces disagree about the same order, which #512 forbids.
+        long? outstanding = null;
+        if (order.Status == SalesOrderStatus.Confirmed && await MaySeeMoneyAsync(authorization, http))
+            outstanding = order.TotalAmount.MinorUnits
+                - await payments.SumNonVoidedByOrderAsync(id, ct);
+        return Results.Ok(ToResponse(
+            order, provenance.GetValueOrDefault(id), customer, outstanding));
     }
+
+    // #769 — the money tier is AuthPolicies.SalesAccess, asked through the
+    // authorization service rather than re-encoded as a Roles.* predicate.
+    // /sales/{id}/payments, the record-payment route and /customers/balances
+    // already require that SAME policy, and only this endpoint needs to derive
+    // a hint from it, so a second encoding (the Roles.MayExceedDiscountCeiling
+    // shape, where a handler and an endpoint both decide and must not drift)
+    // would buy nothing and would let this column disagree with
+    // /customers/balances about who may see money. Widening the money tier
+    // must move all four routes at once.
+    private static async Task<bool> MaySeeMoneyAsync(
+        IAuthorizationService authorization, HttpContext http) =>
+        (await authorization.AuthorizeAsync(http.User, AuthPolicies.SalesAccess)).Succeeded;
 
     private static async Task<IResult> ListSalesOrders(
         ISalesOrderRepository orders,
         Cluckwork.Application.Features.Customers.ICustomerRepository customers,
         IAuditEventRepository audit,
+        IAuthorizationService authorization, HttpContext http,
         TenantContext tenant, CancellationToken ct,
         string? status = null, Guid? customerId = null,
         DateOnly? from = null, DateOnly? to = null,
-        int? limit = null, int? offset = null)
+        int? limit = null, int? offset = null, bool? unpaid = null)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
@@ -233,21 +258,40 @@ public static class SaleEndpoints
         var take = Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize);
         var skip = Math.Max(offset ?? 0, 0);
 
-        var list = await orders.ListAsync(statusFilter, customerId, from, to, take, skip, ct);
+        // #769 — the route stays SalesFlow (workers build orders, so they must
+        // keep reaching the list), and the MONEY inside the response is gated
+        // separately. `unpaid=true` from outside the tier is refused outright
+        // rather than ignored: silently dropping it would answer a different
+        // question than the one asked, which is the exact defect this issue
+        // exists to end.
+        var maySeeMoney = await MaySeeMoneyAsync(authorization, http);
+        if (unpaid == true && !maySeeMoney)
+            return Results.Problem(
+                "Filtering orders by what they still owe is the Sales tier (Owner, Manager, Sales).",
+                statusCode: StatusCodes.Status403Forbidden, title: "Auth.Forbidden");
+        var settlement = !maySeeMoney ? SettlementScope.Hidden
+            : unpaid == true ? SettlementScope.UnpaidOnly
+            : SettlementScope.Visible;
+
+        var list = await orders.ListAsync(
+            new SalesOrderListFilter(statusFilter, customerId, from, to, settlement),
+            take, skip, ct);
         var provenance = await audit.GetProvenanceAsync(
-            nameof(SalesOrder), list.Select(o => o.Id).ToList(), ct);
+            nameof(SalesOrder), list.Select(r => r.Order.Id).ToList(), ct);
         // #512 T048 — one scoped bulk customer read for the page, not one per
         // order. A missing key means the customer left this tenant, which the
         // tenant filter makes unreachable on a scoped route; the row then carries
         // a null name rather than an identifier fragment.
         var names = await customers.GetDisplayNamesAsync(
-            list.Select(o => o.CustomerId).ToList(), ct);
-        return Results.Ok(list.Select(o => ToResponse(
-            o, provenance.GetValueOrDefault(o.Id), names.GetValueOrDefault(o.CustomerId))));
+            list.Select(r => r.Order.CustomerId).ToList(), ct);
+        return Results.Ok(list.Select(r => ToResponse(
+            r.Order, provenance.GetValueOrDefault(r.Order.Id),
+            names.GetValueOrDefault(r.Order.CustomerId), r.OutstandingMinorUnits)));
     }
 
     private static SalesOrderResponse ToResponse(
-        SalesOrder o, EntityProvenance? p, CustomerReference? customer = null) => new(
+        SalesOrder o, EntityProvenance? p, CustomerReference? customer = null,
+        long? outstandingMinorUnits = null) => new(
         o.Id, o.CustomerId, o.ReferenceNumber, o.OrderDate, o.Status.ToString(),
         o.TotalAmount.MinorUnits, o.TotalAmount.CurrencyCode, o.TotalAmount.CurrencyMinorUnit,
         o.VoidReason,
@@ -259,7 +303,8 @@ public static class SaleEndpoints
         p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc,
         p?.MadeOfficialAtUtc,
         customer?.Name,
-        o.DiscountReasonCode?.ToString(), o.DiscountReasonNote);
+        o.DiscountReasonCode?.ToString(), o.DiscountReasonNote,
+        outstandingMinorUnits);
 
     private static async Task<IResult> VoidSale(
         Guid id,
@@ -366,7 +411,15 @@ public sealed record SalesOrderResponse(
     // before that shipped (no backfill), which reads as "not recorded", never as
     // "no discount". The code is the enum MEMBER NAME; the SPA renders it
     // through i18n/enums.ts and never displays it raw.
-    string? DiscountReasonCode = null, string? DiscountReasonNote = null);
+    string? DiscountReasonCode = null, string? DiscountReasonNote = null,
+    // #769 — what this order still owes: confirmed total − non-voided
+    // payments. NULL means the figure does not exist for this row, and it has
+    // exactly two causes: the order is not Confirmed (payments attach to
+    // confirmed orders only, so a 0 would read as settled), or the caller is
+    // outside the money tier — for whom the repository never queries Payments
+    // at all. One field, never a paid companion: paid is total − outstanding,
+    // so there is no second number to drift.
+    long? OutstandingMinorUnits = null);
 
 public sealed record CreateSalesOrderRequest(Guid CustomerId, DateOnly OrderDate);
 
@@ -376,7 +429,15 @@ public sealed record VoidSaleRequest(string Reason);
 // See the `.Accepts` call on the route for why the wildcard content type there
 // is what makes that keep working.
 public sealed record ConfirmSaleRequest(
-    string? DiscountReasonCode = null, string? DiscountReasonNote = null);
+    string? DiscountReasonCode = null, string? DiscountReasonNote = null,
+    // #769 — what this order still owes: confirmed total − non-voided
+    // payments. NULL means the figure does not exist for this row, and it has
+    // exactly two causes: the order is not Confirmed (payments attach to
+    // confirmed orders only, so a 0 would read as settled), or the caller is
+    // outside the money tier — for whom the repository never queries Payments
+    // at all. One field, never a paid companion: paid is total − outstanding,
+    // so there is no second number to drift.
+    long? OutstandingMinorUnits = null);
 
 public sealed record AddOrderItemRequest(
     Guid ProductId, int Quantity, string? Unit, long? UnitPriceMinorUnits,
