@@ -378,9 +378,10 @@ export const tl = {
     reference: "Reference",
     amount: "Halaga",
     total: "Kabuuan",
-    // #769 — tingnan ang en.ts. "Natitira" ang salitang ginagamit ng tulong at
-    // ng glosaryo para sa parehong kolum na ito (#688).
-    outstanding: "Natitira",
+    // #769 — tingnan ang en.ts. "Nakabinbin" ang salitang ginagamit na ng
+    // paymentsSummary, ng voidPaymentBody at ng ulat para sa parehong konsepto,
+    // kaya iyon din ang ginagamit ng kolum, ng tulong at ng glosaryo (#688).
+    outstanding: "Nakabinbin",
     settledBadge: "Bayad na",
     partlyPaidNote: "may bahagi nang nabayaran sa order na ito",
 
@@ -391,7 +392,7 @@ export const tl = {
     // Status-filter options — status labels now come from enums:status (#182).
     allOption: "Lahat",
     // #769 — sariling kontrol, hindi halaga sa dropdown ng status.
-    unpaidOnlyFilter: "May natitira lang",
+    unpaidOnlyFilter: "May nakabinbin lang",
 
     // Unit picker (the sale unit, e.g. "3 Dozen") — text equals the enum value.
     // NOTE (flag for native review): several unit/method nouns kept as common
@@ -2477,12 +2478,12 @@ export const tl = {
       "<strong>Mga Bayad</strong> (Benta, Manager, o admin — ang pag-void ng isang bayad ay para sa "
       + "admin/manager lang): ipinapakita ng panel ng isang nakumpirmang order ang settlement history nito "
       + "— magtala ng bahagyang bayad (petsa, halaga, paraan, opsyonal na reference) hanggang umabot sa "
-      + "zero ang natitirang halaga; tinatanggihan ang overpayment. Ang isang maling bayad ay "
-      + "<strong>ina-void</strong> (kailangan ng dahilan) at tumataas muli ang natitirang halaga. Ang isang "
+      + "zero ang nakabinbin na halaga; tinatanggihan ang overpayment. Ang isang maling bayad ay "
+      + "<strong>ina-void</strong> (kailangan ng dahilan) at tumataas muli ang nakabinbin na halaga. Ang isang "
       + "order na may bayad ay hindi puwedeng i-void hangga't hindi pa na-void ang mga bayad nito. "
-      + "Ipinapakita ng Customers page ang natitirang balanse ng bawat customer, at may kolum na "
-      + "<strong>Natitira</strong> kada order ang listahan ng mga order, kasama ang kahon na "
-      + "<strong>May natitira lang</strong> na pinapaliit ang buong listahan — hindi lang ang mga "
+      + "Ipinapakita ng Customers page ang nakabinbin na balanse ng bawat customer, at may kolum na "
+      + "<strong>Nakabinbin</strong> kada order ang listahan ng mga order, kasama ang kahon na "
+      + "<strong>May nakabinbin lang</strong> na pinapaliit ang buong listahan — hindi lang ang mga "
       + "hilerang nasa screen — sa mga order na may utang pa.",
 
     reportsHeading: "Mga Report",
@@ -2765,7 +2766,7 @@ export const tl = {
     mistakesRow4Mistake: "Naitalang maling bayad",
     mistakesRow4Fix:
       "Benta → buksan ang order → mga bayad → <strong>i-void</strong> (kailangan ng dahilan): mananatili "
-      + "ang row at tataas muli ang natitirang halaga.",
+      + "ang row at tataas muli ang nakabinbin na halaga.",
 
     mistakesRow5Mistake: "Maling <em>dami</em> sa isang pagbili ng feed / nasirang feed",
     mistakesRow5Fix:
@@ -3074,17 +3075,17 @@ export const tl = {
     glossaryAboveListTerm: "Higit sa presyo sa listahan",
     glossaryAboveListDef: "Isang linyang naibenta nang higit sa sarili nitong presyo sa listahan.",
 
-    glossaryOutstandingTerm: "Natitira",
+    glossaryOutstandingTerm: "Nakabinbin",
     glossaryOutstandingDef:
       "Kung magkano pa ang utang ng isang nakumpirmang order: ang kabuuan nito bawas ang bawat "
       + "bayad na hindi na-void. Ipinapakita ito ng listahan ng mga order sa sariling kolum nitong "
-      + "Natitira, at pinapaliit ng May natitira lang ang listahan sa mga order na may utang pa — "
-      + "ang order na bahagyang nabayaran ay may natitira pa rin, kaya kasama ito. Ang order na "
+      + "Nakabinbin, at pinapaliit ng May nakabinbin lang ang listahan sa mga order na may utang pa "
+      + "— ang order na bahagyang nabayaran ay may nakabinbin pa rin, kaya kasama ito. Ang order na "
       + "tapos nang bayaran ay nagsasabing Bayad na sa halip na zero. Ang mga order na draft, "
       + "kanselado at na-void ay nagpapakita ng gitling: ang mga bayad ay para lang sa nakumpirmang "
-      + "order, kaya wala silang halagang natitira. Ang pag-void ng isang bayad ay nagpapabalik ng "
-      + "natitirang halaga. Ang mga user lang na Benta, Manager at owner ang nakakakita ng kolum na "
-      + "ito.",
+      + "order, kaya wala silang nakabinbin na halaga. Ang pag-void ng isang bayad ay nagpapabalik "
+      + "ng nakabinbin na halaga. Ang mga user lang na Benta, Manager at owner ang nakakakita ng "
+      + "kolum na ito.",
 
     glossaryInventoryItemTerm: "Item sa imbentaryo",
     glossaryInventoryItemDef:
