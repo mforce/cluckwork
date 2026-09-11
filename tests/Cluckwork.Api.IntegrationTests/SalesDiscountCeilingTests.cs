@@ -25,7 +25,10 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
 
     private sealed record IdDto(Guid Id);
     private sealed record OrderItemDto(long UnitPriceMinorUnits, long? ListUnitPriceMinorUnits);
-    private sealed record OrderDto(Guid Id, string Status, int Version, List<OrderItemDto> Items);
+    // Deliberately no Version: SalesOrderResponse does not carry one, and a
+    // record property with no matching JSON member deserializes to 0 — an
+    // assertion built on it would compare two numbers the server never sent.
+    private sealed record OrderDto(Guid Id, string Status, List<OrderItemDto> Items);
     private sealed record ProblemDto(string? Title, string? Detail);
 
     private sealed record Fixture(Guid AccountId, Guid ProductId);
@@ -348,7 +351,8 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
         await SetCeilingAsync(farm.AccountId, TenPercent);
         var sales = await SeedUserAsync(farm.AccountId, Roles.Sales);
         var orderId = await DraftAsync(farm, sales, unitPrice: 80);
-        var versionBefore = (await sales.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}"))!.Version;
+        var versionBefore = await factory.WithTenantScopeAsync(farm.AccountId, async db =>
+            (await db.SalesOrders.AsNoTracking().SingleAsync(o => o.Id == orderId)).Version);
 
         var manager = await SeedUserAsync(farm.AccountId, Roles.Manager);
         var responses = await Task.WhenAll(
