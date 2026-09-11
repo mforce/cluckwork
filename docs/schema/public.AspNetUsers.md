@@ -146,6 +146,7 @@ erDiagram
   varchar_16_ DefaultStepperUnit
   varchar_32_ Slug
   varchar_24_ WorkerSaleAllocationPolicy
+  integer MaxDiscountBasisPoints
 }
 ```
 

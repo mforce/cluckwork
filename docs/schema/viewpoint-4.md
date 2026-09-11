@@ -8,7 +8,7 @@ Tenancy root, audit, jobs, idempotency, seeding bookkeeping.
 
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
-| [public.Accounts](public.Accounts.md) | 18 |  | BASE TABLE |
+| [public.Accounts](public.Accounts.md) | 19 |  | BASE TABLE |
 | [public.AuditEvents](public.AuditEvents.md) | 11 |  | BASE TABLE |
 | [public.durable_jobs](public.durable_jobs.md) | 9 |  | BASE TABLE |
 | [public.FarmLogos](public.FarmLogos.md) | 18 |  | BASE TABLE |
@@ -40,6 +40,7 @@ erDiagram
   varchar_16_ DefaultStepperUnit
   varchar_32_ Slug
   varchar_24_ WorkerSaleAllocationPolicy
+  integer MaxDiscountBasisPoints
 }
 "public.AuditEvents" {
   uuid Id
