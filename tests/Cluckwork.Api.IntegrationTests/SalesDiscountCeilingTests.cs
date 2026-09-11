@@ -340,10 +340,45 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
 
     // --- concurrency --------------------------------------------------------
 
-    // The Version++ rule's parallel race, on the path this slice touches. Step
-    // 5b reads the account row already locked FOR SHARE and mutates nothing, so
-    // two managers racing the SAME over-ceiling order must still allocate
-    // exactly once: one 200, one 409, one Sale movement, one Version bump.
+    // Two ceiling-BOUND sellers racing the same over-ceiling order. This is the
+    // pair that actually enters step 5b — the managers below short-circuit on
+    // MayExceedDiscountCeiling before FindCeilingBreach is ever called — so it
+    // is the one that covers the new branch under contention. Neither may
+    // confirm, so the order must survive the race untouched: no allocation, no
+    // Version bump, and no window in which one of them slips through.
+    [Fact]
+    public async Task TwoSalesUsersRacingOneOverCeilingOrder_AreBothRefused_AndTheOrderIsUntouched()
+    {
+        var farm = await SeedFarmAsync();
+        await SetCeilingAsync(farm.AccountId, TenPercent);
+        var first = await SeedUserAsync(farm.AccountId, Roles.Sales);
+        var second = await SeedUserAsync(farm.AccountId, Roles.Sales);
+        var orderId = await DraftAsync(farm, first, unitPrice: 80);
+        var versionBefore = await OrderVersionAsync(farm.AccountId, orderId);
+
+        var responses = await Task.WhenAll(
+            ConfirmAsync(first, orderId),
+            ConfirmAsync(second, orderId));
+
+        Assert.All(responses, r =>
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, r.StatusCode));
+
+        var (status, available) = await SnapshotAsync(farm.AccountId, orderId);
+        Assert.Equal("Draft", status);
+        Assert.Equal(SeededStock, available);
+        Assert.Equal(versionBefore, await OrderVersionAsync(farm.AccountId, orderId));
+    }
+
+    private Task<int> OrderVersionAsync(Guid accountId, Guid orderId) =>
+        factory.WithTenantScopeAsync(accountId, async db =>
+            (await db.SalesOrders.AsNoTracking().SingleAsync(o => o.Id == orderId)).Version);
+
+    // The Version++ rule's parallel race. Both actors are EXEMPT, so this does
+    // not cover step 5b's refusal — the test above does that. What it covers is
+    // that inserting step 5b into the transaction did not open a window in the
+    // allocation race that was already there: two managers racing the SAME
+    // over-ceiling order must still allocate exactly once, one 200, one 409,
+    // one Sale movement, one Version bump.
     [Fact]
     public async Task TwoManagersConfirmingOneOverCeilingOrderConcurrently_AllocateItExactlyOnce()
     {
@@ -351,8 +386,7 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
         await SetCeilingAsync(farm.AccountId, TenPercent);
         var sales = await SeedUserAsync(farm.AccountId, Roles.Sales);
         var orderId = await DraftAsync(farm, sales, unitPrice: 80);
-        var versionBefore = await factory.WithTenantScopeAsync(farm.AccountId, async db =>
-            (await db.SalesOrders.AsNoTracking().SingleAsync(o => o.Id == orderId)).Version);
+        var versionBefore = await OrderVersionAsync(farm.AccountId, orderId);
 
         var manager = await SeedUserAsync(farm.AccountId, Roles.Manager);
         var responses = await Task.WhenAll(

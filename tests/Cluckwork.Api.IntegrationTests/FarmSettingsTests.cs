@@ -944,6 +944,45 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         Assert.Null((await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.MaxDiscountPercent);
     }
 
+    // The sharp edge of a whole-block replace, pinned rather than left to be
+    // discovered: PUT /account/settings replaces every field, and
+    // MaxDiscountPercent is nullable, so a body that OMITS it binds null and
+    // CLEARS the farm's ceiling. Every other field on this screen fails loudly
+    // when omitted — WorkerSaleAllocationPolicy is a non-nullable string, so a
+    // missing one is a 400 from the validator — and this one does not. Any
+    // client that saves this screen must send the field back, and a client that
+    // forgets deletes a policy the owner set.
+    [Fact]
+    public async Task Save_OmittingTheCeilingEntirely_ClearsIt()
+    {
+        var (client, _, _) = await AdminAsync();
+        var before = await GetAccountAsync(client);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await PutSettingsAsync(client, Body(before, maxDiscountPercent: 10m))).StatusCode);
+        Assert.Equal(10m, (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.MaxDiscountPercent);
+
+        var current = await GetAccountAsync(client);
+        var bodyWithoutTheCeiling = new
+        {
+            name = current.Name,
+            timeZoneId = current.TimeZoneId,
+            locale = current.Locale,
+            currencyCode = current.CurrencyCode,
+            unitSystem = current.UnitSystem,
+            firstDayOfWeek = current.FirstDayOfWeek,
+            dateFormatOverride = current.DateFormatOverride,
+            timeFormatOverride = current.TimeFormatOverride,
+            brand = current.Brand,
+            defaultStepperUnit = current.DefaultStepperUnit,
+            workerSaleAllocationPolicy = "AssignedFlocksOnly",
+            version = current.Version,
+        };
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await PutSettingsAsync(client, bodyWithoutTheCeiling)).StatusCode);
+
+        Assert.Null((await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.MaxDiscountPercent);
+    }
+
     // The boundary refuses what DiscountCeiling.TryParsePercent refuses,
     // because it IS that parser: a 400 from the validator, not a 422 from the
     // aggregate.

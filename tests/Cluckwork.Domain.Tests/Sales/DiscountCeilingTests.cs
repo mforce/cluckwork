@@ -44,14 +44,18 @@ public sealed class DiscountCeilingTests
     public void AZeroCeiling_RefusesAnyDiscountAtAll(long unit, bool exceeded) =>
         Assert.Equal(exceeded, DiscountCeiling.FromBasisPoints(0).IsExceededBy(1_000L, unit));
 
-    // 100% off is exactly at a 100% ceiling, so the strict > allows it.
+    // 100% off is exactly AT a 100% ceiling, so the strict > allows it, and no
+    // non-negative price can exceed the top of the range. Paired with the
+    // ceiling one basis point below, which refuses the same free line — without
+    // that contrast both rows would read `false` and the assertion would hold
+    // against an IsExceededBy that returned a constant.
     [Theory]
-    [InlineData(0L, false)]
-    [InlineData(1L, false)]
-    public void AHundredPercentCeiling_AllowsGivingTheWholeListPriceAway(long unit, bool exceeded) =>
+    [InlineData(DiscountCeiling.MaxBasisPoints, false)]
+    [InlineData(DiscountCeiling.MaxBasisPoints - 1, true)]
+    public void AtTheTopOfTheRange_GivingTheWholeListPriceAwayIsAllowed(int basisPoints, bool exceeded) =>
         Assert.Equal(
             exceeded,
-            DiscountCeiling.FromBasisPoints(DiscountCeiling.MaxBasisPoints).IsExceededBy(1_000L, unit));
+            DiscountCeiling.FromBasisPoints(basisPoints).IsExceededBy(1_000L, 0L));
 
     // --- Int128 headroom ---------------------------------------------------
 
