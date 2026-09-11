@@ -16,6 +16,7 @@ using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Application.Features.Customers;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 public static class SaleEndpoints
 {
@@ -196,7 +197,7 @@ public static class SaleEndpoints
     private static async Task<IResult> GetSalesOrder(
         Guid id, ISalesOrderRepository orders, ICustomerRepository customers,
         IAuditEventRepository audit, IPaymentRepository payments,
-        IAuthorizationService authorization, HttpContext http,
+        IAuthorizationService authorization, ClaimsPrincipal caller,
         TenantContext tenant, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -210,7 +211,7 @@ public static class SaleEndpoints
         // list. Leaving this null while the list carries it would make the two
         // surfaces disagree about the same order, which #512 forbids.
         long? outstanding = null;
-        if (order.Status == SalesOrderStatus.Confirmed && await MaySeeMoneyAsync(authorization, http))
+        if (order.Status == SalesOrderStatus.Confirmed && await MaySeeMoneyAsync(authorization, caller))
             outstanding = order.TotalAmount.MinorUnits
                 - await payments.SumNonVoidedByOrderAsync(id, ct);
         return Results.Ok(ToResponse(
@@ -226,15 +227,20 @@ public static class SaleEndpoints
     // would buy nothing and would let this column disagree with
     // /customers/balances about who may see money. Widening the money tier
     // must move all four routes at once.
+    //
+    // ClaimsPrincipal, not HttpContext: an HttpContext parameter makes the
+    // handler body-capable, and BodyReadingEndpointTests then demands a row in
+    // ReviewedAsNotReadingTheBody for a GET that has no body to read. The
+    // principal is the only thing the policy needs.
     private static async Task<bool> MaySeeMoneyAsync(
-        IAuthorizationService authorization, HttpContext http) =>
-        (await authorization.AuthorizeAsync(http.User, AuthPolicies.SalesAccess)).Succeeded;
+        IAuthorizationService authorization, ClaimsPrincipal caller) =>
+        (await authorization.AuthorizeAsync(caller, AuthPolicies.SalesAccess)).Succeeded;
 
     private static async Task<IResult> ListSalesOrders(
         ISalesOrderRepository orders,
         Cluckwork.Application.Features.Customers.ICustomerRepository customers,
         IAuditEventRepository audit,
-        IAuthorizationService authorization, HttpContext http,
+        IAuthorizationService authorization, ClaimsPrincipal caller,
         TenantContext tenant, CancellationToken ct,
         string? status = null, Guid? customerId = null,
         DateOnly? from = null, DateOnly? to = null,
@@ -264,7 +270,7 @@ public static class SaleEndpoints
         // rather than ignored: silently dropping it would answer a different
         // question than the one asked, which is the exact defect this issue
         // exists to end.
-        var maySeeMoney = await MaySeeMoneyAsync(authorization, http);
+        var maySeeMoney = await MaySeeMoneyAsync(authorization, caller);
         if (unpaid == true && !maySeeMoney)
             return Results.Problem(
                 "Filtering orders by what they still owe is the Sales tier (Owner, Manager, Sales).",
