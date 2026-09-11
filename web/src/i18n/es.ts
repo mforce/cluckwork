@@ -402,11 +402,11 @@ export const es = {
       + "tomen stock de fuera de tus parvadas asignadas.",
     // #727
     discountCeilingNotice:
-      "Esta granja te limita a un {{percent}}% de descuento sobre el precio de lista en "
+      "Esta granja limita su descuento a un {{percent}}% sobre el precio de lista en "
       + "una sola línea. Un propietario o gerente puede confirmar un pedido que lo supere.",
     discountCeilingBlocked:
       "Una línea de este pedido tiene más de un {{percent}}% de descuento, así que no "
-      + "puedes confirmarlo. Pide a un propietario o gerente que lo confirme, o cambia "
+      + "puede confirmarlo. Pida a un propietario o gerente que lo confirme, o cambie "
       + "el precio de la línea.",
     noOrdersMatch: "Ningún pedido coincide.",
     noOrdersMessage: "Aún no hay pedidos.",
@@ -1202,7 +1202,7 @@ export const es = {
     maxDiscountPercentHint:
       "El mayor descuento que un usuario de Ventas o Trabajador puede poner en una "
       + "línea de venta, como porcentaje entero del precio de lista de esa línea. "
-      + "Déjalo en blanco para no poner límite. 0 no es lo mismo que en blanco: "
+      + "Déjelo en blanco para no poner límite. 0 no es lo mismo que en blanco: "
       + "significa que el personal de ventas no puede dar ningún descuento. Un "
       + "propietario o gerente siempre puede confirmar un pedido que lo supere.",
     firstDayOfWeekLabel: "Primer día de la semana",
@@ -2362,11 +2362,11 @@ export const es = {
       + "tomado antes de que se registraran los precios de lista se lee allí como \"Desconocido\", nunca "
       + "como cero.",
     salesDiscountCeiling:
-      "Tu granja puede limitar cuánto descuento puedes dar. Cuando lo hace, la pantalla de Ventas lo "
+      "Su granja puede limitar cuánto descuento puede dar. Cuando lo hace, la pantalla de Ventas lo "
       + "indica y una línea por encima del límite lleva la etiqueta <strong>Sobre el máximo</strong>, "
       + "con <strong>Confirmar pedido</strong> desactivado hasta que se cambie el precio de la línea. El "
       + "pedido sigue siendo un borrador — no se pone en ninguna cola y no se avisa a nadie, así que "
-      + "pídeselo a un propietario o gerente, que puede confirmarlo sin tocarlo. Los propietarios y "
+      + "pídaselo a un propietario o gerente, que puede confirmarlo sin tocarlo. Los propietarios y "
       + "gerentes nunca están limitados. El límite se fija en Configuración de la granja como "
       + "<strong>Descuento máximo</strong>.",
     salesConfirming:
@@ -2582,7 +2582,7 @@ export const es = {
     farmSettingsMaxDiscount:
       "<strong>Descuento máximo</strong> es el mayor descuento que un usuario de Ventas o Trabajador "
       + "puede poner en una línea de venta, como porcentaje entero del precio de lista de esa línea. "
-      + "Déjalo en blanco para no poner límite. <strong>0 no es lo mismo que en blanco</strong>: "
+      + "Déjelo en blanco para no poner límite. <strong>0 no es lo mismo que en blanco</strong>: "
       + "significa que el personal de ventas no puede dar ningún descuento. Los propietarios y gerentes "
       + "no están limitados por él y pueden confirmar un pedido que lo supere.",
 
