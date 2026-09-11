@@ -368,3 +368,64 @@ on five forks is the strongest signal in this document.
 `DiscountCeiling` with `TryParsePercent` and `IsExceededBy`, plus its unit-test table —
 boundary-exact allowed, one minor unit over refused, zero list price, zero ceiling, 100%
 ceiling — because that table is the shared vector set the TypeScript mirror is later held to.
+
+## 9. What the design got wrong, found while implementing it
+
+Recorded here rather than by editing §§1–8, so the document still reads as the
+design that was decided and this section reads as what surviving contact with the
+code cost it. Five corrections, four of them defects in the design's own reasoning.
+
+**§4.1's `Int128` rule names the wrong operation.** It says "both products are
+taken in `Int128`" and names only the products. The **subtraction** is the actual
+hazard: `(Int128)(list - unit)` subtracts in 64 bits and widens an already-wrapped
+result, so `long.MaxValue - long.MinValue` becomes `-1` and the largest expressible
+discount reports as no discount at all. The shipped form casts before subtracting,
+`((Int128)list - unit) * 10_000`, and a test pins it.
+
+**§4.1's zero-list-price claim holds only for non-negative unit prices.** "A zero
+list price can never breach — no divide-by-zero guard, no special case" is true of
+the comparison, which never divides, but not of the percent the refusal message
+needs. `Money` is signed and `AddItem` applies no sign check, so a negative unit
+price against a zero list reaches a division by zero. `AgainstCeiling`'s `Recorded`
+arm carries a `list > 0` guard for that reason.
+
+**§4.3 and §4.5 contradict each other.** §4.3 gives `CheckWithinCeiling(ceiling)` a
+bare `Result` return and §4.4 shows the handler forwarding `within.Error` unchanged,
+while §4.5 requires the English `detail` to name the offending line by egg grade —
+a name the Domain assembly cannot resolve, since `SalesOrderItem` carries only an
+`EggGradeId`. An `Error` whose string is already finished leaves the handler nothing
+to enrich, and resolving grade names eagerly would add a query to the happy path.
+Shipped instead as `FindCeilingBreach` returning a `CeilingBreach?`: the domain
+decides **who** breaches, the handler composes the refusal. That is the seam the
+same handler already uses twenty lines away, where `SaleAllocationPlan` returns
+`ShortEggGradeId` and `ConfirmSaleHandler` builds `EggLot.InsufficientStock`. The
+contradiction reads as a graft seam — grade-naming came from candidate B onto
+candidate A's base (§7) and the two halves were never reconciled.
+
+**§4.6 assumes a role is in scope on `GET /account`, and none was.** The endpoint
+took `IAccountRepository`, `IFarmLogoRepository`, `TenantContext` and `FlockScope`.
+The sibling `ShowFarmWideSaleAllocationNotice` sidesteps the problem by keying on
+`flockScope.IsUnrestricted`, which is a flock-scope proxy and not a role, so it
+could not be copied. The role comes from `ICurrentUser.Roles` through
+`Roles.ResolveEffective`, which is what makes §4.6's "claims-derived, so a promoted
+user sees a stale hint" contract accurate as written.
+
+**§3's defence of `ProductUnpriced` does not reach the actor who gains.** It argues
+that "minting or unpricing a product is `AuthPolicies.AdminOnly` — exactly the
+Owner/Manager tier that may exceed the ceiling anyway, so there is no privilege to
+gain." That reasons about the admin performing the action. The standing exemption
+accrues to every Sales user and Worker selling that product afterwards, no screen
+says the product is exempt, and a product simply **created without a price** is a
+commoner route there than an admin deliberately unpricing one. The routing is still
+judged correct — a discount from nothing is undefined, not zero — but that is a
+different claim from the one §3 makes, and the two should not be read as the same.
+
+**One addition the design did not call for.** `Account.MaxDiscount` resolves the
+column through `DiscountCeiling.FromBasisPoints`, which throws outside 0–10 000, and
+that getter is read on the role-agnostic `GET /api/v1/account` every authenticated
+page load hits — so one out-of-range row would 500 the whole farm, including the
+Settings screen that would correct it. `AccountConfiguration` declares a
+`CK_Accounts_MaxDiscountBasisPoints` check constraint with an `IS NULL` arm, so the
+range fails closed in both layers per #673 and the getter's throw is unreachable
+rather than merely unlikely. #732 records that raw `UPDATE`s against `Accounts` do
+happen, which is what makes this worth a constraint rather than a comment.
