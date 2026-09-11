@@ -221,27 +221,85 @@ describe("AuditPage load + render", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("renders an AddItem payload as the artboard's summary, from the payload alone", async () => {
-    mockListAuditEvents.mockResolvedValue([{
-      id: "d1",
-      occurredAtUtc: "2026-09-08T14:16:00Z",
-      actorEmail: "admin@farm.test",
-      action: "SalesOrder.AddItem",
-      entityType: "SalesOrder",
-      entityId: "10d2c04d-0000",
-      reason: null,
-      detailsJson: JSON.stringify({
-        salesOrderItemId: "11111111-0000", productId: "22222222-0000",
-        productName: "Large Eggs", unit: "Egg", quantity: 240,
-        unitPriceMinorUnits: 40, listUnitPriceMinorUnits: 45,
-        listPriceBasis: "Recorded", currencyCode: "USD", currencyMinorUnit: 2,
-      }),
-    }]);
+  // #758 — the four AddItem price cases. Each asserts the cell's LITERAL text,
+  // because the defect these replace was a plausible, correctly formatted,
+  // wrong number: the shipped branch printed the LIST price as though it were
+  // the sale price, and a test asserting "a price rendered" passed throughout.
+  // getByText with an exact string is the point; a regex on one number is what
+  // let this ship.
+  const addItemEvent = (details: Record<string, unknown>) => ({
+    id: "d1",
+    occurredAtUtc: "2026-09-08T14:16:00Z",
+    actorEmail: "admin@farm.test",
+    action: "SalesOrder.AddItem",
+    entityType: "SalesOrder",
+    entityId: "10d2c04d-0000",
+    reason: null,
+    detailsJson: JSON.stringify({
+      salesOrderItemId: "11111111-0000", productId: "22222222-0000",
+      productName: "Large Eggs", unit: "Egg", quantity: 240,
+      listPriceBasis: "Recorded", currencyCode: "USD", currencyMinorUnit: 2,
+      ...details,
+    }),
+  });
+
+  // The cell is a fragment of text nodes, so read the whole cell's textContent
+  // rather than matching one node — that is what pins the ORDER of the two
+  // prices, and it is the assertion the bug would have failed.
+  const detailsText = async () => {
+    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    const cells = within(row).getAllByRole("cell");
+    return cells[cells.length - 1].textContent;
+  };
+
+  it("shows the SALE price, and the list price beside it, on a below-list AddItem row", async () => {
+    mockListAuditEvents.mockResolvedValue([
+      addItemEvent({ unitPriceMinorUnits: 20, listUnitPriceMinorUnits: 45 }),
+    ]);
     renderAudit();
 
-    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
-    expect(within(row).getByText(/Large Eggs ×240/)).toBeInTheDocument();
-    expect(within(row).getByText(/\$0\.45/)).toBeInTheDocument();
+    // The shipped defect rendered "Large Eggs ×240 at list $0.45" here.
+    expect(await detailsText()).toBe("Large Eggs ×240 at $0.20 (list $0.45)");
+  });
+
+  it("shows both prices, and no marker word, on an above-list AddItem row", async () => {
+    mockListAuditEvents.mockResolvedValue([
+      addItemEvent({ unitPriceMinorUnits: 30, listUnitPriceMinorUnits: 22 }),
+    ]);
+    renderAudit();
+
+    // #719 open question 4: a markup is not a discount. Both numbers, no word
+    // naming the direction — the reader reads it off the pair.
+    const text = await detailsText();
+    expect(text).toBe("Large Eggs ×240 at $0.30 (list $0.22)");
+    expect(text).not.toMatch(/discount|above|below|over|under/i);
+  });
+
+  it("still reads 'at list' — and no noisier — when the line sold at list", async () => {
+    mockListAuditEvents.mockResolvedValue([
+      addItemEvent({ unitPriceMinorUnits: 30, listUnitPriceMinorUnits: 30 }),
+    ]);
+    renderAudit();
+
+    // Equal prices stay a single number. Printing "at $0.30 (list $0.30)" here
+    // would be correct and unreadable, so it is pinned as a regression too.
+    expect(await detailsText()).toBe("Large Eggs ×240 at list $0.30");
+  });
+
+  it("shows the sale price alone when the line has no list price", async () => {
+    mockListAuditEvents.mockResolvedValue([
+      addItemEvent({
+        unitPriceMinorUnits: 15,
+        listUnitPriceMinorUnits: null,
+        listPriceBasis: "ProductUnpriced",
+      }),
+    ]);
+    renderAudit();
+
+    // #720: a null list price is absent, never a zero price in parentheses.
+    const text = await detailsText();
+    expect(text).toBe("Large Eggs ×240 at $0.15");
+    expect(text).not.toContain("$0.00");
   });
 
   it("renders an UpdateItem payload with the old price struck through and the new one bold", async () => {
