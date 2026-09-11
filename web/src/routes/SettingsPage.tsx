@@ -100,6 +100,14 @@ function errText(err: unknown): string {
 // rather than "".
 const orNull = (value: string): string | null => (value.trim() === "" ? null : value.trim());
 
+// #727 — the same contract for the ceiling, in numbers. The blank test comes
+// FIRST and is the whole point: Number("") is 0, so testing the parsed value
+// would send "no discount allowed" for a farm that meant "no limit". The range
+// is held by the input's own min/max/step and by the server's validator; this
+// only decides blank from not-blank.
+const percentOrNull = (value: string): number | null =>
+  (value.trim() === "" ? null : Number(value.trim()));
+
 // A byte cap as a short human string (#123). The cap is admin CONFIG, so it is
 // not always a round power of two: 2 MB reads "2 MB", 512 KB reads "512 KB",
 // and 1,000,000 bytes reads "977 KB" rather than the raw "0.95367… MB" a plain
@@ -165,6 +173,11 @@ export function SettingsPage() {
   // every other role only ever sees the derived showFarmWideSaleAllocationNotice.
   const [workerSaleAllocationPolicy, setWorkerSaleAllocationPolicy] =
     useState("AssignedFlocksOnly");
+  // #727 — held as the raw input string, not a number, because blank and 0 are
+  // two different settings and a number state would have to spell blank as
+  // null anyway. Lives on the FarmSettings wrapper (admin-only) like the
+  // policy above; every other role sees only Account.yourMaxDiscountPercent.
+  const [maxDiscountPercent, setMaxDiscountPercent] = useState("");
   const [firstDayOfWeek, setFirstDayOfWeek] = useState("");
   const [dateFormat, setDateFormat] = useState("");
   // #452 — true once the user (or the loaded value) is on the "Custom…"
@@ -266,6 +279,9 @@ export function SettingsPage() {
     const activeCodes = units.filter((u) => u.active).map((u) => u.unitCode);
     setDefaultStepperUnit(activeCodes.includes(s.defaultStepperUnit) ? s.defaultStepperUnit : "Individual");
     setWorkerSaleAllocationPolicy(next.workerSaleAllocationPolicy);
+    // String(0) is "0", not "", so a farm that allows no discount at all loads
+    // its 0 back into the field instead of reading as "no limit".
+    setMaxDiscountPercent(next.maxDiscountPercent === null ? "" : String(next.maxDiscountPercent));
     return next;
   }
 
@@ -333,6 +349,7 @@ export function SettingsPage() {
         brand,
         defaultStepperUnit,
         workerSaleAllocationPolicy,
+        maxDiscountPercent: percentOrNull(maxDiscountPercent),
         version: loaded.settings.version,
       };
       const attempt = keyFor(saveAttempt.current, JSON.stringify(body));
@@ -719,6 +736,23 @@ export function SettingsPage() {
           </select>
         </label>
         <p className="hint">{t("workerSaleAllocationPolicyHint")}</p>
+
+        {/* #727 — the ceiling a Sales or Worker user's sale lines are held to.
+            Whole percents: this is the screen's only numeric input, and
+            type="number" disagrees with itself across browsers about `,`
+            versus `.` on a screen that formats every other number by locale.
+            Storage is basis points, so finer steps cost no migration. */}
+        <label>{t("maxDiscountPercentLabel")}
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            value={maxDiscountPercent}
+            onChange={(e) => setMaxDiscountPercent(e.target.value)}
+          />
+        </label>
+        <p className="hint">{t("maxDiscountPercentHint")}</p>
 
         <label>{t("firstDayOfWeekLabel")}
           <select value={firstDayOfWeek} onChange={(e) => setFirstDayOfWeek(e.target.value)}>
