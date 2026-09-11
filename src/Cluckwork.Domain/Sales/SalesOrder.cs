@@ -211,6 +211,59 @@ public sealed class SalesOrder : AggregateRoot<Guid>
     public bool HasBelowListLine => _items.Any(
         i => i.ListUnitPriceMinorUnits is { } list && i.UnitPrice.MinorUnits < list);
 
+    /// <summary>
+    /// The line this order should be refused for under <paramref name="ceiling"/>,
+    /// or null when every line is within it (#727).
+    /// </summary>
+    /// <remarks>
+    /// Pure: no mutation, no <c>Version</c> bump, no role and no ceiling
+    /// LOOKUP. The caller decides WHO is bound; this decides only whether the
+    /// order is over.
+    /// <para>
+    /// Deliberately OUTSIDE <see cref="CheckCanConfirm"/> and deliberately not
+    /// re-run by <see cref="Confirm"/>: that method holds rules about the
+    /// ORDER, it runs before the role is known, and Confirm re-runs it at
+    /// mutation time — so folding an ACTOR rule in would make the aggregate
+    /// refuse a transition that is legal for an Owner.
+    /// </para>
+    /// <para>
+    /// Reports the WORST offender rather than the first in item order, so the
+    /// refusal names the most egregious line. An unmeasurable line outranks
+    /// every measurable breach: a discount nobody can compute cannot be
+    /// compared against one that is known.
+    /// </para>
+    /// </remarks>
+    public CeilingBreach? FindCeilingBreach(DiscountCeiling ceiling)
+    {
+        CeilingBreach? worst = null;
+        foreach (var item in _items)
+        {
+            switch (item.AgainstCeiling(ceiling))
+            {
+                case LineCeilingStatus.Unmeasurable:
+                    return new CeilingBreach(item.EggGradeId, LineCeilingStatus.Unmeasurable, null);
+                case LineCeilingStatus.Exceeds:
+                    var percent = DiscountPercentOf(item);
+                    if (worst is null || percent > worst.Value.DiscountPercent)
+                        worst = new CeilingBreach(item.EggGradeId, LineCeilingStatus.Exceeds, percent);
+                    break;
+            }
+        }
+
+        return worst;
+    }
+
+    // Exact and unrounded — the handler decides how many decimals to print, and
+    // the SPA renders its own with the farm's separator. Taken in decimal
+    // rather than long so a full-width list price cannot wrap the subtraction.
+    // AgainstCeiling only returns Exceeds for a POSITIVE list price, so there is
+    // nothing here to divide by zero.
+    private static decimal DiscountPercentOf(SalesOrderItem item)
+    {
+        var list = item.ListUnitPriceMinorUnits!.Value;
+        return ((decimal)list - item.UnitPrice.MinorUnits) * 100m / list;
+    }
+
     // #721 — the reason is required at confirm, not at draft time, and the rule
     // lives on the aggregate rather than in a validator because the seeders
     // call the handler directly and never see one (#394).
@@ -254,6 +307,34 @@ public sealed class SalesOrder : AggregateRoot<Guid>
 }
 
 public enum SalesOrderStatus { Draft, Confirmed, Shipped, Invoiced, Cancelled, Voided }
+
+// #727 — where one line sits against the farm's discount ceiling.
+public enum LineCeilingStatus
+{
+    /// <summary>Measured and within the ceiling, or nothing was discounted.</summary>
+    Within,
+    /// <summary>Measured and past the ceiling.</summary>
+    Exceeds,
+    /// <summary>No list price to measure against, and no recorded fact saying there was none.</summary>
+    Unmeasurable,
+}
+
+/// <summary>
+/// The offending line a ceiling refusal names (#727). The domain decides WHO
+/// breaches and the caller composes the refusal, because the grade NAME lives
+/// in a repository this assembly cannot reach — the same seam
+/// <see cref="SaleAllocationPlan"/>'s ShortEggGradeId already uses for
+/// insufficient stock.
+/// </summary>
+/// <param name="DiscountPercent">
+/// Exact and unrounded, and null EXACTLY when <paramref name="Status"/> is
+/// <see cref="LineCeilingStatus.Unmeasurable"/> — printing a percent for a line
+/// whose list price is unknown would be a fabricated number.
+/// </param>
+public readonly record struct CeilingBreach(
+    Guid EggGradeId,
+    LineCeilingStatus Status,
+    decimal? DiscountPercent);
 
 // #721 — why an order was sold below list. Persisted BY NAME, so reordering
 // these members cannot silently relabel historical rows.
@@ -363,6 +444,32 @@ public sealed class SalesOrderItem : Entity<Guid>
     public Money LineTotal => UnitPrice.Multiply(Quantity);
 
     private SalesOrderItem() { }
+
+    // #727 — the basis routing lives with the entity that owns the basis.
+    internal LineCeilingStatus AgainstCeiling(DiscountCeiling ceiling) => ListPriceBasis switch
+    {
+        // The `> 0` is not redundant with the Recorded/non-null pairing: a list
+        // price of ZERO is a legal product price, and a discount is
+        // (list − unit) as a fraction OF list, so zero has no fraction to take.
+        // It is also what keeps FindCeilingBreach's reported percent total.
+        ListPriceBasis.Recorded when ListUnitPriceMinorUnits is { } list && list > 0 =>
+            ceiling.IsExceededBy(list, UnitPrice.MinorUnits)
+                ? LineCeilingStatus.Exceeds
+                : LineCeilingStatus.Within,
+        // Recorded facts (#720): nothing was discounted from anything.
+        ListPriceBasis.Recorded
+            or ListPriceBasis.ProductUnpriced
+            or ListPriceBasis.NotComparable => LineCeilingStatus.Within,
+        // "We do not know", and the line may have been deeply discounted — the
+        // enum's own comment. It carries no list price, so it never trips
+        // HasBelowListLine and #721 never asks for a reason either; waving it
+        // through here would leave an unlimited discount recorded nowhere,
+        // which is the exact hole this slice exists to close.
+        //
+        // A value no member names — a cast, or a bad row materialized by EF —
+        // lands here too, and failing closed is right for it as well.
+        _ => LineCeilingStatus.Unmeasurable,
+    };
 
     internal void Update(int quantity, Money unitPrice)
     {
