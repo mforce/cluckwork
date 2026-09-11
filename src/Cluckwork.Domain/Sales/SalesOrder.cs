@@ -465,9 +465,10 @@ public sealed class SalesOrderItem : Entity<Guid>
         // HasBelowListLine and #721 never asks for a reason either; waving it
         // through here would leave an unlimited discount recorded nowhere,
         // which is the exact hole this slice exists to close.
-        //
-        // A value no member names — a cast, or a bad row materialized by EF —
-        // lands here too, and failing closed is right for it as well.
+        ListPriceBasis.PreDating => LineCeilingStatus.Unmeasurable,
+        // A value no member names — a cast, or a row materialized from a basis
+        // this code does not know. Fails closed, same as PreDating, so a fifth
+        // member added later refuses until someone routes it deliberately.
         _ => LineCeilingStatus.Unmeasurable,
     };
 
