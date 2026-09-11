@@ -227,8 +227,9 @@ export function SalesPage() {
   // both "the farm sets none" and "you may exceed it", so there is no role
   // check here; the server collapsed them deliberately.
   const ceiling = discountCeiling(farm?.yourMaxDiscountPercent ?? null);
-  // Rendered without fraction digits: Farm settings only offers whole percents,
-  // and fmt.count keeps the separator the farm's for the day it offers more.
+  // No fraction digits, because Farm settings only offers whole percents. Still
+  // fmt.count rather than String(): the day it offers 12.5, the decimal
+  // separator has to be the farm's — es writes 12,5.
   const ceilingPercent = ceiling === null ? "" : fmt.count(ceiling.percent);
   // Void undoes a confirmed sale — admin-only (#73); the API enforces it too.
   const { isAdmin, role } = useAuth();
@@ -385,7 +386,7 @@ export function SalesPage() {
   const editingLine = editableLine(active, editor);
   const editConflict = !!editor && !!editingLine && lineChanged(editingLine, editor);
   // #727 — what blocks Confirm. Reads the SAVED lines, deliberately unlike the
-  // row badge above, which tracks the price being typed: Confirm posts what the
+  // row badge, which tracks the price being typed: Confirm posts what the
   // server already holds, so an unsaved edit must neither block a confirm that
   // would succeed nor permit one that would not.
   const orderOverCeiling = active !== null && ceiling !== null
