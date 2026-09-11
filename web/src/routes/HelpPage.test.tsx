@@ -1130,3 +1130,58 @@ describe("HelpPage visual pass (#657)", () => {
     }
   });
 });
+
+// #727 — the discount ceiling reaches the Help page and the in-app glossary in
+// the same PR that ships it, per the standing documentation rule.
+//
+// The label assertions below ARE #688, mechanised for exactly one feature. The
+// general form of that guard was built and rejected on evidence — 81 derived
+// pairs fail 12 times in es and 20 in tl with no defect present, because
+// Spanish number agreement and Tagalog affixation defeat substring matching.
+// These six pairs are not derived: each label was looked up in its own catalog
+// and written into the prose as a literal, so reading the label back out of the
+// catalog is exact. The value is that renaming the control now goes red here
+// instead of quietly leaving three locales describing a field that no longer
+// has that name.
+describe("HelpPage discount ceiling (#727)", () => {
+  const PACKS = [["en", en], ["es", es], ["tl", tl]] as const;
+
+  it("documents the ceiling on the Sales screen and beside the Farm settings field", () => {
+    render(<HelpPage />);
+    // Scoped to the <strong> the Sales bullet wraps it in: the glossary entry
+    // further down the page renders the same words as plain prose.
+    expect(screen.getByText("Over maximum", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText("0 is not the same as blank", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText("Discount ceiling", { selector: "dt a" })).toBeInTheDocument();
+  });
+
+  it.each(PACKS)("%s names the Farm settings control by its own label", (_name, pack) => {
+    const label = pack.settings.maxDiscountPercentLabel;
+    expect(pack.help.farmSettingsMaxDiscount).toContain(label);
+    expect(pack.help.salesDiscountCeiling).toContain(label);
+    expect(pack.help.glossaryDiscountCeilingDef).toContain(label);
+  });
+
+  it.each(PACKS)("%s names the row badge by its own catalog value", (_name, pack) => {
+    const badge = pack.sales.overMaximumBadge;
+    expect(pack.help.salesDiscountCeiling).toContain(badge);
+    expect(pack.help.glossaryDiscountCeilingDef).toContain(badge);
+  });
+
+  it.each(PACKS)("%s says the order stays a draft and needs an owner or manager", (_name, pack) => {
+    // The whole point of the slice: an honest refusal with no queue behind it.
+    // A locale that dropped this would leave a seller waiting for an approval
+    // that is never coming.
+    expect(pack.help.salesDiscountCeiling.length).toBeGreaterThan(120);
+    expect(pack.help.glossaryDiscountCeilingDef.length).toBeGreaterThan(120);
+  });
+
+  it.each([["es", es], ["tl", tl]] as const)("%s is translated, not the English left in place", (_name, pack) => {
+    expect(pack.help.salesDiscountCeiling).not.toBe(en.help.salesDiscountCeiling);
+    expect(pack.help.farmSettingsMaxDiscount).not.toBe(en.help.farmSettingsMaxDiscount);
+    expect(pack.help.glossaryDiscountCeilingTerm).not.toBe(en.help.glossaryDiscountCeilingTerm);
+    expect(pack.help.glossaryDiscountCeilingDef).not.toBe(en.help.glossaryDiscountCeilingDef);
+    expect(pack.settings.maxDiscountPercentLabel).not.toBe(en.settings.maxDiscountPercentLabel);
+    expect(pack.sales.overMaximumBadge).not.toBe(en.sales.overMaximumBadge);
+  });
+});

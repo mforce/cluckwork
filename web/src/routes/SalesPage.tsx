@@ -27,6 +27,7 @@ import { usePagedList } from "../components/usePagedList";
 import { StatusBadge } from "../components/StatusBadge";
 import { GlossaryLink } from "../components/GlossaryLink";
 import { newId } from "../lib/ids";
+import { discountCeiling, lineExceedsCeiling } from "../lib/discountCeiling";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import i18n from "../i18n";
 import { DISCOUNT_REASON_VALUES, discountReasonLabel, statusLabel } from "../i18n/enums";
@@ -222,6 +223,14 @@ export function SalesPage() {
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
   const { farm } = useFarm();
+  // #727 — the ceiling THIS caller is bound by, or null. Null already covers
+  // both "the farm sets none" and "you may exceed it", so there is no role
+  // check here; the server collapsed them deliberately.
+  const ceiling = discountCeiling(farm?.yourMaxDiscountPercent ?? null);
+  // No fraction digits, because Farm settings only offers whole percents. Still
+  // fmt.count rather than String(): the day it offers 12.5, the decimal
+  // separator has to be the farm's — es writes 12,5.
+  const ceilingPercent = ceiling === null ? "" : fmt.count(ceiling.percent);
   // Void undoes a confirmed sale — admin-only (#73); the API enforces it too.
   const { isAdmin, role } = useAuth();
   // Payments are the Sales tier (#104): Owner/Manager/Sales see and record;
@@ -376,6 +385,13 @@ export function SalesPage() {
 
   const editingLine = editableLine(active, editor);
   const editConflict = !!editor && !!editingLine && lineChanged(editingLine, editor);
+  // #727 — what blocks Confirm. Reads the SAVED lines, deliberately unlike the
+  // row badge, which tracks the price being typed: Confirm posts what the
+  // server already holds, so an unsaved edit must neither block a confirm that
+  // would succeed nor permit one that would not.
+  const orderOverCeiling = active !== null && ceiling !== null
+    && active.items.some((i) =>
+      lineExceedsCeiling(i.listUnitPriceMinorUnits, i.unitPriceMinorUnits, ceiling));
   const reloadEditor = () => {
     const order = activeRef.current;
     const item = editableLine(order, editorRef.current);
@@ -1045,6 +1061,16 @@ export function SalesPage() {
         <p className="hint" role="status">{t("farmWideAllocationNotice")}</p>
       )}
 
+      {/* #727 — persistent, like the notice above, and for the same reason:
+          the limit has to be known while a price is being typed, not met as a
+          refusal after one has been. Shown whenever a ceiling binds this
+          caller, breach or no breach. */}
+      {ceiling !== null && (
+        <p className="hint" role="status" data-testid="discount-ceiling-notice">
+          {t("discountCeilingNotice", { percent: ceilingPercent })}
+        </p>
+      )}
+
       {/* Deliberately NOT a <form>: these controls were button-driven, so
           wrapping them in one would newly enforce min/step and swallow the
           screen's own money messages (codex review of #132). */}
@@ -1122,9 +1148,15 @@ export function SalesPage() {
                   const typed = editingThis
                     ? parseMoneyToMinorUnits(editor.price, active.currencyMinorUnit)
                     : Number.NaN;
-                  const discount = editingThis && Number.isFinite(typed)
-                    ? lineDiscount({ ...i, unitPriceMinorUnits: typed, quantity: editor.quantity })
-                    : lineDiscount(i);
+                  const shown = editingThis && Number.isFinite(typed)
+                    ? { ...i, unitPriceMinorUnits: typed, quantity: editor.quantity }
+                    : i;
+                  const discount = lineDiscount(shown);
+                  // #727 — measured against the SAME line the Discount cell
+                  // describes, so the badge cannot report a line as within the
+                  // ceiling while the cell beside it shows the typed give-away.
+                  const overMaximum = ceiling !== null
+                    && lineExceedsCeiling(shown.listUnitPriceMinorUnits, shown.unitPriceMinorUnits, ceiling);
                   // Rendered identically in BOTH branches below. Two copies
                   // of this that drifted apart is what #752 was.
                   const discountCell = discount.kind === "below"
@@ -1144,6 +1176,15 @@ export function SalesPage() {
                           numeric cells are being scanned as a column. */}
                       {discount.kind === "below" && (
                         <> <span className="badge badge-warn">{t("belowListBadge")}</span></>
+                      )}
+                      {/* #727 — beside the below-list chip, not instead of it:
+                          the two say different things, and a breaching line is
+                          always also a below-list line. badge-danger, because
+                          this one stops the confirm rather than describing it —
+                          and because badge-warn would need the tr.discounted
+                          override the below-list chip already carries. */}
+                      {overMaximum && (
+                        <> <span className="badge badge-danger">{t("overMaximumBadge")}</span></>
                       )}
                       {discount.kind === "none" && (
                         <> <span className="badge">{t("noListPrice")}</span></>
@@ -1378,8 +1419,18 @@ export function SalesPage() {
                       {t("listPriceHintAbove", { amount, percent: discountPercent((perUnit * 100) / list) })}
                     </p>;
               })()}
+              {/* #727 — beside the button it disables, so the control and the
+                  reason it will not work are read together. No dialog opens and
+                  no POST is sent, which is the point: a discount reason
+                  collected for an order the server is about to refuse is a
+                  question asked for nothing. */}
+              {orderOverCeiling && (
+                <p className="error" role="status" data-testid="order-ceiling-blocked">
+                  {t("discountCeilingBlocked", { percent: ceilingPercent })}
+                </p>
+              )}
               <div className="actions">
-                <BusyButton disabled={busy || active.items.length === 0}
+                <BusyButton disabled={busy || active.items.length === 0 || orderOverCeiling}
                   busy={isPending(`confirm:${active.id}`)} onClick={() => void onConfirm()}>
                   {t("confirmOrderButton")}
                 </BusyButton>

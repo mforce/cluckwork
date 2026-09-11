@@ -104,3 +104,39 @@ describe("tr.discounted .badge-warn — the chip stays visible on the row it sit
     },
   );
 });
+
+// #727 — the over-maximum chip sits on a row that is ALWAYS also tinted, because
+// a line cannot breach the ceiling without being below list. The below-list chip
+// needed a `tr.discounted .badge-warn` override for exactly that reason: it and
+// the row tint share --tint-warn, so un-overridden it was invisible against its
+// own cell. This chip uses a different token instead of a second override, and
+// that is only an improvement while the two tints are genuinely different —
+// which jsdom cannot see, so it is asserted here.
+describe(".badge-danger — the over-maximum chip on the discounted row it always sits on", () => {
+  const chip = declarationsFor(".badge-danger");
+  const row = declarationsFor("tr.discounted td");
+
+  it("fills from a token, like every other chip", () => {
+    expect(chip.get("background")).toMatch(/^var\(--[a-z0-9-]+\)$/);
+  });
+
+  it("does not reuse the row tint's own token, which is what forced the below-list override", () => {
+    expect(chip.get("background")).not.toBe(row.get("background"));
+  });
+
+  describe.each(BRANDS.flatMap((brand) => MODES.map((mode) => [brand, mode] as const)))(
+    "%s / %s",
+    (brand, mode) => {
+      it("resolves to a colour that contrasts with the row tint", () => {
+        const resolved = resolveTokens(attrFor(brand), mode);
+        const tok = (v: string | undefined) => /^var\((--[a-z0-9-]+)\)$/.exec(v ?? "")?.[1];
+        const chipColour = resolved.get(tok(chip.get("background"))!);
+        const rowColour = resolved.get(tok(row.get("background"))!);
+        expect(chipColour, "chip fill does not resolve").toBeDefined();
+        expect(rowColour, "row tint does not resolve").toBeDefined();
+        expect(contrast(chipColour!, rowColour!), `chip ${chipColour} vs row ${rowColour}`)
+          .toBeGreaterThan(1.02);
+      });
+    },
+  );
+});

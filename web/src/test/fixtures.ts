@@ -25,6 +25,7 @@ export function account(overrides: Partial<Account> = {}): Account {
     brand: "aubergine",
     defaultStepperUnit: "Individual",
     showFarmWideSaleAllocationNotice: false,
+    yourMaxDiscountPercent: null,
     ...overrides,
   };
 }

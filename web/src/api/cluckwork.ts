@@ -500,6 +500,19 @@ export interface Account {
   // notice without exposing the raw policy (that lives only on
   // FarmSettings, admin-only) to every role.
   showFarmWideSaleAllocationNotice: boolean;
+  // #727 — the largest discount THIS caller may put on a sale line, as a
+  // percent, or null. Same standing as showFarmWideSaleAllocationNotice above:
+  // derived per caller, a display hint, never the authority.
+  //
+  // Null covers BOTH "the farm sets no ceiling" and "you may exceed it"
+  // (Owner/Manager), because both mean the same thing to the screen. So
+  // non-null reads simply as "this caller is bound by this number", and 0 is a
+  // real ceiling rather than an absent one.
+  //
+  // Claims-derived, so a user promoted mid-session keeps the stale hint until
+  // their token refreshes. The failure mode is a stale warning, never a wrong
+  // outcome: the confirm handler's fresh in-transaction role read decides.
+  yourMaxDiscountPercent: number | null;
 }
 
 // Clients need the account currency to parse money input correctly — a JPY
@@ -548,6 +561,10 @@ export interface FarmSettings {
   // #612 — the raw policy, admin-only (like canChangeCurrency above). Every
   // other role only ever sees the derived Account.showFarmWideSaleAllocationNotice.
   workerSaleAllocationPolicy: string;
+  // #727 — the farm's own ceiling, admin-only on the same terms. Every other
+  // role only ever sees the per-caller Account.yourMaxDiscountPercent, which is
+  // null for the Owners and Managers who edit this field.
+  maxDiscountPercent: number | null;
 }
 
 export interface UpdateFarmSettings {
@@ -562,6 +579,8 @@ export interface UpdateFarmSettings {
   brand: string;
   defaultStepperUnit: string;
   workerSaleAllocationPolicy: string;
+  // #727 — null clears the ceiling; 0 is a legal, different setting.
+  maxDiscountPercent: number | null;
   version: number;
 }
 
