@@ -2137,6 +2137,11 @@ export const en = {
     detailsAtPrice: "at {{amount}}",
     detailsListParen: "(list {{amount}})",
     detailsNoListPrice: "(no list price)",
+    // #756 — SalesOrder.Confirm row. Wording matches
+    // sales:discountReasonSummary(WithNote) exactly, so the same control is
+    // named the same way on both screens (#688).
+    detailsDiscountReason: "Discount reason: {{reason}}",
+    detailsDiscountReasonWithNote: "Discount reason: {{reason}} ({{note}})",
     // #666 — the date window. Inclusive calendar days over the UTC timestamp,
     // matching this screen's own "When (UTC)" column.
     fromLabel: "From",

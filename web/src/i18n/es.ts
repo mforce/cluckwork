@@ -1606,6 +1606,10 @@ export const es = {
     detailsAtPrice: "a {{amount}}",
     detailsListParen: "(lista {{amount}})",
     detailsNoListPrice: "(sin precio de lista)",
+    // #756 — coincide exactamente con sales:discountReasonSummary(WithNote)
+    // para nombrar el mismo control de la misma forma en ambas pantallas.
+    detailsDiscountReason: "Motivo del descuento: {{reason}}",
+    detailsDiscountReasonWithNote: "Motivo del descuento: {{reason}} ({{note}})",
     fromLabel: "Desde",
     toLabel: "Hasta",
     emptyMessage: "Aún no hay eventos de auditoría.",

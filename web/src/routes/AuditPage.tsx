@@ -9,6 +9,7 @@ import {
   AUDIT_ACTION_ENTITY_TYPE,
   AUDIT_ACTION_VALUES,
   auditActionLabel,
+  discountReasonLabel,
   ENTITY_TYPE_VALUES,
   entityTypeLabel,
   type EntityTypeValue,
@@ -63,6 +64,9 @@ export function isFetchStale(committedFetchPage: unknown, currentFetchPage: unkn
 // (INV-2).
 // #745 — the Details cell. Renders the sales-line audit payloads as the summary
 // the #722 artboard draws, and falls back to the row's reason, then an em dash.
+// #756 — also renders the discount reason on a SalesOrder.Confirm row, when the
+// order was confirmed below list; absent on an order with no discount, and on
+// every row confirmed before this payload shipped (no backfill).
 //
 // Everything it renders comes from the row's OWN payload. It never resolves
 // productId against the catalogue: that would print a renamed product's CURRENT
@@ -85,6 +89,21 @@ function AuditDetails({ event }: { event: AuditEvent }) {
       // A payload we cannot parse is not an error worth showing a user: fall
       // through to the reason, exactly as a row with no payload does.
       return null;
+    }
+
+    // #756 — the discount reason that rode into the confirm audit row
+    // (ConfirmSaleHandler). Handled BEFORE the productName/currency guard
+    // below: a confirm payload carries neither field, so a branch placed
+    // after that guard would silently never render (the trap this comment
+    // exists to name).
+    if (event.action === "SalesOrder.Confirm") {
+      const reasonCode = typeof d.discountReasonCode === "string" ? d.discountReasonCode : null;
+      if (reasonCode === null) return null;
+      const note = typeof d.discountReasonNote === "string" ? d.discountReasonNote : null;
+      const reason = discountReasonLabel(reasonCode);
+      return note
+        ? t("detailsDiscountReasonWithNote", { reason, note })
+        : t("detailsDiscountReason", { reason });
     }
 
     const name = typeof d.productName === "string" ? d.productName : null;

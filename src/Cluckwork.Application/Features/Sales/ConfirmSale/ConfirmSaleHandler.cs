@@ -271,10 +271,28 @@ public sealed class ConfirmSaleHandler(
 
             await allocations.AddRangeAsync(allocationRows, transactionCt);
 
+            // #721 — the reason rides on the audit row too, not only the
+            // SalesOrders columns: History and #745-style Details columns
+            // read audit events, never the aggregate directly. This is not a
+            // second source of truth — the reason is write-once (set only by
+            // this Confirm call, never edited afterward) and the row commits
+            // in the SAME transaction as the columns below it, so the two
+            // cannot disagree. Omitted entirely when the order gave nothing
+            // away: `order.DiscountReasonCode` is null then, and a payload of
+            // nulls is noise, not a fact.
+            var discountDetails = order.DiscountReasonCode is { } discountReasonCodeForAudit
+                ? new
+                {
+                    discountReasonCode = discountReasonCodeForAudit.ToString(),
+                    discountReasonNote = order.DiscountReasonNote,
+                }
+                : null;
+
             // #494 — INSIDE the transaction, so the event commits with the
             // FIFO allocations or rolls back with them.
             await audit.WriteAsync(
-                AuditActions.SalesOrderConfirm, nameof(SalesOrder), order.Id, ct: transactionCt);
+                AuditActions.SalesOrderConfirm, nameof(SalesOrder), order.Id,
+                details: discountDetails, ct: transactionCt);
 
             confirmedOrder = order;
             return true;

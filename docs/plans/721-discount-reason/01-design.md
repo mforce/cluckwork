@@ -57,10 +57,16 @@ i18n en/es/tl (3), `helpGlossary.ts` (1), `GLOSSARY.md` (1), export (1),
   for `PreDating`.
 - **No change to `lineDiscount` / `orderDiscount`**, to the #720 wire contract,
   or to `ListPriceBasis`.
-- **No audit payload on `SalesOrderConfirm`.** #722 gave the line events a
-  payload because the price they changed was otherwise unrecoverable. The
-  reason is a first-class column on the order, queryable directly, so putting a
-  copy in the audit row would be a second source of the same truth.
+- ~~No audit payload on `SalesOrderConfirm`.~~ **Reversed by the owner
+  (#756):** the audit row now carries `discountReasonCode` and
+  `discountReasonNote` when the order is discounted, because the columns
+  alone are invisible to the Audit page's History view, which reads events,
+  not the aggregate. This is not a second source of the same truth: the
+  reason is write-once (set only at `Confirm`, never edited afterward) and
+  the audit row commits in the SAME transaction as the columns, so the two
+  cannot disagree — the duplication risk this bullet originally guarded
+  against does not exist. Omitted entirely, not written as nulls, when the
+  order carries no reason.
 
 ## 2. Design decisions
 

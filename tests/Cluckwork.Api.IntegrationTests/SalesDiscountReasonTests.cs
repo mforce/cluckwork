@@ -16,6 +16,7 @@ public sealed class SalesDiscountReasonTests(CluckworkWebApplicationFactory fact
     private sealed record OrderDto(
         Guid Id, string Status, string? DiscountReasonCode, string? DiscountReasonNote,
         List<OrderItemDto> Items);
+    private sealed record AuditRow(Guid EntityId, string Action, string? DetailsJson);
 
     // productPrice null seeds a product with no default price, which is the
     // only way AddOrderItem leaves the line's list price NULL.
@@ -251,5 +252,43 @@ public sealed class SalesDiscountReasonTests(CluckworkWebApplicationFactory fact
         var headerFieldCount = header.Split(',').Length;
         foreach (var line in lines.Skip(1))
             Assert.Equal(headerFieldCount, line.Split(',').Length);
+    }
+
+    // #756 — History reads audit events, not the SalesOrders columns, so the
+    // reason must ALSO ride on the SalesOrder.Confirm audit row.
+    [Fact]
+    public async Task Confirm_BelowList_WithAReason_WritesTheReasonToTheAuditRow()
+    {
+        var (client, _, orderId) = await DraftAsync(unitPrice: 1);
+
+        Assert.Equal(HttpStatusCode.OK, (await ConfirmAsync(client, orderId, new
+        {
+            discountReasonCode = "DamagedStock",
+            discountReasonNote = "  hail damage  ",
+        })).StatusCode);
+
+        var events = await client.GetFromJsonAsync<List<AuditRow>>(
+            $"/api/v1/audit?action=SalesOrder.Confirm&entityId={orderId}");
+        var row = Assert.Single(events!);
+        Assert.Contains("\"discountReasonCode\":\"DamagedStock\"", row.DetailsJson);
+        // Trimmed, same as the column (Confirm's own NormalizeNote runs before
+        // either write): the audit row must not disagree with SalesOrders.
+        Assert.Contains("\"discountReasonNote\":\"hail damage\"", row.DetailsJson);
+    }
+
+    // A payload of nulls is noise, not a fact (§1 of the design doc) — an
+    // order confirmed with no reason writes NO payload at all, not one shaped
+    // like every other Confirm row but empty.
+    [Fact]
+    public async Task Confirm_AtList_WithNoReason_WritesNoAuditPayload()
+    {
+        var (client, _, orderId) = await DraftAsync(unitPrice: ListPrice);
+
+        Assert.Equal(HttpStatusCode.OK, (await ConfirmAsync(client, orderId)).StatusCode);
+
+        var events = await client.GetFromJsonAsync<List<AuditRow>>(
+            $"/api/v1/audit?action=SalesOrder.Confirm&entityId={orderId}");
+        var row = Assert.Single(events!);
+        Assert.Null(row.DetailsJson);
     }
 }

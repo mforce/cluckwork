@@ -1664,6 +1664,10 @@ export const tl = {
     detailsAtPrice: "sa {{amount}}",
     detailsListParen: "(listahan {{amount}})",
     detailsNoListPrice: "(walang listahang presyo)",
+    // #756 — tumutugma nang eksakto sa sales:discountReasonSummary(WithNote)
+    // para pareho ang pagtawag sa parehong control sa dalawang screen.
+    detailsDiscountReason: "Dahilan ng diskwento: {{reason}}",
+    detailsDiscountReasonWithNote: "Dahilan ng diskwento: {{reason}} ({{note}})",
     fromLabel: "Mula",
     toLabel: "Hanggang",
     emptyMessage: "Wala pang audit event.",

@@ -310,6 +310,65 @@ describe("AuditPage load + render", () => {
     const rowB = screen.getByRole("row", { name: /manager@farm\.test/ });
     expect(within(rowB).getByText("—")).toBeInTheDocument();
   });
+
+  // #756 — the discount reason on a SalesOrder.Confirm row. This is the trap
+  // case: the payload carries neither productName nor a currency, so this
+  // renders through a real component tree rather than calling the branch
+  // directly — a branch placed after the name/currency guard would pass a
+  // direct-call test while silently never rendering here.
+  it("renders the discount reason and note on a below-list Confirm row", async () => {
+    mockListAuditEvents.mockResolvedValue([{
+      id: "d4",
+      occurredAtUtc: "2026-09-08T14:22:00Z",
+      actorEmail: "admin@farm.test",
+      action: "SalesOrder.Confirm",
+      entityType: "SalesOrder",
+      entityId: "10d2c04d-0000",
+      reason: null,
+      detailsJson: JSON.stringify({
+        discountReasonCode: "DamagedStock",
+        discountReasonNote: "Cracked in transit",
+      }),
+    }]);
+    renderAudit();
+
+    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expect(within(row).getByText("Discount reason: Damaged stock (Cracked in transit)")).toBeInTheDocument();
+  });
+
+  it("renders the discount reason with no note when the payload carries none", async () => {
+    mockListAuditEvents.mockResolvedValue([{
+      id: "d5",
+      occurredAtUtc: "2026-09-08T14:23:00Z",
+      actorEmail: "admin@farm.test",
+      action: "SalesOrder.Confirm",
+      entityType: "SalesOrder",
+      entityId: "10d2c04d-0000",
+      reason: null,
+      detailsJson: JSON.stringify({ discountReasonCode: "Volume" }),
+    }]);
+    renderAudit();
+
+    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expect(within(row).getByText("Discount reason: Volume")).toBeInTheDocument();
+  });
+
+  it("shows an em dash, not a broken cell, for a Confirm row with no discount payload", async () => {
+    mockListAuditEvents.mockResolvedValue([{
+      id: "d6",
+      occurredAtUtc: "2026-09-08T14:24:00Z",
+      actorEmail: "admin@farm.test",
+      action: "SalesOrder.Confirm",
+      entityType: "SalesOrder",
+      entityId: "10d2c04d-0000",
+      reason: null,
+      detailsJson: null,
+    }]);
+    renderAudit();
+
+    const row = await screen.findByRole("row", { name: /admin@farm\.test/ });
+    expect(within(row).getByText("—")).toBeInTheDocument();
+  });
 });
 
 describe("AuditPage filter", () => {
