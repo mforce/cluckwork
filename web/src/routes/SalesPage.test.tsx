@@ -105,7 +105,9 @@ function draftEmpty(currencyMinorUnit: number, currencyCode: string, id = "o1"):
     ...NO_RECORD_HISTORY,
     id, customerId: "c1", customerName: "Acme Eggs", referenceNumber: "SO-1", orderDate: "2026-07-20",
     status: "Draft", totalMinorUnits: 0, currencyCode, currencyMinorUnit, voidReason: null,
-    discountReasonCode: null, discountReasonNote: null, items: [],
+    // A draft has no settlement figure at all — payments attach to confirmed
+    // orders only (#769).
+    discountReasonCode: null, discountReasonNote: null, outstandingMinorUnits: null, items: [],
   };
 }
 
@@ -1095,13 +1097,16 @@ describe("SalesPage Orders-list discount column (#724)", () => {
   // The list route returns items — SaleEndpoints.ToResponse projects
   // o.Items for both /sales and /sales/{id}, and SalesOrderRepository.ListAsync
   // Includes them — so the cell is computed from data already on the page.
-  function listedOrder(id: string, items: OrderItem[], totalMinorUnits: number): SalesOrder {
+  function listedOrder(
+    id: string, items: OrderItem[], totalMinorUnits: number,
+    outstandingMinorUnits: number | null = null,
+  ): SalesOrder {
     return {
       ...NO_RECORD_HISTORY,
       id, customerId: "c1", customerName: "Acme Eggs", referenceNumber: `SO-${id}`,
       orderDate: "2026-07-20", status: "Confirmed", totalMinorUnits,
       currencyCode: "USD", currencyMinorUnit: 2, voidReason: null,
-      discountReasonCode: null, discountReasonNote: null, items,
+      discountReasonCode: null, discountReasonNote: null, outstandingMinorUnits, items,
     };
   }
 

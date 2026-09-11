@@ -58,7 +58,7 @@ const order = (id: string, ref: string, customerName: string | null): SalesOrder
   ...NO_RECORD_HISTORY, id, customerId: "c1", customerName, referenceNumber: ref,
   orderDate: "2026-07-21", status: "Draft", totalMinorUnits: 1000, currencyCode: "USD",
   currencyMinorUnit: 2, voidReason: null, discountReasonCode: null, discountReasonNote: null,
-  items: [],
+  outstandingMinorUnits: null, items: [],
 });
 
 // The report mock answers by window (relative to a given "today") so the two

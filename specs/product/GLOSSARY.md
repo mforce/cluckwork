@@ -731,10 +731,22 @@ Recording and viewing payments is the Sales tier (Owner/Manager/Sales,
 spec §5.1); voiding a payment is corrective (Owner/Manager only), like every
 other undo.
 
-**Outstanding balance (#89)** — per order: confirmed total − non-voided
+**Outstanding balance (#89, #769)** — per order: confirmed total − non-voided
 payments; per customer: the same summed across their confirmed orders
 (server-side sums, never client-aggregated pages). Shown on the order's
-payments panel and the Customers page (admins).
+payments panel, the Customers page (admins), and — since #769 — as an
+**Outstanding** column on the Orders list, with an **Unpaid only** filter
+beside it. Both are the **Sales tier** (Owner/Manager/Sales), matching who may
+record and view payments rather than #89's stricter admin-only balances
+endpoint; a Worker reaches the Orders list and its response carries no
+outstanding figure at all, and `unpaid=true` from a Worker is **refused**, never
+silently ignored. The list figure is computed in the same paged query as the
+rows, as a correlated sum over non-voided payments, and the unpaid filter is a
+server-side predicate over the whole result set rather than the current page.
+"Unpaid" means **outstanding > 0**, so a partly-paid order is unpaid; Draft,
+Cancelled and Voided orders carry **no** figure (payments attach to confirmed
+orders only, and a zero there would read as settled) and the filter never
+returns them.
 
 **Expense (#87)** — a money-out record (spec §16, basic cut): date, category,
 description, amount in minor units, optional flock link, optional note. The

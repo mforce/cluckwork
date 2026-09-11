@@ -362,6 +362,11 @@ export const es = {
     reference: "Referencia",
     amount: "Monto",
     total: "Total",
+    // #769 — ver en.ts. "Pendiente" es la palabra que usa la ayuda y el
+    // glosario para esta misma columna (#688).
+    outstanding: "Pendiente",
+    settledBadge: "Liquidado",
+    partlyPaidNote: "parte de este pedido está pagada",
 
     // aria-labels
     editQuantityAriaLabel: "Editar cantidad",
@@ -369,6 +374,8 @@ export const es = {
 
     // Status-filter options — status labels now come from enums:status (#182).
     allOption: "Todos",
+    // #769 — un control aparte, no un valor del menú de estado.
+    unpaidOnlyFilter: "Solo pendientes",
 
     // Unit picker (the sale unit, e.g. "3 Dozen") — text equals the enum value.
     // NOTE (flag for native review): "Flat" (a 2.5/30-egg flat) has no single
@@ -2382,7 +2389,10 @@ export const es = {
       + "registre pagos parciales (fecha, monto, método, referencia opcional) hasta que el saldo pendiente "
       + "llegue a cero; el sobrepago se rechaza. Un pago erróneo se <strong>anula</strong> (motivo "
       + "requerido) y el saldo pendiente vuelve a crecer. Un pedido con pagos no se puede anular hasta que "
-      + "sus pagos se anulen primero. La pantalla de Clientes muestra el saldo pendiente de cada cliente.",
+      + "sus pagos se anulen primero. La pantalla de Clientes muestra el saldo pendiente de cada cliente, "
+      + "y la lista de pedidos lleva una columna <strong>Pendiente</strong> por pedido, con una casilla "
+      + "<strong>Solo pendientes</strong> que reduce la lista entera — no solo las filas en pantalla — "
+      + "a los pedidos que aún deben algo.",
 
     reportsHeading: "Informes",
     reportsProduction:
@@ -2960,6 +2970,17 @@ export const es = {
 
     glossaryAboveListTerm: "Sobre el precio de lista",
     glossaryAboveListDef: "Una línea que se vendió por más de su propio precio de lista.",
+
+    glossaryOutstandingTerm: "Pendiente",
+    glossaryOutstandingDef:
+      "Lo que todavía debe un pedido confirmado: su total menos cada pago que no se haya anulado. "
+      + "La lista de pedidos lo muestra en su propia columna Pendiente, y Solo pendientes reduce la "
+      + "lista a los pedidos que aún deben algo — un pedido pagado en parte cuenta como pendiente, "
+      + "porque lo está. Un pedido saldado dice Liquidado en lugar de un cero. Los pedidos en "
+      + "borrador, cancelados y anulados muestran una raya: los pagos solo se aplican a pedidos "
+      + "confirmados, así que no tienen monto pendiente del que hablar. Anular un pago hace que el "
+      + "monto pendiente vuelva a crecer. Solo los usuarios de Ventas, Gerente y propietario ven "
+      + "esta columna.",
 
     glossaryInventoryItemTerm: "Artículo de inventario",
     glossaryInventoryItemDef:

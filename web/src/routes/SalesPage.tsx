@@ -261,11 +261,26 @@ export function SalesPage() {
   // absent, never sent to the server, URL left untouched.
   const [searchParams, setSearchParams] = useSearchParams();
   const customerFilter = normalizeCanonicalGuid(searchParams.get("customerId"));
+  // #769 — `unpaid=1` in the URL, beside `customerId`. It answers a question
+  // worth bookmarking and sharing ("what does this customer still owe me"), and
+  // the customer filter already lives there, so one link carries both. A
+  // boolean needs NONE of the identity-resolution machinery below
+  // (customerFilterStale, the synchronous hide, the picker's unavailable
+  // phase): that exists because a customer id must be resolved to an entity,
+  // and there is nothing here to resolve.
+  //
+  // KNOWN LIMITATION, stated rather than hidden: `statusFilter` is still local
+  // state, so a shared link restores the customer and unpaid filters and not
+  // the status one. Moving it is a separate slice.
+  //
+  // Outside the money tier the URL value is treated as absent and never sent,
+  // so the server's 403 on `unpaid=true` is unreachable from this screen.
+  const unpaidFilter = searchParams.get("unpaid") === "1" && canSettle;
   // #655 fix increment 2 — the empty-state variant and its "Clear filters"
   // reach must track every filter sent to the API (line ~289: status AND
   // customerId), not customerFilter alone, or a status-only filter that
   // matches nothing shows the truly-empty copy on a farm that has orders.
-  const hasActiveFilter = Boolean(customerFilter) || Boolean(statusFilter);
+  const hasActiveFilter = Boolean(customerFilter) || Boolean(statusFilter) || unpaidFilter;
   // #512 US5 (T057, FR-049) — the filter's committed identity: the row-owned
   // entity the picker's exact GET resolved for a well-formed `customerId` (or
   // a genuine user pick). A failed exact read enters the picker's own
@@ -490,10 +505,11 @@ export function SalesPage() {
       (offset: number, limit: number) => listOrders({
         status: statusFilter || undefined,
         customerId: customerFilter || undefined,
+        unpaid: unpaidFilter || undefined,
         limit,
         offset,
       }),
-      [statusFilter, customerFilter],
+      [statusFilter, customerFilter, unpaidFilter],
     ),
     pageSize: PAGE,
     errorText: () => i18n.t("sales:loadOrdersFailed"),
@@ -1651,6 +1667,20 @@ export function SalesPage() {
             </button>
           )}
         </div>
+        {/* #769 — the money tier only. Same clone-and-set discipline as the
+            customer filter above: touch `unpaid` and nothing else. */}
+        {canSettle && (
+          <label className="muted check">
+            <input type="checkbox" checked={unpaidFilter}
+              onChange={(e) => {
+                const next = new URLSearchParams(searchParams);
+                if (e.target.checked) next.set("unpaid", "1");
+                else next.delete("unpaid");
+                setSearchParams(next);
+              }} />
+            {t("unpaidOnlyFilter")}
+          </label>
+        )}
       </div>
       {/* The list's own failure, beside the workspace rather than instead of
           it — and self-healing on the next successful load (#469). */}
@@ -1669,6 +1699,7 @@ export function SalesPage() {
                 onClick: () => {
                   const next = new URLSearchParams(searchParams);
                   next.delete("customerId");
+                  next.delete("unpaid");
                   setCustomerFilterEntity(null);
                   setStatusFilter("");
                   setSearchParams(next);
@@ -1690,7 +1721,7 @@ export function SalesPage() {
         <>
           <table className="data">
             <thead>
-              <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}<GlossaryLink term="ConfirmOrder" /></th><th className="num">{t("discount")}</th><th className="num">{t("total")}</th><th>{tc("recordHistoryHeader")}</th><th></th></tr>
+              <tr><th>{t("reference")}</th><th>{t("date")}</th><th>{t("customer")}</th><th>{t("status")}<GlossaryLink term="ConfirmOrder" /></th><th className="num">{t("discount")}</th><th className="num">{t("total")}</th>{canSettle && <th className="num">{t("outstanding")}<GlossaryLink term="Outstanding" /></th>}<th>{tc("recordHistoryHeader")}</th><th></th></tr>
             </thead>
             <tbody>
               {orders.rows.map((o) => (
@@ -1733,6 +1764,30 @@ export function SalesPage() {
                     </span></>
                   )}</td>
                   <td className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
+                  {/* #769 — what the order still owes. class="num" per #650,
+                      like the Total beside it. Three textual states, never
+                      colour alone; only "settled" is tinted, because
+                      `badge-warn` is already the discount chip one column over
+                      (styles.css carries a `tr.discounted .badge-warn` override
+                      for it) and two warn pills would sit side by side on
+                      exactly the rows most likely to have both. */}
+                  {canSettle && (
+                    <td className="num">{(() => {
+                      const owed = o.outstandingMinorUnits;
+                      // Not Confirmed, or no figure for this caller — the same
+                      // "no figure" glyph the discount column uses.
+                      if (owed === null) return "—";
+                      // Nothing owed. No amount beside it: a "0.00" here reads
+                      // as a debt at a glance.
+                      if (owed === 0) {
+                        return <span className="badge badge-ok">{t("settledBadge")}</span>;
+                      }
+                      const amount = fmt.money(owed, o.currencyCode, o.currencyMinorUnit);
+                      return owed < o.totalMinorUnits
+                        ? <>{amount}<br /><span className="muted discount-note" data-testid="row-partly-paid">{t("partlyPaidNote")}</span></>
+                        : amount;
+                    })()}</td>
+                  )}
                   <ProvenanceCell history={o} official="confirmed" />
                   <td>
                     <button className="link" disabled={busy} onClick={() => onOpen(o.id)}>{t("open")}</button>

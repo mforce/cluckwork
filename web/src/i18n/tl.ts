@@ -378,6 +378,11 @@ export const tl = {
     reference: "Reference",
     amount: "Halaga",
     total: "Kabuuan",
+    // #769 — tingnan ang en.ts. "Natitira" ang salitang ginagamit ng tulong at
+    // ng glosaryo para sa parehong kolum na ito (#688).
+    outstanding: "Natitira",
+    settledBadge: "Bayad na",
+    partlyPaidNote: "may bahagi nang nabayaran sa order na ito",
 
     // aria-labels
     editQuantityAriaLabel: "I-edit ang dami",
@@ -385,6 +390,8 @@ export const tl = {
 
     // Status-filter options — status labels now come from enums:status (#182).
     allOption: "Lahat",
+    // #769 — sariling kontrol, hindi halaga sa dropdown ng status.
+    unpaidOnlyFilter: "May natitira lang",
 
     // Unit picker (the sale unit, e.g. "3 Dozen") — text equals the enum value.
     // NOTE (flag for native review): several unit/method nouns kept as common
@@ -2473,7 +2480,10 @@ export const tl = {
       + "zero ang natitirang halaga; tinatanggihan ang overpayment. Ang isang maling bayad ay "
       + "<strong>ina-void</strong> (kailangan ng dahilan) at tumataas muli ang natitirang halaga. Ang isang "
       + "order na may bayad ay hindi puwedeng i-void hangga't hindi pa na-void ang mga bayad nito. "
-      + "Ipinapakita ng Customers page ang natitirang balanse ng bawat customer.",
+      + "Ipinapakita ng Customers page ang natitirang balanse ng bawat customer, at may kolum na "
+      + "<strong>Natitira</strong> kada order ang listahan ng mga order, kasama ang kahon na "
+      + "<strong>May natitira lang</strong> na pinapaliit ang buong listahan — hindi lang ang mga "
+      + "hilerang nasa screen — sa mga order na may utang pa.",
 
     reportsHeading: "Mga Report",
     reportsProduction:
@@ -3063,6 +3073,18 @@ export const tl = {
 
     glossaryAboveListTerm: "Higit sa presyo sa listahan",
     glossaryAboveListDef: "Isang linyang naibenta nang higit sa sarili nitong presyo sa listahan.",
+
+    glossaryOutstandingTerm: "Natitira",
+    glossaryOutstandingDef:
+      "Kung magkano pa ang utang ng isang nakumpirmang order: ang kabuuan nito bawas ang bawat "
+      + "bayad na hindi na-void. Ipinapakita ito ng listahan ng mga order sa sariling kolum nitong "
+      + "Natitira, at pinapaliit ng May natitira lang ang listahan sa mga order na may utang pa — "
+      + "ang order na bahagyang nabayaran ay may natitira pa rin, kaya kasama ito. Ang order na "
+      + "tapos nang bayaran ay nagsasabing Bayad na sa halip na zero. Ang mga order na draft, "
+      + "kanselado at na-void ay nagpapakita ng gitling: ang mga bayad ay para lang sa nakumpirmang "
+      + "order, kaya wala silang halagang natitira. Ang pag-void ng isang bayad ay nagpapabalik ng "
+      + "natitirang halaga. Ang mga user lang na Benta, Manager at owner ang nakakakita ng kolum na "
+      + "ito.",
 
     glossaryInventoryItemTerm: "Item sa imbentaryo",
     glossaryInventoryItemDef:

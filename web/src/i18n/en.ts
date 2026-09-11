@@ -494,6 +494,17 @@ export const en = {
     reference: "Reference",
     amount: "Amount",
     total: "Total",
+    // #769 — the Orders-list column. `outstanding` is the LABEL of that column;
+    // the Help prose and the glossary entry must use this same word (per-locale
+    // label pairing, #688).
+    outstanding: "Outstanding",
+    // Ends in `Badge`, so badgeCase.test.ts holds it to a capital first letter
+    // in all three locales. No amount beside it on purpose: nothing is owed, and
+    // a "0.00" there invites reading it as a debt.
+    settledBadge: "Settled",
+    // The muted note beside a part-paid amount — same idiom as
+    // discountPartialNote, and the reason the amount alone is not ambiguous.
+    partlyPaidNote: "part of this order is paid",
 
     // aria-labels
     editQuantityAriaLabel: "Edit quantity",
@@ -504,6 +515,9 @@ export const en = {
     // no local duplicate here. `allOption` is filter-only chrome ("no status
     // filter"), which has no enums equivalent, so it stays in this namespace.
     allOption: "All",
+    // #769 — a control of its own, not a value in the status dropdown. Payment
+    // state and order state are orthogonal: you ask for Confirmed AND unpaid.
+    unpaidOnlyFilter: "Unpaid only",
 
     // Unit picker (the sale unit, e.g. "3 Dozen") — text equals the enum value.
     unitEgg: "Egg",
@@ -2956,7 +2970,9 @@ export const en = {
       + "method, optional reference) until the outstanding amount reaches zero; overpaying is refused. A "
       + "wrong payment is <strong>voided</strong> (reason required) and the outstanding grows back. An order "
       + "with payments can't be voided until its payments are voided first. The Customers page shows each "
-      + "customer's outstanding balance.",
+      + "customer's outstanding balance, and the Orders list carries an <strong>Outstanding</strong> "
+      + "column per order, with an <strong>Unpaid only</strong> tick box that narrows the whole list — "
+      + "not just the rows on screen — to the orders still owing something.",
 
     // Reports
     reportsHeading: "Reports",
@@ -3508,6 +3524,16 @@ export const en = {
 
     glossaryAboveListTerm: "Above list",
     glossaryAboveListDef: "A line sold for more than its own list price.",
+
+    glossaryOutstandingTerm: "Outstanding",
+    glossaryOutstandingDef:
+      "What a confirmed order still owes: its total less every payment that has not been voided. "
+      + "The Orders list shows it in its own Outstanding column, and Unpaid only narrows the list to "
+      + "the orders still owing something — a part-paid order counts as unpaid, because it is. A "
+      + "settled order reads Settled rather than a zero. Draft, cancelled and voided orders show a "
+      + "dash instead: payments attach to confirmed orders only, so they have no amount outstanding "
+      + "to speak of. Voiding a payment makes the outstanding amount grow back. Only Sales, Manager "
+      + "and owner users see this column.",
 
     glossaryInventoryItemTerm: "Inventory item",
     glossaryInventoryItemDef:
