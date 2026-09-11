@@ -162,6 +162,25 @@ test.describe("Sales", () => {
       page.getByRole("button", { name: tEn("sales:recordPayment") }),
       "the order still offers 'record payment', so the payment did not settle the balance",
     ).toBeHidden();
+
+    // ---- 6. The Orders list answers "is this settled" without opening it ----
+    // #769's whole point: the settlement state has to be readable from the LIST,
+    // because reading it one order at a time is what the issue exists to end.
+    await page.goto("/sales");
+    const orderRow = page.getByRole("row").filter({ hasText: customerName });
+    await expect(orderRow).toHaveCount(1);
+    await expect(
+      orderRow.getByText(tEn("sales:settledBadge")),
+      "the fully-paid order does not read as settled in the Orders list",
+    ).toBeVisible();
+
+    // And the unpaid filter removes it from the RESULT SET, not from the page:
+    // the predicate runs server-side, so the row leaves the list outright.
+    await page.getByLabel(tEn("sales:unpaidOnlyFilter")).check();
+    await expect(
+      orderRow,
+      "a settled order is still listed while the unpaid filter is on",
+    ).toHaveCount(0);
   });
 });
 

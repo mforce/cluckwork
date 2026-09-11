@@ -94,6 +94,17 @@ test.describe("Worker sale allocation (#612)", () => {
       await expect(customerDialog).toBeHidden();
 
       await page.goto("/sales");
+      // #769 — a Worker builds orders here and sees no money. The Total column
+      // is the positive control: it proves the orders table actually rendered,
+      // so the absent Outstanding column is a refusal rather than a blank page.
+      await expect(page.getByRole("columnheader", { name: tEn("sales:total") }))
+        .toBeVisible();
+      await expect(
+        page.getByRole("columnheader", { name: tEn("sales:outstanding") }),
+        "a Worker can see the Outstanding column, which is the Sales tier's",
+      ).toHaveCount(0);
+      await expect(page.getByLabel(tEn("sales:unpaidOnlyFilter"))).toHaveCount(0);
+
       await page.getByRole("button", { name: tEn("sales:newOrder") }).click();
       const orderDialog = page.getByRole("dialog", { name: tEn("sales:newOrder") });
       await commitNamedPicker(orderDialog, tEn("sales:customer"), customerName);
