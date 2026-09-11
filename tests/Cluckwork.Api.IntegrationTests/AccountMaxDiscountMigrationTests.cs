@@ -53,6 +53,54 @@ public sealed class AccountMaxDiscountMigrationTests
         Assert.Equal(1, await NullCeilingCountAsync(db));
     }
 
+    // #673's precedent: the range fails closed in BOTH layers. The application
+    // check in Account.UpdateSettings guards the write path; this guards the
+    // row. It is what makes Account.MaxDiscount's FromBasisPoints throw
+    // unreachable — that getter runs on the role-agnostic GET /account, so a
+    // single out-of-range row would 500 every page load on the farm, including
+    // the Settings screen that would correct it, leaving raw SQL as the only
+    // recovery. AGENTS.md records under #732 that raw UPDATEs against this
+    // table do happen.
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(10_001)]
+    public async Task TheDatabaseRefusesABasisPointValueOutsideTheRange(int basisPoints)
+    {
+        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await postgres.StartAsync();
+        await using var db = BuildContext(postgres.GetConnectionString());
+        await db.Database.MigrateAsync();
+
+        // Raw SQL on purpose: the aggregate refuses this already, so going
+        // through it would prove nothing about the column.
+        var refused = await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+            db.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "Accounts" SET "MaxDiscountBasisPoints" = {basisPoints}"""));
+
+        Assert.Equal("23514", refused.SqlState); // check_violation
+        Assert.Equal("CK_Accounts_MaxDiscountBasisPoints", refused.ConstraintName);
+    }
+
+    // NULL is the legal "no ceiling" default and 0 is the legal "give nothing
+    // away" setting, so the constraint must admit both — a naive
+    // BETWEEN 0 AND 10000 with no IS NULL arm would reject every existing farm.
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0)]
+    [InlineData(10_000)]
+    public async Task TheDatabaseAcceptsEveryValueTheApplicationCanWrite(int? basisPoints)
+    {
+        await using var postgres = new PostgreSqlBuilder(PostgresImage).Build();
+        await postgres.StartAsync();
+        await using var db = BuildContext(postgres.GetConnectionString());
+        await db.Database.MigrateAsync();
+
+        var rows = await db.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "Accounts" SET "MaxDiscountBasisPoints" = {basisPoints}""");
+
+        Assert.Equal(1, rows);
+    }
+
     [Fact]
     public async Task DowngradingPastAddAccountMaxDiscountBasisPoints_DropsTheColumn_AndUpgradesCleanlyAgain()
     {

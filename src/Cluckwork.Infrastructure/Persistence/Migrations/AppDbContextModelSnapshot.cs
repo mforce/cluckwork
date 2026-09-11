@@ -111,7 +111,10 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("Accounts");
+                    b.ToTable("Accounts", t =>
+                        {
+                            t.HasCheckConstraint("CK_Accounts_MaxDiscountBasisPoints", "\"MaxDiscountBasisPoints\" IS NULL OR \"MaxDiscountBasisPoints\" BETWEEN 0 AND 10000");
+                        });
                 });
 
             modelBuilder.Entity("Cluckwork.Domain.Accounts.FarmLogo", b =>
