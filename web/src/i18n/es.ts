@@ -135,6 +135,15 @@ export const es = {
     "SalesOrder.DiscountReasonNotApplicable":
       "Ninguna línea de este pedido está ya por debajo del precio de lista, así que no "
       + "admite motivo del descuento. Vuelva a cargar el pedido y confírmelo otra vez.",
+    // #727
+    "SalesOrder.DiscountCeilingExceeded":
+      "Una línea de este pedido tiene más descuento del que permite esta granja. Un "
+      + "propietario o gerente puede confirmarlo, o cambiar Descuento máximo en "
+      + "Configuración de la granja.",
+    "SalesOrder.DiscountNotMeasurable":
+      "Una línea de este pedido se fijó antes de que se registraran los precios de "
+      + "lista, así que su descuento no se puede comparar con el máximo. Un propietario "
+      + "o gerente debe confirmarlo.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -325,6 +334,8 @@ export const es = {
     noListPrice: "Sin precio de lista",
     aboveList: "Sobre el precio de lista",
     belowListBadge: "Por debajo de lista",
+    // #727
+    overMaximumBadge: "Sobre el máximo",
     discountTotal: "Descuento: −{{amount}} · {{percent}}% del precio de lista",
     discountTotalNoPct: "Descuento: −{{amount}} respecto al precio de lista",
     discountPartialNote: "parte de este pedido no tiene precio de lista",
@@ -389,6 +400,14 @@ export const es = {
     farmWideAllocationNotice:
       "Este ajuste de la granja permite que tus confirmaciones de venta "
       + "tomen stock de fuera de tus parvadas asignadas.",
+    // #727
+    discountCeilingNotice:
+      "Esta granja te limita a un {{percent}}% de descuento sobre el precio de lista en "
+      + "una sola línea. Un propietario o gerente puede confirmar un pedido que lo supere.",
+    discountCeilingBlocked:
+      "Una línea de este pedido tiene más de un {{percent}}% de descuento, así que no "
+      + "puedes confirmarlo. Pide a un propietario o gerente que lo confirme, o cambia "
+      + "el precio de la línea.",
     noOrdersMatch: "Ningún pedido coincide.",
     noOrdersMessage: "Aún no hay pedidos.",
     voidingNeedsAdmin: "Anular requiere un administrador.",
@@ -1178,6 +1197,14 @@ export const es = {
       + "Trabajador restringido. Solo parvadas asignadas es el valor "
       + "predeterminado; los propietarios y gerentes pueden optar por todas "
       + "las parvadas de la granja.",
+    // #727
+    maxDiscountPercentLabel: "Descuento máximo",
+    maxDiscountPercentHint:
+      "El mayor descuento que un usuario de Ventas o Trabajador puede poner en una "
+      + "línea de venta, como porcentaje entero del precio de lista de esa línea. "
+      + "Déjalo en blanco para no poner límite. 0 no es lo mismo que en blanco: "
+      + "significa que el personal de ventas no puede dar ningún descuento. Un "
+      + "propietario o gerente siempre puede confirmar un pedido que lo supere.",
     firstDayOfWeekLabel: "Primer día de la semana",
     followLocaleOption: "Seguir la configuración regional",
     paletteLegend: "Paleta de la granja",

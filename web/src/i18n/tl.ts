@@ -144,6 +144,15 @@ export const tl = {
     "SalesOrder.DiscountReasonNotApplicable":
       "Wala nang linya sa order na ito na mas mababa sa presyo sa listahan, kaya hindi ito "
       + "tumatanggap ng dahilan ng diskwento. I-reload ang order at kumpirmahin muli.",
+    // #727
+    "SalesOrder.DiscountCeilingExceeded":
+      "May linya sa order na ito na mas malaki ang diskwento kaysa sa pinapayagan ng "
+      + "bukid na ito. Maaaring kumpirmahin ito ng isang Owner o Manager, o baguhin ang "
+      + "Pinakamataas na diskwento sa Mga setting ng bukid.",
+    "SalesOrder.DiscountNotMeasurable":
+      "May linya sa order na ito na napresyuhan bago pa naitala ang mga presyo sa "
+      + "listahan, kaya hindi masusuri ang diskwento nito laban sa pinakamataas. "
+      + "Kailangan itong kumpirmahin ng isang Owner o Manager.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -341,6 +350,8 @@ export const tl = {
     noListPrice: "Walang presyo sa listahan",
     aboveList: "Higit sa presyo sa listahan",
     belowListBadge: "Mas mababa sa lista",
+    // #727
+    overMaximumBadge: "Higit sa pinakamataas",
     discountTotal: "Diskwento: −{{amount}} · {{percent}}% ng presyo sa listahan",
     discountTotalNoPct: "Diskwento: −{{amount}} mula sa presyo sa listahan",
     discountPartialNote: "may bahagi ng order na walang presyo sa listahan",
@@ -407,6 +418,15 @@ export const tl = {
       "Pinapayagan ng setting na ito ng bukid na kumuha ng stock ang iyong "
       + "mga kumpirmasyon ng benta mula sa labas ng mga kawan na nakatalaga "
       + "sa iyo.",
+    // #727
+    discountCeilingNotice:
+      "Nililimitahan ka ng bukid na ito sa {{percent}}% na diskwento mula sa presyo sa "
+      + "listahan kada linya. Maaaring kumpirmahin ng isang Owner o Manager ang order "
+      + "na lalampas dito.",
+    discountCeilingBlocked:
+      "May linya sa order na ito na mas malaki sa {{percent}}% ang diskwento, kaya "
+      + "hindi mo ito makukumpirma. Ipakumpirma ito sa isang Owner o Manager, o baguhin "
+      + "ang presyo ng linya.",
     noOrdersMatch: "Walang tugmang order.",
     noOrdersMessage: "Wala pang order.",
     voidingNeedsAdmin: "Kailangan ng admin para mag-void.",
@@ -1222,6 +1242,15 @@ export const tl = {
       + "benta ng isang nakatalagang plain Worker. Nakatalagang kawan lang "
       + "ang default; ang mga may-ari at manager ay maaaring pumili ng lahat "
       + "ng kawan sa bukid.",
+    // #727
+    maxDiscountPercentLabel: "Pinakamataas na diskwento",
+    maxDiscountPercentHint:
+      "Ang pinakamalaking diskwento na maaaring ilagay ng isang user na Benta o "
+      + "Manggagawa sa isang linya ng benta, bilang buong porsyento ng presyo sa "
+      + "listahan ng linyang iyon. Iwanang blangko para walang limitasyon. Hindi pareho "
+      + "ang 0 at ang blangko: ibig sabihin nito ay walang maibibigay na diskwento ang "
+      + "mga tauhan ng benta. Palaging maaaring kumpirmahin ng isang Owner o Manager "
+      + "ang order na lalampas dito.",
     firstDayOfWeekLabel: "Unang araw ng linggo",
     followLocaleOption: "Sundin ang locale",
     paletteLegend: "Paleta ng bukid",
