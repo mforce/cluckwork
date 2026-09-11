@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.Endpoints.Accounts;
 
+using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 using Cluckwork.Domain.Accounts;
@@ -37,7 +38,7 @@ public static class AccountEndpoints
 
     private static async Task<IResult> GetAccount(
         IAccountRepository accounts, IFarmLogoRepository logos, TenantContext tenant,
-        FlockScope flockScope, CancellationToken ct)
+        FlockScope flockScope, ICurrentUser currentUser, CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
         var account = await accounts.GetCurrentAsync(ct);
@@ -49,8 +50,32 @@ public static class AccountEndpoints
         var branding = await logos.GetBrandingHashesAsync(ct);
         return Results.Ok(ToResponse(
             account, branding.LogoContentHash, branding.BannerContentHash,
-            ShowFarmWideSaleAllocationNotice(account, flockScope)));
+            ShowFarmWideSaleAllocationNotice(account, flockScope),
+            YourMaxDiscountPercent(account, currentUser)));
     }
+
+    /// <summary>
+    /// #727 — the ceiling THIS caller is bound by, or null. Null covers both
+    /// "the farm sets none" and "you may exceed it", because both mean the same
+    /// thing to the screen: show no ceiling warning.
+    /// </summary>
+    /// <remarks>
+    /// The role here is CLAIMS-derived, so a user promoted mid-session sees a
+    /// stale hint until their token refreshes. The failure mode is a stale
+    /// warning, never a wrong outcome: ConfirmSaleHandler's fresh
+    /// in-transaction role read is the authority, and it re-decides this on
+    /// every confirm. The role predicate is shared with that handler so the two
+    /// cannot disagree about who is bound.
+    /// <para>
+    /// GetAccount already materializes the whole Account row for every role, so
+    /// this costs no new query.
+    /// </para>
+    /// </remarks>
+    private static decimal? YourMaxDiscountPercent(Account account, ICurrentUser currentUser) =>
+        account.MaxDiscount is { } ceiling
+        && !Roles.MayExceedDiscountCeiling(Roles.ResolveEffective(currentUser.Roles))
+            ? ceiling.Percent
+            : null;
 
     private static async Task<IResult> GetSettings(
         IAccountRepository accounts,
@@ -60,6 +85,7 @@ public static class AccountEndpoints
         IOptionsSnapshot<FarmBannerOptions> bannerOptions,
         TenantContext tenant,
         FlockScope flockScope,
+        ICurrentUser currentUser,
         CancellationToken ct)
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
@@ -77,7 +103,8 @@ public static class AccountEndpoints
         return Results.Ok(new FarmSettingsResponse(
             ToResponse(
                 account, branding.LogoContentHash, branding.BannerContentHash,
-                ShowFarmWideSaleAllocationNotice(account, flockScope)),
+                ShowFarmWideSaleAllocationNotice(account, flockScope),
+                YourMaxDiscountPercent(account, currentUser)),
             canChangeCurrency,
             logoOptions.Value.MaxUploadBytes,
             bannerOptions.Value.MaxUploadBytes,
@@ -140,7 +167,7 @@ public static class AccountEndpoints
 
     private static AccountResponse ToResponse(
         Account a, string? logoContentHash, string? bannerContentHash,
-        bool showFarmWideSaleAllocationNotice) => new(
+        bool showFarmWideSaleAllocationNotice, decimal? yourMaxDiscountPercent) => new(
         a.Id, a.Name,
         a.DefaultCurrencyCode, a.DefaultCurrencyMinorUnit, a.CurrencySymbol,
         a.TimeZoneId, a.Locale,
@@ -152,7 +179,8 @@ public static class AccountEndpoints
         a.Brand,
         a.DefaultStepperUnit.ToString(),
         bannerContentHash,
-        showFarmWideSaleAllocationNotice);
+        showFarmWideSaleAllocationNotice,
+        yourMaxDiscountPercent);
 }
 
 // CurrencyCode/CurrencyMinorUnit keep their names and positions from the
@@ -190,7 +218,13 @@ public sealed record AccountResponse(
     // Worker under AllFarmFlocks, so the Sales screen can show the persistent
     // generic notice without exposing the raw policy (that lives only on
     // FarmSettingsResponse, admin-only) to every role.
-    bool ShowFarmWideSaleAllocationNotice);
+    bool ShowFarmWideSaleAllocationNotice,
+    // #727 — the ceiling THIS caller is bound by, or null when the farm sets
+    // none OR the caller may exceed it: both mean "show no ceiling warning".
+    // Claims-derived and therefore a display hint only — ConfirmSaleHandler's
+    // fresh in-transaction role read is the authority. See
+    // AccountEndpoints.YourMaxDiscountPercent.
+    decimal? YourMaxDiscountPercent);
 
 public sealed record FarmSettingsResponse(
     AccountResponse Settings,

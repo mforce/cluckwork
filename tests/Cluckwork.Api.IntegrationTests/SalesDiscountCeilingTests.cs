@@ -286,6 +286,53 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
         Assert.Equal(4_900, available);
     }
 
+    // --- the per-caller display hint on GET /account ------------------------
+
+    private sealed record AccountDto(decimal? YourMaxDiscountPercent);
+
+    // Null covers BOTH "the farm sets none" and "you may exceed it", because
+    // both mean the same thing to the screen: show no ceiling warning.
+    [Theory]
+    [InlineData(Roles.Sales, true)]
+    [InlineData(null, true)]            // a plain Worker is bound too
+    [InlineData(Roles.Owner, false)]
+    [InlineData(Roles.Manager, false)]
+    public async Task GetAccount_CarriesTheCeilingOnlyForACallerBoundByIt(string? role, bool bound)
+    {
+        var farm = await SeedFarmAsync();
+        await SetCeilingAsync(farm.AccountId, 1_250);
+        var client = await SeedUserAsync(farm.AccountId, role);
+
+        var account = await client.GetFromJsonAsync<AccountDto>("/api/v1/account");
+
+        Assert.Equal(bound ? 12.5m : null, account!.YourMaxDiscountPercent);
+    }
+
+    [Fact]
+    public async Task GetAccount_CarriesNoCeiling_WhenTheFarmSetsNone()
+    {
+        var farm = await SeedFarmAsync();
+        var sales = await SeedUserAsync(farm.AccountId, Roles.Sales);
+
+        var account = await sales.GetFromJsonAsync<AccountDto>("/api/v1/account");
+
+        Assert.Null(account!.YourMaxDiscountPercent);
+    }
+
+    // A zero ceiling is a real setting, not an absence — it must reach the
+    // bound caller's screen as 0, never as "no ceiling".
+    [Fact]
+    public async Task GetAccount_CarriesAZeroCeiling_AsZeroAndNotAsNull()
+    {
+        var farm = await SeedFarmAsync();
+        await SetCeilingAsync(farm.AccountId, 0);
+        var sales = await SeedUserAsync(farm.AccountId, Roles.Sales);
+
+        var account = await sales.GetFromJsonAsync<AccountDto>("/api/v1/account");
+
+        Assert.Equal(0m, account!.YourMaxDiscountPercent);
+    }
+
     // --- concurrency --------------------------------------------------------
 
     // The Version++ rule's parallel race, on the path this slice touches. Step

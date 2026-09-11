@@ -35,12 +35,6 @@ public sealed class ConfirmSaleHandler(
         [EffectiveAccountRole.Owner, EffectiveAccountRole.Manager,
          EffectiveAccountRole.Sales, EffectiveAccountRole.Worker];
 
-    // #727 — the roles a farm's discount ceiling does not bind. Read from the
-    // same fresh in-transaction role as AllowedToConfirm above, because it is
-    // the same kind of fact. Sales and Worker are bound.
-    private static readonly EffectiveAccountRole[] MayExceedDiscountCeiling =
-        [EffectiveAccountRole.Owner, EffectiveAccountRole.Manager];
-
     // Two codes, because they say different things to the seller. Both are
     // Error.Domain, so they land in MapFailure's existing else arm as 422 — the
     // same standing as EggLot.AssignedFlocksInsufficientStock below, which is
@@ -187,7 +181,7 @@ public sealed class ConfirmSaleHandler(
             // A ceiling checked against a JWT claim, or against a ceiling read
             // outside the lock, would reopen that race.
             if (account.MaxDiscount is { } ceiling
-                && !MayExceedDiscountCeiling.Contains(role.Value)
+                && !Roles.MayExceedDiscountCeiling(role.Value)
                 && order.FindCeilingBreach(ceiling) is { } breach)
             {
                 // The grade name resolves through the already-injected
