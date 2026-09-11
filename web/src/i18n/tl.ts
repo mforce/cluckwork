@@ -2450,6 +2450,15 @@ export const tl = {
       + "parehong bilang sa sariling kolum na <strong>Diskwento</strong> nito, kaya makikita ang order na "
       + "may diskwento nang hindi ito binubuksan — at ang order na naitala bago pa naitala ang mga presyo "
       + "sa listahan ay nakikitang \"Hindi alam\" doon, hindi kailanman zero.",
+    salesDiscountCeiling:
+      "Maaaring limitahan ng bukid mo kung gaano kalaking diskwento ang maibibigay mo. Kapag ganoon, "
+      + "sinasabi ito ng screen ng Benta at ang linyang lampas sa limitasyon ay may tatak na "
+      + "<strong>Higit sa pinakamataas</strong>, na naka-disable ang <strong>Kumpirmahin ang "
+      + "order</strong> hanggang mabago ang presyo ng linya. Nananatiling draft ang order — walang "
+      + "pinipilahan at walang inaabisuhan, kaya humingi sa isang Owner o Manager, na maaaring "
+      + "kumpirmahin ito nang walang binabago. Hindi kailanman nililimitahan ang mga Owner at Manager. "
+      + "Itinatakda ang limitasyon sa Mga setting ng bukid bilang <strong>Pinakamataas na "
+      + "diskwento</strong>.",
     salesConfirming:
       "Ang <strong>Pagkumpirma</strong> ng isang order ay naglalaan ng aktwal na stock — pinakalumang lote "
       + "muna — at ito ang sandali kung saan lumilipat ang inventory.",
@@ -2664,6 +2673,13 @@ export const tl = {
       + "kumuha ng stock ang benta ng isang nakatalagang plain Worker kapag nagkukumpirma ng order: "
       + "nakatalagang kawan lang (default) o lahat ng kawan sa bukid. Ang mga kumpirmasyon ng Owner, Manager, "
       + "at Sales ay laging farm-wide, anuman ang setting na ito (hindi makakumpirma ng benta ang Read-only).",
+    farmSettingsMaxDiscount:
+      "Ang <strong>Pinakamataas na diskwento</strong> ay ang pinakamalaking diskwento na maaaring "
+      + "ilagay ng isang user na Benta o Manggagawa sa isang linya ng benta, bilang buong porsyento ng "
+      + "presyo sa listahan ng linyang iyon. Iwanang blangko para walang limitasyon. <strong>Hindi "
+      + "pareho ang 0 at ang blangko</strong>: ibig sabihin nito ay walang maibibigay na diskwento ang "
+      + "mga tauhan ng benta. Hindi nililimitahan nito ang mga Owner at Manager, at maaari nilang "
+      + "kumpirmahin ang order na lalampas dito.",
 
     farmPaletteHeading: "Paleta ng Bukid",
     farmPaletteIntro:
@@ -3035,6 +3051,17 @@ export const tl = {
       + "ay nangangailangan ng tala; ang iba ay tumatanggap nito kung nais mong idagdag. Ang order na "
       + "kinumpirma bago pa ito umiral ay walang dahilan, na ang ibig sabihin ay hindi ito naitala, "
       + "hindi na walang ibinigay na diskwento.",
+
+    glossaryDiscountCeilingTerm: "Limitasyon ng diskwento",
+    glossaryDiscountCeilingDef:
+      "Ang pinakamalaking diskwento na maaaring ilagay ng isang user na Benta o Manggagawa sa "
+      + "isang linya ng benta. Itinatakda ito ng isang Owner o Manager sa Mga setting ng bukid "
+      + "bilang Pinakamataas na diskwento, at sila lang ang makakakumpirma ng order na "
+      + "lalampas dito. Ang linyang lampas sa limitasyon ay may markang Higit sa pinakamataas, "
+      + "at nananatiling naka-block ang Kumpirmahin ang order hanggang mabago ang presyo ng "
+      + "linya o kumpirmahin ng isang Owner o Manager ang order nang walang binabago. Ang "
+      + "bukid na walang itinakdang limitasyon ay gumagana gaya ng dati, at ang limitasyong 0 "
+      + "ay hindi katulad ng wala — ibig sabihin nito ay walang maibibigay na diskwento.",
 
     glossaryAboveListTerm: "Higit sa presyo sa listahan",
     glossaryAboveListDef: "Isang linyang naibenta nang higit sa sarili nitong presyo sa listahan.",

@@ -2936,6 +2936,13 @@ export const en = {
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",
+    salesDiscountCeiling:
+      "Your farm can cap how much of a discount you may give. When it does, the Sales screen says so "
+      + "and a line over the cap carries an <strong>Over maximum</strong> tag, with <strong>Confirm "
+      + "order</strong> disabled until the line is repriced. The order stays a draft — nothing is "
+      + "queued and nobody is notified, so ask an owner or manager, who can confirm it untouched. "
+      + "Owners and managers are never capped. The cap is set in Farm settings as "
+      + "<strong>Maximum discount</strong>.",
     salesVoiding:
       "A mistaken confirm is undone with <strong>Void</strong> (admin-only, reason required): the eggs go "
       + "back to the exact lots they came from, and the order stays listed as Voided. Voiding is for "
@@ -3142,6 +3149,11 @@ export const en = {
       + "draw from when confirming an order: assigned flocks only (the default) or all farm flocks. Owner, "
       + "Manager, and Sales confirmations are always farm-wide, whatever this is set to (Read-only cannot "
       + "confirm a sale at all).",
+    farmSettingsMaxDiscount:
+      "<strong>Maximum discount</strong> is the largest discount a Sales or Worker user may put on one "
+      + "sale line, as a whole percent of that line's list price. Leave it blank for no limit. "
+      + "<strong>0 is not the same as blank</strong>: it means sales staff may give nothing away at all. "
+      + "Owners and managers are not capped by it and can confirm an order that goes over it.",
 
     // Farm palette
     farmPaletteHeading: "Farm palette",
@@ -3482,6 +3494,15 @@ export const en = {
       + "priced under list, and only then — an order sold at or above list takes no reason. Other "
       + "needs a note; the rest take one if you want to add it. An order confirmed before this "
       + "existed carries no reason, which means it was not recorded, not that nothing was given away.",
+
+    glossaryDiscountCeilingTerm: "Discount ceiling",
+    glossaryDiscountCeilingDef:
+      "The largest discount a Sales or Worker user may put on one sale line. An owner or "
+      + "manager sets it in Farm settings as Maximum discount, and only they can confirm an "
+      + "order that goes over it. A line over the ceiling is marked Over maximum, and Confirm "
+      + "order stays blocked until the line is repriced or an owner or manager confirms the "
+      + "order untouched. A farm with no ceiling set behaves exactly as before, and a ceiling "
+      + "of 0 is not the same as none — it means nothing may be given away at all.",
 
     glossaryAboveListTerm: "Above list",
     glossaryAboveListDef: "A line sold for more than its own list price.",

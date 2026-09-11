@@ -2361,6 +2361,14 @@ export const es = {
       + "<strong>Descuento</strong>, así que un pedido con descuento se ve sin abrirlo — y un pedido "
       + "tomado antes de que se registraran los precios de lista se lee allí como \"Desconocido\", nunca "
       + "como cero.",
+    salesDiscountCeiling:
+      "Tu granja puede limitar cuánto descuento puedes dar. Cuando lo hace, la pantalla de Ventas lo "
+      + "indica y una línea por encima del límite lleva la etiqueta <strong>Sobre el máximo</strong>, "
+      + "con <strong>Confirmar pedido</strong> desactivado hasta que se cambie el precio de la línea. El "
+      + "pedido sigue siendo un borrador — no se pone en ninguna cola y no se avisa a nadie, así que "
+      + "pídeselo a un propietario o gerente, que puede confirmarlo sin tocarlo. Los propietarios y "
+      + "gerentes nunca están limitados. El límite se fija en Configuración de la granja como "
+      + "<strong>Descuento máximo</strong>.",
     salesConfirming:
       "<strong>Confirmar</strong> un pedido asigna existencias reales — los lotes más antiguos primero — y "
       + "es el punto donde el inventario cambia de manos.",
@@ -2571,6 +2579,12 @@ export const es = {
       + "la venta de un Trabajador restringido al confirmar un pedido: solo parvadas asignadas (predeterminado) "
       + "o todas las parvadas de la granja. Las confirmaciones de Propietario, Gerente y Ventas siempre son "
       + "de toda la granja, sin importar este ajuste (Solo lectura no puede confirmar una venta).",
+    farmSettingsMaxDiscount:
+      "<strong>Descuento máximo</strong> es el mayor descuento que un usuario de Ventas o Trabajador "
+      + "puede poner en una línea de venta, como porcentaje entero del precio de lista de esa línea. "
+      + "Déjalo en blanco para no poner límite. <strong>0 no es lo mismo que en blanco</strong>: "
+      + "significa que el personal de ventas no puede dar ningún descuento. Los propietarios y gerentes "
+      + "no están limitados por él y pueden confirmar un pedido que lo supere.",
 
     farmPaletteHeading: "Paleta de la granja",
     farmPaletteIntro:
@@ -2935,6 +2949,16 @@ export const es = {
       + "vendido al precio de lista o por encima no admite motivo. Otro necesita una nota; los demás "
       + "la admiten si quiere agregarla. Un pedido confirmado antes de que esto existiera no lleva "
       + "motivo, lo que significa que no se registró, no que no se haya dado nada.",
+
+    glossaryDiscountCeilingTerm: "Tope de descuento",
+    glossaryDiscountCeilingDef:
+      "El mayor descuento que un usuario de Ventas o Trabajador puede poner en una línea de "
+      + "venta. Un propietario o gerente lo fija en Configuración de la granja como Descuento "
+      + "máximo, y solo ellos pueden confirmar un pedido que lo supere. Una línea por encima "
+      + "del tope se marca como Sobre el máximo, y Confirmar pedido queda bloqueado hasta que "
+      + "se cambie el precio de la línea o un propietario o gerente confirme el pedido sin "
+      + "tocarlo. Una granja sin tope funciona exactamente como antes, y un tope de 0 no es lo "
+      + "mismo que ninguno: significa que no se puede dar ningún descuento.",
 
     glossaryAboveListTerm: "Sobre el precio de lista",
     glossaryAboveListDef: "Una línea que se vendió por más de su propio precio de lista.",
