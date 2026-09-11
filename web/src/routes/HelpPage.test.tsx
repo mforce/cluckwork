@@ -1168,12 +1168,27 @@ describe("HelpPage discount ceiling (#727)", () => {
     expect(pack.help.glossaryDiscountCeilingDef).toContain(badge);
   });
 
-  it.each(PACKS)("%s says the order stays a draft and needs an owner or manager", (_name, pack) => {
-    // The whole point of the slice: an honest refusal with no queue behind it.
-    // A locale that dropped this would leave a seller waiting for an approval
-    // that is never coming.
-    expect(pack.help.salesDiscountCeiling.length).toBeGreaterThan(120);
-    expect(pack.help.glossaryDiscountCeilingDef.length).toBeGreaterThan(120);
+  it.each(PACKS)("%s names the approver role and the Draft status in its own words", (_name, pack) => {
+    // What this catches, stated at exactly the strength the mutation supports:
+    // a locale whose prose never names the approver, or never names the status
+    // the order is left in, or names either with a word that is not the one its
+    // own catalog uses for the role picker and the status pill. Both terms are
+    // read back out of THIS locale's catalog rather than hardcoded, so #688 —
+    // which nothing else enforces — holds here by construction.
+    //
+    // What it does NOT catch, checked rather than assumed: `tl` names Manager
+    // twice, once to send the seller to one and once to say Managers are never
+    // capped. Deleting only the first left this green. A guard that claimed to
+    // pin the actionable sentence would be the #407 "wrong guard that reads as
+    // safety", so the name above claims the containment it actually proves.
+    // Matched case-insensitively: the prose runs these mid-sentence ("stays a
+    // draft") while the catalog value is a display label ("Draft").
+    const draft = pack.enums["status.Draft"].toLowerCase();
+    const manager = pack.enums["role.Manager"].toLowerCase();
+    for (const prose of [pack.help.salesDiscountCeiling, pack.help.glossaryDiscountCeilingDef]) {
+      expect(prose.toLowerCase()).toContain(manager);
+    }
+    expect(pack.help.salesDiscountCeiling.toLowerCase()).toContain(draft);
   });
 
   it.each([["es", es], ["tl", tl]] as const)("%s is translated, not the English left in place", (_name, pack) => {

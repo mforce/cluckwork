@@ -40,6 +40,11 @@ const VECTORS: {
   // expressible, because the validator refuses a negative unit price.
   { name: "full ceiling, whole line given away", basisPoints: 10000, list: 1000n, unit: 0n, exceeds: false },
   { name: "full ceiling, one minor unit charged", basisPoints: 10000, list: 1000n, unit: 1n, exceeds: false },
+  // The other half of that pair, and the reason the row above is not enough: at
+  // 9999 bp the same whole giveaway DOES breach. Without it, an implementation
+  // that waved every free line through would pass the row above and look right.
+  // C#: DiscountCeilingTests MaxBasisPoints / MaxBasisPoints - 1.
+  { name: "one basis point below full ceiling, whole line given away", basisPoints: 9999, list: 1000n, unit: 0n, exceeds: true },
 
   // Headroom. Both cross-products are about 9e21 and differ by 10 000 — roughly
   // a thousand times long.MaxValue, and far past what a float64 separates. In
