@@ -40,16 +40,40 @@ export function discountCeiling(percent: number | null): DiscountCeiling | null 
 // left side is `−unit * 10 000`, which is never positive for a unit price the
 // validator accepts.
 //
-// A null list price is not "no discount", it is "not measurable here": the wire
-// does not carry which of the three non-recorded bases produced it, so the
-// server is the only place that can tell a recorded absence from an unknown.
-// The screen declines to mark the row and lets the confirm answer.
+// BigInt, not number, and the SUBTRACTION is in BigInt too, not just the
+// products. Both cross-products reach ~9e21 at the top of the server's range,
+// a thousand times what a float64 can separate exactly, and the C# side's
+// matching defect is a subtraction that wraps in 64 bits before the widening
+// cast reaches it. Taking both operands as BigInt makes that shape
+// unrepresentable here rather than merely avoided.
+//
+// Precondition: both arguments are finite integers, which every caller already
+// holds — minor units off the wire, or parseMoneyToMinorUnits behind the
+// Number.isFinite check the row editor already applies.
+export function exceedsCeiling(
+  listMinorUnits: bigint,
+  unitMinorUnits: bigint,
+  ceiling: DiscountCeiling,
+): boolean {
+  return (listMinorUnits - unitMinorUnits) * 10_000n
+    > BigInt(ceiling.basisPoints) * listMinorUnits;
+}
+
+// The wire-facing form. A null list price is not "no discount", it is "not
+// measurable here": the wire does not carry which of the three non-recorded
+// bases produced the null, so the server is the only place that can tell a
+// recorded absence from an unknown. The screen declines to mark the row and
+// lets the confirm answer.
+//
+// A list price past 2^53 has already been rounded by JSON.parse before this is
+// called, so the client's answer at that magnitude is approximate by the time
+// it arrives. That costs nothing: the server's in-transaction check is the
+// authority, and this is a display hint.
 export function lineExceedsCeiling(
   listUnitPriceMinorUnits: number | null,
   unitPriceMinorUnits: number,
   ceiling: DiscountCeiling,
 ): boolean {
   if (listUnitPriceMinorUnits === null) return false;
-  return (listUnitPriceMinorUnits - unitPriceMinorUnits) * 10_000
-    > ceiling.basisPoints * listUnitPriceMinorUnits;
+  return exceedsCeiling(BigInt(listUnitPriceMinorUnits), BigInt(unitPriceMinorUnits), ceiling);
 }

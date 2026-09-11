@@ -1,60 +1,65 @@
 import { describe, expect, it } from "vitest";
-import { discountCeiling, lineExceedsCeiling } from "./discountCeiling";
+import { discountCeiling, exceedsCeiling, lineExceedsCeiling } from "./discountCeiling";
 
-// #727 — the shared vector table. The same rows are asserted against the
-// server's DiscountCeiling in C#; two implementations of one comparison drift
-// the moment each carries its own cases, so these are literals, not a
-// re-derivation of the formula from the formula.
+// #727 — the shared vector table, literal for literal from the C# DiscountCeiling
+// unit tests. Two implementations of one comparison drift the moment each
+// carries its own cases, so these are copied, never re-derived from the formula.
 //
-// Money is in MINOR UNITS throughout (1000 = $10.00 at a two-decimal currency).
+// Money is in MINOR UNITS throughout (1000 = $10.00 at a two-decimal currency),
+// and as bigint, because the last two rows are past what a float64 separates.
 const VECTORS: {
   name: string;
-  percent: number;
-  listMinorUnits: number | null;
-  unitMinorUnits: number;
+  basisPoints: number;
+  list: bigint;
+  unit: bigint;
   exceeds: boolean;
 }[] = [
-  // The boundary. "Maximum 10%" means at most 10%, so exactly 10% off passes
-  // and the next minor unit does not. This pair is what the strict `>` is for.
-  { name: "exactly at the ceiling", percent: 10, listMinorUnits: 1000, unitMinorUnits: 900, exceeds: false },
-  { name: "one minor unit past the ceiling", percent: 10, listMinorUnits: 1000, unitMinorUnits: 899, exceeds: true },
-  { name: "well inside the ceiling", percent: 10, listMinorUnits: 1000, unitMinorUnits: 990, exceeds: false },
-  { name: "at list", percent: 10, listMinorUnits: 1000, unitMinorUnits: 1000, exceeds: false },
-  { name: "above list", percent: 10, listMinorUnits: 1000, unitMinorUnits: 1100, exceeds: false },
+  // 1000 bp = 10%. Strict `>`, so exactly on the boundary is allowed: "maximum
+  // 10%" means at most 10%.
+  { name: "exactly 10.00% off", basisPoints: 1000, list: 1000n, unit: 900n, exceeds: false },
+  { name: "10.10% off", basisPoints: 1000, list: 1000n, unit: 899n, exceeds: true },
+  { name: "exactly 10.00% at a finer scale", basisPoints: 1000, list: 10000n, unit: 9000n, exceeds: false },
+  { name: "10.01%, one minor unit past the boundary", basisPoints: 1000, list: 10000n, unit: 8999n, exceeds: true },
+  { name: "at list", basisPoints: 1000, list: 1000n, unit: 1000n, exceeds: false },
+  { name: "above list", basisPoints: 1000, list: 1000n, unit: 1200n, exceeds: false },
 
-  // A ceiling of 0 is a real setting — sales staff may give nothing away — and
-  // is NOT the absence of a ceiling. Collapsing the two is #719's null-means-
-  // two-things trap.
-  { name: "zero ceiling, sold at list", percent: 0, listMinorUnits: 1000, unitMinorUnits: 1000, exceeds: false },
-  { name: "zero ceiling, one minor unit below list", percent: 0, listMinorUnits: 1000, unitMinorUnits: 999, exceeds: true },
-  { name: "zero ceiling, sold above list", percent: 0, listMinorUnits: 1000, unitMinorUnits: 1001, exceeds: false },
+  // A zero list price never breaches, at any ceiling, and it falls out of the
+  // arithmetic — there is deliberately no divide-by-zero guard to test.
+  { name: "zero list price, zero unit price, 10% ceiling", basisPoints: 1000, list: 0n, unit: 0n, exceeds: false },
+  { name: "zero list price, sold for money, 10% ceiling", basisPoints: 1000, list: 0n, unit: 500n, exceeds: false },
+  { name: "zero list price, zero unit price, zero ceiling", basisPoints: 0, list: 0n, unit: 0n, exceeds: false },
+  { name: "zero list price, sold for money, zero ceiling", basisPoints: 0, list: 0n, unit: 500n, exceeds: false },
 
-  // A 100% ceiling permits giving the whole line away, and still permits
-  // nothing more, because a negative unit price is not a thing the API stores.
-  { name: "full ceiling, whole line given away", percent: 100, listMinorUnits: 1000, unitMinorUnits: 0, exceeds: false },
+  // 0 bp is a legal ceiling meaning "give nothing away", and is NOT the absence
+  // of a ceiling — null is. Collapsing the two is #719's own trap.
+  { name: "zero ceiling, at list", basisPoints: 0, list: 1000n, unit: 1000n, exceeds: false },
+  { name: "zero ceiling, above list", basisPoints: 0, list: 1000n, unit: 1001n, exceeds: false },
+  { name: "zero ceiling, one minor unit below list", basisPoints: 0, list: 1000n, unit: 999n, exceeds: true },
 
-  // A zero list price cannot breach at any ceiling: the right side is 0 and the
-  // left side is never positive.
-  { name: "zero list price, zero ceiling", percent: 0, listMinorUnits: 0, unitMinorUnits: 0, exceeds: false },
-  { name: "zero list price, sold for money", percent: 0, listMinorUnits: 0, unitMinorUnits: 500, exceeds: false },
+  // 10000 bp = 100%: the whole line may be given away, and nothing more is
+  // expressible, because the validator refuses a negative unit price.
+  { name: "full ceiling, whole line given away", basisPoints: 10000, list: 1000n, unit: 0n, exceeds: false },
+  { name: "full ceiling, one minor unit charged", basisPoints: 10000, list: 1000n, unit: 1n, exceeds: false },
 
-  // Not measurable on the client: the wire does not say which of the three
-  // non-recorded bases produced the null, so the screen never marks the row.
-  { name: "no list price", percent: 0, listMinorUnits: null, unitMinorUnits: 500, exceeds: false },
+  // Headroom. Both cross-products are about 9e21 and differ by 10 000 — roughly
+  // a thousand times long.MaxValue, and far past what a float64 separates. In
+  // `number` these two rows return the same answer; in BigInt they do not.
+  { name: "headroom: exactly 10.00% at the top of the range", basisPoints: 1000, list: 9000000000000000000n, unit: 8100000000000000000n, exceeds: false },
+  { name: "headroom: one minor unit past it", basisPoints: 1000, list: 9000000000000000000n, unit: 8099999999999999999n, exceeds: true },
+];
 
-  // A fractional ceiling is storable today (basis points) even though Farm
-  // settings only offers whole percents, so the boundary is pinned there too.
-  { name: "12.5% ceiling, exactly at it", percent: 12.5, listMinorUnits: 1000, unitMinorUnits: 875, exceeds: false },
-  { name: "12.5% ceiling, one minor unit past it", percent: 12.5, listMinorUnits: 1000, unitMinorUnits: 874, exceeds: true },
-
-  // 2.3 * 100 is 229.99999999999997 in binary floating point. Skip the rounding
-  // back to the integer the server stored and the right-hand side lands a
-  // fraction UNDER the left, so a line sitting exactly on the ceiling reports a
-  // breach that is not one. Only the under-shoot direction is detectable, and
-  // only at exact equality: one minor unit either way swamps the error, which
-  // is why this pair is the boundary and not an arbitrary discount.
-  { name: "2.3% ceiling, exactly at it", percent: 2.3, listMinorUnits: 10000, unitMinorUnits: 9770, exceeds: false },
-  { name: "2.3% ceiling, one minor unit past it", percent: 2.3, listMinorUnits: 10000, unitMinorUnits: 9769, exceeds: true },
+// The percent the wire carries, and the basis points the server stores.
+// The REFUSALS in the server's TryParsePercent (12.345, -1, 100.01, 101) are
+// its input validation for Farm settings, not this module's job: here the
+// screen's own min/max/step and the server's validator hold the range, and a
+// value that arrived over the wire has already passed both.
+const PERCENTS: [number, number][] = [
+  [0, 0],
+  [0.01, 1],
+  [10, 1000],
+  [12.5, 1250],
+  [12.34, 1234],
+  [100, 10000],
 ];
 
 describe("discountCeiling (#727)", () => {
@@ -66,30 +71,47 @@ describe("discountCeiling (#727)", () => {
     expect(discountCeiling(0)).toEqual({ basisPoints: 0, percent: 0 });
   });
 
-  it("converts whole percents to the basis points the server stores", () => {
-    expect(discountCeiling(10)).toEqual({ basisPoints: 1000, percent: 10 });
-    expect(discountCeiling(100)).toEqual({ basisPoints: 10000, percent: 100 });
+  it.each(PERCENTS)("reads %s%% as %s basis points", (percent, basisPoints) => {
+    expect(discountCeiling(percent)).toEqual({ basisPoints, percent });
   });
 
   it("recovers the stored integer from a fractional percent's binary representation", () => {
     // 2.3 * 100 is 229.99999999999997 and 8.29 * 100 is 828.9999999999999.
-    // 12.5 is exact and is here to show the conversion is not merely rounding
-    // everything into the same bucket.
     expect(discountCeiling(2.3)?.basisPoints).toBe(230);
     expect(discountCeiling(8.29)?.basisPoints).toBe(829);
-    expect(discountCeiling(12.5)?.basisPoints).toBe(1250);
   });
 });
 
-describe("lineExceedsCeiling vectors (#727)", () => {
+describe("exceedsCeiling vectors (#727)", () => {
   it("covers both answers, so a helper stuck on one constant cannot pass the table", () => {
     expect(VECTORS.some((v) => v.exceeds)).toBe(true);
     expect(VECTORS.some((v) => !v.exceeds)).toBe(true);
   });
 
-  it.each(VECTORS)("$name", ({ percent, listMinorUnits, unitMinorUnits, exceeds }) => {
-    const ceiling = discountCeiling(percent);
-    expect(ceiling).not.toBeNull();
-    expect(lineExceedsCeiling(listMinorUnits, unitMinorUnits, ceiling!)).toBe(exceeds);
+  it.each(VECTORS)("$name", ({ basisPoints, list, unit, exceeds }) => {
+    expect(exceedsCeiling(list, unit, { basisPoints, percent: basisPoints / 100 })).toBe(exceeds);
+  });
+});
+
+// The wire-facing wrapper. Its own rows stay inside 2^53 on purpose: past that
+// JSON.parse has already rounded the number, so a headroom row stated as a
+// `number` literal would silently become its neighbour and pass for the wrong
+// reason. The table above is where that magnitude is pinned.
+describe("lineExceedsCeiling, the wire-facing form (#727)", () => {
+  const tenPercent = discountCeiling(10)!;
+
+  it("never breaches on a line with no comparable list price", () => {
+    expect(lineExceedsCeiling(null, 0, tenPercent)).toBe(false);
+    expect(lineExceedsCeiling(null, 500, discountCeiling(0)!)).toBe(false);
+  });
+
+  it("carries the boundary through from numbers", () => {
+    expect(lineExceedsCeiling(1000, 900, tenPercent)).toBe(false);
+    expect(lineExceedsCeiling(1000, 899, tenPercent)).toBe(true);
+  });
+
+  it("treats a zero ceiling as a ceiling", () => {
+    expect(lineExceedsCeiling(1000, 1000, discountCeiling(0)!)).toBe(false);
+    expect(lineExceedsCeiling(1000, 999, discountCeiling(0)!)).toBe(true);
   });
 });
