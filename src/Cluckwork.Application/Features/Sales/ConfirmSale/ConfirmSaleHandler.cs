@@ -1,5 +1,6 @@
 namespace Cluckwork.Application.Features.Sales.ConfirmSale;
 
+using System.Globalization;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Application.Features.EggGrades;
@@ -34,6 +35,33 @@ public sealed class ConfirmSaleHandler(
         [EffectiveAccountRole.Owner, EffectiveAccountRole.Manager,
          EffectiveAccountRole.Sales, EffectiveAccountRole.Worker];
 
+    // #727 — the roles a farm's discount ceiling does not bind. Read from the
+    // same fresh in-transaction role as AllowedToConfirm above, because it is
+    // the same kind of fact. Sales and Worker are bound.
+    private static readonly EffectiveAccountRole[] MayExceedDiscountCeiling =
+        [EffectiveAccountRole.Owner, EffectiveAccountRole.Manager];
+
+    // Two codes, because they say different things to the seller. Both are
+    // Error.Domain, so they land in MapFailure's existing else arm as 422 — the
+    // same standing as EggLot.AssignedFlocksInsufficientStock below, which is
+    // also a role-conditional refusal on this path. 403 here would mean "your
+    // role cannot confirm sales orders at all", and Sales generically can.
+    private static Error CeilingRefusal(CeilingBreach breach, DiscountCeiling ceiling, string gradeName) =>
+        breach.Status == LineCeilingStatus.Unmeasurable
+            // No percent, ever: this line has no recorded list price, so any
+            // number printed here would be fabricated.
+            ? Error.Domain(
+                "SalesOrder.DiscountNotMeasurable",
+                $"The '{gradeName}' line predates recorded list prices, so its discount cannot be "
+                    + "measured against this farm's maximum. An owner or manager must confirm this order.")
+            : Error.Domain(
+                "SalesOrder.DiscountCeilingExceeded",
+                $"The '{gradeName}' line is "
+                    + $"{breach.DiscountPercent!.Value.ToString("0.0", CultureInfo.InvariantCulture)}% "
+                    + "below its list price, above this farm's maximum of "
+                    + $"{ceiling.Percent.ToString("0.##", CultureInfo.InvariantCulture)}%. "
+                    + "An owner or manager can confirm this order.");
+
     // The generic farm-wide-shortfall message for a restricted Worker: reused
     // by both the AssignedFlocksOnly farm-wide retry AND the AllFarmFlocks
     // path (#612 privacy fix) — a restricted Worker must never see the
@@ -50,6 +78,7 @@ public sealed class ConfirmSaleHandler(
     //     SELECT SalesOrder FOR UPDATE (fresh — never a pre-transaction read)
     //     CheckCanConfirm(discount reason) before touching stock
     //     re-read the caller's effective role; a now-forbidden caller -> 403
+    //     refuse a ceiling-bound actor's over-ceiling line (#727) before stock
     //     for a plain Worker, read committed UserRoleAssignment rows
     //     SELECT candidate egg_lots FOR UPDATE (ONE statement, farm-wide)
     //     plan the whole order in memory (assigned-first under AssignedFlocksOnly)
@@ -145,6 +174,30 @@ public sealed class ConfirmSaleHandler(
             if (role is null || !AllowedToConfirm.Contains(role.Value))
             {
                 failure = Result.Failure<ConfirmSaleResponse>(AppError.Forbidden());
+                return false;
+            }
+
+            // 5b — the ceiling (#727). The ORDER's own rules were checked at
+            // step 4; this one is about the ACTOR, so it needs the role read
+            // above and belongs here — before any stock is touched, matching
+            // CheckCanConfirm's own rule.
+            //
+            // `account` is the row already locked FOR SHARE at step 1, never a
+            // fresh read; `role` is the fresh in-transaction read #612 requires.
+            // A ceiling checked against a JWT claim, or against a ceiling read
+            // outside the lock, would reopen that race.
+            if (account.MaxDiscount is { } ceiling
+                && !MayExceedDiscountCeiling.Contains(role.Value)
+                && order.FindCeilingBreach(ceiling) is { } breach)
+            {
+                // The grade name resolves through the already-injected
+                // repository, the same way the insufficient-stock message below
+                // does. The domain decides WHO breaches; this composes the
+                // refusal, because SalesOrderItem carries an EggGradeId only.
+                var gradeName = (await eggGrades.GetByIdAsync(breach.EggGradeId, transactionCt))?.Name
+                    ?? breach.EggGradeId.ToString();
+                failure = Result.Failure<ConfirmSaleResponse>(
+                    CeilingRefusal(breach, ceiling, gradeName));
                 return false;
             }
 
