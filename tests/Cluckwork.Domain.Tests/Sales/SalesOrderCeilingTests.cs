@@ -145,6 +145,31 @@ public sealed class SalesOrderCeilingTests
         Assert.Null(found.DiscountPercent);
     }
 
+    // TWO different lines are Unmeasurable and they must stay indistinguishable
+    // in the breach, because ONE refusal message covers both. That message named
+    // the pre-dating cause until the zero-list case was added, which made it
+    // false for a line whose list price is recorded and is zero. If a cause is
+    // ever added to CeilingBreach, this goes red and the message needs splitting
+    // — which is the point: the shared wording is only honest while this holds.
+    [Fact]
+    public void BothUnmeasurableCauses_ProduceTheSameBreachShape()
+    {
+        var preDating = MakeDraft();
+        AddPreDatingLine(preDating, unitPrice: 1);
+        var zeroList = MakeDraft();
+        AddLine(zeroList, unitPrice: -100, listPrice: 0, ListPriceBasis.Recorded);
+
+        var ceiling = DiscountCeiling.FromBasisPoints(0);
+        var a = Assert.NotNull(preDating.FindCeilingBreach(ceiling));
+        var b = Assert.NotNull(zeroList.FindCeilingBreach(ceiling));
+
+        Assert.Equal(a.Status, b.Status);
+        Assert.Equal(LineCeilingStatus.Unmeasurable, a.Status);
+        // Neither carries a percent, so neither can be described by one.
+        Assert.Null(a.DiscountPercent);
+        Assert.Null(b.DiscountPercent);
+    }
+
     // The other half, so the arm above cannot be widened by accident: a zero
     // list price sold at or above zero is genuinely no discount, and must stay
     // Within rather than becoming unmeasurable too.

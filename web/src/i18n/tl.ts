@@ -150,9 +150,8 @@ export const tl = {
       + "bukid na ito. Maaaring kumpirmahin ito ng isang Owner o Manager, o baguhin ang "
       + "Pinakamataas na diskwento sa Mga setting ng bukid.",
     "SalesOrder.DiscountNotMeasurable":
-      "May linya sa order na ito na napresyuhan bago pa naitala ang mga presyo sa "
-      + "listahan, kaya hindi masusuri ang diskwento nito laban sa pinakamataas. "
-      + "Kailangan itong kumpirmahin ng isang Owner o Manager.",
+      "May linya sa order na ito na hindi masusukat ang diskwento laban sa "
+      + "pinakamataas. Kailangan itong kumpirmahin ng isang Owner o Manager.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -423,8 +422,9 @@ export const tl = {
       "Nililimitahan ka ng bukid na ito sa {{percent}}% na diskwento mula sa presyo sa "
       + "listahan kada linya. Maaaring kumpirmahin ng isang Owner o Manager ang order "
       + "na lalampas dito.",
-    discountCeilingWarning: "May linya sa order na ito na mas malaki sa {{percent}}% ang diskwento. Isang "
-      + "Owner o Manager lang ang makakakumpirma nito. Humingi sa isa, o baguhin ang presyo ng linya.",
+    discountCeilingWarning: "Mukhang may linya sa order na ito na mas malaki sa {{percent}}% ang "
+      + "diskwento. Kapag kumumpirma, susuriin muli ang kasalukuyang limitasyon: kung lampas ito, "
+      + "Owner o Manager lang ang makakakumpirma.",
     noOrdersMatch: "Walang tugmang order.",
     noOrdersMessage: "Wala pang order.",
     voidingNeedsAdmin: "Kailangan ng admin para mag-void.",

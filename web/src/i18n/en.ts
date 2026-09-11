@@ -215,12 +215,15 @@ export const en = {
     "SalesOrder.DiscountCeilingExceeded":
       "A line on this order is discounted more than this farm allows. An owner "
       + "or manager can confirm it, or change Maximum discount in Farm settings.",
-    // Deliberately states no percent. This line predates recorded list prices,
-    // so its discount cannot be measured at all and any figure would be made up.
+    // Deliberately states no percent, and deliberately states no CAUSE. Two
+    // different lines reach this: one predating recorded list prices, and one
+    // with a recorded list price of zero sold below it, where the percent is a
+    // division by zero. It said "predates recorded list prices" until the
+    // second case was added, which made it false for that line. The seller's
+    // remedy is the same either way, so the text names the consequence.
     "SalesOrder.DiscountNotMeasurable":
-      "A line on this order was priced before list prices were recorded, so its "
-      + "discount cannot be checked against the maximum. An owner or manager "
-      + "must confirm it.",
+      "A line on this order has a discount that cannot be measured against the "
+      + "maximum. An owner or manager must confirm it.",
   },
   // Shared navigation chrome (Task 7, #182) — the FIRST screen-externalization
   // batch (B1). `nav` is in TRANSLATED_NAMESPACES — es/tl are machine-drafted
@@ -548,8 +551,8 @@ export const en = {
       + "or manager can confirm an order that goes over it.",
     // Shown beside the disabled Confirm button, so the button and the reason
     // it will not work are read together.
-    discountCeilingWarning: "A line on this order is discounted more than {{percent}}%. Only an owner "
-      + "or manager can confirm it. Ask one, or reprice the line.",
+    discountCeilingWarning: "A line on this order looks discounted more than {{percent}}%. Confirming "
+      + "checks the current limit: if it is over, only an owner or manager can confirm it.",
     noOrdersMatch: "No orders match.",
     noOrdersMessage: "No orders yet.",
     voidingNeedsAdmin: "Voiding needs an admin.",

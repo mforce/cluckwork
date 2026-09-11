@@ -42,12 +42,16 @@ public sealed class ConfirmSaleHandler(
     // role cannot confirm sales orders at all", and Sales generically can.
     private static Error CeilingRefusal(CeilingBreach breach, DiscountCeiling ceiling, string gradeName) =>
         breach.Status == LineCeilingStatus.Unmeasurable
-            // No percent, ever: this line has no recorded list price, so any
-            // number printed here would be fabricated.
+            // No percent, ever, and no CAUSE either. Two different lines arrive
+            // here — one predating recorded list prices, and one with a
+            // recorded list price of ZERO sold below it, where the percent is a
+            // division by zero. This named the first cause until the second was
+            // added, which made the sentence false for that line. The remedy is
+            // identical for both, so it states the consequence instead.
             ? Error.Domain(
                 "SalesOrder.DiscountNotMeasurable",
-                $"The '{gradeName}' line predates recorded list prices, so its discount cannot be "
-                    + "measured against this farm's maximum. An owner or manager must confirm this order.")
+                $"The '{gradeName}' line has a discount that cannot be measured against this "
+                    + "farm's maximum. An owner or manager must confirm this order.")
             : Error.Domain(
                 "SalesOrder.DiscountCeilingExceeded",
                 $"The '{gradeName}' line is "

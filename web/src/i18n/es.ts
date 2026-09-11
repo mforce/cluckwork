@@ -141,9 +141,8 @@ export const es = {
       + "propietario o gerente puede confirmarlo, o cambiar Descuento máximo en "
       + "Configuración de la granja.",
     "SalesOrder.DiscountNotMeasurable":
-      "Una línea de este pedido se fijó antes de que se registraran los precios de "
-      + "lista, así que su descuento no se puede comparar con el máximo. Un propietario "
-      + "o gerente debe confirmarlo.",
+      "Una línea de este pedido tiene un descuento que no se puede comparar con el "
+      + "máximo. Un propietario o gerente debe confirmarlo.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -404,8 +403,9 @@ export const es = {
     discountCeilingNotice:
       "Esta granja limita su descuento a un {{percent}}% sobre el precio de lista en "
       + "una sola línea. Un propietario o gerente puede confirmar un pedido que lo supere.",
-    discountCeilingWarning: "Una línea de este pedido tiene más de un {{percent}}% de descuento. Solo un "
-      + "propietario o gerente puede confirmarlo. Pídaselo a uno, o cambie el precio de la línea.",
+    discountCeilingWarning: "Una línea de este pedido parece tener más de un {{percent}}% de descuento. "
+      + "Al confirmar se comprueba el límite actual: si lo supera, solo un propietario o gerente "
+      + "puede confirmarlo.",
     noOrdersMatch: "Ningún pedido coincide.",
     noOrdersMessage: "Aún no hay pedidos.",
     voidingNeedsAdmin: "Anular requiere un administrador.",
