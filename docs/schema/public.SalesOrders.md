@@ -15,6 +15,8 @@
 | VoidReason | varchar(500) |  | true |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| DiscountReasonCode | varchar(32) |  | true |  |  |  |
+| DiscountReasonNote | varchar(500) |  | true |  |  |  |
 
 ## Viewpoints
 
@@ -69,6 +71,8 @@ erDiagram
   varchar_500_ VoidReason
   integer Version
   uuid AccountId
+  varchar_32_ DiscountReasonCode
+  varchar_500_ DiscountReasonNote
 }
 "public.Payments" {
   uuid Id

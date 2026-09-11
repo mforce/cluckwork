@@ -110,6 +110,27 @@ export function waterSourceLabel(value: WaterSourceValue | (string & {})): strin
 }
 
 // ---------------------------------------------------------------------------
+// discount reason (SalesPage) — DiscountReasonCode (#721). The tuple's ORDER is
+// the picklist's order on screen, most routine first; the wire values are the
+// server enum's member names and are never rendered raw.
+// ---------------------------------------------------------------------------
+export const DISCOUNT_REASON_VALUES = [
+  "Volume", "DamagedStock", "LongStandingCustomer", "ManagerApproved", "Other",
+] as const;
+export type DiscountReasonValue = (typeof DISCOUNT_REASON_VALUES)[number];
+const DISCOUNT_REASON_KEYS = {
+  Volume: "enums:discountReason.Volume",
+  DamagedStock: "enums:discountReason.DamagedStock",
+  LongStandingCustomer: "enums:discountReason.LongStandingCustomer",
+  ManagerApproved: "enums:discountReason.ManagerApproved",
+  Other: "enums:discountReason.Other",
+} as const satisfies Record<DiscountReasonValue, EnumsKey>;
+export function discountReasonLabel(value: DiscountReasonValue | (string & {})): string {
+  const key = DISCOUNT_REASON_KEYS[value as DiscountReasonValue];
+  return key ? i18n.t(key) : String(value);
+}
+
+// ---------------------------------------------------------------------------
 // water unit (WaterPage) — WaterUsage.AllowedUnits, a fixed 2-value set.
 // ---------------------------------------------------------------------------
 export const WATER_UNIT_VALUES = ["L", "gal"] as const;
@@ -486,6 +507,11 @@ export const ENUMS = {
   role: { values: ROLE_VALUES, keys: ROLE_KEYS, label: roleLabel },
   waterSource: { values: WATER_SOURCE_VALUES, keys: WATER_SOURCE_KEYS, label: waterSourceLabel },
   waterUnit: { values: WATER_UNIT_VALUES, keys: WATER_UNIT_KEYS, label: waterUnitLabel },
+  discountReason: {
+    values: DISCOUNT_REASON_VALUES,
+    keys: DISCOUNT_REASON_KEYS,
+    label: discountReasonLabel,
+  },
   gradeType: { values: GRADE_TYPE_VALUES, keys: GRADE_TYPE_KEYS, label: gradeTypeLabel },
   inventoryCategory: {
     values: INVENTORY_CATEGORY_VALUES,

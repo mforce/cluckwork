@@ -72,6 +72,8 @@ erDiagram
   varchar_500_ VoidReason
   integer Version
   uuid AccountId
+  varchar_32_ DiscountReasonCode
+  varchar_500_ DiscountReasonNote
 }
 "public.SalesOrderItems" {
   uuid Id

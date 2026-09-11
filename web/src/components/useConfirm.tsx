@@ -20,7 +20,42 @@ interface AskBase {
   destructive?: boolean;
 }
 
-type Pending = AskBase & { kind: "confirm" | "reason" };
+/** One option in an `askChoice` picklist. `value` is what the caller gets back. */
+export interface Choice {
+  value: string;
+  label: string;
+}
+
+interface AskChoice extends AskBase {
+  /** Rendered as radio buttons, in the order given. */
+  choices: readonly Choice[];
+  /** Labels the picklist. */
+  choiceLabel: string;
+  /**
+   * Values for which the note is mandatory. Everything else takes it or leaves
+   * it — an option like "Other" names nothing on its own, so its note carries
+   * the whole answer.
+   */
+  noteRequiredFor: readonly string[];
+  /** Labels the note field. */
+  noteLabel: string;
+  /** Shown under the note when it is required and blank. */
+  noteRequiredMessage: string;
+  /** Shown under the picklist when nothing is selected. */
+  choiceRequiredMessage: string;
+}
+
+/** What `askChoice` resolves to when the user goes through with it. */
+export interface ChoiceResult {
+  value: string;
+  note: string | null;
+}
+
+type Pending =
+  | (AskBase & { kind: "confirm" | "reason" })
+  | (AskChoice & { kind: "choice" });
+
+type Settled = boolean | string | ChoiceResult | null;
 
 // F135: the app's own replacement for window.confirm / window.prompt.
 //
@@ -44,16 +79,21 @@ export function useConfirm() {
   // The awaiting caller's `resolve`, parked outside state: settling it must not
   // depend on a re-render having happened. The value a dismissal resolves to
   // rides alongside, so cancelling never has to re-derive which shape is up.
-  const resolveRef = useRef<((value: boolean | string | null) => void) | null>(null);
+  const resolveRef = useRef<((value: Settled) => void) | null>(null);
   const dismissValueRef = useRef<boolean | null>(false);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const choiceRef = useRef<HTMLInputElement>(null);
+  const [choice, setChoice] = useState("");
+  const [choiceError, setChoiceError] = useState<string | null>(null);
 
-  const settle = useCallback((value: boolean | string | null) => {
+  const settle = useCallback((value: Settled) => {
     const resolve = resolveRef.current;
     resolveRef.current = null;
     setPending(null);
     setReason("");
     setReasonError(null);
+    setChoice("");
+    setChoiceError(null);
     resolve?.(value);
   }, []);
 
@@ -67,13 +107,15 @@ export function useConfirm() {
     (
       next: Pending,
       dismissValue: boolean | null,
-      resolve: (value: boolean | string | null) => void,
+      resolve: (value: Settled) => void,
     ) => {
       resolveRef.current?.(dismissValueRef.current);
       resolveRef.current = resolve;
       dismissValueRef.current = dismissValue;
       setReason("");
       setReasonError(null);
+      setChoice("");
+      setChoiceError(null);
       setPending(next);
     },
     [],
@@ -84,7 +126,7 @@ export function useConfirm() {
       new Promise<boolean>((resolve) => {
         // Sound by construction: `kind` decides what settle() is ever called
         // with, and a "confirm" only ever settles with a boolean.
-        open({ ...req, kind: "confirm" }, false, resolve as (v: boolean | string | null) => void);
+        open({ ...req, kind: "confirm" }, false, resolve as (v: Settled) => void);
       }),
     [open],
   );
@@ -92,7 +134,19 @@ export function useConfirm() {
   const askReason = useCallback(
     (req: AskBase) =>
       new Promise<string | null>((resolve) => {
-        open({ ...req, kind: "reason" }, null, resolve as (v: boolean | string | null) => void);
+        open({ ...req, kind: "reason" }, null, resolve as (v: Settled) => void);
+      }),
+    [open],
+  );
+
+  // The third shape: pick one of a closed set, plus a note that some options
+  // make mandatory. Same inline-error handling as askReason — the dialog stays
+  // open and focus returns to whichever field refused — because a picklist that
+  // closed on a missing note would cost the user the option they had chosen.
+  const askChoice = useCallback(
+    (req: AskChoice) =>
+      new Promise<ChoiceResult | null>((resolve) => {
+        open({ ...req, kind: "choice" }, null, resolve as (v: Settled) => void);
       }),
     [open],
   );
@@ -106,6 +160,21 @@ export function useConfirm() {
   const accept = (current: Pending) => {
     if (current.kind === "confirm") {
       settle(true);
+      return;
+    }
+    if (current.kind === "choice") {
+      if (!choice) {
+        setChoiceError(current.choiceRequiredMessage);
+        choiceRef.current?.focus();
+        return;
+      }
+      const note = reason.trim();
+      if (!note && current.noteRequiredFor.includes(choice)) {
+        setReasonError(current.noteRequiredMessage);
+        reasonRef.current?.focus();
+        return;
+      }
+      settle({ value: choice, note: note || null });
       return;
     }
     const text = reason.trim();
@@ -126,6 +195,7 @@ export function useConfirm() {
   const reasonId = `${ids}-reason`;
   const errorId = `${ids}-error`;
   const bodyId = `${ids}-body`;
+  const choiceErrorId = `${ids}-choice-error`;
 
   // Focus lands by DOM order, which puts it in the right place for free:
   // Cancel for a yes/no (a stray Enter must not deplete a flock), the textarea
@@ -140,6 +210,57 @@ export function useConfirm() {
       {pending && (
         <>
           <div className="confirm-body" id={bodyId}>{pending.body}</div>
+          {pending.kind === "choice" && (
+            <>
+              {/* fieldset + legend, matching SettingsPage's palette picker.
+                  No aria-invalid: a fieldset maps to role="group", which does
+                  not support it, so it would read as accessibility that is not
+                  there. aria-describedby IS global, and carries the error. */}
+              <fieldset
+                className="choice-set"
+                aria-describedby={choiceError ? choiceErrorId : undefined}
+              >
+                <legend>{pending.choiceLabel}</legend>
+                {pending.choices.map((option, index) => (
+                  <label key={option.value} className="choice">
+                    <input
+                      type="radio"
+                      name={`${ids}-choice`}
+                      ref={index === 0 ? choiceRef : undefined}
+                      value={option.value}
+                      checked={choice === option.value}
+                      onChange={() => {
+                        setChoice(option.value);
+                        setChoiceError(null);
+                        // The note's requirement follows the option, so an
+                        // error raised against the previous one no longer
+                        // describes anything on screen.
+                        setReasonError(null);
+                      }}
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </fieldset>
+              {choiceError && <p className="error" id={choiceErrorId}>{choiceError}</p>}
+              <label htmlFor={reasonId}>
+                {pending.noteLabel}
+                <textarea
+                  id={reasonId}
+                  ref={reasonRef}
+                  rows={3}
+                  required={pending.noteRequiredFor.includes(choice)}
+                  value={reason}
+                  aria-invalid={reasonError !== null}
+                  aria-describedby={reasonError ? errorId : undefined}
+                  onChange={(e) => {
+                    setReason(e.target.value);
+                    if (reasonError) setReasonError(null);
+                  }}
+                />
+              </label>
+            </>
+          )}
           {pending.kind === "reason" && (
             <label htmlFor={reasonId}>
               {t("reasonLabel")}
@@ -174,5 +295,5 @@ export function useConfirm() {
     </Dialog>
   );
 
-  return { confirm, askReason, confirmDialog };
+  return { confirm, askReason, askChoice, confirmDialog };
 }

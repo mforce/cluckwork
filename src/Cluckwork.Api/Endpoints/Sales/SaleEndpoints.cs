@@ -51,6 +51,13 @@ public static class SaleEndpoints
         group.MapPost("/{id:guid}/confirm", ConfirmSale)
             .WithName("ConfirmSale")
             .WithSummary("Confirm a sales order and allocate egg lots via FIFO (online-only).")
+            // #721 — the body is optional, and `*/*` is load-bearing. A typed
+            // body parameter alone attaches application/json Accepts metadata,
+            // which the consumes matcher turns into a route constraint, so a
+            // POST with NO Content-Type stops matching and Program.cs's
+            // `/api/{**rest}` catch-all answers 404. That is what every existing
+            // caller sends. Pinned by Confirm_WithNoContentTypeAtAll_StillConfirms.
+            .Accepts<ConfirmSaleRequest>(isOptional: true, contentType: "application/json", "*/*")
             .RequireAuthorization(AuthPolicies.SalesFlow);
 
         // Voiding undoes a confirmed sale — admin-only (#73). The draft
@@ -251,7 +258,8 @@ public static class SaleEndpoints
             i.ListUnitPriceMinorUnits)).ToList(),
         p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc,
         p?.MadeOfficialAtUtc,
-        customer?.Name);
+        customer?.Name,
+        o.DiscountReasonCode?.ToString(), o.DiscountReasonNote);
 
     private static async Task<IResult> VoidSale(
         Guid id,
@@ -288,7 +296,9 @@ public static class SaleEndpoints
 
     private static async Task<IResult> ConfirmSale(
         Guid id,
+        ConfirmSaleRequest? request,
         ConfirmSaleHandler handler,
+        IValidator<ConfirmSaleCommand> validator,
         TenantContext tenant,
         ICurrentUser currentUser,
         CancellationToken ct)
@@ -296,8 +306,14 @@ public static class SaleEndpoints
         if (!tenant.IsResolved || !currentUser.IsResolved)
             return Results.Unauthorized();
 
+        var command = new ConfirmSaleCommand(
+            id, request?.DiscountReasonCode, request?.DiscountReasonNote);
+        var validation = await validator.ValidateAsync(command, ct);
+        if (!validation.IsValid)
+            return ValidationResponse.Problem(validation);
+
         var result = await handler.HandleAsync(
-            new ConfirmSaleCommand(id), tenant.AccountId, currentUser.UserId, ct);
+            command, tenant.AccountId, currentUser.UserId, ct);
 
         // TenantMismatch is surfaced as NotFound to avoid revealing that the
         // resource exists but belongs to a different tenant.
@@ -345,11 +361,22 @@ public sealed record SalesOrderResponse(
     // #512 US4 — the customer's CURRENT name, additive, so a sales list row reads
     // as a customer rather than an id. Null only when the customer is outside the
     // caller's tenant.
-    string? CustomerName = null);
+    string? CustomerName = null,
+    // #721 — why this order was sold below list. Both NULL on an order confirmed
+    // before that shipped (no backfill), which reads as "not recorded", never as
+    // "no discount". The code is the enum MEMBER NAME; the SPA renders it
+    // through i18n/enums.ts and never displays it raw.
+    string? DiscountReasonCode = null, string? DiscountReasonNote = null);
 
 public sealed record CreateSalesOrderRequest(Guid CustomerId, DateOnly OrderDate);
 
 public sealed record VoidSaleRequest(string Reason);
+
+// Optional on purpose: every existing caller POSTs /confirm with no body at all.
+// See the `.Accepts` call on the route for why the wildcard content type there
+// is what makes that keep working.
+public sealed record ConfirmSaleRequest(
+    string? DiscountReasonCode = null, string? DiscountReasonNote = null);
 
 public sealed record AddOrderItemRequest(
     Guid ProductId, int Quantity, string? Unit, long? UnitPriceMinorUnits,

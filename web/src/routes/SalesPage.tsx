@@ -29,7 +29,8 @@ import { GlossaryLink } from "../components/GlossaryLink";
 import { newId } from "../lib/ids";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import i18n from "../i18n";
-import { statusLabel } from "../i18n/enums";
+import { DISCOUNT_REASON_VALUES, discountReasonLabel, statusLabel } from "../i18n/enums";
+import type { DiscountReasonValue } from "../i18n/enums";
 
 const PAGE = 50;
 
@@ -226,7 +227,7 @@ export function SalesPage() {
   // Payments are the Sales tier (#104): Owner/Manager/Sales see and record;
   // voiding a payment stays corrective (Owner/Manager) like every other undo.
   const canSettle = isAdmin || role === "Sales";
-  const { confirm, askReason, confirmDialog } = useConfirm();
+  const { confirm, askReason, askChoice, confirmDialog } = useConfirm();
   const [customers, setCustomers] = useState<Customer[]>([]);
   // #99: lines sell PRODUCTS. Active ones feed the picker; the full list
   // (inactive included) resolves display names on existing lines.
@@ -385,6 +386,14 @@ export function SalesPage() {
   // action (write + refresh) succeeds: a retry after any failure — including a
   // lost response or a failed follow-up read — replays the same key, so the
   // server dedupes instead of duplicating the write.
+  //
+  // Replays it, that is, when the retry sends the SAME BODY. The middleware
+  // hashes the body, so a retry that answers the dialog differently — a
+  // different void reason, or since #721 a different discount reason — is a
+  // different request under a used key and gets the 409 that says so, not a
+  // replay. That is the contract working rather than a gap: the first write
+  // committed, and the page recovers on its next read. Void has had this shape
+  // since it gained a free-text reason.
   const keys = useRef(new Map<string, string>());
   const keyFor = (scope: string) => {
     const existing = keys.current.get(scope);
@@ -758,20 +767,102 @@ export function SalesPage() {
     clearKey(scope);
   });
 
+  // #721 — the two figures the confirm dialog shows before it asks for a
+  // reason. Both read the SAME orderDiscount/lineDiscount the order panel and
+  // the Orders list already render, so the dialog can never quote a different
+  // number from the screen behind it.
+  const discountHeadline = (order: SalesOrder) => {
+    const level = orderDiscount(order.items);
+    if (level.kind !== "below") return null;
+    const amount = fmt.money(level.amountMinorUnits, order.currencyCode, order.currencyMinorUnit);
+    const counts = {
+      below: order.items.filter((i) => lineDiscount(i).kind === "below").length,
+      total: order.items.length,
+    };
+    return (
+      <p className="discount" data-testid="confirm-discount-headline">
+        {level.percent === null
+          ? t("discountReasonHeadlineNoPct", { amount, ...counts })
+          : t("discountReasonHeadline",
+              { amount, percent: discountPercent(level.percent), ...counts })}
+      </p>
+    );
+  };
+
+  const lineDiscountText = (item: OrderItem) => {
+    const line = lineDiscount(item);
+    if (line.kind !== "below") return null;
+    const amount = fmt.money(line.amountMinorUnits, item.currencyCode, item.currencyMinorUnit);
+    // A zero list price cannot reach here — lineDiscount's "below" needs a
+    // negative unit price, which the validator refuses — but percent is still
+    // computed from `list`, so the amount-only variant stays as the honest
+    // fallback rather than a division nobody can read.
+    return line.percent > 0
+      ? t("discountReasonLine", { amount, percent: discountPercent(line.percent) })
+      : t("discountReasonLineNoPct", { amount });
+  };
+
   // One-way actions (#59). Confirm BEFORE run() so buttons don't flash
   // disabled while the user decides.
   const onConfirm = async () => {
-    const ok = await confirm({
-      title: i18n.t("sales:confirmOrderTitle"),
-      body: i18n.t("sales:confirmOrderBody"),
-      confirmLabel: i18n.t("sales:confirmOrderConfirmLabel"),
-    });
-    if (!ok || !active) return;
+    if (!active) return;
+    // #721 — a below-list order must carry a reason, and the server refuses one
+    // on an order that has nothing below list, so the same predicate decides
+    // both which dialog opens and whether a body is sent. lineDiscount is that
+    // predicate already; a second one here could drift from it.
+    const belowLines = active.items.filter((item) => lineDiscount(item).kind === "below");
+    let body: { discountReasonCode: string; discountReasonNote?: string } | undefined;
+    if (belowLines.length > 0) {
+      const picked = await askChoice({
+        title: i18n.t("sales:confirmOrderTitle"),
+        // The FIFO prose the plain confirmation has always carried, then what
+        // this order gives away, then the lines it gives it away on: the person
+        // confirming sees the number before they justify it.
+        body: (
+          <>
+            <p>{i18n.t("sales:confirmOrderBody")}</p>
+            {discountHeadline(active)}
+            <ul className="discount-breakdown" data-testid="confirm-discount-lines">
+              {belowLines.map((item) => (
+                <li key={item.id}>
+                  <span>{productName(item.productId)}</span>
+                  <span className="discount">{lineDiscountText(item)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ),
+        confirmLabel: i18n.t("sales:confirmOrderConfirmLabel"),
+        choiceLabel: i18n.t("sales:discountReasonLabel"),
+        choices: DISCOUNT_REASON_VALUES.map((value) => ({
+          value,
+          label: discountReasonLabel(value),
+        })),
+        // `satisfies` so a rename of the server member that reaches
+        // DISCOUNT_REASON_VALUES fails typecheck here rather than silently
+        // dropping the inline note requirement. Pinned from the C# side too by
+        // DiscountReasonVocabularyTests.
+        noteRequiredFor: ["Other" satisfies DiscountReasonValue],
+        noteLabel: i18n.t("sales:discountReasonNoteLabel"),
+        noteRequiredMessage: i18n.t("sales:discountReasonNoteRequired"),
+        choiceRequiredMessage: i18n.t("sales:discountReasonRequired"),
+      });
+      if (picked === null) return;
+      body = { discountReasonCode: picked.value };
+      if (picked.note !== null) body.discountReasonNote = picked.note;
+    } else {
+      const ok = await confirm({
+        title: i18n.t("sales:confirmOrderTitle"),
+        body: i18n.t("sales:confirmOrderBody"),
+        confirmLabel: i18n.t("sales:confirmOrderConfirmLabel"),
+      });
+      if (!ok) return;
+    }
     const id = active.id;
     void run(`confirm:${id}`, async () => {
       const scope = `confirm:${id}`;
       await orders.runWrite(async () => {
-        await confirmOrder(id, keyFor(scope));
+        await confirmOrder(id, body, keyFor(scope));
         const refreshed = await getOrder(id);
         if (activeIdRef.current === id) {
           setActive(refreshed);
@@ -1174,6 +1265,21 @@ export function SalesPage() {
               </p>
             );
           })()}
+          {/* #721 — the reason the order was allowed below list, beside the
+              give-away it explains. Absent on an order confirmed before that
+              shipped: no backfill, so nothing here means "not recorded". */}
+          {active.discountReasonCode && (
+            <p className="discount-note" data-testid="order-discount-reason">
+              {active.discountReasonNote
+                ? t("discountReasonSummaryWithNote", {
+                    reason: discountReasonLabel(active.discountReasonCode),
+                    note: active.discountReasonNote,
+                  })
+                : t("discountReasonSummary", {
+                    reason: discountReasonLabel(active.discountReasonCode),
+                  })}
+            </p>
+          )}
           <p><strong>{t("orderTotal", { amount: fmt.money(active.totalMinorUnits, active.currencyCode, active.currencyMinorUnit) })}</strong></p>
 
           {active.status === "Draft" && (
@@ -1559,7 +1665,15 @@ export function SalesPage() {
                         {d.partial ? <><br /><span className="muted discount-note">{t("discountPartialNote")}</span></> : null}
                       </>
                     );
-                  })()}</td>
+                  })()}
+                  {/* Outside the branch above, deliberately: the reason is a
+                      stored fact about the order, not a property of what the
+                      measurement currently says about its lines. */}
+                  {o.discountReasonCode && (
+                    <><br /><span className="muted discount-note" data-testid="row-discount-reason">
+                      {discountReasonLabel(o.discountReasonCode)}
+                    </span></>
+                  )}</td>
                   <td className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</td>
                   <ProvenanceCell history={o} official="confirmed" />
                   <td>

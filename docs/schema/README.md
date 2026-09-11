@@ -54,7 +54,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.AspNetUserLogins](public.AspNetUserLogins.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserRoles](public.AspNetUserRoles.md) | 3 |  | BASE TABLE |
 | [public.AspNetUserTokens](public.AspNetUserTokens.md) | 4 |  | BASE TABLE |
-| [public.SalesOrders](public.SalesOrders.md) | 11 |  | BASE TABLE |
+| [public.SalesOrders](public.SalesOrders.md) | 13 |  | BASE TABLE |
 | [public.DailyEntryGrades](public.DailyEntryGrades.md) | 5 |  | BASE TABLE |
 | [public.EggLots](public.EggLots.md) | 10 |  | BASE TABLE |
 | [public.BirdMovements](public.BirdMovements.md) | 8 |  | BASE TABLE |
@@ -393,6 +393,8 @@ erDiagram
   varchar_500_ VoidReason
   integer Version
   uuid AccountId
+  varchar_32_ DiscountReasonCode
+  varchar_500_ DiscountReasonNote
 }
 "public.DailyEntryGrades" {
   uuid Id

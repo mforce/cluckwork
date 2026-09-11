@@ -137,6 +137,13 @@ export const tl = {
       "Wala pang sapat na stock ang mga kawan na nakatalaga sa iyo para sa "
       + "bentang ito. Maaaring paganahin ng isang Owner o Manager ang pagbenta "
       + "mula sa ibang kawan sa Mga setting ng bukid.",
+    // #721
+    "SalesOrder.DiscountReasonRequired":
+      "May linya na sa order na ito na mas mababa na ngayon sa presyo sa listahan. I-reload "
+      + "ang order at kumpirmahin muli — kailangan nito ng dahilan ng diskwento.",
+    "SalesOrder.DiscountReasonNotApplicable":
+      "Wala nang linya sa order na ito na mas mababa sa presyo sa listahan, kaya hindi ito "
+      + "tumatanggap ng dahilan ng diskwento. I-reload ang order at kumpirmahin muli.",
   },
 
   // machine-drafted (#182) — pending native review. Task CT1 (B1 catch-up):
@@ -342,6 +349,17 @@ export const tl = {
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} mula sa presyo sa listahan",
     discountUnknown: "Hindi alam",
+    // #721
+    discountReasonHeadline: "Ang order na ito ay {{amount}} mas mababa sa presyo sa listahan, {{percent}}% ng order, sa {{below}} sa {{total}} linya.",
+    discountReasonHeadlineNoPct: "Ang order na ito ay {{amount}} mas mababa sa presyo sa listahan, sa {{below}} sa {{total}} linya.",
+    discountReasonLine: "{{percent}}% · {{amount}}",
+    discountReasonLineNoPct: "{{amount}} mula sa presyo sa listahan",
+    discountReasonLabel: "Dahilan ng diskwento *",
+    discountReasonRequired: "Pumili ng dahilan ng diskwento.",
+    discountReasonNoteLabel: "Tala (kailangan para sa Iba pa)",
+    discountReasonNoteRequired: "Ilarawan ang dahilan.",
+    discountReasonSummary: "Dahilan ng diskwento: {{reason}}",
+    discountReasonSummaryWithNote: "Dahilan ng diskwento: {{reason}} ({{note}})",
     listPriceHintBelow: "{{amount}} mas mababa sa presyo sa listahan ({{percent}}%)",
     listPriceHintAbove: "{{amount}} higit sa presyo sa listahan ({{percent}}%)",
     listPriceHintAboveNoPct: "{{amount}} higit sa presyo sa listahan",
@@ -1646,6 +1664,10 @@ export const tl = {
     detailsAtPrice: "sa {{amount}}",
     detailsListParen: "(listahan {{amount}})",
     detailsNoListPrice: "(walang listahang presyo)",
+    // #756 — tumutugma nang eksakto sa sales:discountReasonSummary(WithNote)
+    // para pareho ang pagtawag sa parehong control sa dalawang screen.
+    detailsDiscountReason: "Dahilan ng diskwento: {{reason}}",
+    detailsDiscountReasonWithNote: "Dahilan ng diskwento: {{reason}} ({{note}})",
     fromLabel: "Mula",
     toLabel: "Hanggang",
     emptyMessage: "Wala pang audit event.",
@@ -1736,6 +1758,13 @@ export const tl = {
     "role.Manager": "Manager",
     "role.Sales": "Benta",
     "role.ReadOnly": "Read-only",
+
+    // discount reason (SalesPage confirm dialog) — DiscountReasonCode.
+    "discountReason.Volume": "Malaking dami",
+    "discountReason.DamagedStock": "Sirang stock",
+    "discountReason.LongStandingCustomer": "Matagal nang kliyente",
+    "discountReason.ManagerApproved": "Aprubado ng manager",
+    "discountReason.Other": "Iba pa",
 
     // water source
     "waterSource.Well": "Poso",
@@ -2967,6 +2996,16 @@ export const tl = {
       + "walang masusukat at nakikitang gitling sa listahan ng mga order, na walang linya ng diskwento sa "
       + "mismong order. Iba ito sa diskwentong maaaring ilagay ng nagbebenta sa "
       + "buong order — ito ay awtomatikong nakukuha, hindi ilinalagay.",
+
+    glossaryDiscountReasonTerm: "Dahilan ng diskwento",
+    glossaryDiscountReasonDef:
+      "Kung bakit pinayagang maibenta ang order nang mas mababa sa presyo sa listahan: Malaking dami, "
+      + "Sirang stock, Matagal nang kliyente, Aprubado ng manager, o Iba pa. Hinihingi ito kapag "
+      + "kinukumpirma ang order na may linyang mas mababa sa presyo sa listahan, at doon lamang — ang "
+      + "order na naibenta sa o higit sa presyo sa listahan ay hindi tumatanggap ng dahilan. Ang Iba pa "
+      + "ay nangangailangan ng tala; ang iba ay tumatanggap nito kung nais mong idagdag. Ang order na "
+      + "kinumpirma bago pa ito umiral ay walang dahilan, na ang ibig sabihin ay hindi ito naitala, "
+      + "hindi na walang ibinigay na diskwento.",
 
     glossaryAboveListTerm: "Higit sa presyo sa listahan",
     glossaryAboveListDef: "Isang linyang naibenta nang higit sa sarili nitong presyo sa listahan.",

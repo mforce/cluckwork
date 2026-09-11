@@ -196,6 +196,17 @@ export const en = {
     "EggLot.AssignedFlocksInsufficientStock":
       "Your assigned flocks do not have enough stock for this sale. An owner "
       + "or manager can enable selling from other flocks in Farm settings.",
+    // #721 — the two discount-reason refusals a seller can actually reach.
+    // Both are races: the dialog asked (or did not ask) against the lines as
+    // they stood when the page last read them, and another user changed a
+    // price in between. The other three codes are unreachable behind the
+    // dialog and the validator, so they keep the server's own English.
+    "SalesOrder.DiscountReasonRequired":
+      "A line on this order is now priced below list. Reload the order and "
+      + "confirm again — it needs a discount reason.",
+    "SalesOrder.DiscountReasonNotApplicable":
+      "No line on this order is below list any more, so it takes no discount "
+      + "reason. Reload the order and confirm again.",
   },
   // Shared navigation chrome (Task 7, #182) — the FIRST screen-externalization
   // batch (B1). `nav` is in TRANSLATED_NAMESPACES — es/tl are machine-drafted
@@ -430,6 +441,22 @@ export const en = {
     // An order predating the list-price snapshot reads as unknown, never as a
     // clean zero. #719: data starts on the day #720 shipped.
     discountUnknown: "Unknown",
+    // #721 — the confirm dialog keeps its title and its FIFO prose and gains
+    // these: the person confirming sees what they are giving away before they
+    // justify it. Amount and percent match the order's own discount line.
+    discountReasonHeadline: "This order is {{amount}} below list price, {{percent}}% of the order, across {{below}} of {{total}} lines.",
+    discountReasonHeadlineNoPct: "This order is {{amount}} below list price, across {{below}} of {{total}} lines.",
+    // One row per below-list line, in the breakdown box under the headline.
+    discountReasonLine: "{{percent}}% · {{amount}}",
+    discountReasonLineNoPct: "{{amount}} off list",
+    // The trailing " *" is folded into the label, matching the rest of the app.
+    discountReasonLabel: "Discount reason *",
+    discountReasonRequired: "Choose a discount reason.",
+    discountReasonNoteLabel: "Note (required for Other)",
+    discountReasonNoteRequired: "Describe the reason.",
+    // The stored reason, on the confirmed order and in the Orders list.
+    discountReasonSummary: "Discount reason: {{reason}}",
+    discountReasonSummaryWithNote: "Discount reason: {{reason}} ({{note}})",
     // #720 — live hints under the add-line price field, mirroring the amount
     // the line will snapshot as ListUnitPriceMinorUnits if submitted now.
     listPriceHintBelow: "{{amount}} below list ({{percent}}%)",
@@ -2110,6 +2137,11 @@ export const en = {
     detailsAtPrice: "at {{amount}}",
     detailsListParen: "(list {{amount}})",
     detailsNoListPrice: "(no list price)",
+    // #756 — SalesOrder.Confirm row. Wording matches
+    // sales:discountReasonSummary(WithNote) exactly, so the same control is
+    // named the same way on both screens (#688).
+    detailsDiscountReason: "Discount reason: {{reason}}",
+    detailsDiscountReasonWithNote: "Discount reason: {{reason}} ({{note}})",
     // #666 — the date window. Inclusive calendar days over the UTC timestamp,
     // matching this screen's own "When (UTC)" column.
     fromLabel: "From",
@@ -2230,6 +2262,13 @@ export const en = {
     "role.Manager": "Manager",
     "role.Sales": "Sales",
     "role.ReadOnly": "Read-only",
+
+    // discount reason (SalesPage confirm dialog) — DiscountReasonCode.
+    "discountReason.Volume": "Volume",
+    "discountReason.DamagedStock": "Damaged stock",
+    "discountReason.LongStandingCustomer": "Long-standing customer",
+    "discountReason.ManagerApproved": "Manager approved",
+    "discountReason.Other": "Other",
 
     // water source (WaterPage picker) — WaterSource enum.
     "waterSource.Well": "Well",
@@ -3398,6 +3437,14 @@ export const en = {
       + "all has nothing to measure and reads as a dash in the Orders list, with no discount line on the "
       + "order itself. Different from the order-level discount a seller "
       + "can type in — this one is worked out for you, never entered.",
+
+    glossaryDiscountReasonTerm: "Discount reason",
+    glossaryDiscountReasonDef:
+      "Why an order was allowed to sell below list price: Volume, Damaged stock, Long-standing "
+      + "customer, Manager approved, or Other. Asked for when you confirm an order that has a line "
+      + "priced under list, and only then — an order sold at or above list takes no reason. Other "
+      + "needs a note; the rest take one if you want to add it. An order confirmed before this "
+      + "existed carries no reason, which means it was not recorded, not that nothing was given away.",
 
     glossaryAboveListTerm: "Above list",
     glossaryAboveListDef: "A line sold for more than its own list price.",

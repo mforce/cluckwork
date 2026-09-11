@@ -196,6 +196,7 @@ internal static class CluckworkFeatureServiceCollectionExtensions
             IValidator<RecordBirdMovementCommand>,
             RecordBirdMovementValidator>();
         services.AddScoped<IValidator<VoidSaleCommand>, VoidSaleValidator>();
+        services.AddScoped<IValidator<ConfirmSaleCommand>, ConfirmSaleValidator>();
         services.AddScoped<
             IValidator<RecordPaymentCommand>,
             RecordPaymentValidator>();

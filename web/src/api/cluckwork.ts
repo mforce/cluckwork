@@ -360,6 +360,12 @@ export interface SalesOrder extends RecordHistory {
   // caller's tenant scope between reads (see contracts/http-api.md's
   // "defensive null on a non-null id").
   customerName: string | null;
+  // #721 — why this order was sold below list. Both null together on an order
+  // confirmed before that shipped (no backfill), which reads as "not recorded",
+  // never as "no discount". The code is the enum member name; render it through
+  // i18n/enums.ts (discountReasonLabel), never raw.
+  discountReasonCode: string | null;
+  discountReasonNote: string | null;
 }
 
 export const listCustomers = (params?: {
@@ -443,8 +449,14 @@ export const removeOrderItem = (orderId: string, itemId: string, key?: string) =
 export const cancelOrder = (orderId: string, key?: string) =>
   apiPost<void>(`/sales/${orderId}/cancel`, undefined, key);
 
-export const confirmOrder = (orderId: string, key?: string) =>
-  apiPost<{ orderId: string; status: string }>(`/sales/${orderId}/confirm`, undefined, key);
+// #721 — the discount reason rides on the confirm itself, so a below-list order
+// cannot be confirmed without one. Omitting the body entirely is still the right
+// call for an order with nothing below list: the server refuses a reason there.
+export const confirmOrder = (
+  orderId: string,
+  body?: { discountReasonCode: string; discountReasonNote?: string },
+  key?: string,
+) => apiPost<{ orderId: string; status: string }>(`/sales/${orderId}/confirm`, body, key);
 
 // Undo of a mistaken confirm (#60): stock returns to its source lots.
 export const voidOrder = (orderId: string, reason: string, key?: string) =>

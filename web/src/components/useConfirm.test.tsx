@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useConfirm } from "./useConfirm";
+import type { ChoiceResult } from "./useConfirm";
 import i18n from "../i18n";
 
 // A realistic host: real triggers, so focus has somewhere to return to, and the
@@ -265,5 +266,203 @@ describe("useConfirm i18n wiring (#182, Task 9)", () => {
       expect(screen.getByRole("button", { name: "CANCEL-MARKER" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     });
+  });
+});
+
+// #721 — the third shape. Its own host, so the two shapes above stay exactly as
+// they were: the union widened underneath them and nothing else may have moved.
+function ChoiceHost({
+  onSettle = () => {},
+  onOtherSettle = () => {},
+}: {
+  onSettle?: (value: ChoiceResult | null) => void;
+  onOtherSettle?: (value: boolean) => void;
+} = {}) {
+  const { askChoice, confirm, confirmDialog } = useConfirm();
+  return (
+    <>
+      {/* A second shape on the same host, so the supersede case below can ask
+          one over the other the way the two older shapes are tested. */}
+      <button
+        onClick={() => void confirm({
+          title: "Deplete this flock?",
+          body: "The flock stops accepting new entries.",
+          confirmLabel: "Deplete flock",
+        }).then(onOtherSettle)}
+      >
+        deplete
+      </button>
+      <button
+        onClick={() => void askChoice({
+          title: "Why is this order below list price?",
+          body: "At least one line is priced under list.",
+          confirmLabel: "Confirm order",
+          choiceLabel: "Discount reason",
+          choices: [
+            { value: "Volume", label: "Volume" },
+            { value: "Other", label: "Other" },
+          ],
+          noteRequiredFor: ["Other"],
+          noteLabel: "Note",
+          noteRequiredMessage: "Describe the reason.",
+          choiceRequiredMessage: "Choose a discount reason.",
+        }).then(onSettle)}
+      >
+        confirm order
+      </button>
+      {confirmDialog}
+    </>
+  );
+}
+
+const openChoice = async (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole("button", { name: "confirm order" }));
+
+describe("useConfirm askChoice (#721)", () => {
+  it("resolves the chosen value with a null note when none is typed", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    render(<ChoiceHost onSettle={onSettle} />);
+    await openChoice(user);
+
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+    await user.click(screen.getByRole("button", { name: "Confirm order" }));
+
+    await waitFor(() => expect(onSettle).toHaveBeenCalledWith({ value: "Volume", note: null }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("trims the note it resolves", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    render(<ChoiceHost onSettle={onSettle} />);
+    await openChoice(user);
+
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+    await user.type(screen.getByLabelText("Note"), "  bulk order  ");
+    await user.click(screen.getByRole("button", { name: "Confirm order" }));
+
+    await waitFor(() =>
+      expect(onSettle).toHaveBeenCalledWith({ value: "Volume", note: "bulk order" }));
+  });
+
+  it("refuses with nothing chosen, inline, and keeps the dialog open", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    render(<ChoiceHost onSettle={onSettle} />);
+    await openChoice(user);
+
+    await user.click(screen.getByRole("button", { name: "Confirm order" }));
+
+    expect(await screen.findByText("Choose a discount reason.")).toBeInTheDocument();
+    expect(onSettle).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    // Back to the field that refused, not left on the button (same rule the
+    // blank-reason path follows).
+    expect(screen.getByRole("radio", { name: "Volume" })).toHaveFocus();
+  });
+
+  it("demands the note only for the options that name nothing on their own", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    render(<ChoiceHost onSettle={onSettle} />);
+    await openChoice(user);
+
+    await user.click(screen.getByRole("radio", { name: "Other" }));
+    await user.click(screen.getByRole("button", { name: "Confirm order" }));
+
+    expect(await screen.findByText("Describe the reason.")).toBeInTheDocument();
+    expect(onSettle).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Note")).toHaveFocus();
+    // The choice survives the refusal — the whole point of settling inline.
+    expect(screen.getByRole("radio", { name: "Other" })).toBeChecked();
+
+    await user.type(screen.getByLabelText("Note"), "agreed with the buyer");
+    await user.click(screen.getByRole("button", { name: "Confirm order" }));
+    await waitFor(() =>
+      expect(onSettle).toHaveBeenCalledWith({ value: "Other", note: "agreed with the buyer" }));
+  });
+
+  it("clears a stale note error when the chosen option changes", async () => {
+    const user = userEvent.setup();
+    render(<ChoiceHost />);
+    await openChoice(user);
+
+    await user.click(screen.getByRole("radio", { name: "Other" }));
+    await user.click(screen.getByRole("button", { name: "Confirm order" }));
+    expect(await screen.findByText("Describe the reason.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+
+    expect(screen.queryByText("Describe the reason.")).toBeNull();
+  });
+
+  it("resolves null on Cancel", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    render(<ChoiceHost onSettle={onSettle} />);
+    await openChoice(user);
+
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(onSettle).toHaveBeenCalledWith(null));
+  });
+
+  // Design §6 Risk 2: widening the settle union is what this slice does to a
+  // hook two screens share, so the new shape owes the same two lifecycle tests
+  // the older ones carry.
+  it("settles a pending choice when another question is asked over it", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    render(<ChoiceHost onSettle={onSettle} />);
+
+    await openChoice(user);
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+    await user.click(screen.getByRole("button", { name: "deplete" }));
+
+    // null, not the half-answered choice: they never went through with it.
+    await waitFor(() => expect(onSettle).toHaveBeenCalledWith(null));
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("Deplete this flock?");
+  });
+
+  it("settles a pending confirmation when a choice is asked over it", async () => {
+    const user = userEvent.setup();
+    const onOtherSettle = vi.fn();
+    render(<ChoiceHost onOtherSettle={onOtherSettle} />);
+
+    await user.click(screen.getByRole("button", { name: "deplete" }));
+    await openChoice(user);
+
+    // false, the confirm shape's own dismissal value — the widened union must
+    // not leak the incoming shape's null into the outgoing promise.
+    await waitFor(() => expect(onOtherSettle).toHaveBeenCalledWith(false));
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(
+      "Why is this order below list price?");
+  });
+
+  it("settles a pending choice when the screen unmounts under it", async () => {
+    const user = userEvent.setup();
+    const onSettle = vi.fn();
+    const { unmount } = render(<ChoiceHost onSettle={onSettle} />);
+
+    await openChoice(user);
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+    unmount();
+
+    await waitFor(() => expect(onSettle).toHaveBeenCalledWith(null));
+  });
+
+  it("forgets a previous answer when the same question is asked again", async () => {
+    const user = userEvent.setup();
+    render(<ChoiceHost />);
+    await openChoice(user);
+    await user.click(screen.getByRole("radio", { name: "Volume" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await openChoice(user);
+
+    expect(screen.getByRole("radio", { name: "Volume" })).not.toBeChecked();
+    expect(screen.getByLabelText("Note")).toHaveValue("");
   });
 });

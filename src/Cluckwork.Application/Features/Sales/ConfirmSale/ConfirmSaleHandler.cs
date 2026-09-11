@@ -48,7 +48,7 @@ public sealed class ConfirmSaleHandler(
     //   BEGIN
     //     SELECT Account FOR SHARE (source of the farm date AND the policy)
     //     SELECT SalesOrder FOR UPDATE (fresh — never a pre-transaction read)
-    //     CheckCanConfirm() before touching stock
+    //     CheckCanConfirm(discount reason) before touching stock
     //     re-read the caller's effective role; a now-forbidden caller -> 403
     //     for a plain Worker, read committed UserRoleAssignment rows
     //     SELECT candidate egg_lots FOR UPDATE (ONE statement, farm-wide)
@@ -58,6 +58,26 @@ public sealed class ConfirmSaleHandler(
     public async Task<Result<ConfirmSaleResponse>> HandleAsync(
         ConfirmSaleCommand command, Guid accountId, Guid actingUserId, CancellationToken ct)
     {
+        // Parsed before the transaction: an unknown code is the cheapest
+        // possible refusal and must never reach a lock. ConfirmSaleValidator
+        // turns the same input into a 400 for API callers using this SAME
+        // parser, so over HTTP this branch is unreachable; it exists for the
+        // seeders, which build the command directly and never see a validator
+        // (#394), and it is why they get a Result rather than the 500 that
+        // AddOrderItem's Enum.Parse would throw on the same input.
+        //
+        // NOT COVERED BY ANY TEST, stated rather than left to be assumed
+        // (confirmed by mutation: making the condition unreachable leaves the
+        // whole suite green). Reaching it needs a direct handler caller passing
+        // a malformed code, and no such caller exists — building one means 12
+        // hand-written null dependencies, which is scaffolding, not a guard.
+        // The parse itself is covered: DiscountReason.TryParseCode has eleven
+        // cases in SalesOrderDiscountReasonTests.
+        if (!DiscountReason.TryParseCode(command.DiscountReasonCode, out var discountReasonCode))
+            return Result.Failure<ConfirmSaleResponse>(Error.Validation(
+                "SalesOrder.DiscountReasonUnknown",
+                $"'{command.DiscountReasonCode}' is not a known discount reason."));
+
         Result<ConfirmSaleResponse>? failure = null;
         SalesOrder? confirmedOrder = null;
         var allocationDate = default(DateOnly);
@@ -111,7 +131,7 @@ public sealed class ConfirmSaleHandler(
 
             // 4 — the precondition BEFORE touching stock: a NotDraft/NoItems
             // order must never even attempt a FIFO lock.
-            var canConfirm = order.CheckCanConfirm();
+            var canConfirm = order.CheckCanConfirm(discountReasonCode, command.DiscountReasonNote);
             if (canConfirm.IsFailure)
             {
                 failure = Result.Failure<ConfirmSaleResponse>(canConfirm.Error);
@@ -243,7 +263,7 @@ public sealed class ConfirmSaleHandler(
                     -draw.Quantity, nameof(SalesOrderAllocation), allocation.Id, clock.UtcNow), transactionCt);
             }
 
-            var confirmResult = order.Confirm();
+            var confirmResult = order.Confirm(discountReasonCode, command.DiscountReasonNote);
             if (confirmResult.IsFailure)
                 throw new InvalidOperationException(
                     $"SalesOrder.Confirm contradicted its own CheckCanConfirm for order {order.Id}: " +
@@ -251,10 +271,28 @@ public sealed class ConfirmSaleHandler(
 
             await allocations.AddRangeAsync(allocationRows, transactionCt);
 
+            // #721 — the reason rides on the audit row too, not only the
+            // SalesOrders columns: History and #745-style Details columns
+            // read audit events, never the aggregate directly. This is not a
+            // second source of truth — the reason is write-once (set only by
+            // this Confirm call, never edited afterward) and the row commits
+            // in the SAME transaction as the columns below it, so the two
+            // cannot disagree. Omitted entirely when the order gave nothing
+            // away: `order.DiscountReasonCode` is null then, and a payload of
+            // nulls is noise, not a fact.
+            var discountDetails = order.DiscountReasonCode is { } discountReasonCodeForAudit
+                ? new
+                {
+                    discountReasonCode = discountReasonCodeForAudit.ToString(),
+                    discountReasonNote = order.DiscountReasonNote,
+                }
+                : null;
+
             // #494 — INSIDE the transaction, so the event commits with the
             // FIFO allocations or rolls back with them.
             await audit.WriteAsync(
-                AuditActions.SalesOrderConfirm, nameof(SalesOrder), order.Id, ct: transactionCt);
+                AuditActions.SalesOrderConfirm, nameof(SalesOrder), order.Id,
+                details: discountDetails, ct: transactionCt);
 
             confirmedOrder = order;
             return true;

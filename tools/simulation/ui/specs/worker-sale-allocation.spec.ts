@@ -101,8 +101,16 @@ test.describe("Worker sale allocation (#612)", () => {
           && r.url().endsWith("/confirm")
           && r.request().method() === "POST",
       );
-      await page
-        .getByRole("dialog", { name: tEn("sales:confirmOrderTitle") })
+      // #721 — the 0.01 price above is far below this product's seeded list
+      // price, so the confirm dialog carries a required discount reason.
+      // Keeping the deep discount is deliberate: the absurd quantity is what
+      // drives this spec's insufficient-stock branch, and without a reason the
+      // /confirm POST the wait above is registered for is never sent at all.
+      const confirmDialog = page.getByRole("dialog", { name: tEn("sales:confirmOrderTitle") });
+      await confirmDialog
+        .getByRole("radio", { name: tEn("enums:discountReason.ManagerApproved") })
+        .check();
+      await confirmDialog
         .getByRole("button", { name: tEn("sales:confirmOrderConfirmLabel") })
         .click();
       const confirmResponse = await confirmSettled;

@@ -5,6 +5,7 @@ import { SalesPage } from "./SalesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 import i18n from "../i18n";
+import type { DiscountReasonValue } from "../i18n/enums";
 import {
   addOrderItem, cancelOrder, confirmOrder, createOrder, getCustomer, getOrder, listCustomers, listEggGrades,
   listEggUnitConversions, listOrderPayments, listOrders, listProducts, recordPayment,
@@ -103,7 +104,8 @@ function draftEmpty(currencyMinorUnit: number, currencyCode: string, id = "o1"):
   return {
     ...NO_RECORD_HISTORY,
     id, customerId: "c1", customerName: "Acme Eggs", referenceNumber: "SO-1", orderDate: "2026-07-20",
-    status: "Draft", totalMinorUnits: 0, currencyCode, currencyMinorUnit, voidReason: null, items: [],
+    status: "Draft", totalMinorUnits: 0, currencyCode, currencyMinorUnit, voidReason: null,
+    discountReasonCode: null, discountReasonNote: null, items: [],
   };
 }
 
@@ -135,6 +137,17 @@ const ITEM_B: OrderItem = {
 };
 const DRAFT_TWO: SalesOrder = {
   ...draftEmpty(2, "USD", "o2"), referenceNumber: "SO-2", totalMinorUnits: 2900, items: [ITEM_A, ITEM_B],
+};
+
+// #721 — the same two lines sold AT list, so confirming asks the plain yes/no
+// instead of the discount-reason picklist. Unit prices are untouched, so the
+// order total is still 2900.
+const DRAFT_TWO_AT_LIST: SalesOrder = {
+  ...DRAFT_TWO,
+  items: [
+    { ...ITEM_A, listUnitPriceMinorUnits: ITEM_A.unitPriceMinorUnits },
+    { ...ITEM_B, listUnitPriceMinorUnits: ITEM_B.unitPriceMinorUnits },
+  ],
 };
 
 // #445 — the conversions feeding the unit-clarity surfaces (unit-aware
@@ -1087,7 +1100,8 @@ describe("SalesPage Orders-list discount column (#724)", () => {
       ...NO_RECORD_HISTORY,
       id, customerId: "c1", customerName: "Acme Eggs", referenceNumber: `SO-${id}`,
       orderDate: "2026-07-20", status: "Confirmed", totalMinorUnits,
-      currencyCode: "USD", currencyMinorUnit: 2, voidReason: null, items,
+      currencyCode: "USD", currencyMinorUnit: 2, voidReason: null,
+      discountReasonCode: null, discountReasonNote: null, items,
     };
   }
 
@@ -1400,7 +1414,9 @@ describe("SalesPage one-way actions", () => {
   };
 
   it("allocates nothing until the confirm is answered, then confirms", async () => {
-    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    // At list, so this stays the plain yes/no path. The below-list path has its
+    // own block below (#721).
+    await openOrder(DRAFT_TWO_AT_LIST, /Grade A Dozen/);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Confirm order/ }));
     });
@@ -1414,7 +1430,9 @@ describe("SalesPage one-way actions", () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Confirm order" }));
     });
 
-    expect(vi.mocked(confirmOrder)).toHaveBeenCalledWith("o2", expect.any(String));
+    // No body at all for an at-list order: the server refuses a discount reason
+    // on an order that gave nothing away (#721).
+    expect(vi.mocked(confirmOrder)).toHaveBeenCalledWith("o2", undefined, expect.any(String));
   });
 
   // #612 — the distinct, generic 422 a restricted Worker gets is not a dialog
@@ -1425,7 +1443,7 @@ describe("SalesPage one-way actions", () => {
   // mocked confirmOrder rejects with the ALREADY-resolved message, same as a
   // real ApiError leaving the fetch client.
   it("shows the localized assigned-flocks-insufficient-stock warning on the page, generically", async () => {
-    await openOrder(DRAFT_TWO, /Grade A Dozen/);
+    await openOrder(DRAFT_TWO_AT_LIST, /Grade A Dozen/);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Confirm order/ }));
     });
@@ -1438,6 +1456,191 @@ describe("SalesPage one-way actions", () => {
     });
 
     expect(screen.getByText(localized)).toBeInTheDocument();
+  });
+
+  // #721 — a below-list order cannot be confirmed without a reason, so the
+  // plain yes/no is replaced by a picklist. The predicate is lineDiscount's
+  // "below", the same one the row markers use, so an at-list or above-list
+  // order is untouched (covered by the at-list case above).
+  describe("discount reason at confirm (#721)", () => {
+    const reason = (value: DiscountReasonValue) =>
+      within(dialog()).getByRole("radio", { name: i18n.t(`enums:discountReason.${value}`) });
+    const accept = () =>
+      within(dialog()).getByRole("button", { name: i18n.t("sales:confirmOrderConfirmLabel") });
+
+    async function openBelowListAndAsk() {
+      await openOrder(DRAFT_TWO, /Grade A Dozen/);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:confirmOrderButton") }));
+      });
+    }
+
+    it("asks for a reason instead of the plain confirmation", async () => {
+      await openBelowListAndAsk();
+
+      // Same title and same FIFO prose as the plain confirmation — the reason
+      // is one more required field on the confirm, not a separate scolding.
+      expect(dialog()).toHaveAccessibleName(i18n.t("sales:confirmOrderTitle"));
+      expect(within(dialog()).getByText(i18n.t("sales:confirmOrderBody"))).toBeInTheDocument();
+      expect(within(dialog()).getAllByRole("radio").length).toBeGreaterThan(0);
+      expect(vi.mocked(confirmOrder)).not.toHaveBeenCalled();
+    });
+
+    // The mockup on #721: "the person confirming sees what they are giving away
+    // before they justify it." Both figures come from the same
+    // orderDiscount/lineDiscount the screen behind the dialog renders.
+    it("shows what the order gives away, and on which lines", async () => {
+      await openBelowListAndAsk();
+
+      // ITEM_A: 375 list, sold at 300, x3 -> 2.25 off, 20%.
+      // ITEM_B: 1200 list, sold at 1000, x2 -> 4.00 off, 16.7%.
+      // Order: 6.25 off a list value of 375x3 + 1200x2 = 3525 -> 17.7%.
+      expect(screen.getByTestId("confirm-discount-headline")).toHaveTextContent(
+        "This order is $6.25 below list price, 17.7% of the order, across 2 of 2 lines.");
+      const lines = within(screen.getByTestId("confirm-discount-lines")).getAllByRole("listitem");
+      expect(lines.map((li) => li.textContent)).toEqual([
+        "Grade A Dozen20.0% · $2.25",
+        "Grade B Tray16.7% · $4.00",
+      ]);
+    });
+
+    it("lists only the lines that are actually below list", async () => {
+      const atList = { ...ITEM_B, id: "atlist", listUnitPriceMinorUnits: ITEM_B.unitPriceMinorUnits };
+      await openOrder({ ...DRAFT_TWO, items: [ITEM_A, atList] }, /Grade A Dozen/);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:confirmOrderButton") }));
+      });
+
+      const lines = within(screen.getByTestId("confirm-discount-lines")).getAllByRole("listitem");
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toHaveTextContent("Grade A Dozen");
+      expect(screen.getByTestId("confirm-discount-headline")).toHaveTextContent("across 1 of 2 lines");
+    });
+
+    // Literal labels, not a map over the same constant SalesPage renders: that
+    // comparison moves with any rename and would stay green. The wire VALUES
+    // are pinned against the C# enum from the other side, by
+    // DiscountReasonVocabularyTests.
+    it("offers every reason, labelled, most routine first", async () => {
+      await openBelowListAndAsk();
+
+      const radios = within(dialog()).getAllByRole("radio");
+      expect(radios.map((r) => r.getAttribute("value"))).toEqual([
+        "Volume", "DamagedStock", "LongStandingCustomer", "ManagerApproved", "Other",
+      ]);
+      expect(radios.map((r) => r.closest("label")?.textContent)).toEqual([
+        "Volume", "Damaged stock", "Long-standing customer", "Manager approved", "Other",
+      ]);
+    });
+
+    it("sends the chosen reason with the confirm", async () => {
+      await openBelowListAndAsk();
+      vi.mocked(confirmOrder).mockResolvedValue(undefined as never);
+      mockGetOrder.mockResolvedValue({ ...DRAFT_TWO, status: "Confirmed" });
+
+      fireEvent.click(reason("DamagedStock"));
+      await act(async () => { fireEvent.click(accept()); });
+
+      expect(vi.mocked(confirmOrder)).toHaveBeenCalledWith(
+        DRAFT_TWO.id, { discountReasonCode: "DamagedStock" }, expect.any(String));
+    });
+
+    it("sends a note when one is typed", async () => {
+      await openBelowListAndAsk();
+      vi.mocked(confirmOrder).mockResolvedValue(undefined as never);
+      mockGetOrder.mockResolvedValue({ ...DRAFT_TWO, status: "Confirmed" });
+
+      fireEvent.click(reason("Other"));
+      fireEvent.change(
+        within(dialog()).getByLabelText(i18n.t("sales:discountReasonNoteLabel")),
+        { target: { value: "  agreed with the buyer  " } });
+      await act(async () => { fireEvent.click(accept()); });
+
+      expect(vi.mocked(confirmOrder)).toHaveBeenCalledWith(
+        DRAFT_TWO.id,
+        { discountReasonCode: "Other", discountReasonNote: "agreed with the buyer" },
+        expect.any(String));
+    });
+
+    it("refuses to confirm with no reason chosen, and keeps the dialog open", async () => {
+      await openBelowListAndAsk();
+
+      await act(async () => { fireEvent.click(accept()); });
+
+      expect(within(dialog()).getByText(i18n.t("sales:discountReasonRequired"))).toBeInTheDocument();
+      expect(vi.mocked(confirmOrder)).not.toHaveBeenCalled();
+    });
+
+    it("demands a note for Other, inline, without losing the chosen reason", async () => {
+      await openBelowListAndAsk();
+
+      fireEvent.click(reason("Other"));
+      await act(async () => { fireEvent.click(accept()); });
+
+      expect(within(dialog()).getByText(i18n.t("sales:discountReasonNoteRequired"))).toBeInTheDocument();
+      expect(vi.mocked(confirmOrder)).not.toHaveBeenCalled();
+      expect(reason("Other")).toBeChecked();
+    });
+
+    it("takes the other reasons with no note", async () => {
+      await openBelowListAndAsk();
+      vi.mocked(confirmOrder).mockResolvedValue(undefined as never);
+      mockGetOrder.mockResolvedValue({ ...DRAFT_TWO, status: "Confirmed" });
+
+      fireEvent.click(reason("Volume"));
+      await act(async () => { fireEvent.click(accept()); });
+
+      expect(vi.mocked(confirmOrder)).toHaveBeenCalledWith(
+        DRAFT_TWO.id, { discountReasonCode: "Volume" }, expect.any(String));
+    });
+
+    it("confirms nothing when the dialog is dismissed", async () => {
+      await openBelowListAndAsk();
+
+      await act(async () => {
+        fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+      });
+
+      expect(vi.mocked(confirmOrder)).not.toHaveBeenCalled();
+    });
+
+    it("shows the stored reason on the confirmed order and in the Orders list", async () => {
+      const confirmed: SalesOrder = {
+        ...DRAFT_TWO, status: "Confirmed",
+        discountReasonCode: "ManagerApproved", discountReasonNote: "signed off by Ana",
+      };
+      await openOrder(confirmed, /Grade A Dozen/);
+
+      expect(screen.getByTestId("order-discount-reason")).toHaveTextContent(
+        i18n.t("sales:discountReasonSummaryWithNote", {
+          reason: i18n.t("enums:discountReason.ManagerApproved"),
+          note: "signed off by Ana",
+        }));
+      expect(screen.getByTestId("row-discount-reason")).toHaveTextContent(
+        i18n.t("enums:discountReason.ManagerApproved"));
+    });
+
+    it("renders the reason without a note when none was recorded", async () => {
+      const confirmed: SalesOrder = {
+        ...DRAFT_TWO, status: "Confirmed",
+        discountReasonCode: "Volume", discountReasonNote: null,
+      };
+      await openOrder(confirmed, /Grade A Dozen/);
+
+      expect(screen.getByTestId("order-discount-reason")).toHaveTextContent(
+        i18n.t("sales:discountReasonSummary", {
+          reason: i18n.t("enums:discountReason.Volume"),
+        }));
+    });
+
+    // No backfill: an order confirmed before #721 has no reason, and the screen
+    // must say nothing rather than imply the order took no discount.
+    it("shows nothing for an order confirmed before the reason existed", async () => {
+      await openOrder({ ...DRAFT_TWO, status: "Confirmed" }, /Grade A Dozen/);
+
+      expect(screen.queryByTestId("order-discount-reason")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("row-discount-reason")).not.toBeInTheDocument();
+    });
   });
 
   it("leaves the draft alone when the cancel is dismissed", async () => {
@@ -2682,6 +2885,12 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
       const trigger = action === "confirm" ? "confirmOrderButton" : action === "void" ? "voidOrderButton" : "cancelDraft";
       const accept = action === "confirm" ? "confirmOrderConfirmLabel" : action === "void" ? "voidOrderConfirmLabel" : "cancelDraft";
       fireEvent.click(screen.getByRole("button", { name: i18n.t(`sales:${trigger}`) }));
+      // DRAFT_TWO is below list, so #721 puts the discount-reason picklist
+      // between the trigger and the confirm.
+      if (action === "confirm") {
+        fireEvent.click(within(dialog()).getByRole(
+          "radio", { name: i18n.t("enums:discountReason.Volume") }));
+      }
       if (action === "void") {
         fireEvent.change(within(dialog()).getByLabelText(i18n.t("useConfirm:reasonLabel")), { target: { value: "wrong order" } });
       }
@@ -3019,6 +3228,8 @@ describe("Sales live editor (#713)", () => {
     mockGetOrder.mockResolvedValue({ ...DRAFT_TWO, status: "Confirmed" });
     vi.mocked(confirmOrder).mockResolvedValue(undefined as never);
     fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:confirmOrderButton") }));
+    fireEvent.click(within(dialog()).getByRole(
+      "radio", { name: i18n.t("enums:discountReason.Volume") }));
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: i18n.t("sales:confirmOrderConfirmLabel") })); });
     expect(confirmOrder).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: i18n.t("sales:save") })).not.toBeInTheDocument();

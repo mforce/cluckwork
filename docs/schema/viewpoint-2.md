@@ -12,7 +12,7 @@ Customers, orders, FIFO allocations, payments, expenses, products.
 | [public.EggGrades](public.EggGrades.md) | 10 |  | BASE TABLE |
 | [public.ExpenseCategories](public.ExpenseCategories.md) | 6 |  | BASE TABLE |
 | [public.Products](public.Products.md) | 12 |  | BASE TABLE |
-| [public.SalesOrders](public.SalesOrders.md) | 11 |  | BASE TABLE |
+| [public.SalesOrders](public.SalesOrders.md) | 13 |  | BASE TABLE |
 | [public.EggLots](public.EggLots.md) | 10 |  | BASE TABLE |
 | [public.Expenses](public.Expenses.md) | 12 |  | BASE TABLE |
 | [public.ProductEggGradeMappings](public.ProductEggGradeMappings.md) | 4 |  | BASE TABLE |
@@ -95,6 +95,8 @@ erDiagram
   varchar_500_ VoidReason
   integer Version
   uuid AccountId
+  varchar_32_ DiscountReasonCode
+  varchar_500_ DiscountReasonNote
 }
 "public.EggLots" {
   uuid Id

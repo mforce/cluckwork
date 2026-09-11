@@ -161,13 +161,19 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                 ["id", "name", "phone", "email", "address", "note"],
                 x => [x.Id, x.Name, x.Phone, x.Email, x.Address, x.Note]),
 
+            // #721 — the discount reason joins the row for the same reason
+            // ListPriceBasis joined the line below: this is the full-fidelity
+            // export of the table, and the reason is a column on it. The
+            // discount TOTALS a report would show stay with #725.
             "sales-orders" => Rows(activeDb.SalesOrders.AsNoTracking()
                     .OrderBy(x => x.OrderDate).ThenBy(x => x.Id),
                 ["id", "referenceNumber", "customerId", "status", "orderDate",
-                 "totalMinorUnits", "currencyCode", "currencyMinorUnit", "voidReason", "version"],
+                 "totalMinorUnits", "currencyCode", "currencyMinorUnit", "voidReason",
+                 "discountReasonCode", "discountReasonNote", "version"],
                 x => [x.Id, x.ReferenceNumber, x.CustomerId, x.Status, x.OrderDate,
                       x.TotalAmount.MinorUnits, x.TotalAmount.CurrencyCode,
-                      x.TotalAmount.CurrencyMinorUnit, x.VoidReason, x.Version]),
+                      x.TotalAmount.CurrencyMinorUnit, x.VoidReason,
+                      x.DiscountReasonCode, x.DiscountReasonNote, x.Version]),
 
             // #720 R5 (F3) — ListUnitPriceMinorUnits and ListPriceBasis included: the
             // full-fidelity export of the table this column turned into a permanent

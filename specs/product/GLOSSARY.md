@@ -521,6 +521,17 @@ list, with no discount line shown on the order panel. Both are a different numbe
 *order-level* amount a seller applies manually to the whole order — the two
 share a name and nothing else.
 
+**Discount reason (#721)** — why an order was allowed to sell below **list
+price**: one of *Volume*, *Damaged stock*, *Long-standing customer*, *Manager
+approved* or *Other*, with a note that is optional for the first four and
+required for *Other*. Recorded on the **sales order**, not the line, and only at
+**confirm** — an order with at least one below-list line cannot be confirmed
+without one, and an order with none is refused if one is supplied, so the field
+never claims a discount that was not given. Stored by name, so reordering the
+list can never relabel a past order, and carried in the Admin-only CSV export.
+No backfill: an order confirmed before this shipped has no reason, which reads
+as *not recorded*, never as *no discount*.
+
 **Above list (#720)** — the state where a **sales line** sold for more than
 its **list price**. Shown next to the List price and Discount columns on the
 order line table; a line at exactly list price shows an em dash instead of a
