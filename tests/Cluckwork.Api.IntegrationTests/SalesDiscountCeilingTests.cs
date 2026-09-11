@@ -18,6 +18,10 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
     // the boundary and allowed, 89 is one minor unit past it.
     private const long ListPrice = 100;
     private const int TenPercent = 1_000;
+    // Far more than any order below needs, so a refusal is unambiguously the
+    // ceiling and never a shortfall. Every order is 10 units of a product sold
+    // per EGG, whose conversion factor is 1, so a confirm draws exactly 10.
+    private const int SeededStock = 5_000;
 
     private sealed record IdDto(Guid Id);
     private sealed record OrderItemDto(long UnitPriceMinorUnits, long? ListUnitPriceMinorUnits);
@@ -33,9 +37,7 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
         var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
         var productId = await factory.SeedProductAsync(
             accountId, farmId, grades["Large"], "Large Eggs", ListPrice);
-        // Deliberately far more stock than any order below needs: a refusal must
-        // be unambiguously the ceiling and never a shortfall.
-        await factory.SeedEggLotAsync(accountId, grades["Large"], 5_000);
+        await factory.SeedEggLotAsync(accountId, grades["Large"], SeededStock);
         return new Fixture(accountId, productId);
     }
 
@@ -136,7 +138,7 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
 
         var (status, available) = await SnapshotAsync(farm.AccountId, orderId);
         Assert.Equal("Draft", status);
-        Assert.Equal(5_000, available); // no stock was touched
+        Assert.Equal(SeededStock, available); // no stock was touched
     }
 
     // A plain Worker is bound by the ceiling too — only Owner and Manager are
@@ -194,7 +196,7 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
 
         var (status, available) = await SnapshotAsync(farm.AccountId, orderId);
         Assert.Equal("Confirmed", status);
-        Assert.Equal(4_900, available);
+        Assert.Equal(SeededStock - 10, available);
     }
 
     // --- a farm with no ceiling --------------------------------------------
@@ -212,7 +214,7 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
 
         var (status, available) = await SnapshotAsync(farm.AccountId, orderId);
         Assert.Equal("Confirmed", status);
-        Assert.Equal(4_900, available);
+        Assert.Equal(SeededStock - 10, available);
     }
 
     // ZERO is a legal setting and a DIFFERENT one from NULL: give nothing away.
@@ -283,7 +285,7 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
         Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
         var (status, available) = await SnapshotAsync(farm.AccountId, orderId);
         Assert.Equal("Confirmed", status);
-        Assert.Equal(4_900, available);
+        Assert.Equal(SeededStock - 10, available);
     }
 
     // --- the per-caller display hint on GET /account ------------------------
@@ -358,7 +360,7 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
 
         var (status, available) = await SnapshotAsync(farm.AccountId, orderId);
         Assert.Equal("Confirmed", status);
-        Assert.Equal(4_900, available); // drawn exactly once, never twice
+        Assert.Equal(SeededStock - 10, available); // drawn exactly once, never twice
 
         var (saleMovements, versionAfter) = await factory.WithTenantScopeAsync(
             farm.AccountId, async db => (
@@ -424,6 +426,6 @@ public sealed class SalesDiscountCeilingTests(CluckworkWebApplicationFactory fac
 
         var (status, available) = await SnapshotAsync(farm.AccountId, orderId);
         Assert.Equal("Draft", status);
-        Assert.Equal(5_000, available);
+        Assert.Equal(SeededStock, available);
     }
 }
