@@ -57,6 +57,11 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         // Derived from the stored symbol/code — not a column.
         builder.Ignore(e => e.CurrencySymbol);
 
+        // Same: derived from MaxDiscountBasisPoints (#727). The basis-points
+        // column itself needs no configuration — a plain nullable int, whose
+        // NULL is the legal "no ceiling" default.
+        builder.Ignore(e => e.MaxDiscount);
+
         // #283 Part 1 — the default single-farm account is static reference
         // data, seeded via idempotent raw SQL in the InitialCreate migration
         // (originally #283's AddBaseReferenceDataAndMustChangePassword,

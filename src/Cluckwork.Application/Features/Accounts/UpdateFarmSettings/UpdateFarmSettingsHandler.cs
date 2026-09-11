@@ -4,6 +4,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Features.Catalog;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
+using Cluckwork.Domain.Sales;
 
 public sealed class UpdateFarmSettingsHandler(
     IAccountRepository accounts,
@@ -136,7 +137,21 @@ public sealed class UpdateFarmSettingsHandler(
             command.Brand,
             Enum.Parse<EggUnit>(command.DefaultStepperUnit, ignoreCase: true),
             Enum.Parse<WorkerSaleAllocationPolicy>(command.WorkerSaleAllocationPolicy, ignoreCase: true),
+            ToBasisPoints(command.MaxDiscountPercent),
             currencyBoundRowsExist);
+
+    // #727 — the same single parser the validator ran, so the boundary and the
+    // storage cannot disagree about which percents are expressible. The
+    // validator has already refused anything this cannot convert, so a failure
+    // here would be a contradiction, not a user error.
+    private static int? ToBasisPoints(decimal? percent)
+    {
+        if (!DiscountCeiling.TryParsePercent(percent, out var ceiling))
+            throw new InvalidOperationException(
+                $"UpdateFarmSettingsValidator admitted a discount ceiling of '{percent}', "
+                    + "which DiscountCeiling.TryParsePercent refuses.");
+        return ceiling?.BasisPoints;
+    }
 
     // Same SaveChanges as the change (#93). Settings decide how every date and
     // every amount on the farm is read, so the trail records the whole block on
@@ -161,6 +176,7 @@ public sealed class UpdateFarmSettingsHandler(
         a.TimeFormatOverride,
         a.Brand,
         DefaultStepperUnit = a.DefaultStepperUnit.ToString(),
-        WorkerSaleAllocationPolicy = a.WorkerSaleAllocationPolicy.ToString()
+        WorkerSaleAllocationPolicy = a.WorkerSaleAllocationPolicy.ToString(),
+        a.MaxDiscountBasisPoints
     };
 }

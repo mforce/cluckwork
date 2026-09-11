@@ -81,7 +81,8 @@ public static class AccountEndpoints
             canChangeCurrency,
             logoOptions.Value.MaxUploadBytes,
             bannerOptions.Value.MaxUploadBytes,
-            account.WorkerSaleAllocationPolicy.ToString()));
+            account.WorkerSaleAllocationPolicy.ToString(),
+            account.MaxDiscount?.Percent));
     }
 
     // #612 — true only for a restricted plain Worker under AllFarmFlocks: the
@@ -115,7 +116,8 @@ public static class AccountEndpoints
             request.Brand,
             request.DefaultStepperUnit,
             request.WorkerSaleAllocationPolicy,
-            request.Version);
+            request.Version,
+            request.MaxDiscountPercent);
 
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
@@ -201,7 +203,10 @@ public sealed record FarmSettingsResponse(
     // #612 — the raw policy, admin-only (like CanChangeCurrency above). Every
     // other role only ever sees the derived ShowFarmWideSaleAllocationNotice
     // on the role-agnostic AccountResponse.
-    string WorkerSaleAllocationPolicy);
+    string WorkerSaleAllocationPolicy,
+    // #727 — the raw ceiling as a percent, admin-only for the same reason.
+    // Null means the farm sets none; zero means "give nothing away".
+    decimal? MaxDiscountPercent);
 
 public sealed record UpdateFarmSettingsRequest(
     string Name,
@@ -215,4 +220,7 @@ public sealed record UpdateFarmSettingsRequest(
     string Brand,
     string DefaultStepperUnit,
     string WorkerSaleAllocationPolicy,
-    int Version);
+    int Version,
+    // #727 — a PERCENT, not basis points: basis points are the storage choice.
+    // Omitted or null clears the ceiling; zero is a different, legal setting.
+    decimal? MaxDiscountPercent);

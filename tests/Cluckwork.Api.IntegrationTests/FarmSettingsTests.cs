@@ -52,7 +52,8 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         string? currencyCode = null, string? unitSystem = null, string? firstDayOfWeek = null,
         string? dateFormatOverride = null, string? timeFormatOverride = null,
         string? brand = null, string? defaultStepperUnit = null,
-        string? workerSaleAllocationPolicy = null, int? version = null) => new
+        string? workerSaleAllocationPolicy = null, int? version = null,
+        decimal? maxDiscountPercent = null) => new
         {
             name = name ?? current.Name,
             timeZoneId = timeZoneId ?? current.TimeZoneId,
@@ -65,7 +66,8 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
             brand = brand ?? current.Brand,
             defaultStepperUnit = defaultStepperUnit ?? current.DefaultStepperUnit,
             workerSaleAllocationPolicy = workerSaleAllocationPolicy ?? "AssignedFlocksOnly",
-            version = version ?? current.Version
+            version = version ?? current.Version,
+            maxDiscountPercent
         };
 
     private static Task<AccountDto> GetAccountAsync(HttpClient client) =>

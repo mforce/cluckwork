@@ -58,6 +58,7 @@ public sealed class CurrencyLockSerializationTests(CluckworkWebApplicationFactor
             account.UnitSystem, account.FirstDayOfWeek, null, null,
             brand: FarmBrands.Default, defaultStepperUnit: account.DefaultStepperUnit,
             workerSaleAllocationPolicy: account.WorkerSaleAllocationPolicy,
+            maxDiscountBasisPoints: account.MaxDiscountBasisPoints,
             financialRowsExist: false);
         await db.SaveChangesAsync();
     }

@@ -2,6 +2,7 @@ namespace Cluckwork.Domain.Accounts;
 
 using System.Text.RegularExpressions;
 using Cluckwork.Domain.Catalog;
+using Cluckwork.Domain.Sales;
 
 // The farm's own settings row. Spec §3.2 models `farms` as a table under the
 // account; there is no farms aggregate yet (SeedDefaults.FarmId is a stand-in),
@@ -75,6 +76,21 @@ public sealed class Account : AggregateRoot<Guid>
     // Owner/Manager opt-in. Only a plain Worker is ever affected by this.
     public WorkerSaleAllocationPolicy WorkerSaleAllocationPolicy { get; private set; } =
         WorkerSaleAllocationPolicy.AssignedFlocksOnly;
+
+    // #727 — the most a ceiling-bound seller may take off a line's list price.
+    // Plain nullable with no default and no backfill, unlike
+    // WorkerSaleAllocationPolicy above: "no policy" was never a legal state,
+    // but "no ceiling" IS the legal default here, so NULL says it directly and
+    // Account.Create needs no ceiling argument. ZERO is a different, equally
+    // legal setting meaning "give nothing away".
+    public int? MaxDiscountBasisPoints { get; private set; }
+
+    // Derived from the stored basis points — not a column, exactly like
+    // CurrencySymbol above.
+    public DiscountCeiling? MaxDiscount =>
+        MaxDiscountBasisPoints is { } basisPoints
+            ? DiscountCeiling.FromBasisPoints(basisPoints)
+            : null;
 
     public int Version { get; private set; }
 
@@ -187,6 +203,7 @@ public sealed class Account : AggregateRoot<Guid>
         string brand,
         EggUnit defaultStepperUnit,
         WorkerSaleAllocationPolicy workerSaleAllocationPolicy,
+        int? maxDiscountBasisPoints,
         bool financialRowsExist)
     {
         var guard = ValidateRequiredFields(name, timeZoneId, locale, currencyCode);
@@ -207,6 +224,17 @@ public sealed class Account : AggregateRoot<Guid>
             return Result.Failure(Error.Validation(
                 "Account.UnknownBrand",
                 $"'{brand}' is not one of the available farm palettes."));
+
+        // #727 — the backstop for the direct callers that never see
+        // UpdateFarmSettingsValidator (#394). Validation, not a throw: over
+        // HTTP the validator has already refused it, so reaching this means a
+        // caller supplied a value the wire form cannot express.
+        if (maxDiscountBasisPoints is { } basisPoints
+            && basisPoints is < 0 or > DiscountCeiling.MaxBasisPoints)
+            return Result.Failure(Error.Validation(
+                "Account.MaxDiscountInvalid",
+                $"A maximum discount must be between 0 and {DiscountCeiling.MaxBasisPoints} " +
+                "basis points (0–100%)."));
 
         var normalizedCurrency = currencyCode.Trim().ToUpperInvariant();
         var currencyChanged = !string.Equals(
@@ -229,6 +257,7 @@ public sealed class Account : AggregateRoot<Guid>
         Brand = normalizedBrand;
         DefaultStepperUnit = defaultStepperUnit;
         WorkerSaleAllocationPolicy = workerSaleAllocationPolicy;
+        MaxDiscountBasisPoints = maxDiscountBasisPoints;
 
         // Only re-derive on an actual change (§4.6). Refreshing the symbol and
         // minor unit on every save would let a catalog update silently
