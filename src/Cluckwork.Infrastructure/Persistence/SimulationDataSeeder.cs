@@ -1041,7 +1041,12 @@ public sealed class SimulationDataSeeder(
             account.Brand,
             account.DefaultStepperUnit.ToString(),
             account.WorkerSaleAllocationPolicy.ToString(),
-            account.Version);
+            account.Version,
+            // The command replaces the WHOLE settings block, so this phase must
+            // carry the farm's current ceiling forward or it would silently
+            // clear one (#727). The fixture sets none today; that is not a
+            // reason to hard-code null here.
+            account.MaxDiscount?.Percent);
 
         var result = await updateFarmSettings.HandleAsync(command, ct);
         Require(result, $"set primary account timezone to {sim.TimeZoneId}");

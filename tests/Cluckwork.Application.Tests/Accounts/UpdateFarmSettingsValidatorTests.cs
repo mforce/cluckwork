@@ -1,5 +1,6 @@
 namespace Cluckwork.Application.Tests.Accounts;
 
+using System.Globalization;
 using Cluckwork.Application.Features.Accounts.UpdateFarmSettings;
 using Cluckwork.Domain.Accounts;
 
@@ -23,7 +24,8 @@ public sealed class UpdateFarmSettingsValidatorTests
         Brand: FarmBrands.Default,
         DefaultStepperUnit: "Individual",
         WorkerSaleAllocationPolicy: "AssignedFlocksOnly",
-        Version: 0);
+        Version: 0,
+        MaxDiscountPercent: null);
 
     private bool Fails(UpdateFarmSettingsCommand command, string property) =>
         _validator.Validate(command).Errors.Any(e => e.PropertyName == property);
@@ -178,4 +180,35 @@ public sealed class UpdateFarmSettingsValidatorTests
     public void NegativeVersion_Fails() =>
         Assert.True(Fails(Valid() with { Version = -1 },
             nameof(UpdateFarmSettingsCommand.Version)));
+
+    // --- discount ceiling (#727) ------------------------------------------
+
+    // Null is the absence of a ceiling and 0 is "give nothing away" — two
+    // different legal settings, so both must pass the boundary.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("0")]
+    [InlineData("10")]
+    [InlineData("12.5")]
+    [InlineData("12.34")]
+    [InlineData("100")]
+    public void ExpressibleDiscountCeiling_Passes(string? percent) =>
+        Assert.True(_validator
+            .Validate(Valid() with { MaxDiscountPercent = Percent(percent) })
+            .IsValid);
+
+    // The boundary refuses exactly what DiscountCeiling.TryParsePercent
+    // refuses, because it IS that parser — a third decimal place has no exact
+    // basis-point value and must not be silently rounded.
+    [Theory]
+    [InlineData("-0.01")]
+    [InlineData("100.01")]
+    [InlineData("12.345")]
+    public void InexpressibleDiscountCeiling_Fails(string percent) =>
+        Assert.True(Fails(
+            Valid() with { MaxDiscountPercent = Percent(percent) },
+            nameof(UpdateFarmSettingsCommand.MaxDiscountPercent)));
+
+    private static decimal? Percent(string? literal) =>
+        literal is null ? null : decimal.Parse(literal, CultureInfo.InvariantCulture);
 }

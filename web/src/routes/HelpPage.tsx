@@ -555,6 +555,12 @@ export function HelpPage() {
         <li>
           <Trans ns="help" i18nKey="salesConfirming" components={{ strong: <strong /> }} />
         </li>
+        {/* #727 — the only rule on this screen that PREVENTS rather than
+            reports, so it sits with Confirming rather than with the discount
+            display above it. */}
+        <li>
+          <Trans ns="help" i18nKey="salesDiscountCeiling" components={{ strong: <strong /> }} />
+        </li>
         <li>
           <Trans ns="help" i18nKey="salesVoiding" components={{ strong: <strong /> }} />
         </li>
@@ -739,6 +745,11 @@ export function HelpPage() {
             cannot confirm at all). */}
         <li>
           <Trans ns="help" i18nKey="farmSettingsWorkerSaleAllocation" components={{ strong: <strong /> }} />
+        </li>
+        {/* #727 — the per-farm discount ceiling. Blank and 0 are different
+            settings and both are legal, which is the part people get wrong. */}
+        <li>
+          <Trans ns="help" i18nKey="farmSettingsMaxDiscount" components={{ strong: <strong /> }} />
         </li>
       </ul>
 

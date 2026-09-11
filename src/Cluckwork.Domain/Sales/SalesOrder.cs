@@ -211,6 +211,77 @@ public sealed class SalesOrder : AggregateRoot<Guid>
     public bool HasBelowListLine => _items.Any(
         i => i.ListUnitPriceMinorUnits is { } list && i.UnitPrice.MinorUnits < list);
 
+    /// <summary>
+    /// The line this order should be refused for under <paramref name="ceiling"/>,
+    /// or null when every line is within it (#727).
+    /// </summary>
+    /// <remarks>
+    /// Pure: no mutation, no <c>Version</c> bump, no role and no ceiling
+    /// LOOKUP. The caller decides WHO is bound; this decides only whether the
+    /// order is over.
+    /// <para>
+    /// Deliberately OUTSIDE <see cref="CheckCanConfirm"/> and deliberately not
+    /// re-run by <see cref="Confirm"/>: that method holds rules about the
+    /// ORDER, it runs before the role is known, and Confirm re-runs it at
+    /// mutation time — so folding an ACTOR rule in would make the aggregate
+    /// refuse a transition that is legal for an Owner.
+    /// </para>
+    /// <para>
+    /// Reports the WORST offender rather than the first in item order, so the
+    /// refusal names the most egregious line. An unmeasurable line outranks
+    /// every measurable breach: a discount nobody can compute cannot be
+    /// compared against one that is known.
+    /// </para>
+    /// </remarks>
+    public CeilingBreach? FindCeilingBreach(DiscountCeiling ceiling)
+    {
+        SalesOrderItem? worst = null;
+        foreach (var item in _items)
+        {
+            switch (item.AgainstCeiling(ceiling))
+            {
+                case LineCeilingStatus.Unmeasurable:
+                    return new CeilingBreach(item.EggGradeId, LineCeilingStatus.Unmeasurable, null);
+                case LineCeilingStatus.Exceeds:
+                    if (worst is null || DiscountsDeeperThan(item, worst)) worst = item;
+                    break;
+            }
+        }
+
+        return worst is null
+            ? null
+            : new CeilingBreach(worst.EggGradeId, LineCeilingStatus.Exceeds, DiscountPercentOf(worst));
+    }
+
+    // Compares the two ratios EXACTLY, never the rounded decimals
+    // DiscountPercentOf returns: at a full-width list price two genuinely
+    // different discounts round to the same decimal, and the refusal would
+    // then name the wrong line. The refusal itself stays correct either way —
+    // this decides only which line it names.
+    //
+    //   (la − ua)/la > (lb − ub)/lb   ⇔   (la − ua)·lb > (lb − ub)·la
+    //
+    // Cross-multiplied in Int128 for the same reason IsExceededBy is, and
+    // safe to multiply without a sign flip because AgainstCeiling only returns
+    // Exceeds for a positive list price.
+    private static bool DiscountsDeeperThan(SalesOrderItem a, SalesOrderItem b)
+    {
+        Int128 la = a.ListUnitPriceMinorUnits!.Value;
+        Int128 lb = b.ListUnitPriceMinorUnits!.Value;
+        return (la - a.UnitPrice.MinorUnits) * lb > (lb - b.UnitPrice.MinorUnits) * la;
+    }
+
+    // Exact and unrounded — the handler decides how many decimals to print, and
+    // the SPA renders its own with the farm's separator. Taken in decimal
+    // rather than long so a full-width list price cannot wrap the subtraction.
+    // AgainstCeiling only returns Exceeds for a POSITIVE list price, so there is
+    // nothing here to divide by zero.
+    private static decimal DiscountPercentOf(SalesOrderItem item)
+    {
+        var list = item.ListUnitPriceMinorUnits!.Value;
+        return ((decimal)list - item.UnitPrice.MinorUnits) * 100m / list;
+    }
+
     // #721 — the reason is required at confirm, not at draft time, and the rule
     // lives on the aggregate rather than in a validator because the seeders
     // call the handler directly and never see one (#394).
@@ -254,6 +325,34 @@ public sealed class SalesOrder : AggregateRoot<Guid>
 }
 
 public enum SalesOrderStatus { Draft, Confirmed, Shipped, Invoiced, Cancelled, Voided }
+
+// #727 — where one line sits against the farm's discount ceiling.
+public enum LineCeilingStatus
+{
+    /// <summary>Measured and within the ceiling, or nothing was discounted.</summary>
+    Within,
+    /// <summary>Measured and past the ceiling.</summary>
+    Exceeds,
+    /// <summary>No list price to measure against, and no recorded fact saying there was none.</summary>
+    Unmeasurable,
+}
+
+/// <summary>
+/// The offending line a ceiling refusal names (#727). The domain decides WHO
+/// breaches and the caller composes the refusal, because the grade NAME lives
+/// in a repository this assembly cannot reach — the same seam
+/// <see cref="SaleAllocationPlan"/>'s ShortEggGradeId already uses for
+/// insufficient stock.
+/// </summary>
+/// <param name="DiscountPercent">
+/// Exact and unrounded, and null EXACTLY when <paramref name="Status"/> is
+/// <see cref="LineCeilingStatus.Unmeasurable"/> — printing a percent for a line
+/// whose list price is unknown would be a fabricated number.
+/// </param>
+public readonly record struct CeilingBreach(
+    Guid EggGradeId,
+    LineCeilingStatus Status,
+    decimal? DiscountPercent);
 
 // #721 — why an order was sold below list. Persisted BY NAME, so reordering
 // these members cannot silently relabel historical rows.
@@ -363,6 +462,46 @@ public sealed class SalesOrderItem : Entity<Guid>
     public Money LineTotal => UnitPrice.Multiply(Quantity);
 
     private SalesOrderItem() { }
+
+    // #727 — the basis routing lives with the entity that owns the basis.
+    internal LineCeilingStatus AgainstCeiling(DiscountCeiling ceiling) => ListPriceBasis switch
+    {
+        // The `> 0` is not redundant with the Recorded/non-null pairing: a list
+        // price of ZERO is a legal product price, and a discount is
+        // (list − unit) as a fraction OF list, so zero has no fraction to take.
+        // It is also what keeps FindCeilingBreach's reported percent total.
+        ListPriceBasis.Recorded when ListUnitPriceMinorUnits is { } list && list > 0 =>
+            ceiling.IsExceededBy(list, UnitPrice.MinorUnits)
+                ? LineCeilingStatus.Exceeds
+                : LineCeilingStatus.Within,
+        // A ZERO list price sold at a NEGATIVE unit price is a discount from
+        // nothing. IsExceededBy says it breaches, but the percent the refusal
+        // must print is a division by zero, so it cannot be measured — and
+        // everything this switch cannot measure fails CLOSED. Routing it to
+        // Within instead, as this arm first did, made it the one fail-OPEN
+        // case here and waived the ceiling entirely for that line.
+        //
+        // Unreachable through the API: both order-item validators refuse a
+        // negative unit price. Reachable by a caller that never meets a
+        // validator (#394), which is the class this repo treats as real.
+        ListPriceBasis.Recorded when ListUnitPriceMinorUnits is 0 && UnitPrice.MinorUnits < 0 =>
+            LineCeilingStatus.Unmeasurable,
+        // Recorded facts (#720): nothing was discounted from anything. A zero
+        // list price sold at or above zero is genuinely no discount.
+        ListPriceBasis.Recorded
+            or ListPriceBasis.ProductUnpriced
+            or ListPriceBasis.NotComparable => LineCeilingStatus.Within,
+        // "We do not know", and the line may have been deeply discounted — the
+        // enum's own comment. It carries no list price, so it never trips
+        // HasBelowListLine and #721 never asks for a reason either; waving it
+        // through here would leave an unlimited discount recorded nowhere,
+        // which is the exact hole this slice exists to close.
+        ListPriceBasis.PreDating => LineCeilingStatus.Unmeasurable,
+        // A value no member names — a cast, or a row materialized from a basis
+        // this code does not know. Fails closed, same as PreDating, so a fifth
+        // member added later refuses until someone routes it deliberately.
+        _ => LineCeilingStatus.Unmeasurable,
+    };
 
     internal void Update(int quantity, Money unitPrice)
     {

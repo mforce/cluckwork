@@ -39,4 +39,21 @@ public sealed class RolesTests
     {
         Assert.Equal(EffectiveAccountRole.Denied, Roles.ResolveEffective(["Contractor"]));
     }
+
+    // #727 — walked over every member rather than listed, so a role added later
+    // forces a decision here instead of silently inheriting "bound". Owner and
+    // Manager are the approval tier; Sales and Worker are the ones the ceiling
+    // exists to bind; ReadOnly and Denied cannot confirm a sale at all, and
+    // bound is the fail-closed answer for them.
+    [Fact]
+    public void MayExceedDiscountCeiling_IsExactlyOwnerAndManager()
+    {
+        var exempt = Enum.GetValues<EffectiveAccountRole>()
+            .Where(Roles.MayExceedDiscountCeiling)
+            .ToArray();
+
+        Assert.Equal(
+            new[] { EffectiveAccountRole.Manager, EffectiveAccountRole.Owner },
+            exempt.Order());
+    }
 }

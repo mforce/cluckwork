@@ -34,6 +34,21 @@ public static class Roles
         if (set.Contains(ReadOnly)) return EffectiveAccountRole.ReadOnly;
         return EffectiveAccountRole.Denied;
     }
+
+    /// <summary>
+    /// #727 — the roles a farm's discount ceiling does not bind. Sales and
+    /// Worker are bound; everyone else either cannot confirm a sale at all or
+    /// is one of these two.
+    /// </summary>
+    /// <remarks>
+    /// Lives here rather than beside ConfirmSaleHandler's own AllowedToConfirm
+    /// because two layers ask it and they must not drift: the handler decides
+    /// the OUTCOME from a fresh in-transaction role read, and GET /account
+    /// derives a display HINT from the caller's claims. Two copies would let a
+    /// screen promise what the handler refuses.
+    /// </remarks>
+    public static bool MayExceedDiscountCeiling(EffectiveAccountRole role) =>
+        role is EffectiveAccountRole.Owner or EffectiveAccountRole.Manager;
 }
 
 // #612 — only a plain Worker is ever flock-scoped. Owner, Manager, Sales,

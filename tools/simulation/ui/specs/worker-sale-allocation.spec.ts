@@ -25,6 +25,17 @@
 // actually happened, while asserting the ONE thing that must always be true
 // regardless: no grade name and no leaked remaining count.
 //
+// ================== IT ALSO DEPENDS ON THE FIXTURE SETTING NO DISCOUNT CEILING ==================
+//
+// #727 refuses a ceiling-bound actor's over-ceiling confirm at step 5b, BEFORE
+// the stock lock — so on a farm with a ceiling this spec's 0.01 price against a
+// real list price would be refused with SalesOrder.DiscountCeilingExceeded and
+// never reach either branch it asserts. It survives unedited for exactly one
+// reason: SimulationDataSeeder sets no ceiling, which is a load-bearing fact
+// about a fixture nothing in CI checks. The spec asserts it below rather than
+// assuming it, so a fixture change fails here with the cause named instead of
+// as an unexplained wrong error message.
+//
 // It does NOT change WorkerSaleAllocationPolicy — that farm setting is
 // GLOBAL, and mutating it here would race every other spec that assumes the
 // fixture's current policy (sales.spec.ts's Sales-role confirm is unaffected
@@ -39,6 +50,7 @@
 // give it without the race above.
 
 import { expect, test } from "../src/fixtures";
+import { apiGet, signInForToken } from "../src/api";
 import { restrictedWorker } from "../src/cast";
 import { farmToday } from "../src/farm";
 import { tEn } from "../src/i18n";
@@ -54,7 +66,22 @@ test.describe("Worker sale allocation (#612)", () => {
   test(
     "never leaks grade/quantity/flock detail to a restricted Worker on an insufficient-stock confirm",
     async ({ page, signIn, farm }) => {
-      await signIn(restrictedWorker());
+      const worker = restrictedWorker();
+
+      // #727 — read per caller, so null here means "no ceiling binds THIS
+      // actor", which is the precondition the two branches below rest on. A
+      // Worker is bound by any ceiling the farm sets, so a non-null value means
+      // the fixture changed and the confirm would be refused before it could
+      // reach either branch.
+      const account = await apiGet<{ yourMaxDiscountPercent: number | null }>(
+        await signInForToken(worker), "/account");
+      expect(
+        account.yourMaxDiscountPercent,
+        "the simulation fixture must set no discount ceiling, or this spec's deep discount "
+          + "is refused by #727 before the insufficient-stock branch is reached",
+      ).toBeNull();
+
+      await signIn(worker);
       const today = farmToday(farm.timeZoneId);
       const customerName = `E2E Worker Sale ${Date.now()}`;
 

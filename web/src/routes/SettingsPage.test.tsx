@@ -70,6 +70,7 @@ const BANNER_MAX_UPLOAD = 5 * 1024 * 1024;
 const SETTINGS = (
   over: Partial<Account> = {}, canChangeCurrency = true,
   workerSaleAllocationPolicy = "AssignedFlocksOnly",
+  maxDiscountPercent: number | null = null,
 ): FarmSettings => ({
   settings: account({
     name: "Hen House",
@@ -85,6 +86,7 @@ const SETTINGS = (
   logoMaxUploadBytes: MAX_UPLOAD,
   bannerMaxUploadBytes: BANNER_MAX_UPLOAD,
   workerSaleAllocationPolicy,
+  maxDiscountPercent,
 });
 
 let refreshed = 0;
@@ -202,6 +204,7 @@ describe("SettingsPage saving", () => {
       brand: "aubergine",
       defaultStepperUnit: "Individual",
       workerSaleAllocationPolicy: "AssignedFlocksOnly",
+      maxDiscountPercent: null,
       version: 7,
     });
     expect(key).toBeTruthy();
@@ -487,6 +490,73 @@ describe("SettingsPage worker sale allocation policy (#612)", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
 
     expect(mockUpdate.mock.calls[0][0]).toMatchObject({ workerSaleAllocationPolicy: "AllFarmFlocks" });
+  });
+});
+
+// #727 — the per-farm discount ceiling. Blank and 0 are DIFFERENT settings and
+// both are legal: blank is "no limit", 0 is "sales staff may give nothing
+// away". Collapsing them is #719's own null-means-two-things trap, so it is
+// pinned in both directions — what a stored value loads as, and what a typed
+// value saves as.
+describe("SettingsPage maximum discount (#727)", () => {
+  const field = () => screen.getByLabelText("Maximum discount");
+
+  it("leaves the field blank for a farm with no ceiling", async () => {
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", null));
+    expect(field()).toHaveValue(null);
+  });
+
+  it("loads a stored ceiling of 0 as 0, not as blank", async () => {
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 0));
+    expect(field()).toHaveValue(0);
+  });
+
+  it("loads a stored ceiling", async () => {
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 10));
+    expect(field()).toHaveValue(10);
+  });
+
+  it("accepts only whole percents from 0 to 100", async () => {
+    await renderReady();
+    expect(field()).toHaveAttribute("type", "number");
+    expect(field()).toHaveAttribute("min", "0");
+    expect(field()).toHaveAttribute("max", "100");
+    expect(field()).toHaveAttribute("step", "1");
+  });
+
+  it("sends null when the field is cleared, which removes the ceiling", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderReady(SETTINGS({}, true, "AssignedFlocksOnly", 10));
+
+    fireEvent.change(field(), { target: { value: "" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    expect(mockUpdate.mock.calls[0][0]).toMatchObject({ maxDiscountPercent: null });
+  });
+
+  it("sends 0 when the field holds 0, which is a ceiling and not an absence", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderReady();
+
+    fireEvent.change(field(), { target: { value: "0" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    expect(mockUpdate.mock.calls[0][0]).toMatchObject({ maxDiscountPercent: 0 });
+  });
+
+  it("sends the typed percent on save", async () => {
+    mockUpdate.mockResolvedValue(undefined);
+    await renderReady();
+
+    fireEvent.change(field(), { target: { value: "15" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+
+    expect(mockUpdate.mock.calls[0][0]).toMatchObject({ maxDiscountPercent: 15 });
+  });
+
+  it("reads its hint from the settings catalog, not a hardcoded literal", async () => {
+    await renderReady();
+    expect(screen.getByText(i18n.t("settings:maxDiscountPercentHint"))).toBeInTheDocument();
   });
 });
 

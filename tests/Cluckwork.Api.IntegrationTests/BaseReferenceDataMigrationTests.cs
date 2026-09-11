@@ -84,6 +84,10 @@ public sealed class BaseReferenceDataMigrationTests
             // default-value property, so the base-seeded row is compared
             // directly against Account.Create's own default.
             nameof(Account.WorkerSaleAllocationPolicy),
+            // #727 — compared, not excluded: the migration adds the column with
+            // no default and no backfill, and Account.Create sets no ceiling,
+            // so both sides are NULL and the comparison is meaningful.
+            nameof(Account.MaxDiscountBasisPoints),
         };
         var accountExcludedProperties = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -98,7 +102,7 @@ public sealed class BaseReferenceDataMigrationTests
         };
         ReferenceDataComparison.AssertExactMappedPropertyPartition(
             accountEntityType, accountComparedProperties, accountExcludedProperties);
-        Assert.Equal(10, accountComparedProperties.Count);
+        Assert.Equal(11, accountComparedProperties.Count);
         Assert.Equal(8, accountExcludedProperties.Count);
 
         var actualAccount = Assert.Single(await db.Accounts.IgnoreQueryFilters()

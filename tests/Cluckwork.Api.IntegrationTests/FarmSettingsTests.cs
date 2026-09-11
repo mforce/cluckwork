@@ -20,10 +20,11 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         string TimeZoneId, string Locale, string UnitSystem, string? FirstDayOfWeek,
         string? DateFormatOverride, string? TimeFormatOverride, int Version,
         string? LogoContentHash, string Brand, string DefaultStepperUnit,
-        string? BannerContentHash, bool ShowFarmWideSaleAllocationNotice);
+        string? BannerContentHash, bool ShowFarmWideSaleAllocationNotice,
+        decimal? YourMaxDiscountPercent);
     private sealed record SettingsDto(
         AccountDto Settings, bool CanChangeCurrency, int LogoMaxUploadBytes,
-        string WorkerSaleAllocationPolicy);
+        string WorkerSaleAllocationPolicy, decimal? MaxDiscountPercent);
     private sealed record ProblemDto(string? Title);
     private sealed record IdDto(Guid Id);
 
@@ -52,7 +53,8 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         string? currencyCode = null, string? unitSystem = null, string? firstDayOfWeek = null,
         string? dateFormatOverride = null, string? timeFormatOverride = null,
         string? brand = null, string? defaultStepperUnit = null,
-        string? workerSaleAllocationPolicy = null, int? version = null) => new
+        string? workerSaleAllocationPolicy = null, int? version = null,
+        decimal? maxDiscountPercent = null) => new
         {
             name = name ?? current.Name,
             timeZoneId = timeZoneId ?? current.TimeZoneId,
@@ -65,7 +67,8 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
             brand = brand ?? current.Brand,
             defaultStepperUnit = defaultStepperUnit ?? current.DefaultStepperUnit,
             workerSaleAllocationPolicy = workerSaleAllocationPolicy ?? "AssignedFlocksOnly",
-            version = version ?? current.Version
+            version = version ?? current.Version,
+            maxDiscountPercent
         };
 
     private static Task<AccountDto> GetAccountAsync(HttpClient client) =>
@@ -902,6 +905,99 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, (await CreateFlockAsync(client, utcJuly16)).StatusCode);
         Assert.Equal(HttpStatusCode.Created,
             (await CreateFlockAsync(client, utcJuly16.AddDays(-1))).StatusCode);
+    }
+
+    // --- discount ceiling (#727) ------------------------------------------
+
+    // Percent crosses the wire; basis points are the storage choice. 12.5%
+    // round-trips because the column holds 1250, not a rounded 12 or 13.
+    [Fact]
+    public async Task SaveThenRead_RoundTripsTheDiscountCeiling()
+    {
+        var (client, accountId, _) = await AdminAsync();
+        var before = await GetAccountAsync(client);
+
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await PutSettingsAsync(client, Body(before, maxDiscountPercent: 12.5m))).StatusCode);
+
+        var settings = await client.GetFromJsonAsync<SettingsDto>(SettingsPath);
+        Assert.Equal(12.5m, settings!.MaxDiscountPercent);
+        await factory.WithTenantScopeAsync(accountId, async db =>
+            Assert.Equal(1_250, (await db.Accounts.AsNoTracking().SingleAsync()).MaxDiscountBasisPoints));
+    }
+
+    // Blank clears the ceiling; zero is a different, legal setting. The save
+    // path must never collapse the two.
+    [Fact]
+    public async Task SaveThenRead_KeepsZeroDistinctFromNoCeiling()
+    {
+        var (client, _, _) = await AdminAsync();
+
+        var withZero = await GetAccountAsync(client);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await PutSettingsAsync(client, Body(withZero, maxDiscountPercent: 0m))).StatusCode);
+        Assert.Equal(0m, (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.MaxDiscountPercent);
+
+        var cleared = await GetAccountAsync(client);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await PutSettingsAsync(client, Body(cleared, maxDiscountPercent: null))).StatusCode);
+        Assert.Null((await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.MaxDiscountPercent);
+    }
+
+    // The sharp edge of a whole-block replace, pinned rather than left to be
+    // discovered: PUT /account/settings replaces every field, and
+    // MaxDiscountPercent is nullable, so a body that OMITS it binds null and
+    // CLEARS the farm's ceiling. Every other field on this screen fails loudly
+    // when omitted — WorkerSaleAllocationPolicy is a non-nullable string, so a
+    // missing one is a 400 from the validator — and this one does not. Any
+    // client that saves this screen must send the field back, and a client that
+    // forgets deletes a policy the owner set.
+    [Fact]
+    public async Task Save_OmittingTheCeilingEntirely_ClearsIt()
+    {
+        var (client, _, _) = await AdminAsync();
+        var before = await GetAccountAsync(client);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await PutSettingsAsync(client, Body(before, maxDiscountPercent: 10m))).StatusCode);
+        Assert.Equal(10m, (await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.MaxDiscountPercent);
+
+        var current = await GetAccountAsync(client);
+        var bodyWithoutTheCeiling = new
+        {
+            name = current.Name,
+            timeZoneId = current.TimeZoneId,
+            locale = current.Locale,
+            currencyCode = current.CurrencyCode,
+            unitSystem = current.UnitSystem,
+            firstDayOfWeek = current.FirstDayOfWeek,
+            dateFormatOverride = current.DateFormatOverride,
+            timeFormatOverride = current.TimeFormatOverride,
+            brand = current.Brand,
+            defaultStepperUnit = current.DefaultStepperUnit,
+            workerSaleAllocationPolicy = "AssignedFlocksOnly",
+            version = current.Version,
+        };
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await PutSettingsAsync(client, bodyWithoutTheCeiling)).StatusCode);
+
+        Assert.Null((await client.GetFromJsonAsync<SettingsDto>(SettingsPath))!.MaxDiscountPercent);
+    }
+
+    // The boundary refuses what DiscountCeiling.TryParsePercent refuses,
+    // because it IS that parser: a 400 from the validator, not a 422 from the
+    // aggregate.
+    [Theory]
+    [InlineData(101)]
+    [InlineData(-1)]
+    [InlineData(12.345)]
+    public async Task Save_WithAnInexpressibleCeiling_Is400(decimal percent)
+    {
+        var (client, _, _) = await AdminAsync();
+        var before = await GetAccountAsync(client);
+
+        var response = await PutSettingsAsync(client, Body(before, maxDiscountPercent: percent));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     private sealed class FrozenClock : IClock

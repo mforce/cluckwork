@@ -73,6 +73,7 @@ const ENTRIES = [
   { key: "ListPrice", group: "salesMoney", spec: "List price" },
   { key: "Discount", group: "salesMoney", spec: "Discount" },
   { key: "DiscountReason", group: "salesMoney", spec: "Discount reason" },
+  { key: "DiscountCeiling", group: "salesMoney", spec: "Discount ceiling" },
   { key: "AboveList", group: "salesMoney", spec: "Above list" },
   // Feed, water & supplies
   { key: "InventoryItem", group: "supplies", spec: "Inventory item" },

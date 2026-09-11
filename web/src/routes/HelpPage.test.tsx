@@ -1130,3 +1130,73 @@ describe("HelpPage visual pass (#657)", () => {
     }
   });
 });
+
+// #727 — the discount ceiling reaches the Help page and the in-app glossary in
+// the same PR that ships it, per the standing documentation rule.
+//
+// The label assertions below ARE #688, mechanised for exactly one feature. The
+// general form of that guard was built and rejected on evidence — 81 derived
+// pairs fail 12 times in es and 20 in tl with no defect present, because
+// Spanish number agreement and Tagalog affixation defeat substring matching.
+// These six pairs are not derived: each label was looked up in its own catalog
+// and written into the prose as a literal, so reading the label back out of the
+// catalog is exact. The value is that renaming the control now goes red here
+// instead of quietly leaving three locales describing a field that no longer
+// has that name.
+describe("HelpPage discount ceiling (#727)", () => {
+  const PACKS = [["en", en], ["es", es], ["tl", tl]] as const;
+
+  it("documents the ceiling on the Sales screen and beside the Farm settings field", () => {
+    render(<HelpPage />);
+    // Scoped to the <strong> the Sales bullet wraps it in: the glossary entry
+    // further down the page renders the same words as plain prose.
+    expect(screen.getByText("Over maximum", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText("0 is not the same as blank", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText("Discount ceiling", { selector: "dt a" })).toBeInTheDocument();
+  });
+
+  it.each(PACKS)("%s names the Farm settings control by its own label", (_name, pack) => {
+    const label = pack.settings.maxDiscountPercentLabel;
+    expect(pack.help.farmSettingsMaxDiscount).toContain(label);
+    expect(pack.help.salesDiscountCeiling).toContain(label);
+    expect(pack.help.glossaryDiscountCeilingDef).toContain(label);
+  });
+
+  it.each(PACKS)("%s names the row badge by its own catalog value", (_name, pack) => {
+    const badge = pack.sales.overMaximumBadge;
+    expect(pack.help.salesDiscountCeiling).toContain(badge);
+    expect(pack.help.glossaryDiscountCeilingDef).toContain(badge);
+  });
+
+  it.each(PACKS)("%s names the approver role and the Draft status in its own words", (_name, pack) => {
+    // What this catches, stated at exactly the strength the mutation supports:
+    // a locale whose prose never names the approver, or never names the status
+    // the order is left in, or names either with a word that is not the one its
+    // own catalog uses for the role picker and the status pill. Both terms are
+    // read back out of THIS locale's catalog rather than hardcoded, so #688 —
+    // which nothing else enforces — holds here by construction.
+    //
+    // What it does NOT catch, checked rather than assumed: `tl` names Manager
+    // twice, once to send the seller to one and once to say Managers are never
+    // capped. Deleting only the first left this green. A guard that claimed to
+    // pin the actionable sentence would be the #407 "wrong guard that reads as
+    // safety", so the name above claims the containment it actually proves.
+    // Matched case-insensitively: the prose runs these mid-sentence ("stays a
+    // draft") while the catalog value is a display label ("Draft").
+    const draft = pack.enums["status.Draft"].toLowerCase();
+    const manager = pack.enums["role.Manager"].toLowerCase();
+    for (const prose of [pack.help.salesDiscountCeiling, pack.help.glossaryDiscountCeilingDef]) {
+      expect(prose.toLowerCase()).toContain(manager);
+    }
+    expect(pack.help.salesDiscountCeiling.toLowerCase()).toContain(draft);
+  });
+
+  it.each([["es", es], ["tl", tl]] as const)("%s is translated, not the English left in place", (_name, pack) => {
+    expect(pack.help.salesDiscountCeiling).not.toBe(en.help.salesDiscountCeiling);
+    expect(pack.help.farmSettingsMaxDiscount).not.toBe(en.help.farmSettingsMaxDiscount);
+    expect(pack.help.glossaryDiscountCeilingTerm).not.toBe(en.help.glossaryDiscountCeilingTerm);
+    expect(pack.help.glossaryDiscountCeilingDef).not.toBe(en.help.glossaryDiscountCeilingDef);
+    expect(pack.settings.maxDiscountPercentLabel).not.toBe(en.settings.maxDiscountPercentLabel);
+    expect(pack.sales.overMaximumBadge).not.toBe(en.sales.overMaximumBadge);
+  });
+});

@@ -22,6 +22,7 @@
 | DefaultStepperUnit | varchar(16) | 'Individual'::character varying | false |  |  |  |
 | Slug | varchar(32) |  | false |  |  |  |
 | WorkerSaleAllocationPolicy | varchar(24) | 'AssignedFlocksOnly'::character varying | false |  |  |  |
+| MaxDiscountBasisPoints | integer |  | true |  |  |  |
 
 ## Viewpoints
 
@@ -47,6 +48,7 @@
 | Accounts_UnitSystem_not_null | n | NOT NULL "UnitSystem" |
 | Accounts_Version_not_null | n | NOT NULL "Version" |
 | Accounts_WorkerSaleAllocationPolicy_not_null | n | NOT NULL "WorkerSaleAllocationPolicy" |
+| CK_Accounts_MaxDiscountBasisPoints | CHECK | CHECK ((("MaxDiscountBasisPoints" IS NULL) OR (("MaxDiscountBasisPoints" >= 0) AND ("MaxDiscountBasisPoints" <= 10000)))) |
 | PK_Accounts | PRIMARY KEY | PRIMARY KEY ("Id") |
 
 ## Indexes
@@ -82,6 +84,7 @@ erDiagram
   varchar_16_ DefaultStepperUnit
   varchar_32_ Slug
   varchar_24_ WorkerSaleAllocationPolicy
+  integer MaxDiscountBasisPoints
 }
 "public.AspNetUsers" {
   uuid Id

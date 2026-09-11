@@ -532,6 +532,20 @@ list can never relabel a past order, and carried in the Admin-only CSV export.
 No backfill: an order confirmed before this shipped has no reason, which reads
 as *not recorded*, never as *no discount*.
 
+**Discount ceiling (#727)** — the most a farm lets a *Sales* user or *Worker*
+take off a **sales line's** **list price**, set in **Farm settings** by an
+Owner or Manager. Measured **per line**, never against the order total, so it
+cannot be evaded by padding an order with at-list lines, and *exactly* at the
+ceiling is allowed. A farm that sets none has no ceiling, and **blank and zero
+are different settings**: zero means *give nothing away*. Above it the seller
+is refused at **confirm**, the order stays a **draft**, and the refusal names
+the offending line by **egg grade** — an Owner or Manager confirms the same
+order untouched, with no approval queue and nothing to request. A line whose
+**list price basis** says the discount is *not computable* cannot breach the
+ceiling; one that says the list price is simply *unknown* (a line predating
+those columns) is refused for a ceiling-bound seller, because an unmeasured
+discount is not a measured zero.
+
 **Above list (#720)** — the state where a **sales line** sold for more than
 its **list price**. Shown next to the List price and Discount columns on the
 order line table; a line at exactly list price shows an em dash instead of a

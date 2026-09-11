@@ -3,6 +3,7 @@ namespace Cluckwork.Domain.Tests.Accounts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Sales;
 
 // #123 — the settings block and the two rules that guard it: §4.6's currency
 // lock and the derivation that runs when the lock is open.
@@ -23,6 +24,7 @@ public sealed class AccountSettingsTests
         string? timeFormatOverride = null,
         EggUnit defaultStepperUnit = EggUnit.Individual,
         WorkerSaleAllocationPolicy workerSaleAllocationPolicy = WorkerSaleAllocationPolicy.AssignedFlocksOnly,
+        int? maxDiscountBasisPoints = null,
         bool financialRowsExist = false) =>
         account.UpdateSettings(
             name ?? account.Name,
@@ -30,7 +32,8 @@ public sealed class AccountSettingsTests
             locale ?? account.Locale,
             currencyCode ?? account.DefaultCurrencyCode,
             unitSystem, firstDayOfWeek, dateFormatOverride, timeFormatOverride,
-            brand: FarmBrands.Default, defaultStepperUnit, workerSaleAllocationPolicy, financialRowsExist);
+            brand: FarmBrands.Default, defaultStepperUnit, workerSaleAllocationPolicy,
+            maxDiscountBasisPoints, financialRowsExist);
 
     [Fact]
     public void UpdateSettings_AppliesTheBlock_AndBumpsVersion()
@@ -192,7 +195,8 @@ public sealed class AccountSettingsTests
             name, timeZoneId, locale, currencyCode,
             UnitSystem.Metric, null, null, null,
             brand: FarmBrands.Default, defaultStepperUnit: EggUnit.Individual,
-            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly, financialRowsExist: false);
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly,
+            maxDiscountBasisPoints: null, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(expectedCode, result.Error.Code);
@@ -227,7 +231,8 @@ public sealed class AccountSettingsTests
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
             firstDayOfWeek: null, dateFormatOverride: null, timeFormatOverride: null,
             brand: "forest", defaultStepperUnit: EggUnit.Individual,
-            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly, financialRowsExist: false);
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly,
+            maxDiscountBasisPoints: null, financialRowsExist: false);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("forest", account.Brand);
@@ -246,7 +251,8 @@ public sealed class AccountSettingsTests
         var result = account.UpdateSettings(
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
             null, null, null, brand: submitted, defaultStepperUnit: EggUnit.Individual,
-            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly, financialRowsExist: false);
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly,
+            maxDiscountBasisPoints: null, financialRowsExist: false);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("forest", account.Brand);
@@ -263,7 +269,8 @@ public sealed class AccountSettingsTests
         var result = account.UpdateSettings(
             "Test Farm", "UTC", "en-US", "USD", UnitSystem.Metric,
             null, null, null, brand: submitted, defaultStepperUnit: EggUnit.Individual,
-            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly, financialRowsExist: false);
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly,
+            maxDiscountBasisPoints: null, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Account.UnknownBrand", result.Error.Code);
@@ -280,7 +287,8 @@ public sealed class AccountSettingsTests
         var result = account.UpdateSettings(
             "Renamed", "America/Los_Angeles", "es-MX", "USD", UnitSystem.Imperial,
             null, null, null, brand: "chartreuse", defaultStepperUnit: EggUnit.Individual,
-            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly, financialRowsExist: false);
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AssignedFlocksOnly,
+            maxDiscountBasisPoints: null, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Original", account.Name);
@@ -322,10 +330,89 @@ public sealed class AccountSettingsTests
             account.Name, account.TimeZoneId, account.Locale, account.DefaultCurrencyCode,
             UnitSystem.Metric, null, null, null, brand: "chartreuse",
             defaultStepperUnit: EggUnit.Individual,
-            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AllFarmFlocks, financialRowsExist: false);
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AllFarmFlocks,
+            maxDiscountBasisPoints: null, financialRowsExist: false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(WorkerSaleAllocationPolicy.AssignedFlocksOnly, account.WorkerSaleAllocationPolicy);
+    }
+
+    // --- discount ceiling (#727) -------------------------------------------
+
+    [Fact]
+    public void NewAccount_HasNoDiscountCeiling()
+    {
+        var account = UsdFarm();
+        Assert.Null(account.MaxDiscountBasisPoints);
+        Assert.Null(account.MaxDiscount);
+    }
+
+    // NULL and 0 are different settings, and the whole slice rests on that:
+    // NULL is "no ceiling at all", 0 is "give nothing away".
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1_000, 1_000)]
+    [InlineData(DiscountCeiling.MaxBasisPoints, DiscountCeiling.MaxBasisPoints)]
+    public void UpdateSettings_StoresTheDiscountCeiling_AndBumpsVersion(
+        int submitted, int expected)
+    {
+        var account = UsdFarm();
+        var before = account.Version;
+
+        var result = Update(account, maxDiscountBasisPoints: submitted);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(expected, account.MaxDiscountBasisPoints);
+        Assert.Equal(expected, account.MaxDiscount!.Value.BasisPoints);
+        Assert.Equal(before + 1, account.Version);
+    }
+
+    [Fact]
+    public void UpdateSettings_ClearsTheDiscountCeiling_WhenGivenNull()
+    {
+        var account = UsdFarm();
+        Assert.True(Update(account, maxDiscountBasisPoints: 1_000).IsSuccess);
+
+        Assert.True(Update(account, maxDiscountBasisPoints: null).IsSuccess);
+
+        Assert.Null(account.MaxDiscountBasisPoints);
+        Assert.Null(account.MaxDiscount);
+    }
+
+    // The #394 backstop: the seeders and every other direct caller never see
+    // UpdateFarmSettingsValidator, so the range rule lives here too.
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(DiscountCeiling.MaxBasisPoints + 1)]
+    public void UpdateSettings_WithABasisPointValueOutOfRange_FailsWithAStableCode(int submitted)
+    {
+        var account = UsdFarm();
+
+        var result = Update(account, maxDiscountBasisPoints: submitted);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Account.MaxDiscountInvalid", result.Error.Code);
+    }
+
+    [Fact]
+    public void UpdateSettings_WithABasisPointValueOutOfRange_LeavesTheWholeBlockUnchanged()
+    {
+        // Same whole-block-under-one-token guard as the brand and policy cases.
+        var account = UsdFarm();
+        var versionBefore = account.Version;
+
+        var result = account.UpdateSettings(
+            "Renamed", "America/Los_Angeles", "es-MX", account.DefaultCurrencyCode,
+            UnitSystem.Imperial, null, null, null, brand: FarmBrands.Default,
+            defaultStepperUnit: EggUnit.Individual,
+            workerSaleAllocationPolicy: WorkerSaleAllocationPolicy.AllFarmFlocks,
+            maxDiscountBasisPoints: DiscountCeiling.MaxBasisPoints + 1, financialRowsExist: false);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Test Farm Co", account.Name);
+        Assert.Equal(WorkerSaleAllocationPolicy.AssignedFlocksOnly, account.WorkerSaleAllocationPolicy);
+        Assert.Null(account.MaxDiscountBasisPoints);
+        Assert.Equal(versionBefore, account.Version);
     }
 
     [Fact]

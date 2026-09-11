@@ -4,6 +4,7 @@ using System.Globalization;
 using Cluckwork.Application.Features.Accounts;
 using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Catalog;
+using Cluckwork.Domain.Sales;
 using FluentValidation;
 
 public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSettingsCommand>
@@ -86,6 +87,19 @@ public sealed class UpdateFarmSettingsValidator : AbstractValidator<UpdateFarmSe
             .Must(BeEnumName<WorkerSaleAllocationPolicy>)
             .WithMessage("Worker sale allocation policy must be AssignedFlocksOnly or AllFarmFlocks.")
             .WithErrorCode("FarmSettings.WorkerSaleAllocationPolicy.Allowed");
+
+        // #727 — validated THROUGH DiscountCeiling.TryParsePercent rather than
+        // by a range rule spelled out again here, so the boundary and the
+        // storage cannot disagree about which percents are expressible. Null
+        // is the absence of a ceiling and passes; 0 is a legal, different
+        // setting; anything needing a third decimal place is refused rather
+        // than rounded.
+        RuleFor(x => x.MaxDiscountPercent)
+            .Must(percent => DiscountCeiling.TryParsePercent(percent, out _))
+            .WithMessage(
+                "Maximum discount must be between 0 and 100 percent, with at most two decimal "
+                    + "places, or empty for no ceiling.")
+            .WithErrorCode("FarmSettings.MaxDiscountPercent.Allowed");
 
         RuleFor(x => x.Version)
             .GreaterThanOrEqualTo(0)

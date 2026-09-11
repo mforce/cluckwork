@@ -22,4 +22,8 @@ public sealed record UpdateFarmSettingsCommand(
     // #612 — how a restricted plain Worker's sale confirmation may draw
     // stock, travels as a name like UnitSystem/FirstDayOfWeek above.
     string WorkerSaleAllocationPolicy,
-    int Version);
+    int Version,
+    // #727 — the farm's maximum discount, as a PERCENT: basis points are the
+    // storage choice, percent is the wire form. Null clears the ceiling; zero
+    // is a different, legal setting meaning "give nothing away".
+    decimal? MaxDiscountPercent);
