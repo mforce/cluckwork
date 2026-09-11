@@ -3605,3 +3605,126 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
     expect(panel).not.toHaveTextContent("0.0%");
   });
 });
+
+// #727 — the per-farm discount ceiling on the Sales screen.
+//
+// ITEM_A is list 375 / unit 300, which is EXACTLY 20% off. ITEM_B is list 1200 /
+// unit 1000, which is 16.67%. So a ceiling of 20 puts A precisely on the
+// boundary (allowed), 19 puts it one step past (refused) and B under either —
+// which is how these tests get a one-line breach and a boundary case out of the
+// fixtures the rest of the file already uses.
+describe("SalesPage discount ceiling (#727)", () => {
+  async function openWithCeiling(percent: number | null, order: SalesOrder = DRAFT_TWO) {
+    mockListOrders.mockResolvedValue([order]);
+    mockGetOrder.mockResolvedValue(order);
+    renderWithProviders(<SalesPage />, {
+      token: ADMIN,
+      farm: account({ yourMaxDiscountPercent: percent }),
+    });
+    await screen.findByRole("button", { name: "New order" });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "open" })); });
+    return screen.findByRole("row", { name: /Grade A Dozen/ });
+  }
+
+  const notice = () => screen.queryByTestId("discount-ceiling-notice");
+  const blocked = () => screen.queryByTestId("order-ceiling-blocked");
+  const confirmButton = () => screen.getByRole("button", { name: /Confirm order/ });
+
+  it("says nothing at all when the caller is bound by no ceiling", async () => {
+    await openWithCeiling(null);
+    expect(notice()).not.toBeInTheDocument();
+    expect(blocked()).not.toBeInTheDocument();
+    expect(screen.queryByText("Over maximum")).not.toBeInTheDocument();
+    expect(confirmButton()).toBeEnabled();
+  });
+
+  it("states the ceiling persistently whenever one binds this caller, breach or not", async () => {
+    await openWithCeiling(25);
+    expect(notice()).toHaveTextContent(i18n.t("sales:discountCeilingNotice", { percent: "25" }));
+    expect(blocked()).not.toBeInTheDocument();
+    expect(confirmButton()).toBeEnabled();
+  });
+
+  it("allows a line sitting exactly on the ceiling", async () => {
+    const rowA = await openWithCeiling(20);
+    expect(within(rowA).queryByText("Over maximum")).not.toBeInTheDocument();
+    expect(blocked()).not.toBeInTheDocument();
+    expect(confirmButton()).toBeEnabled();
+  });
+
+  it("marks only the breaching line, one step past the boundary", async () => {
+    const rowA = await openWithCeiling(19);
+    const rowB = screen.getByRole("row", { name: /Grade B Tray/ });
+
+    expect(within(rowA).getByText("Over maximum")).toBeInTheDocument();
+    expect(within(rowB).queryByText("Over maximum")).not.toBeInTheDocument();
+    // Beside the below-list chip, not instead of it: the two say different things.
+    expect(within(rowA).getByText("Below list")).toBeInTheDocument();
+  });
+
+  it("blocks Confirm and says why when a line breaches", async () => {
+    await openWithCeiling(19);
+    expect(confirmButton()).toBeDisabled();
+    expect(blocked()).toHaveTextContent(i18n.t("sales:discountCeilingBlocked", { percent: "19" }));
+  });
+
+  it("opens no discount-reason dialog and sends no confirm for a blocked order", async () => {
+    await openWithCeiling(19);
+    await act(async () => { fireEvent.click(confirmButton()); });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(vi.mocked(confirmOrder)).not.toHaveBeenCalled();
+  });
+
+  it("treats a ceiling of 0 as a ceiling, not as an absence", async () => {
+    const rowA = await openWithCeiling(0);
+    expect(notice()).toHaveTextContent(i18n.t("sales:discountCeilingNotice", { percent: "0" }));
+    expect(within(rowA).getByText("Over maximum")).toBeInTheDocument();
+    expect(confirmButton()).toBeDisabled();
+  });
+
+  it("marks a row live against the price being typed, before it is saved", async () => {
+    const rowA = await openWithCeiling(25);
+    expect(within(rowA).queryByText("Over maximum")).not.toBeInTheDocument();
+
+    fireEvent.click(within(rowA).getByRole("button", { name: "edit" }));
+    // 2.00 against a 3.75 list is 46.7% off, well past the 25% ceiling.
+    fireEvent.change(screen.getByLabelText("Edit unit price"), { target: { value: "2.00" } });
+
+    expect(screen.getByRole("row", { name: /Grade A Dozen/ })).toHaveTextContent("Over maximum");
+  });
+
+  it("leaves Confirm enabled while an unsaved edit breaches, because Confirm posts the saved line", async () => {
+    const rowA = await openWithCeiling(25);
+    fireEvent.click(within(rowA).getByRole("button", { name: "edit" }));
+    fireEvent.change(screen.getByLabelText("Edit unit price"), { target: { value: "2.00" } });
+
+    expect(screen.getByRole("row", { name: /Grade A Dozen/ })).toHaveTextContent("Over maximum");
+    expect(confirmButton()).toBeEnabled();
+    expect(blocked()).not.toBeInTheDocument();
+  });
+
+  it("never marks a line that has no comparable list price", async () => {
+    const noList: SalesOrder = {
+      ...DRAFT_TWO,
+      items: [{ ...ITEM_A, listUnitPriceMinorUnits: null }],
+      totalMinorUnits: 900,
+    };
+    const row = await openWithCeiling(0, noList);
+
+    expect(within(row).queryByText("Over maximum")).not.toBeInTheDocument();
+    expect(blocked()).not.toBeInTheDocument();
+    expect(confirmButton()).toBeEnabled();
+  });
+
+  it("reads its strings from the sales catalog, not hardcoded literals", async () => {
+    const original = i18n.getResource("en", "sales", "overMaximumBadge") as string;
+    i18n.addResource("en", "sales", "overMaximumBadge", "BADGE-MARKER");
+    try {
+      const rowA = await openWithCeiling(19);
+      expect(within(rowA).getByText("BADGE-MARKER")).toBeInTheDocument();
+    } finally {
+      i18n.addResource("en", "sales", "overMaximumBadge", original);
+    }
+  });
+});
