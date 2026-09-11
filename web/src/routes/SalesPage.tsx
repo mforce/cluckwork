@@ -1774,14 +1774,13 @@ export function SalesPage() {
                   {canSettle && (
                     <td className="num">{(() => {
                       const owed = o.outstandingMinorUnits;
-                      // Not Confirmed, or no figure for this caller — the same
+                      // The column renders only inside the money tier, so null
+                      // here means one thing: the order is not Confirmed. Same
                       // "no figure" glyph the discount column uses.
                       if (owed === null) return "—";
                       // Nothing owed. No amount beside it: a "0.00" here reads
                       // as a debt at a glance.
-                      if (owed === 0) {
-                        return <span className="badge badge-ok">{t("settledBadge")}</span>;
-                      }
+                      if (owed === 0) return <span className="badge badge-ok">{t("settledBadge")}</span>;
                       const amount = fmt.money(owed, o.currencyCode, o.currencyMinorUnit);
                       return owed < o.totalMinorUnits
                         ? <>{amount}<br /><span className="muted discount-note" data-testid="row-partly-paid">{t("partlyPaidNote")}</span></>
