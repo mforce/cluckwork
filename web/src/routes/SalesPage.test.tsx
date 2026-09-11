@@ -1195,6 +1195,153 @@ describe("SalesPage Orders-list discount column (#724)", () => {
   });
 });
 
+// #769 — the Outstanding column and the URL-owned unpaid filter.
+//
+// Cell indices for a money-tier caller: Reference, Date, Customer, Status,
+// Discount, Total, Outstanding, Provenance, actions — so the new column is
+// index 6, and the #724 assertions on index 4 above are untouched by design.
+describe("SalesPage Orders-list outstanding column (#769)", () => {
+  const WORKER = { sub: "u1" };
+
+  // A confirmed two-line order (ITEM_A 900 + ITEM_B 2000 = 2900) carrying a
+  // given settlement figure. Two lines so the row also exercises the discount
+  // cell beside this one — the two columns are neighbours and must not
+  // interfere.
+  function settled(id: string, outstanding: number | null, total = 2900): SalesOrder {
+    return {
+      ...NO_RECORD_HISTORY,
+      id, customerId: "c1", customerName: "Acme Eggs", referenceNumber: `SO-${id}`,
+      orderDate: "2026-07-20", status: "Confirmed", totalMinorUnits: total,
+      currencyCode: "USD", currencyMinorUnit: 2, voidReason: null,
+      discountReasonCode: null, discountReasonNote: null,
+      outstandingMinorUnits: outstanding, items: [ITEM_A, ITEM_B],
+    };
+  }
+
+  const outstandingCell = (reference: RegExp) =>
+    within(screen.getByRole("row", { name: reference })).getAllByRole("cell")[6];
+
+  it("badges a fully settled order and shows no amount beside it", async () => {
+    mockListOrders.mockResolvedValue([settled("paid", 0)]);
+    await renderReady();
+
+    const cell = outstandingCell(/SO-paid/);
+    expect(within(cell).getByText(i18n.t("sales:settledBadge")))
+      .toHaveClass("badge", "badge-ok");
+    // Nothing owed, so no money at all in the cell — a "$0.00" here reads as a
+    // debt at a glance, which is the misreading the badge exists to prevent.
+    expect(cell).not.toHaveTextContent("$0.00");
+    expect(cell).not.toHaveTextContent("0.00");
+  });
+
+  it("shows the remaining amount and says part of it is paid on a partial payment", async () => {
+    mockListOrders.mockResolvedValue([settled("part", 900)]);
+    await renderReady();
+
+    const cell = outstandingCell(/SO-part/);
+    expect(cell).toHaveTextContent("$9.00");
+    // `discount-note` is the wrap class: this note sits inside td.num, which
+    // #650 pins to white-space: nowrap.
+    expect(within(cell).getByTestId("row-partly-paid"))
+      .toHaveClass("muted", "discount-note");
+    expect(within(cell).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
+  });
+
+  it("shows the amount alone when nothing has been paid", async () => {
+    mockListOrders.mockResolvedValue([settled("owes", 2900)]);
+    await renderReady();
+
+    const cell = outstandingCell(/SO-owes/);
+    expect(cell).toHaveTextContent("$29.00");
+    // The three states must be distinguishable from each other, not just from
+    // empty: no part-paid note and no settled pill on an order owing all of it.
+    expect(within(cell).queryByTestId("row-partly-paid")).toBeNull();
+    expect(within(cell).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
+  });
+
+  it("renders an em dash when the order carries no figure at all", async () => {
+    // Null on a row the caller CAN see money on means the order is not
+    // Confirmed. Assert the cell by index: a bare "—" lookup is ambiguous
+    // because the neighbouring discount and provenance cells render one too.
+    mockListOrders.mockResolvedValue([settled("draft", null)]);
+    await renderReady();
+
+    expect(outstandingCell(/SO-draft/)).toHaveTextContent("—");
+  });
+
+  it("gives a caller outside the money tier no column, no filter and no request for one", async () => {
+    mockListOrders.mockResolvedValue([settled("hidden", null)]);
+    renderWithProviders(<SalesPage />, { token: WORKER, route: "/sales?unpaid=1" });
+    await screen.findByRole("button", { name: "New order" });
+
+    expect(screen.queryByRole("columnheader", { name: new RegExp(i18n.t("sales:outstanding")) }))
+      .toBeNull();
+    expect(screen.queryByLabelText(i18n.t("sales:unpaidOnlyFilter"))).toBeNull();
+    // Index 6 is the provenance cell for this caller, so asserting the header
+    // is absent is the claim; the row must also be one cell shorter.
+    expect(within(screen.getByRole("row", { name: /SO-hidden/ })).getAllByRole("cell"))
+      .toHaveLength(8);
+    // A `unpaid=1` a worker typed or was sent is treated as absent, never
+    // forwarded — the server would 403 it, so the 403 is unreachable here.
+    await waitFor(() => expect(mockListOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ unpaid: undefined })));
+  });
+});
+
+// #769 — the filter lives in the URL beside `customerId`, so one link carries
+// both. Same clone-and-set discipline as the #512 customer filter above.
+describe("SalesPage URL-owned unpaid filter (#769)", () => {
+  it("sends unpaid to the server when the URL asks for it", async () => {
+    await renderReady("/sales?unpaid=1");
+
+    await waitFor(() => expect(mockListOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ unpaid: true })));
+    expect(screen.getByLabelText(i18n.t("sales:unpaidOnlyFilter"))).toBeChecked();
+  });
+
+  it("treats any value other than 1 as absent", async () => {
+    await renderReady("/sales?unpaid=yes");
+
+    await waitFor(() => expect(mockListOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ unpaid: undefined })));
+    expect(screen.getByLabelText(i18n.t("sales:unpaidOnlyFilter"))).not.toBeChecked();
+  });
+
+  it("ticking the box sets unpaid while preserving unrelated query keys", async () => {
+    // The customer filter's exact GET must be stubbed, or the picker's resolve
+    // rejects and takes the render down before the checkbox exists.
+    mockGetCustomer.mockResolvedValue(CUSTOMER_A);
+    await renderReadyWithProbe(`/sales?customerId=${GUID_A}&foo=bar`);
+
+    fireEvent.click(screen.getByLabelText(i18n.t("sales:unpaidOnlyFilter")));
+
+    await waitFor(() => expect(probeSearch()).toContain("unpaid=1"));
+    expect(probeSearch()).toContain(`customerId=${GUID_A}`);
+    expect(probeSearch()).toContain("foo=bar");
+    await waitFor(() => expect(mockListOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ unpaid: true })));
+  });
+
+  it("unticking removes only unpaid, preserving unrelated query keys", async () => {
+    await renderReadyWithProbe("/sales?unpaid=1&foo=bar");
+
+    fireEvent.click(screen.getByLabelText(i18n.t("sales:unpaidOnlyFilter")));
+
+    await waitFor(() => expect(probeSearch()).not.toContain("unpaid"));
+    expect(probeSearch()).toContain("foo=bar");
+  });
+
+  it("Clear filters drops unpaid along with the rest", async () => {
+    mockListOrders.mockResolvedValue([]);
+    await renderReadyWithProbe("/sales?unpaid=1&foo=bar");
+
+    fireEvent.click(await screen.findByRole("button", { name: i18n.t("common:clearFiltersButton") }));
+
+    await waitFor(() => expect(probeSearch()).not.toContain("unpaid"));
+    expect(probeSearch()).toContain("foo=bar");
+  });
+});
+
 describe("SalesPage unit-price parsing", () => {
   // Different currency scales prove parseMoneyToMinorUnits uses the order's
   // currencyMinorUnit: "5" is 5 in JPY (0dp) but would be 500 at 2dp.
