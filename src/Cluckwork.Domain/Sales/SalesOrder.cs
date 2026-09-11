@@ -235,7 +235,7 @@ public sealed class SalesOrder : AggregateRoot<Guid>
     /// </remarks>
     public CeilingBreach? FindCeilingBreach(DiscountCeiling ceiling)
     {
-        CeilingBreach? worst = null;
+        SalesOrderItem? worst = null;
         foreach (var item in _items)
         {
             switch (item.AgainstCeiling(ceiling))
@@ -243,14 +243,32 @@ public sealed class SalesOrder : AggregateRoot<Guid>
                 case LineCeilingStatus.Unmeasurable:
                     return new CeilingBreach(item.EggGradeId, LineCeilingStatus.Unmeasurable, null);
                 case LineCeilingStatus.Exceeds:
-                    var percent = DiscountPercentOf(item);
-                    if (worst is null || percent > worst.Value.DiscountPercent)
-                        worst = new CeilingBreach(item.EggGradeId, LineCeilingStatus.Exceeds, percent);
+                    if (worst is null || DiscountsDeeperThan(item, worst)) worst = item;
                     break;
             }
         }
 
-        return worst;
+        return worst is null
+            ? null
+            : new CeilingBreach(worst.EggGradeId, LineCeilingStatus.Exceeds, DiscountPercentOf(worst));
+    }
+
+    // Compares the two ratios EXACTLY, never the rounded decimals
+    // DiscountPercentOf returns: at a full-width list price two genuinely
+    // different discounts round to the same decimal, and the refusal would
+    // then name the wrong line. The refusal itself stays correct either way —
+    // this decides only which line it names.
+    //
+    //   (la − ua)/la > (lb − ub)/lb   ⇔   (la − ua)·lb > (lb − ub)·la
+    //
+    // Cross-multiplied in Int128 for the same reason IsExceededBy is, and
+    // safe to multiply without a sign flip because AgainstCeiling only returns
+    // Exceeds for a positive list price.
+    private static bool DiscountsDeeperThan(SalesOrderItem a, SalesOrderItem b)
+    {
+        Int128 la = a.ListUnitPriceMinorUnits!.Value;
+        Int128 lb = b.ListUnitPriceMinorUnits!.Value;
+        return (la - a.UnitPrice.MinorUnits) * lb > (lb - b.UnitPrice.MinorUnits) * la;
     }
 
     // Exact and unrounded — the handler decides how many decimals to print, and
@@ -456,7 +474,20 @@ public sealed class SalesOrderItem : Entity<Guid>
             ceiling.IsExceededBy(list, UnitPrice.MinorUnits)
                 ? LineCeilingStatus.Exceeds
                 : LineCeilingStatus.Within,
-        // Recorded facts (#720): nothing was discounted from anything.
+        // A ZERO list price sold at a NEGATIVE unit price is a discount from
+        // nothing. IsExceededBy says it breaches, but the percent the refusal
+        // must print is a division by zero, so it cannot be measured — and
+        // everything this switch cannot measure fails CLOSED. Routing it to
+        // Within instead, as this arm first did, made it the one fail-OPEN
+        // case here and waived the ceiling entirely for that line.
+        //
+        // Unreachable through the API: both order-item validators refuse a
+        // negative unit price. Reachable by a caller that never meets a
+        // validator (#394), which is the class this repo treats as real.
+        ListPriceBasis.Recorded when ListUnitPriceMinorUnits is 0 && UnitPrice.MinorUnits < 0 =>
+            LineCeilingStatus.Unmeasurable,
+        // Recorded facts (#720): nothing was discounted from anything. A zero
+        // list price sold at or above zero is genuinely no discount.
         ListPriceBasis.Recorded
             or ListPriceBasis.ProductUnpriced
             or ListPriceBasis.NotComparable => LineCeilingStatus.Within,

@@ -404,10 +404,8 @@ export const es = {
     discountCeilingNotice:
       "Esta granja limita su descuento a un {{percent}}% sobre el precio de lista en "
       + "una sola línea. Un propietario o gerente puede confirmar un pedido que lo supere.",
-    discountCeilingBlocked:
-      "Una línea de este pedido tiene más de un {{percent}}% de descuento, así que no "
-      + "puede confirmarlo. Pida a un propietario o gerente que lo confirme, o cambie "
-      + "el precio de la línea.",
+    discountCeilingWarning: "Una línea de este pedido tiene más de un {{percent}}% de descuento. Solo un "
+      + "propietario o gerente puede confirmarlo. Pídaselo a uno, o cambie el precio de la línea.",
     noOrdersMatch: "Ningún pedido coincide.",
     noOrdersMessage: "Aún no hay pedidos.",
     voidingNeedsAdmin: "Anular requiere un administrador.",

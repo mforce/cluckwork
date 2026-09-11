@@ -3627,7 +3627,7 @@ describe("SalesPage discount ceiling (#727)", () => {
   }
 
   const notice = () => screen.queryByTestId("discount-ceiling-notice");
-  const blocked = () => screen.queryByTestId("order-ceiling-blocked");
+  const blocked = () => screen.queryByTestId("order-ceiling-warning");
   const confirmButton = () => screen.getByRole("button", { name: /Confirm order/ });
 
   it("says nothing at all when the caller is bound by no ceiling", async () => {
@@ -3662,25 +3662,34 @@ describe("SalesPage discount ceiling (#727)", () => {
     expect(within(rowA).getByText("Below list")).toBeInTheDocument();
   });
 
-  it("blocks Confirm and says why when a line breaches", async () => {
+  it("warns when a line breaches, and leaves Confirm usable", async () => {
     await openWithCeiling(19);
-    expect(confirmButton()).toBeDisabled();
-    expect(blocked()).toHaveTextContent(i18n.t("sales:discountCeilingBlocked", { percent: "19" }));
+    // Advisory, NOT a gate. This number is fetched once per session and can be
+    // a stale lower ceiling, or rounded for a list price past 2^53 — so
+    // disabling Confirm here stopped the server's authoritative check from
+    // running and left the seller no way to discover why.
+    expect(confirmButton()).toBeEnabled();
+    expect(blocked()).toHaveTextContent(i18n.t("sales:discountCeilingWarning", { percent: "19" }));
   });
 
-  it("opens no discount-reason dialog and sends no confirm for a blocked order", async () => {
+  it("still asks for a discount reason and posts, so the server decides", async () => {
     await openWithCeiling(19);
     await act(async () => { fireEvent.click(confirmButton()); });
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(vi.mocked(confirmOrder)).not.toHaveBeenCalled();
+    // The reason dialog opens for a line the client believes is over the
+    // ceiling. That is the accepted cost of not gating: the client may be
+    // wrong, and only the POST can settle it.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("treats a ceiling of 0 as a ceiling, not as an absence", async () => {
     const rowA = await openWithCeiling(0);
     expect(notice()).toHaveTextContent(i18n.t("sales:discountCeilingNotice", { percent: "0" }));
     expect(within(rowA).getByText("Over maximum")).toBeInTheDocument();
-    expect(confirmButton()).toBeDisabled();
+    // A ceiling of 0 still WARNS, like any other ceiling. It is the marking
+    // that proves 0 is read as a ceiling rather than as an absence; Confirm
+    // stays usable here for the same reason it does at 19.
+    expect(blocked()).toBeInTheDocument();
   });
 
   it("marks a row live against the price being typed, before it is saved", async () => {

@@ -125,13 +125,59 @@ public sealed class SalesOrderCeilingTests
     // 0, and SalesOrder.AddItem takes any Money because Money is signed. So
     // this pins the guard against a state the domain can REPRESENT, not against
     // a reachable sale.
+    //
+    // It asserted Null until an adversarial review pointed out that Null here
+    // means "no breach", i.e. the ceiling is WAIVED for that line — the one
+    // fail-OPEN arm in a switch where every other unmeasurable case fails
+    // closed. Not dividing by zero and allowing the sale are two different
+    // things, and the guard was silently doing the second.
     [Fact]
-    public void ALineSoldBelowAZeroListPrice_DoesNotDivideByZero()
+    public void ALineSoldBelowAZeroListPrice_IsUnmeasurable_NotWaived()
     {
         var order = MakeDraft();
         AddLine(order, unitPrice: -100, listPrice: 0, ListPriceBasis.Recorded);
 
+        var breach = order.FindCeilingBreach(DiscountCeiling.FromBasisPoints(0));
+
+        var found = Assert.NotNull(breach);
+        Assert.Equal(LineCeilingStatus.Unmeasurable, found.Status);
+        // No percent, for the reason the guard exists: it would divide by zero.
+        Assert.Null(found.DiscountPercent);
+    }
+
+    // The other half, so the arm above cannot be widened by accident: a zero
+    // list price sold at or above zero is genuinely no discount, and must stay
+    // Within rather than becoming unmeasurable too.
+    [Theory]
+    [InlineData(0L)]
+    [InlineData(500L)]
+    public void AZeroListPriceSoldAtOrAboveZero_IsWithin(long unitPrice)
+    {
+        var order = MakeDraft();
+        AddLine(order, unitPrice: unitPrice, listPrice: 0, ListPriceBasis.Recorded);
+
         Assert.Null(order.FindCeilingBreach(DiscountCeiling.FromBasisPoints(0)));
+    }
+
+    // #727 review — the reported line is chosen by an EXACT ratio comparison,
+    // not by the rounded decimal the message prints. Both lines below discount
+    // by one minor unit, so the second is proportionally deeper, but at this
+    // magnitude both percents round to the same decimal. Comparing the printed
+    // values names the first line; comparing the ratios names the second.
+    [Fact]
+    public void FindCeilingBreach_ComparesRatiosExactly_NotTheRoundedPercent()
+    {
+        var shallowGrade = Guid.NewGuid();
+        var deepGrade = Guid.NewGuid();
+        var order = MakeDraft();
+        AddLine(order, unitPrice: 3_999_999_999_999_999_999L, listPrice: 4_000_000_000_000_000_000L,
+            ListPriceBasis.Recorded, eggGradeId: shallowGrade);
+        AddLine(order, unitPrice: 3_999_999_999_999_999_998L, listPrice: 3_999_999_999_999_999_999L,
+            ListPriceBasis.Recorded, eggGradeId: deepGrade);
+
+        var breach = Assert.NotNull(order.FindCeilingBreach(DiscountCeiling.FromBasisPoints(0)));
+
+        Assert.Equal(deepGrade, breach.EggGradeId);
     }
 
     // --- worst-offender selection ------------------------------------------

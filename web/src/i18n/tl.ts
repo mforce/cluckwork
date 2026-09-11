@@ -423,10 +423,8 @@ export const tl = {
       "Nililimitahan ka ng bukid na ito sa {{percent}}% na diskwento mula sa presyo sa "
       + "listahan kada linya. Maaaring kumpirmahin ng isang Owner o Manager ang order "
       + "na lalampas dito.",
-    discountCeilingBlocked:
-      "May linya sa order na ito na mas malaki sa {{percent}}% ang diskwento, kaya "
-      + "hindi mo ito makukumpirma. Ipakumpirma ito sa isang Owner o Manager, o baguhin "
-      + "ang presyo ng linya.",
+    discountCeilingWarning: "May linya sa order na ito na mas malaki sa {{percent}}% ang diskwento. Isang "
+      + "Owner o Manager lang ang makakakumpirma nito. Humingi sa isa, o baguhin ang presyo ng linya.",
     noOrdersMatch: "Walang tugmang order.",
     noOrdersMessage: "Wala pang order.",
     voidingNeedsAdmin: "Kailangan ng admin para mag-void.",

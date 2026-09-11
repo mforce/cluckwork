@@ -1419,18 +1419,25 @@ export function SalesPage() {
                       {t("listPriceHintAbove", { amount, percent: discountPercent((perUnit * 100) / list) })}
                     </p>;
               })()}
-              {/* #727 — beside the button it disables, so the control and the
-                  reason it will not work are read together. No dialog opens and
-                  no POST is sent, which is the point: a discount reason
-                  collected for an order the server is about to refuse is a
-                  question asked for nothing. */}
+              {/* #727 — a WARNING beside Confirm, not a gate on it.
+                  This number can be wrong in two ways the server's cannot: it
+                  is fetched once per session, so an owner RAISING the ceiling
+                  leaves a seller holding a stale lower one; and a list price
+                  past 2^53 has already been rounded by JSON.parse before it
+                  reaches us. Either way, disabling Confirm turned advice into a
+                  verdict and stopped the authoritative in-transaction check
+                  from ever running — a seller blocked here was told to go and
+                  ask a manager when the real remedy was a page reload.
+                  §4.6 calls this a display hint; a greyed-out button is not a
+                  hint. The server refuses over-ceiling confirms, and that
+                  refusal is the only authority. */}
               {orderOverCeiling && (
-                <p className="error" role="status" data-testid="order-ceiling-blocked">
-                  {t("discountCeilingBlocked", { percent: ceilingPercent })}
+                <p className="warn" role="status" data-testid="order-ceiling-warning">
+                  {t("discountCeilingWarning", { percent: ceilingPercent })}
                 </p>
               )}
               <div className="actions">
-                <BusyButton disabled={busy || active.items.length === 0 || orderOverCeiling}
+                <BusyButton disabled={busy || active.items.length === 0}
                   busy={isPending(`confirm:${active.id}`)} onClick={() => void onConfirm()}>
                   {t("confirmOrderButton")}
                 </BusyButton>

@@ -51,6 +51,15 @@ const VECTORS: {
   // `number` these two rows return the same answer; in BigInt they do not.
   { name: "headroom: exactly 10.00% at the top of the range", basisPoints: 1000, list: 9000000000000000000n, unit: 8100000000000000000n, exceeds: false },
   { name: "headroom: one minor unit past it", basisPoints: 1000, list: 9000000000000000000n, unit: 8099999999999999999n, exceeds: true },
+
+  // The SUBTRACTION, not the products. C#'s
+  // IsExceededBy_DoesNotWrapWhenTheDiscountItselfExceedsALong pins this and
+  // the table above had copied everything EXCEPT it, so narrowing the
+  // subtraction here to 64 bits left all 31 rows green — the one defect this
+  // module's own comment says BigInt exists to make unrepresentable went
+  // unguarded. In 64 bits MaxValue − MinValue wraps to −1, reporting the
+  // largest expressible discount as no discount at all.
+  { name: "the discount itself exceeds a long", basisPoints: 0, list: 9223372036854775807n, unit: -9223372036854775808n, exceeds: true },
 ];
 
 // The percent the wire carries, and the basis points the server stores.

@@ -548,9 +548,8 @@ export const en = {
       + "or manager can confirm an order that goes over it.",
     // Shown beside the disabled Confirm button, so the button and the reason
     // it will not work are read together.
-    discountCeilingBlocked:
-      "A line on this order is discounted more than {{percent}}%, so you cannot "
-      + "confirm it. Ask an owner or manager to confirm it, or reprice the line.",
+    discountCeilingWarning: "A line on this order is discounted more than {{percent}}%. Only an owner "
+      + "or manager can confirm it. Ask one, or reprice the line.",
     noOrdersMatch: "No orders match.",
     noOrdersMessage: "No orders yet.",
     voidingNeedsAdmin: "Voiding needs an admin.",
