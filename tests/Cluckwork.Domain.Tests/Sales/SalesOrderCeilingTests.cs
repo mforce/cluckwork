@@ -114,6 +114,26 @@ public sealed class SalesOrderCeilingTests
         Assert.Null(order.FindCeilingBreach(DiscountCeiling.FromBasisPoints(0)));
     }
 
+    // The row above passes with or without AgainstCeiling's `> 0` guard, so it
+    // does not pin it. THIS one does. A NEGATIVE unit price against a zero list
+    // price is the single input for which the cross-multiplication reports
+    // Exceeds, and the percent behind it is (0 − unit) × 100 / 0 — so without
+    // the guard FindCeilingBreach raises DivideByZeroException and the confirm
+    // path answers a representable sale with a 500.
+    //
+    // No writer can produce it: AddOrderItemValidator floors the unit price at
+    // 0, and SalesOrder.AddItem takes any Money because Money is signed. So
+    // this pins the guard against a state the domain can REPRESENT, not against
+    // a reachable sale.
+    [Fact]
+    public void ALineSoldBelowAZeroListPrice_DoesNotDivideByZero()
+    {
+        var order = MakeDraft();
+        AddLine(order, unitPrice: -100, listPrice: 0, ListPriceBasis.Recorded);
+
+        Assert.Null(order.FindCeilingBreach(DiscountCeiling.FromBasisPoints(0)));
+    }
+
     // --- worst-offender selection ------------------------------------------
 
     // The first breaching line in item order is deliberately NOT the one
