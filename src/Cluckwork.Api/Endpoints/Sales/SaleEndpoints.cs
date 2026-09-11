@@ -435,15 +435,7 @@ public sealed record VoidSaleRequest(string Reason);
 // See the `.Accepts` call on the route for why the wildcard content type there
 // is what makes that keep working.
 public sealed record ConfirmSaleRequest(
-    string? DiscountReasonCode = null, string? DiscountReasonNote = null,
-    // #769 — what this order still owes: confirmed total − non-voided
-    // payments. NULL means the figure does not exist for this row, and it has
-    // exactly two causes: the order is not Confirmed (payments attach to
-    // confirmed orders only, so a 0 would read as settled), or the caller is
-    // outside the money tier — for whom the repository never queries Payments
-    // at all. One field, never a paid companion: paid is total − outstanding,
-    // so there is no second number to drift.
-    long? OutstandingMinorUnits = null);
+    string? DiscountReasonCode = null, string? DiscountReasonNote = null);
 
 public sealed record AddOrderItemRequest(
     Guid ProductId, int Quantity, string? Unit, long? UnitPriceMinorUnits,
