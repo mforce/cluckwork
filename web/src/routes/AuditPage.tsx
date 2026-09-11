@@ -120,11 +120,22 @@ function AuditDetails({ event }: { event: AuditEvent }) {
       const qty = typeof d.quantity === "number" ? d.quantity : null;
       const unit = typeof d.unitPriceMinorUnits === "number" ? d.unitPriceMinorUnits : null;
       if (qty === null || unit === null) return null;
+      // #758 — the price shown is ALWAYS `unit`, the price the line sold for.
+      // `list` only ever qualifies it. Rendering money(list) here (what #745
+      // shipped) makes a line sold at $0.20 against a $0.45 list read "at list
+      // $0.45": a plausible, correctly formatted, wrong number that no existing
+      // test contradicted.
+      //
+      // An off-list line gets both numbers and NO marker word, in either
+      // direction. #719's open question 4 deliberately treats a markup as not a
+      // discount, so this cell states the two facts and lets the reader see the
+      // direction rather than editorialising about it.
       return (
         <>
           {name} ×{qty}{" "}
           {list === null ? t("detailsAtPrice", { amount: money(unit) })
-                         : t("detailsAtList", { amount: money(list) })}
+           : unit === list ? t("detailsAtList", { amount: money(list) })
+           : `${t("detailsAtPrice", { amount: money(unit) })} ${t("detailsListParen", { amount: money(list) })}`}
         </>
       );
     }
