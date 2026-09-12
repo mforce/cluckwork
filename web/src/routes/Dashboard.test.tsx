@@ -202,8 +202,9 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   });
 
   it("draws an empty slot for a day with nothing recorded, never a bar through it", async () => {
-    // The defect #777 fixed: the line drew a segment across these days, so a
-    // stretch nobody had entered rendered as a plateau of real production.
+    // The line this replaced put these days on the floor of its viewBox and
+    // never drew that floor, so the bottom of the picture was unlabelled. Each
+    // day is now its own slot.
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({ ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0 } : d)) })));
     renderWithProviders(<Dashboard />);

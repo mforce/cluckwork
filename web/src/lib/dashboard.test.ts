@@ -103,8 +103,9 @@ describe("dayStrip (#654, #777 — one slot per day, bars anchored at zero)", ()
   });
 
   it("gives a day with no figure a zero-height, unrecorded slot rather than dropping it", () => {
-    // The defect this replaced: a line drew a segment THROUGH these days, so a
-    // stretch nobody had entered rendered as a plateau of real production.
+    // The line this replaced drew these days on the floor of its viewBox, with
+    // that floor never drawn — so nothing said the bottom meant zero rather
+    // than the window's own minimum. A slot makes the day itself visible.
     const d = dayStrip([day("2026-07-01", 400), day("2026-07-02", 0), day("2026-07-03", 200)]);
     expect(shape(d)).toEqual([["2026-07-01", 100, true], ["2026-07-02", 0, false], ["2026-07-03", 50, true]]);
     expect(d.slots).toHaveLength(3);

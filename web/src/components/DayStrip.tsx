@@ -5,10 +5,13 @@ import type { DayStripData } from "../lib/dashboard";
 // arrives computed (lib/dashboard.ts dayStrip) so this stays a pure renderer,
 // and `label` names the picture for a screen reader (role="img").
 //
-// A STRIP of days, not a line: the line this replaces drew a segment straight
-// through days with nothing recorded, so a stretch nobody had entered read as a
-// plateau of real production. A slot is drawn for every day in the window, so a
-// day with no figure is a visible gap.
+// A STRIP of days, not a line. Stated at the strength the code supports: the
+// line mapped a zero day to the floor of its viewBox, so a zero WAS drawn as a
+// drop. What it never drew was that floor or the top of the scale, so nothing
+// said the bottom meant zero rather than the window's own minimum; and it
+// interpolated between days a daily count has no values between. A slot is
+// drawn for every day in the window, so a day with no figure is a visible gap —
+// which does NOT make it distinguishable from a true zero day (#780).
 //
 // `title`, `peak` and the two rule dates arrive already formatted in the farm's
 // locale (#650).

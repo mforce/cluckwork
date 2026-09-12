@@ -193,3 +193,50 @@ export function deltaE(a: string, b: string): number {
   const [lb, ab, bb] = lab(b);
   return Math.hypot(la - lb, aa - ab, ba - bb);
 }
+
+// Every CSS named colour (CSS Color 4), plus the keywords that carry no colour
+// of their own. A named colour is the hole `color-mix(in oklab, red 7%, …)`
+// walked through: the value contains a token, so a "does it mention var(--)"
+// check passes it (#777, second review round).
+const COLOUR_KEYWORDS = new Set(["inherit", "initial", "unset", "revert", "revert-layer", "none", "transparent", "currentcolor"]);
+const NAMED_COLOURS = new Set(`aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue
+blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue
+darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid
+darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink
+deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold
+goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush
+lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey
+lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime
+limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen
+mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin
+navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise
+palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue
+saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow
+springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen`
+  .split(/\s+/).filter(Boolean));
+
+// Functions that PRODUCE a colour. `color-mix` is deliberately absent: mixing
+// tokens is the point, and its arguments are checked like any other value.
+const COLOUR_FUNCTIONS = /\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|device-cmyk|light-dark)\s*\(/i;
+
+// The literal colour in `value`, or null. `var(--x)` references are removed
+// first, so only what a token did NOT supply is examined.
+//
+// Limit, stated rather than implied: both lists are finite and CSS Color keeps
+// adding to them, so a colour syntax newer than this file slips through. That
+// is why the caller ALSO requires a var(--) to be present — this narrows what
+// may sit beside the token, it does not stand alone.
+export function literalColourIn(value: string): string | null {
+  let bare = value;
+  let prev;
+  do { prev = bare; bare = bare.replace(/var\(\s*--[\w-]+\s*(,[^()]*)?\)/g, " "); } while (bare !== prev);
+  const hex = bare.match(/#[0-9a-f]{3,8}\b/i);
+  if (hex) return hex[0];
+  const fn = bare.match(COLOUR_FUNCTIONS);
+  if (fn) return fn[0].trim();
+  for (const word of bare.toLowerCase().match(/[a-z][a-z-]*/g) ?? []) {
+    if (COLOUR_KEYWORDS.has(word)) continue;
+    if (NAMED_COLOURS.has(word)) return word;
+  }
+  return null;
+}

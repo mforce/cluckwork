@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { contrast, declaredKeys, luminance, resolveTokens, type Mode } from "./test/cssTokens";
+import { contrast, declaredKeys, literalColourIn, luminance, resolveTokens, type Mode } from "./test/cssTokens";
 import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
 
 // Non-default palettes carry a data-brand attribute; the default carries none.
@@ -264,8 +264,12 @@ describe("dashboard surfaces (#654, INV-8)", () => {
         // literal INTO one. `color-mix(in oklab, #ff0000 7%, var(--surface))`
         // passed the check above, and #777 introduced this stylesheet's first
         // color-mix, so the hole went from inert to live on a dashboard surface.
-        expect(value, `${b.selector}: "${prop}: ${value}" carries a literal colour beside its token`)
-          .not.toMatch(/#[0-9a-f]{3,8}\b|\brgba?\(|\bhsla?\(|\boklch\(|\blab\(/i);
+        // The first patch enumerated hex and four colour functions and missed
+        // NAMED colours, so `color-mix(in oklab, red 7%, var(--surface))` still
+        // walked through; literalColourIn strips the var() references and
+        // inspects whatever is left.
+        const literal = literalColourIn(value);
+        expect(literal, `${b.selector}: "${prop}: ${value}" carries the literal colour "${literal}" beside its token`).toBeNull();
       }
     }
   });
