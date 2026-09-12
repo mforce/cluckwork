@@ -27,6 +27,16 @@ on:
       - ".github/workflows/coverage.yml"
       - ".config/dotnet-tools.json"
       - "tests/Directory.Build.props"
+      # The collector's VERSION is a coverage-tooling input too, and it lives
+      # away from the files above: centrally in Directory.Packages.props (#684)
+      # and resolved in the test projects' lock files. Without these two lines a
+      # Dependabot bump of coverlet.collector changes what collection does and
+      # never runs collection. The cost is that every grouped NuGet bump PR now
+      # runs this job for a package that has nothing to do with coverage; that
+      # is deliberate, and cheap, because the job gates nothing and sits off
+      # ci.yml's critical path. Do not drop these to quieten that.
+      - "Directory.Packages.props"
+      - "tests/**/packages.lock.json"
 
 permissions:
   contents: read

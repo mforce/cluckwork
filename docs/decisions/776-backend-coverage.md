@@ -151,7 +151,8 @@ asked for a measurement, not a gate, and no CI job reads
 `coverage-out/SUMMARY.md` or fails on anything in it. What IS enforced: the
 `pull_request` path filter on `.github/workflows/coverage.yml` runs the
 tooling itself (`tools/coverage/**`, the workflow file, `.config/dotnet-tools.json`,
-`tests/Directory.Build.props`) on every PR that touches those paths, so a
+`tests/Directory.Build.props`, `Directory.Packages.props` and
+`tests/**/packages.lock.json`) on every PR that touches those paths, so a
 change to the collection mechanism proves itself before it reaches the
 Monday schedule — the failure mode `AGENTS.md` records for the sim harness
 (#370) and the AppHost (#565): a workflow nobody runs on a normal PR rots
@@ -159,3 +160,11 @@ silently. `dotnet restore Cluckwork.sln --locked-mode` in that workflow
 still enforces #146's lock-file discipline for the packages this decision
 adds (`coverlet.collector`, the `dotnet-reportgenerator-globaltool` manifest
 entry).
+
+The last two filter paths were missing from the first revision of this PR and
+were added after review. They are not optional: the collector's VERSION is a
+coverage-tooling input that lives away from `tools/coverage/`, so without them
+a Dependabot bump of `coverlet.collector` changes what collection does and
+never runs collection. #684 already required it in general terms — every path
+filter names `Directory.Packages.props` explicitly, and a new restore input
+goes in all of them — which is the rule the omission broke.
