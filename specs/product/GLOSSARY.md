@@ -734,15 +734,19 @@ other undo.
 **Outstanding balance (#89, #769)** — per order: confirmed total − non-voided
 payments; per customer: the same summed across their confirmed orders
 (server-side sums, never client-aggregated pages). Shown on the order's
-payments panel, the Customers page (admins), and — since #769 — as an
-**Outstanding** column on the Orders list, with an **Unpaid only** filter
-beside it. Both are the **Sales tier** (Owner/Manager/Sales), matching who may
-record and view payments rather than #89's stricter admin-only balances
-endpoint; a Worker reaches the Orders list and its response carries no
-outstanding figure at all, and `unpaid=true` from a Worker is **refused**, never
-silently ignored. The list figure is computed in the same paged query as the
-rows, as a correlated sum over non-voided payments, and the unpaid filter is a
-server-side predicate over the whole result set rather than the current page.
+payments panel, the Customers page (whose column renders for admins only), and
+— since #769 — as an **Outstanding** column on the Orders list, with an
+**Unpaid only** filter beside it. All of it is the **Sales tier**
+(Owner/Manager/Sales): `/customers/balances`, `/sales/{id}/payments`, the
+record-payment route and the Orders list all require `AuthPolicies.SalesAccess`,
+so widening the money tier has to move all four at once. The Customers page's
+admin gate is presentation only — a Sales user may call `/customers/balances` —
+so #89's endpoint is not a stricter tier and #769 relaxed nothing. A Worker
+reaches the Orders list and its response carries no outstanding figure at all,
+and `unpaid=true` from a Worker is **refused**, never silently ignored. The
+list figure is computed in the same paged query as the rows, as a correlated
+sum over non-voided payments, and the unpaid filter is a server-side predicate
+over the whole result set rather than the current page.
 "Unpaid" means **outstanding > 0**, so a partly-paid order is unpaid; Draft,
 Cancelled and Voided orders carry **no** figure (payments attach to confirmed
 orders only, and a zero there would read as settled) and the filter never
