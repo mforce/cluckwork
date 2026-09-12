@@ -13,6 +13,7 @@ with shipped code, the code is right.
 | [`02-guards.md`](02-guards.md) | 28 guards, each with the mutation that makes it go red, plus what is deliberately *not* guarded and why. |
 | [`03-arena-synthesis.md`](03-arena-synthesis.md) | Which candidate became the base, what was grafted from the others, what was rejected. |
 | [`04-verified-findings.md`](04-verified-findings.md) | The SDK and repo facts that were verified against primary sources, including four the spike got wrong. |
+| [`05-adversarial-review.md`](05-adversarial-review.md) | Independent adversarial review of the synthesized design: four major findings, all verified and fixed, and why each was missed. |
 
 ## What changed relative to the issue
 

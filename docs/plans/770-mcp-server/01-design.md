@@ -154,6 +154,16 @@ constructor parameters before the tool instance exists, a tool that lists `McpCa
 *cannot* execute in an unpopulated scope — and that holds for a future `RecordWaterUsage` with
 no audit row involved, which is the case `CurrentUserContext`'s own comment asks for.
 
+**The parameter list is not the boundary; the dependency graph is.** A tool that takes only
+`McpCallContext` can still inject a *helper* that opens a scope via `IServiceScopeFactory`, copy
+`AccountId` into that scope's `TenantContext`, and resolve a repository — whose new `FlockScope`
+is unresolved and therefore **unrestricted**, so a #388-narrowed Worker reads every flock. The
+walk must therefore cover a tool's transitive dependencies and forbid secondary scopes and
+detached background work, not just screen constructor parameters; `IServiceScopeFactory` is on
+the blacklist, but blacklisting it on the tool alone does not close the indirect route. Guard 7b
+is the causal test. (Found by adversarial review, finding 1 — the original design screened
+parameters only and claimed a guarantee it did not have.)
+
 Check (2) is the one that earns its keep. It is the only mechanism among the three candidates
 that detects a later `SessionMode` flip: under `Stateful` the injected `TenantContext` is *not*
 the request's, so the reference comparison fails loudly on the first call. `ScopeRequests`
@@ -166,7 +176,16 @@ product stays safe. What is pinned instead: `SessionMode == Stateless` and
 
 Eight tools over thirteen routes. `cluckwork_record_daily_entry` takes a flock name-or-id and
 grade names-or-ids, derives `FarmId`/`HouseId` off the flock aggregate, then calls the
-**unchanged** `RecordDailyEntryValidator` and `RecordDailyEntryHandler`. `cluckwork_list_orders`
+**unchanged** `RecordDailyEntryValidator` and `RecordDailyEntryHandler`.
+
+**Name resolution means exactly one accessible match, and it needs a stated ambiguity contract
+because duplicate flock names are legal** — `FlockRepository` says so outright, and its
+`ThenBy(f => f.Id)` tie-break exists precisely because of it. Zero matches returns not-found; two
+or more returns an ambiguity error carrying the candidate ids and the fields that distinguish
+them, and the follow-up write must pass an id. Taking the first match would record production
+against an arbitrary flock, and the handler cannot catch it — it receives a valid GUID. (Found by
+adversarial review, finding 3; the original design made name-addressing its headline ergonomic
+win without saying what happens when a name is not unique.) `cluckwork_list_orders`
 fuses list+get and decides `SettlementScope` by evaluating `AuthPolicies.SalesAccess` through
 the real `IAuthorizationService`, never by re-deriving the money tier.
 
@@ -193,6 +212,18 @@ tool the second, with `OperationKey = "mcp:tool:cluckwork_record_daily_entry"`. 
 **tool name** is what dissolves the single-route collision for this tool and every future one.
 `McpIdempotency.ScopeFor(accountId, toolName, arguments)` builds it, so no tool hand-rolls a
 hash. One protocol, two adapters — writing a second copy of #307 is how #307 gets reopened.
+
+**The port must carry an explicit success/failure outcome, and this is not optional.** Today
+commit eligibility is an HTTP 2xx (`IdempotencyMiddleware.cs:289`), with failure rolling back and
+*releasing* the claim so a later retry can execute. An MCP tool call has no HTTP status, and the
+SDK converts ordinary exceptions into `CallToolResult.IsError` inside its own dispatch, so the
+`/error` handler never sees them. An implementation that published on "the delegate returned
+normally" would therefore **cache a domain failure**: record against a depleted flock, get
+`DailyEntry.FlockNotActive`, cache it; a manager reactivates the flock; the identical retry
+replays the cached failure forever. So the port takes an explicit outcome, publishes on success
+only, serializes before commit, and uses the same `AppDbContext` for the mutation and the
+publication. MCP-path tests for failure release, stolen-lease rollback and ambiguous-commit
+recovery are required, because guard 24 only preserves the *HTTP* suites.
 
 `idempotencyKey` is **required**, not derived. A derived key was tempting (a model's dominant
 write failure is re-issuing a call it did not register) but carries a hazard: record N, a
@@ -235,6 +266,30 @@ RequestType`, or `ReadsRequestBodyAttribute`, or a reasoned entry in
 This is AGENTS.md's "a guard that walks everything starts applying the moment you commit"
 pattern, and it is the kind of thing that costs an implementer a stop one increment from done.
 
+**That attribute is NOT the body cap, and the two were originally conflated here.**
+`ReadsRequestBodyAttribute` only classifies binding errors for the guard above;
+`UseCluckworkRequestBodyLimit` (#309) reads `MaxRequestBodyBytesMetadata`, a different type set by
+`WithMaxRequestBodyBytes(...)`. `/mcp` needs **both**, and without the second it has no cap at all.
+
+### Bounded results, and a budget for the one route that carries everything
+
+Neither was in the original design, and both matter more on `/mcp` than on a REST route.
+
+**Every read tool states a bound.** Reusing a repository does not inherit the HTTP endpoint's
+limit — the order cap lives in `SaleEndpoints`, not the repository, and `PaymentRepository`
+materializes every matching customer group. An unbounded `read_receivables` on a large farm
+serializes the whole book into a model's context window. Each reply therefore carries explicit
+completeness and continuation fields: a silently truncated first page is worse than an error,
+because it is an apparently complete wrong answer, and the model cannot tell.
+
+**`/mcp` carries a rate-limit policy**, because #143's limiters are opt-in per endpoint and `/mcp`
+is one route carrying every operation — so an unlimited `/mcp` is an unlimited everything. It must
+key on the shared `IFixedWindowCounter` (#543/#544), never a process-local limiter: that is
+precisely the #271 blocker shape the walk twice derived wrongly. An execution deadline belongs
+here too.
+
+(All of the above: adversarial review, finding 4.)
+
 ### Red-flag self-assessment
 
 - **Shallow module** — the worst offender would be the 1:1 route mirror, hence eight domain
@@ -260,7 +315,8 @@ mutation; rejected candidate 1's derived-key default and all three candidates'
 ## Tradeoffs accepted
 
 - **We accept refactoring #307's middleware in exchange for one claim protocol instead of
-  two.** This is the largest implementation risk here and the place a reviewer should look
+  two — but see the loopback alternative under *Alternatives considered*, which avoids the
+  refactor entirely and should be priced before anyone starts.** This is the largest implementation risk here and the place a reviewer should look
   hardest. Mitigation is a rule, not a hope: `AtomicIdempotencyProtocolTests` and the other
   #307 suites must pass **unedited**, and an edit to one in the implementing PR is a stop-and-review.
 - **We accept declaring tool RBAC twice — on the tool and on the route — in exchange for tools
@@ -296,6 +352,17 @@ mutation; rejected candidate 1's derived-key default and all three candidates'
 - **Reuse `IdempotencyMiddleware` unchanged with an `Idempotency-Key` header on the MCP POST.**
   Rejected on evidence: it 400s `initialize`, and even past that the request hash covers a
   JSON-RPC envelope whose per-call `id` turns a genuine retry into a refusal.
+- **Have the write tool call the existing HTTP endpoint over loopback**, with the caller's bearer,
+  a stable command JSON body and a tool-namespaced `Idempotency-Key` header. **This avoids
+  extracting #307 entirely** — only the outer `/mcp` exemption is needed, and the claim protocol,
+  its `/me` special case, its #269 single-attempt execution and its #345 re-entry skip all keep
+  running exactly as they do today, untouched and already guarded. The cost is an extra HTTP round
+  trip per write and a second place where a bearer is presented. **This deserved to be the primary
+  recommendation and was not considered in the original design** — the "Alternatives considered"
+  section rejected hashing the *envelope*, which is a different idea. Raised by adversarial review
+  (finding 2). Given that the extraction is this design's self-declared largest risk, whoever picks
+  up slice 1 of the epic should price this shape first and only extract #307 if it loses on
+  evidence.
 - **Flip `FlockScopeGuard`'s fail-open branch to fail closed.** Probably correct eventually,
   but it is an authorization default change affecting both seeders, four one-shot verbs and
   every non-HTTP caller; the guard's own comment says it "deserves its own issue rather than a
