@@ -92,6 +92,9 @@ dotnet test Cluckwork.sln    # integration tests spin up Postgres via Docker
 cd web && npm test           # Vitest + Testing Library
 ```
 
+Backend coverage is a separate, non-gating measurement: `tools/coverage/collect.sh`
+(report only, no threshold — [#776](docs/decisions/776-backend-coverage.md)).
+
 Expectations, enforced at review like a missing feature:
 
 - every change under `src/` ships with tests in the same PR;

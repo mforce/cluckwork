@@ -5,7 +5,7 @@
 
   The only interpretive knob is the migrations exclusion below.
   src/Cluckwork.Infrastructure/Persistence/Migrations is 39,088 of the
-  repository's 77,237 src/ lines (measured 2026-09-12). It is EF-generated,
+  repository's 76,977 lines of C# under src/ (measured 2026-09-12 with git ls-files, so build output under obj/ and bin/ is not counted). It is EF-generated,
   #407 freezes it (never hand-edited), and every integration test executes
   all of it on container boot regardless of what that test actually asserts.
   Including it would swamp the measurement in both directions: it would

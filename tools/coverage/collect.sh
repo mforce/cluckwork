@@ -123,7 +123,7 @@ is untested anywhere", and it deliberately averages a unit-tested Domain
 against an end-to-end Integration suite, so do not quote it as a quality
 score.
 
-Generated EF migration code is excluded (39,088 of 77,237 src/ lines).
+Generated EF migration code is excluded (39,088 of the 76,977 lines of C# under src/).
 Auto-properties are counted. No other filter is applied.
 
 EOF
