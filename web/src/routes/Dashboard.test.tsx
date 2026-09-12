@@ -185,7 +185,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     // 4,396 eggs over 14 recorded days is 314.0 — the average is over the days
     // with an entry, which is a figure that only exists since #780.
     const strip = await screen.findByRole("group", {
-      name: "Eggs per day, last 14 days. Peak 327, average 314.0. Every house recorded every day.",
+      name: "Eggs per day, last 14 days. Peak 327, average 314.0. Every flock recorded every day.",
     });
     // 301..307 then 321..327, so the peak (327) is the 8th day and every other
     // bar is its exact share of it.
@@ -240,14 +240,14 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
 
   // Recorded, but never by every house — so there is still no complete day to
   // take a peak or an average from, and saying so is a different sentence.
-  it("announces no peak when some houses recorded every day but never all of them", async () => {
+  it("announces no peak when some flocks recorded every day but never all of them", async () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
         ...r, days: r.days.map((d) => ({ ...d, recordedFlocks: 1, expectedFlocks: 3 })),
       })));
     renderWithProviders(<Dashboard />);
     expect(await screen.findByRole("group", {
-      name: "Eggs per day, last 14 days. No day was recorded by every house, so there is no peak or average to give.",
+      name: "Eggs per day, last 14 days. No day was recorded by every flock, so there is no peak or average to give.",
     })).toBeInTheDocument();
   });
 
@@ -263,9 +263,9 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     expect(strip.querySelectorAll(".day-partial")).toHaveLength(2); // day 6 of each window
     const names = screen.getAllByRole("button")
       .map((b) => b.getAttribute("aria-label"))
-      .filter((n): n is string => n !== null && n.includes("of 3 houses"));
+      .filter((n): n is string => n !== null && n.includes("of 3 flocks"));
     expect(names).toHaveLength(2);
-    expect(names[0]).toMatch(/eggs, 1 of 3 houses$/);
+    expect(names[0]).toMatch(/eggs, 1 of 3 flocks$/);
   });
 
   it("draws an empty slot for a day nobody recorded, and a stub for one that produced nothing", async () => {

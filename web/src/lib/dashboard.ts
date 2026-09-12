@@ -57,6 +57,10 @@ export function todaysEggs(entries: DailyEntry[]): number {
 // low day, it is a day whose total is a FLOOR, and drawing it like a complete
 // day asserts a drop in production that the farm's own records do not claim.
 export type DayStripSlot =
+  // `none` is a day that owed no filing at all — before the first placement, or
+  // after the last flock left. It is NOT a gap, and counting it as one made a
+  // farm's first fortnight announce fourteen missing days.
+  | { kind: "none"; date: string; weekBreak: boolean }
   | { kind: "unrecorded"; date: string; expectedFlocks: number; weekBreak: boolean }
   | { kind: "partial"; date: string; eggs: number; heightPct: number; recordedFlocks: number; expectedFlocks: number; weekBreak: boolean }
   | { kind: "recorded"; date: string; eggs: number; heightPct: number; weekBreak: boolean };
@@ -116,6 +120,9 @@ export function dayStrip({ days, recentCount = 0 }: { days: ProductionDay[]; rec
 
   const slots: DayStripSlot[] = days.map((d, i) => {
     const weekBreak = i === breakAt;
+    if (d.expectedFlocks === 0 && d.recordedFlocks === 0) {
+      return { kind: "none", date: d.date, weekBreak };
+    }
     if (d.recordedFlocks === 0) {
       return { kind: "unrecorded", date: d.date, expectedFlocks: d.expectedFlocks, weekBreak };
     }

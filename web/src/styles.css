@@ -1928,26 +1928,22 @@ label.check {
   background: var(--stat-accent);
 }
 
-/* The selected day. The SLOT is outlined, not just the bar: five of fourteen
-   days in a typical window have no bar to recolour, and on a 2px stub a ring
-   round the bar reads as a rendering fault rather than a selection. */
-/* The selected slot is OUTLINED and not filled. A fill was the approved
-   mockup and it was wrong on the running app: tinting the slot to 14% ink
-   drew a full-height block, so a day with a 2% stub and a day with no bar at
-   all both read as a bar carrying a real figure — the exact misreading this
-   issue exists to remove. Caught by looking at the render, not at the diff.
+/* The selected day. The SLOT is marked, not just the bar: many days in a
+   typical window have no bar to recolour, and on a 2px stub a ring round the
+   bar reads as a rendering fault rather than a selection.
 
-   An inset outline rather than an inset box-shadow: the dashboard surfaces
-   carry no shadows (INV-8) and a ring is not one. A negative offset keeps it
-   inside the slot, so the ring cannot overlap its neighbour. Selection and
-   keyboard focus coincide here — focusing a slot selects it — so this IS the
-   focus indicator and no second ring competes with it. */
+   Outlined and NOT filled. A fill was the approved mockup and it was wrong on
+   the running app: tinting the slot to 14% ink drew a full-height block, so a
+   day with a 2% stub and a day with no bar at all both read as a bar carrying
+   a real figure — the exact misreading this issue exists to remove. Caught by
+   looking at the render, not at the diff.
+
+   The ring sits OUTSIDE the slot. Inset, it was invisible on a tall day: a bar
+   is 18px in a ~20px slot, so an inset band lands on the bar, and `.day.on > i`
+   has just painted that bar the ring's own colour — the peak day showed no ring
+   at all. 1px out sits inside the 4px gap between slots, so it cannot touch a
+   neighbour, and it reads on every day whatever the bar's height. */
 .day.on {
-  /* OUTSIDE the slot. An inset ring was invisible on a tall day: a bar is 18px
-     in a ~20px slot, so an inset band lands on the bar, and `.day.on > i` has
-     just painted that bar the ring's own colour — the peak day showed no ring
-     at all. 1px out sits in the 4px gap between slots, so it cannot touch a
-     neighbour, and it reads on every day whatever the bar's height. */
   outline: 1.5px solid var(--ink);
   outline-offset: 1px;
 }

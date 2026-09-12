@@ -778,26 +778,28 @@ export const en = {
     // Last 14 days (#654, #777): the production report's own figures —
     // submitted days only, fixed window (yesterday back). The strip plots eggs
     // per day, one slot per day; the figure below it is the server's hen-day %
-    // for the last 7 complete days, and its delta against the 7 before.
+    // for the last 7 finished days, and its delta against the 7 before.
+    // ("Finished", not "complete": since #780 a COMPLETE day means one every
+    // flock recorded, which is a different property and decides Peak and Avg.)
     trendPanelTitle: "Last 14 days",
     // The group's summary. Every day is also a button carrying its own figure,
     // so this no longer repeats the lowest and the latest — it says what the
     // scale is and how much of the window is missing. Whole strings, not a
     // stem plus a suffix, so a locale can order its own clauses (#650).
-    // Peak and average are over the days EVERY house recorded — a partly
+    // Peak and average are over the days EVERY flock recorded — a partly
     // recorded day's total is a floor, so averaging it in would lower the
-    // reference by however many houses forgot. One count for the days that are
+    // reference by however many flocks forgot. One count for the days that are
     // not complete, whichever way they fall short: the slot's own name says
     // which, and i18next selects a plural on one number, not two.
-    trendStripLabel: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}}. Every house recorded every day.",
-    trendStripLabelBlanks_one: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}} across the days every house recorded. {{blank}} day is not fully recorded.",
-    trendStripLabelBlanks_other: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}} across the days every house recorded. {{blank}} days are not fully recorded.",
+    trendStripLabel: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}}. Every flock recorded every day.",
+    trendStripLabelBlanks_one: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}} across the days every flock recorded. {{blank}} day is not fully recorded.",
+    trendStripLabelBlanks_other: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}} across the days every flock recorded. {{blank}} days are not fully recorded.",
     // Nothing at all in the window, so there is no peak and no average to name
     // — reporting either as 0 is the conflation #780 closed.
     trendStripLabelNone: "Eggs per day, last 14 days. No day in this window has an entry.",
     // Some days have figures, but none is complete, so there is still nothing
     // to take a peak or an average from.
-    trendStripLabelNoComplete: "Eggs per day, last 14 days. No day was recorded by every house, so there is no peak or average to give.",
+    trendStripLabelNoComplete: "Eggs per day, last 14 days. No day was recorded by every flock, so there is no peak or average to give.",
     trendScaleTitle: "Eggs per day",
     trendPeak: "Peak {{total}}",
     trendAvg: "Avg {{total}}",
@@ -805,17 +807,21 @@ export const en = {
     // The dash separates the date from the figure in every locale.
     trendDayTip_one: "{{date}} – {{total}} egg",
     trendDayTip_other: "{{date}} – {{total}} eggs",
-    // Only some houses filed, so the total is a floor and the sentence says so
+    // Only some flocks filed, so the total is a floor and the sentence says so
     // rather than presenting it as the day's output.
     // Kept short on purpose: at 331px the longer draft ("… eggs so far, 1 of 2
-    // houses recorded") was clipped mid-word on the running panel, and this is
-    // the readout carrying the most information. "N of M houses" already says
+    // flocks recorded") was clipped mid-word on the running panel, and this is
+    // the readout carrying the most information. "N of M flocks" already says
     // the total is a floor.
-    trendDayTipPartial_one: "{{date}} – {{total}} eggs, {{recorded}} of {{expected}} house",
-    trendDayTipPartial_other: "{{date}} – {{total}} eggs, {{recorded}} of {{expected}} houses",
+    trendDayTipPartial_one: "{{date}} – {{total}} egg, {{recorded}} of {{expected}} flocks",
+    trendDayTipPartial_other: "{{date}} – {{total}} eggs, {{recorded}} of {{expected}} flocks",
     // Nobody recorded that day. Distinct from a day that produced no eggs,
     // which reads as "0 eggs" above and keeps a stub on the chart (#780).
     trendDayTipNone: "{{date}} – no entry",
+    // The farm had no flocks that day, so nothing was owed and nothing is
+    // missing. Counting these as gaps made a new farm's first fortnight
+    // announce fourteen missing filings.
+    trendDayTipNoFlocks: "{{date}} – no flocks",
     henDaySubLabel: "Hen-day, last 7 days against the 7 before",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
@@ -2158,6 +2164,8 @@ export const en = {
     conditionHeader: "Condition",
     deathsHeader: "Deaths",
     henDaysHeader: "Hen-days",
+    // #780 — the hen-day %'s denominator: the exposure that reported.
+    recordedHenDaysHeader: "Recorded",
     henDayPctHeader: "Hen-day %",
     periodRowLabel: "Period",
     gradeTotalsLabel: "By grade:",
@@ -2636,14 +2644,14 @@ export const en = {
       + "it to open Daily entry for that flock and day. Past twelve tiles, a link carries the rest.",
     dashboardTrend:
       "<strong>Last 14 days</strong>: eggs per day from the production report, with <strong>hen-day %"
-      + "</strong> for the last 7 complete days and how it moved against the 7 before. Point at a day, "
+      + "</strong> for the last 7 finished days and how it moved against the 7 before. Point at a day, "
       + "or tab into the chart and use the arrow keys, to read that day on its own. A day the farm "
       + "submitted with no eggs keeps a mark on the baseline; a day nobody submitted is an empty slot "
-      + "and reads as <strong>No entry</strong>; a day only some houses submitted is drawn hatched, "
+      + "and reads as <strong>No entry</strong>; a day only some flocks submitted is drawn hatched, "
       + "because its total is the least the farm produced rather than what it produced. "
-      + "<strong>Peak</strong> and <strong>Avg</strong> come only from the days every house recorded. "
-      + "Hen-day % divides by the houses that recorded, so a house that forgets lowers what the figure "
-      + "is measured over, never the rate itself. The window is fixed (yesterday back) and counts "
+      + "<strong>Peak</strong> and <strong>Avg</strong> come only from the days every flock recorded. "
+      + "Hen-day % divides by the hen-days of the flocks that recorded, so a flock that forgets lowers "
+      + "what the figure is measured over, never the rate itself. The window is fixed (yesterday back) and counts "
       + "<strong>submitted days only</strong> — a day still in Draft reads as No entry until it is "
       + "submitted, unlike Reports where you choose the range.",
     dashboardStock:
@@ -3036,8 +3044,13 @@ export const en = {
     reportsHeading: "Reports",
     reportsProduction:
       "<strong>Production</strong> (everyone): pick a date range — per-day eggs, losses, sellable, "
-      + "condition, deaths, and <strong>hen-day %</strong> (eggs collected ÷ birds alive that day × 100), "
-      + "with period totals and a by-grade breakdown. Draft and voided entries don't count.",
+      + "condition, deaths, and <strong>hen-day %</strong>, with period totals and a by-grade breakdown. "
+      + "Draft and voided entries don't count. Hen-day % is eggs collected ÷ hen-days × 100, and it "
+      + "divides by the hen-days of the <strong>flocks that recorded that day</strong> — a flock that "
+      + "filed nothing produced no eggs this report can see, so counting its birds would report a lay "
+      + "rate nothing supports. The <strong>Hen-days</strong> column is every bird alive, recorded or "
+      + "not, so the gap between the two is what is missing. A day nobody recorded shows — rather than "
+      + "0%.",
     // #396 — the new column needs explaining because two of its neighbours look
     // like they should already cover it: Losses shows the same cracked/dirty
     // numbers (as counts, whether sold or not), and Sellable is the graded

@@ -148,11 +148,18 @@ export function Dashboard() {
   const trendTip = (slot: DayStripSlot) => {
     const date = fmt.date(slot.date);
     switch (slot.kind) {
+      case "none":
+        return t("trendDayTipNoFlocks", { date });
       case "unrecorded":
         return t("trendDayTipNone", { date });
       case "partial":
+        // Plural on the EGG count, which is what the noun beside it is. It
+        // selected on the flock count, so a partly recorded day with one egg
+        // rendered "1 eggs". The flock noun stays plural unconditionally and is
+        // safe there: `partial` requires 1 <= recorded < expected, so `expected`
+        // is never below 2.
         return t("trendDayTipPartial", {
-          date, total: fmt.count(slot.eggs), count: slot.expectedFlocks,
+          date, count: slot.eggs, total: fmt.count(slot.eggs),
           recorded: fmt.count(slot.recordedFlocks), expected: fmt.count(slot.expectedFlocks),
         });
       case "recorded":

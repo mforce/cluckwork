@@ -120,7 +120,14 @@ export function ReportsPage() {
                     hand-graded remainder, Condition is what the cracked/dirty
                     counters contributed as stock. */}
                 <th className="num">{t("conditionHeader")}</th>
-                <th className="num">{t("deathsHeader")}</th><th className="num">{t("henDaysHeader")}</th><th className="num">{t("henDayPctHeader")}</th>
+                <th className="num">{t("deathsHeader")}</th><th className="num">{t("henDaysHeader")}</th>
+                {/* #780 — the percentage's own denominator. Without it the two
+                    neighbouring columns cannot be reconciled: Hen-days is every
+                    bird alive and the rate divides by the flocks that recorded,
+                    so eggs ÷ Hen-days stopped reproducing Hen-day %. The gap
+                    between the two columns is what the period is missing. */}
+                <th className="num">{t("recordedHenDaysHeader")}</th>
+                <th className="num">{t("henDayPctHeader")}</th>
               </tr>
             </thead>
             <tbody>
@@ -133,6 +140,7 @@ export function ReportsPage() {
                   <td className="num">{fmt.count(d.fromCounts)}</td>
                   <td className="num">{fmt.count(d.deaths)}</td>
                   <td className="num">{fmt.count(d.henDays)}</td>
+                  <td className="num">{fmt.count(d.recordedHenDays)}</td>
                   <td className="num">{d.henDayPct === null ? "—" : fmt.count(d.henDayPct, 1)}</td>
                 </tr>
               ))}
@@ -146,6 +154,7 @@ export function ReportsPage() {
                 <th className="num">{fmt.count(production.totalFromCounts)}</th>
                 <th className="num">{fmt.count(production.totalDeaths)}</th>
                 <th className="num">{fmt.count(production.totalHenDays)}</th>
+                <th className="num">{fmt.count(production.totalRecordedHenDays)}</th>
                 <th className="num">{production.periodHenDayPct === null ? "—" : fmt.count(production.periodHenDayPct, 1)}</th>
               </tr>
             </tfoot>

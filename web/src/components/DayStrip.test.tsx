@@ -20,10 +20,14 @@ const data: DayStripData = {
   max: 10, average: 5, averagePct: 50, complete: 2, partial: 1, unrecorded: 1,
 };
 
-const tip = (s: DayStripSlot) =>
-  s.kind === "unrecorded" ? `${s.date} – no entry`
-    : s.kind === "partial" ? `${s.date} – ${s.eggs} eggs, 1 of 3 houses`
-      : `${s.date} – ${s.eggs} eggs`;
+const tip = (s: DayStripSlot) => {
+  switch (s.kind) {
+    case "none": return `${s.date} – no flocks`;
+    case "unrecorded": return `${s.date} – no entry`;
+    case "partial": return `${s.date} – ${s.eggs} eggs, 1 of 3 flocks`;
+    case "recorded": return `${s.date} – ${s.eggs} eggs`;
+  }
+};
 
 const strip = (d: DayStripData = data, label = "Eggs per day") => (
   <DayStrip
@@ -75,7 +79,7 @@ describe("DayStrip (#654, #777, #780)", () => {
     expect(screen.getByRole("button", { name: "2026-07-01 – 10 eggs" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "2026-07-02 – 0 eggs" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "2026-07-03 – no entry" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "2026-07-04 – 6 eggs, 1 of 3 houses" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2026-07-04 – 6 eggs, 1 of 3 flocks" })).toBeInTheDocument();
   });
 
   // A partly recorded day is marked in the markup, not only in its name — the

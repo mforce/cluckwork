@@ -33,6 +33,11 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
   // own accessible name had already replaced, and an index could point outside
   // a shortened array.
   const [activeDate, setActiveDate] = useState<string | null>(null);
+  // Where the keyboard is, which is NOT the same as what is selected: a pointer
+  // crossing the strip and leaving clears the selection without moving DOM
+  // focus, and deriving the tab stop from the selection then snapped it back to
+  // day 1 while focus sat on day 3 — the next ArrowRight moved backwards.
+  const [focusDate, setFocusDate] = useState<string | null>(null);
   const [centerPx, setCenterPx] = useState(0);
   const dockRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLSpanElement>(null);
@@ -40,9 +45,10 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
 
   const activeIndex = data.slots.findIndex((s) => s.date === activeDate);
   const active = activeIndex === -1 ? null : data.slots[activeIndex];
-  // Tab lands on the selected day, or the first when nothing is selected —
-  // never on nothing, which is what an all-`-1` strip would give.
-  const stopIndex = activeIndex === -1 ? 0 : activeIndex;
+  // Tab lands where the keyboard last was, or the first day — never on nothing,
+  // which is what an all-`-1` strip would give.
+  const focusIndex = data.slots.findIndex((s) => s.date === focusDate);
+  const stopIndex = focusIndex === -1 ? 0 : focusIndex;
 
   // Clamp the box inside the panel against MEASURED widths. It sizes to its own
   // text, which runs roughly 30% longer in tl than in en (#688), so nothing
@@ -63,9 +69,10 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
     box.style.left = `${x}px`;
   }, [active, centerPx, tip]);
 
-  const select = (slot: DayStripSlot, el: HTMLElement) => {
+  const select = (slot: DayStripSlot, el: HTMLElement, keyboard = false) => {
     setCenterPx(el.offsetLeft + el.offsetWidth / 2);
     setActiveDate(slot.date);
+    if (keyboard) setFocusDate(slot.date);
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -116,11 +123,11 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
             className={[s.date === activeDate ? "day on" : "day", `day-${s.kind}`,
               s.weekBreak ? "day-week" : ""].filter(Boolean).join(" ")}
             aria-label={tip(s)}
-            aria-pressed={s.date === activeDate}
             tabIndex={i === stopIndex ? 0 : -1}
-            onClick={(e) => select(s, e.currentTarget)}
+            aria-current={s.date === activeDate}
+            onClick={(e) => select(s, e.currentTarget, true)}
             onMouseEnter={(e) => select(s, e.currentTarget)}
-            onFocus={(e) => select(s, e.currentTarget)}
+            onFocus={(e) => select(s, e.currentTarget, true)}
           >
             <Bar slot={s} />
           </button>
@@ -144,6 +151,7 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
 // silently rendering a bar.
 function Bar({ slot }: { slot: DayStripSlot }) {
   switch (slot.kind) {
+    case "none":
     case "unrecorded":
       return null;
     case "partial":

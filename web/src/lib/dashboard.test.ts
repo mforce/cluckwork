@@ -150,11 +150,25 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
     expect(d).toMatchObject({ max: null, average: null, averagePct: null, complete: 0, partial: 1, unrecorded: 1 });
   });
 
-  it("treats a day with no houses expected as complete rather than inventing a shortfall", () => {
-    // Before the first placement, 0 recorded of 0 expected is not a gap.
+  it("owes nothing on a day the farm had no flocks, rather than counting a gap", () => {
+    // Before the first placement, 0 recorded of 0 expected is not a shortfall.
+    // The old shape called it `unrecorded`, so a new farm's first fortnight
+    // announced fourteen missing filings against an obligation nobody had.
     const d = dayStrip({ days: [day("2026-07-01", 0, 0, 0, 0)] });
-    expect(d).toMatchObject({ complete: 0, partial: 0, unrecorded: 1 });
-    expect(d.slots[0].kind).toBe("unrecorded");
+    expect(d).toMatchObject({ complete: 0, partial: 0, unrecorded: 0 });
+    expect(d.slots[0].kind).toBe("none");
+  });
+
+  // `isComplete` is `recorded > 0 && recorded >= expected`. The `>=` decides
+  // only the case where MORE flocks filed than were expected, which happens at
+  // a depletion boundary — a flock files against a date the bird ledger says it
+  // had already ended. Under `===` that day flips to partial and its readout
+  // reads "2 of 1 flocks". The `> 0` conjunct short-circuits the 0/0 case above
+  // before `>=` is ever evaluated, so that test does NOT cover this.
+  it("counts a day where more flocks filed than were expected as complete", () => {
+    const d = dayStrip({ days: [day("2026-07-01", 90, 100, 2, 1)] });
+    expect(d).toMatchObject({ complete: 1, partial: 0, unrecorded: 0 });
+    expect(d.slots[0].kind).toBe("recorded");
   });
 
   it("floors a recorded day at 2% so the farm's worst real day is still a bar", () => {

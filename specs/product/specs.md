@@ -2230,11 +2230,21 @@ sum(bird_inventory_movements.quantity_delta)
 
 ```text
 Hen-day production % (single day) =
-eggs collected on date / hen-days on date × 100
+eggs collected on date / RECORDED hen-days on date × 100
 
 Hen-day production % (period) =
-total eggs collected in period / sum(daily hen-days in period) × 100
+total eggs collected in period / sum(daily RECORDED hen-days in period) × 100
 ```
+
+**Recorded hen-days (#780).** The denominator counts only the flocks that filed
+an official entry for that date. The numerator can only ever contain eggs from
+flocks that filed, so counting a silent flock's birds as exposure reports a lay
+rate nothing supports: before #780 a day nobody recorded read as 0% production,
+and a day one flock of three missed read as a collapse in output. A date with no
+official entry has **no** hen-day % at all — not 0. `hen-days on date` below
+keeps its full meaning (every live laying bird, recorded or not) and is what the
+report's own Hen-days column shows; the gap between the two is exactly what is
+missing. → [`docs/decisions/`](../../docs/decisions/) and issue #780.
 
 `hen-days on date` is the live laying-bird count **on that operational date**, reconstructed
 from the bird ledger, not the current count:
@@ -2259,8 +2269,8 @@ Rules:
   - Flag hen-day % as **approximate** for `mixed` flocks, and reserve a future
     `female_bird_count` (or sex-split placement movements) to make it exact.
   Do not silently report an exact-looking hen-day % for a mixed flock.
-- Period rate divides total eggs by the sum of daily hen-days, not by an end-of-period
-  headcount.
+- Period rate divides total eggs by the sum of daily **recorded** hen-days, not by an
+  end-of-period headcount and not by the calendar's full exposure (#780).
 - The benchmark-meaningful period anchors to **start of lay** (`flock.expected_start_lay_date`,
   or first laying production date), not an arbitrary calendar range. Comparing week 1 of
   lay against week 20 as one blended rate produces a number that matches no industry

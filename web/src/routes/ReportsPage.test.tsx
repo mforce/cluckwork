@@ -91,7 +91,10 @@ describe("ReportsPage production section (renders for every role)", () => {
     within(row1).getByText("100"); // totalEggs
     within(row1).getByText("2/3/5"); // cracked/dirty/discarded
     within(row1).getByText("90"); // sellable
-    within(row1).getByText("98"); // henDays
+    // #780 — Hen-days and Recorded are adjacent and equal on a fully recorded
+    // day, which is the point: the gap between them is what a period is
+    // missing, and eggs ÷ Recorded has to reproduce the percentage beside it.
+    expect(within(row1).getAllByText("98")).toHaveLength(2); // henDays, recordedHenDays
     within(row1).getByText("91.8"); // henDayPct
     // #650 — figures are numeric cells: right-aligned tabular nowrap (styles.num.test.ts
     // pins what the class does; this pins that the screen puts it on the figure and
@@ -106,7 +109,7 @@ describe("ReportsPage production section (renders for every role)", () => {
     const periodRow = screen.getByRole("row", { name: /Period/ });
     within(periodRow).getByText("195"); // totalEggs
     within(periodRow).getByText("181"); // totalSellable
-    within(periodRow).getByText("196"); // totalHenDays
+    expect(within(periodRow).getAllByText("196")).toHaveLength(2); // totalHenDays, totalRecordedHenDays
     within(periodRow).getByText("92.3"); // periodHenDayPct
 
     expect(screen.getByText("By grade: Grade A 60, Grade B 30")).toBeInTheDocument();
