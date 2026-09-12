@@ -77,9 +77,6 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
         aria-label={label}
         onMouseLeave={() => setActive(null)}
       >
-        {data.averagePct !== null && (
-          <span className="avgline" style={{ bottom: `${data.averagePct}%` }} aria-hidden="true" />
-        )}
         {data.slots.map((s) => {
           const on = active !== null && active.slot.date === s.date;
           return (
@@ -96,6 +93,11 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
             </button>
           );
         })}
+        {/* Last, so it reads ACROSS the bars rather than behind them — a
+            reference the eye cannot follow over the tall days is not one. */}
+        {data.averagePct !== null && (
+          <span className="avgline" style={{ bottom: `${data.averagePct}%` }} aria-hidden="true" />
+        )}
       </div>
       <div className="trend-rule">
         <span>{from}</span>

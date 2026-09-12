@@ -1814,8 +1814,13 @@ label.check {
   margin: 0;
 }
 
+/* The caption wraps rather than splitting the title: `tl` runs roughly 30%
+   longer than `en` (#688) and on a 331px panel "Itlog bawat araw" beside two
+   figures does not fit on one line. Keeping the figures together and letting
+   the row wrap degrades better than hyphen-free mid-title wrapping. */
 .trend-scale {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: baseline;
   gap: 0.5rem;
@@ -1834,6 +1839,7 @@ label.check {
 .trend-avg {
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* Avg is the quieter of the two: the peak sets the scale the bars are drawn
@@ -1885,7 +1891,7 @@ label.check {
   position: absolute;
   left: 0;
   right: 0;
-  border-top: 1px dashed color-mix(in oklab, var(--ink) 35%, transparent);
+  border-top: 1px dashed color-mix(in oklab, var(--ink) 55%, transparent);
   pointer-events: none;
 }
 
@@ -1921,13 +1927,18 @@ label.check {
 /* The selected day. The SLOT is outlined, not just the bar: five of fourteen
    days in a typical window have no bar to recolour, and on a 2px stub a ring
    round the bar reads as a rendering fault rather than a selection. */
+/* The selected slot is OUTLINED and not filled. A fill was the approved
+   mockup and it was wrong on the running app: tinting the slot to 14% ink
+   drew a full-height block, so a day with a 2% stub and a day with no bar at
+   all both read as a bar carrying a real figure — the exact misreading this
+   issue exists to remove. Caught by looking at the render, not at the diff.
+
+   An inset outline rather than an inset box-shadow: the dashboard surfaces
+   carry no shadows (INV-8) and a ring is not one. A negative offset keeps it
+   inside the slot, so the ring cannot overlap its neighbour. Selection and
+   keyboard focus coincide here — focusing a slot selects it — so this IS the
+   focus indicator and no second ring competes with it. */
 .day.on {
-  background: color-mix(in oklab, var(--ink) 14%, transparent);
-  /* An inset outline rather than an inset box-shadow: the dashboard surfaces
-     carry no shadows (INV-8) and a ring is not one. A negative offset keeps it
-     inside the slot, so the ring cannot overlap its neighbour. Selection and
-     keyboard focus coincide here — focusing a slot selects it — so this IS the
-     focus indicator and no second ring competes with it. */
   outline: 1.5px solid var(--ink);
   outline-offset: -1.5px;
 }

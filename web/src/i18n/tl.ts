@@ -626,7 +626,9 @@ export const tl = {
     trendStripLabelNone: "Itlog bawat araw, huling 14 araw. Walang araw sa panahong ito ang may tala.",
     trendScaleTitle: "Itlog bawat araw",
     trendPeak: "Pinakamataas {{total}}",
-    trendAvg: "Katamtaman {{total}}",
+    // The loanword, as this catalog already uses for Hen-day and Draft:
+    // "Katamtaman" wrapped the caption onto a second line on a 331px panel.
+    trendAvg: "Average {{total}}",
     trendDayTip_one: "{{date}} – {{total}} itlog",
     trendDayTip_other: "{{date}} – {{total}} itlog",
     trendDayTipNone: "{{date}} – walang tala",
@@ -2083,7 +2085,7 @@ export const tl = {
       + "sa 7 araw bago nito. Ituro ang isang araw, o puntahan ito gamit ang tab, para basahin ito nang "
       + "mag-isa. Ang araw na isinumite nang walang itlog ay may marka sa base; ang araw na walang "
       + "nagsumite ay walang laman at mababasang <strong>Walang tala</strong>. Ang "
-      + "<strong>Katamtaman</strong> ay ang average ng mga araw na may tala. Nakapirmi ang window (mula "
+      + "<strong>Average</strong> ay ang average ng mga araw na may tala. Nakapirmi ang window (mula "
       + "kahapon pabalik) at binibilang lang ang <strong>mga naisumiteng araw</strong> — ang araw na "
       + "Draft pa ay mababasang Walang tala hanggang maisumite, hindi tulad sa Mga Report kung saan "
       + "pinipili mo ang saklaw.",
