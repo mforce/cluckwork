@@ -2949,14 +2949,17 @@ export const en = {
     salesListPrice:
       "Each line also shows its <strong>List price</strong> — the product's price when the line was "
       + "added — next to a <strong>Discount</strong> worked out from it: an amount and a percent when sold "
-      + "under list, <strong>Above list</strong> when sold over, and \"No list price\" when there's nothing "
-      + "to compare against. A line sold under list is marked three ways so it survives a greyscale print: "
+      + "under list, <strong>Above list</strong> when sold over, and \"No list price\" when the product had "
+      + "nothing to compare against. A line taken before the farm started keeping list prices says \"List "
+      + "price not recorded\" instead — that one means nobody can tell whether it was discounted. "
+      + "A line sold under list is marked three ways so it survives a greyscale print: "
       + "a <strong>Below list</strong> tag beside the product, its List price struck through, and a tinted "
       + "row. The order's <strong>Discount</strong> is totalled directly above the order total, as an "
       + "amount and a percent of list; where part of the order has no list price, the total says so rather "
       + "than pretending to cover it. The Orders list carries the same figure in its own "
       + "<strong>Discount</strong> column, so a discounted order is visible without opening it — and an "
-      + "order taken before list prices were recorded reads \"Unknown\" there, never zero.",
+      + "order every line of which was taken before list prices were recorded reads \"List price not "
+      + "recorded\" there, never zero.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",
@@ -3502,13 +3505,18 @@ export const en = {
     glossaryListPriceDef:
       "The product's price at the moment a line was added, kept with the line so a later price change "
       + "never rewrites a past order. Shown as \"No list price\" when the product had none to compare "
-      + "against.",
+      + "against — a recorded fact. A line taken before the farm started keeping list prices shows "
+      + "\"List price not recorded\" instead: that one is missing information, not an answer, so nobody "
+      + "can say whether the line was discounted.",
 
     glossaryDiscountTerm: "Discount",
     glossaryDiscountDef:
       "How much a sale line sold under its own list price, shown per line — and summed for the whole "
       + "order, as an amount and a percent of the list value of the lines that have a list price. An order "
-      + "that has lines but no list price on any of them reads as \"Unknown\"; an order with no lines at "
+      + "that has lines but no list price on any of them says so rather than reading as zero — and when "
+      + "every one of those lines was taken before the farm started keeping list prices, it says the order "
+      + "predates that record. One line that simply had no list price is enough to rule that out. An order "
+      + "with no lines at "
       + "all has nothing to measure and reads as a dash in the Orders list, with no discount line on the "
       + "order itself. Different from the order-level discount a seller "
       + "can type in — this one is worked out for you, never entered.",
