@@ -176,7 +176,17 @@ test.describe("Sales", () => {
 
     // And the unpaid filter removes it from the RESULT SET, not from the page:
     // the predicate runs server-side, so the row leaves the list outright.
-    await page.getByLabel(tEn("sales:unpaidOnlyFilter")).check();
+    // click(), not check(). The filter's state lives in the URL, and React
+    // Router v7 commits a navigation inside startTransition, so the control
+    // reads its new value ~57ms after the click rather than in the same frame.
+    // check() verifies the checked state immediately after clicking and throws
+    // "Clicking the checkbox did not change its state" inside that window —
+    // measured against this stack, where the box settles true at 57ms, keeps
+    // it, and its DOM node is never replaced. Assert the outcome with a
+    // retrying expect instead of trusting the helper's one-shot check.
+    const unpaidOnly = page.getByLabel(tEn("sales:unpaidOnlyFilter"));
+    await unpaidOnly.click();
+    await expect(unpaidOnly, "the unpaid filter did not take").toBeChecked();
     await expect(
       orderRow,
       "a settled order is still listed while the unpaid filter is on",
