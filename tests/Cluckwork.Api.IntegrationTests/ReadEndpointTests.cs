@@ -306,6 +306,58 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
         Assert.Empty((await both.Content.ReadFromJsonAsync<List<OrderMoneyDto>>())!);
     }
 
+    // The other two non-Confirmed statuses, each reached the only way it can
+    // be. A Draft is the easy case and the one the test above happens to
+    // build; on its own it leaves the repository's `Status == Confirmed`
+    // interchangeable with `Status != Draft`, which would hand a Cancelled or
+    // Voided order a live outstanding figure and put it back into a screen
+    // that exists to show what customers still owe.
+    [Fact]
+    public async Task SalesList_CancelledAndVoidedOrders_CarryNoOutstanding_AndNeverMatchUnpaid()
+    {
+        var (client, accountId, farmId, grades) = await SetupAsync("Large");
+        var (_, customerId, productId) =
+            await SalesSetupAsync(accountId, farmId, grades["Large"], client);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+        // Cancelled: only a draft can be cancelled, so it is built and then
+        // cancelled rather than confirmed first.
+        var draft = await client.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = today });
+        var cancelledId = (await draft.Content.ReadFromJsonAsync<IdDto>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/sales/{cancelledId}/items", Guid.NewGuid().ToString(),
+            new { productId, quantity = 10 });
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostWithKeyAsync(
+            $"/api/v1/sales/{cancelledId}/cancel", Guid.NewGuid().ToString())).StatusCode);
+
+        // Voided: only a confirmed order can be voided, and only with no live
+        // payments on it, so this one is confirmed and left unpaid.
+        var voidedId = await ConfirmedOrderAsync(
+            client, customerId, productId, today.AddDays(-1), 10, 0);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+            $"/api/v1/sales/{voidedId}/void", Guid.NewGuid().ToString(),
+            new { reason = "sold to the wrong buyer" })).StatusCode);
+
+        var rows = (await client.GetFromJsonAsync<List<OrderMoneyDto>>("/api/v1/sales"))!;
+        var cancelled = rows.Single(o => o.Id == cancelledId);
+        var voided = rows.Single(o => o.Id == voidedId);
+
+        Assert.Equal("Cancelled", cancelled.Status);
+        Assert.Equal("Voided", voided.Status);
+        // The control that gives the nulls their meaning: both orders carry a
+        // real total, so a null outstanding is a statement that the figure is
+        // undefined off Confirmed and not an artefact of an empty order.
+        Assert.Equal(1000, cancelled.TotalMinorUnits);
+        Assert.Equal(1000, voided.TotalMinorUnits);
+        Assert.Null(cancelled.OutstandingMinorUnits);
+        Assert.Null(voided.OutstandingMinorUnits);
+
+        // Same claim through the predicate. Nothing in this account is
+        // confirmed and owing, so the unpaid page is empty.
+        Assert.Empty((await client.GetFromJsonAsync<List<OrderMoneyDto>>(
+            "/api/v1/sales?unpaid=true"))!);
+    }
+
     // #512 — detail and list must answer identically. A figure on one and a
     // null on the other is a lie about the same order, not an omission.
     [Fact]
