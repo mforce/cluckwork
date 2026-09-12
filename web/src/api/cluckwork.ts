@@ -341,6 +341,11 @@ export interface OrderItem {
   // state the screen must show ("No list price"), not an absent value.
   // Same currency and minor unit as unitPriceMinorUnits.
   listUnitPriceMinorUnits: number | null;
+  // #773 — which kind of nothing a null listUnitPriceMinorUnits is. REQUIRED
+  // for the same reason the field above is: the screen must branch on a real
+  // value, and only PreDating means "we do not know". Rendered through
+  // i18n/enums.ts (listPriceBasisLabel), never raw.
+  listPriceBasis: string;
 }
 
 export interface SalesOrder extends RecordHistory {

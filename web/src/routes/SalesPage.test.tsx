@@ -116,7 +116,7 @@ function draftWithItem(currencyMinorUnit: number, currencyCode: string, unitPric
   const item: OrderItem = {
     id: "e1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
     quantity: 3, quantityBase: 36, unitPriceMinorUnits: unitPrice, currencyCode, currencyMinorUnit,
-    listUnitPriceMinorUnits: null,
+    listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced",
   };
   return { ...draftEmpty(currencyMinorUnit, currencyCode, id), referenceNumber: "SO-5", items: [item], totalMinorUnits: unitPrice * 3 };
 }
@@ -130,12 +130,12 @@ const ITEM_A: OrderItem = {
   // same "$3.00" text in both the list-price and unit-price cells, breaking
   // "shows per-line base eggs and money" below, which asserts on rowA's
   // unit price by bare text.
-  listUnitPriceMinorUnits: 375,
+  listUnitPriceMinorUnits: 375, listPriceBasis: "Recorded",
 };
 const ITEM_B: OrderItem = {
   id: "it2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
   quantity: 2, quantityBase: 60, unitPriceMinorUnits: 1000, currencyCode: "USD", currencyMinorUnit: 2,
-  listUnitPriceMinorUnits: 1200,
+  listUnitPriceMinorUnits: 1200, listPriceBasis: "Recorded",
 };
 const DRAFT_TWO: SalesOrder = {
   ...draftEmpty(2, "USD", "o2"), referenceNumber: "SO-2", totalMinorUnits: 2900, items: [ITEM_A, ITEM_B],
@@ -802,7 +802,7 @@ describe("SalesPage list price and discount (#720)", () => {
     // state where the eye lands, and the Discount cell keeps the wording #720
     // shipped and the Help text documents. Pinned at exactly 2 so a future
     // change that drops either one goes red rather than silently halving it.
-    expect(within(row).getAllByText(i18n.t("sales:noListPrice"))).toHaveLength(2);
+    expect(within(row).getAllByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toHaveLength(2);
   });
 
   it("puts No list price in the DISCOUNT cell and an em dash in the LIST PRICE cell", async () => {
@@ -815,7 +815,7 @@ describe("SalesPage list price and discount (#720)", () => {
     // exactly what an AT-LIST line renders, so "we do not know" becomes
     // indistinguishable from "no discount was given" (INV-3, criterion 6).
     expect(cells[3]).toHaveTextContent("—");
-    expect(cells[5]).toHaveTextContent(i18n.t("sales:noListPrice"));
+    expect(cells[5]).toHaveTextContent(i18n.t("enums:listPriceBasis.ProductUnpriced"));
     // #720 R7 — "we do not know" is not a discount either.
     expect(cells[5]).not.toHaveClass("discount");
   });
@@ -828,7 +828,7 @@ describe("SalesPage list price and discount (#720)", () => {
       items: [{
         id: "it-atlist", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
-        listUnitPriceMinorUnits: 300,
+        listUnitPriceMinorUnits: 300, listPriceBasis: "Recorded",
       }],
     };
     const row = await openOrder(order, /Grade A Dozen/);
@@ -858,7 +858,7 @@ describe("SalesPage list price and discount (#720)", () => {
       items: [{
         id: "it-above", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
-        listUnitPriceMinorUnits: 250,
+        listUnitPriceMinorUnits: 250, listPriceBasis: "Recorded",
       }],
     };
     const row = await openOrder(order, /Grade A Dozen/);
@@ -896,7 +896,7 @@ describe("SalesPage list price and discount (#720)", () => {
       items: [{
         id: "it-atlist-mark", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
-        listUnitPriceMinorUnits: 300,
+        listUnitPriceMinorUnits: 300, listPriceBasis: "Recorded",
       }],
     };
     const row = await openOrder(order, /Grade A Dozen/);
@@ -917,20 +917,90 @@ describe("SalesPage list price and discount (#720)", () => {
       items: [{
         id: "it-null-mark", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
-        listUnitPriceMinorUnits: null,
+        listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced",
       }],
     };
     const row = await openOrder(order, /Grade A Dozen/);
     // The chip names the state beside the product; the Discount cell keeps the
     // wording #720 shipped and the Help text documents. Both, deliberately.
-    const noListMatches = within(row).getAllByText(i18n.t("sales:noListPrice"));
+    const noListMatches = within(row).getAllByText(i18n.t("enums:listPriceBasis.ProductUnpriced"));
     expect(noListMatches).toHaveLength(2);
     // One is the chip beside the product (cell 0), the other is the Discount
     // cell's own wording. Counting alone let two plain strings in any two cells
     // satisfy a test named for a chip.
     const productCell = within(row).getAllByRole("cell")[0];
-    expect(within(productCell).getByText(i18n.t("sales:noListPrice"))).toHaveClass("badge");
+    expect(within(productCell).getByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toHaveClass("badge");
     expect(row).not.toHaveClass("discounted");
+  });
+
+  // #773 — the two answers side by side on ONE order. Before this, both lines
+  // read "No list price" and the screen told the reader the pre-dating product
+  // had no price, which is a claim nobody recorded.
+  it("distinguishes a PreDating line from an unpriced one, in the cell AND the chip", async () => {
+    const predating: OrderItem = {
+      ...ITEM_A, id: "lp-pre", listUnitPriceMinorUnits: null, listPriceBasis: "PreDating",
+    };
+    const unpriced: OrderItem = {
+      ...ITEM_B, id: "lp-unp", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced",
+    };
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-mixedbasis"), referenceNumber: "SO-MIXEDBASIS",
+      totalMinorUnits: 2900, items: [predating, unpriced],
+    };
+    await openOrder(order, /Grade A Dozen/);
+
+    const preRow = screen.getByRole("row", { name: /Grade A Dozen/ });
+    const unpRow = screen.getByRole("row", { name: /Grade B Tray/ });
+
+    // Two mentions each, same shape the unpriced case has carried since #723:
+    // the chip beside the product and the Discount cell.
+    expect(within(preRow).getAllByText(i18n.t("enums:listPriceBasis.PreDating"))).toHaveLength(2);
+    expect(within(unpRow).getAllByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toHaveLength(2);
+    // The claim that makes this test worth having: neither row borrows the
+    // other's wording.
+    expect(within(preRow).queryByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toBeNull();
+    expect(within(unpRow).queryByText(i18n.t("enums:listPriceBasis.PreDating"))).toBeNull();
+  });
+
+  // #773 — the order panel's sentence. An order EVERY line of which predates
+  // capture gets the "we never recorded this" wording; one that merely has no
+  // comparable price keeps #723's.
+  it("tells an all-PreDating order it predates capture, on the order panel", async () => {
+    const a: OrderItem = { ...ITEM_A, id: "pp1", listUnitPriceMinorUnits: null, listPriceBasis: "PreDating" };
+    const b: OrderItem = { ...ITEM_B, id: "pp2", listUnitPriceMinorUnits: null, listPriceBasis: "PreDating" };
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-allpre"), referenceNumber: "SO-ALLPRE",
+      totalMinorUnits: 2900, items: [a, b],
+    };
+    await openOrder(order, /Grade A Dozen/);
+
+    const note = screen.getByTestId("order-discount-unknown");
+    expect(note).toHaveTextContent(i18n.t("sales:discountUnrecordedOrder"));
+    expect(note).not.toHaveTextContent(i18n.t("sales:discountUnknownOrder"));
+  });
+
+  // #773 — the `every` in orderListPriceBasis, and the reason it is not `some`.
+  // ONE line that genuinely had no comparable price makes "this order predates
+  // list-price capture" false of the order, however many lines do predate it.
+  it("keeps the plain wording for a MIXED order, on the panel and in the Orders list", async () => {
+    const predating: OrderItem = { ...ITEM_A, id: "mx1", listUnitPriceMinorUnits: null, listPriceBasis: "PreDating" };
+    const unpriced: OrderItem = { ...ITEM_B, id: "mx2", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" };
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-mixedorder"), referenceNumber: "SO-MIXEDORDER",
+      totalMinorUnits: 2900, items: [predating, unpriced],
+    };
+    await openOrder(order, /Grade A Dozen/);
+
+    const note = screen.getByTestId("order-discount-unknown");
+    expect(note).toHaveTextContent(i18n.t("sales:discountUnknownOrder"));
+    expect(note).not.toHaveTextContent(i18n.t("sales:discountUnrecordedOrder"));
+
+    // The same order in the Orders-list Discount cell, which reads the same
+    // helper. Cell 4 per the index comment on the em-dash test below.
+    const listRow = screen.getByRole("row", { name: /SO-MIXEDORDER/ });
+    const cell = within(listRow).getAllByRole("cell")[4];
+    expect(cell).toHaveTextContent(i18n.t("enums:listPriceBasis.ProductUnpriced"));
+    expect(cell).not.toHaveTextContent(i18n.t("enums:listPriceBasis.PreDating"));
   });
 
   // #723 — the order-level figure. Percent is off LIST, over comparable lines
@@ -960,10 +1030,10 @@ describe("SalesPage list price and discount (#720)", () => {
       items: [
         { id: "it-am1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
           quantity: 1, quantityBase: 12, unitPriceMinorUnits: 110, currencyCode: "USD", currencyMinorUnit: 2,
-          listUnitPriceMinorUnits: 100 },
+          listUnitPriceMinorUnits: 100, listPriceBasis: "Recorded" },
         { id: "it-am2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
           quantity: 1, quantityBase: 30, unitPriceMinorUnits: 90, currencyCode: "USD", currencyMinorUnit: 2,
-          listUnitPriceMinorUnits: 100 },
+          listUnitPriceMinorUnits: 100, listPriceBasis: "Recorded" },
       ],
     };
     await openOrder(order, /Grade A Dozen/);
@@ -979,10 +1049,10 @@ describe("SalesPage list price and discount (#720)", () => {
       items: [
         { id: "it-p1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
           quantity: 1, quantityBase: 12, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
-          listUnitPriceMinorUnits: 400 },
+          listUnitPriceMinorUnits: 400, listPriceBasis: "Recorded" },
         { id: "it-p2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
           quantity: 1, quantityBase: 30, unitPriceMinorUnits: 900, currencyCode: "USD", currencyMinorUnit: 2,
-          listUnitPriceMinorUnits: null },
+          listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" },
       ],
     };
     await openOrder(order, /Grade A Dozen/);
@@ -1003,7 +1073,7 @@ describe("SalesPage list price and discount (#720)", () => {
       items: [{
         id: "it-atlist-total", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
-        listUnitPriceMinorUnits: 300,
+        listUnitPriceMinorUnits: 300, listPriceBasis: "Recorded",
       }],
     };
     await openOrder(order, /Grade A Dozen/);
@@ -1026,7 +1096,7 @@ describe("SalesPage list price and discount (#720)", () => {
       items: [{
         id: "it-zero-list", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
         quantity: 1, quantityBase: 12, unitPriceMinorUnits: -100, currencyCode: "USD", currencyMinorUnit: 2,
-        listUnitPriceMinorUnits: 0,
+        listUnitPriceMinorUnits: 0, listPriceBasis: "Recorded",
       }],
     };
     await openOrder(order, /Grade A Dozen/);
@@ -1055,10 +1125,10 @@ describe("SalesPage list price and discount (#720)", () => {
       items: [
         { id: "it-ap1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
           quantity: 1, quantityBase: 12, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
-          listUnitPriceMinorUnits: 300 },
+          listUnitPriceMinorUnits: 300, listPriceBasis: "Recorded" },
         { id: "it-ap2", productId: "p2", eggGradeId: "gr2", unit: "Tray", baseUnitFactor: 30,
           quantity: 1, quantityBase: 30, unitPriceMinorUnits: 900, currencyCode: "USD", currencyMinorUnit: 2,
-          listUnitPriceMinorUnits: null },
+          listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" },
       ],
     };
     await openOrder(order, /Grade A Dozen/);
@@ -1078,7 +1148,7 @@ describe("SalesPage list price and discount (#720)", () => {
       items: [{
         id: "it-up1", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 300, currencyCode: "USD", currencyMinorUnit: 2,
-        listUnitPriceMinorUnits: null,
+        listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced",
       }],
     };
     await openOrder(order, /Grade A Dozen/);
@@ -1148,25 +1218,27 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-empty/ });
     expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("—");
-    expect(within(row).queryByText(i18n.t("sales:discountUnknown"))).toBeNull();
+    expect(within(row).queryByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toBeNull();
   });
 
-  it("reads Unknown for an order predating the list-price snapshot", async () => {
-    const preSnapshot: OrderItem = { ...ITEM_A, id: "pre1", listUnitPriceMinorUnits: null };
+  it("names an order predating the list-price snapshot as unrecorded, not unpriced", async () => {
+    const preSnapshot: OrderItem = { ...ITEM_A, id: "pre1", listUnitPriceMinorUnits: null, listPriceBasis: "PreDating" };
     mockListOrders.mockResolvedValue([listedOrder("pre", [preSnapshot], 900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-pre/ });
-    // #719: an order with no snapshot reads as unknown, never as a clean zero.
-    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent(i18n.t("sales:discountUnknown"));
+    // #719: an order with no snapshot never reads as a clean zero. #773: and it
+    // says WHICH kind of nothing — this one predates capture, so "no list price"
+    // (the recorded fact) would be a different and wrong claim.
+    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent(i18n.t("enums:listPriceBasis.PreDating"));
     // The wrap class is applied here, not just declared in the stylesheet: this
     // cell is inside td.num, which is pinned white-space: nowrap.
-    expect(within(within(row).getAllByRole("cell")[4]).getByText(i18n.t("sales:discountUnknown")))
+    expect(within(within(row).getAllByRole("cell")[4]).getByText(i18n.t("enums:listPriceBasis.PreDating")))
       .toHaveClass("discount-note");
   });
 
   it("does not print a bare em dash for an order only part of which can be measured", async () => {
     const atList: OrderItem = { ...ITEM_A, id: "ap1", listUnitPriceMinorUnits: 300 };
-    const noList: OrderItem = { ...ITEM_B, id: "ap2", listUnitPriceMinorUnits: null };
+    const noList: OrderItem = { ...ITEM_B, id: "ap2", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" };
     mockListOrders.mockResolvedValue([listedOrder("partial", [atList, noList], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-partial/ });
@@ -1184,7 +1256,7 @@ describe("SalesPage Orders-list discount column (#724)", () => {
   // inside td.num, with the suite green. Found by CodeRabbit on 0c65418.
   it("wraps the partial note on a DISCOUNTED order that also has an unmeasurable line", async () => {
     const below: OrderItem = { ...ITEM_A, id: "bp1", listUnitPriceMinorUnits: 375 };
-    const noList: OrderItem = { ...ITEM_B, id: "bp2", listUnitPriceMinorUnits: null };
+    const noList: OrderItem = { ...ITEM_B, id: "bp2", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" };
     mockListOrders.mockResolvedValue([listedOrder("belowpartial", [below, noList], 2900)]);
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-belowpartial/ });
@@ -1454,7 +1526,7 @@ describe("SalesPage price scale", () => {
         id: "e7", productId: "p1", eggGradeId: "gr1", unit: "Dozen", baseUnitFactor: 12,
         quantity: 3, quantityBase: 36, unitPriceMinorUnits: 1500,
         currencyCode: "KWD", currencyMinorUnit: 2,
-        listUnitPriceMinorUnits: 1200,
+        listUnitPriceMinorUnits: 1200, listPriceBasis: "Recorded",
       }],
     };
     mockListOrders.mockResolvedValue([order]);
@@ -3806,7 +3878,7 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
     const row = await beginEdit();
     typePrice("");
     expect(row).toHaveClass("discounted");
-    expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).not.toHaveTextContent(i18n.t("sales:noListPrice"));
+    expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).not.toHaveTextContent(i18n.t("enums:listPriceBasis.ProductUnpriced"));
   });
 
   it("says <0.1% rather than 0.0% when a real discount rounds below the rendered precision", async () => {
@@ -3814,7 +3886,7 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
     // beside a non-zero amount contradicts itself.
     const tiny: OrderItem = {
       ...ITEM_A, id: "tiny", quantity: 1, quantityBase: 12,
-      unitPriceMinorUnits: 999_999, listUnitPriceMinorUnits: 1_000_000,
+      unitPriceMinorUnits: 999_999, listUnitPriceMinorUnits: 1_000_000, listPriceBasis: "Recorded",
     };
     const order: SalesOrder = {
       ...draftEmpty(2, "USD", "otiny"), referenceNumber: "SO-tiny",
@@ -3944,7 +4016,7 @@ describe("SalesPage discount ceiling (#727)", () => {
   it("never marks a line that has no comparable list price", async () => {
     const noList: SalesOrder = {
       ...DRAFT_TWO,
-      items: [{ ...ITEM_A, listUnitPriceMinorUnits: null }],
+      items: [{ ...ITEM_A, listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" }],
       totalMinorUnits: 900,
     };
     const row = await openWithCeiling(0, noList);

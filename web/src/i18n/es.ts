@@ -330,7 +330,6 @@ export const es = {
     listPrice: "Precio de lista",
     unitPrice: "Precio unitario",
     discount: "Descuento",
-    noListPrice: "Sin precio de lista",
     aboveList: "Sobre el precio de lista",
     belowListBadge: "Por debajo de lista",
     // #727
@@ -340,9 +339,10 @@ export const es = {
     discountPartialNote: "parte de este pedido no tiene precio de lista",
     discountPartialOnly: "Sin descuento en las líneas que se pueden medir — parte de este pedido no tiene precio de lista.",
     discountUnknownOrder: "Ninguna línea tiene precio de lista — no se puede calcular el descuento de este pedido.",
+    // #773
+    discountUnrecordedOrder: "Ninguna línea tiene un precio de lista registrado — este pedido es anterior al registro de precios de lista, por lo que no se puede calcular su descuento.",
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} respecto al precio de lista",
-    discountUnknown: "Desconocido",
     // #721
     discountReasonHeadline: "Este pedido está {{amount}} por debajo del precio de lista, {{percent}}% del pedido, en {{below}} de {{total}} líneas.",
     discountReasonHeadlineNoPct: "Este pedido está {{amount}} por debajo del precio de lista, en {{below}} de {{total}} líneas.",
@@ -1733,6 +1733,11 @@ export const es = {
     "discountReason.LongStandingCustomer": "Cliente de larga trayectoria",
     "discountReason.ManagerApproved": "Aprobado por el gerente",
     "discountReason.Other": "Otro",
+
+    // list price basis (SalesPage) — ListPriceBasis.
+    "listPriceBasis.Recorded": "Precio de lista registrado",
+    "listPriceBasis.ProductUnpriced": "Sin precio de lista",
+    "listPriceBasis.PreDating": "Precio de lista no registrado",
 
     // water source
     "waterSource.Well": "Pozo",

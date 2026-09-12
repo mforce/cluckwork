@@ -431,7 +431,6 @@ export const en = {
     listPrice: "List price",
     unitPrice: "Unit price",
     discount: "Discount",
-    noListPrice: "No list price",
     aboveList: "Above list",
     // #723 — the row's text marker. Colour alone fails greyscale and fails a
     // colour-blind reader, so the tint never travels without this chip.
@@ -454,14 +453,16 @@ export const en = {
     discountPartialNote: "part of this order has no list price",
     discountPartialOnly: "No discount on the lines that can be measured — part of this order has no list price.",
     discountUnknownOrder: "No list price on any line — this order's discount cannot be worked out.",
+    // #773 — the other answer, for an order EVERY line of which predates
+    // list-price capture. One line that genuinely had no comparable price
+    // makes this sentence false of the order, so orderListPriceBasis needs
+    // all of them.
+    discountUnrecordedOrder: "No list price was recorded on any line — this order predates list-price capture, so its discount cannot be worked out.",
     // #724 — the Orders-table cell. Percent LEADS the amount: a reviewer
     // scanning a month of orders is reading for outliers, and only the
     // percentage makes an outlier visible without arithmetic.
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} off list",
-    // An order predating the list-price snapshot reads as unknown, never as a
-    // clean zero. #719: data starts on the day #720 shipped.
-    discountUnknown: "Unknown",
     // #721 — the confirm dialog keeps its title and its FIFO prose and gains
     // these: the person confirming sees what they are giving away before they
     // justify it. Amount and percent match the order's own discount line.
@@ -2322,6 +2323,13 @@ export const en = {
     "discountReason.LongStandingCustomer": "Long-standing customer",
     "discountReason.ManagerApproved": "Manager approved",
     "discountReason.Other": "Other",
+
+    // list price basis (SalesPage) — ListPriceBasis. Two labels for four
+    // values: NotComparable shares ProductUnpriced's, and Recorded never
+    // reaches a screen. See LIST_PRICE_BASIS_KEYS.
+    "listPriceBasis.Recorded": "List price recorded",
+    "listPriceBasis.ProductUnpriced": "No list price",
+    "listPriceBasis.PreDating": "List price not recorded",
 
     // water source (WaterPage picker) — WaterSource enum.
     "waterSource.Well": "Well",

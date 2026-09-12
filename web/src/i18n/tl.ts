@@ -346,7 +346,6 @@ export const tl = {
     listPrice: "Presyo sa listahan",
     unitPrice: "Presyo bawat yunit",
     discount: "Diskwento",
-    noListPrice: "Walang presyo sa listahan",
     aboveList: "Higit sa presyo sa listahan",
     belowListBadge: "Mas mababa sa lista",
     // #727
@@ -356,9 +355,10 @@ export const tl = {
     discountPartialNote: "may bahagi ng order na walang presyo sa listahan",
     discountPartialOnly: "Walang diskwento sa mga linyang masusukat — may bahagi ng order na walang presyo sa listahan.",
     discountUnknownOrder: "Walang presyo sa listahan ang alinmang linya — hindi matukoy ang diskwento ng order na ito.",
+    // #773
+    discountUnrecordedOrder: "Walang linyang may naitalang presyo sa listahan — mas maaga ang order na ito kaysa sa pagtatala ng presyo sa listahan, kaya hindi matukoy ang diskwento nito.",
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} mula sa presyo sa listahan",
-    discountUnknown: "Hindi alam",
     // #721
     discountReasonHeadline: "Ang order na ito ay {{amount}} mas mababa sa presyo sa listahan, {{percent}}% ng order, sa {{below}} sa {{total}} linya.",
     discountReasonHeadlineNoPct: "Ang order na ito ay {{amount}} mas mababa sa presyo sa listahan, sa {{below}} sa {{total}} linya.",
@@ -1800,6 +1800,11 @@ export const tl = {
     "discountReason.LongStandingCustomer": "Matagal nang kliyente",
     "discountReason.ManagerApproved": "Aprubado ng manager",
     "discountReason.Other": "Iba pa",
+
+    // list price basis (SalesPage) — ListPriceBasis.
+    "listPriceBasis.Recorded": "Naitala ang presyo sa listahan",
+    "listPriceBasis.ProductUnpriced": "Walang presyo sa listahan",
+    "listPriceBasis.PreDating": "Hindi naitala ang presyo sa listahan",
 
     // water source
     "waterSource.Well": "Poso",
