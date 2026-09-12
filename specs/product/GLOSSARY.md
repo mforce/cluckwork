@@ -700,11 +700,20 @@ the admin set on this screen, so clearing it would silently widen the page from
 one record to the whole farm. The empty state stays a plain sentence with no
 action (#655).
 
-**Hen-day % (#91)** — eggs collected ÷ hen-days × 100 (spec §19.3). A
+**Hen-day % (#91, #780)** — eggs collected ÷ hen-days × 100 (spec §19.3). A
 hen-day is one bird alive for one day; the day's bird count comes from the
 bird ledger (placements + movements). The production report shows it per
 day and for the whole period (period eggs ÷ period hen-days — not an
 average of daily percentages).
+
+The denominator counts only the houses that **recorded** the day (#780). A
+house that filed nothing produced no eggs the report can see, so counting
+its birds as exposure states a lay rate nothing supports: a day nobody
+recorded read as 0%, and a day one house of three missed read as a collapse
+in output. The **Hen-days** column keeps its full meaning — every bird
+alive, recorded or not — and the gap between it and the recorded exposure
+is exactly what is missing. A day nobody recorded has **no** percentage,
+not 0.
 
 **Production report (#91)** — per-day official production over a range
 (Draft entries aren't submitted, Voided ones vacated their day — neither

@@ -41,7 +41,7 @@ export function todaysEggs(entries: DailyEntry[]): number {
 }
 
 // One slot per day in the window, whether or not that day has a figure (#777),
-// and — since #780 — whether or not anyone recorded it.
+// and — since #780 — whether or not anyone recorded it, or only some of them.
 //
 // Why a strip rather than the line it replaces, stated at the strength the code
 // supports: the line mapped a zero day to y = SPARK_H, the floor of the viewBox,
@@ -51,29 +51,28 @@ export function todaysEggs(entries: DailyEntry[]): number {
 // made the same picture. It also interpolated between days, implying values
 // between them that a daily count does not have.
 //
-// The three states are a discriminated union rather than a `recorded` flag
-// beside a `heightPct`, which permitted an unrecorded day carrying a height of
-// 40 — the same defect class #780 exists to fix, one layer up. A renderer
-// narrowing on `kind` cannot draw a bar for a day that has none.
+// THREE states, as a discriminated union rather than flags beside a height. The
+// two-state version of this shipped in the first draft and was wrong in the same
+// direction the issue is about: a day where one house of three filed is not a
+// low day, it is a day whose total is a FLOOR, and drawing it like a complete
+// day asserts a drop in production that the farm's own records do not claim.
 export type DayStripSlot =
-  | { kind: "unrecorded"; date: string; weekBreak: boolean }
+  | { kind: "unrecorded"; date: string; expectedFlocks: number; weekBreak: boolean }
+  | { kind: "partial"; date: string; eggs: number; heightPct: number; recordedFlocks: number; expectedFlocks: number; weekBreak: boolean }
   | { kind: "recorded"; date: string; eggs: number; heightPct: number; weekBreak: boolean };
 
 export interface DayStripData {
   slots: DayStripSlot[];
-  // Every figure below is over the RECORDED days only, and is null when the
-  // window holds none. A window of unrecorded days has no minimum and no
-  // average; reporting 0 would be the conflation this issue closed.
-  min: number | null;
+  // Over the COMPLETE days only — the days every house reported. A partial
+  // day's total is a floor, so averaging it in drags the reference line down by
+  // however many houses forgot, which is the same defect one layer up.
   max: number | null;
   average: number | null;
   // The average as a share of the peak, for the reference line. Separate from
   // `average` because the line is geometry and the figure is a count.
   averagePct: number | null;
-  // The window's last day: its eggs if it was recorded, null if nobody
-  // recorded it. "Yesterday 0" was a claim the data never supported.
-  last: number | null;
-  recorded: number;
+  complete: number;
+  partial: number;
   unrecorded: number;
 }
 
@@ -83,52 +82,62 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 // cropped axis: the panel answers "did production hold", and shortening the
 // axis to dramatise a small swing would misstate the ratios between days.
 //
-// Every RECORDED day floors at 2%, including one that produced no eggs — that
-// stub at the baseline is the whole visible difference between "the flock laid
-// nothing and someone said so" and "nobody looked". An unrecorded day draws no
-// bar at all, so the two can never render alike.
+// Every day with a figure floors at 2%, including one that produced no eggs —
+// that stub at the baseline is the whole visible difference between "the flock
+// laid nothing and someone said so" and "nobody looked". A day nobody recorded
+// draws no bar at all, so the two can never render alike.
 //
 // `recentCount` is the length of the LATER of the two windows the panel
 // fetches, so the strip's divider falls exactly where the hen-day caption's
 // comparison does. 0 (or the whole window) draws no divider.
 export function dayStrip({ days, recentCount = 0 }: { days: ProductionDay[]; recentCount?: number }): DayStripData {
   const empty: DayStripData = {
-    slots: [], min: null, max: null, average: null, averagePct: null,
-    last: null, recorded: 0, unrecorded: 0,
+    slots: [], max: null, average: null, averagePct: null,
+    complete: 0, partial: 0, unrecorded: 0,
   };
   if (days.length === 0) return empty;
 
-  const values = days.filter((d) => d.entryCount > 0).map((d) => d.totalEggs);
-  const max = values.length === 0 ? null : Math.max(...values);
-  const average = values.length === 0
+  // A day with no houses expected — before the first placement, say — has
+  // nothing to be incomplete about, so `>=` rather than `===` keeps it out of
+  // the partial bucket instead of inventing a shortfall from two zeroes.
+  const isComplete = (d: ProductionDay) => d.recordedFlocks > 0 && d.recordedFlocks >= d.expectedFlocks;
+  const complete = days.filter(isComplete).map((d) => d.totalEggs);
+  const max = complete.length === 0 ? null : Math.max(...complete);
+  const average = complete.length === 0
     ? null
-    : r1(values.reduce((a, v) => a + v, 0) / values.length);
+    : r1(complete.reduce((a, v) => a + v, 0) / complete.length);
   const breakAt = recentCount > 0 && recentCount < days.length ? days.length - recentCount : -1;
+
+  // Height is a share of the complete-day peak. A partial day can therefore
+  // exceed 100% — two big houses out of three can beat a quiet complete day —
+  // so it is capped rather than allowed to overflow its slot.
+  const height = (eggs: number) =>
+    max !== null && max > 0 ? Math.min(100, Math.max(2, r1((eggs / max) * 100))) : 2;
 
   const slots: DayStripSlot[] = days.map((d, i) => {
     const weekBreak = i === breakAt;
-    if (d.entryCount === 0) return { kind: "unrecorded", date: d.date, weekBreak };
-    return {
-      kind: "recorded",
-      date: d.date,
-      eggs: d.totalEggs,
-      heightPct: max !== null && max > 0 ? Math.max(2, r1((d.totalEggs / max) * 100)) : 2,
-      weekBreak,
-    };
+    if (d.recordedFlocks === 0) {
+      return { kind: "unrecorded", date: d.date, expectedFlocks: d.expectedFlocks, weekBreak };
+    }
+    if (!isComplete(d)) {
+      return {
+        kind: "partial", date: d.date, eggs: d.totalEggs, heightPct: height(d.totalEggs),
+        recordedFlocks: d.recordedFlocks, expectedFlocks: d.expectedFlocks, weekBreak,
+      };
+    }
+    return { kind: "recorded", date: d.date, eggs: d.totalEggs, heightPct: height(d.totalEggs), weekBreak };
   });
 
-  const final = slots[slots.length - 1];
   return {
     slots,
-    min: values.length === 0 ? null : Math.min(...values),
     max,
     average,
-    // A window whose every recorded day is zero has a real average of 0 and no
+    // A window whose every complete day is zero has a real average of 0 and no
     // scale to place it on, so it gets no line rather than one on the floor.
     averagePct: average === null || max === null || max === 0 ? null : r1((average / max) * 100),
-    last: final.kind === "recorded" ? final.eggs : null,
-    recorded: values.length,
-    unrecorded: days.length - values.length,
+    complete: complete.length,
+    partial: slots.filter((s) => s.kind === "partial").length,
+    unrecorded: slots.filter((s) => s.kind === "unrecorded").length,
   };
 }
 

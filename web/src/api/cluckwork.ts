@@ -1083,14 +1083,24 @@ export interface ProductionDay {
   fromCounts: number;
   deaths: number;
   /**
-   * #780 — how many OFFICIAL entries the day holds. The only field that
-   * separates a day nobody recorded from one that genuinely produced no eggs:
-   * every other figure here is 0 for both. Official is Submitted, Locked or
-   * ManagerAdjusted, so a day holding only a Draft counts 0 here while the
-   * Dashboard's capture tiles still show it as captured.
+   * #780 — houses that filed an OFFICIAL entry (Submitted, Locked or
+   * ManagerAdjusted). The field that separates a day nobody recorded from one
+   * that genuinely produced no eggs: every other figure here is 0 for both. A
+   * day holding only a Draft counts 0 here while the capture tiles still show
+   * it as captured.
    */
-  entryCount: number;
+  recordedFlocks: number;
+  /**
+   * #780 — houses that owed a filing that day: placed, not yet depleted or
+   * archived. `recordedFlocks < expectedFlocks` is a PARTIALLY recorded day,
+   * whose `totalEggs` is a floor rather than a figure.
+   */
+  expectedFlocks: number;
+  /** Every bird alive that day, whether or not its house reported. */
   henDays: number;
+  /** The exposure that reported — `henDayPct`'s denominator (#780). */
+  recordedHenDays: number;
+  /** Eggs over the exposure that REPORTED. null when nothing did. */
   henDayPct: number | null;
 }
 
@@ -1101,6 +1111,8 @@ export interface ProductionReport {
   totalFromCounts: number;
   totalDeaths: number;
   totalHenDays: number;
+  /** `periodHenDayPct`'s denominator, so the figure is reconcilable (#780). */
+  totalRecordedHenDays: number;
   periodHenDayPct: number | null;
   gradeTotals: { eggGradeId: string; name: string; quantity: number }[];
 }

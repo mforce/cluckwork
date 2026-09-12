@@ -34,11 +34,16 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                     (e.CrackedGradeId != null ? e.CrackedEggs : 0)
                     + (e.DirtyGradeId != null ? e.DirtyEggs : 0)),
                 Deaths = g.Sum(e => e.MortalityCount),
-                // #780 — how many entries the day HAS, so a consumer can tell a
-                // day nobody recorded from one that genuinely produced zero
-                // eggs. Every other figure here defaults to 0 for both, which
-                // made them arrive identical and left the Dashboard's day strip
-                // asserting production it had no evidence for.
+                // #780 — how many HOUSES reported that day, so a consumer can
+                // tell a day nobody recorded from one that genuinely produced
+                // zero eggs. Every other figure here defaults to 0 for both,
+                // which made them arrive identical and left the Dashboard's day
+                // strip asserting production it had no evidence for.
+                //
+                // Distinct flocks, not `g.Count()` of entries: the figure this
+                // has to be comparable against is how many houses were EXPECTED
+                // to report, so counting rows would make the two incomparable
+                // the day one house is entered twice.
                 //
                 // These are OFFICIAL entries (the Where above): Submitted,
                 // Locked, ManagerAdjusted. Deliberately stricter than the
@@ -46,9 +51,21 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                 // figure should rest on the same rows every other figure in
                 // this row rests on, so a day holding only a Draft reads as
                 // unrecorded here and as captured on the capture tiles.
-                EntryCount = g.Count(),
+                RecordedFlocks = g.Select(e => e.FlockId).Distinct().Count(),
             })
             .ToDictionaryAsync(x => x.Date, ct);
+
+        // Which houses reported on which day (#780). The per-day aggregate above
+        // can say HOW MANY but not WHICH, and the hen-day denominator below needs
+        // which: a house that did not report contributes no eggs, so counting its
+        // birds as exposure states a lay rate the farm has no evidence for.
+        var submittedByDay = (await db.DailyEntries
+            .Where(e => e.Date >= from && e.Date <= to && OfficialStatuses.Contains(e.Status))
+            .Select(e => new { e.Date, e.FlockId })
+            .Distinct()
+            .ToListAsync(ct))
+            .GroupBy(x => x.Date)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.FlockId).ToHashSet());
 
         // Period grade totals (per-day × per-grade would bloat the payload).
         var gradeTotals = await db.DailyEntryGrades
@@ -170,12 +187,27 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         for (var d = from; d <= to; d = d.AddDays(1))
         {
             long henDays = 0;
+            // The exposure the lay rate is actually computed over: only the
+            // houses that reported. A house that filed nothing produced no eggs
+            // as far as this report knows, so its birds must not sit in the
+            // denominator — that is what made an unrecorded day read as a day
+            // of zero production (#780), and it does the same to a day where
+            // one house of three forgot.
+            long recordedHenDays = 0;
+            var expectedFlocks = 0;
+            var submitted = submittedByDay.GetValueOrDefault(d);
             foreach (var f in flocks)
             {
                 var ended = (f.DepletedOn is { } dep && d > dep)
                             || (f.ArchivedOn is { } arc && d > arc);
                 if (f.PlacementDate <= d && !ended)
-                    henDays += Math.Max(flockCounts[f.Id], 0);
+                {
+                    var birds = Math.Max(flockCounts[f.Id], 0);
+                    henDays += birds;
+                    expectedFlocks++;
+                    if (submitted is not null && submitted.Contains(f.Id))
+                        recordedHenDays += birds;
+                }
                 var todaysRemovals = removalsByFlockDay.GetValueOrDefault(f.Id)?.GetValueOrDefault(d) ?? 0L;
                 flockCounts[f.Id] -= todaysRemovals;
             }
@@ -185,13 +217,23 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             var sellable = total - (row?.Cracked ?? 0) - (row?.Dirty ?? 0) - (row?.Discarded ?? 0);
             days.Add(new ProductionDay(
                 d, total, row?.Cracked ?? 0, row?.Dirty ?? 0, row?.Discarded ?? 0,
-                sellable, row?.FromCounts ?? 0, row?.Deaths ?? 0, row?.EntryCount ?? 0, henDays,
-                henDays > 0 ? Math.Round(total * 100m / henDays, 1) : null));
+                sellable, row?.FromCounts ?? 0, row?.Deaths ?? 0,
+                // A house that reported while the bird ledger says its flock had
+                // ended still counts as having reported, so these two can
+                // disagree at a depletion boundary. That is deliberate: the
+                // first answers "who filed", the second "who owed a filing".
+                row?.RecordedFlocks ?? 0, expectedFlocks,
+                henDays, recordedHenDays,
+                // Over the exposure that reported, never over the calendar.
+                // null, not 0, when nothing reported — a day with no evidence
+                // has no lay rate, and printing 0.0% is the claim #780 removed.
+                recordedHenDays > 0 ? Math.Round(total * 100m / recordedHenDays, 1) : null));
             if (d == DateOnly.MaxValue) break; // AddDays would overflow
         }
 
         var totalEggs = days.Sum(x => x.TotalEggs);
         var totalHenDays = days.Sum(x => x.HenDays);
+        var totalRecordedHenDays = days.Sum(x => x.RecordedHenDays);
         return new ProductionReport(
             days,
             totalEggs,
@@ -199,7 +241,10 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             days.Sum(x => x.FromCounts),
             days.Sum(x => x.Deaths),
             totalHenDays,
-            totalHenDays > 0 ? Math.Round(totalEggs * 100m / totalHenDays, 1) : null,
+            totalRecordedHenDays,
+            // Same denominator as the per-day figure, so the period total and
+            // the rows it summarises cannot tell different stories.
+            totalRecordedHenDays > 0 ? Math.Round(totalEggs * 100m / totalRecordedHenDays, 1) : null,
             combined
                 .Select(t => new GradeTotal(
                     t.Key, gradeNames.GetValueOrDefault(t.Key, "?"), t.Value))

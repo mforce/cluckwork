@@ -18,17 +18,21 @@ const entry = (flockId: string, status: string, totalEggs: number, id = `de-${fl
   crackedGradeId: null, dirtyGradeId: null, grades: [],
   version: 1, adjustReason: null, voidReason: null, lockedAtUtc: null, adjustedFrom: null,
 });
-// `entryCount` defaults to 1: a day with a figure is a day somebody recorded.
-// Pass 0 for the day nobody recorded — the distinction #780 added.
-const day = (date: string, totalEggs: number, henDays = 100, entryCount = 1): ProductionDay => ({
+// One house, and it recorded: the ordinary complete day. `missing` is the day
+// nobody recorded and `partly` the day some houses did — the two distinctions
+// #780 added, and the two that used to arrive identical to a complete zero.
+const day = (date: string, totalEggs: number, henDays = 100, recordedFlocks = 1, expectedFlocks = 1): ProductionDay => ({
   date, totalEggs, cracked: 0, dirty: 0, discarded: 0, sellable: totalEggs, fromCounts: 0,
-  deaths: 0, entryCount, henDays,
-  henDayPct: henDays > 0 ? Math.round((totalEggs * 1000) / henDays) / 10 : null,
+  deaths: 0, recordedFlocks, expectedFlocks, henDays,
+  recordedHenDays: expectedFlocks > 0 ? Math.round((henDays * recordedFlocks) / expectedFlocks) : 0,
+  henDayPct: henDays > 0 && recordedFlocks > 0 ? Math.round((totalEggs * 1000) / henDays) / 10 : null,
 });
-const missing = (date: string) => day(date, 0, 100, 0);
+const missing = (date: string) => day(date, 0, 100, 0, 1);
+const partly = (date: string, totalEggs: number, recorded = 1, expected = 3) =>
+  day(date, totalEggs, 100, recorded, expected);
 const report = (periodHenDayPct: number | null, days: ProductionDay[] = []): ProductionReport => ({
   days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalDeaths: 0, totalHenDays: 0,
-  periodHenDayPct, gradeTotals: [],
+  totalRecordedHenDays: 0, periodHenDayPct, gradeTotals: [],
 });
 
 describe("captureTiles (#654, INV-3, INV-9)", () => {
@@ -106,7 +110,7 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
     expect(shape(d)).toEqual([
       ["2026-07-01", "recorded", 50], ["2026-07-02", "recorded", 100], ["2026-07-03", "recorded", 80],
     ]);
-    expect(d).toMatchObject({ min: 5, max: 10, last: 8, average: 7.7, recorded: 3, unrecorded: 0 });
+    expect(d).toMatchObject({ max: 10, average: 7.7, complete: 3, partial: 0, unrecorded: 0 });
   });
 
   // The whole of #780 in one assertion. Before `entryCount` both of these days
@@ -120,21 +124,37 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
       ["2026-07-02", "recorded", 2],
       ["2026-07-03", "unrecorded", null],
     ]);
-    expect(d).toMatchObject({ recorded: 2, unrecorded: 1 });
+    expect(d).toMatchObject({ complete: 2, unrecorded: 1 });
   });
 
-  it("computes min, max and the average over the recorded days only", () => {
-    // The unrecorded day is worth nothing to any of the three. Averaging over
-    // the calendar rather than over the evidence would report 150, and would
-    // call the window's minimum 0.
+  it("computes the peak and the average over the recorded days only", () => {
+    // The unrecorded day is worth nothing to either. Averaging over the
+    // calendar rather than over the evidence would report 166.7.
     const d = dayStrip({ days: [day("2026-07-01", 300), missing("2026-07-02"), day("2026-07-03", 200)] });
-    expect(d).toMatchObject({ min: 200, max: 300, average: 250, averagePct: 83.3 });
+    expect(d).toMatchObject({ max: 300, average: 250, averagePct: 83.3 });
   });
 
-  it("reports no last figure when nobody recorded the final day", () => {
-    // "Yesterday 0" was a claim the data never supported.
-    expect(dayStrip({ days: [day("2026-07-01", 90), missing("2026-07-02")] }).last).toBeNull();
-    expect(dayStrip({ days: [missing("2026-07-01"), day("2026-07-02", 0)] }).last).toBe(0);
+  // A day only some houses reported is its own state: its total is a floor, so
+  // it must not set the peak, must not move the average, and must not be drawn
+  // as a complete day that produced less.
+  it("keeps a partly recorded day out of the peak and the average", () => {
+    const d = dayStrip({ days: [day("2026-07-01", 300), partly("2026-07-02", 500, 2, 3), day("2026-07-03", 200)] });
+    expect(d).toMatchObject({ max: 300, average: 250, complete: 2, partial: 1, unrecorded: 0 });
+    expect(d.slots[1]).toMatchObject({ kind: "partial", eggs: 500, recordedFlocks: 2, expectedFlocks: 3 });
+    // 500 over a 300 peak would overflow the slot, so the bar caps at the top.
+    expect(d.slots[1]).toMatchObject({ heightPct: 100 });
+  });
+
+  it("has no peak or average when no day was recorded by every house", () => {
+    const d = dayStrip({ days: [partly("2026-07-01", 500, 2, 3), missing("2026-07-02")] });
+    expect(d).toMatchObject({ max: null, average: null, averagePct: null, complete: 0, partial: 1, unrecorded: 1 });
+  });
+
+  it("treats a day with no houses expected as complete rather than inventing a shortfall", () => {
+    // Before the first placement, 0 recorded of 0 expected is not a gap.
+    const d = dayStrip({ days: [day("2026-07-01", 0, 0, 0, 0)] });
+    expect(d).toMatchObject({ complete: 0, partial: 0, unrecorded: 1 });
+    expect(d.slots[0].kind).toBe("unrecorded");
   });
 
   it("floors a recorded day at 2% so the farm's worst real day is still a bar", () => {
@@ -161,17 +181,17 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
     // the floor and read as data.
     const d = dayStrip({ days: [day("2026-07-01", 0), day("2026-07-02", 0)] });
     expect(shape(d)).toEqual([["2026-07-01", "recorded", 2], ["2026-07-02", "recorded", 2]]);
-    expect(d).toMatchObject({ min: 0, max: 0, average: 0, averagePct: null });
+    expect(d).toMatchObject({ max: 0, average: 0, averagePct: null });
   });
 
   it("has no peak and no average when no day in the window was recorded", () => {
     const d = dayStrip({ days: [missing("2026-07-01"), missing("2026-07-02")] });
     expect(shape(d)).toEqual([["2026-07-01", "unrecorded", null], ["2026-07-02", "unrecorded", null]]);
-    expect(d).toMatchObject({ min: null, max: null, average: null, last: null, recorded: 0, unrecorded: 2 });
+    expect(d).toMatchObject({ max: null, average: null, complete: 0, unrecorded: 2 });
   });
 
   it("is empty for no days and one full-height slot for one day", () => {
-    expect(dayStrip({ days: [] })).toMatchObject({ slots: [], max: null, average: null, last: null });
+    expect(dayStrip({ days: [] })).toMatchObject({ slots: [], max: null, average: null });
     expect(dayStrip({ days: [day("2026-07-01", 7)] }).slots[0])
       .toMatchObject({ kind: "recorded", heightPct: 100 });
   });

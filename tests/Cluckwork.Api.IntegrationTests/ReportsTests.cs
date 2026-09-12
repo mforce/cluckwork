@@ -12,11 +12,14 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
     private sealed record Created(Guid Id);
     private sealed record DayRow(
         DateOnly Date, int TotalEggs, int Cracked, int Dirty, int Discarded,
-        int Sellable, int FromCounts, int Deaths, int EntryCount, long HenDays, decimal? HenDayPct);
+        int Sellable, int FromCounts, int Deaths,
+        int RecordedFlocks, int ExpectedFlocks,
+        long HenDays, long RecordedHenDays, decimal? HenDayPct);
     private sealed record GradeRow(Guid EggGradeId, string Name, int Quantity);
     private sealed record ProductionDto(
         List<DayRow> Days, int TotalEggs, int TotalSellable, int TotalFromCounts,
-        int TotalDeaths, long TotalHenDays, decimal? PeriodHenDayPct, List<GradeRow> GradeTotals);
+        int TotalDeaths, long TotalHenDays, long TotalRecordedHenDays,
+        decimal? PeriodHenDayPct, List<GradeRow> GradeTotals);
     private sealed record SalesDto(
         int ConfirmedCount, long RevenueMinorUnits, long PaidMinorUnits,
         long OutstandingMinorUnits, int VoidedCount, string CurrencyCode, int CurrencyMinorUnit);
@@ -224,14 +227,100 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(4, report!.Days.Count);
         var (laid, zero, missing, draftOnly) = (report.Days[0], report.Days[1], report.Days[2], report.Days[3]);
 
-        Assert.Equal((60, 1), (laid.TotalEggs, laid.EntryCount));
+        Assert.Equal((60, 1), (laid.TotalEggs, laid.RecordedFlocks));
         // The pair this issue exists for: identical in every other field.
         Assert.Equal(0, zero.TotalEggs);
         Assert.Equal(0, missing.TotalEggs);
-        Assert.Equal(1, zero.EntryCount);
-        Assert.Equal(0, missing.EntryCount);
+        Assert.Equal(1, zero.RecordedFlocks);
+        Assert.Equal(0, missing.RecordedFlocks);
         // And the Draft sits on the unrecorded side, with its 90 eggs invisible.
-        Assert.Equal((0, 0), (draftOnly.TotalEggs, draftOnly.EntryCount));
+        Assert.Equal((0, 0), (draftOnly.TotalEggs, draftOnly.RecordedFlocks));
+
+        // The lay rate follows the evidence, not the calendar. The house was
+        // alive on all four days, so `HenDays` is 100 throughout and the Reports
+        // column keeps the meaning the glossary gives it; what changes is the
+        // denominator the RATE divides by.
+        Assert.Equal((100L, 100L), (laid.HenDays, laid.RecordedHenDays));
+        Assert.Equal(60m, laid.HenDayPct);
+        // Recorded and genuinely zero: exposure counted, rate is a real 0%.
+        Assert.Equal((100L, 100L), (zero.HenDays, zero.RecordedHenDays));
+        Assert.Equal(0m, zero.HenDayPct);
+        // Nobody reported: birds alive, but no exposure with evidence behind it,
+        // so there is no rate at all. Printing 0.0% here was the conflation.
+        Assert.Equal((100L, 0L), (missing.HenDays, missing.RecordedHenDays));
+        Assert.Null(missing.HenDayPct);
+        Assert.Null(draftOnly.HenDayPct);
+
+        // Period: 60 eggs over the 200 hen-days that reported = 30%, not the
+        // 15% that dividing by all 400 calendar hen-days would give.
+        Assert.Equal(400L, report.TotalHenDays);
+        Assert.Equal(200L, report.TotalRecordedHenDays);
+        Assert.Equal(30m, report.PeriodHenDayPct);
+    }
+
+    // #780 — a day where SOME houses reported is not a day of low production
+    // and not a day of no production; it is a day whose total is a floor. The
+    // count of houses that owed a filing is what makes it visible, and the lay
+    // rate must divide only by the houses that filed or a missing house reads
+    // as a collapse in output.
+    [Fact]
+    public async Task Production_PartiallyRecordedDay_IsCountedAndRatedOnTheHousesThatReported()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        // Two houses, 100 birds each, both placed well before the window.
+        var houseA = await factory.SeedFlockAsync(accountId, farmId);
+        var houseB = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        async Task RecordAsync(Guid flockId, DateOnly date, int total)
+        {
+            var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId,
+                houseId = Guid.NewGuid(),
+                flockId,
+                date,
+                totalEggs = total,
+                crackedEggs = 0,
+                dirtyEggs = 0,
+                discardedEggs = 0,
+                mortalityCount = 0,
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = total } }
+            });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+            Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+                $"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString())).StatusCode);
+        }
+
+        // Day -2: both houses report 80 each. Day -1: only house A does.
+        await RecordAsync(houseA, Today.AddDays(-2), 80);
+        await RecordAsync(houseB, Today.AddDays(-2), 80);
+        await RecordAsync(houseA, Today.AddDays(-1), 80);
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={Today.AddDays(-2):yyyy-MM-dd}&to={Today.AddDays(-1):yyyy-MM-dd}");
+
+        var (full, partial) = (report!.Days[0], report.Days[1]);
+
+        Assert.Equal((2, 2), (full.RecordedFlocks, full.ExpectedFlocks));
+        // The whole point: one of two houses filed, and the row says so.
+        Assert.Equal((1, 2), (partial.RecordedFlocks, partial.ExpectedFlocks));
+
+        // Both houses were alive on both days, so the exposure is 200 either
+        // way; only the reported half of it carries evidence on the second day.
+        Assert.Equal((200L, 200L), (full.HenDays, full.RecordedHenDays));
+        Assert.Equal((200L, 100L), (partial.HenDays, partial.RecordedHenDays));
+
+        // 80% on both days. Dividing the partial day's 80 eggs by all 200
+        // hen-days would report 40% and show a healthy farm halving its output
+        // overnight, when what actually happened is that somebody did not file.
+        Assert.Equal(80m, full.HenDayPct);
+        Assert.Equal(80m, partial.HenDayPct);
+        Assert.Equal(80m, report.PeriodHenDayPct);
     }
 
     // Depletion writes no removal movement — the flock's contribution must

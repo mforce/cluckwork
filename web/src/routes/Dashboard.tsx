@@ -128,21 +128,41 @@ export function Dashboard() {
   // removed for everyone else. Two complete sentences rather than one built by
   // concatenation, so each locale can order its own clauses.
   const trendLabel = (line: DayStripData) => {
-    // max and average are null together — both are over the recorded days —
-    // so a window with none gets its own sentence rather than a formatted 0.
-    if (line.max === null || line.average === null) return t("trendStripLabelNone");
+    // Four states, none of which may report a figure it does not have. max and
+    // average are null together — both come from the COMPLETE days — so a
+    // window with none gets a sentence rather than a formatted 0, and which
+    // sentence depends on whether anything was recorded at all.
+    if (line.max === null || line.average === null) {
+      return line.partial === 0 ? t("trendStripLabelNone") : t("trendStripLabelNoComplete");
+    }
     const figures = { max: fmt.count(line.max), avg: fmt.count(line.average, 1) };
-    return line.unrecorded === 0
+    const gaps = line.partial + line.unrecorded;
+    return gaps === 0
       ? t("trendStripLabel", figures)
-      : t("trendStripLabelBlanks", { ...figures, count: line.unrecorded, blank: fmt.count(line.unrecorded) });
+      : t("trendStripLabelBlanks", { ...figures, count: gaps, blank: fmt.count(gaps) });
   };
-  // One day's readout, and the accessible name of its slot. Both figures are
-  // farm-locale formatted before they reach a catalog string (#650), and the
-  // unrecorded arm carries no count at all — that is the point of #780.
-  const trendTip = (slot: DayStripSlot) =>
-    slot.kind === "recorded"
-      ? t("trendDayTip", { date: fmt.date(slot.date), count: slot.eggs, total: fmt.count(slot.eggs) })
-      : t("trendDayTipNone", { date: fmt.date(slot.date) });
+  // One day's readout, and the accessible name of its slot. Every figure is
+  // farm-locale formatted before it reaches a catalog string (#650). The
+  // unrecorded arm carries no count at all — that is the point of #780 — and
+  // the partial arm says its total is a floor rather than the day's output.
+  const trendTip = (slot: DayStripSlot) => {
+    const date = fmt.date(slot.date);
+    switch (slot.kind) {
+      case "unrecorded":
+        return t("trendDayTipNone", { date });
+      case "partial":
+        return t("trendDayTipPartial", {
+          date, total: fmt.count(slot.eggs), count: slot.expectedFlocks,
+          recorded: fmt.count(slot.recordedFlocks), expected: fmt.count(slot.expectedFlocks),
+        });
+      case "recorded":
+        return t("trendDayTip", { date, count: slot.eggs, total: fmt.count(slot.eggs) });
+      default: {
+        const _exhaustive: never = slot;
+        return _exhaustive;
+      }
+    }
+  };
   const deltaClass = (delta: number | null) =>
     delta === null || delta === 0 ? "trend-delta" : delta < 0 ? "trend-delta is-down" : "trend-delta is-up";
 

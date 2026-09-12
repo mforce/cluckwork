@@ -620,10 +620,14 @@ export const tl = {
 
     // Huling 14 araw (#654)
     trendPanelTitle: "Huling 14 araw",
-    trendStripLabel: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, katamtaman {{avg}}. Bawat araw ay may tala.",
-    trendStripLabelBlanks_one: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, katamtaman {{avg}} sa mga araw na may tala. {{blank}} araw ang walang tala.",
-    trendStripLabelBlanks_other: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, katamtaman {{avg}} sa mga araw na may tala. {{blank}} araw ang walang tala.",
+    // "average", not "katamtaman": the figure beside the chart is labelled
+    // Average in this locale, and #688 says a locale must not use two words for
+    // one control. (`katamtaman` also reads as middling rather than a mean.)
+    trendStripLabel: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, average {{avg}}. Lahat ng bahayan ay may tala bawat araw.",
+    trendStripLabelBlanks_one: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, average {{avg}} sa mga araw na may tala ang lahat ng bahayan. {{blank}} araw ang hindi kumpleto.",
+    trendStripLabelBlanks_other: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, average {{avg}} sa mga araw na may tala ang lahat ng bahayan. {{blank}} araw ang hindi kumpleto.",
     trendStripLabelNone: "Itlog bawat araw, huling 14 araw. Walang araw sa panahong ito ang may tala.",
+    trendStripLabelNoComplete: "Itlog bawat araw, huling 14 araw. Walang araw na may tala ang lahat ng bahayan, kaya walang pinakamataas o average.",
     trendScaleTitle: "Itlog bawat araw",
     trendPeak: "Pinakamataas {{total}}",
     // The loanword, as this catalog already uses for Hen-day and Draft:
@@ -631,6 +635,8 @@ export const tl = {
     trendAvg: "Average {{total}}",
     trendDayTip_one: "{{date}} – {{total}} itlog",
     trendDayTip_other: "{{date}} – {{total}} itlog",
+    trendDayTipPartial_one: "{{date}} – {{total}} itlog, {{recorded}} sa {{expected}} bahayan",
+    trendDayTipPartial_other: "{{date}} – {{total}} itlog, {{recorded}} sa {{expected}} bahayan",
     trendDayTipNone: "{{date}} – walang tala",
     henDaySubLabel: "Hen-day, huling 7 araw laban sa naunang 7",
     henDayDeltaUp: "+{{delta}} pts",
@@ -2082,13 +2088,16 @@ export const tl = {
     dashboardTrend:
       "<strong>Huling 14 araw</strong>: itlog bawat araw mula sa report ng produksyon, na may "
       + "<strong>hen-day %</strong> para sa huling 7 kumpletong araw at kung paano ito gumalaw kumpara "
-      + "sa 7 araw bago nito. Ituro ang isang araw, o puntahan ito gamit ang tab, para basahin ito nang "
-      + "mag-isa. Ang araw na isinumite nang walang itlog ay may marka sa base; ang araw na walang "
-      + "nagsumite ay walang laman at mababasang <strong>Walang tala</strong>. Ang "
-      + "<strong>Average</strong> ay ang average ng mga araw na may tala. Nakapirmi ang window (mula "
-      + "kahapon pabalik) at binibilang lang ang <strong>mga naisumiteng araw</strong> — ang araw na "
-      + "Draft pa ay mababasang Walang tala hanggang maisumite, hindi tulad sa Mga Report kung saan "
-      + "pinipili mo ang saklaw.",
+      + "sa 7 araw bago nito. Ituro ang isang araw, o pumasok sa tsart gamit ang tab at gamitin ang mga "
+      + "arrow key, para basahin ito nang mag-isa. Ang araw na isinumite nang walang itlog ay may marka sa "
+      + "base; ang araw na walang nagsumite ay walang laman at mababasang <strong>Walang tala</strong>; ang "
+      + "araw na iilang bahayan lang ang nagsumite ay guhitan ang guhit, dahil ang kabuuan nito ay ang "
+      + "pinakamababang naprodyus at hindi ang aktwal na naprodyus. Ang <strong>Pinakamataas</strong> at "
+      + "<strong>Average</strong> ay mula lamang sa mga araw na may tala ang lahat ng bahayan. Ang hen-day % "
+      + "ay hinahati sa mga bahayang may tala, kaya ang bahayang nakalimot ay nagpapaliit sa sinusukat, "
+      + "hindi sa mismong bilang. Nakapirmi ang window (mula kahapon pabalik) at binibilang lang ang "
+      + "<strong>mga naisumiteng araw</strong> — ang araw na Draft pa ay mababasang Walang tala hanggang "
+      + "maisumite, hindi tulad sa Mga Report kung saan pinipili mo ang saklaw.",
     dashboardStock:
       "<strong>Stock</strong>: isang <strong>stacked bar</strong> ng available bawat grado, na may mga "
       + "bilang sa tabi; ang restricted na itlog ay nakatala pagkatapos ng kabuuan. Ito rin ang kabuuang "

@@ -273,6 +273,7 @@ describe("dashboard surfaces (#654, INV-8)", () => {
   it("declares the tile, cap link, day strip, stacked meter, ledger and list rules", () => {
     for (const s of [".capture-grid", ".capture-tile", ".capture-tile.is-missing", ".capture-tile.is-missing .capture-tile-eggs", ".capture-tile-eggs", ".capture-more",
       ".trend-scale", ".daystrip", ".day", ".day > i", ".day.on", ".day.on > i", ".day.on::after",
+      ".day-partial > i", ".day.on.day-partial > i",
       ".day-week", ".avgline", ".tipdock", ".tip", ".trend-rule", ".trend-kpi",
       ".meter-stack", ".meter-stack > span", ".stock-ledger", ".stock-ledger li", ".dash-list", ".dash-list li", ".panel-wide"])
       bodyOf(s);
@@ -313,6 +314,51 @@ describe("dashboard surfaces (#654, INV-8)", () => {
       }
     }
   });
+  // #780 — the arrow under the day readout shipped 4/5ths hidden behind the box
+  // it points from, and every guard here stayed green: the selector was
+  // declared and its colours were tokenised, which is all this file used to
+  // ask. Both facts that made it wrong are asserted now.
+  //
+  // A CSS triangle's visible wedge is its TOP border, so a bottom border is
+  // 5px of invisible box between the wedge and what it points at — with
+  // `bottom: 100%` pinning the box to the slot, that gap pushes the wedge up
+  // behind the readout. The third side must be zero.
+  it("points the day readout's arrow at the slot, with no bottom border to push it off", () => {
+    const arrow = bodyOf(".day.on::after");
+    expect(arrow).toMatch(/bottom:\s*100%/);
+    // A visible wedge: the top border carries the ink, the sides are clear.
+    expect(arrow).toMatch(/border-top-color:\s*var\(--ink\)/);
+    expect(arrow).toMatch(/border-color:\s*transparent/);
+    // Three values, the last a bare 0 — `5px 5px 0`. A fourth value, or a
+    // single one, reinstates the bottom border and the arrow disappears again.
+    const width = /border-width:\s*([^;]+)/.exec(arrow)?.[1].trim();
+    expect(width, "border-width must be the three-value form").toBeDefined();
+    const parts = width!.split(/\s+/);
+    expect(parts).toHaveLength(3);
+    expect(parts[2], "the bottom border must be 0 or the arrow hides behind the box").toBe("0");
+    // Nothing may move it back up: `bottom: 100%` means a positive
+    // `margin-bottom` pushes AWAY from the slot, which is how this shipped.
+    expect(arrow).not.toMatch(/margin-bottom/);
+  });
+
+  // The selection ring must not be drawn inside the slot: a bar is 18px in a
+  // ~20px slot and `.day.on > i` paints it the ring's own colour, so an inset
+  // ring vanished on the peak day — the one most likely to be inspected.
+  it("draws the selected day's ring outside the slot, clear of its own bar", () => {
+    const offset = /outline-offset:\s*(-?[\d.]+)px/.exec(bodyOf(".day.on"))?.[1];
+    expect(offset, "outline-offset must be declared in px").toBeDefined();
+    expect(Number(offset)).toBeGreaterThan(0);
+    // And inside the 4px inter-slot gap, so two adjacent rings cannot touch.
+    expect(Number(offset)).toBeLessThan(2);
+  });
+
+  // A recorded day that produced nothing is a 2% bar, which is 1.58px on a 5rem
+  // strip — the entire visible difference between "the flock laid nothing" and
+  // "nobody looked". A percentage floor alone is not a legible mark.
+  it("gives the shortest bar a pixel floor, not only a percentage one", () => {
+    expect(bodyOf(".day > i")).toMatch(/min-height:\s*[3-9]px/);
+  });
+
   it("keeps the tile on the card radius and the production bar on the accent token", () => {
     expect(bodyOf(".capture-tile")).toMatch(/border-radius:\s*var\(--r-card\)/);
     expect(bodyOf(".capture-tile")).toMatch(/border:\s*1px solid var\(--hairline\)/);

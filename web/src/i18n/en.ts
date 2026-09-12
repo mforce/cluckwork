@@ -784,12 +784,20 @@ export const en = {
     // so this no longer repeats the lowest and the latest — it says what the
     // scale is and how much of the window is missing. Whole strings, not a
     // stem plus a suffix, so a locale can order its own clauses (#650).
-    trendStripLabel: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}}. Every day has an entry.",
-    trendStripLabelBlanks_one: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}} across the recorded days. {{blank}} day has no entry.",
-    trendStripLabelBlanks_other: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}} across the recorded days. {{blank}} days have no entry.",
-    // No day in the window holds an entry, so there is no peak and no average
-    // to name — reporting either as 0 is the conflation #780 closed.
+    // Peak and average are over the days EVERY house recorded — a partly
+    // recorded day's total is a floor, so averaging it in would lower the
+    // reference by however many houses forgot. One count for the days that are
+    // not complete, whichever way they fall short: the slot's own name says
+    // which, and i18next selects a plural on one number, not two.
+    trendStripLabel: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}}. Every house recorded every day.",
+    trendStripLabelBlanks_one: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}} across the days every house recorded. {{blank}} day is not fully recorded.",
+    trendStripLabelBlanks_other: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}} across the days every house recorded. {{blank}} days are not fully recorded.",
+    // Nothing at all in the window, so there is no peak and no average to name
+    // — reporting either as 0 is the conflation #780 closed.
     trendStripLabelNone: "Eggs per day, last 14 days. No day in this window has an entry.",
+    // Some days have figures, but none is complete, so there is still nothing
+    // to take a peak or an average from.
+    trendStripLabelNoComplete: "Eggs per day, last 14 days. No day was recorded by every house, so there is no peak or average to give.",
     trendScaleTitle: "Eggs per day",
     trendPeak: "Peak {{total}}",
     trendAvg: "Avg {{total}}",
@@ -797,6 +805,14 @@ export const en = {
     // The dash separates the date from the figure in every locale.
     trendDayTip_one: "{{date}} – {{total}} egg",
     trendDayTip_other: "{{date}} – {{total}} eggs",
+    // Only some houses filed, so the total is a floor and the sentence says so
+    // rather than presenting it as the day's output.
+    // Kept short on purpose: at 331px the longer draft ("… eggs so far, 1 of 2
+    // houses recorded") was clipped mid-word on the running panel, and this is
+    // the readout carrying the most information. "N of M houses" already says
+    // the total is a floor.
+    trendDayTipPartial_one: "{{date}} – {{total}} eggs, {{recorded}} of {{expected}} house",
+    trendDayTipPartial_other: "{{date}} – {{total}} eggs, {{recorded}} of {{expected}} houses",
     // Nobody recorded that day. Distinct from a day that produced no eggs,
     // which reads as "0 eggs" above and keeps a stub on the chart (#780).
     trendDayTipNone: "{{date}} – no entry",
@@ -2621,11 +2637,15 @@ export const en = {
     dashboardTrend:
       "<strong>Last 14 days</strong>: eggs per day from the production report, with <strong>hen-day %"
       + "</strong> for the last 7 complete days and how it moved against the 7 before. Point at a day, "
-      + "or tab to it, to read that day on its own. A day the farm submitted with no eggs keeps a mark "
-      + "on the baseline; a day nobody submitted is an empty slot and reads as <strong>No entry</strong>"
-      + ". <strong>Avg</strong> is the average of the days that do have one. The window is fixed "
-      + "(yesterday back) and counts <strong>submitted days only</strong> — a day still in Draft reads "
-      + "as No entry until it is submitted, unlike Reports where you choose the range.",
+      + "or tab into the chart and use the arrow keys, to read that day on its own. A day the farm "
+      + "submitted with no eggs keeps a mark on the baseline; a day nobody submitted is an empty slot "
+      + "and reads as <strong>No entry</strong>; a day only some houses submitted is drawn hatched, "
+      + "because its total is the least the farm produced rather than what it produced. "
+      + "<strong>Peak</strong> and <strong>Avg</strong> come only from the days every house recorded. "
+      + "Hen-day % divides by the houses that recorded, so a house that forgets lowers what the figure "
+      + "is measured over, never the rate itself. The window is fixed (yesterday back) and counts "
+      + "<strong>submitted days only</strong> — a day still in Draft reads as No entry until it is "
+      + "submitted, unlike Reports where you choose the range.",
     dashboardStock:
       "<strong>Stock</strong>: one <strong>stacked bar</strong> of what is available by grade, with the "
       + "figures beside it; restricted eggs are noted after the total. It is the same total the Stock "

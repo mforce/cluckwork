@@ -1920,6 +1920,10 @@ label.check {
   display: block;
   width: 100%;
   max-width: 18px;
+  /* The 2% floor is 1.58px on a 5rem strip, and that sliver is the entire
+     visible difference between "recorded zero" and "nobody looked". A pixel
+     floor makes it a mark a reader can actually see. */
+  min-height: 3px;
   border-radius: 3px 3px 0 0;
   background: var(--stat-accent);
 }
@@ -1939,12 +1943,51 @@ label.check {
    keyboard focus coincide here — focusing a slot selects it — so this IS the
    focus indicator and no second ring competes with it. */
 .day.on {
+  /* OUTSIDE the slot. An inset ring was invisible on a tall day: a bar is 18px
+     in a ~20px slot, so an inset band lands on the bar, and `.day.on > i` has
+     just painted that bar the ring's own colour — the peak day showed no ring
+     at all. 1px out sits in the 4px gap between slots, so it cannot touch a
+     neighbour, and it reads on every day whatever the bar's height. */
   outline: 1.5px solid var(--ink);
-  outline-offset: -1.5px;
+  outline-offset: 1px;
 }
 
 .day.on > i {
   background: var(--ink);
+}
+
+/* A day only some houses reported. The bar is a FLOOR, not the day's output, so
+   it is drawn hollow: a solid bar here asserts a drop in production that the
+   farm's own records never claimed — the same mistake as drawing an unrecorded
+   day as a zero, one step in. */
+.day-partial > i {
+  background: linear-gradient(
+    135deg,
+    var(--stat-accent) 25%,
+    transparent 25%,
+    transparent 50%,
+    var(--stat-accent) 50%,
+    var(--stat-accent) 75%,
+    transparent 75%
+  );
+  background-size: 6px 6px;
+  border: 1px solid var(--stat-accent);
+  box-sizing: border-box;
+}
+
+.day.on.day-partial > i {
+  background: linear-gradient(
+    135deg,
+    var(--ink) 25%,
+    transparent 25%,
+    transparent 50%,
+    var(--ink) 50%,
+    var(--ink) 75%,
+    transparent 75%
+  );
+  background-size: 6px 6px;
+  border: 1px solid var(--ink);
+  box-sizing: border-box;
 }
 
 /* The arrow, anchored to the slot element. Never positioned by index
@@ -1956,13 +1999,22 @@ label.check {
   position: absolute;
   left: 50%;
   bottom: 100%;
-  margin-bottom: 2px;
   transform: translateX(-50%);
   /* The CSS triangle, written as longhands: the guard below requires every
      colour-valued declaration to resolve through a token or to BE a colour
      keyword, and `border: 5px solid transparent` is a shorthand carrying one
-     rather than either. Splitting it says the same thing and stays checkable. */
-  border-width: 5px;
+     rather than either. Splitting it says the same thing and stays checkable.
+
+     `border-width: 5px 5px 0` — NO bottom border, and this is the whole fix.
+     The visible triangle is the TOP border, so a uniform 5px box carries 5px of
+     empty bottom border BELOW it; with `bottom: 100%` pinning the box's bottom
+     edge to the slot, that empty half pushed the triangle 5px higher, up behind
+     the readout, leaving about 1px of a 5px arrow showing in the same colour as
+     the box it was hiding under. Measured, not guessed — and the comment that
+     used to sit here asserted the opposite. With no bottom border the element
+     IS the triangle: it spans the 5px directly above the slot, inside the 8px
+     the dock reserves. */
+  border-width: 5px 5px 0;
   border-style: solid;
   border-color: transparent;
   border-top-color: var(--ink);

@@ -42,14 +42,17 @@ const entry = (flockId: string, status: string, totalEggs: number): DailyEntry =
   crackedGradeId: null, dirtyGradeId: null, grades: [],
   version: 1, adjustReason: null, voidReason: null, lockedAtUtc: null, adjustedFrom: null,
 });
-// `entryCount` defaults to 1 — a day with a figure is a day somebody recorded.
-// 0 is the day nobody recorded, which #780 made distinguishable from a zero.
-const day = (date: string, totalEggs: number, entryCount = 1): ProductionDay => ({
+// One house that recorded — the ordinary complete day. `recordedFlocks: 0` is
+// the day nobody recorded, and `recordedFlocks < expectedFlocks` the day only
+// some houses did; both used to arrive indistinguishable from a real zero.
+const day = (date: string, totalEggs: number, recordedFlocks = 1, expectedFlocks = 1): ProductionDay => ({
   date, totalEggs, cracked: 0, dirty: 0, discarded: 0, sellable: totalEggs, fromCounts: 0,
-  deaths: 0, entryCount, henDays: 100, henDayPct: totalEggs,
+  deaths: 0, recordedFlocks, expectedFlocks, henDays: 100,
+  recordedHenDays: expectedFlocks > 0 ? Math.round((100 * recordedFlocks) / expectedFlocks) : 0,
+  henDayPct: recordedFlocks > 0 ? totalEggs : null,
 });
 const report = (periodHenDayPct: number | null, days: ProductionDay[]): ProductionReport => ({
-  days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalDeaths: 0, totalHenDays: 0,
+  days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalDeaths: 0, totalHenDays: 0, totalRecordedHenDays: 0,
   periodHenDayPct, gradeTotals: [],
 });
 const STOCK: StockRow[] = [
@@ -182,7 +185,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     // 4,396 eggs over 14 recorded days is 314.0 — the average is over the days
     // with an entry, which is a figure that only exists since #780.
     const strip = await screen.findByRole("group", {
-      name: "Eggs per day, last 14 days. Peak 327, average 314.0. Every day has an entry.",
+      name: "Eggs per day, last 14 days. Peak 327, average 314.0. Every house recorded every day.",
     });
     // 301..307 then 321..327, so the peak (327) is the 8th day and every other
     // bar is its exact share of it.
@@ -206,13 +209,63 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   const withUnrecordedTail = () =>
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, entryCount: 0 } : d)),
+        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, recordedFlocks: 0 } : d)),
       })));
 
-  it("names the days with no entry in the accessible label, and averages over the rest", async () => {
+  it("names the days that are not fully recorded, and averages over the rest", async () => {
     withUnrecordedTail();
     renderWithProviders(<Dashboard />);
-    expect(await screen.findByRole("group", { name: /6 days have no entry\.$/ })).toBeInTheDocument();
+    expect(await screen.findByRole("group", { name: /6 days are not fully recorded\.$/ })).toBeInTheDocument();
+  });
+
+  // #780 — the branch that exists so the panel never announces a peak it has no
+  // evidence for. It shipped unrendered by any test: disabling it left the whole
+  // suite green while the label said "Peak 0, average 0".
+  it("announces no peak and no average when nothing in the window was recorded", async () => {
+    mockReport.mockImplementation((from, to) =>
+      reportByWindow(today)(from, to).then((r) => ({
+        ...r, periodHenDayPct: null,
+        days: r.days.map((d) => ({ ...d, totalEggs: 0, recordedFlocks: 0 })),
+      })));
+    renderWithProviders(<Dashboard />);
+    const strip = await screen.findByRole("group", {
+      name: "Eggs per day, last 14 days. No day in this window has an entry.",
+    });
+    // No bars at all, and the scale shows a dash rather than a fabricated 0.
+    expect(strip.querySelectorAll(".day > i")).toHaveLength(0);
+    expect(strip.querySelectorAll(".day")).toHaveLength(14);
+    expect(screen.getByText("—", { selector: ".trend-peak" })).toBeInTheDocument();
+    expect(screen.queryByText(/^Avg/)).not.toBeInTheDocument();
+  });
+
+  // Recorded, but never by every house — so there is still no complete day to
+  // take a peak or an average from, and saying so is a different sentence.
+  it("announces no peak when some houses recorded every day but never all of them", async () => {
+    mockReport.mockImplementation((from, to) =>
+      reportByWindow(today)(from, to).then((r) => ({
+        ...r, days: r.days.map((d) => ({ ...d, recordedFlocks: 1, expectedFlocks: 3 })),
+      })));
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByRole("group", {
+      name: "Eggs per day, last 14 days. No day was recorded by every house, so there is no peak or average to give.",
+    })).toBeInTheDocument();
+  });
+
+  // A partly recorded day's total is a floor. It gets its own slot state and
+  // its own sentence, and it must not drag the average down.
+  it("marks a partly recorded day and keeps it out of the average", async () => {
+    mockReport.mockImplementation((from, to) =>
+      reportByWindow(today)(from, to).then((r) => ({
+        ...r, days: r.days.map((d, i) => (i === 6 ? { ...d, recordedFlocks: 1, expectedFlocks: 3 } : d)),
+      })));
+    renderWithProviders(<Dashboard />);
+    const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    expect(strip.querySelectorAll(".day-partial")).toHaveLength(2); // day 6 of each window
+    const names = screen.getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label"))
+      .filter((n): n is string => n !== null && n.includes("of 3 houses"));
+    expect(names).toHaveLength(2);
+    expect(names[0]).toMatch(/eggs, 1 of 3 houses$/);
   });
 
   it("draws an empty slot for a day nobody recorded, and a stub for one that produced nothing", async () => {
@@ -230,7 +283,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("draws a stub for a recorded zero beside the empty slot of an unrecorded day", async () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, entryCount: i > 5 ? 0 : 1 } : d)),
+        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, recordedFlocks: i > 5 ? 0 : 1 } : d)),
       })));
     renderWithProviders(<Dashboard />);
     const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
