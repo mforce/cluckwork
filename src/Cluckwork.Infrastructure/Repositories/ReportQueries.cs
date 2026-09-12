@@ -211,6 +211,14 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             // flock of three forgot.
             long recordedHenDays = 0;
             var expectedFlocks = 0;
+            // Expected flocks that did NOT file. Completeness cannot be a
+            // comparison of the two COUNTS: since a flock that filed counts
+            // whether or not the ledger says it was live, expected {A, B} with
+            // filings {A, C} gives 2 and 2 — equal counts over different sets,
+            // so B's missing filing reads as a complete day and its shortfall
+            // enters Peak and Avg. Comparing identities is the only thing that
+            // answers "did everyone who owed a count file one".
+            var missingFlocks = 0;
             // The flocks whose birds ARE in the denominator. The numerator is
             // then taken from exactly these, so the two cannot disagree.
             var rated = new HashSet<Guid>();
@@ -229,10 +237,20 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                     // contributes no exposure, so admitting its eggs to the
                     // numerator divides by a denominator they are not in. That
                     // reported 160% on a farm laying 80%.
-                    if (birds > 0 && filed.Contains(f.Id))
+                    if (filed.Contains(f.Id))
                     {
-                        recordedHenDays += birds;
-                        rated.Add(f.Id);
+                        // `birds > 0` is load-bearing for the RATE, not for
+                        // whether the flock filed: a flock with no birds still
+                        // answered for itself, it just contributes no exposure.
+                        if (birds > 0)
+                        {
+                            recordedHenDays += birds;
+                            rated.Add(f.Id);
+                        }
+                    }
+                    else
+                    {
+                        missingFlocks++;
                     }
                 }
                 var todaysRemovals = removalsByFlockDay.GetValueOrDefault(f.Id)?.GetValueOrDefault(d) ?? 0L;
@@ -268,7 +286,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             days.Add(new ProductionDay(
                 d, total, cracked, dirty, discarded,
                 sellable, units.Sum(u => u.FromCounts), units.Sum(u => u.Deaths),
-                recordedFlocks, expectedFlocks,
+                recordedFlocks, expectedFlocks, missingFlocks,
                 henDays, recordedHenDays, ratedEggs,
                 // Over the exposure that filed, never over the calendar. null,
                 // not 0, when nothing filed — a day with no evidence has no lay

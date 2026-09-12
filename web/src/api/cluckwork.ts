@@ -1096,6 +1096,13 @@ export interface ProductionDay {
    * whose `totalEggs` is a floor rather than a figure.
    */
   expectedFlocks: number;
+  /**
+   * #780 — expected flocks with no filing, and the only sound test for a
+   * partly recorded day. Comparing `recordedFlocks` against `expectedFlocks`
+   * is not: they count different sets, so expected {A, B} against filings
+   * {A, C} gives 2 and 2 and hides B.
+   */
+  missingFlocks: number;
   /** Every bird alive that day, whether or not its house reported. */
   henDays: number;
   /** The exposure that reported — `henDayPct`'s denominator (#780). */

@@ -23,7 +23,9 @@ const entry = (flockId: string, status: string, totalEggs: number, id = `de-${fl
 // #780 added, and the two that used to arrive identical to a complete zero.
 const day = (date: string, totalEggs: number, henDays = 100, recordedFlocks = 1, expectedFlocks = 1): ProductionDay => ({
   date, totalEggs, cracked: 0, dirty: 0, discarded: 0, sellable: totalEggs, fromCounts: 0,
-  deaths: 0, recordedFlocks, expectedFlocks, henDays,
+  deaths: 0, recordedFlocks, expectedFlocks,
+  missingFlocks: Math.max(0, expectedFlocks - recordedFlocks),
+  henDays,
   recordedHenDays: expectedFlocks > 0 ? Math.round((henDays * recordedFlocks) / expectedFlocks) : 0,
   ratedEggs: recordedFlocks > 0 ? totalEggs : 0,
   henDayPct: henDays > 0 && recordedFlocks > 0 ? Math.round((totalEggs * 1000) / henDays) / 10 : null,
@@ -141,12 +143,27 @@ describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero
   it("keeps a partly recorded day out of the peak and the average", () => {
     const d = dayStrip({ days: [day("2026-07-01", 300), partly("2026-07-02", 500, 2, 3), day("2026-07-03", 200)] });
     expect(d).toMatchObject({ max: 300, average: 250, complete: 2, partial: 1, unrecorded: 0 });
-    expect(d.slots[1]).toMatchObject({ kind: "partial", eggs: 500, recordedFlocks: 2, expectedFlocks: 3 });
+    expect(d.slots[1]).toMatchObject({ kind: "partial", eggs: 500, filedFlocks: 2, expectedFlocks: 3 });
     // 500 over a 300 peak would overflow the slot, so the bar caps at the top.
     expect(d.slots[1]).toMatchObject({ heightPct: 100 });
   });
 
-  it("has no peak or average when no day was recorded by every house", () => {
+  // Codex review: completeness compared two COUNTS over different sets. A flock
+  // filing outside its lifecycle window counts in `recordedFlocks` but answers
+  // no expectation, so expected {A, B} against filings {A, C} gave 2 and 2 —
+  // and B's missing filing read as a complete day whose short total then set
+  // the Peak and moved the Avg.
+  it("does not call a day complete when the counts match but a flock is missing", () => {
+    const skewed: ProductionDay = {
+      ...day("2026-07-02", 400), recordedFlocks: 2, expectedFlocks: 2, missingFlocks: 1,
+    };
+    const d = dayStrip({ days: [day("2026-07-01", 900), skewed] });
+    expect(d.slots[1]).toMatchObject({ kind: "partial", filedFlocks: 1, expectedFlocks: 2 });
+    // The short day sets neither figure.
+    expect(d).toMatchObject({ max: 900, average: 900, complete: 1, partial: 1 });
+  });
+
+  it("has no peak or average when no day was recorded by every flock", () => {
     const d = dayStrip({ days: [partly("2026-07-01", 500, 2, 3), missing("2026-07-02")] });
     expect(d).toMatchObject({ max: null, average: null, averagePct: null, complete: 0, partial: 1, unrecorded: 1 });
   });

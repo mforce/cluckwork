@@ -47,7 +47,9 @@ const entry = (flockId: string, status: string, totalEggs: number): DailyEntry =
 // some houses did; both used to arrive indistinguishable from a real zero.
 const day = (date: string, totalEggs: number, recordedFlocks = 1, expectedFlocks = 1): ProductionDay => ({
   date, totalEggs, cracked: 0, dirty: 0, discarded: 0, sellable: totalEggs, fromCounts: 0,
-  deaths: 0, recordedFlocks, expectedFlocks, henDays: 100,
+  deaths: 0, recordedFlocks, expectedFlocks,
+  missingFlocks: Math.max(0, expectedFlocks - recordedFlocks),
+  henDays: 100,
   recordedHenDays: expectedFlocks > 0 ? Math.round((100 * recordedFlocks) / expectedFlocks) : 0,
   ratedEggs: recordedFlocks > 0 ? totalEggs : 0,
   henDayPct: recordedFlocks > 0 ? totalEggs : null,
@@ -210,7 +212,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   const withUnrecordedTail = () =>
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, recordedFlocks: 0 } : d)),
+        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, recordedFlocks: 0, missingFlocks: d.expectedFlocks } : d)),
       })));
 
   it("names the days that are not fully recorded, and averages over the rest", async () => {
@@ -226,7 +228,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
         ...r, periodHenDayPct: null,
-        days: r.days.map((d) => ({ ...d, totalEggs: 0, recordedFlocks: 0 })),
+        days: r.days.map((d) => ({ ...d, totalEggs: 0, recordedFlocks: 0, missingFlocks: d.expectedFlocks })),
       })));
     renderWithProviders(<Dashboard />);
     const strip = await screen.findByRole("group", {
@@ -244,7 +246,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("announces no peak when some flocks recorded every day but never all of them", async () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d) => ({ ...d, recordedFlocks: 1, expectedFlocks: 3 })),
+        ...r, days: r.days.map((d) => ({ ...d, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 })),
       })));
     renderWithProviders(<Dashboard />);
     expect(await screen.findByRole("group", {
@@ -257,7 +259,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("marks a partly recorded day and keeps it out of the average", async () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i === 6 ? { ...d, recordedFlocks: 1, expectedFlocks: 3 } : d)),
+        ...r, days: r.days.map((d, i) => (i === 6 ? { ...d, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
       })));
     renderWithProviders(<Dashboard />);
     const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
@@ -284,7 +286,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("draws a stub for a recorded zero beside the empty slot of an unrecorded day", async () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
-        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, recordedFlocks: i > 5 ? 0 : 1 } : d)),
+        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, recordedFlocks: i > 5 ? 0 : 1, missingFlocks: i > 5 ? d.expectedFlocks : 0 } : d)),
       })));
     renderWithProviders(<Dashboard />);
     const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
@@ -303,7 +305,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => ({
         ...r,
-        days: r.days.map((d, i) => (i === 6 ? { ...d, totalEggs: 1, recordedFlocks: 1, expectedFlocks: 3 } : d)),
+        days: r.days.map((d, i) => (i === 6 ? { ...d, totalEggs: 1, recordedFlocks: 1, expectedFlocks: 3, missingFlocks: 2 } : d)),
       })));
     renderWithProviders(<Dashboard />);
     await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });

@@ -10,7 +10,7 @@ const rec = (date: string, eggs: number, heightPct: number, weekBreak = false): 
 const gap = (date: string, weekBreak = false): DayStripSlot =>
   ({ kind: "unrecorded", date, expectedFlocks: 3, weekBreak });
 const part = (date: string, eggs: number, heightPct: number): DayStripSlot =>
-  ({ kind: "partial", date, eggs, heightPct, recordedFlocks: 1, expectedFlocks: 3, weekBreak: false });
+  ({ kind: "partial", date, eggs, heightPct, filedFlocks: 1, expectedFlocks: 3, weekBreak: false });
 
 // Four days, one per state: one that laid, one that laid nothing and was
 // recorded, one only some houses reported, one nobody recorded. The last three

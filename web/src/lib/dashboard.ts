@@ -62,7 +62,11 @@ export type DayStripSlot =
   // farm's first fortnight announce fourteen missing days.
   | { kind: "none"; date: string; weekBreak: boolean }
   | { kind: "unrecorded"; date: string; expectedFlocks: number; weekBreak: boolean }
-  | { kind: "partial"; date: string; eggs: number; heightPct: number; recordedFlocks: number; expectedFlocks: number; weekBreak: boolean }
+  // `filedFlocks` is how many of the flocks that OWED a count filed one, which
+  // is what the readout compares against `expectedFlocks`. It is not
+  // `recordedFlocks`: a flock filing outside its lifecycle window is counted
+  // there and answers for nobody's expectation.
+  | { kind: "partial"; date: string; eggs: number; heightPct: number; filedFlocks: number; expectedFlocks: number; weekBreak: boolean }
   | { kind: "recorded"; date: string; eggs: number; heightPct: number; weekBreak: boolean };
 
 export interface DayStripData {
@@ -101,10 +105,13 @@ export function dayStrip({ days, recentCount = 0 }: { days: ProductionDay[]; rec
   };
   if (days.length === 0) return empty;
 
-  // A day with no houses expected — before the first placement, say — has
-  // nothing to be incomplete about, so `>=` rather than `===` keeps it out of
-  // the partial bucket instead of inventing a shortfall from two zeroes.
-  const isComplete = (d: ProductionDay) => d.recordedFlocks > 0 && d.recordedFlocks >= d.expectedFlocks;
+  // Completeness is `missingFlocks`, never a comparison of the two counts.
+  // `recordedFlocks` counts any flock that filed and `expectedFlocks` counts the
+  // flocks that owed a count, and those are different SETS: expected {A, B}
+  // against filings {A, C} gives 2 and 2, so B's missing filing read as a
+  // complete day and its shortfall went into Peak and Avg. The server compares
+  // identities and reports the shortfall directly.
+  const isComplete = (d: ProductionDay) => d.recordedFlocks > 0 && d.missingFlocks === 0;
   const complete = days.filter(isComplete).map((d) => d.totalEggs);
   const max = complete.length === 0 ? null : Math.max(...complete);
   const average = complete.length === 0
@@ -129,7 +136,7 @@ export function dayStrip({ days, recentCount = 0 }: { days: ProductionDay[]; rec
     if (!isComplete(d)) {
       return {
         kind: "partial", date: d.date, eggs: d.totalEggs, heightPct: height(d.totalEggs),
-        recordedFlocks: d.recordedFlocks, expectedFlocks: d.expectedFlocks, weekBreak,
+        filedFlocks: d.expectedFlocks - d.missingFlocks, expectedFlocks: d.expectedFlocks, weekBreak,
       };
     }
     return { kind: "recorded", date: d.date, eggs: d.totalEggs, heightPct: height(d.totalEggs), weekBreak };

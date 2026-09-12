@@ -13,7 +13,7 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
     private sealed record DayRow(
         DateOnly Date, int TotalEggs, int Cracked, int Dirty, int Discarded,
         int Sellable, int FromCounts, int Deaths,
-        int RecordedFlocks, int ExpectedFlocks,
+        int RecordedFlocks, int ExpectedFlocks, int MissingFlocks,
         long HenDays, long RecordedHenDays, int RatedEggs, decimal? HenDayPct);
     private sealed record GradeRow(Guid EggGradeId, string Name, int Quantity);
     private sealed record ProductionDto(
@@ -523,6 +523,62 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(
             Math.Round(row.RatedEggs * 100m / row.RecordedHenDays, 1),
             row.HenDayPct);
+    }
+
+    // #780, found by an external review — completeness cannot be a comparison of
+    // RecordedFlocks against ExpectedFlocks, because they count different SETS.
+    // A flock that files outside its own lifecycle window counts as having
+    // filed and answers nobody's expectation, so two expected flocks against
+    // filings from one of them plus an outsider gives 2 and 2 — and the flock
+    // that never filed vanishes, its shortfall presented as a complete day.
+    [Fact]
+    public async Task Production_EqualFlockCountsOverDifferentSets_StillReportsTheMissingFiling()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var filed = await factory.SeedFlockAsync(accountId, farmId);   // expected, and files
+        var silent = await factory.SeedFlockAsync(accountId, farmId);  // expected, files nothing
+        var outsider = await factory.SeedFlockAsync(accountId, farmId); // files, then leaves
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var day = Today.AddDays(-1);
+
+        async Task RecordAsync(Guid flockId, int total)
+        {
+            var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId, houseId = Guid.NewGuid(), flockId, date = day,
+                totalEggs = total, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = total } }
+            });
+            var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+            await client.PostWithKeyAsync($"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString());
+        }
+
+        await RecordAsync(filed, 80);
+        await RecordAsync(outsider, 80);
+        // The outsider's depletion is backdated behind its own filing, so it is
+        // no longer expected on that date while still having filed on it.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var f = await db.Flocks.FirstAsync(x => x.Id == outsider);
+            f.Deplete(day.AddDays(-1));
+            await db.SaveChangesAsync();
+        });
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={day:yyyy-MM-dd}&to={day:yyyy-MM-dd}");
+        var row = report!.Days.Single();
+
+        // The trap: two filings, two expected flocks. Equal counts, different sets.
+        Assert.Equal((2, 2), (row.RecordedFlocks, row.ExpectedFlocks));
+        // And the flock that never filed is still visible.
+        Assert.Equal(1, row.MissingFlocks);
+        Assert.Equal(160, row.TotalEggs);
+        // Only the live flock that filed is exposure, and only its eggs rated.
+        Assert.Equal((100L, 80), (row.RecordedHenDays, row.RatedEggs));
+        Assert.Equal(80m, row.HenDayPct);
     }
 
     // The lifecycle rule behind ExpectedFlocks — placed, not yet depleted or

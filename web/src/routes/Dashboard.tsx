@@ -165,7 +165,7 @@ export function Dashboard() {
         // is never below 2.
         return t("trendDayTipPartial", {
           date, count: slot.eggs, total: fmt.count(slot.eggs),
-          recorded: fmt.count(slot.recordedFlocks), expected: fmt.count(slot.expectedFlocks),
+          recorded: fmt.count(slot.filedFlocks), expected: fmt.count(slot.expectedFlocks),
         });
       case "recorded":
         return t("trendDayTip", { date, count: slot.eggs, total: fmt.count(slot.eggs) });

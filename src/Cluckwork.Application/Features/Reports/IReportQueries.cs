@@ -36,11 +36,17 @@ public interface IReportQueries
 //   farm produced nothing. Counted from the entries, so a flock that filed
 //   counts whether or not the bird ledger agrees it was live that day.
 // `ExpectedFlocks` — flocks that owed one: placed, not yet depleted or
-//   archived. `RecordedFlocks < ExpectedFlocks` is a PARTIALLY recorded day,
-//   whose egg total is a floor rather than a figure. The two can legitimately
-//   disagree EITHER WAY at a lifecycle boundary — a flock files on a day the
-//   ledger says it had ended, or a placement date is corrected forward past
-//   entries that already exist — so never assume one bounds the other.
+//   archived. It and `RecordedFlocks` can legitimately disagree EITHER WAY at a
+//   lifecycle boundary — a flock files on a day the ledger says it had ended, or
+//   a placement date is corrected forward past entries that already exist — so
+//   never assume one bounds the other.
+// `MissingFlocks` — expected flocks with no filing, and the ONLY sound test for
+//   a partly recorded day. Comparing the two counts above is not: they are
+//   counts over different sets, so expected {A, B} against filings {A, C} gives
+//   2 and 2 and hides B entirely, presenting a day short one flock's eggs as
+//   complete and feeding it into the Dashboard's Peak and Avg. `MissingFlocks`
+//   is computed from identities. `ExpectedFlocks - MissingFlocks` is how many
+//   of the flocks that owed a count actually filed one.
 // `RecordedHenDays` — the exposure behind the rate. `HenDays` keeps the
 //   glossary's meaning (one bird alive for one day, over every flock) so the
 //   Reports column still says what it always said; the rate divides by the
@@ -56,7 +62,7 @@ public interface IReportQueries
 public sealed record ProductionDay(
     DateOnly Date, int TotalEggs, int Cracked, int Dirty, int Discarded,
     int Sellable, int FromCounts, int Deaths,
-    int RecordedFlocks, int ExpectedFlocks,
+    int RecordedFlocks, int ExpectedFlocks, int MissingFlocks,
     long HenDays, long RecordedHenDays, int RatedEggs, decimal? HenDayPct);
 
 public sealed record GradeTotal(Guid EggGradeId, string Name, int Quantity);
