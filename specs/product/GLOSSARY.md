@@ -731,10 +731,34 @@ Recording and viewing payments is the Sales tier (Owner/Manager/Sales,
 spec §5.1); voiding a payment is corrective (Owner/Manager only), like every
 other undo.
 
-**Outstanding balance (#89)** — per order: confirmed total − non-voided
+**Outstanding balance (#89, #769)** — per order: confirmed total − non-voided
 payments; per customer: the same summed across their confirmed orders
 (server-side sums, never client-aggregated pages). Shown on the order's
-payments panel and the Customers page (admins).
+payments panel, the Customers page (whose column renders for admins only), and
+— since #769 — as an **Outstanding** column on the Orders list, with an
+**Unpaid only** filter beside it. Seeing the money is the **Sales tier**
+(Owner/Manager/Sales) everywhere, but the gate sits in two different places and
+that difference is the whole design of #769. Three routes are gated at the
+route: `/customers/balances`, `/sales/{id}/payments` and the record-payment
+route each carry `.RequireAuthorization(AuthPolicies.SalesAccess)`. The **Orders
+list is not one of them** — `GET /api/v1/sales` is `AuthPolicies.SalesFlow`,
+which admits Workers deliberately, because workers build orders. Inside that
+route the handler asks the *same* `SalesAccess` policy, and its answer decides
+exactly two things: whether the row carries an outstanding figure, and whether
+`unpaid=true` is honoured. So widening the money tier means moving that one
+policy, which moves the three routes and the in-handler check together; it never
+means widening the Orders list's own route gate. The Customers page's
+admin gate is presentation only — a Sales user may call `/customers/balances` —
+so #89's endpoint is not a stricter tier and #769 relaxed nothing. A Worker
+reaches the Orders list and its response carries no outstanding figure at all,
+and `unpaid=true` from a Worker is **refused**, never silently ignored. The
+list figure is computed in the same paged query as the rows, as a correlated
+sum over non-voided payments, and the unpaid filter is a server-side predicate
+over the whole result set rather than the current page.
+"Unpaid" means **outstanding > 0**, so a partly-paid order is unpaid; Draft,
+Cancelled and Voided orders carry **no** figure (payments attach to confirmed
+orders only, and a zero there would read as settled) and the filter never
+returns them.
 
 **Expense (#87)** — a money-out record (spec §16, basic cut): date, category,
 description, amount in minor units, optional flock link, optional note. The

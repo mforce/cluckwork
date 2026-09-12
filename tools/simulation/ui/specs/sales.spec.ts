@@ -162,6 +162,74 @@ test.describe("Sales", () => {
       page.getByRole("button", { name: tEn("sales:recordPayment") }),
       "the order still offers 'record payment', so the payment did not settle the balance",
     ).toBeHidden();
+
+    // ---- 6. The Orders list answers "is this settled" without opening it ----
+    // #769's whole point: the settlement state has to be readable from the LIST,
+    // because reading it one order at a time is what the issue exists to end.
+    await page.goto("/sales");
+    const orderRow = page.getByRole("row").filter({ hasText: customerName });
+    // The Orders list's own table, named by the Outstanding column header that
+    // no other table on this screen carries. SalesPage renders it only when
+    // the list is not reloading and has at least one row, which is what makes
+    // it the settled-list anchor the unpaid-filter assertion below needs.
+    const ordersTable = page.getByRole("table").filter({
+      has: page.getByRole("columnheader", { name: tEn("sales:outstanding") }),
+    });
+    await expect(orderRow).toHaveCount(1);
+    await expect(
+      orderRow.getByText(tEn("sales:settledBadge")),
+      "the fully-paid order does not read as settled in the Orders list",
+    ).toBeVisible();
+
+    // And the unpaid filter removes it from the RESULT SET, not from the page:
+    // the predicate runs server-side, so the row leaves the list outright.
+    // click(), not check(). The filter's state lives in the URL, and React
+    // Router v7 commits a navigation inside startTransition, so the control
+    // reads its new value ~57ms after the click rather than in the same frame.
+    // check() verifies the checked state immediately after clicking and throws
+    // "Clicking the checkbox did not change its state" inside that window —
+    // measured against this stack with the list answering at full speed, where
+    // the box settles true at 57ms, keeps it, and its DOM node is never
+    // replaced (hold that response and it settles when the data lands instead,
+    // which is the next paragraph's subject). Assert the outcome with a
+    // retrying expect instead of trusting the helper's one-shot check.
+    //
+    // The absence has to be read off a SETTLED, RENDERED list. `usePagedList`
+    // sets `reloading` while the replacement request is in flight and
+    // SalesPage renders <p>Loading…</p> instead of the whole table for that
+    // window, so a bare `toHaveCount(0)` is satisfied by the table being
+    // ABSENT rather than by the row being excluded. Measured against this
+    // stack with the list response held: at +57ms after the click the row
+    // locator resolves to 0 elements, one Loading node is on screen, and the
+    // checkbox still reads unchecked. A server that wrongly kept returning the
+    // settled order would put the row back after that, with the assertion
+    // already passed. The `toBeChecked()` below is not the barrier either —
+    // it settles late here only because React commits the URL transition late,
+    // which is ordering luck, not a settled-list guarantee. So wait for the
+    // replacement response, then for the table to be back (it renders only
+    // once `reloading` is false), and only then for the row to be gone.
+    //
+    // The response predicate matches the list GET by PATH rather than by
+    // `unpaid=true`, so a build that drops the parameter still satisfies the
+    // wait and still reaches the row assertion — the failure then names the
+    // row that should have left, not a timed-out wait for a request.
+    const unpaidOnly = page.getByLabel(tEn("sales:unpaidOnlyFilter"));
+    const listReloaded = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === "/api/v1/sales"
+        && response.request().method() === "GET"
+        && response.status() === 200,
+    );
+    await unpaidOnly.click();
+    await listReloaded;
+    await expect(unpaidOnly, "the unpaid filter did not take").toBeChecked();
+    await expect(
+      ordersTable,
+      "the Orders list never came back after the unpaid filter's reload",
+    ).toBeVisible();
+    await expect(
+      orderRow,
+      "a settled order is still listed while the unpaid filter is on",
+    ).toHaveCount(0);
   });
 });
 

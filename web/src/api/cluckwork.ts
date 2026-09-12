@@ -366,6 +366,14 @@ export interface SalesOrder extends RecordHistory {
   // i18n/enums.ts (discountReasonLabel), never raw.
   discountReasonCode: string | null;
   discountReasonNote: string | null;
+  // #769 — what this order still owes: confirmed total − non-voided payments.
+  // REQUIRED, not optional, for #720's reason: null is a state the screen must
+  // render (an em dash), not an absent value. It has exactly two causes and the
+  // screen cannot tell them apart, deliberately — the order is not Confirmed,
+  // or the caller is outside the money tier (Owner/Manager/Sales), for whom the
+  // server never computes it. Paid is `totalMinorUnits - outstandingMinorUnits`;
+  // there is no second field.
+  outstandingMinorUnits: number | null;
 }
 
 export const listCustomers = (params?: {
@@ -404,10 +412,16 @@ export const updateCustomer = (id: string, body: {
 export const listOrders = (params?: {
   status?: string; customerId?: string; from?: string; to?: string;
   limit?: number; offset?: number;
+  // #769 — server-side: "confirmed orders whose non-voided payments come to
+  // less than the total", evaluated across the whole result set rather than
+  // the current page. Emitted only when true; the server 403s a caller outside
+  // the money tier that sends it, so SalesPage never sends it for one.
+  unpaid?: boolean;
 }) => {
   const q = new URLSearchParams();
   if (params?.status) q.set("status", params.status);
   if (params?.customerId) q.set("customerId", params.customerId);
+  if (params?.unpaid) q.set("unpaid", "true");
   if (params?.from) q.set("from", params.from);
   if (params?.to) q.set("to", params.to);
   if (params?.limit) q.set("limit", String(params.limit));

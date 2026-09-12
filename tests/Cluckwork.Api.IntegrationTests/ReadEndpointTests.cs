@@ -15,6 +15,11 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
     private sealed record StockDto(Guid EggGradeId, string GradeName, int Available, int Restricted);
     private sealed record OrderItemDto(Guid EggGradeId, int Quantity);
     private sealed record OrderDto(Guid Id, string Status, List<OrderItemDto> Items);
+    // #769 — the settlement figure as the wire carries it.
+    private sealed record OrderMoneyDto(
+        Guid Id, string Status, long TotalMinorUnits, long? OutstandingMinorUnits);
+    private sealed record PaymentRowDto(Guid Id, int Version);
+    private sealed record PaymentsPageDto(List<PaymentRowDto> Items);
 
     private async Task<(HttpClient Client, Guid AccountId, Guid FarmId, Dictionary<string, Guid> Grades)>
         SetupAsync(params string[] gradeNames)
@@ -164,6 +169,220 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
         Assert.DoesNotContain(drafts!, o => o.Id == confirmedId);
 
         var bad = await client.GetAsync("/api/v1/sales?status=nonsense");
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+    }
+
+    // #769 — one confirmed order for `quantity` x the product's list price on
+    // `date`, settled by `paidMinorUnits`. Built through the API on purpose:
+    // the seeder's orders price every line at zero, which would make every
+    // order settled the moment it was confirmed and hide the whole feature.
+    private static async Task<Guid> ConfirmedOrderAsync(
+        HttpClient client, Guid customerId, Guid productId,
+        DateOnly date, int quantity, long paidMinorUnits)
+    {
+        var order = await client.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = date });
+        var orderId = (await order.Content.ReadFromJsonAsync<IdDto>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/items", Guid.NewGuid().ToString(),
+            new { productId, quantity });
+        var confirm = await client.PostWithKeyAsync(
+            $"/api/v1/sales/{orderId}/confirm", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
+        if (paidMinorUnits > 0)
+        {
+            var pay = await client.PostWithKeyAsync($"/api/v1/sales/{orderId}/payments",
+                Guid.NewGuid().ToString(),
+                new { paymentDate = date, amountMinorUnits = paidMinorUnits, method = "Cash" });
+            Assert.Equal(HttpStatusCode.Created, pay.StatusCode);
+        }
+        return orderId;
+    }
+
+    private async Task<(HttpClient Client, Guid CustomerId, Guid ProductId)> SalesSetupAsync(
+        Guid accountId, Guid farmId, Guid gradeId, HttpClient client)
+    {
+        var productId = await factory.SeedProductAsync(
+            accountId, farmId, gradeId, $"P-{Guid.NewGuid():N}"[..12], 100);
+        await factory.SeedEggLotAsync(accountId, gradeId, 500);
+        var customer = await client.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = $"Buyer {Guid.NewGuid():N}"[..14], phone = "555-0000" });
+        var customerId = (await customer.Content.ReadFromJsonAsync<IdDto>())!.Id;
+        return (client, customerId, productId);
+    }
+
+    // The test the whole design turns on. The NEWEST order is the settled one,
+    // so it occupies a slot on the first page: a filter applied in the browser
+    // over `limit=2` would return one row, and only a server-side predicate
+    // over the whole result set can return both owing orders.
+    [Fact]
+    public async Task SalesList_UnpaidFilter_IsEvaluatedServerSide_NotOverThePage()
+    {
+        var (client, accountId, farmId, grades) = await SetupAsync("Large");
+        var (_, customerId, productId) =
+            await SalesSetupAsync(accountId, farmId, grades["Large"], client);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+        // 10 x 100 = 1000 minor units each.
+        var settled = await ConfirmedOrderAsync(client, customerId, productId, today, 10, 1000);
+        var owesAll = await ConfirmedOrderAsync(
+            client, customerId, productId, today.AddDays(-1), 10, 0);
+        var owesSome = await ConfirmedOrderAsync(
+            client, customerId, productId, today.AddDays(-2), 10, 400);
+
+        var page = (await client.GetFromJsonAsync<List<OrderMoneyDto>>(
+            "/api/v1/sales?unpaid=true&limit=2"))!;
+
+        Assert.Equal([owesAll, owesSome], page.Select(o => o.Id));
+        Assert.Equal(1000, page[0].OutstandingMinorUnits);
+        Assert.Equal(600, page[1].OutstandingMinorUnits);
+        Assert.DoesNotContain(page, o => o.Id == settled);
+
+        // The control: unfiltered, the settled order IS the newest row and
+        // carries a zero rather than vanishing.
+        var all = await client.GetFromJsonAsync<List<OrderMoneyDto>>("/api/v1/sales?limit=2");
+        Assert.Equal(settled, all![0].Id);
+        Assert.Equal(0, all[0].OutstandingMinorUnits);
+    }
+
+    [Fact]
+    public async Task SalesList_VoidedPaymentDoesNotReduceOutstanding()
+    {
+        var (client, accountId, farmId, grades) = await SetupAsync("Large");
+        var (_, customerId, productId) =
+            await SalesSetupAsync(accountId, farmId, grades["Large"], client);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        var orderId = await ConfirmedOrderAsync(client, customerId, productId, today, 10, 1000);
+
+        var settledRow = (await client.GetFromJsonAsync<List<OrderMoneyDto>>("/api/v1/sales"))!
+            .Single(o => o.Id == orderId);
+        Assert.Equal(0, settledRow.OutstandingMinorUnits);
+        Assert.Empty((await client.GetFromJsonAsync<List<OrderMoneyDto>>(
+            "/api/v1/sales?unpaid=true"))!);
+
+        var payment = (await client.GetFromJsonAsync<PaymentsPageDto>(
+            $"/api/v1/sales/{orderId}/payments"))!.Items.Single();
+        Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+            $"/api/v1/payments/{payment.Id}/void", Guid.NewGuid().ToString(),
+            new { version = payment.Version, reason = "wrong order" })).StatusCode);
+
+        var afterVoid = (await client.GetFromJsonAsync<List<OrderMoneyDto>>("/api/v1/sales"))!
+            .Single(o => o.Id == orderId);
+        Assert.Equal(1000, afterVoid.OutstandingMinorUnits);
+        // And the order comes back into the unpaid filter, which is the same
+        // claim seen through the predicate rather than through the figure.
+        Assert.Equal(orderId, Assert.Single(
+            (await client.GetFromJsonAsync<List<OrderMoneyDto>>("/api/v1/sales?unpaid=true"))!).Id);
+    }
+
+    // Payments attach to confirmed orders only, so outstanding is undefined for
+    // every other status — NULL, never a 0 that would read as settled.
+    [Fact]
+    public async Task SalesList_NonConfirmedOrders_CarryNoOutstanding_AndNeverMatchUnpaid()
+    {
+        var (client, accountId, farmId, grades) = await SetupAsync("Large");
+        var (_, customerId, productId) =
+            await SalesSetupAsync(accountId, farmId, grades["Large"], client);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+        var draft = await client.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = today });
+        var draftId = (await draft.Content.ReadFromJsonAsync<IdDto>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/sales/{draftId}/items", Guid.NewGuid().ToString(),
+            new { productId, quantity = 10 });
+
+        var row = (await client.GetFromJsonAsync<List<OrderMoneyDto>>("/api/v1/sales"))!
+            .Single(o => o.Id == draftId);
+        Assert.Equal("Draft", row.Status);
+        Assert.Equal(1000, row.TotalMinorUnits);
+        Assert.Null(row.OutstandingMinorUnits);
+
+        Assert.Empty((await client.GetFromJsonAsync<List<OrderMoneyDto>>(
+            "/api/v1/sales?unpaid=true"))!);
+
+        // Orthogonal controls, combinable: a status that can never be unpaid is
+        // an empty 200, never a 400.
+        var both = await client.GetAsync("/api/v1/sales?status=Draft&unpaid=true");
+        Assert.Equal(HttpStatusCode.OK, both.StatusCode);
+        Assert.Empty((await both.Content.ReadFromJsonAsync<List<OrderMoneyDto>>())!);
+    }
+
+    // The other two non-Confirmed statuses, each reached the only way it can
+    // be. A Draft is the easy case and the one the test above happens to
+    // build; on its own it leaves the repository's `Status == Confirmed`
+    // interchangeable with `Status != Draft`, which would hand a Cancelled or
+    // Voided order a live outstanding figure and put it back into a screen
+    // that exists to show what customers still owe.
+    [Fact]
+    public async Task SalesList_CancelledAndVoidedOrders_CarryNoOutstanding_AndNeverMatchUnpaid()
+    {
+        var (client, accountId, farmId, grades) = await SetupAsync("Large");
+        var (_, customerId, productId) =
+            await SalesSetupAsync(accountId, farmId, grades["Large"], client);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+        // Cancelled: only a draft can be cancelled, so it is built and then
+        // cancelled rather than confirmed first.
+        var draft = await client.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = today });
+        var cancelledId = (await draft.Content.ReadFromJsonAsync<IdDto>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/sales/{cancelledId}/items", Guid.NewGuid().ToString(),
+            new { productId, quantity = 10 });
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostWithKeyAsync(
+            $"/api/v1/sales/{cancelledId}/cancel", Guid.NewGuid().ToString())).StatusCode);
+
+        // Voided: only a confirmed order can be voided, and only with no live
+        // payments on it, so this one is confirmed and left unpaid.
+        var voidedId = await ConfirmedOrderAsync(
+            client, customerId, productId, today.AddDays(-1), 10, 0);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+            $"/api/v1/sales/{voidedId}/void", Guid.NewGuid().ToString(),
+            new { reason = "sold to the wrong buyer" })).StatusCode);
+
+        var rows = (await client.GetFromJsonAsync<List<OrderMoneyDto>>("/api/v1/sales"))!;
+        var cancelled = rows.Single(o => o.Id == cancelledId);
+        var voided = rows.Single(o => o.Id == voidedId);
+
+        Assert.Equal("Cancelled", cancelled.Status);
+        Assert.Equal("Voided", voided.Status);
+        // The control that gives the nulls their meaning: both orders carry a
+        // real total, so a null outstanding is a statement that the figure is
+        // undefined off Confirmed and not an artefact of an empty order.
+        Assert.Equal(1000, cancelled.TotalMinorUnits);
+        Assert.Equal(1000, voided.TotalMinorUnits);
+        Assert.Null(cancelled.OutstandingMinorUnits);
+        Assert.Null(voided.OutstandingMinorUnits);
+
+        // Same claim through the predicate. Nothing in this account is
+        // confirmed and owing, so the unpaid page is empty.
+        Assert.Empty((await client.GetFromJsonAsync<List<OrderMoneyDto>>(
+            "/api/v1/sales?unpaid=true"))!);
+    }
+
+    // #512 — detail and list must answer identically. A figure on one and a
+    // null on the other is a lie about the same order, not an omission.
+    [Fact]
+    public async Task SalesOrderDetail_CarriesTheSameOutstandingAsTheList()
+    {
+        var (client, accountId, farmId, grades) = await SetupAsync("Large");
+        var (_, customerId, productId) =
+            await SalesSetupAsync(accountId, farmId, grades["Large"], client);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        var orderId = await ConfirmedOrderAsync(client, customerId, productId, today, 10, 250);
+
+        var listed = (await client.GetFromJsonAsync<List<OrderMoneyDto>>("/api/v1/sales"))!
+            .Single(o => o.Id == orderId);
+        var detail = await client.GetFromJsonAsync<OrderMoneyDto>($"/api/v1/sales/{orderId}");
+
+        Assert.Equal(750, listed.OutstandingMinorUnits);
+        Assert.Equal(listed.OutstandingMinorUnits, detail!.OutstandingMinorUnits);
+    }
+
+    [Fact]
+    public async Task SalesList_UnpaidWithMalformedValue_Is400()
+    {
+        var (client, _, _, _) = await SetupAsync("Large");
+
+        var bad = await client.GetAsync("/api/v1/sales?unpaid=maybe");
         Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
     }
 

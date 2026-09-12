@@ -105,7 +105,9 @@ function draftEmpty(currencyMinorUnit: number, currencyCode: string, id = "o1"):
     ...NO_RECORD_HISTORY,
     id, customerId: "c1", customerName: "Acme Eggs", referenceNumber: "SO-1", orderDate: "2026-07-20",
     status: "Draft", totalMinorUnits: 0, currencyCode, currencyMinorUnit, voidReason: null,
-    discountReasonCode: null, discountReasonNote: null, items: [],
+    // A draft has no settlement figure at all — payments attach to confirmed
+    // orders only (#769).
+    discountReasonCode: null, discountReasonNote: null, outstandingMinorUnits: null, items: [],
   };
 }
 
@@ -1095,13 +1097,16 @@ describe("SalesPage Orders-list discount column (#724)", () => {
   // The list route returns items — SaleEndpoints.ToResponse projects
   // o.Items for both /sales and /sales/{id}, and SalesOrderRepository.ListAsync
   // Includes them — so the cell is computed from data already on the page.
-  function listedOrder(id: string, items: OrderItem[], totalMinorUnits: number): SalesOrder {
+  function listedOrder(
+    id: string, items: OrderItem[], totalMinorUnits: number,
+    outstandingMinorUnits: number | null = null,
+  ): SalesOrder {
     return {
       ...NO_RECORD_HISTORY,
       id, customerId: "c1", customerName: "Acme Eggs", referenceNumber: `SO-${id}`,
       orderDate: "2026-07-20", status: "Confirmed", totalMinorUnits,
       currencyCode: "USD", currencyMinorUnit: 2, voidReason: null,
-      discountReasonCode: null, discountReasonNote: null, items,
+      discountReasonCode: null, discountReasonNote: null, outstandingMinorUnits, items,
     };
   }
 
@@ -1187,6 +1192,153 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     // The badge renders (it IS discounted) AND the partial note is present and wrappable.
     expect(within(cell).getByText(/%/)).toHaveClass("badge");
     expect(within(cell).getByText(i18n.t("sales:discountPartialNote"))).toHaveClass("discount-note");
+  });
+});
+
+// #769 — the Outstanding column and the URL-owned unpaid filter.
+//
+// Cell indices for a money-tier caller: Reference, Date, Customer, Status,
+// Discount, Total, Outstanding, Provenance, actions — so the new column is
+// index 6, and the #724 assertions on index 4 above are untouched by design.
+describe("SalesPage Orders-list outstanding column (#769)", () => {
+  const WORKER = { sub: "u1" };
+
+  // A confirmed two-line order (ITEM_A 900 + ITEM_B 2000 = 2900) carrying a
+  // given settlement figure. Two lines so the row also exercises the discount
+  // cell beside this one — the two columns are neighbours and must not
+  // interfere.
+  function settled(id: string, outstanding: number | null, total = 2900): SalesOrder {
+    return {
+      ...NO_RECORD_HISTORY,
+      id, customerId: "c1", customerName: "Acme Eggs", referenceNumber: `SO-${id}`,
+      orderDate: "2026-07-20", status: "Confirmed", totalMinorUnits: total,
+      currencyCode: "USD", currencyMinorUnit: 2, voidReason: null,
+      discountReasonCode: null, discountReasonNote: null,
+      outstandingMinorUnits: outstanding, items: [ITEM_A, ITEM_B],
+    };
+  }
+
+  const outstandingCell = (reference: RegExp) =>
+    within(screen.getByRole("row", { name: reference })).getAllByRole("cell")[6];
+
+  it("badges a fully settled order and shows no amount beside it", async () => {
+    mockListOrders.mockResolvedValue([settled("paid", 0)]);
+    await renderReady();
+
+    const cell = outstandingCell(/SO-paid/);
+    expect(within(cell).getByText(i18n.t("sales:settledBadge")))
+      .toHaveClass("badge", "badge-ok");
+    // Nothing owed, so no money at all in the cell — a "$0.00" here reads as a
+    // debt at a glance, which is the misreading the badge exists to prevent.
+    expect(cell).not.toHaveTextContent("$0.00");
+    expect(cell).not.toHaveTextContent("0.00");
+  });
+
+  it("shows the remaining amount and says part of it is paid on a partial payment", async () => {
+    mockListOrders.mockResolvedValue([settled("part", 900)]);
+    await renderReady();
+
+    const cell = outstandingCell(/SO-part/);
+    expect(cell).toHaveTextContent("$9.00");
+    // `discount-note` is the wrap class: this note sits inside td.num, which
+    // #650 pins to white-space: nowrap.
+    expect(within(cell).getByTestId("row-partly-paid"))
+      .toHaveClass("muted", "discount-note");
+    expect(within(cell).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
+  });
+
+  it("shows the amount alone when nothing has been paid", async () => {
+    mockListOrders.mockResolvedValue([settled("owes", 2900)]);
+    await renderReady();
+
+    const cell = outstandingCell(/SO-owes/);
+    expect(cell).toHaveTextContent("$29.00");
+    // The three states must be distinguishable from each other, not just from
+    // empty: no part-paid note and no settled pill on an order owing all of it.
+    expect(within(cell).queryByTestId("row-partly-paid")).toBeNull();
+    expect(within(cell).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
+  });
+
+  it("renders an em dash when the order carries no figure at all", async () => {
+    // Null on a row the caller CAN see money on means the order is not
+    // Confirmed. Assert the cell by index: a bare "—" lookup is ambiguous
+    // because the neighbouring discount and provenance cells render one too.
+    mockListOrders.mockResolvedValue([settled("draft", null)]);
+    await renderReady();
+
+    expect(outstandingCell(/SO-draft/)).toHaveTextContent("—");
+  });
+
+  it("gives a caller outside the money tier no column, no filter and no request for one", async () => {
+    mockListOrders.mockResolvedValue([settled("hidden", null)]);
+    renderWithProviders(<SalesPage />, { token: WORKER, route: "/sales?unpaid=1" });
+    await screen.findByRole("button", { name: "New order" });
+
+    expect(screen.queryByRole("columnheader", { name: new RegExp(i18n.t("sales:outstanding")) }))
+      .toBeNull();
+    expect(screen.queryByLabelText(i18n.t("sales:unpaidOnlyFilter"))).toBeNull();
+    // Index 6 is the provenance cell for this caller, so asserting the header
+    // is absent is the claim; the row must also be one cell shorter.
+    expect(within(screen.getByRole("row", { name: /SO-hidden/ })).getAllByRole("cell"))
+      .toHaveLength(8);
+    // A `unpaid=1` a worker typed or was sent is treated as absent, never
+    // forwarded — the server would 403 it, so the 403 is unreachable here.
+    await waitFor(() => expect(mockListOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ unpaid: undefined })));
+  });
+});
+
+// #769 — the filter lives in the URL beside `customerId`, so one link carries
+// both. Same clone-and-set discipline as the #512 customer filter above.
+describe("SalesPage URL-owned unpaid filter (#769)", () => {
+  it("sends unpaid to the server when the URL asks for it", async () => {
+    await renderReady("/sales?unpaid=1");
+
+    await waitFor(() => expect(mockListOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ unpaid: true })));
+    expect(screen.getByLabelText(i18n.t("sales:unpaidOnlyFilter"))).toBeChecked();
+  });
+
+  it("treats any value other than 1 as absent", async () => {
+    await renderReady("/sales?unpaid=yes");
+
+    await waitFor(() => expect(mockListOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ unpaid: undefined })));
+    expect(screen.getByLabelText(i18n.t("sales:unpaidOnlyFilter"))).not.toBeChecked();
+  });
+
+  it("ticking the box sets unpaid while preserving unrelated query keys", async () => {
+    // The customer filter's exact GET must be stubbed, or the picker's resolve
+    // rejects and takes the render down before the checkbox exists.
+    mockGetCustomer.mockResolvedValue(CUSTOMER_A);
+    await renderReadyWithProbe(`/sales?customerId=${GUID_A}&foo=bar`);
+
+    fireEvent.click(screen.getByLabelText(i18n.t("sales:unpaidOnlyFilter")));
+
+    await waitFor(() => expect(probeSearch()).toContain("unpaid=1"));
+    expect(probeSearch()).toContain(`customerId=${GUID_A}`);
+    expect(probeSearch()).toContain("foo=bar");
+    await waitFor(() => expect(mockListOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ unpaid: true })));
+  });
+
+  it("unticking removes only unpaid, preserving unrelated query keys", async () => {
+    await renderReadyWithProbe("/sales?unpaid=1&foo=bar");
+
+    fireEvent.click(screen.getByLabelText(i18n.t("sales:unpaidOnlyFilter")));
+
+    await waitFor(() => expect(probeSearch()).not.toContain("unpaid"));
+    expect(probeSearch()).toContain("foo=bar");
+  });
+
+  it("Clear filters drops unpaid along with the rest", async () => {
+    mockListOrders.mockResolvedValue([]);
+    await renderReadyWithProbe("/sales?unpaid=1&foo=bar");
+
+    fireEvent.click(await screen.findByRole("button", { name: i18n.t("common:clearFiltersButton") }));
+
+    await waitFor(() => expect(probeSearch()).not.toContain("unpaid"));
+    expect(probeSearch()).toContain("foo=bar");
   });
 });
 
@@ -1400,6 +1552,82 @@ describe("SalesPage payment dialog", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mockRecordPayment).not.toHaveBeenCalled();
+  });
+});
+
+// #769 made the Orders list carry a payment-derived figure, so recording or
+// voiding a payment became a WRITE to that list. Both handlers refreshed only
+// the open panel's payments, which left the row showing what was owed before
+// the money moved. The unpaid filter is that same figure seen through a
+// predicate, so it stranded the settled order in the list too.
+describe("SalesPage payment writes refresh the Orders list (#769)", () => {
+  // USD 2dp, 10.00 owed in full, so one payment settles it and the row changes
+  // STATE rather than only its digits.
+  const OWES: SalesOrder = {
+    ...draftEmpty(2, "USD", "o9"), referenceNumber: "SO-9", status: "Confirmed",
+    totalMinorUnits: 1000, items: [ITEM_A], outstandingMinorUnits: 1000,
+  };
+  const SETTLED: SalesOrder = { ...OWES, outstandingMinorUnits: 0 };
+
+  // Cell 6 of a money-tier row is Outstanding, per the column block above.
+  const outstandingCell = () =>
+    within(screen.getByRole("row", { name: /SO-9/ })).getAllByRole("cell")[6];
+
+  it("settles the row after a payment is recorded", async () => {
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 1000, totalMinorUnits: 1000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(OWES, /Grade A Dozen/);
+    expect(outstandingCell()).toHaveTextContent("$10.00");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+    mockRecordPayment.mockResolvedValue({ id: "pay1" });
+    // What the server holds once the payment lands. The list must be re-read
+    // to see it; nothing on the client can derive it.
+    mockListOrders.mockResolvedValue([SETTLED]);
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 1000, outstandingMinorUnits: 0, totalMinorUnits: 1000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "10" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    });
+
+    // The ROW, not the panel: the Orders page is where the figure is read and
+    // where the unpaid filter acts on it.
+    await waitFor(() => expect(within(outstandingCell())
+      .getByText(i18n.t("sales:settledBadge"))).toBeInTheDocument());
+    expect(outstandingCell()).not.toHaveTextContent("$10.00");
+  });
+
+  it("puts the amount back on the row after a payment is voided", async () => {
+    mockListOrderPayments.mockResolvedValue({
+      items: [{
+        id: "pay1", salesOrderId: "o9", customerId: "c1", amountMinorUnits: 1000,
+        currencyCode: "USD", currencyMinorUnit: 2, method: "Cash", paymentDate: "2026-07-20",
+        referenceNumber: null, note: null, voided: false, voidReason: null, version: 3,
+      }],
+      paidMinorUnits: 1000, outstandingMinorUnits: 0, totalMinorUnits: 1000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(SETTLED, /Grade A Dozen/);
+    expect(within(outstandingCell()).getByText(i18n.t("sales:settledBadge"))).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "void" }));
+    });
+    vi.mocked(voidPayment).mockResolvedValue(undefined as never);
+    mockListOrders.mockResolvedValue([OWES]);
+    fireEvent.change(within(dialog()).getByLabelText("Reason *"),
+      { target: { value: "posted to the wrong order" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Void payment" }));
+    });
+
+    await waitFor(() => expect(outstandingCell()).toHaveTextContent("$10.00"));
+    expect(within(outstandingCell()).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
   });
 });
 

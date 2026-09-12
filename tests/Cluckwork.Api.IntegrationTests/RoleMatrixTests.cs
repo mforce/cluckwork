@@ -1,6 +1,7 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using System.Net;
+using System.Text.Json;
 using Cluckwork.Api.Endpoints.Auth;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
@@ -496,6 +497,99 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
     private sealed record PaymentCreated(Guid Id);
     private sealed record PaymentItem(Guid Id, int Version);
     private sealed record PaymentsPage(List<PaymentItem> Items);
+
+    // #769 — read the sales list as RAW JSON. A typed DTO with a `long?`
+    // property already tells a number from a null, so raw JSON earns its place
+    // here only by checking literal PRESENCE, which is what the helpers below
+    // do: the wire contract is "the property is there, carrying null", never
+    // "the property is absent".
+    private static async Task<JsonElement> SalesRowAsync(
+        HttpClient client, Guid orderId, string query = "")
+    {
+        var response = await client.GetAsync($"/api/v1/sales{query}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return doc.RootElement.EnumerateArray()
+            .Single(o => o.GetProperty("id").GetGuid() == orderId)
+            .Clone();
+    }
+
+    // Every row carries the property, whatever the caller's tier. Omitting it
+    // for a row that has no figure would slip past the SPA: `SalesPage.tsx`
+    // branches on `owed === null`, and `undefined` is not null, so the
+    // Outstanding cell would format a missing number and render NaN. An absent
+    // property is therefore a contract break in its own right, separate from
+    // the value being wrong, so it is asserted separately.
+    private static JsonElement OutstandingField(JsonElement row)
+    {
+        Assert.True(
+            row.TryGetProperty("outstandingMinorUnits", out var value),
+            "the sales row omitted `outstandingMinorUnits`; the SPA reads a missing "
+            + "property as undefined, not as null, and renders NaN for it");
+        return value;
+    }
+
+    private static long OutstandingNumber(JsonElement row) =>
+        OutstandingField(row).GetInt64();
+
+    private static void AssertOutstandingIsNull(JsonElement row) =>
+        Assert.Equal(JsonValueKind.Null, OutstandingField(row).ValueKind);
+
+    // #769 — the orders list is SalesFlow (workers build orders, so they keep
+    // reaching it) but the MONEY inside it is SalesAccess. Nothing else in this
+    // suite distinguishes "sees the list" from "sees the money", so without this
+    // arm the tier gate could be deleted and every test would stay green.
+    [Fact]
+    public async Task SalesListOutstanding_IsTheSalesTier_WorkerSeesTheListWithoutTheMoney()
+    {
+        var (accountId, farmId, _, gradeId) = await SeedFarmAsync();
+        var owner = await ClientAsync(accountId, Roles.Owner);
+        var manager = await ClientAsync(accountId, Roles.Manager);
+        var salesperson = await ClientAsync(accountId, Roles.Sales);
+        var worker = await ClientAsync(accountId, (string?)null);
+        // 10 x 100 = 1000 minor units, 300 of it paid.
+        var (orderId, _) = await ConfirmedOrderWithPaymentAsync(accountId, farmId, gradeId, owner);
+
+        // The control for the assertion below: with the SAME field name, the
+        // money tier gets a real number. Without it, a typo in the name would
+        // make the worker's "no figure" assertion pass vacuously.
+        foreach (var inTier in new[] { owner, manager, salesperson })
+            Assert.Equal(700L, OutstandingNumber(await SalesRowAsync(inTier, orderId)));
+
+        // The worker reaches the same row, and it carries the property with an
+        // explicit null — a withheld figure, not a missing field.
+        var workerRow = await SalesRowAsync(worker, orderId);
+        Assert.Equal(orderId, workerRow.GetProperty("id").GetGuid());
+        AssertOutstandingIsNull(workerRow);
+
+        // Detail answers identically for both tiers (#512).
+        Assert.Equal(700L, OutstandingNumber(
+            await owner.GetFromJsonAsync<JsonElement>($"/api/v1/sales/{orderId}")));
+        AssertOutstandingIsNull(
+            await worker.GetFromJsonAsync<JsonElement>($"/api/v1/sales/{orderId}"));
+    }
+
+    // Refused, not ignored. Silently dropping the parameter would answer a
+    // different question than the one asked — the exact defect #769 exists to
+    // end — and would let a worker page through a list that reads as complete.
+    [Fact]
+    public async Task SalesListUnpaidFilter_IsRefusedOutsideTheSalesTier()
+    {
+        var (accountId, _, _, _) = await SeedFarmAsync();
+        var worker = await ClientAsync(accountId, (string?)null);
+        var salesperson = await ClientAsync(accountId, Roles.Sales);
+
+        var refused = await worker.GetAsync("/api/v1/sales?unpaid=true");
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+
+        // The worker keeps the list itself, and the Sales tier keeps the filter.
+        Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync("/api/v1/sales")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await salesperson.GetAsync("/api/v1/sales?unpaid=true")).StatusCode);
+        // `unpaid=false` asks for no filter, so it is not a refusal.
+        Assert.Equal(HttpStatusCode.OK,
+            (await worker.GetAsync("/api/v1/sales?unpaid=false")).StatusCode);
+    }
 
     [Fact]
     public async Task Assignments_AreTenantIsolated()
