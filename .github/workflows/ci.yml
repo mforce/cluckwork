@@ -44,8 +44,10 @@ jobs:
   # a release drafted there can never be promoted — it stays a draft with no git
   # tag, needing exactly the repair dispatch described at the top of this file.
   # So the classify step below short-circuits to `docs_only=false` on every event
-  # that is not `pull_request`, without consulting git at all. Push and dispatch
-  # behave precisely as they did before this job existed.
+  # that is not `pull_request`, without consulting git at all, and the job carries
+  # `continue-on-error` so that it cannot break the dependency chain `publish`
+  # sits at the end of. Those two together are what keep push and dispatch
+  # behaving as they did before this job existed.
   #
   # WHY THE CLASSIFICATION IS INVERTED. This does not enumerate what each job
   # needs ("image runs when src/** or a csproj or a lock file changed"). That is a
@@ -69,10 +71,38 @@ jobs:
   # The changed paths come from plain `git diff`, not a third-party action:
   # `AGENTS.md` cites the 2025-03 `tj-actions/changed-files` compromise as the
   # reason actions are SHA-pinned, and this needs no dependency at all.
+  # The classifier's own guard. It lives in its own job, and NOTHING depends on
+  # it, on purpose. It cannot sit inside `changes` below, because `changes` is
+  # `continue-on-error` and a guard that cannot fail the run is not a guard; and
+  # it must not become a `needs` of anything `publish` depends on, or a broken
+  # test file would reintroduce exactly the skip-chain this design exists to
+  # avoid. A red run here is a red PR, which is the whole job.
+  classifier-self-test:
+    name: Test the changed-path classifier
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      # Pure Node, no toolchain setup needed.
+      - name: Run the classifier self-tests
+        run: node --test .github/scripts/changed-paths.test.mjs
+
   changes:
     name: Classify the changed paths
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # THIS JOB MUST NEVER REPORT A FAILURE, and `continue-on-error` is how that is
+    # guaranteed rather than hoped for. `web` and `image` are ancestors of
+    # `publish`, and GitHub's own `needs` documentation says "a failure applies to
+    # all jobs in the dependency chain from the point of failure onwards" — so a
+    # `changes` that failed for any reason (a flaky checkout, a lost runner, the
+    # 5-minute timeout) would skip `publish` even though `web` and `image` ran and
+    # passed under their `!cancelled()` condition. That is the no-image-on-main
+    # hazard above, arriving by a new route. With `continue-on-error` the job's
+    # conclusion is success, the chain is unbroken, and a failed classification
+    # simply leaves `docs_only` empty, which runs both jobs.
+    continue-on-error: true
     outputs:
       docs_only: ${{ steps.classify.outputs.docs_only }}
     steps:
@@ -83,31 +113,37 @@ jobs:
           fetch-depth: 0
           # No `ref:` override, unlike every other job here. This one must check
           # out the CURRENT default branch even on a repair dispatch: the
-          # classifier and its self-test may not exist in the tree of an old
-          # commit being repaired, and the classify step never consults git on a
-          # dispatch anyway. Adding the override would fail this job on such a
-          # repair, which the `if:` on `web` and `image` survives but which would
-          # paint a repair run red for no reason.
-
-      # Self-test before trusting the verdict, exactly as the web job does for
-      # vuln-gate and lockfix. Pure Node, no toolchain setup needed.
-      - name: Test the changed-path classifier
-        run: node --test .github/scripts/changed-paths.test.mjs
+          # classifier may not exist in the tree of an old commit being repaired,
+          # and the classify step never consults git on a dispatch anyway.
 
       - name: Classify the changed paths
         id: classify
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
             echo "Not a pull request ($GITHUB_EVENT_NAME) — every job runs."
             echo "docs_only=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git fetch --no-tags --quiet origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
-          git diff --name-only "origin/$BASE_REF...HEAD" | tee /dev/stderr \
-            | node .github/scripts/changed-paths.mjs >> "$GITHUB_OUTPUT"
+          # No `set -e`, and every failure path below lands on the same
+          # `docs_only=false`. A git or node failure must leave this step green
+          # with a "run everything" verdict, not abort it.
+          verdict="docs_only=false"
+          if paths="$(git fetch --no-tags --quiet origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF" \
+                        && git diff --no-renames --name-only "origin/$BASE_REF...HEAD")"; then
+            printf '%s\n' "$paths"
+            # --no-renames is load-bearing: `diff.renames` defaults to true and
+            # `--name-only` then prints a rename's DESTINATION only, so
+            # `git mv src/Foo.cs docs/Foo.cs` would arrive as one documentation
+            # path while a source file was in fact deleted.
+            verdict="$(printf '%s\n' "$paths" | node .github/scripts/changed-paths.mjs)" \
+              || verdict="docs_only=false"
+          else
+            echo "Could not compute the changed paths — every job runs."
+          fi
+          echo "$verdict" >> "$GITHUB_OUTPUT"
 
   build-and-test:
     name: Build and test

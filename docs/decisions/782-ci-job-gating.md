@@ -50,9 +50,39 @@ no `ghcr.io/<owner>/<repo>:sha-<commit>` for that commit, and per #351 a release
 drafted at a commit with no image can never be promoted — it stays a draft with
 no git tag, recoverable only through the repair dispatch at the top of `ci.yml`.
 **Every failure direction resolves to "run both jobs."** An unclassified path is
-code, an empty diff is code, an unreadable stdin is code, and a `changes` job
-that fails leaves its outputs as empty strings, which `!= 'true'` runs on. Break
-either half of that `if:` and the gate becomes fail-open.
+code, an empty diff is code, an unreadable stdin is code, a git or node failure
+inside the step still writes `docs_only=false`, and a `changes` job that somehow
+failed anyway leaves its outputs as empty strings, which `!= 'true'` runs on.
+Break either half of that `if:` and the gate becomes fail-open.
+
+**`changes` carries `continue-on-error: true`, and that is a correctness
+requirement rather than tidiness.** GitHub's `needs` documentation says "a
+failure applies to all jobs in the dependency chain from the point of failure
+onwards", and `publish`'s `if:` uses no status-check function, so it carries an
+implicit `success()` over its ancestors. Making `web` and `image` depend on
+`changes` therefore put a NEW job into `publish`'s ancestry, and a `changes` that
+failed for any reason — a flaky checkout, a lost runner, its own five-minute
+timeout — would skip `publish` on a push to `main` even though `web` and `image`
+ran and passed under `!cancelled()`. That is the no-image-on-`main` hazard
+arriving by a second route, opened by the fix for the first. `continue-on-error`
+closes it: the job's conclusion is success whatever happens inside it, so there
+is no point of failure for the chain rule to propagate from.
+
+**The classifier's self-test is a separate job with no dependents**
+(`classifier-self-test`). It cannot live inside `changes`, because a
+`continue-on-error` job cannot fail a run and a guard that cannot fail a run is
+not a guard. It must also not become a `needs` of anything `publish` depends on,
+or a broken test file would reintroduce the same skip chain. In its own job a red
+self-test paints the pull request red, which is all it needs to do.
+
+**`git diff` runs with `--no-renames`.** `diff.renames` defaults to true, and
+with detection on `--name-only` prints only a rename's DESTINATION. Measured on
+this repository: `git mv src/Cluckwork.Domain/Common/Result.cs docs/Result.cs`
+produces the single line `docs/Result.cs`, which classified as
+documentation-only while a source file had in fact been deleted. Two guards hold
+the flag in place, because the module and the workflow each had their own copy of
+it: an end-to-end test that performs that exact `git mv`, and a test that reads
+`ci.yml` and asserts the one classifying `git diff` line carries the flag.
 
 ## Why not the obvious alternative
 
@@ -116,7 +146,21 @@ cadence, and it covers it whether or not anyone opens a pull request. This is an
 accepted cost, not an absence of one. Restoring it means re-running those two
 jobs on a schedule, not gating them differently.
 
-`graphify-out/**` is deliberately NOT documentation here, so a regenerated-graph
+**The `specs/` tree is NOT documentation here**, which is a deliberate departure from
+the obvious allow-list. `web/src/routes/helpGlossary.test.ts` reads
+`../specs/product/GLOSSARY.md` and fails when a spec term is renamed out from
+under the in-app glossary (#657), and that test runs under `npm run
+test:coverage` in the `web` job — one of the two jobs this gate skips. A
+specs-only pull request would therefore have skipped the guard written for
+specs-only pull requests. Carving out that single file instead was rejected:
+nothing would notice when a second web test starts reading a second specs path,
+and a gate that fails open silently is worse than one that runs four extra
+minutes. The cost is that a spec-only pull request runs the full suite. Today
+`GLOSSARY.md` is the only path outside `web/` that any web test reads
+(`grep -rn 'process.cwd()' web/src` returns one such line), so this is
+conservatism about the future rather than a second known consumer.
+
+The `graphify-out/` tree is deliberately NOT documentation here, so a regenerated-graph
 pull request runs the full suite. The generated graph is large, machine-written
 and not read by a reviewer, which makes it exactly the kind of path where a
 wrong "it is only text" judgement would be least likely to be noticed.
@@ -137,16 +181,18 @@ is paid on code pull requests too.
 
 ## How it is enforced
 
-`.github/scripts/changed-paths.test.mjs`, run by `node --test` as a step of the
-`changes` job itself, before the verdict is computed — the same pattern the web
-job already uses for `vuln-gate` and `lockfix`. Thirteen tests, each of which was
-watched going red under a mutation of the source before it was claimed to catch
-anything: dropping the empty-list check, dropping the trailing slash from the
-documentation prefixes, letting any `*.md` count as root documentation, turning
-`every` into `some`, accepting a path git could not hand over verbatim, emptying
-the exact-filename table, keeping git's trailing empty line as a path, failing
-open on an unreadable stdin, adding `graphify-out/` to the prefixes, dropping the
-non-string guard, and hardcoding the CLI's answer to `true`.
+`.github/scripts/changed-paths.test.mjs`, run by `node --test` in the
+`classifier-self-test` job on every event — the same self-test pattern the web
+job already uses for `vuln-gate` and `lockfix`, moved into its own job for the
+reason given under "The rule". Sixteen tests, each watched going red under a
+mutation before it was claimed to catch anything: dropping the empty-list check,
+dropping the trailing slash from the documentation prefixes, letting any `*.md`
+count as root documentation, turning `every` into `some`, accepting a path git
+could not hand over verbatim, emptying the exact-filename table, keeping git's
+trailing empty line as a path, failing open on an unreadable stdin, losing the
+reason it fell back, adding `graphify-out/` to the prefixes, putting `specs/`
+back, dropping the non-string guard, hardcoding the CLI's answer to `true`, and
+dropping `--no-renames` from `ci.yml`.
 
 **Nothing enforces the `pull_request`-only scope except the classify step's own
 first three lines and this record.** No test asserts that a future editor cannot

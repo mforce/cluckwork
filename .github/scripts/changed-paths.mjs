@@ -1,6 +1,13 @@
 // Classify a pull request's changed paths as documentation-only (#782). Run with
-// `git diff --name-only origin/main...HEAD | node .github/scripts/changed-paths.mjs`,
+// `git diff --no-renames --name-only origin/main...HEAD | node .github/scripts/changed-paths.mjs`,
 // which writes `docs_only=true|false` in $GITHUB_OUTPUT format on stdout.
+//
+// `--no-renames` is part of the contract, not a preference. `diff.renames`
+// defaults to true, and with detection on `--name-only` prints ONLY a rename's
+// destination — so `git mv src/Cluckwork.Domain/Common/Result.cs docs/Result.cs`
+// arrives here as the single path `docs/Result.cs` and classifies as
+// documentation while a source file has in fact been deleted. Measured on this
+// repository, not reasoned about.
 //
 // The question is deliberately inverted. It is NOT "which jobs does this change
 // need", which is a hand-maintained list of what someone thought of, and is the
@@ -18,7 +25,15 @@ import { pathToFileURL } from "node:url";
 
 // Documentation is a closed table, not a chain of conditions. A prefix rule ends
 // in `/` so `docsomething/x.cs` cannot match `docs/`.
-const DOCUMENTATION_PREFIXES = ["docs/", "specs/", ".github/ISSUE_TEMPLATE/"];
+//
+// `specs/` is NOT in this table, and that is deliberate. `web/src/routes/helpGlossary.test.ts`
+// reads `../specs/product/GLOSSARY.md` and fails when a spec term is renamed out
+// from under the in-app glossary (#657), and that test runs in the `web` job —
+// one of the two jobs this classifier skips. A specs-only pull request would
+// therefore skip the guard written to police specs-only pull requests. Carving
+// out that one file instead would leave nothing to notice when a second web test
+// starts reading a second specs path, so the whole directory is code.
+const DOCUMENTATION_PREFIXES = ["docs/", ".github/ISSUE_TEMPLATE/"];
 const DOCUMENTATION_FILES = new Set(["LICENSE", ".github/PULL_REQUEST_TEMPLATE.md"]);
 
 // Only a ROOT `*.md` is documentation. `web/README.md` sits next to the code it
