@@ -17,6 +17,7 @@
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.5.3" />
     <PackageVersion Include="Aspire.Hosting.Redis" Version="13.5.3" />
     <PackageVersion Include="Aspire.Hosting.Testing" Version="13.5.3" />
+    <PackageVersion Include="coverlet.collector" Version="10.*" />
     <PackageVersion Include="FluentValidation" Version="12.*" />
     <PackageVersion Include="Google.Protobuf" Version="3.*" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />

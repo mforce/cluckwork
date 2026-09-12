@@ -1,0 +1,79 @@
+name: Backend coverage
+
+# #776 — coverage MEASUREMENT, deliberately a separate workflow rather than a
+# step in ci.yml. `Build and test` is the critical path of every PR at roughly
+# 570 seconds (issue #775 exists to SHORTEN that), and instrumented collection
+# — coverlet's XPlat Code Coverage collector plus a reportgenerator merge over
+# four projects, one of them a Postgres integration suite — adds directly to
+# that job. So collection runs on its own cadence and gates nothing: see
+# docs/decisions/776-backend-coverage.md.
+#
+# The `pull_request` path filter below exists so this workflow does not rot
+# silently the way AGENTS.md records for the sim harness (#370) and the
+# AppHost (#565): a workflow nobody runs on a normal PR only gets exercised on
+# the Monday schedule, so a change to the coverage tooling itself would land
+# broken and sit broken for up to a week. Scoping the filter to the tooling's
+# own inputs means a change there proves itself on its own PR, at no cost to
+# every other PR.
+
+on:
+  schedule:
+    - cron: "0 5 * * 1" # Mondays 05:00, one hour before the security audit
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/coverage/**"
+      - ".github/workflows/coverage.yml"
+      - ".config/dotnet-tools.json"
+      - "tests/Directory.Build.props"
+      # The collector's VERSION is a coverage-tooling input too, and it lives
+      # away from the files above: centrally in Directory.Packages.props (#684)
+      # and resolved in the test projects' lock files. Without these two lines a
+      # Dependabot bump of coverlet.collector changes what collection does and
+      # never runs collection. The cost is that every grouped NuGet bump PR now
+      # runs this job for a package that has nothing to do with coverage; that
+      # is deliberate, and cheap, because the job gates nothing and sits off
+      # ci.yml's critical path. Do not drop these to quieten that.
+      - "Directory.Packages.props"
+      - "tests/**/packages.lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: Measure backend coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            Directory.Packages.props
+
+      - name: Restore dependencies
+        run: dotnet restore Cluckwork.sln --locked-mode
+
+      # No continue-on-error: a failing test fails this run too, same as
+      # ci.yml's Test step. Only the coverage NUMBERS are non-gating.
+      - name: Collect coverage
+        run: tools/coverage/collect.sh
+
+      - name: Append summary to job output
+        run: cat coverage-out/SUMMARY.md >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-coverage-report
+          path: coverage-out/report/
+          retention-days: 30
