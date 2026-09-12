@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests;
 
+using System.Text.RegularExpressions;
 using Cluckwork.Application.Features.Sales;
 using Cluckwork.Domain.Sales;
 using Cluckwork.Infrastructure.Persistence;
@@ -33,6 +34,59 @@ public sealed class SalesOrderListQueryTests
         BuildRepository().ListQuerySql(
             new SalesOrderListFilter(null, null, null, null, scope), 50, 0);
 
+    // The alias EF gave the outer SalesOrders row. The correlation below is
+    // asserted against THAT alias, so a subquery comparing "SalesOrderId" to
+    // anything else does not pass for a correlated one.
+    private static string OuterOrderAlias(string sql)
+    {
+        var match = Regex.Match(sql, "FROM \"SalesOrders\" AS (\\w+)");
+        Assert.True(match.Success, sql);
+        return match.Groups[1].Value;
+    }
+
+    // Every correlated Payments subquery in `span`, each as the text from its
+    // own FROM "Payments" to the paren that closes the SELECT it sits in: the
+    // first unmatched ')' from there, which steps over the NOT (...) inside it.
+    // All of them, not the first: UnpaidOnly emits two (the projection and the
+    // predicate), and a claim about "the subquery" that reads one of two is the
+    // same hole this replaced.
+    private static IReadOnlyList<string> PaymentsSubqueries(string span)
+    {
+        const string marker = "FROM \"Payments\"";
+        var found = new List<string>();
+        for (var start = span.IndexOf(marker, StringComparison.Ordinal); start >= 0;
+             start = span.IndexOf(marker, start + 1, StringComparison.Ordinal))
+        {
+            var depth = 0;
+            var end = -1;
+            for (var i = start; i < span.Length && end < 0; i++)
+            {
+                if (span[i] == '(') depth++;
+                else if (span[i] == ')' && depth == 0) end = i;
+                else if (span[i] == ')') depth--;
+            }
+            Assert.True(end >= 0, span);
+            found.Add(span[start..end]);
+        }
+        return found;
+    }
+
+    // What the subquery must carry, checked INSIDE its own span. The assertion
+    // this replaced was Assert.Contains("ef_filter", sql) over the whole query,
+    // which the tenant filters on SalesOrders and SalesOrderItems satisfy on
+    // their own: it stayed green with the Payments filter deleted outright, so
+    // it proved nothing about the correlated read it named.
+    private static void AssertPaymentsSubqueriesAreScopedAndCorrelated(string span, string outerAlias)
+    {
+        var subqueries = PaymentsSubqueries(span);
+        Assert.NotEmpty(subqueries);
+        foreach (var subquery in subqueries)
+        {
+            Assert.Contains("\"AccountId\" = @ef_filter", subquery, StringComparison.Ordinal);
+            Assert.Contains($"\"SalesOrderId\" = {outerAlias}.\"Id\"", subquery, StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public void Hidden_EmitsSqlThatNeverNamesPayments()
     {
@@ -58,10 +112,11 @@ public sealed class SalesOrderListQueryTests
 
         Assert.Contains("\"Payments\"", sql, StringComparison.Ordinal);
         Assert.Contains("\"Voided\"", sql, StringComparison.Ordinal);
-        // The tenant query filter reaches the correlated subquery on its own —
-        // it is not written by hand, so nothing in the repository would fail if
-        // it stopped being applied.
-        Assert.Contains("ef_filter", sql, StringComparison.Ordinal);
+        // The tenant query filter reaches the correlated subquery on its own.
+        // It is not written by hand, so nothing in the repository would fail if
+        // it stopped being applied, and only the emitted SQL can say that it
+        // still is.
+        AssertPaymentsSubqueriesAreScopedAndCorrelated(sql, OuterOrderAlias(sql));
         // Include(o => o.Items) survives the wrapper projection. Without this
         // the orders list loses every line item and the discount column (#724)
         // silently reads "Unknown" on every row.
