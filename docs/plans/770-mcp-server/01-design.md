@@ -166,9 +166,18 @@ blacklisting it on the tool alone does not close the indirect route.
 **And that still does not make the branch unreachable — the design deliberately no longer claims
 it does.** A helper registered as `sp => new Helper(() => sp.CreateScope())` exposes only a
 delegate on its constructor; a static service locator adds no edge at all; detached background
-work need not touch the dependency graph. Guard 7b bounds the hazard and names the residue. What
-makes the residue safe rather than silent is #787 — flipping `FlockScopeGuard`'s fail-open branch
-to fail closed — which is why slice 6 of the epic is blocked on it. (Adversarial review round 1
+work need not touch the dependency graph. Guard 7b bounds the hazard and names the residue.
+
+**#787 backstops only half of that residue, and the half it misses is the reads.** Flipping
+`FlockScopeGuard`'s fail-open branch to fail closed protects an unresolved-actor **write** — that
+is why slice 6 is blocked on it. A read escape never reaches that guard at all:
+`FlockRepository.ListAsync` goes through the EF global query filter, which reads `FlockScope`
+directly, and an unresolved `FlockScope` is unrestricted. So a secondary-scope read of unassigned
+flocks stays possible with #787 fully done. **That residual read risk is recorded, not closed** —
+closing it needs either a fail-closed read boundary of its own or a decision to accept it, and
+neither belongs in this design. (Round-3 finding 1: the round-2 fix claimed #787 made the residue
+"safe rather than silent", which is true for writes and false for reads — a claim contradicted by
+this design's own scoping of #787.) (Adversarial review round 1
 finding 1, and round 2 finding 1: the first fix asserted a guarantee its own walk could not
 establish, which reads as fixed and is therefore worse than the original gap.)
 
@@ -381,7 +390,8 @@ mutation; rejected candidate 1's derived-key default and all three candidates'
 - **Flip `FlockScopeGuard`'s fail-open branch to fail closed.** Probably correct eventually,
   but it is an authorization default change affecting both seeders, four one-shot verbs and
   every non-HTTP caller; the guard's own comment says it "deserves its own issue rather than a
-  drive-by". This design makes the branch unreachable from MCP and leaves its fate to that issue.
+  drive-by". This design **narrows** the routes to that branch from MCP — it does not make it
+  unreachable (see the residue above) — and leaves its fate to that issue.
 
 ## Open questions and risks
 
@@ -394,7 +404,8 @@ mutation; rejected candidate 1's derived-key default and all three candidates'
 - ~~Should the fail-open branch of `FlockScopeGuard` get its own issue?~~ **Resolved: filed as
   #787.** The guard's comment has been asking since #500, and
   `RecordFeedUsage`/`RecordWaterUsage` still reach it from any future non-HTTP caller. This
-  design makes the branch unreachable from MCP rather than fixing it.
+  design narrows the routes to that branch from MCP rather than fixing it, and does not close the
+  secondary-scope read escape at all.
 - Is an `Mcp:Enabled` kill switch worth one config key? Left out to keep #370/#565 at zero
   files, on the reasoning that the route is authenticated — but an owner wanting MCP off on a
   deployment currently has no lever but a reverse proxy.

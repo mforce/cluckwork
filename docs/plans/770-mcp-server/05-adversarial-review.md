@@ -178,3 +178,72 @@ Round 1 found three guards that could not go red. Round 2 found two more — **i
 invariant it claimed. The rule this repo already has is the right one and bears restating: *run the
 mutation, do not reason about it.* None of these were caught by reasoning, including by the person
 who wrote the rule into the same document.
+
+---
+
+# Round 3 — attacking the round-2 fixes
+
+**Two major, one minor. All three verified and applied.** Round 3 also corrected two claims the
+author added *during* round 2's fixes, which is the most useful thing it did.
+
+## 1. The #787 backstop claim covered writes and was asserted for reads (major)
+
+Round 2's fix said #787 — flipping `FlockScopeGuard`'s fail-open branch — makes the secondary-scope
+residue "safe rather than silent". **True for writes, false for reads.** A read escape calls
+`FlockRepository.ListAsync`, which goes through the EF global query filter; that filter reads
+`FlockScope` directly and an unresolved `FlockScope` is unrestricted. `FlockScopeGuard` is never
+called, so #787 changes nothing on that path.
+
+The sharpest part: this contradicts **the author's own scoping of #787**, written the same day on
+the issue itself — *"`FlockScopeGuard` is consulted by `RecordDailyEntry`… The MCP read slices do
+not reach it."* The design asserted a protection its own sibling artifact ruled out. Two documents,
+one author, opposite claims, neither flagged by the reviews that read them separately.
+
+The residual **read** risk is now recorded as open rather than claimed closed.
+
+## 2. Three operative statements still said "unreachable" (major)
+
+Round 2 added an honesty note saying the branch is not unreachable, and left three statements
+elsewhere — in *Alternatives considered*, *Open questions*, and *Deliberately not guarded* — still
+asserting it is. An implementer reading any of those three would omit protection the new safety
+argument depends on. All three now state the bounded claim; the superseded ones survive in this
+review history rather than in the operative text.
+
+## 3. Row 31b named a mechanism that cannot measure what it requires (minor)
+
+Round 2's fix pointed at `ReportQueryBoundingTests`' `SqlCaptureInterceptor` and said the mechanism
+"needs no invention". It records `(Sql, Parameters)` only. An implementation that fetches every page
+in a loop and accumulates the whole book emits perfectly paged SQL and passes. Row 31b now requires
+counting rows **consumed** — wrapping the returned `DbDataReader` and counting `Read`/`ReadAsync` —
+with SQL inspection kept as supporting evidence.
+
+## What round 3 cleared, and two counts it corrected
+
+- **Row 7b is implementable.** Walking `ServiceDescriptor`s with reviewed factory edges and
+  framework stopping points is practical. But the author's added claim of "**9** factory
+  registrations" and the reviewer's own count of **10** disagreed — the discrepancy turns on which
+  lambda parameter names a grep matches. The number is now deliberately absent: walk the built
+  collection, do not grep, and do not trust a count in prose. This repo has been bitten by a bare
+  count twice already.
+- **Row 19 is correct.** The registered pattern is `/api/v1/daily-entries/` (group + `MapPost("/")`)
+  and the middleware hashes the *actual request path*, so the fixture's trailing-slash spelling
+  must match what it asserts.
+- **Row 31's reply/query split is sound**, and grouping does not force client materialization —
+  `PaymentRepository` already aggregates in SQL, so a paged balance query is achievable.
+- The loopback namespace and replay-discriminator qualifications are sound.
+
+## Three rounds, one pattern
+
+| Round | Target | Guards found unable to go red |
+|---|---|---|
+| 1 | the synthesized design | 3 |
+| 2 | round 1's fixes | 2 |
+| 3 | round 2's fixes | 1 (plus 2 wrong claims added while fixing) |
+
+Every round found defects **in the previous round's fixes**. The yield is narrowing — round 3's
+findings are about claim precision rather than design shape — but it never reached zero. The
+transferable lesson is unchanged and now has six instances behind it: **a guard's stated mutation
+must be run, not reasoned about**, and a fix written confidently is exactly as likely to need one.
+
+The loop stops here by decision, not because it ran out. What remains is not more review of this
+document — it is running these mutations for real when the guards are written.
