@@ -736,10 +736,18 @@ payments; per customer: the same summed across their confirmed orders
 (server-side sums, never client-aggregated pages). Shown on the order's
 payments panel, the Customers page (whose column renders for admins only), and
 — since #769 — as an **Outstanding** column on the Orders list, with an
-**Unpaid only** filter beside it. All of it is the **Sales tier**
-(Owner/Manager/Sales): `/customers/balances`, `/sales/{id}/payments`, the
-record-payment route and the Orders list all require `AuthPolicies.SalesAccess`,
-so widening the money tier has to move all four at once. The Customers page's
+**Unpaid only** filter beside it. Seeing the money is the **Sales tier**
+(Owner/Manager/Sales) everywhere, but the gate sits in two different places and
+that difference is the whole design of #769. Three routes are gated at the
+route: `/customers/balances`, `/sales/{id}/payments` and the record-payment
+route each carry `.RequireAuthorization(AuthPolicies.SalesAccess)`. The **Orders
+list is not one of them** — `GET /api/v1/sales` is `AuthPolicies.SalesFlow`,
+which admits Workers deliberately, because workers build orders. Inside that
+route the handler asks the *same* `SalesAccess` policy, and its answer decides
+exactly two things: whether the row carries an outstanding figure, and whether
+`unpaid=true` is honoured. So widening the money tier means moving that one
+policy, which moves the three routes and the in-handler check together; it never
+means widening the Orders list's own route gate. The Customers page's
 admin gate is presentation only — a Sales user may call `/customers/balances` —
 so #89's endpoint is not a stricter tier and #769 relaxed nothing. A Worker
 reaches the Orders list and its response carries no outstanding figure at all,

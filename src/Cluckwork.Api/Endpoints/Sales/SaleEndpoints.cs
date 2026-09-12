@@ -225,8 +225,11 @@ public static class SaleEndpoints
     // a hint from it, so a second encoding (the Roles.MayExceedDiscountCeiling
     // shape, where a handler and an endpoint both decide and must not drift)
     // would buy nothing and would let this column disagree with
-    // /customers/balances about who may see money. Widening the money tier
-    // must move all four routes at once.
+    // /customers/balances about who may see money. This route is NOT a fourth
+    // SalesAccess route: GET /api/v1/sales is SalesFlow, so a Worker reaches
+    // the list itself, and the policy asked here gates only the figure and the
+    // unpaid filter. Widening the money tier moves this one policy — never this
+    // route's own gate.
     //
     // ClaimsPrincipal, not HttpContext: an HttpContext parameter makes the
     // handler body-capable, and BodyReadingEndpointTests then demands a row in
