@@ -45,6 +45,10 @@ node_modules/
 TestResults/
 *.trx
 
+# Generated coverage report output (#776) — tools/coverage/collect.sh writes
+# here; nothing in the repo consumes it and it is regenerated on every run.
+coverage-out/
+
 .agents/skills
 .claude/skills
 # verify/ is Cluckwork's own skill, not an installed one: it knows this repo's
