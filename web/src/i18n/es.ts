@@ -341,6 +341,7 @@ export const es = {
     discountUnknownOrder: "Ninguna línea tiene precio de lista — no se puede calcular el descuento de este pedido.",
     // #773
     discountUnrecordedOrder: "Ninguna línea tiene un precio de lista registrado — este pedido es anterior al registro de precios de lista, por lo que no se puede calcular su descuento.",
+    discountPartlyUnrecordedOrder: "Algunas líneas no tienen precio de lista registrado y el resto no tenía ninguno con que compararse — no se puede calcular el descuento de este pedido.",
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} respecto al precio de lista",
     // #721

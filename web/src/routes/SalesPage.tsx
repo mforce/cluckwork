@@ -31,7 +31,7 @@ import { discountCeiling, lineExceedsCeiling } from "../lib/discountCeiling";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import i18n from "../i18n";
 import { DISCOUNT_REASON_VALUES, discountReasonLabel, listPriceBasisLabel, statusLabel } from "../i18n/enums";
-import type { DiscountReasonValue, ListPriceBasisValue } from "../i18n/enums";
+import type { DiscountReasonValue } from "../i18n/enums";
 
 const PAGE = 50;
 
@@ -221,8 +221,12 @@ function orderDiscount(items: OrderItem[]): OrderDiscount {
 // an order with nothing to measure is never called unmeasurable. Verified by
 // mutation rather than by reading: delete that bail and "an order with no
 // lines reads as an em dash" goes red.
-function orderListPriceBasis(items: OrderItem[]): ListPriceBasisValue {
-  return items.every((i) => i.listPriceBasis === "PreDating") ? "PreDating" : "ProductUnpriced";
+type OrderListPriceBasis = "allPreDating" | "nonePreDating" | "mixed";
+
+function orderListPriceBasis(items: OrderItem[]): OrderListPriceBasis {
+  const preDating = items.filter((i) => i.listPriceBasis === "PreDating").length;
+  if (preDating === 0) return "nonePreDating";
+  return preDating === items.length ? "allPreDating" : "mixed";
 }
 
 // #23 + #24 (orders half): create a draft order, add/edit/remove graded lines,
@@ -1336,9 +1340,11 @@ export function SalesPage() {
             if (orderLevel.kind === "unknown") {
               return (
                 <p className="discount-note" data-testid="order-discount-unknown">
-                  {orderListPriceBasis(active.items) === "PreDating"
-                    ? t("discountUnrecordedOrder")
-                    : t("discountUnknownOrder")}
+                  {{
+                    allPreDating: t("discountUnrecordedOrder"),
+                    nonePreDating: t("discountUnknownOrder"),
+                    mixed: t("discountPartlyUnrecordedOrder"),
+                  }[orderListPriceBasis(active.items)]}
                 </p>
               );
             }
@@ -1766,7 +1772,8 @@ export function SalesPage() {
                       right-aligned tabular figures that never wrap. */}
                   <td className="num">{(() => {
                     const d = orderDiscount(o.items);
-                    if (d.kind === "unknown") return <span className="muted discount-note">{listPriceBasisLabel(orderListPriceBasis(o.items))}</span>;
+                    if (d.kind === "unknown") return <span className="muted discount-note">{listPriceBasisLabel(
+                      orderListPriceBasis(o.items) === "nonePreDating" ? "ProductUnpriced" : "PreDating")}</span>;
                     // Round 1 — the em dash means "sold at list". An order only
                     // part of which is measurable must not borrow that glyph.
                     if (d.kind !== "below") {

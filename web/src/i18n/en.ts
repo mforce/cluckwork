@@ -458,6 +458,7 @@ export const en = {
     // makes this sentence false of the order, so orderListPriceBasis needs
     // all of them.
     discountUnrecordedOrder: "No list price was recorded on any line — this order predates list-price capture, so its discount cannot be worked out.",
+    discountPartlyUnrecordedOrder: "Some lines have no recorded list price and the rest had none to compare against — this order's discount cannot be worked out.",
     // #724 — the Orders-table cell. Percent LEADS the amount: a reviewer
     // scanning a month of orders is reading for outliers, and only the
     // percentage makes an outlier visible without arithmetic.

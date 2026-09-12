@@ -491,9 +491,11 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
         var line = order!.Items.Single();
         Assert.Equal("PreDating", line.ListPriceBasis);
-        // A FIXTURE control, not a claim about ToResponse: it fails if the raw
-        // UPDATE above silently did not land, which would leave the assertion
-        // over it passing for a row the backfill never touched.
+        // The other half of the pair. NOT a control for the UPDATE landing —
+        // the PreDating assertion above already fails if it did not, because
+        // the seeded row is Recorded (astra review round 1 corrected this
+        // comment). What this pins is that the two travel together: a basis of
+        // PreDating must never arrive beside a non-null price.
         Assert.Null(line.ListUnitPriceMinorUnits);
     }
 

@@ -357,6 +357,7 @@ export const tl = {
     discountUnknownOrder: "Walang presyo sa listahan ang alinmang linya — hindi matukoy ang diskwento ng order na ito.",
     // #773
     discountUnrecordedOrder: "Walang linyang may naitalang presyo sa listahan — mas maaga ang order na ito kaysa sa pagtatala ng presyo sa listahan, kaya hindi matukoy ang diskwento nito.",
+    discountPartlyUnrecordedOrder: "May mga linyang walang naitalang presyo sa listahan at ang iba nama'y walang maihahambing — kaya hindi matukoy ang diskwento ng order na ito.",
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} mula sa presyo sa listahan",
     // #721

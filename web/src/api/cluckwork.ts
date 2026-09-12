@@ -338,7 +338,9 @@ export interface OrderItem {
   currencyMinorUnit: number;
   // #720 — REQUIRED, not optional, and deliberately so: an optional field is
   // how a consumer silently forgets to render a state, and null here is a
-  // state the screen must show ("No list price"), not an absent value.
+  // state the screen must show, not an absent value. WHICH state it is comes
+  // from listPriceBasis below, not from this field (#773): a null is no longer
+  // uniformly "No list price".
   // Same currency and minor unit as unitPriceMinorUnits.
   listUnitPriceMinorUnits: number | null;
   // #773 — which kind of nothing a null listUnitPriceMinorUnits is. REQUIRED

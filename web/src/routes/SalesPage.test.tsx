@@ -953,9 +953,27 @@ describe("SalesPage list price and discount (#720)", () => {
     const unpRow = screen.getByRole("row", { name: /Grade B Tray/ });
 
     // Two mentions each, same shape the unpriced case has carried since #723:
-    // the chip beside the product and the Discount cell.
+    // the chip beside the product and the Discount cell. Counting the text
+    // alone is not enough — both copies could land in the Discount cell and
+    // the count would still be 2 — so the chip is pinned as a .badge ELEMENT
+    // and the cell copy is pinned to its own cell (astra review round 1).
     expect(within(preRow).getAllByText(i18n.t("enums:listPriceBasis.PreDating"))).toHaveLength(2);
     expect(within(unpRow).getAllByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toHaveLength(2);
+    for (const [row, key] of [[preRow, "PreDating"], [unpRow, "ProductUnpriced"]] as const) {
+      const chip = within(row).getAllByText(i18n.t(`enums:listPriceBasis.${key}`))
+        .find((el) => el.classList.contains("badge"));
+      expect(chip, `the ${key} chip beside the product is not a .badge`).toBeDefined();
+      // The chip lives in the product cell; the OTHER copy is the Discount
+      // cell. Located by content rather than by index, because this panel
+      // table and the Orders list number their columns differently and a
+      // hardcoded index here silently asserted against Unit price.
+      const cells = within(row).getAllByRole("cell");
+      expect(cells[0]).toContainElement(chip!);
+      const elsewhere = cells.slice(1).filter(
+        (c) => c.textContent?.includes(i18n.t(`enums:listPriceBasis.${key}`)));
+      expect(elsewhere, `${key} appears only as the chip, never in its own cell`)
+        .toHaveLength(1);
+    }
     // The claim that makes this test worth having: neither row borrows the
     // other's wording.
     expect(within(preRow).queryByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toBeNull();
@@ -1001,7 +1019,7 @@ describe("SalesPage list price and discount (#720)", () => {
   // #773 — the `every` in orderListPriceBasis, and the reason it is not `some`.
   // ONE line that genuinely had no comparable price makes "this order predates
   // list-price capture" false of the order, however many lines do predate it.
-  it("keeps the plain wording for a MIXED order, on the panel and in the Orders list", async () => {
+  it("claims neither universal for a MIXED order, on the panel and in the Orders list", async () => {
     const predating: OrderItem = { ...ITEM_A, id: "mx1", listUnitPriceMinorUnits: null, listPriceBasis: "PreDating" };
     const unpriced: OrderItem = { ...ITEM_B, id: "mx2", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" };
     const order: SalesOrder = {
@@ -1010,16 +1028,25 @@ describe("SalesPage list price and discount (#720)", () => {
     };
     await openOrder(order, /Grade A Dozen/);
 
+    // #773 round 2 — a mixed order may claim NEITHER universal. "No list price
+    // on any line" is false (the pre-dating line's price is unknown, not
+    // absent), and "this order predates capture" is false too (one line does
+    // not). Saying either is the exact misstatement this issue exists to end,
+    // one level up from the line.
     const note = screen.getByTestId("order-discount-unknown");
-    expect(note).toHaveTextContent(i18n.t("sales:discountUnknownOrder"));
+    expect(note).toHaveTextContent(i18n.t("sales:discountPartlyUnrecordedOrder"));
+    expect(note).not.toHaveTextContent(i18n.t("sales:discountUnknownOrder"));
     expect(note).not.toHaveTextContent(i18n.t("sales:discountUnrecordedOrder"));
 
     // The same order in the Orders-list Discount cell, which reads the same
     // helper. Cell 4 per the index comment on the em-dash test below.
     const listRow = screen.getByRole("row", { name: /SO-MIXEDORDER/ });
+    // The cell is one short label, so it reports the weaker truth: at least
+    // one line's price was never recorded. "No list price" would assert the
+    // pre-dating line HAD none, which nobody knows.
     const cell = within(listRow).getAllByRole("cell")[4];
-    expect(cell).toHaveTextContent(i18n.t("enums:listPriceBasis.ProductUnpriced"));
-    expect(cell).not.toHaveTextContent(i18n.t("enums:listPriceBasis.PreDating"));
+    expect(cell).toHaveTextContent(i18n.t("enums:listPriceBasis.PreDating"));
+    expect(cell).not.toHaveTextContent(i18n.t("enums:listPriceBasis.ProductUnpriced"));
   });
 
   // #773 — the same mixed order with its lines the OTHER way round. Without
@@ -1036,9 +1063,9 @@ describe("SalesPage list price and discount (#720)", () => {
     await openOrder(order, /Grade A Dozen/);
 
     expect(screen.getByTestId("order-discount-unknown"))
-      .toHaveTextContent(i18n.t("sales:discountUnknownOrder"));
+      .toHaveTextContent(i18n.t("sales:discountPartlyUnrecordedOrder"));
     const cell = within(screen.getByRole("row", { name: /SO-REVMIXED/ })).getAllByRole("cell")[4];
-    expect(cell).toHaveTextContent(i18n.t("enums:listPriceBasis.ProductUnpriced"));
+    expect(cell).toHaveTextContent(i18n.t("enums:listPriceBasis.PreDating"));
   });
 
   // #723 — the order-level figure. Percent is off LIST, over comparable lines
