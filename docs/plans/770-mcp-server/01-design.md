@@ -243,7 +243,8 @@ registers `StatefulSessionManager`, `StreamableHttpHandler`, `SseHandler` as sin
 mode. `IdleTrackingBackgroundService.StartAsync` returns early under Stateless, so no timer
 runs and no session state exists. The blocker list is not extended; but AGENTS.md's instruction
 to re-derive it by "walking every `AddSingleton`/`AddHostedService` under `src/`" is
-structurally blind to a package registration. That wording needs amending, tracked separately in #786 — this record ships no `AGENTS.md` change.
+structurally blind to a package registration. That wording was amended in #786 (merged as part of
+PR #790); this record ships no `AGENTS.md` change of its own.
 
 Stateless also buys #364: one tool call = one authenticated HTTP request, so
 `CredentialEpochMiddleware` does its fresh DB read **per tool call**. Under `Stateful` +
@@ -377,7 +378,7 @@ mutation; rejected candidate 1's derived-key default and all three candidates'
   protected-resource metadata, or (c) issue a longer-lived MCP-scoped credential? This is a
   product decision and it gates real-world usability, not correctness.
 - ~~Should the fail-open branch of `FlockScopeGuard` get its own issue?~~ **Resolved: filed as
-  #786's sibling #787.** The guard's comment has been asking since #500, and
+  #787.** The guard's comment has been asking since #500, and
   `RecordFeedUsage`/`RecordWaterUsage` still reach it from any future non-HTTP caller. This
   design makes the branch unreachable from MCP rather than fixing it.
 - Is an `Mcp:Enabled` kill switch worth one config key? Left out to keep #370/#565 at zero

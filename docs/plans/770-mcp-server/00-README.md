@@ -32,7 +32,8 @@ four are recorded in [`04-verified-findings.md`](04-verified-findings.md) with e
 3. **#271 is touched.** `WithHttpTransport` registers three singletons and a hosted service
    *inside the package*, unconditionally. The blocker list is not extended — the service is
    inert under Stateless — but `AGENTS.md`'s instruction to re-derive the list by walking
-   `src/` cannot see package registrations. Raised separately.
+   `src/` cannot see package registrations. Raised as #786 and **fixed** — `AGENTS.md`'s walk now
+   includes package `Add*`/`With*` extensions, with the procedure that answers it.
 4. **`ModelContextProtocol.AspNetCore` 2.2.0 ships a `net10.0` target**, so the issue's open
    decision 5 (".NET 10 compat not yet verified") is answered: compatible.
 

@@ -38,7 +38,9 @@ setting, which is exactly the kind of thing that gets flipped later.
 is structurally blind to a hosted service registered inside a NuGet package. AGENTS.md already
 records that this list "was twice derived wrongly"; this is a third shape of wrongness, and
 per its own "two misses of the same shape mean the METHOD is wrong" rule, the walk's SCOPE is
-the defect, not any individual derivation. Worth raising with the owner independently of #770.
+the defect, not any individual derivation. Raised as #786 and fixed in PR #790: `AGENTS.md`'s walk
+now reaches into package `Add*`/`With*` extensions, and `docs/decisions/271-single-serving-instance.md`
+carries the narrative as the third shape.
 
 ## FINDING 2 — The SDK already sets `ScopeRequests = false` under Stateless.
 ## Candidate 3's "single load-bearing line" framing is WRONG.
