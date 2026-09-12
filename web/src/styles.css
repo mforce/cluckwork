@@ -32,6 +32,19 @@
   --row-hover: #faf5fc;
   --scroll-cue: rgba(29, 21, 33, 0.22); /* edge fade for horizontally-scrolling tables (#150) */
 
+  /* Grade hues (#777) — eight evenly spaced around the wheel at even
+     lightness, warmed to sit beside the aubergine brand. Deliberately NOT
+     brand-scoped: a farm's palette identifies the farm, these identify egg
+     grades, and a grade must not be a different colour on two deployments. */
+  --grade-1: #2076a0;
+  --grade-2: #8d55b3;
+  --grade-3: #54862f;
+  --grade-4: #b2553f;
+  --grade-5: #94721f;
+  --grade-6: #1f8465;
+  --grade-7: #b24a80;
+  --grade-8: #5069b8;
+
   /* Semantic */
   --error: #bd3a14; /* darkened so the small danger badge clears AA (4.5:1) */
   --success: #007a5a;
@@ -184,6 +197,17 @@
   --hairline: #3a2f40;
   --row-hover: #2b2231;
   --scroll-cue: rgba(255, 255, 255, 0.16); /* edge cue for scrolling tables (#150) — a light glow, since a dark shadow vanishes on the dark surface */
+
+  /* The same wheel lifted for a dark surface. Same order, so grade N is the
+     same grade in both themes. */
+  --grade-1: #5fb6d8;
+  --grade-2: #c08fe0;
+  --grade-3: #8fbf6e;
+  --grade-4: #e8917f;
+  --grade-5: #c9a95c;
+  --grade-6: #5cc0a0;
+  --grade-7: #e98fb4;
+  --grade-8: #8fa3e8;
   --error: #ff8666;
   --success: #4bbf97;
   --warn: #e0a44a;
@@ -1773,60 +1797,286 @@ label.check {
   color: var(--muted);
 }
 
-/* ------------------------------------------- Last 14 days (#654) */
-.sparkline {
+/* ------------------------------------- Last 14 days (#654, #777) */
+/* A strip of days, not a line. The line this replaces drew a segment through
+   days with nothing recorded, so a stretch nobody had entered read as a
+   plateau of real production; a slot is drawn for every day in the window, so
+   a day with no figure is a visible gap instead. */
+.trend {
+  margin: 0;
+}
+
+.trend-scale {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.trend-peak {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.daystrip {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 5rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* The slot, drawn whether or not the day has a figure. */
+.day {
+  flex: 1 1 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  border-radius: 3px 3px 0 0;
+  background: color-mix(in oklab, var(--stat-accent) 7%, transparent);
+}
+
+/* The bar. Anchored at zero and sized as a share of the peak — not a cropped
+   axis: the panel answers "did production hold", and shortening the axis to
+   dramatise a small swing would misstate the ratios between days. */
+.day > i {
   display: block;
   width: 100%;
-  height: 3.25rem;
-  margin: 0.25rem 0 0.5rem;
-}
-
-.sparkline polyline {
-  fill: none;
-  stroke: var(--stat-accent);
-  stroke-width: 2;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-
-/* ---------------------------------------- Stock stacked bar (#654) */
-/* Sibling of .meter: several segments on one track. Taller than the 6px
-   single-fill meter on purpose; the 1px gap shows the track between
-   segments so grades past the opacity floor stay separable. */
-.meter-stack {
-  display: flex;
-  gap: 1px;
-  height: 8px;
-  border-radius: var(--r-pill);
-  background: var(--surface-2);
-  overflow: hidden;
-  margin: 0.25rem 0 0.5rem;
-}
-
-.meter-stack > span {
-  display: block;
-  height: 100%;
+  max-width: 18px;
+  border-radius: 3px 3px 0 0;
   background: var(--stat-accent);
 }
 
-/* --------------------------------------- Recent sales list (#654) */
+/* The week boundary the hen-day figure below compares across. One hairline,
+   not a second fill: tinting the two weeks differently faded whichever week
+   happened to hold fewer recorded days. */
+.day-week {
+  margin-left: 9px;
+  position: relative;
+}
+
+.day-week::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--hairline);
+}
+
+.trend-rule {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.35rem;
+}
+
+/* Hen-day: the panel's measure, so a figure. It was the smallest text here. */
+.trend-kpi {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  margin: 0.9rem 0 0;
+}
+
+.trend-fig {
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-delta {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Lay rate falling is the bad direction. An unknown delta keeps the neutral
+   colour above rather than reading as good. */
+.trend-delta.is-down { color: var(--error); }
+.trend-delta.is-up { color: var(--success); }
+
+.trend-sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+/* ---------------------------------- Stock stacked bar (#654, #777) */
+.stock-total {
+  margin: 0 0 0.1rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.stock-fig {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sibling of .meter: several segments on one track. Taller than the 6px
+   single-fill meter on purpose, and taller again since #777 so a grade worth
+   under a percent of the farm's stock is still a visible band. */
+.meter-stack {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+  margin: 0.55rem 0 0.7rem;
+}
+
+/* The width is the true share; the floor only stops a sub-percent grade
+   rounding away to nothing. The ledger's own share column is what makes such a
+   grade readable as a figure. */
+.meter-stack > span {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+}
+
+/* Categorical grade hues (#777), declared once per theme and NOT per brand
+   palette: the farm's brand identifies the farm, these identify grades, and
+   letting the palette move them would make the same grade a different colour
+   on two deployments. styles.grades.test.ts holds that.
+   The wheel opens blue, violet, green on purpose — brick, ochre, green at the
+   first three positions made a farm's Small, Medium, Large read as a
+   red/amber/green ramp, the interface saying Small is bad. */
+.meter-stack > span.grade-1, .stock-ledger .swatch.grade-1 { background: var(--grade-1); }
+.meter-stack > span.grade-2, .stock-ledger .swatch.grade-2 { background: var(--grade-2); }
+.meter-stack > span.grade-3, .stock-ledger .swatch.grade-3 { background: var(--grade-3); }
+.meter-stack > span.grade-4, .stock-ledger .swatch.grade-4 { background: var(--grade-4); }
+.meter-stack > span.grade-5, .stock-ledger .swatch.grade-5 { background: var(--grade-5); }
+.meter-stack > span.grade-6, .stock-ledger .swatch.grade-6 { background: var(--grade-6); }
+.meter-stack > span.grade-7, .stock-ledger .swatch.grade-7 { background: var(--grade-7); }
+.meter-stack > span.grade-8, .stock-ledger .swatch.grade-8 { background: var(--grade-8); }
+
+/* The bar's text of record: swatch, name, count and share per grade. Wraps
+   into as many columns as the panel affords. No row rules — the four columns
+   align on their own, and ruling them broke into a ragged line at the gap. */
+.stock-ledger {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.05rem 1.25rem;
+  font-size: 0.8125rem;
+}
+
+.stock-ledger li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) max-content max-content;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.22rem 0;
+}
+
+.stock-ledger .swatch {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 2px;
+}
+
+.stock-ledger .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-ledger .count {
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-ledger .share {
+  min-width: 2.6rem;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------- Recent sales list (#654, #777) */
+/* Four real columns, aligned DOWN the list rather than per row: the tracks are
+   sized on the <ul> and each <li> is a subgrid of it. Before #777 the row was
+   a plain flex line with `margin-left: auto` on the amount, so the amount was
+   the only thing that formed a column.
+   No track is sized in pixels or from an English string — the badge and amount
+   tracks are `max-content`, so they measure whatever the farm's locale renders
+   (#688: `tl` runs about 30% longer than `en` here). */
 .dash-list {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+  column-gap: 0.75rem;
 }
 
 .dash-list li {
-  display: flex;
-  gap: 0.75rem;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
   padding: 0.45rem 0;
   border-top: 1px solid var(--hairline);
 }
 
+/* A reference number is one identifier. Breaking it after the hyphen makes it
+   harder to match against the Sales page and makes the row two lines tall. */
+.dash-list .ref {
+  white-space: nowrap;
+}
+
+/* Truncated, not wrapped: rows stay one line so the four columns scan, and the
+   clip is visual only — the link's accessible name is still the whole name,
+   and following it lands on Sales filtered to that customer. */
+.dash-list .cust {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dash-list .num {
-  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+/* The PANEL's width decides, not the viewport's. A viewport query was the
+   first answer and it was wrong: a narrow panel on a wide screen still got
+   four tracks and the name column collapsed to nothing. Scoped with :has() so
+   no other panel becomes a container. */
+.panel:has(.dash-list) {
+  container-type: inline-size;
+  container-name: dashpanel;
+}
+
+/* Too narrow for four columns: reference and amount, then customer and status. */
+@container dashpanel (max-width: 26rem) {
+  .dash-list {
+    grid-template-columns: minmax(0, 1fr) max-content;
+  }
+
+  .dash-list li {
+    row-gap: 0.15rem;
+  }
+
+  .dash-list .ref { grid-column: 1; grid-row: 1; }
+  .dash-list .num { grid-column: 2; grid-row: 1; }
+  .dash-list .cust { grid-column: 1; grid-row: 2; }
+  .dash-list .badge { grid-column: 2; grid-row: 2; justify-self: end; }
 }
 
 /* --------------------------------------------- Login — the hero moment */

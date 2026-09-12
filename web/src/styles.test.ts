@@ -221,7 +221,7 @@ describe("dashboard surfaces (#654, INV-8)", () => {
   // Any rule that APPLIES to a dashboard surface, not only one whose selector
   // starts with it: `.unrelated, .capture-tile:hover { … }` reaches the tile
   // just as surely, and an anchored match walked straight past it.
-  const TOUCHES = /(^|[\s,>+~])\.(capture-[a-z-]*|sparkline|meter-stack|dash-list|panel-wide)\b/;
+  const TOUCHES = /(^|[\s,>+~])\.(capture-[a-z-]*|trend[a-z-]*|daystrip|day|day-week|stock-[a-z-]*|meter-stack|dash-list|panel-wide)\b/;
   const blocks = Array.from(css.matchAll(/([^{}]+)\{([^{}]*)\}/g))
     .map((m) => ({ selector: m[1].trim(), body: m[2] }))
     .filter((b) => TOUCHES.test(b.selector));
@@ -231,11 +231,12 @@ describe("dashboard surfaces (#654, INV-8)", () => {
     return b!.body;
   };
 
-  it("declares the tile, cap link, sparkline, stacked meter and list rules", () => {
+  it("declares the tile, cap link, day strip, stacked meter, ledger and list rules", () => {
     for (const s of [".capture-grid", ".capture-tile", ".capture-tile.is-missing", ".capture-tile.is-missing .capture-tile-eggs", ".capture-tile-eggs", ".capture-more",
-      ".sparkline", ".sparkline polyline", ".meter-stack", ".meter-stack > span", ".dash-list", ".dash-list li", ".panel-wide"])
+      ".trend-scale", ".daystrip", ".day", ".day > i", ".day-week", ".trend-rule", ".trend-kpi",
+      ".meter-stack", ".meter-stack > span", ".stock-ledger", ".stock-ledger li", ".dash-list", ".dash-list li", ".panel-wide"])
       bodyOf(s);
-    expect(blocks.length).toBeGreaterThanOrEqual(13);
+    expect(blocks.length).toBeGreaterThanOrEqual(20);
   });
   it("carries no box-shadow, text-transform, transition, animation or literal colour on any of them", () => {
     for (const b of blocks) {
@@ -249,17 +250,25 @@ describe("dashboard surfaces (#654, INV-8)", () => {
         const prop = rawProp.trim();
         const value = rest.join(":").trim();
         if (!value) continue;
-        if (!/(^|-)color$|^background(-color)?$|^border(-[a-z]+)?$|^stroke$|^fill$|^outline(-color)?$/.test(prop)) continue;
+        // Only properties that can carry a COLOUR. `border(-<side>)?` is the
+        // shorthand; `border-radius` / `-width` / `-style` are not colours and
+        // matching them here made a plain `3px 3px 0 0` look untokenised
+        // (#777). `border-color` is already caught by the `-color$` branch.
+        if (!/(^|-)color$|^background(-color)?$|^border(-(top|right|bottom|left|block|inline))?$|^stroke$|^fill$|^outline(-color)?$/.test(prop)) continue;
         const tokenised = value.includes("var(--")
           || /^(inherit|initial|unset|revert|none|transparent|currentColor)$/i.test(value);
         expect(tokenised, `${b.selector}: "${prop}: ${value}" must resolve through a token`).toBe(true);
       }
     }
   });
-  it("keeps the tile on the card radius and the segments on the accent token", () => {
+  it("keeps the tile on the card radius and the production bar on the accent token", () => {
     expect(bodyOf(".capture-tile")).toMatch(/border-radius:\s*var\(--r-card\)/);
     expect(bodyOf(".capture-tile")).toMatch(/border:\s*1px solid var\(--hairline\)/);
-    expect(bodyOf(".meter-stack > span")).toMatch(/background:\s*var\(--stat-accent\)/);
+    // Eggs per day is the farm's own measure, so the bar carries the brand
+    // accent. Grade bands deliberately do NOT (see the --grade-N tokens):
+    // a grade must not change colour with the farm's palette.
+    expect(bodyOf(".day > i")).toMatch(/background:\s*var\(--stat-accent\)/);
+    expect(bodyOf(".meter-stack > span")).not.toMatch(/background/);
   });
   it("no longer declares the stat cards the dashboard stopped rendering", () => {
     expect(css).not.toMatch(/^\.stat(-grid|-value|-label)?\s*\{/m);

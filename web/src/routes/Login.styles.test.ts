@@ -128,6 +128,11 @@ function forgetFloors() {
       // @keyframes cannot match an element and cannot hold a size floor — skip
       // it; anything else besides media is refused below.
       if (node.type === "atrule" && (node as AtRule).name === "keyframes") continue;
+      // @container is @media's sibling for this guard's purpose: both wrap a
+      // rule in a condition that can hold at some size, so the floor inside one
+      // has to meet the bar exactly as an unconditional rule does. Taught here
+      // when #777 put the Dashboard's recent-sales list in one.
+      if (node.type === "atrule" && (node as AtRule).name === "container") continue;
       if (node.type === "atrule" && (node as AtRule).name !== "media") {
         throw new Error(
           `Login.styles.test cannot evaluate a rule inside @${(node as AtRule).name} `
