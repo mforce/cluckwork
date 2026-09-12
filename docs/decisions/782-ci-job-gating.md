@@ -174,10 +174,12 @@ edit to `Program.cs` still runs everything. That is the intended direction: this
 decision buys wall clock on the 17% of pull requests that are unambiguous, not on
 the marginal ones.
 
-The gate costs `web` and `image` the `changes` job's own latency (a checkout, the
-classifier's self-test and a `git diff`, well under a minute) on every pull
+The gate costs `web` and `image` the `changes` job's own latency (a checkout, a
+`git diff` and the changed-path classifier, well under a minute) on every pull
 request, because both now wait on it. That is the price of the mechanism and it
-is paid on code pull requests too.
+is paid on code pull requests too. The classifier's self-test is NOT on that
+path: it runs in `classifier-self-test`, which nothing depends on, for the
+reason given under "How it is enforced" below.
 
 ## How it is enforced
 
