@@ -103,3 +103,78 @@ rechecking, ran no mutation tests (no implementation exists), and notes that the
 exception detail does not prove a future custom error mapper safe — nor does anything here address
 farm-controlled data (customer and flock names) flowing into a model's context as prompt content.
 That last one is unexamined and is not tracked anywhere yet.
+
+---
+
+# Round 2 — attacking the fixes
+
+Same reviewer, re-briefed to attack the **fixes** rather than re-review the original design, and
+told explicitly that refuting its own round-1 suggestion was worth more than confirming it.
+**Two major, two minor. All four verified and applied.** Round 2 confirmed the round-1 record
+preserves all five findings without narrowing, and cleared revised guards 2, 29, 30 and 32.
+
+## 1. Row 7b promised a guarantee its walk could not establish (major)
+
+The round-1 fix said the walk covers transitive dependencies and therefore closes the secondary-
+scope route. It does not. A helper registered as `sp => new Helper(() => sp.CreateScope())` exposes
+only a *delegate* on its constructor — a constructor walk sees nothing. A static service locator
+adds no edge. Detached background work need not change the graph at all. Factory registrations
+already exist in the legitimate graph (`CluckworkIdentityServiceCollectionExtensions.cs:25`).
+
+**This is the failure mode the round-2 brief specifically asked about: a fix that reads as complete
+and is not, which is worse than the original gap.** The design now specifies a closed registration
+model, adds a factory-mediated escape mutation, and — the important part — **stops claiming the
+branch is unreachable**. It bounds the hazard, names the residue, and points at #787 as the
+backstop that makes the residue fail closed rather than silent. That is why slice 6 is blocked
+on #787 rather than merely related to it.
+
+## 2. Row 31 tested an output bound while claiming a materialization bound (major)
+
+The row said "no tool can materialize an unbounded set", but its mutation only removed the reply
+cap. An implementation can call `ListCustomerBalancesAsync()`, apply `Take(cap)` to the result and
+return correct continuation metadata: every response bounded, the entire farm's balance book
+materialized. The guard stays green.
+
+This is the neighbouring-mutation trap in its purest form — the mutation that is easiest to state
+is not the one the invariant is about. Split into row 31 (bounded *reply*) and row 31b (bounded
+*query*, asserted on rows consumed from the database). `PaymentRepository` takes no paging
+arguments and materializes both grouped queries before building its list, so **reusing it at all is
+the defect**; a paged balance query is required.
+
+## 3. Row 19's mutation was ambiguous (minor)
+
+The replacement said to key on the mirrored endpoint's route. Applied literally as
+`OperationKey = "POST:/api/v1/daily-entries"` the namespaces stay distinct, because HTTP stores the
+SHA-256 *digest* of that string. Now stated byte-for-byte: the computed `endpointHash`, exact method
+and path including trailing-slash spelling, same account and caller key.
+
+## 4. The loopback alternative over-promised (minor)
+
+Round 2 partially refuted its own round-1 suggestion, which is exactly what it was asked to do. Two
+gaps, neither fatal:
+
+- A tool-prefixed `Idempotency-Key` is **not** a server-enforced namespace. HTTP accepts any
+  non-blank key and hashes it, so an ordinary HTTP caller can send the identical header and collide.
+- The middleware's replay path returns the cached status and body with **no replay discriminator**,
+  so a loopback tool cannot honestly report `"replayed": true`. A replayed creation is
+  indistinguishable from the original.
+
+Both are now priced in the alternative rather than discovered during slice 1.
+
+## What round 2 cleared
+
+Revised guard 2 (can go red when both actor clauses are deleted), 29 (correct metadata activates
+real enforcement), 30 (the pipeline has no global limiter, so removing the endpoint policy genuinely
+removes throttling), 32 (two same-name flocks make first-match observably wrong). The idempotency
+outcome contract is correct as written. For loopback: forwarding the caller's bearer preserves
+tenant and actor resolution; the second credential-epoch read correctly rejects a credential revoked
+between hops; only the inner request claims idempotency; the daily-entry endpoint has no rate-limit
+policy so there is no double charge; `/error` re-entry keeps its existing skips.
+
+## The pattern worth keeping
+
+Round 1 found three guards that could not go red. Round 2 found two more — **in the fixes for round
+1**. Every one was a guard whose stated mutation was adjacent to, but not identical with, the
+invariant it claimed. The rule this repo already has is the right one and bears restating: *run the
+mutation, do not reason about it.* None of these were caught by reasoning, including by the person
+who wrote the rule into the same document.

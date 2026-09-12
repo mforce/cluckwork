@@ -158,11 +158,19 @@ no audit row involved, which is the case `CurrentUserContext`'s own comment asks
 `McpCallContext` can still inject a *helper* that opens a scope via `IServiceScopeFactory`, copy
 `AccountId` into that scope's `TenantContext`, and resolve a repository — whose new `FlockScope`
 is unresolved and therefore **unrestricted**, so a #388-narrowed Worker reads every flock. The
-walk must therefore cover a tool's transitive dependencies and forbid secondary scopes and
-detached background work, not just screen constructor parameters; `IServiceScopeFactory` is on
-the blacklist, but blacklisting it on the tool alone does not close the indirect route. Guard 7b
-is the causal test. (Found by adversarial review, finding 1 — the original design screened
-parameters only and claimed a guarantee it did not have.)
+walk must therefore resolve a tool's transitive dependencies through their actual service
+*registrations* — not just screen constructor parameters — and reject opaque factory/delegate
+registrations in that graph unless explicitly reviewed. `IServiceScopeFactory` is blacklisted, but
+blacklisting it on the tool alone does not close the indirect route.
+
+**And that still does not make the branch unreachable — the design deliberately no longer claims
+it does.** A helper registered as `sp => new Helper(() => sp.CreateScope())` exposes only a
+delegate on its constructor; a static service locator adds no edge at all; detached background
+work need not touch the dependency graph. Guard 7b bounds the hazard and names the residue. What
+makes the residue safe rather than silent is #787 — flipping `FlockScopeGuard`'s fail-open branch
+to fail closed — which is why slice 6 of the epic is blocked on it. (Adversarial review round 1
+finding 1, and round 2 finding 1: the first fix asserted a guarantee its own walk could not
+establish, which reads as fixed and is therefore worse than the original gap.)
 
 Check (2) is the one that earns its keep. It is the only mechanism among the three candidates
 that detects a later `SessionMode` flip: under `Stateful` the injected `TenantContext` is *not*
@@ -363,7 +371,13 @@ mutation; rejected candidate 1's derived-key default and all three candidates'
   section rejected hashing the *envelope*, which is a different idea. Raised by adversarial review
   (finding 2). Given that the extraction is this design's self-declared largest risk, whoever picks
   up slice 1 of the epic should price this shape first and only extract #307 if it loses on
-  evidence.
+  evidence. **Two gaps to price with it, neither fatal** (round-2 finding 4): a tool-prefixed
+  `Idempotency-Key` is *not* a server-enforced namespace — the HTTP path accepts any non-blank key
+  and hashes it, so an ordinary HTTP caller can send the identical header and collide; and the
+  existing middleware's replay path returns the cached status and body with **no replay
+  discriminator**, so a loopback tool cannot honestly report `"replayed": true`. Either keep
+  server-enforced separation, or document the weaker prefix contract and drop that field from the
+  reply — but do not advertise a contract the mechanism cannot keep.
 - **Flip `FlockScopeGuard`'s fail-open branch to fail closed.** Probably correct eventually,
   but it is an authorization default change affecting both seeders, four one-shot verbs and
   every non-HTTP caller; the guard's own comment says it "deserves its own issue rather than a
