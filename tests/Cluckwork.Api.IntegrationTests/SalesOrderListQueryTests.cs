@@ -87,6 +87,60 @@ public sealed class SalesOrderListQueryTests
         }
     }
 
+    // The WHERE clause of the page's own subquery: from the WHERE that follows
+    // FROM "SalesOrders" to the ORDER BY that closes it. Scoping the search
+    // this way is what stops a `> 0` living anywhere else in the query from
+    // standing in for the unpaid predicate.
+    private static string InnerWhereClause(string sql)
+    {
+        var from = sql.IndexOf("FROM \"SalesOrders\"", StringComparison.Ordinal);
+        Assert.True(from >= 0, sql);
+        var where = sql.IndexOf("WHERE", from, StringComparison.Ordinal);
+        var order = sql.IndexOf("ORDER BY", from, StringComparison.Ordinal);
+        Assert.True(where >= 0 && order > where, sql);
+        return sql[where..order];
+    }
+
+    // The CASE the SELECT list projects as the settlement figure.
+    private static string ProjectedSettlementExpression(string sql)
+    {
+        var end = sql.IndexOf("END AS c", StringComparison.Ordinal);
+        Assert.True(end >= 0, $"No projected settlement CASE in:\n{sql}");
+        var start = sql.LastIndexOf("CASE", end, StringComparison.Ordinal);
+        Assert.True(start >= 0, sql);
+        return sql[start..end];
+    }
+
+    // The CASE the WHERE compares to zero.
+    private static string FilteredSettlementExpression(string sql)
+    {
+        var where = InnerWhereClause(sql);
+        var end = where.IndexOf("END > 0", StringComparison.Ordinal);
+        Assert.True(end >= 0, $"The unpaid filter compares something other than a CASE to zero:\n{where}");
+        var start = where.LastIndexOf("CASE", end, StringComparison.Ordinal);
+        Assert.True(start >= 0, sql);
+        return where[start..end];
+    }
+
+    // What the settlement figure must BE, asserted identically wherever it
+    // appears. One helper for both spans on purpose: a shape pinned on the
+    // projection and not on the predicate is exactly how the two drift apart.
+    private static void AssertIsTheSettlementExpression(string expression, string sql)
+    {
+        var alias = OuterOrderAlias(sql);
+        // The whole shape, not a substring of it: the Confirmed guard is what
+        // yields NULL off Confirmed, and NULL > 0 is what keeps Draft,
+        // Cancelled and Voided out of the filter without a second predicate.
+        Assert.Contains(
+            $"WHEN {alias}.\"Status\" = 'Confirmed' THEN {alias}.\"TotalMinorUnits\" - (",
+            expression, StringComparison.Ordinal);
+        // What is subtracted is the SUM of this order's live payments, so the
+        // subtrahend is pinned as well as the minuend.
+        Assert.Contains("sum(", expression, StringComparison.Ordinal);
+        Assert.Contains("\"AmountMinorUnits\"", expression, StringComparison.Ordinal);
+        AssertPaymentsSubqueriesAreScopedAndCorrelated(expression, alias);
+    }
+
     [Fact]
     public void Hidden_EmitsSqlThatNeverNamesPayments()
     {
@@ -143,11 +197,18 @@ public sealed class SalesOrderListQueryTests
         var visible = Sql(SettlementScope.Visible);
         var unpaid = Sql(SettlementScope.UnpaidOnly);
 
-        // The predicate is the projected figure, compared to zero. A CASE that
-        // yields NULL off Confirmed makes `> 0` untrue there, so Draft,
-        // Cancelled and Voided drop out without a second status predicate.
-        Assert.Contains("> 0", unpaid, StringComparison.Ordinal);
+        // The predicate is the projected figure, compared to zero. Both spans
+        // are pulled out and put through the same shape check, because
+        // Assert.Contains("> 0") and Assert.Contains("CASE") over the whole
+        // query both survived replacing the predicate with
+        // `o.TotalAmount.MinorUnits > 0` — which admits a fully paid order
+        // into the unpaid filter while the projection still reads correctly.
+        AssertIsTheSettlementExpression(ProjectedSettlementExpression(unpaid), unpaid);
+        AssertIsTheSettlementExpression(FilteredSettlementExpression(unpaid), unpaid);
+
+        // And the page is otherwise unfiltered: the comparison is the whole of
+        // what UnpaidOnly adds, so its absence here is the claim.
         Assert.DoesNotContain("> 0", visible, StringComparison.Ordinal);
-        Assert.Contains("CASE", unpaid, StringComparison.Ordinal);
+        AssertIsTheSettlementExpression(ProjectedSettlementExpression(visible), visible);
     }
 }
