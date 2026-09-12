@@ -230,15 +230,18 @@ export function literalColourIn(value: string): string | null {
   // A var() FALLBACK renders whenever the token is undefined, so it is a real
   // colour and has to be inspected. Dropping it with the reference is how
   // `var(--day-fill, red)` passed: the whole expression vanished and there was
-  // nothing left to look at. The fallback is unwrapped rather than deleted, and
-  // the loop repeats so `var(--a, var(--b, red))` unwraps all the way down.
-  let bare = value;
-  let prev;
-  do {
-    prev = bare;
-    bare = bare.replace(/var\(\s*--[\w-]+\s*,([^()]*)\)/g, " $1 ");
-    bare = bare.replace(/var\(\s*--[\w-]+\s*\)/g, " ");
-  } while (bare !== prev);
+  // nothing left to look at. The fallback is unwrapped rather than deleted.
+  //
+  // One pass, not a loop. `[^()]*` cannot cross a paren, so the first replace
+  // matches the INNERMOST `var(--x, <literal>)` and leaves that literal bare in
+  // the same pass; later passes only tidy wrapper text, which carries no
+  // colour. A repeat loop shipped here briefly: a mutation deleting it left
+  // every test green, and comparing looped against single-pass over 42 nested
+  // shapes found no value where the two reach different verdicts. The nested
+  // cases are pinned directly in styles.test.ts either way.
+  const bare = value
+    .replace(/var\(\s*--[\w-]+\s*,([^()]*)\)/g, " $1 ")
+    .replace(/var\(\s*--[\w-]+\s*\)/g, " ");
   const hex = bare.match(/#[0-9a-f]{3,8}\b/i);
   if (hex) return hex[0];
   const fn = bare.match(COLOUR_FUNCTIONS);
