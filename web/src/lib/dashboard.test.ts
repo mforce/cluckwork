@@ -18,10 +18,14 @@ const entry = (flockId: string, status: string, totalEggs: number, id = `de-${fl
   crackedGradeId: null, dirtyGradeId: null, grades: [],
   version: 1, adjustReason: null, voidReason: null, lockedAtUtc: null, adjustedFrom: null,
 });
-const day = (date: string, totalEggs: number, henDays = 100): ProductionDay => ({
+// `entryCount` defaults to 1: a day with a figure is a day somebody recorded.
+// Pass 0 for the day nobody recorded — the distinction #780 added.
+const day = (date: string, totalEggs: number, henDays = 100, entryCount = 1): ProductionDay => ({
   date, totalEggs, cracked: 0, dirty: 0, discarded: 0, sellable: totalEggs, fromCounts: 0,
-  deaths: 0, henDays, henDayPct: henDays > 0 ? Math.round((totalEggs * 1000) / henDays) / 10 : null,
+  deaths: 0, entryCount, henDays,
+  henDayPct: henDays > 0 ? Math.round((totalEggs * 1000) / henDays) / 10 : null,
 });
+const missing = (date: string) => day(date, 0, 100, 0);
 const report = (periodHenDayPct: number | null, days: ProductionDay[] = []): ProductionReport => ({
   days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalDeaths: 0, totalHenDays: 0,
   periodHenDayPct, gradeTotals: [],
@@ -93,52 +97,83 @@ describe("todaysEggs (#654, INV-3)", () => {
   });
 });
 
-describe("dayStrip (#654, #777 — one slot per day, bars anchored at zero)", () => {
-  const shape = (d: ReturnType<typeof dayStrip>) => d.slots.map((s) => [s.date, s.heightPct, s.recorded]);
+describe("dayStrip (#654, #777, #780 — one slot per day, bars anchored at zero)", () => {
+  const shape = (d: ReturnType<typeof dayStrip>) =>
+    d.slots.map((s) => [s.date, s.kind, s.kind === "recorded" ? s.heightPct : null]);
 
   it("sizes each bar as its share of the peak, oldest first", () => {
-    const d = dayStrip([day("2026-07-01", 5), day("2026-07-02", 10), day("2026-07-03", 8)]);
-    expect(shape(d)).toEqual([["2026-07-01", 50, true], ["2026-07-02", 100, true], ["2026-07-03", 80, true]]);
-    expect(d).toMatchObject({ min: 5, max: 10, last: 8 });
+    const d = dayStrip({ days: [day("2026-07-01", 5), day("2026-07-02", 10), day("2026-07-03", 8)] });
+    expect(shape(d)).toEqual([
+      ["2026-07-01", "recorded", 50], ["2026-07-02", "recorded", 100], ["2026-07-03", "recorded", 80],
+    ]);
+    expect(d).toMatchObject({ min: 5, max: 10, last: 8, average: 7.7, recorded: 3, unrecorded: 0 });
   });
 
-  it("gives a day with no figure a zero-height, unrecorded slot rather than dropping it", () => {
-    // The line this replaced drew these days on the floor of its viewBox, with
-    // that floor never drawn — so nothing said the bottom meant zero rather
-    // than the window's own minimum. A slot makes the day itself visible.
-    const d = dayStrip([day("2026-07-01", 400), day("2026-07-02", 0), day("2026-07-03", 200)]);
-    expect(shape(d)).toEqual([["2026-07-01", 100, true], ["2026-07-02", 0, false], ["2026-07-03", 50, true]]);
-    expect(d.slots).toHaveLength(3);
+  // The whole of #780 in one assertion. Before `entryCount` both of these days
+  // arrived as totalEggs 0 and drew the same empty slot, so the chart asserted
+  // a zero it had no evidence for.
+  it("separates a day that produced no eggs from a day nobody recorded", () => {
+    const d = dayStrip({ days: [day("2026-07-01", 400), day("2026-07-02", 0), missing("2026-07-03")] });
+    expect(shape(d)).toEqual([
+      ["2026-07-01", "recorded", 100],
+      // Recorded and genuinely zero: a stub at the baseline, not nothing.
+      ["2026-07-02", "recorded", 2],
+      ["2026-07-03", "unrecorded", null],
+    ]);
+    expect(d).toMatchObject({ recorded: 2, unrecorded: 1 });
+  });
+
+  it("computes min, max and the average over the recorded days only", () => {
+    // The unrecorded day is worth nothing to any of the three. Averaging over
+    // the calendar rather than over the evidence would report 150, and would
+    // call the window's minimum 0.
+    const d = dayStrip({ days: [day("2026-07-01", 300), missing("2026-07-02"), day("2026-07-03", 200)] });
+    expect(d).toMatchObject({ min: 200, max: 300, average: 250, averagePct: 83.3 });
+  });
+
+  it("reports no last figure when nobody recorded the final day", () => {
+    // "Yesterday 0" was a claim the data never supported.
+    expect(dayStrip({ days: [day("2026-07-01", 90), missing("2026-07-02")] }).last).toBeNull();
+    expect(dayStrip({ days: [missing("2026-07-01"), day("2026-07-02", 0)] }).last).toBe(0);
   });
 
   it("floors a recorded day at 2% so the farm's worst real day is still a bar", () => {
-    const d = dayStrip([day("2026-07-01", 1000), day("2026-07-02", 3)]);
-    expect(d.slots[1]).toMatchObject({ date: "2026-07-02", heightPct: 2, recorded: true });
+    const d = dayStrip({ days: [day("2026-07-01", 1000), day("2026-07-02", 3)] });
+    expect(d.slots[1]).toMatchObject({ date: "2026-07-02", kind: "recorded", heightPct: 2 });
   });
 
   it("marks the week boundary at the start of the recent window, and nowhere else", () => {
     const days = Array.from({ length: 14 }, (_, i) => day(`2026-07-${String(i + 1).padStart(2, "0")}`, 100 + i));
-    const breaks = dayStrip(days, 7).slots.map((s) => s.weekBreak);
+    const breaks = dayStrip({ days, recentCount: 7 }).slots.map((s) => s.weekBreak);
     expect(breaks.filter(Boolean)).toHaveLength(1);
     expect(breaks.indexOf(true)).toBe(7);
-    expect(dayStrip(days, 7).slots[7].date).toBe("2026-07-08");
+    expect(dayStrip({ days, recentCount: 7 }).slots[7].date).toBe("2026-07-08");
   });
 
   it("draws no boundary when the recent window is absent or is the whole window", () => {
     const days = [day("2026-07-01", 1), day("2026-07-02", 2)];
-    expect(dayStrip(days).slots.some((s) => s.weekBreak)).toBe(false);
-    expect(dayStrip(days, 2).slots.some((s) => s.weekBreak)).toBe(false);
+    expect(dayStrip({ days }).slots.some((s) => s.weekBreak)).toBe(false);
+    expect(dayStrip({ days, recentCount: 2 }).slots.some((s) => s.weekBreak)).toBe(false);
   });
 
-  it("draws an all-empty strip when every day is zero, without dividing by zero", () => {
-    const d = dayStrip([day("2026-07-01", 0), day("2026-07-02", 0)]);
-    expect(shape(d)).toEqual([["2026-07-01", 0, false], ["2026-07-02", 0, false]]);
-    expect(d).toMatchObject({ min: 0, max: 0, last: 0 });
+  it("keeps a stub on every day when every recorded day is zero, and draws no average line", () => {
+    // A real average of 0 with no scale to place it on. The line would sit on
+    // the floor and read as data.
+    const d = dayStrip({ days: [day("2026-07-01", 0), day("2026-07-02", 0)] });
+    expect(shape(d)).toEqual([["2026-07-01", "recorded", 2], ["2026-07-02", "recorded", 2]]);
+    expect(d).toMatchObject({ min: 0, max: 0, average: 0, averagePct: null });
+  });
+
+  it("has no peak and no average when no day in the window was recorded", () => {
+    const d = dayStrip({ days: [missing("2026-07-01"), missing("2026-07-02")] });
+    expect(shape(d)).toEqual([["2026-07-01", "unrecorded", null], ["2026-07-02", "unrecorded", null]]);
+    expect(d).toMatchObject({ min: null, max: null, average: null, last: null, recorded: 0, unrecorded: 2 });
   });
 
   it("is empty for no days and one full-height slot for one day", () => {
-    expect(dayStrip([])).toEqual({ slots: [], min: 0, max: 0, last: 0 });
-    expect(dayStrip([day("2026-07-01", 7)]).slots[0]).toMatchObject({ heightPct: 100, recorded: true });
+    expect(dayStrip({ days: [] })).toMatchObject({ slots: [], max: null, average: null, last: null });
+    expect(dayStrip({ days: [day("2026-07-01", 7)] }).slots[0])
+      .toMatchObject({ kind: "recorded", heightPct: 100 });
   });
 });
 

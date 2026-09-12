@@ -25,9 +25,15 @@ public interface IReportQueries
 // many did we grade" vs "how many can we sell"), they were only ever equal
 // because conditions used to be losses, and merging them would silently move
 // the number the capture screen is validated against.
+// `EntryCount` is the number of OFFICIAL entries the day has (#780). Every other
+// figure here is 0 both for a day nobody recorded and for a day that genuinely
+// produced no eggs, so without it the two are indistinguishable to any consumer
+// — which is what left the Dashboard's 14-day strip asserting a zero it had no
+// evidence for. Zero means unrecorded; it does not mean the farm produced
+// nothing.
 public sealed record ProductionDay(
     DateOnly Date, int TotalEggs, int Cracked, int Dirty, int Discarded,
-    int Sellable, int FromCounts, int Deaths, long HenDays, decimal? HenDayPct);
+    int Sellable, int FromCounts, int Deaths, int EntryCount, long HenDays, decimal? HenDayPct);
 
 public sealed record GradeTotal(Guid EggGradeId, string Name, int Quantity);
 

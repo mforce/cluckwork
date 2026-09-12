@@ -1082,6 +1082,14 @@ export interface ProductionDay {
    */
   fromCounts: number;
   deaths: number;
+  /**
+   * #780 — how many OFFICIAL entries the day holds. The only field that
+   * separates a day nobody recorded from one that genuinely produced no eggs:
+   * every other figure here is 0 for both. Official is Submitted, Locked or
+   * ManagerAdjusted, so a day holding only a Draft counts 0 here while the
+   * Dashboard's capture tiles still show it as captured.
+   */
+  entryCount: number;
   henDays: number;
   henDayPct: number | null;
 }

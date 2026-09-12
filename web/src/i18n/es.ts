@@ -595,11 +595,16 @@ export const es = {
 
     // Últimos 14 días (#654)
     trendPanelTitle: "Últimos 14 días",
-    trendStripLabel: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}",
-    trendStripLabelBlanks_one: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}. {{blank}} día no tiene nada registrado.",
-    trendStripLabelBlanks_other: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}. {{blank}} días no tienen nada registrado.",
+    trendStripLabel: "Huevos por día, últimos 14 días. Máximo {{max}}, promedio {{avg}}. Todos los días tienen un registro.",
+    trendStripLabelBlanks_one: "Huevos por día, últimos 14 días. Máximo {{max}}, promedio {{avg}} entre los días registrados. {{blank}} día no tiene registro.",
+    trendStripLabelBlanks_other: "Huevos por día, últimos 14 días. Máximo {{max}}, promedio {{avg}} entre los días registrados. {{blank}} días no tienen registro.",
+    trendStripLabelNone: "Huevos por día, últimos 14 días. Ningún día de este período tiene registro.",
     trendScaleTitle: "Huevos por día",
     trendPeak: "Máximo {{total}}",
+    trendAvg: "Prom. {{total}}",
+    trendDayTip_one: "{{date}} – {{total}} huevo",
+    trendDayTip_other: "{{date}} – {{total}} huevos",
+    trendDayTipNone: "{{date}} – sin registro",
     henDaySubLabel: "Postura, últimos 7 días frente a los 7 anteriores",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
@@ -1997,10 +2002,13 @@ export const es = {
       + "tarjetas, un enlace lleva al resto.",
     dashboardTrend:
       "<strong>Últimos 14 días</strong>: huevos por día del informe de producción, con el <strong>% de "
-      + "postura</strong> de los últimos 7 días completos y su variación frente a los 7 anteriores. La "
-      + "ventana es fija (desde ayer hacia atrás) y cuenta <strong>solo días enviados</strong> — un día "
-      + "aún en borrador se lee como cero hasta que se envía, a diferencia de Informes, donde usted elige "
-      + "el rango.",
+      + "postura</strong> de los últimos 7 días completos y su variación frente a los 7 anteriores. "
+      + "Señale un día, o llegue a él con el tabulador, para leerlo por separado. Un día que la granja "
+      + "envió sin huevos conserva una marca en la base; un día que nadie envió queda vacío y se lee como "
+      + "<strong>Sin registro</strong>. <strong>Prom.</strong> es el promedio de los días que sí lo "
+      + "tienen. La ventana es fija (desde ayer hacia atrás) y cuenta <strong>solo días enviados</strong> "
+      + "— un día aún en borrador se lee como Sin registro hasta que se envía, a diferencia de Informes, "
+      + "donde usted elige el rango.",
     dashboardStock:
       "<strong>Existencias</strong>: una <strong>barra apilada</strong> de lo disponible por grado, con "
       + "las cifras al lado; los huevos restringidos se anotan tras el total. Es el mismo total que "

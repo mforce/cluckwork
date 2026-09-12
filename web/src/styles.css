@@ -1807,8 +1807,9 @@ label.check {
    never drew that floor or the top of the scale, so nothing said the bottom
    meant zero rather than the window's own minimum, and it interpolated between
    days that a daily count has no values between. The strip names both ends of
-   the scale and draws a slot per day. It does NOT disambiguate a zero day from
-   an unrecorded one; that is #780. */
+   the scale and draws a slot per day. Since #780 it also distinguishes a day
+   that produced nothing from a day nobody recorded: the first keeps a stub at
+   the baseline, the second draws no bar. */
 .trend {
   margin: 0;
 }
@@ -1823,12 +1824,53 @@ label.check {
   margin-bottom: 0.4rem;
 }
 
-.trend-peak {
+.trend-figures {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.trend-peak,
+.trend-avg {
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
+/* Avg is the quieter of the two: the peak sets the scale the bars are drawn
+   against, the average is a reference on it. */
+.trend-avg {
+  color: var(--muted);
+}
+
+/* The readout's reserved row. Always present, so the box appearing reflows
+   nothing — the first attempt let it size the row and every hover shoved the
+   Avg/Peak group sideways. 2.2rem is the permanent cost. */
+.tipdock {
+  position: relative;
+  height: 2.2rem;
+}
+
+/* Positioned by a measured clamp from the component, not by index arithmetic.
+   `left` is written there; everything that does not depend on the text's own
+   width lives here. */
+.tip {
+  position: absolute;
+  bottom: 8px;
+  transform: translateX(-50%);
+  max-width: 100%;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .daystrip {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 4px;
@@ -1836,20 +1878,38 @@ label.check {
   border-bottom: 1px solid var(--hairline);
 }
 
-/* The slot, drawn whether or not the day has a figure. */
+/* The mean of the RECORDED days, which is a figure that only exists since #780
+   — averaging over a window that could not tell an unrecorded day from a zero
+   would have divided by the calendar rather than by the evidence. */
+.avgline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed color-mix(in oklab, var(--ink) 35%, transparent);
+  pointer-events: none;
+}
+
+/* The slot, drawn whether or not the day has a figure. A button, because the
+   day's own figure appears nowhere else and a keyboard user has to reach it. */
 .day {
   flex: 1 1 0;
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  position: relative;
   height: 100%;
+  padding: 0;
+  border: none;
   border-radius: 3px 3px 0 0;
   background: color-mix(in oklab, var(--stat-accent) 7%, transparent);
+  cursor: pointer;
+  font: inherit;
 }
 
 /* The bar. Anchored at zero and sized as a share of the peak — not a cropped
    axis: the panel answers "did production hold", and shortening the axis to
-   dramatise a small swing would misstate the ratios between days. */
+   dramatise a small swing would misstate the ratios between days. A recorded
+   day floors at 2%, so a day that produced nothing still shows a stub. */
 .day > i {
   display: block;
   width: 100%;
@@ -1858,12 +1918,51 @@ label.check {
   background: var(--stat-accent);
 }
 
+/* The selected day. The SLOT is outlined, not just the bar: five of fourteen
+   days in a typical window have no bar to recolour, and on a 2px stub a ring
+   round the bar reads as a rendering fault rather than a selection. */
+.day.on {
+  background: color-mix(in oklab, var(--ink) 14%, transparent);
+  /* An inset outline rather than an inset box-shadow: the dashboard surfaces
+     carry no shadows (INV-8) and a ring is not one. A negative offset keeps it
+     inside the slot, so the ring cannot overlap its neighbour. Selection and
+     keyboard focus coincide here — focusing a slot selects it — so this IS the
+     focus indicator and no second ring competes with it. */
+  outline: 1.5px solid var(--ink);
+  outline-offset: -1.5px;
+}
+
+.day.on > i {
+  background: var(--ink);
+}
+
+/* The arrow, anchored to the slot element. Never positioned by index
+   arithmetic: the slots carry a 4px gap plus the 9px week break, so
+   (i + 0.5) / n is not where a slot actually is. 5px of arrow in the dock's
+   8px gap, so the box cannot swallow it. */
+.day.on::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  margin-bottom: 2px;
+  transform: translateX(-50%);
+  /* The CSS triangle, written as longhands: the guard below requires every
+     colour-valued declaration to resolve through a token or to BE a colour
+     keyword, and `border: 5px solid transparent` is a shorthand carrying one
+     rather than either. Splitting it says the same thing and stays checkable. */
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent;
+  border-top-color: var(--ink);
+  pointer-events: none;
+}
+
 /* The week boundary the hen-day figure below compares across. One hairline,
    not a second fill: tinting the two weeks differently faded whichever week
    happened to hold fewer recorded days. */
 .day-week {
   margin-left: 9px;
-  position: relative;
 }
 
 .day-week::before {

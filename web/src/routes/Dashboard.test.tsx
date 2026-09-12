@@ -42,9 +42,11 @@ const entry = (flockId: string, status: string, totalEggs: number): DailyEntry =
   crackedGradeId: null, dirtyGradeId: null, grades: [],
   version: 1, adjustReason: null, voidReason: null, lockedAtUtc: null, adjustedFrom: null,
 });
-const day = (date: string, totalEggs: number): ProductionDay => ({
+// `entryCount` defaults to 1 — a day with a figure is a day somebody recorded.
+// 0 is the day nobody recorded, which #780 made distinguishable from a zero.
+const day = (date: string, totalEggs: number, entryCount = 1): ProductionDay => ({
   date, totalEggs, cracked: 0, dirty: 0, discarded: 0, sellable: totalEggs, fromCounts: 0,
-  deaths: 0, henDays: 100, henDayPct: totalEggs,
+  deaths: 0, entryCount, henDays: 100, henDayPct: totalEggs,
 });
 const report = (periodHenDayPct: number | null, days: ProductionDay[]): ProductionReport => ({
   days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalDeaths: 0, totalHenDays: 0,
@@ -177,7 +179,11 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
 
   it("draws the 14 report days oldest-first as bars sized off the peak, and the server's hen-day figures", async () => {
     renderWithProviders(<Dashboard />);
-    const strip = await screen.findByRole("img", { name: "Eggs per day, last 14 days: lowest 301, peak 327, yesterday 321" });
+    // 4,396 eggs over 14 recorded days is 314.0 — the average is over the days
+    // with an entry, which is a figure that only exists since #780.
+    const strip = await screen.findByRole("group", {
+      name: "Eggs per day, last 14 days. Peak 327, average 314.0. Every day has an entry.",
+    });
     // 301..307 then 321..327, so the peak (327) is the 8th day and every other
     // bar is its exact share of it.
     expect(Array.from(strip.querySelectorAll(".day > i")).map((b) => (b as HTMLElement).style.height)).toEqual([
@@ -194,23 +200,56 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     expect(screen.getByText("Hen-day, last 7 days against the 7 before")).toBeInTheDocument();
   });
 
-  it("names the empty slots in the accessible label, so a zero run is not announced as 'lowest 0'", async () => {
+  // Days 4..6 of each window hold no entry at all. `entryCount` is the only
+  // field that says so — before #780 these arrived as totalEggs 0, identical
+  // to a day the farm recorded as having produced nothing.
+  const withUnrecordedTail = () =>
     mockReport.mockImplementation((from, to) =>
-      reportByWindow(today)(from, to).then((r) => ({ ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0 } : d)) })));
+      reportByWindow(today)(from, to).then((r) => ({
+        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, entryCount: 0 } : d)),
+      })));
+
+  it("names the days with no entry in the accessible label, and averages over the rest", async () => {
+    withUnrecordedTail();
     renderWithProviders(<Dashboard />);
-    expect(await screen.findByRole("img", { name: /6 days have nothing recorded\.$/ })).toBeInTheDocument();
+    expect(await screen.findByRole("group", { name: /6 days have no entry\.$/ })).toBeInTheDocument();
   });
 
-  it("draws an empty slot for a day with nothing recorded, never a bar through it", async () => {
-    // The line this replaced put these days on the floor of its viewBox and
-    // never drew that floor, so the bottom of the picture was unlabelled. Each
-    // day is now its own slot.
-    mockReport.mockImplementation((from, to) =>
-      reportByWindow(today)(from, to).then((r) => ({ ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0 } : d)) })));
+  it("draws an empty slot for a day nobody recorded, and a stub for one that produced nothing", async () => {
+    withUnrecordedTail();
     renderWithProviders(<Dashboard />);
-    const strip = await screen.findByRole("img", { name: /Eggs per day, last 14 days/ });
+    const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
     expect(strip.querySelectorAll(".day")).toHaveLength(14);
-    expect(strip.querySelectorAll(".day > i")).toHaveLength(8); // 4 per window
+    // 8 recorded days draw a bar; the 6 with no entry draw nothing.
+    expect(strip.querySelectorAll(".day > i")).toHaveLength(8);
+  });
+
+  // The pair this issue exists for, on one screen: a day that recorded zero
+  // keeps a 2% stub, a day nobody recorded has no bar at all. Before #780 both
+  // drew the same nothing.
+  it("draws a stub for a recorded zero beside the empty slot of an unrecorded day", async () => {
+    mockReport.mockImplementation((from, to) =>
+      reportByWindow(today)(from, to).then((r) => ({
+        ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0, entryCount: i > 5 ? 0 : 1 } : d)),
+      })));
+    renderWithProviders(<Dashboard />);
+    const strip = await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    const heights = Array.from(strip.querySelectorAll(".day > i")).map((b) => (b as HTMLElement).style.height);
+    // 8 days with real figures, plus days 4 and 5 of each window at the stub.
+    expect(heights).toHaveLength(12);
+    expect(heights.filter((h) => h === "2%")).toHaveLength(4);
+    expect(strip.querySelectorAll(".day")).toHaveLength(14);
+  });
+
+  it("says 'no entry' for an unrecorded day rather than a count of zero", async () => {
+    withUnrecordedTail();
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    const names = screen.getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label"))
+      .filter((n): n is string => n !== null && n.includes("–"));
+    expect(names.filter((n) => n.endsWith("no entry"))).toHaveLength(6);
+    expect(names.filter((n) => n.endsWith("0 eggs"))).toHaveLength(0);
   });
 
   it("shows a negative delta with the minus form, one decimal on both figures", async () => {

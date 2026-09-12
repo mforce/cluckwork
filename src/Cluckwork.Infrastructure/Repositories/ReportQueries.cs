@@ -34,6 +34,19 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                     (e.CrackedGradeId != null ? e.CrackedEggs : 0)
                     + (e.DirtyGradeId != null ? e.DirtyEggs : 0)),
                 Deaths = g.Sum(e => e.MortalityCount),
+                // #780 — how many entries the day HAS, so a consumer can tell a
+                // day nobody recorded from one that genuinely produced zero
+                // eggs. Every other figure here defaults to 0 for both, which
+                // made them arrive identical and left the Dashboard's day strip
+                // asserting production it had no evidence for.
+                //
+                // These are OFFICIAL entries (the Where above): Submitted,
+                // Locked, ManagerAdjusted. Deliberately stricter than the
+                // Dashboard's own `entryFor`, which counts a Draft — a report
+                // figure should rest on the same rows every other figure in
+                // this row rests on, so a day holding only a Draft reads as
+                // unrecorded here and as captured on the capture tiles.
+                EntryCount = g.Count(),
             })
             .ToDictionaryAsync(x => x.Date, ct);
 
@@ -172,7 +185,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             var sellable = total - (row?.Cracked ?? 0) - (row?.Dirty ?? 0) - (row?.Discarded ?? 0);
             days.Add(new ProductionDay(
                 d, total, row?.Cracked ?? 0, row?.Dirty ?? 0, row?.Discarded ?? 0,
-                sellable, row?.FromCounts ?? 0, row?.Deaths ?? 0, henDays,
+                sellable, row?.FromCounts ?? 0, row?.Deaths ?? 0, row?.EntryCount ?? 0, henDays,
                 henDays > 0 ? Math.Round(total * 100m / henDays, 1) : null));
             if (d == DateOnly.MaxValue) break; // AddDays would overflow
         }

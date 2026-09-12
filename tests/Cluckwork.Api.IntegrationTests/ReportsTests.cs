@@ -12,7 +12,7 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
     private sealed record Created(Guid Id);
     private sealed record DayRow(
         DateOnly Date, int TotalEggs, int Cracked, int Dirty, int Discarded,
-        int Sellable, int FromCounts, int Deaths, long HenDays, decimal? HenDayPct);
+        int Sellable, int FromCounts, int Deaths, int EntryCount, long HenDays, decimal? HenDayPct);
     private sealed record GradeRow(Guid EggGradeId, string Name, int Quantity);
     private sealed record ProductionDto(
         List<DayRow> Days, int TotalEggs, int TotalSellable, int TotalFromCounts,
@@ -172,6 +172,66 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         // #394: each submitted day is now graded exactly to its own sellable
         // count (77 + 87), not the old arbitrary total-10 stand-in.
         Assert.Equal(77 + 87, report.GradeTotals.Single().Quantity);
+    }
+
+    // #780 — every figure on a production day defaults to 0, so a day nobody
+    // recorded and a day that genuinely produced no eggs arrived identical to
+    // every consumer. `EntryCount` is the only field that separates them, and
+    // it counts OFFICIAL entries, so a day holding only a Draft is unrecorded
+    // here even though the capture screen shows it as captured.
+    [Fact]
+    public async Task Production_EntryCount_SeparatesAnUnrecordedDayFromAZeroEggDay()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        async Task RecordAsync(DateOnly date, int total, bool submit)
+        {
+            var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId,
+                houseId = Guid.NewGuid(),
+                flockId,
+                date,
+                totalEggs = total,
+                crackedEggs = 0,
+                dirtyEggs = 0,
+                discardedEggs = 0,
+                mortalityCount = 0,
+                grades = total == 0
+                    ? Array.Empty<object>()
+                    : [new { eggGradeId = grades["Large"], quantity = total }]
+            });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+            if (submit)
+                Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+                    $"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString())).StatusCode);
+        }
+
+        await RecordAsync(Today.AddDays(-4), 60, submit: true);
+        await RecordAsync(Today.AddDays(-3), 0, submit: true);   // the flock laid nothing, and someone said so
+        // Today-2: nobody recorded anything at all.
+        await RecordAsync(Today.AddDays(-1), 90, submit: false); // a Draft is not an official entry
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={Today.AddDays(-4):yyyy-MM-dd}&to={Today.AddDays(-1):yyyy-MM-dd}");
+
+        Assert.Equal(4, report!.Days.Count);
+        var (laid, zero, missing, draftOnly) = (report.Days[0], report.Days[1], report.Days[2], report.Days[3]);
+
+        Assert.Equal((60, 1), (laid.TotalEggs, laid.EntryCount));
+        // The pair this issue exists for: identical in every other field.
+        Assert.Equal(0, zero.TotalEggs);
+        Assert.Equal(0, missing.TotalEggs);
+        Assert.Equal(1, zero.EntryCount);
+        Assert.Equal(0, missing.EntryCount);
+        // And the Draft sits on the unrecorded side, with its 90 eggs invisible.
+        Assert.Equal((0, 0), (draftOnly.TotalEggs, draftOnly.EntryCount));
     }
 
     // Depletion writes no removal movement — the flock's contribution must

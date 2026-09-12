@@ -620,11 +620,16 @@ export const tl = {
 
     // Huling 14 araw (#654)
     trendPanelTitle: "Huling 14 araw",
-    trendStripLabel: "Itlog bawat araw, huling 14 araw: pinakamababa {{min}}, pinakamataas {{max}}, kahapon {{last}}",
-    trendStripLabelBlanks_one: "Itlog bawat araw, huling 14 araw: pinakamababa {{min}}, pinakamataas {{max}}, kahapon {{last}}. {{blank}} araw ang walang naitalang datos.",
-    trendStripLabelBlanks_other: "Itlog bawat araw, huling 14 araw: pinakamababa {{min}}, pinakamataas {{max}}, kahapon {{last}}. {{blank}} araw ang walang naitalang datos.",
+    trendStripLabel: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, katamtaman {{avg}}. Bawat araw ay may tala.",
+    trendStripLabelBlanks_one: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, katamtaman {{avg}} sa mga araw na may tala. {{blank}} araw ang walang tala.",
+    trendStripLabelBlanks_other: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, katamtaman {{avg}} sa mga araw na may tala. {{blank}} araw ang walang tala.",
+    trendStripLabelNone: "Itlog bawat araw, huling 14 araw. Walang araw sa panahong ito ang may tala.",
     trendScaleTitle: "Itlog bawat araw",
     trendPeak: "Pinakamataas {{total}}",
+    trendAvg: "Katamtaman {{total}}",
+    trendDayTip_one: "{{date}} – {{total}} itlog",
+    trendDayTip_other: "{{date}} – {{total}} itlog",
+    trendDayTipNone: "{{date}} – walang tala",
     henDaySubLabel: "Hen-day, huling 7 araw laban sa naunang 7",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
@@ -2075,9 +2080,13 @@ export const tl = {
     dashboardTrend:
       "<strong>Huling 14 araw</strong>: itlog bawat araw mula sa report ng produksyon, na may "
       + "<strong>hen-day %</strong> para sa huling 7 kumpletong araw at kung paano ito gumalaw kumpara "
-      + "sa 7 araw bago nito. Nakapirmi ang window (mula kahapon pabalik) at binibilang lang ang "
-      + "<strong>mga naisumiteng araw</strong> — ang araw na Draft pa ay mababasang zero hanggang "
-      + "maisumite, hindi tulad sa Mga Report kung saan pinipili mo ang saklaw.",
+      + "sa 7 araw bago nito. Ituro ang isang araw, o puntahan ito gamit ang tab, para basahin ito nang "
+      + "mag-isa. Ang araw na isinumite nang walang itlog ay may marka sa base; ang araw na walang "
+      + "nagsumite ay walang laman at mababasang <strong>Walang tala</strong>. Ang "
+      + "<strong>Katamtaman</strong> ay ang average ng mga araw na may tala. Nakapirmi ang window (mula "
+      + "kahapon pabalik) at binibilang lang ang <strong>mga naisumiteng araw</strong> — ang araw na "
+      + "Draft pa ay mababasang Walang tala hanggang maisumite, hindi tulad sa Mga Report kung saan "
+      + "pinipili mo ang saklaw.",
     dashboardStock:
       "<strong>Stock</strong>: isang <strong>stacked bar</strong> ng available bawat grado, na may mga "
       + "bilang sa tabi; ang restricted na itlog ay nakatala pagkatapos ng kabuuan. Ito rin ang kabuuang "

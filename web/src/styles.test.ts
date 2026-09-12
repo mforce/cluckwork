@@ -260,7 +260,7 @@ describe("dashboard surfaces (#654, INV-8)", () => {
   // Any rule that APPLIES to a dashboard surface, not only one whose selector
   // starts with it: `.unrelated, .capture-tile:hover { … }` reaches the tile
   // just as surely, and an anchored match walked straight past it.
-  const TOUCHES = /(^|[\s,>+~])\.(capture-[a-z-]*|trend[a-z-]*|daystrip|day|day-week|stock-[a-z-]*|meter-stack|dash-list|panel-wide)\b/;
+  const TOUCHES = /(^|[\s,>+~])\.(capture-[a-z-]*|trend[a-z-]*|daystrip|day|day-week|tip|tipdock|avgline|stock-[a-z-]*|meter-stack|dash-list|panel-wide)\b/;
   const blocks = Array.from(css.matchAll(/([^{}]+)\{([^{}]*)\}/g))
     .map((m) => ({ selector: m[1].trim(), body: m[2] }))
     .filter((b) => TOUCHES.test(b.selector));
@@ -272,7 +272,8 @@ describe("dashboard surfaces (#654, INV-8)", () => {
 
   it("declares the tile, cap link, day strip, stacked meter, ledger and list rules", () => {
     for (const s of [".capture-grid", ".capture-tile", ".capture-tile.is-missing", ".capture-tile.is-missing .capture-tile-eggs", ".capture-tile-eggs", ".capture-more",
-      ".trend-scale", ".daystrip", ".day", ".day > i", ".day-week", ".trend-rule", ".trend-kpi",
+      ".trend-scale", ".daystrip", ".day", ".day > i", ".day.on", ".day.on > i", ".day.on::after",
+      ".day-week", ".avgline", ".tipdock", ".tip", ".trend-rule", ".trend-kpi",
       ".meter-stack", ".meter-stack > span", ".stock-ledger", ".stock-ledger li", ".dash-list", ".dash-list li", ".panel-wide"])
       bodyOf(s);
     expect(blocks.length).toBeGreaterThanOrEqual(20);

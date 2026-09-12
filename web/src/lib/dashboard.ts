@@ -40,9 +40,8 @@ export function todaysEggs(entries: DailyEntry[]): number {
   return entries.filter((e) => e.status !== "Voided").reduce((a, e) => a + e.totalEggs, 0);
 }
 
-// One slot per day in the window, whether or not that day has a figure (#777).
-// `heightPct` is the bar's share of the tallest day; `recorded` is false for a
-// day that produced nothing, which the strip draws as an empty slot.
+// One slot per day in the window, whether or not that day has a figure (#777),
+// and — since #780 — whether or not anyone recorded it.
 //
 // Why a strip rather than the line it replaces, stated at the strength the code
 // supports: the line mapped a zero day to y = SPARK_H, the floor of the viewBox,
@@ -50,39 +49,87 @@ export function todaysEggs(entries: DailyEntry[]): number {
 // the floor itself or the top of the scale, so nothing on screen said the bottom
 // meant zero rather than the window's own minimum, and a 3% swing and a 60% one
 // made the same picture. It also interpolated between days, implying values
-// between them that a daily count does not have. The strip fixes those two.
-// It does NOT fix the ambiguity below, which is #780.
+// between them that a daily count does not have.
 //
-// KNOWN GAP (#780): the production report cannot yet say
-// whether a day was ENTERED. `ReportQueries` walks `for (d = from; d <= to;
-// d = d.AddDays(1))` and emits every calendar day with `total = row?.Total ?? 0`,
-// so a day nobody recorded and a day that genuinely produced zero eggs arrive
-// identical. `recorded: false` therefore means "no eggs", not "no entry", and
-// nothing here may average over the window until the server can tell them apart.
-export interface DayStripSlot { date: string; heightPct: number; recorded: boolean; weekBreak: boolean }
-export interface DayStripData { slots: DayStripSlot[]; min: number; max: number; last: number }
+// The three states are a discriminated union rather than a `recorded` flag
+// beside a `heightPct`, which permitted an unrecorded day carrying a height of
+// 40 — the same defect class #780 exists to fix, one layer up. A renderer
+// narrowing on `kind` cannot draw a bar for a day that has none.
+export type DayStripSlot =
+  | { kind: "unrecorded"; date: string; weekBreak: boolean }
+  | { kind: "recorded"; date: string; eggs: number; heightPct: number; weekBreak: boolean };
+
+export interface DayStripData {
+  slots: DayStripSlot[];
+  // Every figure below is over the RECORDED days only, and is null when the
+  // window holds none. A window of unrecorded days has no minimum and no
+  // average; reporting 0 would be the conflation this issue closed.
+  min: number | null;
+  max: number | null;
+  average: number | null;
+  // The average as a share of the peak, for the reference line. Separate from
+  // `average` because the line is geometry and the figure is a count.
+  averagePct: number | null;
+  // The window's last day: its eggs if it was recorded, null if nobody
+  // recorded it. "Yesterday 0" was a claim the data never supported.
+  last: number | null;
+  recorded: number;
+  unrecorded: number;
+}
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
 // A bar is anchored at zero and its height is its share of the peak. Not a
 // cropped axis: the panel answers "did production hold", and shortening the
 // axis to dramatise a small swing would misstate the ratios between days.
-// A recorded day floors at 2% so the shortest real day is still a bar.
-// `recentCount` is the length of the LATER of the two windows the panel fetches,
-// so the strip's divider falls exactly where the hen-day caption's comparison
-// does. 0 (or the whole window) draws no divider.
-export function dayStrip(days: ProductionDay[], recentCount = 0): DayStripData {
-  if (days.length === 0) return { slots: [], min: 0, max: 0, last: 0 };
-  const values = days.map((d) => d.totalEggs);
-  const max = Math.max(...values);
+//
+// Every RECORDED day floors at 2%, including one that produced no eggs — that
+// stub at the baseline is the whole visible difference between "the flock laid
+// nothing and someone said so" and "nobody looked". An unrecorded day draws no
+// bar at all, so the two can never render alike.
+//
+// `recentCount` is the length of the LATER of the two windows the panel
+// fetches, so the strip's divider falls exactly where the hen-day caption's
+// comparison does. 0 (or the whole window) draws no divider.
+export function dayStrip({ days, recentCount = 0 }: { days: ProductionDay[]; recentCount?: number }): DayStripData {
+  const empty: DayStripData = {
+    slots: [], min: null, max: null, average: null, averagePct: null,
+    last: null, recorded: 0, unrecorded: 0,
+  };
+  if (days.length === 0) return empty;
+
+  const values = days.filter((d) => d.entryCount > 0).map((d) => d.totalEggs);
+  const max = values.length === 0 ? null : Math.max(...values);
+  const average = values.length === 0
+    ? null
+    : r1(values.reduce((a, v) => a + v, 0) / values.length);
   const breakAt = recentCount > 0 && recentCount < days.length ? days.length - recentCount : -1;
-  const slots = days.map((d, i) => ({
-    date: d.date,
-    heightPct: d.totalEggs > 0 && max > 0 ? Math.max(2, r1((d.totalEggs / max) * 100)) : 0,
-    recorded: d.totalEggs > 0,
-    weekBreak: i === breakAt,
-  }));
-  return { slots, min: Math.min(...values), max, last: values[values.length - 1] };
+
+  const slots: DayStripSlot[] = days.map((d, i) => {
+    const weekBreak = i === breakAt;
+    if (d.entryCount === 0) return { kind: "unrecorded", date: d.date, weekBreak };
+    return {
+      kind: "recorded",
+      date: d.date,
+      eggs: d.totalEggs,
+      heightPct: max !== null && max > 0 ? Math.max(2, r1((d.totalEggs / max) * 100)) : 2,
+      weekBreak,
+    };
+  });
+
+  const final = slots[slots.length - 1];
+  return {
+    slots,
+    min: values.length === 0 ? null : Math.min(...values),
+    max,
+    average,
+    // A window whose every recorded day is zero has a real average of 0 and no
+    // scale to place it on, so it gets no line rather than one on the floor.
+    averagePct: average === null || max === null || max === 0 ? null : r1((average / max) * 100),
+    last: final.kind === "recorded" ? final.eggs : null,
+    recorded: values.length,
+    unrecorded: days.length - values.length,
+  };
 }
 
 export interface HenDayTrend { current: number | null; previous: number | null; delta: number | null }

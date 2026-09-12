@@ -38,8 +38,8 @@ const mockGetProfitReport = vi.mocked(getProfitReport);
 // of the `?? "—"` fallback (DATA, left raw per the namespace header comment).
 const PRODUCTION: ProductionReport = {
   days: [
-    { date: "2026-07-19", totalEggs: 100, cracked: 2, dirty: 3, discarded: 5, sellable: 90, fromCounts: 6, deaths: 1, henDays: 98, henDayPct: 91.8 },
-    { date: "2026-07-18", totalEggs: 95, cracked: 1, dirty: 1, discarded: 2, sellable: 91, fromCounts: 0, deaths: 0, henDays: 98, henDayPct: null },
+    { date: "2026-07-19", totalEggs: 100, cracked: 2, dirty: 3, discarded: 5, sellable: 90, fromCounts: 6, deaths: 1, entryCount: 1, henDays: 98, henDayPct: 91.8 },
+    { date: "2026-07-18", totalEggs: 95, cracked: 1, dirty: 1, discarded: 2, sellable: 91, fromCounts: 0, deaths: 0, entryCount: 1, henDays: 98, henDayPct: null },
   ],
   totalEggs: 195, totalSellable: 181, totalFromCounts: 6, totalDeaths: 1, totalHenDays: 196, periodHenDayPct: 92.3,
   gradeTotals: [

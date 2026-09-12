@@ -780,13 +780,26 @@ export const en = {
     // per day, one slot per day; the figure below it is the server's hen-day %
     // for the last 7 complete days, and its delta against the 7 before.
     trendPanelTitle: "Last 14 days",
-    trendStripLabel: "Eggs per day, last 14 days: lowest {{min}}, peak {{max}}, yesterday {{last}}",
-    // Same sentence with the empty slots named. Whole string, not a suffix,
-    // so a locale can put the clause where its grammar wants it.
-    trendStripLabelBlanks_one: "Eggs per day, last 14 days: lowest {{min}}, peak {{max}}, yesterday {{last}}. {{blank}} day has nothing recorded.",
-    trendStripLabelBlanks_other: "Eggs per day, last 14 days: lowest {{min}}, peak {{max}}, yesterday {{last}}. {{blank}} days have nothing recorded.",
+    // The group's summary. Every day is also a button carrying its own figure,
+    // so this no longer repeats the lowest and the latest — it says what the
+    // scale is and how much of the window is missing. Whole strings, not a
+    // stem plus a suffix, so a locale can order its own clauses (#650).
+    trendStripLabel: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}}. Every day has an entry.",
+    trendStripLabelBlanks_one: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}} across the recorded days. {{blank}} day has no entry.",
+    trendStripLabelBlanks_other: "Eggs per day, last 14 days. Peak {{max}}, average {{avg}} across the recorded days. {{blank}} days have no entry.",
+    // No day in the window holds an entry, so there is no peak and no average
+    // to name — reporting either as 0 is the conflation #780 closed.
+    trendStripLabelNone: "Eggs per day, last 14 days. No day in this window has an entry.",
     trendScaleTitle: "Eggs per day",
     trendPeak: "Peak {{total}}",
+    trendAvg: "Avg {{total}}",
+    // The readout for one day, and the accessible name of that day's slot.
+    // The dash separates the date from the figure in every locale.
+    trendDayTip_one: "{{date}} – {{total}} egg",
+    trendDayTip_other: "{{date}} – {{total}} eggs",
+    // Nobody recorded that day. Distinct from a day that produced no eggs,
+    // which reads as "0 eggs" above and keeps a stub on the chart (#780).
+    trendDayTipNone: "{{date}} – no entry",
     henDaySubLabel: "Hen-day, last 7 days against the 7 before",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
@@ -2607,9 +2620,12 @@ export const en = {
       + "it to open Daily entry for that flock and day. Past twelve tiles, a link carries the rest.",
     dashboardTrend:
       "<strong>Last 14 days</strong>: eggs per day from the production report, with <strong>hen-day %"
-      + "</strong> for the last 7 complete days and how it moved against the 7 before. The window is "
-      + "fixed (yesterday back) and counts <strong>submitted days only</strong> — a day still in Draft "
-      + "reads as zero until it is submitted, unlike Reports where you choose the range.",
+      + "</strong> for the last 7 complete days and how it moved against the 7 before. Point at a day, "
+      + "or tab to it, to read that day on its own. A day the farm submitted with no eggs keeps a mark "
+      + "on the baseline; a day nobody submitted is an empty slot and reads as <strong>No entry</strong>"
+      + ". <strong>Avg</strong> is the average of the days that do have one. The window is fixed "
+      + "(yesterday back) and counts <strong>submitted days only</strong> — a day still in Draft reads "
+      + "as No entry until it is submitted, unlike Reports where you choose the range.",
     dashboardStock:
       "<strong>Stock</strong>: one <strong>stacked bar</strong> of what is available by grade, with the "
       + "figures beside it; restricted eggs are noted after the total. It is the same total the Stock "
