@@ -47,7 +47,7 @@ matters more than count: prefer "walk everything, exclude deliberately".
 | 21 | `EveryWriteTool_TakesAnIdempotencyKey` (walk, keyed on `McpServerToolAttribute.ReadOnly == false`) | writes cannot forget the key | add a write tool without the parameter. Fail-closed: `ReadOnly` defaults to `false`, so forgetting the annotation makes a read *stricter*, never looser. |
 | 22 | `SameKey_DifferentArguments_IsRefused` | key reuse is refused, not silently executed or ignored | drop the request-fingerprint comparison |
 | 23 | `Replay_WritesNoSecondAuditRow` | replay is a true no-op | drop the publish guard. **Asserts the absence of a second `DailyEntryUpdate` audit row, NOT the entry count** — the handler upserts on `(account, farm, house, flock, date)`, so a count assertion passes with idempotency entirely removed. Graft from candidate 1. |
-| 24 | `AtomicIdempotencyProtocolTests` + the other #307 suites | the extraction changed no behaviour | **these must pass UNEDITED.** An edit to a #307 test in this PR is a stop-and-review, not a fix. This is the mitigation for the design's largest risk. |
+| 24 | `AtomicIdempotencyProtocolTests` + the other #307 suites | the extraction changed no behaviour | **these must pass UNEDITED.** An edit to a #307 test in the implementing PR is a stop-and-review, not a fix. This is the mitigation for the design's largest risk. |
 
 ## Domain surface
 

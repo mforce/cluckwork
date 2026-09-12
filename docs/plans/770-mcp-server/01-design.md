@@ -212,7 +212,7 @@ registers `StatefulSessionManager`, `StreamableHttpHandler`, `SseHandler` as sin
 mode. `IdleTrackingBackgroundService.StartAsync` returns early under Stateless, so no timer
 runs and no session state exists. The blocker list is not extended; but AGENTS.md's instruction
 to re-derive it by "walking every `AddSingleton`/`AddHostedService` under `src/`" is
-structurally blind to a package registration, and that wording needs amending in this PR.
+structurally blind to a package registration. That wording needs amending, tracked separately in #786 — this record ships no `AGENTS.md` change.
 
 Stateless also buys #364: one tool call = one authenticated HTTP request, so
 `CredentialEpochMiddleware` does its fresh DB read **per tool call**. Under `Stateful` +
@@ -262,7 +262,7 @@ mutation; rejected candidate 1's derived-key default and all three candidates'
 - **We accept refactoring #307's middleware in exchange for one claim protocol instead of
   two.** This is the largest implementation risk here and the place a reviewer should look
   hardest. Mitigation is a rule, not a hope: `AtomicIdempotencyProtocolTests` and the other
-  #307 suites must pass **unedited**, and an edit to one in this PR is a stop-and-review.
+  #307 suites must pass **unedited**, and an edit to one in the implementing PR is a stop-and-review.
 - **We accept declaring tool RBAC twice — on the tool and on the route — in exchange for tools
   that call the Application layer directly like every endpoint does.** The parity guard is
   what makes it safe, and it goes red when the *route* changes and nobody touches `Mcp/`.
@@ -309,9 +309,10 @@ mutation; rejected candidate 1's derived-key default and all three candidates'
   for clients that can inject a fresh bearer, (b) add the SDK's `McpAuthenticationHandler` and
   protected-resource metadata, or (c) issue a longer-lived MCP-scoped credential? This is a
   product decision and it gates real-world usability, not correctness.
-- Should this PR file the issue to flip `FlockScopeGuard`'s fail-open branch? The guard's
-  comment has been asking since #500, and `RecordFeedUsage`/`RecordWaterUsage` still reach it
-  from any future non-HTTP caller.
+- ~~Should the fail-open branch of `FlockScopeGuard` get its own issue?~~ **Resolved: filed as
+  #786's sibling #787.** The guard's comment has been asking since #500, and
+  `RecordFeedUsage`/`RecordWaterUsage` still reach it from any future non-HTTP caller. This
+  design makes the branch unreachable from MCP rather than fixing it.
 - Is an `Mcp:Enabled` kill switch worth one config key? Left out to keep #370/#565 at zero
   files, on the reasoning that the route is authenticated — but an owner wanting MCP off on a
   deployment currently has no lever but a reverse proxy.
