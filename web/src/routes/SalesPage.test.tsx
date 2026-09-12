@@ -1555,6 +1555,82 @@ describe("SalesPage payment dialog", () => {
   });
 });
 
+// #769 made the Orders list carry a payment-derived figure, so recording or
+// voiding a payment became a WRITE to that list. Both handlers refreshed only
+// the open panel's payments, which left the row showing what was owed before
+// the money moved. The unpaid filter is that same figure seen through a
+// predicate, so it stranded the settled order in the list too.
+describe("SalesPage payment writes refresh the Orders list (#769)", () => {
+  // USD 2dp, 10.00 owed in full, so one payment settles it and the row changes
+  // STATE rather than only its digits.
+  const OWES: SalesOrder = {
+    ...draftEmpty(2, "USD", "o9"), referenceNumber: "SO-9", status: "Confirmed",
+    totalMinorUnits: 1000, items: [ITEM_A], outstandingMinorUnits: 1000,
+  };
+  const SETTLED: SalesOrder = { ...OWES, outstandingMinorUnits: 0 };
+
+  // Cell 6 of a money-tier row is Outstanding, per the column block above.
+  const outstandingCell = () =>
+    within(screen.getByRole("row", { name: /SO-9/ })).getAllByRole("cell")[6];
+
+  it("settles the row after a payment is recorded", async () => {
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 0, outstandingMinorUnits: 1000, totalMinorUnits: 1000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(OWES, /Grade A Dozen/);
+    expect(outstandingCell()).toHaveTextContent("$10.00");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
+    mockRecordPayment.mockResolvedValue({ id: "pay1" });
+    // What the server holds once the payment lands. The list must be re-read
+    // to see it; nothing on the client can derive it.
+    mockListOrders.mockResolvedValue([SETTLED]);
+    mockListOrderPayments.mockResolvedValue({
+      items: [], paidMinorUnits: 1000, outstandingMinorUnits: 0, totalMinorUnits: 1000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    fireEvent.change(within(dialog()).getByLabelText(/Amount/), { target: { value: "10" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
+    });
+
+    // The ROW, not the panel: the Orders page is where the figure is read and
+    // where the unpaid filter acts on it.
+    await waitFor(() => expect(within(outstandingCell())
+      .getByText(i18n.t("sales:settledBadge"))).toBeInTheDocument());
+    expect(outstandingCell()).not.toHaveTextContent("$10.00");
+  });
+
+  it("puts the amount back on the row after a payment is voided", async () => {
+    mockListOrderPayments.mockResolvedValue({
+      items: [{
+        id: "pay1", salesOrderId: "o9", customerId: "c1", amountMinorUnits: 1000,
+        currencyCode: "USD", currencyMinorUnit: 2, method: "Cash", paymentDate: "2026-07-20",
+        referenceNumber: null, note: null, voided: false, voidReason: null, version: 3,
+      }],
+      paidMinorUnits: 1000, outstandingMinorUnits: 0, totalMinorUnits: 1000,
+      currencyCode: "USD", currencyMinorUnit: 2,
+    });
+    await openOrder(SETTLED, /Grade A Dozen/);
+    expect(within(outstandingCell()).getByText(i18n.t("sales:settledBadge"))).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "void" }));
+    });
+    vi.mocked(voidPayment).mockResolvedValue(undefined as never);
+    mockListOrders.mockResolvedValue([OWES]);
+    fireEvent.change(within(dialog()).getByLabelText("Reason *"),
+      { target: { value: "posted to the wrong order" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Void payment" }));
+    });
+
+    await waitFor(() => expect(outstandingCell()).toHaveTextContent("$10.00"));
+    expect(within(outstandingCell()).queryByText(i18n.t("sales:settledBadge"))).toBeNull();
+  });
+});
+
 // F135: the four one-way order actions asked through window.confirm /
 // window.prompt. They now ask in the app's own dialog — same guards, same
 // idempotency scoping, but the reason checks land inline instead of after the

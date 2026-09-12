@@ -941,38 +941,45 @@ export function SalesPage() {
     if (!active || !payments) return;
     const minorUnits = toMinor(payAmount, payments.currencyMinorUnit);
     const scope = `pay:${active.id}`;
-    await recordPayment(active.id, {
-      paymentDate: payDate,
-      amountMinorUnits: minorUnits,
-      method: payMethod,
-      referenceNumber: payRef.trim() || null,
-      note: payNote.trim() || null,
-    }, keyFor(scope));
-    // The key rotates the moment the WRITE lands — if it survived until the
-    // refresh below succeeded, a failed refresh would make the NEXT payment
-    // reuse it and silently replay this 201 instead of recording new money
-    // (codex review of #90). The form reset before the refresh (#88 review)
-    // covers the duplicate-resubmit direction.
-    clearKey(scope);
-    // The resets and the refresh keep the order #88 put them in. A SUPERSEDED
-    // attempt skips the resets, because the fields now belong to a session the
-    // user is typing into; opening the dialog clears them instead, so the spent
-    // values cannot be resubmitted under a fresh key (codex review).
-    if (current()) {
-      setPayAmount("");
-      setPayRef("");
-      setPayNote("");
-    }
-    await refreshPayments(active.id);
-    // NOT gated, deliberately, and this is where #477's own wording is wrong:
-    // it calls the message "stray". The money was recorded. Withholding the
-    // confirmation because the user closed the dialog leaves them believing it
-    // did not happen, and the likely next act is paying twice. The message is
-    // page-owned and renders outside the dialog, so it has somewhere honest to
-    // land whether or not that session still exists (codex review).
-    setMessage(i18n.t("sales:paymentRecorded"));
-    if (!current()) return;
-    setPaying(false); // only on success — a throw keeps the dialog up
+    // #769 put a payment-derived figure on the Orders list, which made this
+    // handler a writer of that list. runWrite claims the list ticket before
+    // the POST and re-walks every loaded page after it, so the row's
+    // outstanding amount and the unpaid filter agree with the money that has
+    // just moved (#469).
+    await orders.runWrite(async () => {
+      await recordPayment(active.id, {
+        paymentDate: payDate,
+        amountMinorUnits: minorUnits,
+        method: payMethod,
+        referenceNumber: payRef.trim() || null,
+        note: payNote.trim() || null,
+      }, keyFor(scope));
+      // The key rotates the moment the WRITE lands — if it survived until the
+      // refresh below succeeded, a failed refresh would make the NEXT payment
+      // reuse it and silently replay this 201 instead of recording new money
+      // (codex review of #90). The form reset before the refresh (#88 review)
+      // covers the duplicate-resubmit direction.
+      clearKey(scope);
+      // The resets and the refresh keep the order #88 put them in. A SUPERSEDED
+      // attempt skips the resets, because the fields now belong to a session the
+      // user is typing into; opening the dialog clears them instead, so the spent
+      // values cannot be resubmitted under a fresh key (codex review).
+      if (current()) {
+        setPayAmount("");
+        setPayRef("");
+        setPayNote("");
+      }
+      await refreshPayments(active.id);
+      // NOT gated, deliberately, and this is where #477's own wording is wrong:
+      // it calls the message "stray". The money was recorded. Withholding the
+      // confirmation because the user closed the dialog leaves them believing it
+      // did not happen, and the likely next act is paying twice. The message is
+      // page-owned and renders outside the dialog, so it has somewhere honest to
+      // land whether or not that session still exists (codex review).
+      setMessage(i18n.t("sales:paymentRecorded"));
+      if (!current()) return;
+      setPaying(false); // only on success — a throw keeps the dialog up
+    });
   });
 
   const onVoidPayment = async (paymentId: string, version: number) => {
@@ -987,17 +994,21 @@ export function SalesPage() {
       if (!active) return;
       const id = active.id;
       const scope = `void-payment:${paymentId}`;
-      try {
-        await voidPayment(paymentId, { version, reason }, keyFor(scope));
-        clearKey(scope);
-      } catch (err) {
-        // Version-guarded: any SERVER response settles the attempt (the base
-        // version prevents double-apply); only transport failures keep the key.
-        if (err instanceof ApiError) clearKey(scope);
-        throw err;
-      }
-      await refreshPayments(id);
-      setMessage(i18n.t("sales:paymentVoided"));
+      // A void moves the same figure the Orders list carries, in the other
+      // direction, so it is a list write for the same reason a payment is.
+      await orders.runWrite(async () => {
+        try {
+          await voidPayment(paymentId, { version, reason }, keyFor(scope));
+          clearKey(scope);
+        } catch (err) {
+          // Version-guarded: any SERVER response settles the attempt (the base
+          // version prevents double-apply); only transport failures keep the key.
+          if (err instanceof ApiError) clearKey(scope);
+          throw err;
+        }
+        await refreshPayments(id);
+        setMessage(i18n.t("sales:paymentVoided"));
+      });
     });
   };
 
