@@ -18,6 +18,10 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
     // #769 — the settlement figure as the wire carries it.
     private sealed record OrderMoneyDto(
         Guid Id, string Status, long TotalMinorUnits, long? OutstandingMinorUnits);
+    // #773 — the line's basis as the wire carries it. Same shape on both sales
+    // routes, because both map through the one ToResponse.
+    private sealed record OrderBasisLineDto(Guid Id, string ListPriceBasis);
+    private sealed record OrderBasisDto(Guid Id, List<OrderBasisLineDto> Items);
     private sealed record PaymentRowDto(Guid Id, int Version);
     private sealed record PaymentsPageDto(List<PaymentRowDto> Items);
 
@@ -375,6 +379,32 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
 
         Assert.Equal(750, listed.OutstandingMinorUnits);
         Assert.Equal(listed.OutstandingMinorUnits, detail!.OutstandingMinorUnits);
+    }
+
+    // #773 — a TRIPWIRE, weaker than the outstanding test above it, and worth
+    // saying so. Outstanding has two producers (:213 computes it for detail,
+    // :298 reads it from the repository for the list), so comparing them is a
+    // live parity check. The basis has ONE: both routes map through the single
+    // ToResponse, which makes a disagreement unreachable today. What this
+    // catches is the day someone gives the list route its own projection —
+    // verified by doing exactly that and watching it go red. The literal on
+    // the LIST row is what keeps it from comparing a value to itself.
+    [Fact]
+    public async Task SalesOrderDetail_CarriesTheSameListPriceBasisAsTheList()
+    {
+        var (client, accountId, farmId, grades) = await SetupAsync("Large");
+        var (_, customerId, productId) =
+            await SalesSetupAsync(accountId, farmId, grades["Large"], client);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        var orderId = await ConfirmedOrderAsync(client, customerId, productId, today, 10, 250);
+
+        var listed = (await client.GetFromJsonAsync<List<OrderBasisDto>>("/api/v1/sales"))!
+            .Single(o => o.Id == orderId);
+        var detail = await client.GetFromJsonAsync<OrderBasisDto>($"/api/v1/sales/{orderId}");
+
+        var listedLine = listed.Items.Single();
+        Assert.Equal("Recorded", listedLine.ListPriceBasis);
+        Assert.Equal(listedLine.ListPriceBasis, detail!.Items.Single(i => i.Id == listedLine.Id).ListPriceBasis);
     }
 
     [Fact]

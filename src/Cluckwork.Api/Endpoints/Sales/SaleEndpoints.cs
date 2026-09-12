@@ -308,7 +308,7 @@ public static class SaleEndpoints
             i.Id, i.ProductId, i.EggGradeId, i.Unit.ToString(), i.BaseUnitFactor,
             i.Quantity, i.QuantityBase,
             i.UnitPrice.MinorUnits, i.UnitPrice.CurrencyCode, i.UnitPrice.CurrencyMinorUnit,
-            i.ListUnitPriceMinorUnits)).ToList(),
+            i.ListUnitPriceMinorUnits, i.ListPriceBasis.ToString())).ToList(),
         p?.CreatedByEmail, p?.CreatedAtUtc, p?.LastChangedByEmail, p?.LastChangedAtUtc,
         p?.MadeOfficialAtUtc,
         customer?.Name,
@@ -454,6 +454,13 @@ public sealed record SalesOrderItemResponse(
     int Quantity, int QuantityBase,
     long UnitPriceMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
     // #720 — the list price this line was sold against, in the SAME currency
-    // and minor unit as UnitPriceMinorUnits above. NULL means no comparable
-    // list price; read surfaces render that as "No list price", never as 0.
-    long? ListUnitPriceMinorUnits = null);
+    // and minor unit as UnitPriceMinorUnits above. NULL is one of three
+    // states, and ListPriceBasis below is what names which; read surfaces
+    // render it as text, never as 0.
+    long? ListUnitPriceMinorUnits,
+    // #773 — WHY ListUnitPriceMinorUnits is what it is, as the enum MEMBER
+    // NAME, like DiscountReasonCode (#721). Required and never defaulted: the
+    // domain decides the value and its basis in one expression so they cannot
+    // disagree (AddOrderItemHandler.cs:142), and a default here would be the
+    // one place they could. The SPA renders it through i18n/enums.ts, never raw.
+    string ListPriceBasis);

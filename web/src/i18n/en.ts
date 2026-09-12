@@ -431,7 +431,6 @@ export const en = {
     listPrice: "List price",
     unitPrice: "Unit price",
     discount: "Discount",
-    noListPrice: "No list price",
     aboveList: "Above list",
     // #723 — the row's text marker. Colour alone fails greyscale and fails a
     // colour-blind reader, so the tint never travels without this chip.
@@ -454,14 +453,17 @@ export const en = {
     discountPartialNote: "part of this order has no list price",
     discountPartialOnly: "No discount on the lines that can be measured — part of this order has no list price.",
     discountUnknownOrder: "No list price on any line — this order's discount cannot be worked out.",
+    // #773 — the other answer, for an order EVERY line of which predates
+    // list-price capture. One line that genuinely had no comparable price
+    // makes this sentence false of the order, so orderListPriceBasis needs
+    // all of them.
+    discountUnrecordedOrder: "No list price was recorded on any line — this order predates list-price capture, so its discount cannot be worked out.",
+    discountPartlyUnrecordedOrder: "Some lines have no recorded list price and the rest had none to compare against — this order's discount cannot be worked out.",
     // #724 — the Orders-table cell. Percent LEADS the amount: a reviewer
     // scanning a month of orders is reading for outliers, and only the
     // percentage makes an outlier visible without arithmetic.
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} off list",
-    // An order predating the list-price snapshot reads as unknown, never as a
-    // clean zero. #719: data starts on the day #720 shipped.
-    discountUnknown: "Unknown",
     // #721 — the confirm dialog keeps its title and its FIFO prose and gains
     // these: the person confirming sees what they are giving away before they
     // justify it. Amount and percent match the order's own discount line.
@@ -2323,6 +2325,13 @@ export const en = {
     "discountReason.ManagerApproved": "Manager approved",
     "discountReason.Other": "Other",
 
+    // list price basis (SalesPage) — ListPriceBasis. Two labels for four
+    // values: NotComparable shares ProductUnpriced's, and Recorded never
+    // reaches a screen. See LIST_PRICE_BASIS_KEYS.
+    "listPriceBasis.Recorded": "List price recorded",
+    "listPriceBasis.ProductUnpriced": "No list price",
+    "listPriceBasis.PreDating": "List price not recorded",
+
     // water source (WaterPage picker) — WaterSource enum.
     "waterSource.Well": "Well",
     "waterSource.Municipal": "Municipal",
@@ -2941,14 +2950,17 @@ export const en = {
     salesListPrice:
       "Each line also shows its <strong>List price</strong> — the product's price when the line was "
       + "added — next to a <strong>Discount</strong> worked out from it: an amount and a percent when sold "
-      + "under list, <strong>Above list</strong> when sold over, and \"No list price\" when there's nothing "
-      + "to compare against. A line sold under list is marked three ways so it survives a greyscale print: "
+      + "under list, <strong>Above list</strong> when sold over, and \"No list price\" when there is nothing "
+      + "comparable to measure against. A line taken before the farm started keeping list prices says \"List "
+      + "price not recorded\" instead — that one means nobody can tell whether it was discounted. "
+      + "A line sold under list is marked three ways so it survives a greyscale print: "
       + "a <strong>Below list</strong> tag beside the product, its List price struck through, and a tinted "
       + "row. The order's <strong>Discount</strong> is totalled directly above the order total, as an "
       + "amount and a percent of list; where part of the order has no list price, the total says so rather "
       + "than pretending to cover it. The Orders list carries the same figure in its own "
       + "<strong>Discount</strong> column, so a discounted order is visible without opening it — and an "
-      + "order taken before list prices were recorded reads \"Unknown\" there, never zero.",
+      + "order every line of which was taken before list prices were recorded reads \"List price not "
+      + "recorded\" there, never zero.",
     salesConfirming:
       "<strong>Confirming</strong> an order allocates real stock — oldest lots first — and is the point "
       + "where inventory changes hands.",
@@ -3493,14 +3505,19 @@ export const en = {
     glossaryListPriceTerm: "List price",
     glossaryListPriceDef:
       "The product's price at the moment a line was added, kept with the line so a later price change "
-      + "never rewrites a past order. Shown as \"No list price\" when the product had none to compare "
-      + "against.",
+      + "never rewrites a past order. Shown as \"No list price\" when there is nothing comparable "
+      + "to measure against — a recorded fact. A line taken before the farm started keeping list prices shows "
+      + "\"List price not recorded\" instead: that one is missing information, not an answer, so nobody "
+      + "can say whether the line was discounted.",
 
     glossaryDiscountTerm: "Discount",
     glossaryDiscountDef:
       "How much a sale line sold under its own list price, shown per line — and summed for the whole "
       + "order, as an amount and a percent of the list value of the lines that have a list price. An order "
-      + "that has lines but no list price on any of them reads as \"Unknown\"; an order with no lines at "
+      + "that has lines but no list price on any of them says so rather than reading as zero — and when "
+      + "every one of those lines was taken before the farm started keeping list prices, it says the order "
+      + "predates that record. One line that simply had no list price is enough to rule that out. An order "
+      + "with no lines at "
       + "all has nothing to measure and reads as a dash in the Orders list, with no discount line on the "
       + "order itself. Different from the order-level discount a seller "
       + "can type in — this one is worked out for you, never entered.",

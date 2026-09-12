@@ -131,6 +131,32 @@ export function discountReasonLabel(value: DiscountReasonValue | (string & {})):
 }
 
 // ---------------------------------------------------------------------------
+// list price basis (SalesPage) — ListPriceBasis (#773). WHY a line's list
+// price is what it is, which a bare null could not say.
+//
+// TWO labels for four values, and the collapse lives in the map on purpose:
+// NotComparable shares ProductUnpriced's key because "the product had no
+// price" and "the denominations did not match" are both the recorded fact NO
+// COMPARABLE LIST PRICE, while only PreDating is missing data. Recorded never
+// reaches a screen today — a recorded line renders the price itself — but the
+// map stays total, which is this module's own contract.
+// ---------------------------------------------------------------------------
+export const LIST_PRICE_BASIS_VALUES = [
+  "Recorded", "ProductUnpriced", "NotComparable", "PreDating",
+] as const;
+export type ListPriceBasisValue = (typeof LIST_PRICE_BASIS_VALUES)[number];
+const LIST_PRICE_BASIS_KEYS = {
+  Recorded: "enums:listPriceBasis.Recorded",
+  ProductUnpriced: "enums:listPriceBasis.ProductUnpriced",
+  NotComparable: "enums:listPriceBasis.ProductUnpriced",
+  PreDating: "enums:listPriceBasis.PreDating",
+} as const satisfies Record<ListPriceBasisValue, EnumsKey>;
+export function listPriceBasisLabel(value: ListPriceBasisValue | (string & {})): string {
+  const key = LIST_PRICE_BASIS_KEYS[value as ListPriceBasisValue];
+  return key ? i18n.t(key) : String(value);
+}
+
+// ---------------------------------------------------------------------------
 // water unit (WaterPage) — WaterUsage.AllowedUnits, a fixed 2-value set.
 // ---------------------------------------------------------------------------
 export const WATER_UNIT_VALUES = ["L", "gal"] as const;
@@ -511,6 +537,11 @@ export const ENUMS = {
     values: DISCOUNT_REASON_VALUES,
     keys: DISCOUNT_REASON_KEYS,
     label: discountReasonLabel,
+  },
+  listPriceBasis: {
+    values: LIST_PRICE_BASIS_VALUES,
+    keys: LIST_PRICE_BASIS_KEYS,
+    label: listPriceBasisLabel,
   },
   gradeType: { values: GRADE_TYPE_VALUES, keys: GRADE_TYPE_KEYS, label: gradeTypeLabel },
   inventoryCategory: {

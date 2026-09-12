@@ -30,7 +30,7 @@ import { newId } from "../lib/ids";
 import { discountCeiling, lineExceedsCeiling } from "../lib/discountCeiling";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import i18n from "../i18n";
-import { DISCOUNT_REASON_VALUES, discountReasonLabel, statusLabel } from "../i18n/enums";
+import { DISCOUNT_REASON_VALUES, discountReasonLabel, listPriceBasisLabel, statusLabel } from "../i18n/enums";
 import type { DiscountReasonValue } from "../i18n/enums";
 
 const PAGE = 50;
@@ -205,6 +205,28 @@ function orderDiscount(items: OrderItem[]): OrderDiscount {
     percent: listValueMinorUnits > 0 ? (amountMinorUnits * 100) / listValueMinorUnits : null,
     partial,
   };
+}
+
+// #773 — which of the two "no list price" answers an ORDER reports. PreDating
+// only when EVERY line predates capture: one line that genuinely had no
+// comparable price makes "this order predates list-price capture" false of the
+// order as a whole. The other answer is named by ProductUnpriced, which shares
+// its label with NotComparable (LIST_PRICE_BASIS_KEYS collapses the two), so
+// the representative chosen here is a labelling detail, not a claim about the
+// lines.
+//
+// `[].every()` is TRUE, so an empty order would answer "PreDating" here. It
+// cannot: both call sites sit behind orderDiscount(...).kind === "unknown",
+// and orderDiscount bails to `atList` for an empty order before measuring, so
+// an order with nothing to measure is never called unmeasurable. Verified by
+// mutation rather than by reading: delete that bail and "an order with no
+// lines reads as an em dash" goes red.
+type OrderListPriceBasis = "allPreDating" | "nonePreDating" | "mixed";
+
+function orderListPriceBasis(items: OrderItem[]): OrderListPriceBasis {
+  const preDating = items.filter((i) => i.listPriceBasis === "PreDating").length;
+  if (preDating === 0) return "nonePreDating";
+  return preDating === items.length ? "allPreDating" : "mixed";
 }
 
 // #23 + #24 (orders half): create a draft order, add/edit/remove graded lines,
@@ -1191,7 +1213,7 @@ export function SalesPage() {
                         {`${fmt.money(discount.amountMinorUnits, i.currencyCode, i.currencyMinorUnit)} · ${discountPercent(discount.percent)}%`}
                       </span>
                     : discount.kind === "above" ? t("aboveList")
-                      : discount.kind === "none" ? t("noListPrice")
+                      : discount.kind === "none" ? listPriceBasisLabel(i.listPriceBasis)
                         : "—";
                   return (
                   <tr key={i.id} className={discount.kind === "below" ? "discounted" : undefined}>
@@ -1214,7 +1236,7 @@ export function SalesPage() {
                         <> <span className="badge badge-danger">{t("overMaximumBadge")}</span></>
                       )}
                       {discount.kind === "none" && (
-                        <> <span className="badge">{t("noListPrice")}</span></>
+                        <> <span className="badge">{listPriceBasisLabel(i.listPriceBasis)}</span></>
                       )}</td>
                     {editor && editingLine?.id === i.id ? (
                       <>
@@ -1318,7 +1340,11 @@ export function SalesPage() {
             if (orderLevel.kind === "unknown") {
               return (
                 <p className="discount-note" data-testid="order-discount-unknown">
-                  {t("discountUnknownOrder")}
+                  {{
+                    allPreDating: t("discountUnrecordedOrder"),
+                    nonePreDating: t("discountUnknownOrder"),
+                    mixed: t("discountPartlyUnrecordedOrder"),
+                  }[orderListPriceBasis(active.items)]}
                 </p>
               );
             }
@@ -1746,7 +1772,8 @@ export function SalesPage() {
                       right-aligned tabular figures that never wrap. */}
                   <td className="num">{(() => {
                     const d = orderDiscount(o.items);
-                    if (d.kind === "unknown") return <span className="muted discount-note">{t("discountUnknown")}</span>;
+                    if (d.kind === "unknown") return <span className="muted discount-note">{listPriceBasisLabel(
+                      orderListPriceBasis(o.items) === "nonePreDating" ? "ProductUnpriced" : "PreDating")}</span>;
                     // Round 1 — the em dash means "sold at list". An order only
                     // part of which is measurable must not borrow that glyph.
                     if (d.kind !== "below") {

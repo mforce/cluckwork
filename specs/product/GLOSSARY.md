@@ -485,9 +485,12 @@ the order's currency** — not literally cents, though the spec column is named
 convention throughout; the persisted/API name is `ListUnitPriceMinorUnits`) —
 so a later catalogue re-price can never reinterpret a recorded order.
 Recorded only when the product's currency code and minor unit both match the
-order's — otherwise `null`, meaning "no comparable list price," a real answer
-distinct from missing data. Adding a line refuses (`SalesOrder.ListPriceChanged`)
-only when the caller states what list price it last saw and that no longer
+order's — otherwise `null`. For a line the application wrote, that `null`
+means "no comparable list price," a real answer distinct from missing data;
+for a line the #720 backfill relabelled, it means only that the line predates
+the column, which *is* missing data. `list_price_basis` below is what tells
+the two apart. Adding a line refuses (`SalesOrder.ListPriceChanged`) only
+when the caller states what list price it last saw and that no longer
 matches the catalogue's current one: the SPA states it whenever the selected
 product is still in its current product list — including stating that it saw
 no list price at all — but sends neither field once that product has dropped
@@ -497,13 +500,16 @@ deliberately unaffected by a catalogue move.
 
 A `null` list price now carries a recorded reason (`list_price_basis`): the
 product had no default price, the denominations did not match, or the line
-predates this pair of columns entirely. Not on the **JSON read API**
-(`SalesOrderItemResponse`), and the **screen** renders every reason alike —
-but the **Admin-only CSV export** carries the basis by name. That last reason
-is distinguishable from the first two on purpose — a pre-migration line's
-`null` means *we do not know* whether it was discounted, while the other two
-are recorded facts that no discount is computable at all. #727 gates an
-Owner/Manager approval on that difference.
+predates this pair of columns entirely. It ships on the **JSON read API**
+(`SalesOrderItemResponse`) by name since #773 — on both sales routes, which
+share one mapper — so the **screen** renders two labels rather than one:
+*No list price* for the two recorded facts, *List price not recorded* for a
+pre-dating line. The **Admin-only CSV export** carries the basis by name too.
+That last reason is distinguishable from the first two on purpose — a
+pre-migration line's `null` means *we do not know* whether it was discounted,
+while the other two are recorded facts that no discount is computable at all.
+#727 gates an Owner/Manager approval on that difference, and #773 is that
+same difference made visible to a reader.
 
 **Discount (#720, #723, #724)** — a *derived* amount at two levels, computed
 for display only and never stored. **Per line:** the gap between a **sales
@@ -512,8 +518,12 @@ of those below-list line amounts, with a percent taken over the *list value of
 the order's comparable lines* — every line that HAS a list price, including
 lines sold at or above it, since each contributed list value. An above-list
 line therefore sits in the denominator and never nets against the amount. An
-order that HAS lines, none of which carries a list price, reads as **unknown**,
-never as a clean zero; one in which **some** line has none reports that its
+order that HAS lines, none of which carries a list price, never reads as a
+clean zero. It says one of two things: that no line has a list price, or —
+when **every** one of its lines predates list-price capture — that the order
+predates capture and its discount was never recordable. One line that
+genuinely had no comparable price is enough to make that second claim false
+of the order. An order in which **some** line has none reports that its
 figure covers only part of the order. An order with no lines at all is not
 unknown — there is nothing to measure — and reads as an em dash in the Orders
 list, with no discount line shown on the order panel. Both are a different number from

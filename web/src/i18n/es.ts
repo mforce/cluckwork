@@ -330,7 +330,6 @@ export const es = {
     listPrice: "Precio de lista",
     unitPrice: "Precio unitario",
     discount: "Descuento",
-    noListPrice: "Sin precio de lista",
     aboveList: "Sobre el precio de lista",
     belowListBadge: "Por debajo de lista",
     // #727
@@ -340,9 +339,11 @@ export const es = {
     discountPartialNote: "parte de este pedido no tiene precio de lista",
     discountPartialOnly: "Sin descuento en las líneas que se pueden medir — parte de este pedido no tiene precio de lista.",
     discountUnknownOrder: "Ninguna línea tiene precio de lista — no se puede calcular el descuento de este pedido.",
+    // #773
+    discountUnrecordedOrder: "Ninguna línea tiene un precio de lista registrado — este pedido es anterior al registro de precios de lista, por lo que no se puede calcular su descuento.",
+    discountPartlyUnrecordedOrder: "Algunas líneas no tienen precio de lista registrado y el resto no tenía ninguno con que compararse — no se puede calcular el descuento de este pedido.",
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} respecto al precio de lista",
-    discountUnknown: "Desconocido",
     // #721
     discountReasonHeadline: "Este pedido está {{amount}} por debajo del precio de lista, {{percent}}% del pedido, en {{below}} de {{total}} líneas.",
     discountReasonHeadlineNoPct: "Este pedido está {{amount}} por debajo del precio de lista, en {{below}} de {{total}} líneas.",
@@ -1734,6 +1735,11 @@ export const es = {
     "discountReason.ManagerApproved": "Aprobado por el gerente",
     "discountReason.Other": "Otro",
 
+    // list price basis (SalesPage) — ListPriceBasis.
+    "listPriceBasis.Recorded": "Precio de lista registrado",
+    "listPriceBasis.ProductUnpriced": "Sin precio de lista",
+    "listPriceBasis.PreDating": "Precio de lista no registrado",
+
     // water source
     "waterSource.Well": "Pozo",
     "waterSource.Municipal": "Municipal",
@@ -2356,7 +2362,9 @@ export const es = {
       "Cada línea también muestra su <strong>Precio de lista</strong> — el precio del producto cuando se "
       + "agregó la línea — junto a un <strong>Descuento</strong> calculado a partir de él: un monto y un "
       + "porcentaje cuando se vende por debajo de la lista, <strong>Sobre el precio de lista</strong> cuando "
-      + "se vende por encima, y \"Sin precio de lista\" cuando no hay nada con qué comparar. Una línea "
+      + "se vende por encima, y \"Sin precio de lista\" cuando no hay nada comparable con qué medirla. "
+      + "Una línea tomada antes de que la granja empezara a guardar precios de lista dice \"Precio de lista "
+      + "no registrado\" — esa significa que nadie puede saber si llevó descuento. Una línea "
       + "vendida por debajo de la lista se marca de tres maneras, para que siga siendo legible en una "
       + "impresión en escala de grises: una etiqueta <strong>Por debajo de lista</strong> junto al producto, "
       + "su Precio de lista tachado y una fila con color de fondo. El <strong>Descuento</strong> del pedido "
@@ -2364,8 +2372,8 @@ export const es = {
       + "cuando parte del pedido no tiene precio de lista, el total lo indica en lugar de pretender "
       + "abarcarlo. La lista de pedidos lleva la misma cifra en su propia columna "
       + "<strong>Descuento</strong>, así que un pedido con descuento se ve sin abrirlo — y un pedido "
-      + "tomado antes de que se registraran los precios de lista se lee allí como \"Desconocido\", nunca "
-      + "como cero.",
+      + "cuyas líneas se tomaron todas antes de que se registraran los precios de lista se lee allí como "
+      + "\"Precio de lista no registrado\", nunca como cero.",
     salesDiscountCeiling:
       "Su granja puede limitar cuánto descuento puede dar. Cuando lo hace, la pantalla de Ventas lo "
       + "indica y una línea por encima del límite lleva la etiqueta <strong>Sobre el máximo</strong>, "
@@ -2937,14 +2945,20 @@ export const es = {
     glossaryListPriceDef:
       "El precio del producto en el momento en que se agregó la línea, guardado junto con la línea para "
       + "que un cambio de precio posterior nunca reescriba un pedido pasado. Se muestra como \"Sin precio "
-      + "de lista\" cuando el producto no tenía uno con el que comparar.",
+      + "de lista\" cuando no hay nada comparable con qué medirla — un hecho registrado. Una línea "
+      + "tomada antes de que la granja empezara a guardar precios de lista muestra \"Precio de lista no "
+      + "registrado\": eso es información que falta, no una respuesta, así que nadie puede decir si la "
+      + "línea llevó descuento.",
 
     glossaryDiscountTerm: "Descuento",
     glossaryDiscountDef:
       "Cuánto se vendió una línea por debajo de su propio precio de lista, mostrado por línea — y sumado "
       + "para todo el pedido, como un monto y un porcentaje del valor de lista de las líneas que tienen "
-      + "precio de lista. Un pedido que tiene líneas pero ninguna con precio de lista se lee como "
-      + "\"Desconocido\"; un pedido sin líneas no tiene nada que medir y se lee como una raya en la lista "
+      + "precio de lista. Un pedido que tiene líneas pero ninguna con precio de lista lo dice en lugar de "
+      + "leerse como cero — y cuando todas esas líneas se tomaron antes de que la granja empezara a guardar "
+      + "precios de lista, dice que el pedido es anterior a ese registro. Basta una línea que simplemente "
+      + "no tenía precio de lista para descartarlo. Un pedido sin líneas no tiene nada que medir y se lee "
+      + "como una raya en la lista "
       + "de pedidos, sin línea de descuento en el pedido mismo. Es "
       + "distinto del descuento a nivel de pedido que un vendedor puede ingresar — este se calcula solo, "
       + "nunca se ingresa.",

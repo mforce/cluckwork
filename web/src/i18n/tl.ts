@@ -346,7 +346,6 @@ export const tl = {
     listPrice: "Presyo sa listahan",
     unitPrice: "Presyo bawat yunit",
     discount: "Diskwento",
-    noListPrice: "Walang presyo sa listahan",
     aboveList: "Higit sa presyo sa listahan",
     belowListBadge: "Mas mababa sa lista",
     // #727
@@ -356,9 +355,11 @@ export const tl = {
     discountPartialNote: "may bahagi ng order na walang presyo sa listahan",
     discountPartialOnly: "Walang diskwento sa mga linyang masusukat — may bahagi ng order na walang presyo sa listahan.",
     discountUnknownOrder: "Walang presyo sa listahan ang alinmang linya — hindi matukoy ang diskwento ng order na ito.",
+    // #773
+    discountUnrecordedOrder: "Walang linyang may naitalang presyo sa listahan — mas maaga ang order na ito kaysa sa pagtatala ng presyo sa listahan, kaya hindi matukoy ang diskwento nito.",
+    discountPartlyUnrecordedOrder: "May mga linyang walang naitalang presyo sa listahan at ang iba nama'y walang maihahambing — kaya hindi matukoy ang diskwento ng order na ito.",
     discountBadge: "{{percent}}% · {{amount}}",
     discountBadgeNoPct: "{{amount}} mula sa presyo sa listahan",
-    discountUnknown: "Hindi alam",
     // #721
     discountReasonHeadline: "Ang order na ito ay {{amount}} mas mababa sa presyo sa listahan, {{percent}}% ng order, sa {{below}} sa {{total}} linya.",
     discountReasonHeadlineNoPct: "Ang order na ito ay {{amount}} mas mababa sa presyo sa listahan, sa {{below}} sa {{total}} linya.",
@@ -1801,6 +1802,11 @@ export const tl = {
     "discountReason.ManagerApproved": "Aprubado ng manager",
     "discountReason.Other": "Iba pa",
 
+    // list price basis (SalesPage) — ListPriceBasis.
+    "listPriceBasis.Recorded": "Naitala ang presyo sa listahan",
+    "listPriceBasis.ProductUnpriced": "Walang presyo sa listahan",
+    "listPriceBasis.PreDating": "Hindi naitala ang presyo sa listahan",
+
     // water source
     "waterSource.Well": "Poso",
     "waterSource.Municipal": "Munisipal",
@@ -2447,15 +2453,19 @@ export const tl = {
       + "noong idinagdag ang linya — katabi ng <strong>Diskwento</strong> na kinalkula mula rito: isang "
       + "halaga at porsyento kapag naibenta sa mas mababa sa listahan, <strong>Higit sa presyo sa "
       + "listahan</strong> kapag naibenta nang mas mataas, at \"Walang presyo sa listahan\" kapag walang "
-      + "maikukumpara. Ang linyang naibenta sa mas mababa sa listahan ay minamarkahan sa tatlong paraan, "
+      + "maikukumpara. Ang linyang nakuha bago pa nagsimulang magtala ng presyo sa listahan "
+      + "ang sakahan ay nagsasabing \"Hindi naitala ang presyo sa listahan\" — ibig sabihin nito, walang "
+      + "makapagsasabi kung may diskwento ito. Ang linyang naibenta sa mas mababa sa listahan ay "
+      + "minamarkahan sa tatlong paraan, "
       + "para manatiling nababasa kahit sa greyscale na print: isang tag na <strong>Mas mababa sa "
       + "lista</strong> katabi ng produkto, may guhit sa Presyo sa listahan nito, at may kulay ang hilera. "
       + "Ang <strong>Diskwento</strong> ng order ay itinototal mismo sa itaas ng total ng order, bilang "
       + "halaga at porsyento ng presyo sa listahan; kapag may bahagi ng order na walang presyo sa "
       + "listahan, sinasabi ito ng total kaysa magpanggap na sakop ito. Ang listahan ng mga order ay may "
       + "parehong bilang sa sariling kolum na <strong>Diskwento</strong> nito, kaya makikita ang order na "
-      + "may diskwento nang hindi ito binubuksan — at ang order na naitala bago pa naitala ang mga presyo "
-      + "sa listahan ay nakikitang \"Hindi alam\" doon, hindi kailanman zero.",
+      + "may diskwento nang hindi ito binubuksan — at ang order na ang lahat ng linya ay nakuha bago pa "
+      + "naitala ang mga presyo sa listahan ay nakikitang \"Hindi naitala ang presyo sa listahan\" doon, "
+      + "hindi kailanman zero.",
     salesDiscountCeiling:
       "Maaaring limitahan ng bukid mo kung gaano kalaking diskwento ang maibibigay mo. Kapag ganoon, "
       + "sinasabi ito ng screen ng Benta at ang linyang lampas sa limitasyon ay may tatak na "
@@ -3039,14 +3049,20 @@ export const tl = {
     glossaryListPriceDef:
       "Ang presyo ng produkto nang idagdag ang linya, na iniingatan kasama ng linya para ang susunod na "
       + "pagbabago ng presyo ay hindi na muling isulat ang isang nakaraang order. Ipinapakita bilang "
-      + "\"Walang presyo sa listahan\" kapag walang presyong maikukumpara ang produkto.",
+      + "\"Walang presyo sa listahan\" kapag walang presyong maikukumpara — isang naitalang "
+      + "katotohanan. Ang linyang nakuha bago pa nagsimulang magtala ng presyo sa listahan ang sakahan ay "
+      + "nagpapakita ng \"Hindi naitala ang presyo sa listahan\": kulang ang impormasyon doon, hindi ito "
+      + "sagot, kaya walang makapagsasabi kung may diskwento ang linya.",
 
     glossaryDiscountTerm: "Diskwento",
     glossaryDiscountDef:
       "Gaano kababa ang naibenta ng isang linya kumpara sa sarili nitong presyo sa listahan, ipinapakita "
       + "kada linya — at itinototal para sa buong order, bilang halaga at porsyento ng halaga sa listahan "
       + "ng mga linyang may presyo sa listahan. Ang order na may mga linya ngunit walang kahit isang "
-      + "linyang may presyo sa listahan ay nakikitang \"Hindi alam\"; ang order na walang anumang linya ay "
+      + "linyang may presyo sa listahan ay sinasabi ito sa halip na magbasang sero — at kapag lahat ng "
+      + "linyang iyon ay nakuha bago pa nagsimulang magtala ng presyo sa listahan ang sakahan, sinasabi "
+      + "nitong mas maaga ang order kaysa sa pagtatalang iyon. Sapat na ang isang linyang talagang walang "
+      + "presyo sa listahan para mapawalang-bisa iyon. Ang order na walang anumang linya ay "
       + "walang masusukat at nakikitang gitling sa listahan ng mga order, na walang linya ng diskwento sa "
       + "mismong order. Iba ito sa diskwentong maaaring ilagay ng nagbebenta sa "
       + "buong order — ito ay awtomatikong nakukuha, hindi ilinalagay.",
