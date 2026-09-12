@@ -10,7 +10,7 @@ with shipped code, the code is right.
 | File | What it is |
 |---|---|
 | [`01-design.md`](01-design.md) | The design. Caller's usage first, then shape, tradeoffs, alternatives, open questions. |
-| [`02-guards.md`](02-guards.md) | 28 guards, each with the mutation that makes it go red, plus what is deliberately *not* guarded and why. |
+| [`02-guards.md`](02-guards.md) | One guard per invariant, each with the mutation that makes it go red, plus what is deliberately *not* guarded and why. Deliberately not counted here — a bare count goes stale, as `AGENTS.md` records happening twice to the #271 list; read the table. |
 | [`03-arena-synthesis.md`](03-arena-synthesis.md) | Which candidate became the base, what was grafted from the others, what was rejected. |
 | [`04-verified-findings.md`](04-verified-findings.md) | The SDK and repo facts that were verified against primary sources, including four the spike got wrong. |
 | [`05-adversarial-review.md`](05-adversarial-review.md) | Independent adversarial review of the synthesized design: four major findings, all verified and fixed, and why each was missed. |
