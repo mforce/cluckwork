@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.1](https://github.com/mforce/cluckwork/compare/v0.1.0...v0.1.1) (2026-09-12)
+
+
+### Bug fixes
+
+* **dashboard:** give recent sales real columns and make both charts readable ([#781](https://github.com/mforce/cluckwork/issues/781)) ([7193ebe](https://github.com/mforce/cluckwork/commit/7193ebe2a1cf918c1d1366a4a22721c65300ebf4))
+* **dashboard:** tell a day with no entry from a day that laid no eggs ([#791](https://github.com/mforce/cluckwork/issues/791)) ([48c10e5](https://github.com/mforce/cluckwork/commit/48c10e563712c73283e105ad33621f60cadee5f3))
+
+
+### Documentation
+
+* **agents:** walk into package registrations when re-deriving [#271](https://github.com/mforce/cluckwork/issues/271) ([#790](https://github.com/mforce/cluckwork/issues/790)) ([5fab974](https://github.com/mforce/cluckwork/commit/5fab9747933e12731d9e8f94613413a74c3f6855))
+* **mcp:** record the MCP server design and what the spike got wrong ([#785](https://github.com/mforce/cluckwork/issues/785)) ([3fe5a7f](https://github.com/mforce/cluckwork/commit/3fe5a7fe1e6f1b752e4dbfee33a447c8273436bb)), closes [#770](https://github.com/mforce/cluckwork/issues/770)
+
 ## [0.1.0](https://github.com/mforce/cluckwork/compare/v0.0.4...v0.1.0) (2026-09-12)
 
 
