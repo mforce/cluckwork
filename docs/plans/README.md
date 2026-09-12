@@ -13,6 +13,7 @@ that no diff shows.
 |---|---|---|
 | [`500-seeded-audit-actor/`](500-seeded-audit-actor/) | Seeded audit events carry a real actor (#500) | Shipped; issue closed |
 | [`audit-entity-history/`](audit-entity-history/) | Entity-scoped "View history" (#493) | Shipped; issue closed |
+| [`770-mcp-server/`](770-mcp-server/) | MCP server support — feasibility design (#770) | Design only; no code written |
 
 **Where to look instead:**
 
