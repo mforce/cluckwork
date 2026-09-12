@@ -48,6 +48,45 @@ describe("design tokens: the resolver itself", () => {
   });
 });
 
+// literalColourIn's own cases. The stylesheet scan below is a *sample*: it only
+// exercises the branches the current CSS happens to reach, and no rule in it
+// uses a var() fallback today, so the fallback branch had no permanent test and
+// was only ever hit by a throwaway mutation. These call the helper the way the
+// scan does and assert the literal it should name.
+describe("literalColourIn", () => {
+  it.each([
+    ["var(--surface)", null],
+    ["var(--a, var(--surface))", null],
+    ["color-mix(in oklab, var(--stat-accent) 7%, transparent)", null],
+    ["1px dashed var(--hairline)", null],
+    ["linear-gradient(var(--canvas), var(--surface))", null],
+    ["currentColor", null],
+    ["none", null],
+  ])("passes %s", (value, expected) => {
+    expect(literalColourIn(value)).toBe(expected);
+  });
+
+  it.each([
+    ["#ff0000", "#ff0000"],
+    ["1px solid #abc", "#abc"],
+    ["color-mix(in oklab, #ff0000 7%, var(--surface))", "#ff0000"],
+    ["color-mix(in oklab, red 7%, var(--surface))", "red"],
+    ["rebeccapurple", "rebeccapurple"],
+    ["rgb(1 2 3)", "rgb("],
+    ["hwb(0 0% 0%)", "hwb("],
+    ["oklab(0.5 0.1 0.1)", "oklab("],
+    ["color(display-p3 1 0 0)", "color("],
+    // The fallback renders whenever the token is undefined, so it is a real
+    // colour — and deleting it with the reference is exactly how it hid.
+    ["var(--day-fill, red)", "red"],
+    ["var(--a, #ff0000)", "#ff0000"],
+    ["var(--a, var(--b, red))", "red"],
+    ["var(--a, hwb(0 0% 0%))", "hwb("],
+  ])("names the literal in %s", (value, expected) => {
+    expect(literalColourIn(value)).toBe(expected);
+  });
+});
+
 describe.each(BRANDS)("palette: %s", (brand) => {
   it("light block declares every brand-scoped literal the light base declares", () => {
     if (brand === DEFAULT_BRAND) return; // the default IS the base
