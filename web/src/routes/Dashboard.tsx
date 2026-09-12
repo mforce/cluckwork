@@ -12,13 +12,13 @@ import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { EmptyState } from "../components/EmptyState";
 import { StatusBadge } from "../components/StatusBadge";
-import { Sparkline } from "../components/Sparkline";
+import { DayStrip } from "../components/DayStrip";
 import { StockBar } from "../components/StockBar";
 import { useAuth } from "../auth/useAuth";
 import { useFarmToday } from "../farm/useFarm";
 import { daysBefore } from "../lib/dates";
 import {
-  captureTiles, henDayTrend, sparkline, stockBar, todaysEggs, visibleTiles,
+  captureTiles, dayStrip, henDayTrend, stockBar, todaysEggs, visibleTiles,
 } from "../lib/dashboard";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
@@ -106,7 +106,7 @@ export function Dashboard() {
   const panelError = <p className="error">{t("panelLoadError")}</p>;
   const tiles = flocks !== null && entries !== null ? visibleTiles(captureTiles(flocks, entries)) : null;
   const trendData = trend === null ? null : {
-    line: sparkline([...trend.previous.days, ...trend.current.days]),
+    line: dayStrip([...trend.previous.days, ...trend.current.days], trend.current.days.length),
     henDay: henDayTrend(trend.current, trend.previous),
   };
   const bar = stock === null ? null : stockBar(stock);
@@ -116,6 +116,22 @@ export function Dashboard() {
     delta === null ? "—"
       : delta < 0 ? t("henDayDeltaDown", { delta: fmt.count(Math.abs(delta), 1) })
         : t("henDayDeltaUp", { delta: fmt.count(delta, 1) });
+  // Lay rate falling IS the bad direction here, so the delta carries the
+  // semantic colour. An unknown delta stays neutral rather than reading as good.
+  // The strip's whole change is that a day with nothing recorded is an empty
+  // slot, so the accessible name has to say how many there are — otherwise a
+  // screen-reader user still gets "lowest 0", the conflation the redraw
+  // removed for everyone else. Two complete sentences rather than one built by
+  // concatenation, so each locale can order its own clauses.
+  const trendLabel = (line: { slots: { recorded: boolean }[]; min: number; max: number; last: number }) => {
+    const blank = line.slots.filter((s) => !s.recorded).length;
+    const figures = { min: fmt.count(line.min), max: fmt.count(line.max), last: fmt.count(line.last) };
+    return blank === 0
+      ? t("trendStripLabel", figures)
+      : t("trendStripLabelBlanks", { ...figures, count: blank, blank: fmt.count(blank) });
+  };
+  const deltaClass = (delta: number | null) =>
+    delta === null || delta === 0 ? "trend-delta" : delta < 0 ? "trend-delta is-down" : "trend-delta is-up";
 
   return (
     <section>
@@ -171,18 +187,24 @@ export function Dashboard() {
           <h3><Link to="/reports">{t("trendPanelTitle")}</Link></h3>
           {trendData === null ? panelError : (
             <>
-              <Sparkline
+              <DayStrip
                 data={trendData.line}
-                label={t("sparklineLabel", {
-                  min: fmt.count(trendData.line.min), max: fmt.count(trendData.line.max), last: fmt.count(trendData.line.last),
-                })}
+                label={trendLabel(trendData.line)}
+                title={t("trendScaleTitle")}
+                peak={t("trendPeak", { total: fmt.count(trendData.line.max) })}
+                from={<FarmDate iso={daysBefore(today, 14)} />}
+                to={<FarmDate iso={daysBefore(today, 1)} />}
               />
-              <p className="muted">
-                {t("henDayCaption", {
-                  pct: trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`,
-                  delta: deltaText(trendData.henDay.delta),
-                })}
+              {/* #777 — hen-day is what this panel measures, so it is a figure.
+                  It used to be the smallest text on the panel, inside a muted
+                  sentence describing a quantity the chart above did not plot. */}
+              <p className="trend-kpi">
+                <span className="trend-fig">
+                  {trendData.henDay.current === null ? "—" : `${fmt.count(trendData.henDay.current, 1)}%`}
+                </span>
+                <span className={deltaClass(trendData.henDay.delta)}>{deltaText(trendData.henDay.delta)}</span>
               </p>
+              <p className="trend-sub">{t("henDaySubLabel")}</p>
             </>
           )}
         </div>
@@ -193,12 +215,36 @@ export function Dashboard() {
             <EmptyState icon={Egg} message={t("noStockMessage")} />
           ) : (
             <>
-              <StockBar data={bar} />
-              <p className="muted">
-                {t("eggsAvailableMessage", { count: bar.totalAvailable, total: fmt.count(bar.totalAvailable) })}
-                {bar.segments.length > 0 ? ` · ${bar.segments.map((s) => `${s.gradeName} ${fmt.count(s.available)}`).join(" · ")}` : ""}
-                {bar.totalRestricted > 0 ? ` · ${t("stockCaptionRestricted", { restricted: fmt.count(bar.totalRestricted) })}` : ""}
+              {/* #777 — the total is the whole the bar divides, so it leads. */}
+              <p className="stock-total">
+                <span className="stock-fig">{fmt.count(bar.totalAvailable)}</span>
+                {/* The space matters: .stock-fig is display:block so the two
+                    never touch on screen, but the paragraph's text is what a
+                    copy-paste and any text consumer gets, and without it that
+                    reads "1egg available". */}
+                {" "}{t("eggsAvailableLabel", { count: bar.totalAvailable })}
               </p>
+              <StockBar data={bar} />
+              {/* The ledger is the bar's text of record (the track itself is
+                  aria-hidden). It replaces the grade run-on the caption used to
+                  carry, which asked the reader to count segments and trust the
+                  order matched, and it carries each grade's share so a grade
+                  worth well under a percent is readable as a number. */}
+              {bar.segments.length > 0 && (
+                <ul className="stock-ledger" aria-label={t("stockLedgerLabel")}>
+                  {bar.segments.map((s) => (
+                    <li key={s.eggGradeId}>
+                      <span className={`swatch grade-${s.colorIndex}`} aria-hidden="true" />
+                      <span className="name">{s.gradeName}</span>
+                      <span className="count">{fmt.count(s.available)}</span>
+                      <span className="share">{`${fmt.count(s.pct, 1)}%`}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {bar.totalRestricted > 0 && (
+                <p className="muted">{t("stockCaptionRestricted", { restricted: fmt.count(bar.totalRestricted) })}</p>
+              )}
             </>
           )}
         </div>
@@ -212,11 +258,11 @@ export function Dashboard() {
             <ul className="dash-list">
               {orders.map((o) => (
                 <li key={o.id} aria-label={o.referenceNumber}>
-                  <span>{o.referenceNumber}</span>
+                  <span className="ref">{o.referenceNumber}</span>
                   {/* #512 US5 (FR-045) — authorized (canSeeSales, the gate this
                       whole panel is already behind) link into URL-filtered
                       Sales by canonical id; the name itself is row-owned. */}
-                  <Link className="link" to={`/sales?customerId=${o.customerId}`}>{rowCustomerName(o)}</Link>
+                  <Link className="link cust" to={`/sales?customerId=${o.customerId}`}>{rowCustomerName(o)}</Link>
                   <StatusBadge status={o.status} label={statusLabel(o.status)} />
                   <span className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</span>
                 </li>

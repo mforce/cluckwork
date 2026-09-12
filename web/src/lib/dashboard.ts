@@ -40,26 +40,49 @@ export function todaysEggs(entries: DailyEntry[]): number {
   return entries.filter((e) => e.status !== "Voided").reduce((a, e) => a + e.totalEggs, 0);
 }
 
-export interface SparklineData { points: string; values: number[]; min: number; max: number; last: number }
+// One slot per day in the window, whether or not that day has a figure (#777).
+// `heightPct` is the bar's share of the tallest day; `recorded` is false for a
+// day that produced nothing, which the strip draws as an empty slot.
+//
+// Why a strip rather than the line it replaces, stated at the strength the code
+// supports: the line mapped a zero day to y = SPARK_H, the floor of the viewBox,
+// so a zero WAS drawn as a drop rather than as a plateau. What it never drew was
+// the floor itself or the top of the scale, so nothing on screen said the bottom
+// meant zero rather than the window's own minimum, and a 3% swing and a 60% one
+// made the same picture. It also interpolated between days, implying values
+// between them that a daily count does not have. The strip fixes those two.
+// It does NOT fix the ambiguity below, which is #780.
+//
+// KNOWN GAP (#780): the production report cannot yet say
+// whether a day was ENTERED. `ReportQueries` walks `for (d = from; d <= to;
+// d = d.AddDays(1))` and emits every calendar day with `total = row?.Total ?? 0`,
+// so a day nobody recorded and a day that genuinely produced zero eggs arrive
+// identical. `recorded: false` therefore means "no eggs", not "no entry", and
+// nothing here may average over the window until the server can tell them apart.
+export interface DayStripSlot { date: string; heightPct: number; recorded: boolean; weekBreak: boolean }
+export interface DayStripData { slots: DayStripSlot[]; min: number; max: number; last: number }
 
-// Fixed viewBox "0 0 100 32", y inverted (0 at the top). x spreads the points
-// across the full width; y scales to the maximum, so a run of zeros is a flat
-// baseline at y = 32 rather than a division by zero. Coordinates are rounded
-// to 1 dp so the polyline string is stable across engines.
-const SPARK_W = 100;
-const SPARK_H = 32;
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
-export function sparkline(days: ProductionDay[]): SparklineData {
+// A bar is anchored at zero and its height is its share of the peak. Not a
+// cropped axis: the panel answers "did production hold", and shortening the
+// axis to dramatise a small swing would misstate the ratios between days.
+// A recorded day floors at 2% so the shortest real day is still a bar.
+// `recentCount` is the length of the LATER of the two windows the panel fetches,
+// so the strip's divider falls exactly where the hen-day caption's comparison
+// does. 0 (or the whole window) draws no divider.
+export function dayStrip(days: ProductionDay[], recentCount = 0): DayStripData {
+  if (days.length === 0) return { slots: [], min: 0, max: 0, last: 0 };
   const values = days.map((d) => d.totalEggs);
-  if (values.length === 0) return { points: "", values, min: 0, max: 0, last: 0 };
   const max = Math.max(...values);
-  const min = Math.min(...values);
-  const step = values.length > 1 ? SPARK_W / (values.length - 1) : 0;
-  const points = values
-    .map((v, i) => `${r1(i * step)},${r1(max > 0 ? SPARK_H - (v / max) * SPARK_H : SPARK_H)}`)
-    .join(" ");
-  return { points, values, min, max, last: values[values.length - 1] };
+  const breakAt = recentCount > 0 && recentCount < days.length ? days.length - recentCount : -1;
+  const slots = days.map((d, i) => ({
+    date: d.date,
+    heightPct: d.totalEggs > 0 && max > 0 ? Math.max(2, r1((d.totalEggs / max) * 100)) : 0,
+    recorded: d.totalEggs > 0,
+    weekBreak: i === breakAt,
+  }));
+  return { slots, min: Math.min(...values), max, last: values[values.length - 1] };
 }
 
 export interface HenDayTrend { current: number | null; previous: number | null; delta: number | null }
@@ -73,23 +96,40 @@ export function henDayTrend(current: ProductionReport, previous: ProductionRepor
   return { current: c, previous: p, delta };
 }
 
-export interface StockSegment { eggGradeId: string; gradeName: string; available: number; pct: number; opacity: number }
+// Grade is a CATEGORICAL dimension, so it gets a categorical encoding (#777):
+// `colorIndex` picks one of this many distinct hues, declared in styles.css for
+// both themes and deliberately independent of the farm's brand palette. Egg
+// grades are user-editable and unbounded, so past this count the hues repeat —
+// the ledger beside the bar, not the colour, is what names every grade. The
+// opacity ramp this replaces reached its floor at the sixth grade and gave a
+// seventh and eighth literally the same fill.
+export const GRADE_COLOURS = 8;
+
+export interface StockSegment { eggGradeId: string; gradeName: string; available: number; pct: number; colorIndex: number }
 export interface StockBarData { segments: StockSegment[]; totalAvailable: number; totalRestricted: number }
 
 // The same reduce StockPage uses for its total, so the bar and the Stock
-// screen never disagree. Opacity steps down by index so N grades stay
-// distinguishable in every palette without a literal colour (floor 0.35).
+// screen never disagree.
 export function stockBar(rows: StockRow[]): StockBarData {
   const totalAvailable = rows.reduce((a, r) => a + r.available, 0);
   const totalRestricted = rows.reduce((a, r) => a + r.restricted, 0);
+  // The hue comes from the grade's position in the FULL row set, before the
+  // empty grades are dropped. Off the filtered index it would be positional
+  // rather than identity-bearing: [Large, Medium, Small] gives 1, 2, 3, and the
+  // day Large sells out the same farm's Medium becomes 1 and Small becomes 2 —
+  // the same grade, a different colour, between two screenshots of one farm.
+  // That is the defect the "not brand-scoped" rule above exists to prevent,
+  // and it bites harder here because it needs only one sale, not two
+  // deployments. The opacity ramp did want the filtered index (a compressed
+  // ramp beats one with holes); a categorical encoding wants the stable one.
   const segments = rows
-    .filter((r) => r.available > 0)
     .map((r, i) => ({
       eggGradeId: r.eggGradeId,
       gradeName: r.gradeName,
       available: r.available,
       pct: r1((r.available / totalAvailable) * 100),
-      opacity: Math.max(0.35, Math.round((1 - 0.13 * i) * 100) / 100),
-    }));
+      colorIndex: (i % GRADE_COLOURS) + 1,
+    }))
+    .filter((seg) => seg.available > 0);
   return { segments, totalAvailable, totalRestricted };
 }

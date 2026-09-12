@@ -775,21 +775,31 @@ export const en = {
     moreFlocks_one: "{{total}} more flock",
     moreFlocks_other: "{{total}} more flocks",
 
-    // Last 14 days (#654): the production report's own figures — submitted
-    // days only, fixed window (yesterday back), hen-day % is the server's
-    // period figure for the last 7 complete days vs the 7 before.
+    // Last 14 days (#654, #777): the production report's own figures —
+    // submitted days only, fixed window (yesterday back). The strip plots eggs
+    // per day, one slot per day; the figure below it is the server's hen-day %
+    // for the last 7 complete days, and its delta against the 7 before.
     trendPanelTitle: "Last 14 days",
-    sparklineLabel: "Eggs per day, last 14 days: lowest {{min}}, highest {{max}}, yesterday {{last}}",
-    henDayCaption: "Hen-day {{pct}} · {{delta}} vs the previous 7 days",
+    trendStripLabel: "Eggs per day, last 14 days: lowest {{min}}, peak {{max}}, yesterday {{last}}",
+    // Same sentence with the empty slots named. Whole string, not a suffix,
+    // so a locale can put the clause where its grammar wants it.
+    trendStripLabelBlanks_one: "Eggs per day, last 14 days: lowest {{min}}, peak {{max}}, yesterday {{last}}. {{blank}} day has nothing recorded.",
+    trendStripLabelBlanks_other: "Eggs per day, last 14 days: lowest {{min}}, peak {{max}}, yesterday {{last}}. {{blank}} days have nothing recorded.",
+    trendScaleTitle: "Eggs per day",
+    trendPeak: "Peak {{total}}",
+    henDaySubLabel: "Hen-day, last 7 days against the 7 before",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
 
-    // Stock (#654): one stacked bar by grade; the caption is the text of record.
+    // Stock (#654, #777): one stacked bar by grade, with the ledger beside it
+    // as the text of record (the track itself is hidden from assistive tech).
     stockPanelTitle: "Stock",
     noStockMessage: "No stock yet — record and submit a daily entry.",
-    // {{total}} is the farm-locale formatted figure (#650); {{count}} stays for plural selection.
-    eggsAvailableMessage_one: "{{total}} egg available.",
-    eggsAvailableMessage_other: "{{total}} eggs available.",
+    // The figure is rendered beside this label, so the label carries no
+    // placeholder; {{count}} stays only for plural selection (#650).
+    eggsAvailableLabel_one: "egg available",
+    eggsAvailableLabel_other: "eggs available",
+    stockLedgerLabel: "Stock by grade",
     stockCaptionRestricted: "{{restricted}} restricted",
 
     // "Recent sales" panel (hidden for ReadOnly/Denied, #127)

@@ -595,16 +595,21 @@ export const es = {
 
     // Últimos 14 días (#654)
     trendPanelTitle: "Últimos 14 días",
-    sparklineLabel: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}",
-    henDayCaption: "Postura {{pct}} · {{delta}} frente a los 7 días anteriores",
+    trendStripLabel: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}",
+    trendStripLabelBlanks_one: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}. {{blank}} día no tiene nada registrado.",
+    trendStripLabelBlanks_other: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}. {{blank}} días no tienen nada registrado.",
+    trendScaleTitle: "Huevos por día",
+    trendPeak: "Máximo {{total}}",
+    henDaySubLabel: "Postura, últimos 7 días frente a los 7 anteriores",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
 
     // Existencias (#654)
     stockPanelTitle: "Existencias",
     noStockMessage: "Aún no hay existencias — registre y envíe un registro diario.",
-    eggsAvailableMessage_one: "{{total}} huevo disponible.",
-    eggsAvailableMessage_other: "{{total}} huevos disponibles.",
+    eggsAvailableLabel_one: "huevo disponible",
+    eggsAvailableLabel_other: "huevos disponibles",
+    stockLedgerLabel: "Existencias por grado",
     stockCaptionRestricted: "{{restricted}} restringidos",
 
     // Ventas recientes (oculto para Solo lectura/Denegado, #127)

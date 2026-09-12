@@ -175,62 +175,98 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8));
   });
 
-  it("draws the 14 report days oldest-first as the exact polyline and captions the server's hen-day figures", async () => {
+  it("draws the 14 report days oldest-first as bars sized off the peak, and the server's hen-day figures", async () => {
     renderWithProviders(<Dashboard />);
-    const svg = await screen.findByRole("img", { name: "Eggs per day, last 14 days: lowest 301, highest 327, yesterday 321" });
-    expect(svg.querySelector("polyline")).toHaveAttribute(
-      "points",
-      "0,2 7.7,2.1 15.4,2.2 23.1,2.3 30.8,2.3 38.5,2.4 46.2,2.5 53.8,0 61.5,0.1 69.2,0.2 76.9,0.3 84.6,0.4 92.3,0.5 100,0.6",
-    );
-    expect(screen.getByText("Hen-day 87.4% · +2.3 pts vs the previous 7 days")).toBeInTheDocument();
+    const strip = await screen.findByRole("img", { name: "Eggs per day, last 14 days: lowest 301, peak 327, yesterday 321" });
+    // 301..307 then 321..327, so the peak (327) is the 8th day and every other
+    // bar is its exact share of it.
+    expect(Array.from(strip.querySelectorAll(".day > i")).map((b) => (b as HTMLElement).style.height)).toEqual([
+      "93.9%", "93.6%", "93.3%", "93%", "92.7%", "92.4%", "92%",
+      "100%", "99.7%", "99.4%", "99.1%", "98.8%", "98.5%", "98.2%",
+    ]);
+    // Fourteen slots whatever the figures, and the divider on the 8th — the
+    // first day of the recent window the hen-day figure below compares.
+    const slots = Array.from(strip.querySelectorAll(".day"));
+    expect(slots).toHaveLength(14);
+    expect(slots.map((d) => d.classList.contains("day-week")).indexOf(true)).toBe(7);
+    expect(screen.getByText("87.4%")).toBeInTheDocument();
+    expect(screen.getByText("+2.3 pts")).toBeInTheDocument();
+    expect(screen.getByText("Hen-day, last 7 days against the 7 before")).toBeInTheDocument();
+  });
+
+  it("names the empty slots in the accessible label, so a zero run is not announced as 'lowest 0'", async () => {
+    mockReport.mockImplementation((from, to) =>
+      reportByWindow(today)(from, to).then((r) => ({ ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0 } : d)) })));
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByRole("img", { name: /6 days have nothing recorded\.$/ })).toBeInTheDocument();
+  });
+
+  it("draws an empty slot for a day with nothing recorded, never a bar through it", async () => {
+    // The line this replaced put these days on the floor of its viewBox and
+    // never drew that floor, so the bottom of the picture was unlabelled. Each
+    // day is now its own slot.
+    mockReport.mockImplementation((from, to) =>
+      reportByWindow(today)(from, to).then((r) => ({ ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0 } : d)) })));
+    renderWithProviders(<Dashboard />);
+    const strip = await screen.findByRole("img", { name: /Eggs per day, last 14 days/ });
+    expect(strip.querySelectorAll(".day")).toHaveLength(14);
+    expect(strip.querySelectorAll(".day > i")).toHaveLength(8); // 4 per window
   });
 
   it("shows a negative delta with the minus form, one decimal on both figures", async () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => (r.periodHenDayPct === 87.4 ? report(80, r.days) : r)));
     renderWithProviders(<Dashboard />);
-    expect(await screen.findByText("Hen-day 80.0% · −5.1 pts vs the previous 7 days")).toBeInTheDocument();
+    expect(await screen.findByText("80.0%")).toBeInTheDocument();
+    const delta = screen.getByText("−5.1 pts");
+    expect(delta.className).toBe("trend-delta is-down");
   });
 
-  it("renders — for a null hen-day figure, never 0", async () => {
+  it("renders — for a null hen-day figure, never 0, and keeps the delta neutral", async () => {
     mockReport.mockImplementation((from, to) =>
       reportByWindow(today)(from, to).then((r) => report(null, r.days)));
     renderWithProviders(<Dashboard />);
-    expect(await screen.findByText("Hen-day — · — vs the previous 7 days")).toBeInTheDocument();
+    const kpi = await screen.findByText("—", { selector: ".trend-fig" });
+    expect(kpi).toBeInTheDocument();
+    expect(screen.getByText("—", { selector: ".trend-delta" }).className).toBe("trend-delta");
   });
 });
 
 describe("Dashboard stock bar (#654, INV-4)", () => {
-  it("renders the grade segments with exact widths and a caption equal to the Stock screen's total", async () => {
+  it("renders the grade bands with exact widths and a ledger row per grade, totalling the Stock screen's figure", async () => {
     renderWithProviders(<Dashboard />);
     const stock = await panel("Stock");
-    await within(stock).findByText(/1,560 eggs available\./);
+    await within(stock).findByText("1,560");
     const spans = Array.from(stock.querySelectorAll(".meter-stack > span")) as HTMLElement[];
-    expect(spans.map((s) => s.style.width)).toEqual(["79.5%", "20.5%"]);
-    expect(within(stock).getByText(/Grade A 1,240 · Grade B 320/)).toBeInTheDocument();
+    expect(spans.map((s) => [s.style.width, s.className])).toEqual([["79.5%", "grade-1"], ["20.5%", "grade-2"]]);
+    // The ledger, not the band, is what names a grade and carries its share.
+    const rows = Array.from(stock.querySelectorAll(".stock-ledger li"))
+      .map((li) => Array.from(li.querySelectorAll("span")).slice(1).map((s) => s.textContent));
+    expect(rows).toEqual([["Grade A", "1,240", "79.5%"], ["Grade B", "320", "20.5%"]]);
     expect(within(stock).queryByText(/restricted/)).not.toBeInTheDocument();
   });
 
-  it("appends the restricted suffix only when something is restricted", async () => {
+  it("shows the restricted line only when something is restricted", async () => {
     mockStock.mockResolvedValue([{ ...STOCK[0], restricted: 12 }, STOCK[1]]);
     renderWithProviders(<Dashboard />);
-    expect(await screen.findByText(/· 12 restricted$/)).toBeInTheDocument();
+    expect(await screen.findByText("12 restricted")).toBeInTheDocument();
   });
 
-  it("says '1 egg available.' — singular — when exactly one egg is in stock", async () => {
+  it("says 'egg available' — singular — when exactly one egg is in stock", async () => {
     mockStock.mockResolvedValue([{ eggGradeId: "g1", gradeName: "Grade A", available: 1, restricted: 0 }]);
     renderWithProviders(<Dashboard />);
     const stock = await panel("Stock");
-    expect(within(stock).getByText(/^1 egg available\. · Grade A 1$/)).toBeInTheDocument();
-    expect(within(stock).queryByText(/1 eggs available/)).not.toBeInTheDocument();
+    expect(stock.querySelector(".stock-total")?.textContent).toBe("1 egg available");
   });
 
   it("still renders a restricted-only stock (0 available, 4 restricted) — that is not the empty state", async () => {
     mockStock.mockResolvedValue([{ eggGradeId: "g1", gradeName: "Grade A", available: 0, restricted: 4 }]);
     renderWithProviders(<Dashboard />);
     const stock = await panel("Stock");
-    expect(await within(stock).findByText(/^0 eggs available\. · 4 restricted$/)).toBeInTheDocument();
+    expect(await within(stock).findByText("4 restricted")).toBeInTheDocument();
+    expect(stock.querySelector(".stock-total")?.textContent).toBe("0 eggs available");
     expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
+    expect(stock.querySelectorAll(".stock-ledger")).toHaveLength(0);
     expect(within(stock).queryByText("No stock yet — record and submit a daily entry.")).not.toBeInTheDocument();
   });
 });
@@ -243,8 +279,8 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
   const asSales = { token: { sub: "u1", role: "Sales" } };
   const expectOthersIntact = async (except: "today" | "trend" | "stock" | "sales") => {
     if (except !== "today") expect(await screen.findByText("178 eggs today")).toBeInTheDocument();
-    if (except !== "trend") expect(await screen.findByText(/Hen-day 87\.4%/)).toBeInTheDocument();
-    if (except !== "stock") expect(await screen.findByText(/1,560 eggs available\./)).toBeInTheDocument();
+    if (except !== "trend") expect(await screen.findByText("87.4%")).toBeInTheDocument();
+    if (except !== "stock") expect(await screen.findByText("1,560")).toBeInTheDocument();
     if (except !== "sales") expect(await screen.findByText("No orders yet.")).toBeInTheDocument();
   };
 
@@ -280,7 +316,7 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     mockStock.mockImplementation(boom);
     renderWithProviders(<Dashboard />, asSales);
     expect(within(await panel("Stock")).getByText("Could not load.")).toBeInTheDocument();
-    expect(screen.queryByText(/0 eggs available/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/eggs available/)).not.toBeInTheDocument();
     await expectOthersIntact("stock");
   });
   it("orders failed → Recent sales panel errors, others intact", async () => {
@@ -389,8 +425,9 @@ describe("Dashboard follows the farm's day and locale", () => {
     expect(mockEntries).toHaveBeenCalledWith({ from: farmToday, to: farmToday, limit: 500 });
     expect(mockReport).toHaveBeenCalledWith("2026-07-15", "2026-07-21");
     expect(mockReport).toHaveBeenCalledWith("2026-07-08", "2026-07-14");
-    expect(screen.getByText(/1\.560 eggs available\./)).toBeInTheDocument();
-    expect(screen.getByText("Hen-day 87,4% · +2,3 pts vs the previous 7 days")).toBeInTheDocument();
+    expect(screen.getByText("1.560")).toBeInTheDocument();
+    expect(screen.getByText("87,4%")).toBeInTheDocument();
+    expect(screen.getByText("+2,3 pts")).toBeInTheDocument();
   });
 });
 

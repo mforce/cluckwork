@@ -620,8 +620,12 @@ export const tl = {
 
     // Huling 14 araw (#654)
     trendPanelTitle: "Huling 14 araw",
-    sparklineLabel: "Itlog bawat araw, huling 14 araw: pinakamababa {{min}}, pinakamataas {{max}}, kahapon {{last}}",
-    henDayCaption: "Hen-day {{pct}} · {{delta}} kumpara sa nakaraang 7 araw",
+    trendStripLabel: "Itlog bawat araw, huling 14 araw: pinakamababa {{min}}, pinakamataas {{max}}, kahapon {{last}}",
+    trendStripLabelBlanks_one: "Itlog bawat araw, huling 14 araw: pinakamababa {{min}}, pinakamataas {{max}}, kahapon {{last}}. {{blank}} araw ang walang naitalang datos.",
+    trendStripLabelBlanks_other: "Itlog bawat araw, huling 14 araw: pinakamababa {{min}}, pinakamataas {{max}}, kahapon {{last}}. {{blank}} araw ang walang naitalang datos.",
+    trendScaleTitle: "Itlog bawat araw",
+    trendPeak: "Pinakamataas {{total}}",
+    henDaySubLabel: "Hen-day, huling 7 araw laban sa naunang 7",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
 
@@ -631,8 +635,9 @@ export const tl = {
     // Tagalog does not inflect the noun for number here, so both forms are the
     // same sentence; both keys still exist because the catalogs must carry an
     // identical key set (catalogParity.test.ts).
-    eggsAvailableMessage_one: "{{total}} itlog ang available.",
-    eggsAvailableMessage_other: "{{total}} itlog ang available.",
+    eggsAvailableLabel_one: "itlog ang available",
+    eggsAvailableLabel_other: "itlog ang available",
+    stockLedgerLabel: "Stock ayon sa grado",
     stockCaptionRestricted: "{{restricted}} restricted",
 
     // Mga kamakailang benta (nakatago para sa ReadOnly/Denied, #127)

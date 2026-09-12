@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { contrast, declaredKeys, luminance, resolveTokens, type Mode } from "./test/cssTokens";
+import { contrast, declaredKeys, literalColourIn, luminance, resolveTokens, type Mode } from "./test/cssTokens";
 import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
 
 // Non-default palettes carry a data-brand attribute; the default carries none.
@@ -45,6 +45,45 @@ describe("design tokens: the resolver itself", () => {
     // Not redeclared in dark — inherited from :root, which is what lets a
     // palette set the brand fill once and have it apply in both modes.
     expect(dark.get("--brand")).toBe("#4a154b");
+  });
+});
+
+// literalColourIn's own cases. The stylesheet scan below is a *sample*: it only
+// exercises the branches the current CSS happens to reach, and no rule in it
+// uses a var() fallback today, so the fallback branch had no permanent test and
+// was only ever hit by a throwaway mutation. These call the helper the way the
+// scan does and assert the literal it should name.
+describe("literalColourIn", () => {
+  it.each([
+    ["var(--surface)", null],
+    ["var(--a, var(--surface))", null],
+    ["color-mix(in oklab, var(--stat-accent) 7%, transparent)", null],
+    ["1px dashed var(--hairline)", null],
+    ["linear-gradient(var(--canvas), var(--surface))", null],
+    ["currentColor", null],
+    ["none", null],
+  ])("passes %s", (value, expected) => {
+    expect(literalColourIn(value)).toBe(expected);
+  });
+
+  it.each([
+    ["#ff0000", "#ff0000"],
+    ["1px solid #abc", "#abc"],
+    ["color-mix(in oklab, #ff0000 7%, var(--surface))", "#ff0000"],
+    ["color-mix(in oklab, red 7%, var(--surface))", "red"],
+    ["rebeccapurple", "rebeccapurple"],
+    ["rgb(1 2 3)", "rgb("],
+    ["hwb(0 0% 0%)", "hwb("],
+    ["oklab(0.5 0.1 0.1)", "oklab("],
+    ["color(display-p3 1 0 0)", "color("],
+    // The fallback renders whenever the token is undefined, so it is a real
+    // colour — and deleting it with the reference is exactly how it hid.
+    ["var(--day-fill, red)", "red"],
+    ["var(--a, #ff0000)", "#ff0000"],
+    ["var(--a, var(--b, red))", "red"],
+    ["var(--a, hwb(0 0% 0%))", "hwb("],
+  ])("names the literal in %s", (value, expected) => {
+    expect(literalColourIn(value)).toBe(expected);
   });
 });
 
@@ -221,7 +260,7 @@ describe("dashboard surfaces (#654, INV-8)", () => {
   // Any rule that APPLIES to a dashboard surface, not only one whose selector
   // starts with it: `.unrelated, .capture-tile:hover { … }` reaches the tile
   // just as surely, and an anchored match walked straight past it.
-  const TOUCHES = /(^|[\s,>+~])\.(capture-[a-z-]*|sparkline|meter-stack|dash-list|panel-wide)\b/;
+  const TOUCHES = /(^|[\s,>+~])\.(capture-[a-z-]*|trend[a-z-]*|daystrip|day|day-week|stock-[a-z-]*|meter-stack|dash-list|panel-wide)\b/;
   const blocks = Array.from(css.matchAll(/([^{}]+)\{([^{}]*)\}/g))
     .map((m) => ({ selector: m[1].trim(), body: m[2] }))
     .filter((b) => TOUCHES.test(b.selector));
@@ -231,11 +270,12 @@ describe("dashboard surfaces (#654, INV-8)", () => {
     return b!.body;
   };
 
-  it("declares the tile, cap link, sparkline, stacked meter and list rules", () => {
+  it("declares the tile, cap link, day strip, stacked meter, ledger and list rules", () => {
     for (const s of [".capture-grid", ".capture-tile", ".capture-tile.is-missing", ".capture-tile.is-missing .capture-tile-eggs", ".capture-tile-eggs", ".capture-more",
-      ".sparkline", ".sparkline polyline", ".meter-stack", ".meter-stack > span", ".dash-list", ".dash-list li", ".panel-wide"])
+      ".trend-scale", ".daystrip", ".day", ".day > i", ".day-week", ".trend-rule", ".trend-kpi",
+      ".meter-stack", ".meter-stack > span", ".stock-ledger", ".stock-ledger li", ".dash-list", ".dash-list li", ".panel-wide"])
       bodyOf(s);
-    expect(blocks.length).toBeGreaterThanOrEqual(13);
+    expect(blocks.length).toBeGreaterThanOrEqual(20);
   });
   it("carries no box-shadow, text-transform, transition, animation or literal colour on any of them", () => {
     for (const b of blocks) {
@@ -249,17 +289,37 @@ describe("dashboard surfaces (#654, INV-8)", () => {
         const prop = rawProp.trim();
         const value = rest.join(":").trim();
         if (!value) continue;
-        if (!/(^|-)color$|^background(-color)?$|^border(-[a-z]+)?$|^stroke$|^fill$|^outline(-color)?$/.test(prop)) continue;
+        // Only properties that can carry a COLOUR. `border(-<side>)?` is the
+        // shorthand; `border-radius` / `-width` / `-style` are not colours and
+        // matching them here made a plain `3px 3px 0 0` look untokenised
+        // (#777). `border-color` is already caught by the `-color$` branch, and
+        // `border-image` is listed because it is the one other border longhand
+        // that can carry one.
+        if (!/(^|-)color$|^background(-color|-image)?$|^border(-(top|right|bottom|left|block|inline|image))?$|^stroke$|^fill$|^outline(-color)?$/.test(prop)) continue;
         const tokenised = value.includes("var(--")
           || /^(inherit|initial|unset|revert|none|transparent|currentColor)$/i.test(value);
         expect(tokenised, `${b.selector}: "${prop}: ${value}" must resolve through a token`).toBe(true);
+        // Containing a token is necessary but not sufficient: a value can mix a
+        // literal INTO one. `color-mix(in oklab, #ff0000 7%, var(--surface))`
+        // passed the check above, and #777 introduced this stylesheet's first
+        // color-mix, so the hole went from inert to live on a dashboard surface.
+        // The first patch enumerated hex and four colour functions and missed
+        // NAMED colours, so `color-mix(in oklab, red 7%, var(--surface))` still
+        // walked through; literalColourIn strips the var() references and
+        // inspects whatever is left.
+        const literal = literalColourIn(value);
+        expect(literal, `${b.selector}: "${prop}: ${value}" carries the literal colour "${literal}" beside its token`).toBeNull();
       }
     }
   });
-  it("keeps the tile on the card radius and the segments on the accent token", () => {
+  it("keeps the tile on the card radius and the production bar on the accent token", () => {
     expect(bodyOf(".capture-tile")).toMatch(/border-radius:\s*var\(--r-card\)/);
     expect(bodyOf(".capture-tile")).toMatch(/border:\s*1px solid var\(--hairline\)/);
-    expect(bodyOf(".meter-stack > span")).toMatch(/background:\s*var\(--stat-accent\)/);
+    // Eggs per day is the farm's own measure, so the bar carries the brand
+    // accent. Grade bands deliberately do NOT (see the --grade-N tokens):
+    // a grade must not change colour with the farm's palette.
+    expect(bodyOf(".day > i")).toMatch(/background:\s*var\(--stat-accent\)/);
+    expect(bodyOf(".meter-stack > span")).not.toMatch(/background/);
   });
   it("no longer declares the stat cards the dashboard stopped rendering", () => {
     expect(css).not.toMatch(/^\.stat(-grid|-value|-label)?\s*\{/m);

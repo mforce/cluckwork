@@ -96,12 +96,16 @@ test.describe("README screenshots", () => {
     // name interpolates a flock name this spec does not know.
     await expect(page.locator(".capture-tile").first()).toBeVisible();
 
-    // Trend: the sparkline is there AND not flat — the fixture seeds 90 days
-    // of production, so a flat line means the report did not arrive.
-    const line = page.locator("svg.sparkline");
-    await expect(line).toBeVisible();
-    const ys = (await line.locator("polyline").getAttribute("points"))!.split(" ").map((p) => p.split(",")[1]);
-    expect(new Set(ys).size).toBeGreaterThan(1);
+    // Trend: the day strip is there AND not flat — the fixture seeds 90 days
+    // of production, so bars of one height mean the report did not arrive.
+    // Fourteen slots are drawn whatever the figures (#777), so counting slots
+    // would pass on a missing report; the BAR heights are the live signal.
+    const strip = page.locator(".daystrip");
+    await expect(strip).toBeVisible();
+    const bars = strip.locator(".day > i");
+    expect(await bars.count()).toBeGreaterThan(1);
+    const heights = await bars.evaluateAll((els) => els.map((e) => (e as HTMLElement).style.height));
+    expect(new Set(heights).size).toBeGreaterThan(1);
 
     // Stock: at least one segment on the bar.
     await expect(page.locator(".meter-stack > span").first()).toBeVisible();
