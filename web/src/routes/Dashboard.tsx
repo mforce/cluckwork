@@ -133,6 +133,11 @@ export function Dashboard() {
     // window with none gets a sentence rather than a formatted 0, and which
     // sentence depends on whether anything was recorded at all.
     if (line.max === null || line.average === null) {
+      // A window where no flock ever owed a filing is not a window of missing
+      // ones. The day-level fix for that landed without this, so a new farm's
+      // strip drew fourteen blank-but-blameless slots and then announced that
+      // none of them had an entry.
+      if (line.partial === 0 && line.unrecorded === 0) return t("trendStripLabelNoFlocks");
       return line.partial === 0 ? t("trendStripLabelNone") : t("trendStripLabelNoComplete");
     }
     const figures = { max: fmt.count(line.max), avg: fmt.count(line.average, 1) };

@@ -2241,7 +2241,13 @@ an official entry for that date. The numerator can only ever contain eggs from
 flocks that filed, so counting a silent flock's birds as exposure reports a lay
 rate nothing supports: before #780 a day nobody recorded read as 0% production,
 and a day one flock of three missed read as a collapse in output. A date with no
-official entry has **no** hen-day % at all — not 0. `hen-days on date` below
+official entry has **no** hen-day % at all — not 0.
+
+The numerator is restricted to the same flocks. A flock outside its lifecycle
+window, or one whose removals have over-run its placement, has eggs the report
+shows and birds it does not count; admitting its eggs against a denominator it
+is absent from reported 160% on a farm laying 80%. Both halves of the fraction
+are carried in the payload so it can be reproduced. `hen-days on date` below
 keeps its full meaning (every live laying bird, recorded or not) and is what the
 report's own Hen-days column shows; the gap between the two is exactly what is
 missing. → [`docs/decisions/`](../../docs/decisions/) and issue #780.

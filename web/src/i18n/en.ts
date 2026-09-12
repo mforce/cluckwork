@@ -800,6 +800,9 @@ export const en = {
     // Some days have figures, but none is complete, so there is still nothing
     // to take a peak or an average from.
     trendStripLabelNoComplete: "Eggs per day, last 14 days. No day was recorded by every flock, so there is no peak or average to give.",
+    // Nobody owed a filing in this window — no flock was placed yet, or the
+    // last one has gone. Distinct from nobody having filed.
+    trendStripLabelNoFlocks: "Eggs per day, last 14 days. No flock was on the farm in this window.",
     trendScaleTitle: "Eggs per day",
     trendPeak: "Peak {{total}}",
     trendAvg: "Avg {{total}}",
@@ -2166,6 +2169,7 @@ export const en = {
     henDaysHeader: "Hen-days",
     // #780 — the hen-day %'s denominator: the exposure that reported.
     recordedHenDaysHeader: "Recorded",
+    ratedEggsHeader: "Rated eggs",
     henDayPctHeader: "Hen-day %",
     periodRowLabel: "Period",
     gradeTotalsLabel: "By grade:",

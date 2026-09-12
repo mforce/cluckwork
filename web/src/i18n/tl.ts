@@ -628,6 +628,7 @@ export const tl = {
     trendStripLabelBlanks_other: "Itlog bawat araw, huling 14 araw. Pinakamataas {{max}}, average {{avg}} sa mga araw na may tala ang lahat ng kawan. {{blank}} araw ang hindi kumpleto.",
     trendStripLabelNone: "Itlog bawat araw, huling 14 araw. Walang araw sa panahong ito ang may tala.",
     trendStripLabelNoComplete: "Itlog bawat araw, huling 14 araw. Walang araw na may tala ang lahat ng kawan, kaya walang pinakamataas o average.",
+    trendStripLabelNoFlocks: "Itlog bawat araw, huling 14 araw. Walang kawan sa bukid sa panahong ito.",
     trendScaleTitle: "Itlog bawat araw",
     trendPeak: "Pinakamataas {{total}}",
     // The loanword, as this catalog already uses for Hen-day and Draft:
@@ -1671,6 +1672,7 @@ export const tl = {
     deathsHeader: "Namatay",
     henDaysHeader: "Hen-days",
     recordedHenDaysHeader: "May tala",
+    ratedEggsHeader: "Itlog na binilang",
     henDayPctHeader: "Hen-day %",
     periodRowLabel: "Panahon",
     gradeTotalsLabel: "Ayon sa grado:",

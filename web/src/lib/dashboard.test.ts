@@ -25,6 +25,7 @@ const day = (date: string, totalEggs: number, henDays = 100, recordedFlocks = 1,
   date, totalEggs, cracked: 0, dirty: 0, discarded: 0, sellable: totalEggs, fromCounts: 0,
   deaths: 0, recordedFlocks, expectedFlocks, henDays,
   recordedHenDays: expectedFlocks > 0 ? Math.round((henDays * recordedFlocks) / expectedFlocks) : 0,
+  ratedEggs: recordedFlocks > 0 ? totalEggs : 0,
   henDayPct: henDays > 0 && recordedFlocks > 0 ? Math.round((totalEggs * 1000) / henDays) / 10 : null,
 });
 const missing = (date: string) => day(date, 0, 100, 0, 1);
@@ -32,7 +33,7 @@ const partly = (date: string, totalEggs: number, recorded = 1, expected = 3) =>
   day(date, totalEggs, 100, recorded, expected);
 const report = (periodHenDayPct: number | null, days: ProductionDay[] = []): ProductionReport => ({
   days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalDeaths: 0, totalHenDays: 0,
-  totalRecordedHenDays: 0, periodHenDayPct, gradeTotals: [],
+  totalRecordedHenDays: 0, totalRatedEggs: 0, periodHenDayPct, gradeTotals: [],
 });
 
 describe("captureTiles (#654, INV-3, INV-9)", () => {

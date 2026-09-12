@@ -162,6 +162,19 @@ describe("DayStrip (#654, #777, #780)", () => {
     expect(container.querySelector(".tip")).toBeNull();
   });
 
+  // The selection is a roving one, not a toggle: `aria-pressed` said "this
+  // button is pressed in" about a chart slot. Nothing read the attribute, so
+  // hardcoding it to false left the whole suite green.
+  it("marks the selected slot as current, and only that slot", async () => {
+    const user = userEvent.setup();
+    const { container } = render(strip());
+    const days = () => Array.from(container.querySelectorAll(".daystrip > .day"));
+    expect(days().map((d) => d.getAttribute("aria-current"))).toEqual(["false", "false", "false", "false"]);
+    await user.hover(days()[2]);
+    expect(days().map((d) => d.getAttribute("aria-current"))).toEqual(["false", "false", "true", "false"]);
+    expect(container.querySelector("[aria-pressed]")).toBeNull();
+  });
+
   // The readout is not a live region and must not be: the selected slot's own
   // accessible name is this exact sentence, so a live region announced it twice.
   it("hides the readout from assistive tech, leaving the slot's name to say it", () => {

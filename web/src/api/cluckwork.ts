@@ -1100,7 +1100,14 @@ export interface ProductionDay {
   henDays: number;
   /** The exposure that reported — `henDayPct`'s denominator (#780). */
   recordedHenDays: number;
-  /** Eggs over the exposure that REPORTED. null when nothing did. */
+  /**
+   * `henDayPct`'s NUMERATOR (#780): the eggs of exactly the flocks whose birds
+   * are in `recordedHenDays`. Equal to `totalEggs` on any ordinary day; they
+   * part only where a flock filed while the bird ledger says it had no birds,
+   * and carrying it is what keeps the rate reproducible from the payload.
+   */
+  ratedEggs: number;
+  /** `ratedEggs` over `recordedHenDays`. null when nothing reported. */
   henDayPct: number | null;
 }
 
@@ -1111,8 +1118,9 @@ export interface ProductionReport {
   totalFromCounts: number;
   totalDeaths: number;
   totalHenDays: number;
-  /** `periodHenDayPct`'s denominator, so the figure is reconcilable (#780). */
+  /** `periodHenDayPct`'s denominator and numerator, so it is reproducible (#780). */
   totalRecordedHenDays: number;
+  totalRatedEggs: number;
   periodHenDayPct: number | null;
   gradeTotals: { eggGradeId: string; name: string; quantity: number }[];
 }

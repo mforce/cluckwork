@@ -31,36 +31,46 @@ public interface IReportQueries
 // two are indistinguishable, which is what left the Dashboard's 14-day strip
 // asserting a zero it had no evidence for.
 //
-// `RecordedFlocks` — houses that filed an OFFICIAL entry (Submitted, Locked,
+// `RecordedFlocks` — flocks that filed an OFFICIAL entry (Submitted, Locked,
 //   ManagerAdjusted). 0 means nobody recorded the day; it does not mean the
-//   farm produced nothing.
-// `ExpectedFlocks` — houses that owed one: placed, not yet depleted or
+//   farm produced nothing. Counted from the entries, so a flock that filed
+//   counts whether or not the bird ledger agrees it was live that day.
+// `ExpectedFlocks` — flocks that owed one: placed, not yet depleted or
 //   archived. `RecordedFlocks < ExpectedFlocks` is a PARTIALLY recorded day,
-//   whose egg total is a floor rather than a figure. The two can disagree at a
-//   depletion boundary, where a house files on a day the bird ledger says its
-//   flock had ended.
-// `RecordedHenDays` — the exposure that actually reported, and the denominator
-//   `HenDayPct` uses. `HenDays` keeps the glossary's meaning (one bird alive
-//   for one day, over every house) so the Reports column still says what it
-//   always said; the rate divides by the subset with evidence behind it.
-//   Dividing by `HenDays` is what made an unrecorded day read as a day of zero
-//   production, and did the same to a day one house of three missed.
+//   whose egg total is a floor rather than a figure. The two can legitimately
+//   disagree EITHER WAY at a lifecycle boundary — a flock files on a day the
+//   ledger says it had ended, or a placement date is corrected forward past
+//   entries that already exist — so never assume one bounds the other.
+// `RecordedHenDays` — the exposure behind the rate. `HenDays` keeps the
+//   glossary's meaning (one bird alive for one day, over every flock) so the
+//   Reports column still says what it always said; the rate divides by the
+//   subset with evidence behind it. Dividing by `HenDays` is what made an
+//   unrecorded day read as a day of zero production, and did the same to a day
+//   one flock of three missed.
+// `RatedEggs` — `HenDayPct`'s NUMERATOR: the eggs of exactly the flocks whose
+//   birds are in `RecordedHenDays`. Equal to `TotalEggs` on any day whose
+//   filings all come from live flocks with birds, which is every ordinary day.
+//   It is carried rather than left implicit so the rate is reproducible from
+//   the payload; without it, `TotalEggs / RecordedHenDays` silently disagrees
+//   with the percentage beside it on exactly the contradictory days.
 public sealed record ProductionDay(
     DateOnly Date, int TotalEggs, int Cracked, int Dirty, int Discarded,
     int Sellable, int FromCounts, int Deaths,
     int RecordedFlocks, int ExpectedFlocks,
-    long HenDays, long RecordedHenDays, decimal? HenDayPct);
+    long HenDays, long RecordedHenDays, int RatedEggs, decimal? HenDayPct);
 
 public sealed record GradeTotal(Guid EggGradeId, string Name, int Quantity);
 
-// `TotalRecordedHenDays` is `PeriodHenDayPct`'s denominator (#780), carried so
-// the period figure is reconcilable from the payload rather than being a number
-// nobody can reproduce. It equals `TotalHenDays` on a period every house
+// `TotalRecordedHenDays` and `TotalRatedEggs` are `PeriodHenDayPct`'s exact
+// denominator and numerator (#780), carried so the period figure is
+// reproducible from the payload rather than being a number nobody can check.
+// `TotalRecordedHenDays` equals `TotalHenDays` on a period every flock
 // recorded, and the gap between them is exactly what is missing.
 public sealed record ProductionReport(
     IReadOnlyList<ProductionDay> Days,
     int TotalEggs, int TotalSellable, int TotalFromCounts, int TotalDeaths,
-    long TotalHenDays, long TotalRecordedHenDays, decimal? PeriodHenDayPct,
+    long TotalHenDays, long TotalRecordedHenDays, int TotalRatedEggs,
+    decimal? PeriodHenDayPct,
     IReadOnlyList<GradeTotal> GradeTotals);
 
 // About the period's ORDERS (order date in range): revenue is their confirmed

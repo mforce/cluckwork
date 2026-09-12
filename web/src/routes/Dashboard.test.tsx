@@ -49,10 +49,11 @@ const day = (date: string, totalEggs: number, recordedFlocks = 1, expectedFlocks
   date, totalEggs, cracked: 0, dirty: 0, discarded: 0, sellable: totalEggs, fromCounts: 0,
   deaths: 0, recordedFlocks, expectedFlocks, henDays: 100,
   recordedHenDays: expectedFlocks > 0 ? Math.round((100 * recordedFlocks) / expectedFlocks) : 0,
+  ratedEggs: recordedFlocks > 0 ? totalEggs : 0,
   henDayPct: recordedFlocks > 0 ? totalEggs : null,
 });
 const report = (periodHenDayPct: number | null, days: ProductionDay[]): ProductionReport => ({
-  days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalDeaths: 0, totalHenDays: 0, totalRecordedHenDays: 0,
+  days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalDeaths: 0, totalHenDays: 0, totalRecordedHenDays: 0, totalRatedEggs: 0,
   periodHenDayPct, gradeTotals: [],
 });
 const STOCK: StockRow[] = [
@@ -292,6 +293,25 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     expect(heights).toHaveLength(12);
     expect(heights.filter((h) => h === "2%")).toHaveLength(4);
     expect(strip.querySelectorAll(".day")).toHaveLength(14);
+  });
+
+  // The readout's plural selects on the EGG count, which is what the noun
+  // beside it is. Selecting on the flock count rendered "1 eggs", and no test
+  // used a partly recorded day holding exactly one egg, so the bug was
+  // invisible to the whole suite.
+  it("says '1 egg' on a partly recorded day that produced one", async () => {
+    mockReport.mockImplementation((from, to) =>
+      reportByWindow(today)(from, to).then((r) => ({
+        ...r,
+        days: r.days.map((d, i) => (i === 6 ? { ...d, totalEggs: 1, recordedFlocks: 1, expectedFlocks: 3 } : d)),
+      })));
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("group", { name: /Eggs per day, last 14 days/ });
+    const names = screen.getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label"))
+      .filter((n): n is string => n !== null && n.includes("of 3 flocks"));
+    expect(names).toHaveLength(2);
+    expect(names[0]).toMatch(/ 1 egg, 1 of 3 flocks$/);
   });
 
   it("says 'no entry' for an unrecorded day rather than a count of zero", async () => {

@@ -191,12 +191,16 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         for (var d = from; d <= to; d = d.AddDays(1))
         {
             var units = unitsByDay.GetValueOrDefault(d) ?? [];
-            // Which (flock, house) units filed. The natural key of a daily entry
-            // is (Account, Farm, House, Flock, Date), so a filing is only the
-            // filing that was owed when it names the flock's OWN house — a
-            // flock that filed from somewhere else has not answered for the
-            // house that owes the count.
-            var filed = units.Select(u => (u.FlockId, u.HouseId)).ToHashSet();
+            // Which FLOCKS filed, not which (flock, house) pairs. Matching the
+            // pair was tried and reverted: `RecordDailyEntryHandler` says houses
+            // "aren't aggregates yet — phantom ids until Phase 2's House model",
+            // and declines to check the entry's house against the flock's, while
+            // `CreateFlockHandler` gives every flock the same
+            // `SeedDefaults.HouseId`. So the rule could never fire on real data
+            // and rested entirely on an unvalidated caller-supplied field — a
+            // client sending any other id turned a submitted day into "no
+            // entry". Pair it when houses are real and the write path checks it.
+            var filed = units.Select(u => u.FlockId).ToHashSet();
 
             long henDays = 0;
             // The exposure the lay rate is actually computed over: only the
@@ -207,9 +211,8 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             // flock of three forgot.
             long recordedHenDays = 0;
             var expectedFlocks = 0;
-            var recordedFlocks = 0;
             // The flocks whose birds ARE in the denominator. The numerator is
-            // then taken from exactly these, so the two can never disagree.
+            // then taken from exactly these, so the two cannot disagree.
             var rated = new HashSet<Guid>();
             foreach (var f in flocks)
             {
@@ -220,9 +223,14 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                     var birds = Math.Max(flockCounts[f.Id], 0);
                     henDays += birds;
                     expectedFlocks++;
-                    if (filed.Contains((f.Id, f.HouseId)))
+                    // `birds > 0` is load-bearing, not defensive. A flock whose
+                    // removals have over-run its placement — a mistyped
+                    // mortality, which nothing on the write path bounds —
+                    // contributes no exposure, so admitting its eggs to the
+                    // numerator divides by a denominator they are not in. That
+                    // reported 160% on a farm laying 80%.
+                    if (birds > 0 && filed.Contains(f.Id))
                     {
-                        recordedFlocks++;
                         recordedHenDays += birds;
                         rated.Add(f.Id);
                     }
@@ -230,6 +238,16 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                 var todaysRemovals = removalsByFlockDay.GetValueOrDefault(f.Id)?.GetValueOrDefault(d) ?? 0L;
                 flockCounts[f.Id] -= todaysRemovals;
             }
+
+            // Counted from the entries, NOT from the lifecycle walk above: a
+            // flock that filed has filed, whether or not the bird ledger agrees
+            // it was live. Deriving it from the walk made `recordedFlocks <=
+            // expectedFlocks` hold by construction, so a placement date
+            // corrected forward past its own entries collapsed the day to
+            // (0, 0) — and the strip then drew a day with real submitted eggs
+            // as "no flocks". `isComplete` uses `>=` precisely because these
+            // two can legitimately disagree.
+            var recordedFlocks = filed.Count;
 
             // Every official egg of the day, whatever filed it — the report's
             // egg column must not silently drop a row.
@@ -251,7 +269,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                 d, total, cracked, dirty, discarded,
                 sellable, units.Sum(u => u.FromCounts), units.Sum(u => u.Deaths),
                 recordedFlocks, expectedFlocks,
-                henDays, recordedHenDays,
+                henDays, recordedHenDays, ratedEggs,
                 // Over the exposure that filed, never over the calendar. null,
                 // not 0, when nothing filed — a day with no evidence has no lay
                 // rate, and printing 0.0% is the claim #780 removed.
@@ -270,6 +288,7 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             days.Sum(x => x.Deaths),
             totalHenDays,
             totalRecordedHenDays,
+            totalRatedEggs,
             // Same numerator and denominator rule as the per-day figure, so the
             // period total and the rows it summarises cannot tell different
             // stories — and so the period cannot exceed 100% where no row does.

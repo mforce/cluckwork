@@ -715,13 +715,21 @@ alive, recorded or not — and the gap between it and the recorded exposure
 is exactly what is missing. A day nobody recorded has **no** percentage,
 not 0.
 
-One consequence is deliberate and worth knowing: a flock files against a
-date, and the bird ledger decides separately whether that flock was live on
-it. At a depletion boundary the two disagree, so an entry filed on the day
-after depletion puts eggs in the numerator while contributing no birds to
-the denominator. That inflates the rate for that date rather than
-suppressing it, which is the safer direction for a figure that used to
-under-report, but it is not exact.
+A flock files against a date, and the bird ledger decides separately whether
+that flock was live on it and how many birds it held. The two disagree at a
+lifecycle boundary — an entry filed on the day after depletion, a placement
+date corrected forward past entries that already exist, a mistyped mortality
+that removes more birds than were placed. **The rate's numerator is
+restricted to exactly the flocks whose birds are in its denominator**, so a
+flock in any of those states keeps its eggs in the day's egg total and out
+of the rate. Without that restriction the two exclusions compounded and a
+farm laying 80% was reported at 160%.
+
+The report therefore carries **Rated eggs** beside **Recorded hen-days** —
+the percentage's own numerator and denominator — so the figure can be
+reproduced rather than taken on trust. They equal the day's eggs and its
+hen-days on any ordinary day; a gap means a filing and the bird ledger
+disagree about that date.
 
 **Partly recorded day (#780)** — a date where at least one flock filed an
 official entry and at least one did not. Its egg total is a **floor**, not
