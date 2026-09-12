@@ -15,6 +15,10 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
     private sealed record ItemDto(
         Guid Id, Guid ProductId, Guid EggGradeId, string Unit, int BaseUnitFactor,
         int Quantity, int QuantityBase, long UnitPriceMinorUnits,
+        // #773 — typed `string`, not a defaulted one: the wire carries the enum
+        // MEMBER NAME, so a numeric basis fails to deserialize here instead of
+        // quietly reading back as an empty string nobody asserts on.
+        string ListPriceBasis,
         long? ListUnitPriceMinorUnits = null);
     private sealed record OrderDto(Guid Id, string Status, long TotalMinorUnits, List<ItemDto> Items);
     private sealed record ConversionRow(Guid Id, string UnitCode, int EggsPerUnit, bool Active, int Version);
@@ -409,33 +413,32 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         Assert.Null(order!.Items.Single().ListUnitPriceMinorUnits);
     }
 
-    // #720 R4 — ListPriceBasis is deliberately not on the API response (the
-    // read surfaces render all three NULL reasons alike), so these read it
-    // back through the DbContext rather than the sales GET.
+    // #773 — ListPriceBasis now ships on the sales read API by name, because a
+    // bare NULL list price could not tell "the product had no price" from "this
+    // line predates the column". These read it back off the DETAIL route, which
+    // is the surface the screen consumes, rather than through the DbContext.
     [Fact]
     public async Task AddLine_RecordsBasis_Recorded_WhenPricedAndComparable()
     {
-        var (client, accountId, _, _, productId) = await SetupAsync();
+        var (client, _, _, _, productId) = await SetupAsync();
         var orderId = await CreateDraftAsync(client);
 
         await AddLineAsync(client, orderId, productId, 1, price: 80);
 
-        var basis = await factory.WithTenantScopeAsync(accountId, async db =>
-            (await db.SalesOrderItems.SingleAsync(i => i.SalesOrderId == orderId)).ListPriceBasis);
-        Assert.Equal(Cluckwork.Domain.Sales.ListPriceBasis.Recorded, basis);
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        Assert.Equal("Recorded", order!.Items.Single().ListPriceBasis);
     }
 
     [Fact]
     public async Task AddLine_RecordsBasis_ProductUnpriced_ForAnUnpricedProduct()
     {
-        var (client, accountId, _, _, productId) = await SetupAsync(defaultPrice: null);
+        var (client, _, _, _, productId) = await SetupAsync(defaultPrice: null);
         var orderId = await CreateDraftAsync(client);
 
         await AddLineAsync(client, orderId, productId, 1, price: 80);
 
-        var basis = await factory.WithTenantScopeAsync(accountId, async db =>
-            (await db.SalesOrderItems.SingleAsync(i => i.SalesOrderId == orderId)).ListPriceBasis);
-        Assert.Equal(Cluckwork.Domain.Sales.ListPriceBasis.ProductUnpriced, basis);
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        Assert.Equal("ProductUnpriced", order!.Items.Single().ListPriceBasis);
     }
 
     [Fact]
@@ -460,9 +463,37 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
 
         await AddLineAsync(client, orderId, skewed, 1, price: 80);
 
-        var basis = await factory.WithTenantScopeAsync(accountId, async db =>
-            (await db.SalesOrderItems.SingleAsync(i => i.SalesOrderId == orderId)).ListPriceBasis);
-        Assert.Equal(Cluckwork.Domain.Sales.ListPriceBasis.NotComparable, basis);
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        Assert.Equal("NotComparable", order!.Items.Single().ListPriceBasis);
+    }
+
+    // #773 — the fourth basis, and the only one this test can't produce through
+    // the API: SalesOrder.cs:544 throws on PreDating precisely so the
+    // application can never write one. So reproduce #720's backfill the way
+    // SalesDiscountCeilingTests.cs:94 does — the column holds the member NAME,
+    // and a backfilled row carries no list price. This is the whole point of
+    // the issue: the reader must see "we do not know" here, not the recorded
+    // fact that the product had no price.
+    [Fact]
+    public async Task Basis_PreDating_ReachesTheWireByName()
+    {
+        var (client, accountId, _, _, productId) = await SetupAsync();
+        var orderId = await CreateDraftAsync(client);
+        await AddLineAsync(client, orderId, productId, 1, price: 80);
+
+        await factory.WithTenantScopeAsync(accountId, db => db.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            UPDATE "SalesOrderItems"
+            SET "ListPriceBasis" = 'PreDating', "ListUnitPriceMinorUnits" = NULL
+            WHERE "SalesOrderId" = {orderId}
+            """));
+
+        var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
+        var line = order!.Items.Single();
+        Assert.Equal("PreDating", line.ListPriceBasis);
+        // The control that gives the basis its job: the list price really is
+        // absent, so "PreDating" is the only thing telling the reader why.
+        Assert.Null(line.ListUnitPriceMinorUnits);
     }
 
     [Fact]

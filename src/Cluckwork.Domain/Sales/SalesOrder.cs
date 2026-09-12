@@ -443,9 +443,12 @@ public sealed class SalesOrderItem : Entity<Guid>
     /// changes what the catalogue said when the line was added (INV-1). NULL
     /// means "no comparable list price", which covers three cases: the product
     /// had none, the line predates the column, or the denominations did not
-    /// match (#720). Not on the JSON read API — the ListPriceBasis property
-    /// below carries the distinction — and the screen renders all three
-    /// alike, but the Admin-only CSV export carries the basis by name. That
+    /// match (#720). #773 reversed the decision to keep the ListPriceBasis
+    /// property below off the JSON read API: a bare NULL cannot tell
+    /// ProductUnpriced from PreDating, so the screen was telling a reader the
+    /// product had no price when the line merely predates the column. The
+    /// basis now ships on SalesOrderItemResponse by name, alongside the
+    /// Admin-only CSV export that already carried it. That
     /// denomination check is what makes a bare long? honest, and it
     /// backstops a state the #123 currency lock makes unreachable today — a
     /// priced product locks the farm currency (CurrencyBoundRowProbe.cs:24).

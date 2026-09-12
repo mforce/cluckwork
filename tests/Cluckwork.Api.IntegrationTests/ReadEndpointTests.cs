@@ -18,6 +18,10 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
     // #769 — the settlement figure as the wire carries it.
     private sealed record OrderMoneyDto(
         Guid Id, string Status, long TotalMinorUnits, long? OutstandingMinorUnits);
+    // #773 — the line's basis as the wire carries it. Same shape on both sales
+    // routes, because both map through the one ToResponse.
+    private sealed record OrderBasisLineDto(Guid Id, string ListPriceBasis);
+    private sealed record OrderBasisDto(Guid Id, List<OrderBasisLineDto> Items);
     private sealed record PaymentRowDto(Guid Id, int Version);
     private sealed record PaymentsPageDto(List<PaymentRowDto> Items);
 
@@ -375,6 +379,30 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
 
         Assert.Equal(750, listed.OutstandingMinorUnits);
         Assert.Equal(listed.OutstandingMinorUnits, detail!.OutstandingMinorUnits);
+    }
+
+    // #773 — same claim as the outstanding test above, for the list price's
+    // basis. The list route is the Orders-list Discount column's only source,
+    // so a basis that reaches only the detail route would let the two screens
+    // give a line different reasons for the same missing list price.
+    [Fact]
+    public async Task SalesOrderDetail_CarriesTheSameListPriceBasisAsTheList()
+    {
+        var (client, accountId, farmId, grades) = await SetupAsync("Large");
+        var (_, customerId, productId) =
+            await SalesSetupAsync(accountId, farmId, grades["Large"], client);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        var orderId = await ConfirmedOrderAsync(client, customerId, productId, today, 10, 250);
+
+        var listed = (await client.GetFromJsonAsync<List<OrderBasisDto>>("/api/v1/sales"))!
+            .Single(o => o.Id == orderId);
+        var detail = await client.GetFromJsonAsync<OrderBasisDto>($"/api/v1/sales/{orderId}");
+
+        // The literal on the LIST row is what keeps this non-vacuous: a list
+        // route that dropped the basis would compare null to null and pass.
+        var listedLine = listed.Items.Single();
+        Assert.Equal("Recorded", listedLine.ListPriceBasis);
+        Assert.Equal(listedLine.ListPriceBasis, detail!.Items.Single(i => i.Id == listedLine.Id).ListPriceBasis);
     }
 
     [Fact]
