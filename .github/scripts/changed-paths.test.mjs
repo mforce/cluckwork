@@ -124,8 +124,12 @@ test("the CLI writes a GITHUB_OUTPUT line and always exits 0", () => {
 
 // A directory fd on stdin makes the read throw EISDIR, which is the only way to
 // reach the CLI's catch. An unreadable stdin is not "nothing changed".
+//
+// This directory, not the OS temp dir: nothing is created either way, but
+// `tmpdir()` in an `openSync` trips CodeQL's js/insecure-temporary-file, and a
+// standing high alert on a test costs more than the one-word change avoiding it.
 test("an unreadable stdin reports code, not documentation", () => {
-  const fd = openSync(tmpdir(), "r");
+  const fd = openSync(new URL(".", import.meta.url), "r");
   const result = spawnSync(process.execPath, [CLI], { stdio: [fd, "pipe", "pipe"], encoding: "utf8" });
   assert.equal(result.status, 0);
   assert.equal(result.stdout.trim(), "docs_only=false");
