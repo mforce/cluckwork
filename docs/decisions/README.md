@@ -61,6 +61,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Aspire is local orchestration, and it is a second database (#565)](565-aspire-local-orchestration.md) | AGENTS · Build / test / run · Boot guards |
 | [A farm code changes only through `rename-account` (#732)](732-farm-code-rename.md) | AGENTS · Conventions · and the [runbook](../runbooks/provisioning-a-new-farm.md) |
 | [Backend test coverage measurement, report only (#776)](776-backend-coverage.md) | AGENTS · Build / test / run |
+| [Skip the web and image jobs on documentation-only pull requests (#782)](782-ci-job-gating.md) | AGENTS · CI security gates |
 
 **Every bullet that cites an issue has a record here; the plain conventions do
 not, and should not.** The Result pattern, handler-per-feature, FluentValidation,

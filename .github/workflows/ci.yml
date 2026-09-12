@@ -29,6 +29,122 @@ permissions:
   contents: read
 
 jobs:
+  # Gate for `web` and `image` on documentation-only pull requests (#782). About
+  # 17% of merged PRs here change nothing but prose, and those two jobs are ~340s
+  # of the ~900s such a PR spends. `build-and-test` is deliberately NOT gated:
+  # four of its checks are load-bearing on a markdown-only change (the #508
+  # tracked-file pin sweeps, the tenancy-docs freshness sweep, and
+  # `schema-docs/generate.sh --check`), so prose is inside the suite's scope here,
+  # not outside it.
+  #
+  # THE HAZARD THIS IS SHAPED AROUND. `publish` declares
+  # `needs: [build-and-test, web, image]`, and a job whose `needs` dependency was
+  # skipped is skipped too. A push to `main` that skipped `image` would therefore
+  # publish no `ghcr.io/<owner>/<repo>:sha-<commit>` for that commit, and per #351
+  # a release drafted there can never be promoted — it stays a draft with no git
+  # tag, needing exactly the repair dispatch described at the top of this file.
+  # So the classify step below short-circuits to `docs_only=false` on every event
+  # that is not `pull_request`, without consulting git at all, and the job carries
+  # `continue-on-error` so that it cannot break the dependency chain `publish`
+  # sits at the end of. Those two together are what keep push and dispatch
+  # behaving as they did before this job existed.
+  #
+  # WHY THE CLASSIFICATION IS INVERTED. This does not enumerate what each job
+  # needs ("image runs when src/** or a csproj or a lock file changed"). That is a
+  # hand-maintained list of what someone thought of, and `AGENTS.md`'s guard rules
+  # prefer "walk everything, exclude deliberately" for exactly this reason. It
+  # computes one predicate instead: is EVERY changed path documentation? An
+  # unclassified path is code, so a new top-level directory runs the full suite
+  # until someone deliberately says otherwise. Because the predicate is "this PR
+  # contains nothing but documentation", one shared condition is correct for both
+  # jobs by construction rather than by a coincidence that could drift.
+  #
+  # WHY `if:` AND NOT `on.pull_request.paths`. A path filter gates the WHOLE
+  # workflow, so it cannot skip two jobs and keep `build-and-test`. It also leaves
+  # any REQUIRED check that lives in the filtered-out workflow stuck in `Expected`
+  # forever, so the PR can never merge; that hazard is latent rather than live
+  # here (`gh pr checks <N> --required` reports no required checks on `main`
+  # today), but it costs nothing to avoid and turning a check required later must
+  # not silently wedge every docs PR. A job skipped by `if:` reports as skipped,
+  # which satisfies a required check.
+  #
+  # The changed paths come from plain `git diff`, not a third-party action:
+  # `AGENTS.md` cites the 2025-03 `tj-actions/changed-files` compromise as the
+  # reason actions are SHA-pinned, and this needs no dependency at all.
+  # The classifier's own guard. It lives in its own job, and NOTHING depends on
+  # it, on purpose. It cannot sit inside `changes` below, because `changes` is
+  # `continue-on-error` and a guard that cannot fail the run is not a guard; and
+  # it must not become a `needs` of anything `publish` depends on, or a broken
+  # test file would reintroduce exactly the skip-chain this design exists to
+  # avoid. A red run here is a red PR, which is the whole job.
+  classifier-self-test:
+    name: Test the changed-path classifier
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      # Pure Node, no toolchain setup needed.
+      - name: Run the classifier self-tests
+        run: node --test .github/scripts/changed-paths.test.mjs
+
+  changes:
+    name: Classify the changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # THIS JOB MUST NEVER REPORT A FAILURE, and `continue-on-error` is how that is
+    # guaranteed rather than hoped for. `web` and `image` are ancestors of
+    # `publish`, and GitHub's own `needs` documentation says "a failure applies to
+    # all jobs in the dependency chain from the point of failure onwards" — so a
+    # `changes` that failed for any reason (a flaky checkout, a lost runner, the
+    # 5-minute timeout) would skip `publish` even though `web` and `image` ran and
+    # passed under their `!cancelled()` condition. That is the no-image-on-main
+    # hazard above, arriving by a new route. With `continue-on-error` the job's
+    # conclusion is success, the chain is unbroken, and a failed classification
+    # simply leaves `docs_only` empty, which runs both jobs.
+    continue-on-error: true
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          # The merge base has to be reachable for the diff below.
+          fetch-depth: 0
+          # No `ref:` override, unlike every other job here. This one must check
+          # out the CURRENT default branch even on a repair dispatch: the
+          # classifier may not exist in the tree of an old commit being repaired,
+          # and the classify step never consults git on a dispatch anyway.
+
+      - name: Classify the changed paths
+        id: classify
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -uo pipefail
+          if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
+            echo "Not a pull request ($GITHUB_EVENT_NAME) — every job runs."
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # No `set -e`, and every failure path below lands on the same
+          # `docs_only=false`. A git or node failure must leave this step green
+          # with a "run everything" verdict, not abort it.
+          verdict="docs_only=false"
+          if paths="$(git fetch --no-tags --quiet origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF" \
+                        && git diff --no-renames --name-only "origin/$BASE_REF...HEAD")"; then
+            printf '%s\n' "$paths"
+            # --no-renames is load-bearing: `diff.renames` defaults to true and
+            # `--name-only` then prints a rename's DESTINATION only, so
+            # `git mv src/Foo.cs docs/Foo.cs` would arrive as one documentation
+            # path while a source file was in fact deleted.
+            verdict="$(printf '%s\n' "$paths" | node .github/scripts/changed-paths.mjs)" \
+              || verdict="docs_only=false"
+          else
+            echo "Could not compute the changed paths — every job runs."
+          fi
+          echo "$verdict" >> "$GITHUB_OUTPUT"
+
   build-and-test:
     name: Build and test
     runs-on: ubuntu-latest
@@ -88,6 +204,15 @@ jobs:
   web:
     name: Web typecheck, test, and build
     runs-on: ubuntu-latest
+    needs: [changes]
+    # #782 — skipped only when the pull request changed nothing but documentation.
+    # `!= 'true'` and not `== 'false'` is load-bearing: if `changes` fails, its
+    # outputs are empty strings, and `'' != 'true'` RUNS this job. `!cancelled()`
+    # is what lets this `if:` be evaluated at all when a `needs` job failed —
+    # without it GitHub skips this job on a failed `changes`, which on a push to
+    # main would skip `publish` with it. Do not "simplify" either half; together
+    # they are the difference between fail-closed and fail-open.
+    if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
     # #686 — 20, not 10. The two npm audit steps below are each bounded at 240s,
     # so their bounded worst case is 8 minutes; at the old 10 the job could be
     # killed before typecheck/test/build ran at all, which is exactly what
@@ -259,6 +384,15 @@ jobs:
     name: Image build + Trivy scan
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: [changes]
+    # #782 — skipped only when the pull request changed nothing but documentation.
+    # `!= 'true'` and not `== 'false'` is load-bearing: if `changes` fails, its
+    # outputs are empty strings, and `'' != 'true'` RUNS this job. `!cancelled()`
+    # is what lets this `if:` be evaluated at all when a `needs` job failed —
+    # without it GitHub skips this job on a failed `changes`, which on a push to
+    # main would skip `publish` with it. Do not "simplify" either half; together
+    # they are the difference between fail-closed and fail-open.
+    if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
     outputs:
       # Local image Id of the scanned image, so the publish job can verify the
       # artifact handoff carried exactly these bytes (#351).
