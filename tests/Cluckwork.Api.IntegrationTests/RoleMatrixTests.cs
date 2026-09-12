@@ -499,9 +499,10 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
     private sealed record PaymentsPage(List<PaymentItem> Items);
 
     // #769 — read the sales list as RAW JSON. A typed DTO with a `long?`
-    // property cannot tell an absent field from a null one, so it would pass
-    // whether or not the tier gate exists; the point of this arm is the
-    // difference between a number and no number.
+    // property already tells a number from a null, so raw JSON earns its place
+    // here only by checking literal PRESENCE, which is what the helpers below
+    // do: the wire contract is "the property is there, carrying null", never
+    // "the property is absent".
     private static async Task<JsonElement> SalesRowAsync(
         HttpClient client, Guid orderId, string query = "")
     {
@@ -513,11 +514,26 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
             .Clone();
     }
 
-    private static long? Outstanding(JsonElement row) =>
-        row.TryGetProperty("outstandingMinorUnits", out var value)
-            && value.ValueKind != JsonValueKind.Null
-            ? value.GetInt64()
-            : null;
+    // Every row carries the property, whatever the caller's tier. Omitting it
+    // for a row that has no figure would slip past the SPA: `SalesPage.tsx`
+    // branches on `owed === null`, and `undefined` is not null, so the
+    // Outstanding cell would format a missing number and render NaN. An absent
+    // property is therefore a contract break in its own right, separate from
+    // the value being wrong, so it is asserted separately.
+    private static JsonElement OutstandingField(JsonElement row)
+    {
+        Assert.True(
+            row.TryGetProperty("outstandingMinorUnits", out var value),
+            "the sales row omitted `outstandingMinorUnits`; the SPA reads a missing "
+            + "property as undefined, not as null, and renders NaN for it");
+        return value;
+    }
+
+    private static long OutstandingNumber(JsonElement row) =>
+        OutstandingField(row).GetInt64();
+
+    private static void AssertOutstandingIsNull(JsonElement row) =>
+        Assert.Equal(JsonValueKind.Null, OutstandingField(row).ValueKind);
 
     // #769 — the orders list is SalesFlow (workers build orders, so they keep
     // reaching it) but the MONEY inside it is SalesAccess. Nothing else in this
@@ -538,18 +554,19 @@ public sealed class RoleMatrixTests(CluckworkWebApplicationFactory factory)
         // money tier gets a real number. Without it, a typo in the name would
         // make the worker's "no figure" assertion pass vacuously.
         foreach (var inTier in new[] { owner, manager, salesperson })
-            Assert.Equal(700, Outstanding(await SalesRowAsync(inTier, orderId)));
+            Assert.Equal(700L, OutstandingNumber(await SalesRowAsync(inTier, orderId)));
 
-        // The worker reaches the same row and receives no figure at all.
+        // The worker reaches the same row, and it carries the property with an
+        // explicit null — a withheld figure, not a missing field.
         var workerRow = await SalesRowAsync(worker, orderId);
         Assert.Equal(orderId, workerRow.GetProperty("id").GetGuid());
-        Assert.Null(Outstanding(workerRow));
+        AssertOutstandingIsNull(workerRow);
 
         // Detail answers identically for both tiers (#512).
-        Assert.Equal(700, Outstanding(
-            (await owner.GetFromJsonAsync<JsonElement>($"/api/v1/sales/{orderId}"))));
-        Assert.Null(Outstanding(
-            (await worker.GetFromJsonAsync<JsonElement>($"/api/v1/sales/{orderId}"))));
+        Assert.Equal(700L, OutstandingNumber(
+            await owner.GetFromJsonAsync<JsonElement>($"/api/v1/sales/{orderId}")));
+        AssertOutstandingIsNull(
+            await worker.GetFromJsonAsync<JsonElement>($"/api/v1/sales/{orderId}"));
     }
 
     // Refused, not ignored. Silently dropping the parameter would answer a
