@@ -42,16 +42,24 @@ export function todaysEggs(entries: DailyEntry[]): number {
 
 // One slot per day in the window, whether or not that day has a figure (#777).
 // `heightPct` is the bar's share of the tallest day; `recorded` is false for a
-// day that produced nothing, which the strip draws as an empty slot rather than
-// as a point on a flat line.
+// day that produced nothing, which the strip draws as an empty slot.
 //
-// KNOWN GAP (#777, tracked separately): the production report cannot yet say
+// Why a strip rather than the line it replaces, stated at the strength the code
+// supports: the line mapped a zero day to y = SPARK_H, the floor of the viewBox,
+// so a zero WAS drawn as a drop rather than as a plateau. What it never drew was
+// the floor itself or the top of the scale, so nothing on screen said the bottom
+// meant zero rather than the window's own minimum, and a 3% swing and a 60% one
+// made the same picture. It also interpolated between days, implying values
+// between them that a daily count does not have. The strip fixes those two.
+// It does NOT fix the ambiguity below, which is #780.
+//
+// KNOWN GAP (#780): the production report cannot yet say
 // whether a day was ENTERED. `ReportQueries` walks `for (d = from; d <= to;
 // d = d.AddDays(1))` and emits every calendar day with `total = row?.Total ?? 0`,
 // so a day nobody recorded and a day that genuinely produced zero eggs arrive
 // identical. `recorded: false` therefore means "no eggs", not "no entry", and
 // nothing here may average over the window until the server can tell them apart.
-export interface DayStripSlot { date: string; value: number; heightPct: number; recorded: boolean; weekBreak: boolean }
+export interface DayStripSlot { date: string; heightPct: number; recorded: boolean; weekBreak: boolean }
 export interface DayStripData { slots: DayStripSlot[]; min: number; max: number; last: number }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -70,7 +78,6 @@ export function dayStrip(days: ProductionDay[], recentCount = 0): DayStripData {
   const breakAt = recentCount > 0 && recentCount < days.length ? days.length - recentCount : -1;
   const slots = days.map((d, i) => ({
     date: d.date,
-    value: d.totalEggs,
     heightPct: d.totalEggs > 0 && max > 0 ? Math.max(2, r1((d.totalEggs / max) * 100)) : 0,
     recorded: d.totalEggs > 0,
     weekBreak: i === breakAt,
@@ -93,7 +100,7 @@ export function henDayTrend(current: ProductionReport, previous: ProductionRepor
 // `colorIndex` picks one of this many distinct hues, declared in styles.css for
 // both themes and deliberately independent of the farm's brand palette. Egg
 // grades are user-editable and unbounded, so past this count the hues repeat —
-// the legend beside the bar, not the colour, is what names every grade. The
+// the ledger beside the bar, not the colour, is what names every grade. The
 // opacity ramp this replaces reached its floor at the sixth grade and gave a
 // seventh and eighth literally the same fill.
 export const GRADE_COLOURS = 8;
@@ -106,14 +113,23 @@ export interface StockBarData { segments: StockSegment[]; totalAvailable: number
 export function stockBar(rows: StockRow[]): StockBarData {
   const totalAvailable = rows.reduce((a, r) => a + r.available, 0);
   const totalRestricted = rows.reduce((a, r) => a + r.restricted, 0);
+  // The hue comes from the grade's position in the FULL row set, before the
+  // empty grades are dropped. Off the filtered index it would be positional
+  // rather than identity-bearing: [Large, Medium, Small] gives 1, 2, 3, and the
+  // day Large sells out the same farm's Medium becomes 1 and Small becomes 2 —
+  // the same grade, a different colour, between two screenshots of one farm.
+  // That is the defect the "not brand-scoped" rule above exists to prevent,
+  // and it bites harder here because it needs only one sale, not two
+  // deployments. The opacity ramp did want the filtered index (a compressed
+  // ramp beats one with holes); a categorical encoding wants the stable one.
   const segments = rows
-    .filter((r) => r.available > 0)
     .map((r, i) => ({
       eggGradeId: r.eggGradeId,
       gradeName: r.gradeName,
       available: r.available,
       pct: r1((r.available / totalAvailable) * 100),
       colorIndex: (i % GRADE_COLOURS) + 1,
-    }));
+    }))
+    .filter((seg) => seg.available > 0);
   return { segments, totalAvailable, totalRestricted };
 }

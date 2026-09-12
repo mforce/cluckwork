@@ -170,3 +170,26 @@ export function contrast(a: string, b: string): number {
   const [la, lb] = [luminance(a), luminance(b)];
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
+
+// CIE76 dE in Lab (#777). `contrast` above answers "can this be seen against
+// that"; this answers "can these two be told apart", which is the question a
+// categorical encoding actually asks and which sRGB distance and string
+// identity both get wrong. CIE76 rather than CIE2000: it is a dozen lines
+// instead of sixty, and the threshold it is used at is far from the region
+// where the two disagree.
+function lab(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => lin(v / 255));
+  const x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+  const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
+}
+
+export function deltaE(a: string, b: string): number {
+  const [la, aa, ba] = lab(a);
+  const [lb, ab, bb] = lab(b);
+  return Math.hypot(la - lb, aa - ab, ba - bb);
+}

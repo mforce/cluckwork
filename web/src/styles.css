@@ -32,16 +32,20 @@
   --row-hover: #faf5fc;
   --scroll-cue: rgba(29, 21, 33, 0.22); /* edge fade for horizontally-scrolling tables (#150) */
 
-  /* Grade hues (#777) — eight evenly spaced around the wheel at even
-     lightness, warmed to sit beside the aubergine brand. Deliberately NOT
-     brand-scoped: a farm's palette identifies the farm, these identify egg
-     grades, and a grade must not be a different colour on two deployments. */
+  /* Grade hues (#777) — eight around the wheel at even lightness, warmed to sit
+     beside the aubergine brand. Deliberately NOT brand-scoped: a farm's palette
+     identifies the farm, these identify egg grades, and a grade must not be a
+     different colour on two deployments.
+     They must also stay clear of the SEMANTIC colours, which is not obvious and
+     was got wrong: the first draft's grade-6 was dE 4.3 from --success and its
+     grade-5 dE 11.9 from --warn, so a stock band read as a status signal on a
+     screen that shows both. styles.grades.test.ts measures it now. */
   --grade-1: #2076a0;
   --grade-2: #8d55b3;
   --grade-3: #54862f;
-  --grade-4: #b2553f;
-  --grade-5: #94721f;
-  --grade-6: #1f8465;
+  --grade-4: #da475d;
+  --grade-5: #8a7972;
+  --grade-6: #138a8e;
   --grade-7: #b24a80;
   --grade-8: #5069b8;
 
@@ -200,12 +204,12 @@
 
   /* The same wheel lifted for a dark surface. Same order, so grade N is the
      same grade in both themes. */
-  --grade-1: #5fb6d8;
+  --grade-1: #2fb0ef;
   --grade-2: #c08fe0;
   --grade-3: #8fbf6e;
-  --grade-4: #e8917f;
-  --grade-5: #c9a95c;
-  --grade-6: #5cc0a0;
+  --grade-4: #f5858a;
+  --grade-5: #afa498;
+  --grade-6: #4fdadb;
   --grade-7: #e98fb4;
   --grade-8: #8fa3e8;
   --error: #ff8666;
@@ -1798,10 +1802,13 @@ label.check {
 }
 
 /* ------------------------------------- Last 14 days (#654, #777) */
-/* A strip of days, not a line. The line this replaces drew a segment through
-   days with nothing recorded, so a stretch nobody had entered read as a
-   plateau of real production; a slot is drawn for every day in the window, so
-   a day with no figure is a visible gap instead. */
+/* A strip of days, not a line. The line it replaces drew a zero day on the
+   floor of its viewBox, so a zero was a drop rather than a plateau — but it
+   never drew that floor or the top of the scale, so nothing said the bottom
+   meant zero rather than the window's own minimum, and it interpolated between
+   days that a daily count has no values between. The strip names both ends of
+   the scale and draws a slot per day. It does NOT disambiguate a zero day from
+   an unrecorded one; that is #780. */
 .trend {
   margin: 0;
 }
@@ -1938,9 +1945,12 @@ label.check {
   margin: 0.55rem 0 0.7rem;
 }
 
-/* The width is the true share; the floor only stops a sub-percent grade
-   rounding away to nothing. The ledger's own share column is what makes such a
-   grade readable as a figure. */
+/* The width is the share, with a floor so a sub-percent grade does not round
+   away to nothing. The floor is not free: flex takes the 3px minimums and the
+   2px gaps out of the largest band, so at many grades the biggest band reads a
+   few points short of its true share. Measured on a 192px track that is about
+   1.5 points at 8 grades and 4 at 20. The ledger's share column, not the band,
+   is the figure of record. */
 .meter-stack > span {
   display: block;
   height: 100%;
@@ -2020,7 +2030,11 @@ label.check {
   padding: 0;
   margin: 0;
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+  /* The reference track is `minmax(0, max-content)` rather than bare
+     `max-content` so it can yield; the name gets a real floor rather than
+     `minmax(0, 1fr)`, which let the three intrinsic tracks squeeze it to zero
+     width and render a link with nothing visible in it. */
+  grid-template-columns: minmax(0, max-content) minmax(7rem, 1fr) max-content max-content;
   column-gap: 0.75rem;
 }
 
@@ -2034,9 +2048,13 @@ label.check {
 }
 
 /* A reference number is one identifier. Breaking it after the hyphen makes it
-   harder to match against the Sales page and makes the row two lines tall. */
+   harder to match against the Sales page and makes the row two lines tall.
+   It still needs the same clip the name has: with nowrap alone a long reference
+   beside a seven-figure total overran the amount at a 280px panel. */
 .dash-list .ref {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Truncated, not wrapped: rows stay one line so the four columns scan, and the
@@ -2063,8 +2081,14 @@ label.check {
   container-name: dashpanel;
 }
 
-/* Too narrow for four columns: reference and amount, then customer and status. */
-@container dashpanel (max-width: 26rem) {
+/* Too narrow for four columns: reference and amount, then customer and status.
+   32rem, not the 26rem this first shipped with: the three intrinsic tracks plus
+   the gaps need about 356px, so at a 418px panel the name was measured at 62px
+   in `en` and 45px in `tl` — about six characters of a customer name, which is
+   the collapse the rule above exists to prevent. `tl` is worse precisely
+   because the badge track is `max-content` and its labels run longer, so the
+   threshold is set for the widest locale rather than the one on screen. */
+@container dashpanel (max-width: 32rem) {
   .dash-list {
     grid-template-columns: minmax(0, 1fr) max-content;
   }

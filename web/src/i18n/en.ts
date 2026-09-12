@@ -780,7 +780,11 @@ export const en = {
     // per day, one slot per day; the figure below it is the server's hen-day %
     // for the last 7 complete days, and its delta against the 7 before.
     trendPanelTitle: "Last 14 days",
-    trendStripLabel: "Eggs per day, last 14 days: lowest {{min}}, highest {{max}}, yesterday {{last}}",
+    trendStripLabel: "Eggs per day, last 14 days: lowest {{min}}, peak {{max}}, yesterday {{last}}",
+    // Same sentence with the empty slots named. Whole string, not a suffix,
+    // so a locale can put the clause where its grammar wants it.
+    trendStripLabelBlanks_one: "Eggs per day, last 14 days: lowest {{min}}, peak {{max}}, yesterday {{last}}. {{blank}} day has nothing recorded.",
+    trendStripLabelBlanks_other: "Eggs per day, last 14 days: lowest {{min}}, peak {{max}}, yesterday {{last}}. {{blank}} days have nothing recorded.",
     trendScaleTitle: "Eggs per day",
     trendPeak: "Peak {{total}}",
     henDaySubLabel: "Hen-day, last 7 days against the 7 before",

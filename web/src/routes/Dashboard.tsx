@@ -118,6 +118,18 @@ export function Dashboard() {
         : t("henDayDeltaUp", { delta: fmt.count(delta, 1) });
   // Lay rate falling IS the bad direction here, so the delta carries the
   // semantic colour. An unknown delta stays neutral rather than reading as good.
+  // The strip's whole change is that a day with nothing recorded is an empty
+  // slot, so the accessible name has to say how many there are — otherwise a
+  // screen-reader user still gets "lowest 0", the conflation the redraw
+  // removed for everyone else. Two complete sentences rather than one built by
+  // concatenation, so each locale can order its own clauses.
+  const trendLabel = (line: { slots: { recorded: boolean }[]; min: number; max: number; last: number }) => {
+    const blank = line.slots.filter((s) => !s.recorded).length;
+    const figures = { min: fmt.count(line.min), max: fmt.count(line.max), last: fmt.count(line.last) };
+    return blank === 0
+      ? t("trendStripLabel", figures)
+      : t("trendStripLabelBlanks", { ...figures, count: blank, blank: fmt.count(blank) });
+  };
   const deltaClass = (delta: number | null) =>
     delta === null || delta === 0 ? "trend-delta" : delta < 0 ? "trend-delta is-down" : "trend-delta is-up";
 
@@ -177,9 +189,7 @@ export function Dashboard() {
             <>
               <DayStrip
                 data={trendData.line}
-                label={t("trendStripLabel", {
-                  min: fmt.count(trendData.line.min), max: fmt.count(trendData.line.max), last: fmt.count(trendData.line.last),
-                })}
+                label={trendLabel(trendData.line)}
                 title={t("trendScaleTitle")}
                 peak={t("trendPeak", { total: fmt.count(trendData.line.max) })}
                 from={<FarmDate iso={daysBefore(today, 14)} />}
@@ -208,7 +218,11 @@ export function Dashboard() {
               {/* #777 — the total is the whole the bar divides, so it leads. */}
               <p className="stock-total">
                 <span className="stock-fig">{fmt.count(bar.totalAvailable)}</span>
-                {t("eggsAvailableLabel", { count: bar.totalAvailable })}
+                {/* The space matters: .stock-fig is display:block so the two
+                    never touch on screen, but the paragraph's text is what a
+                    copy-paste and any text consumer gets, and without it that
+                    reads "1egg available". */}
+                {" "}{t("eggsAvailableLabel", { count: bar.totalAvailable })}
               </p>
               <StockBar data={bar} />
               {/* The ledger is the bar's text of record (the track itself is

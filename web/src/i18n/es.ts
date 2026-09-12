@@ -596,6 +596,8 @@ export const es = {
     // Últimos 14 días (#654)
     trendPanelTitle: "Últimos 14 días",
     trendStripLabel: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}",
+    trendStripLabelBlanks_one: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}. {{blank}} día no tiene nada registrado.",
+    trendStripLabelBlanks_other: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}. {{blank}} días no tienen nada registrado.",
     trendScaleTitle: "Huevos por día",
     trendPeak: "Máximo {{total}}",
     henDaySubLabel: "Postura, últimos 7 días frente a los 7 anteriores",

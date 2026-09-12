@@ -177,7 +177,7 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
 
   it("draws the 14 report days oldest-first as bars sized off the peak, and the server's hen-day figures", async () => {
     renderWithProviders(<Dashboard />);
-    const strip = await screen.findByRole("img", { name: "Eggs per day, last 14 days: lowest 301, highest 327, yesterday 321" });
+    const strip = await screen.findByRole("img", { name: "Eggs per day, last 14 days: lowest 301, peak 327, yesterday 321" });
     // 301..307 then 321..327, so the peak (327) is the 8th day and every other
     // bar is its exact share of it.
     expect(Array.from(strip.querySelectorAll(".day > i")).map((b) => (b as HTMLElement).style.height)).toEqual([
@@ -192,6 +192,13 @@ describe("Dashboard last 14 days (#654, INV-5)", () => {
     expect(screen.getByText("87.4%")).toBeInTheDocument();
     expect(screen.getByText("+2.3 pts")).toBeInTheDocument();
     expect(screen.getByText("Hen-day, last 7 days against the 7 before")).toBeInTheDocument();
+  });
+
+  it("names the empty slots in the accessible label, so a zero run is not announced as 'lowest 0'", async () => {
+    mockReport.mockImplementation((from, to) =>
+      reportByWindow(today)(from, to).then((r) => ({ ...r, days: r.days.map((d, i) => (i > 3 ? { ...d, totalEggs: 0 } : d)) })));
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByRole("img", { name: /6 days have nothing recorded\.$/ })).toBeInTheDocument();
   });
 
   it("draws an empty slot for a day with nothing recorded, never a bar through it", async () => {
@@ -248,7 +255,7 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     mockStock.mockResolvedValue([{ eggGradeId: "g1", gradeName: "Grade A", available: 1, restricted: 0 }]);
     renderWithProviders(<Dashboard />);
     const stock = await panel("Stock");
-    expect(stock.querySelector(".stock-total")?.textContent).toBe("1egg available");
+    expect(stock.querySelector(".stock-total")?.textContent).toBe("1 egg available");
   });
 
   it("still renders a restricted-only stock (0 available, 4 restricted) — that is not the empty state", async () => {
@@ -256,7 +263,7 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     renderWithProviders(<Dashboard />);
     const stock = await panel("Stock");
     expect(await within(stock).findByText("4 restricted")).toBeInTheDocument();
-    expect(stock.querySelector(".stock-total")?.textContent).toBe("0eggs available");
+    expect(stock.querySelector(".stock-total")?.textContent).toBe("0 eggs available");
     expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
     expect(stock.querySelectorAll(".stock-ledger")).toHaveLength(0);
     expect(within(stock).queryByText("No stock yet — record and submit a daily entry.")).not.toBeInTheDocument();

@@ -5,7 +5,7 @@ import { DayStrip } from "./DayStrip";
 import type { DayStripData } from "../lib/dashboard";
 
 const slot = (date: string, value: number, heightPct: number, weekBreak = false) =>
-  ({ date, value, heightPct, recorded: value > 0, weekBreak });
+  ({ date, heightPct, recorded: value > 0, weekBreak });
 
 const data: DayStripData = {
   slots: [slot("2026-07-01", 10, 100), slot("2026-07-02", 0, 0), slot("2026-07-03", 5, 50, true)],

@@ -94,11 +94,11 @@ describe("todaysEggs (#654, INV-3)", () => {
 });
 
 describe("dayStrip (#654, #777 — one slot per day, bars anchored at zero)", () => {
-  const shape = (d: ReturnType<typeof dayStrip>) => d.slots.map((s) => [s.value, s.heightPct, s.recorded]);
+  const shape = (d: ReturnType<typeof dayStrip>) => d.slots.map((s) => [s.date, s.heightPct, s.recorded]);
 
   it("sizes each bar as its share of the peak, oldest first", () => {
     const d = dayStrip([day("2026-07-01", 5), day("2026-07-02", 10), day("2026-07-03", 8)]);
-    expect(shape(d)).toEqual([[5, 50, true], [10, 100, true], [8, 80, true]]);
+    expect(shape(d)).toEqual([["2026-07-01", 50, true], ["2026-07-02", 100, true], ["2026-07-03", 80, true]]);
     expect(d).toMatchObject({ min: 5, max: 10, last: 8 });
   });
 
@@ -106,13 +106,13 @@ describe("dayStrip (#654, #777 — one slot per day, bars anchored at zero)", ()
     // The defect this replaced: a line drew a segment THROUGH these days, so a
     // stretch nobody had entered rendered as a plateau of real production.
     const d = dayStrip([day("2026-07-01", 400), day("2026-07-02", 0), day("2026-07-03", 200)]);
-    expect(shape(d)).toEqual([[400, 100, true], [0, 0, false], [200, 50, true]]);
+    expect(shape(d)).toEqual([["2026-07-01", 100, true], ["2026-07-02", 0, false], ["2026-07-03", 50, true]]);
     expect(d.slots).toHaveLength(3);
   });
 
   it("floors a recorded day at 2% so the farm's worst real day is still a bar", () => {
     const d = dayStrip([day("2026-07-01", 1000), day("2026-07-02", 3)]);
-    expect(d.slots[1]).toMatchObject({ value: 3, heightPct: 2, recorded: true });
+    expect(d.slots[1]).toMatchObject({ date: "2026-07-02", heightPct: 2, recorded: true });
   });
 
   it("marks the week boundary at the start of the recent window, and nowhere else", () => {
@@ -131,7 +131,7 @@ describe("dayStrip (#654, #777 — one slot per day, bars anchored at zero)", ()
 
   it("draws an all-empty strip when every day is zero, without dividing by zero", () => {
     const d = dayStrip([day("2026-07-01", 0), day("2026-07-02", 0)]);
-    expect(shape(d)).toEqual([[0, 0, false], [0, 0, false]]);
+    expect(shape(d)).toEqual([["2026-07-01", 0, false], ["2026-07-02", 0, false]]);
     expect(d).toMatchObject({ min: 0, max: 0, last: 0 });
   });
 
@@ -183,10 +183,24 @@ describe("stockBar (#654, INV-4, #777)", () => {
     expect(new Set(indexes.slice(0, GRADE_COLOURS)).size).toBe(GRADE_COLOURS);
     expect(indexes.slice(GRADE_COLOURS)).toEqual([1, 2]);
   });
-  it("indexes the hue by SURVIVING segment, not by the row's position among all rows", () => {
-    // Two empty grades, one leading and one in the middle: an implementation
-    // that read the wheel off the original row index would hand these
-    // segments 2 and 4 instead of 2 and 3.
+  it("keeps a grade's hue when a DIFFERENT grade sells out", () => {
+    // The defect this pins: off the filtered index the hue is positional, so
+    // one sale renames every colour after it. Same three grades, two days.
+    const grades = [
+      { eggGradeId: "g1", gradeName: "Large", restricted: 0 },
+      { eggGradeId: "g2", gradeName: "Medium", restricted: 0 },
+      { eggGradeId: "g3", gradeName: "Small", restricted: 0 },
+    ];
+    const hues = (available: number[]) => Object.fromEntries(
+      stockBar(grades.map((g, i) => ({ ...g, available: available[i] })))
+        .segments.map((s) => [s.gradeName, s.colorIndex]),
+    );
+    expect(hues([100, 60, 40])).toEqual({ Large: 1, Medium: 2, Small: 3 });
+    expect(hues([0, 60, 40])).toEqual({ Medium: 2, Small: 3 });
+    expect(hues([100, 0, 40])).toEqual({ Large: 1, Small: 3 });
+  });
+
+  it("indexes the hue by the grade's place in the FULL row set, gaps included", () => {
     const bar = stockBar([
       { eggGradeId: "z0", gradeName: "Empty first", available: 0, restricted: 0 },
       { eggGradeId: "g1", gradeName: "Large", available: 100, restricted: 0 },
@@ -195,7 +209,7 @@ describe("stockBar (#654, INV-4, #777)", () => {
       { eggGradeId: "g3", gradeName: "Small", available: 40, restricted: 0 },
     ]);
     expect(bar.segments.map((s) => [s.gradeName, s.colorIndex])).toEqual([
-      ["Large", 1], ["Medium", 2], ["Small", 3],
+      ["Large", 2], ["Medium", 4], ["Small", 5],
     ]);
     expect(bar.segments.map((s) => s.pct)).toEqual([50, 30, 20]);
   });

@@ -621,6 +621,8 @@ export const tl = {
     // Huling 14 araw (#654)
     trendPanelTitle: "Huling 14 araw",
     trendStripLabel: "Itlog bawat araw, huling 14 araw: pinakamababa {{min}}, pinakamataas {{max}}, kahapon {{last}}",
+    trendStripLabelBlanks_one: "Itlog bawat araw, huling 14 araw: pinakamababa {{min}}, pinakamataas {{max}}, kahapon {{last}}. {{blank}} araw ang walang naitalang datos.",
+    trendStripLabelBlanks_other: "Itlog bawat araw, huling 14 araw: pinakamababa {{min}}, pinakamataas {{max}}, kahapon {{last}}. {{blank}} araw ang walang naitalang datos.",
     trendScaleTitle: "Itlog bawat araw",
     trendPeak: "Pinakamataas {{total}}",
     henDaySubLabel: "Hen-day, huling 7 araw laban sa naunang 7",

@@ -253,11 +253,19 @@ describe("dashboard surfaces (#654, INV-8)", () => {
         // Only properties that can carry a COLOUR. `border(-<side>)?` is the
         // shorthand; `border-radius` / `-width` / `-style` are not colours and
         // matching them here made a plain `3px 3px 0 0` look untokenised
-        // (#777). `border-color` is already caught by the `-color$` branch.
-        if (!/(^|-)color$|^background(-color)?$|^border(-(top|right|bottom|left|block|inline))?$|^stroke$|^fill$|^outline(-color)?$/.test(prop)) continue;
+        // (#777). `border-color` is already caught by the `-color$` branch, and
+        // `border-image` is listed because it is the one other border longhand
+        // that can carry one.
+        if (!/(^|-)color$|^background(-color|-image)?$|^border(-(top|right|bottom|left|block|inline|image))?$|^stroke$|^fill$|^outline(-color)?$/.test(prop)) continue;
         const tokenised = value.includes("var(--")
           || /^(inherit|initial|unset|revert|none|transparent|currentColor)$/i.test(value);
         expect(tokenised, `${b.selector}: "${prop}: ${value}" must resolve through a token`).toBe(true);
+        // Containing a token is necessary but not sufficient: a value can mix a
+        // literal INTO one. `color-mix(in oklab, #ff0000 7%, var(--surface))`
+        // passed the check above, and #777 introduced this stylesheet's first
+        // color-mix, so the hole went from inert to live on a dashboard surface.
+        expect(value, `${b.selector}: "${prop}: ${value}" carries a literal colour beside its token`)
+          .not.toMatch(/#[0-9a-f]{3,8}\b|\brgba?\(|\bhsla?\(|\boklch\(|\blab\(/i);
       }
     }
   });
