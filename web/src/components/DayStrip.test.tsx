@@ -135,6 +135,33 @@ describe("DayStrip (#654, #777, #780)", () => {
     expect(days().some((d) => d === document.activeElement)).toBe(false);
   });
 
+  // A keyboard user focuses a day, then the pointer wanders across the strip and
+  // off it. Clearing on mouse-leave took the readout and the ring away from a
+  // day that still held focus, with no blur to explain it.
+  it("keeps the focused day's readout when the pointer leaves the strip", async () => {
+    const user = userEvent.setup();
+    const { container } = render(strip());
+    const days = () => Array.from(container.querySelectorAll(".daystrip > .day"));
+
+    await user.tab();
+    await user.keyboard("{ArrowRight}");
+    expect(container.querySelector(".tip")!.textContent).toBe("2026-07-02 – 0 eggs");
+
+    await user.hover(days()[3]);
+    expect(container.querySelector(".tip")!.textContent).toBe("2026-07-03 – no entry");
+
+    await user.unhover(days()[3]);
+    // Back to where the keyboard is, not gone.
+    expect(container.querySelector(".tip")!.textContent).toBe("2026-07-02 – 0 eggs");
+    expect(days().map((d) => d.classList.contains("on"))).toEqual([false, true, false, false]);
+
+    // With nothing focused, leaving the strip still closes it.
+    await user.tab();
+    await user.hover(days()[0]);
+    await user.unhover(days()[0]);
+    expect(container.querySelector(".tip")).toBeNull();
+  });
+
   // The readout is not a live region and must not be: the selected slot's own
   // accessible name is this exact sentence, so a live region announced it twice.
   it("hides the readout from assistive tech, leaving the slot's name to say it", () => {

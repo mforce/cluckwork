@@ -113,7 +113,14 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
         role="group"
         aria-label={label}
         ref={stripRef}
-        onMouseLeave={() => setActiveDate(null)}
+        // The pointer leaving hands the readout back to the KEYBOARD, if the
+        // keyboard still has it. Clearing unconditionally took the readout and
+        // the ring off a day that still held focus, with no blur to explain it
+        // — a pointer wandering across the panel silently undid the selection a
+        // keyboard user had made.
+        onMouseLeave={() => setActiveDate(
+          stripRef.current?.contains(document.activeElement) === true ? focusDate : null,
+        )}
         onKeyDown={onKeyDown}
       >
         {data.slots.map((s, i) => (
