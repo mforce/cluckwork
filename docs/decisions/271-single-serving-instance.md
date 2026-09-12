@@ -99,6 +99,40 @@ rediscovered.
 Both misses were the same shape — a process-local limiter — and the second one
 lived in a file the first sweep had already opened.
 
+**A third shape appeared in 2026-09 (#786), and it is not a miss of the list —
+it is a miss the METHOD cannot catch.** The walk below is scoped to `src/`. A
+NuGet package's own `IServiceCollection` extension can register services that
+never appear there: only the one-line call site does, and it looks like any other
+registration. Designing MCP support (#770) surfaced a concrete case —
+`ModelContextProtocol.AspNetCore`'s `WithHttpTransport` registers three
+singletons **and an `AddHostedService`**, unconditionally, from one call. Two of
+three independent reviewers followed the walk correctly and still concluded "this
+adds no hosted service"; only the one who read the package source got it right.
+
+The outcome there was benign — the service is inert under
+`SessionMode.Stateless` — so the blocker list did not change. That is luck, not
+method. Per this repo's own rule that two misses of the same shape mean the
+method is wrong, the defect here is the walk's **scope**, and the fix is to walk
+into the package:
+
+```bash
+graphify clone <package-repo-url> --branch <tag-matching-packages.lock.json>
+cd ~/.graphify/repos/<owner>/<repo> && graphify update . --no-cluster
+graphify explain "<ExtensionMethodName>"   # lists its registrations, with line numbers
+```
+
+Two caveats that must not be dropped when this is repeated. It graphs the
+package's **published source at a tag**, not the restored assembly, so read the
+version from `packages.lock.json` rather than typing a branch — otherwise the
+graph faithfully describes code that is not what restores. And it needs the
+package to have public source at all.
+
+The stronger fix, still open: a test that builds the real service collection and
+asserts the `IHostedService` descriptors and singleton lifetimes against a
+reviewed inventory. That is the only form that catches a package **upgrade**
+changing registrations under an unchanged call site, which neither prose nor an
+on-demand graph query will.
+
 **So do not extend this list from memory.** Re-derive it: enumerate **every**
 `AddSingleton`/`AddHostedService` under `src/`, plus every in-memory state
 primitive (`ConcurrentDictionary`, `IMemoryCache`, `PartitionedRateLimiter`,
