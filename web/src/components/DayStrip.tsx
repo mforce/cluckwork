@@ -38,7 +38,6 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
   // focus, and deriving the tab stop from the selection then snapped it back to
   // day 1 while focus sat on day 3 — the next ArrowRight moved backwards.
   const [focusDate, setFocusDate] = useState<string | null>(null);
-  const [centerPx, setCenterPx] = useState(0);
   const dockRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLSpanElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
@@ -61,16 +60,23 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
   useLayoutEffect(() => {
     const dock = dockRef.current;
     const box = tipRef.current;
-    if (dock === null || box === null || active === null) return;
+    // Measured from the SELECTED slot's own element, never from a remembered
+    // number. A stored centre went stale: focus an early day, hover a later
+    // one, move the pointer off the strip, and the restore put the box over the
+    // hovered day while the arrow and ring stayed on the focused one. The arrow
+    // is anchored to this same element, so deriving the box from it is the only
+    // way the two cannot disagree.
+    const slot = stripRef.current?.children[activeIndex];
+    if (dock === null || box === null || !(slot instanceof HTMLElement)) return;
     const half = box.offsetWidth / 2;
+    const centre = slot.offsetLeft + slot.offsetWidth / 2;
     const x = half * 2 >= dock.offsetWidth
       ? dock.offsetWidth / 2
-      : Math.min(Math.max(centerPx, half), dock.offsetWidth - half);
+      : Math.min(Math.max(centre, half), dock.offsetWidth - half);
     box.style.left = `${x}px`;
-  }, [active, centerPx, tip]);
+  }, [activeIndex, tip]);
 
-  const select = (slot: DayStripSlot, el: HTMLElement, keyboard = false) => {
-    setCenterPx(el.offsetLeft + el.offsetWidth / 2);
+  const select = (slot: DayStripSlot, keyboard = false) => {
     setActiveDate(slot.date);
     if (keyboard) setFocusDate(slot.date);
   };
@@ -132,9 +138,9 @@ export function DayStrip({ data, label, title, peak, average, tip, from, to }: {
             aria-label={tip(s)}
             tabIndex={i === stopIndex ? 0 : -1}
             aria-current={s.date === activeDate}
-            onClick={(e) => select(s, e.currentTarget, true)}
-            onMouseEnter={(e) => select(s, e.currentTarget)}
-            onFocus={(e) => select(s, e.currentTarget, true)}
+            onClick={() => select(s, true)}
+            onMouseEnter={() => select(s)}
+            onFocus={() => select(s, true)}
           >
             <Bar slot={s} />
           </button>
