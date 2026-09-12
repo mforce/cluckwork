@@ -1082,7 +1082,39 @@ export interface ProductionDay {
    */
   fromCounts: number;
   deaths: number;
+  /**
+   * #780 — houses that filed an OFFICIAL entry (Submitted, Locked or
+   * ManagerAdjusted). The field that separates a day nobody recorded from one
+   * that genuinely produced no eggs: every other figure here is 0 for both. A
+   * day holding only a Draft counts 0 here while the capture tiles still show
+   * it as captured.
+   */
+  recordedFlocks: number;
+  /**
+   * #780 — houses that owed a filing that day: placed, not yet depleted or
+   * archived. `recordedFlocks < expectedFlocks` is a PARTIALLY recorded day,
+   * whose `totalEggs` is a floor rather than a figure.
+   */
+  expectedFlocks: number;
+  /**
+   * #780 — expected flocks with no filing, and the only sound test for a
+   * partly recorded day. Comparing `recordedFlocks` against `expectedFlocks`
+   * is not: they count different sets, so expected {A, B} against filings
+   * {A, C} gives 2 and 2 and hides B.
+   */
+  missingFlocks: number;
+  /** Every bird alive that day, whether or not its house reported. */
   henDays: number;
+  /** The exposure that reported — `henDayPct`'s denominator (#780). */
+  recordedHenDays: number;
+  /**
+   * `henDayPct`'s NUMERATOR (#780): the eggs of exactly the flocks whose birds
+   * are in `recordedHenDays`. Equal to `totalEggs` on any ordinary day; they
+   * part only where a flock filed while the bird ledger says it had no birds,
+   * and carrying it is what keeps the rate reproducible from the payload.
+   */
+  ratedEggs: number;
+  /** `ratedEggs` over `recordedHenDays`. null when nothing reported. */
   henDayPct: number | null;
 }
 
@@ -1093,6 +1125,9 @@ export interface ProductionReport {
   totalFromCounts: number;
   totalDeaths: number;
   totalHenDays: number;
+  /** `periodHenDayPct`'s denominator and numerator, so it is reproducible (#780). */
+  totalRecordedHenDays: number;
+  totalRatedEggs: number;
   periodHenDayPct: number | null;
   gradeTotals: { eggGradeId: string; name: string; quantity: number }[];
 }

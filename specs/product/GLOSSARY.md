@@ -112,7 +112,7 @@ does not count (it vacated its day, #82); a Draft does (captured, not yet
 submitted). Depleted and archived flocks appear only when they do have an
 entry today. Beside it the dashboard shows the last 14 days from the
 **Production report** (submitted days only, yesterday back — a fixed window,
-unlike Reports) with the report's own **Hen-day %** for the last 7 complete
+unlike Reports) with the report's own **Hen-day %** for the last 7 finished
 days against the 7 before, and stock as one stacked bar by grade whose total
 is the Stock screen's.
 
@@ -700,11 +700,44 @@ the admin set on this screen, so clearing it would silently widen the page from
 one record to the whole farm. The empty state stays a plain sentence with no
 action (#655).
 
-**Hen-day % (#91)** — eggs collected ÷ hen-days × 100 (spec §19.3). A
-hen-day is one bird alive for one day; the day's bird count comes from the
-bird ledger (placements + movements). The production report shows it per
-day and for the whole period (period eggs ÷ period hen-days — not an
-average of daily percentages).
+**Hen-day % (#91, #780)** — eggs collected ÷ **recorded** hen-days × 100
+(spec §19.3, amended by #780). A hen-day is one bird alive for one day; the
+day's bird count comes from the bird ledger (placements + movements). The
+production report shows it per day and for the whole period (period eggs ÷
+period recorded hen-days — not an average of daily percentages).
+
+The denominator counts only the houses that **recorded** the day (#780). A
+house that filed nothing produced no eggs the report can see, so counting
+its birds as exposure states a lay rate nothing supports: a day nobody
+recorded read as 0%, and a day one house of three missed read as a collapse
+in output. The **Hen-days** column keeps its full meaning — every bird
+alive, recorded or not — and the gap between it and the recorded exposure
+is exactly what is missing. A day nobody recorded has **no** percentage,
+not 0.
+
+A flock files against a date, and the bird ledger decides separately whether
+that flock was live on it and how many birds it held. The two disagree at a
+lifecycle boundary — an entry filed on the day after depletion, a placement
+date corrected forward past entries that already exist, a mistyped mortality
+that removes more birds than were placed. **The rate's numerator is
+restricted to exactly the flocks whose birds are in its denominator**, so a
+flock in any of those states keeps its eggs in the day's egg total and out
+of the rate. Without that restriction the two exclusions compounded and a
+farm laying 80% was reported at 160%.
+
+The report therefore carries **Rated eggs** beside **Recorded hen-days** —
+the percentage's own numerator and denominator — so the figure can be
+reproduced rather than taken on trust. They equal the day's eggs and its
+hen-days on any ordinary day; a gap means a filing and the bird ledger
+disagree about that date.
+
+**Partly recorded day (#780)** — a date where at least one flock filed an
+official entry and at least one did not. Its egg total is a **floor**, not
+the day's output, so the Dashboard's 14-day strip draws it hatched and
+leaves it out of that panel's Peak and Avg; hen-day % still rates it on the
+flocks that did file, so a missing flock lowers what the figure is measured
+over rather than the figure itself. Distinct from a day nobody recorded,
+which has no figure at all.
 
 **Production report (#91)** — per-day official production over a range
 (Draft entries aren't submitted, Voided ones vacated their day — neither

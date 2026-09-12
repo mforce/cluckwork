@@ -595,11 +595,21 @@ export const es = {
 
     // Últimos 14 días (#654)
     trendPanelTitle: "Últimos 14 días",
-    trendStripLabel: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}",
-    trendStripLabelBlanks_one: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}. {{blank}} día no tiene nada registrado.",
-    trendStripLabelBlanks_other: "Huevos por día, últimos 14 días: mínimo {{min}}, máximo {{max}}, ayer {{last}}. {{blank}} días no tienen nada registrado.",
+    trendStripLabel: "Huevos por día, últimos 14 días. Máximo {{max}}, promedio {{avg}}. Todos los lotes registraron todos los días.",
+    trendStripLabelBlanks_one: "Huevos por día, últimos 14 días. Máximo {{max}}, promedio {{avg}} entre los días que registraron todos los lotes. {{blank}} día no está completo.",
+    trendStripLabelBlanks_other: "Huevos por día, últimos 14 días. Máximo {{max}}, promedio {{avg}} entre los días que registraron todos los lotes. {{blank}} días no están completos.",
+    trendStripLabelNone: "Huevos por día, últimos 14 días. Ningún día de este período tiene registro.",
+    trendStripLabelNoComplete: "Huevos por día, últimos 14 días. Ningún día fue registrado por todos los lotes, así que no hay máximo ni promedio.",
+    trendStripLabelNoFlocks: "Huevos por día, últimos 14 días. No hubo ningún lote en la granja en este período.",
     trendScaleTitle: "Huevos por día",
     trendPeak: "Máximo {{total}}",
+    trendAvg: "Prom. {{total}}",
+    trendDayTip_one: "{{date}} – {{total}} huevo",
+    trendDayTip_other: "{{date}} – {{total}} huevos",
+    trendDayTipPartial_one: "{{date}} – {{total}} huevo, {{recorded}} de {{expected}} lotes",
+    trendDayTipPartial_other: "{{date}} – {{total}} huevos, {{recorded}} de {{expected}} lotes",
+    trendDayTipNone: "{{date}} – sin registro",
+    trendDayTipNoFlocks: "{{date}} – sin lotes",
     henDaySubLabel: "Postura, últimos 7 días frente a los 7 anteriores",
     henDayDeltaUp: "+{{delta}} pts",
     henDayDeltaDown: "−{{delta}} pts",
@@ -1599,6 +1609,8 @@ export const es = {
     conditionHeader: "Con defecto",
     deathsHeader: "Muertes",
     henDaysHeader: "Días-gallina",
+    recordedHenDaysHeader: "Registrados",
+    ratedEggsHeader: "Huevos contados",
     henDayPctHeader: "% días-gallina",
     periodRowLabel: "Período",
     gradeTotalsLabel: "Por grado:",
@@ -1997,10 +2009,16 @@ export const es = {
       + "tarjetas, un enlace lleva al resto.",
     dashboardTrend:
       "<strong>Últimos 14 días</strong>: huevos por día del informe de producción, con el <strong>% de "
-      + "postura</strong> de los últimos 7 días completos y su variación frente a los 7 anteriores. La "
-      + "ventana es fija (desde ayer hacia atrás) y cuenta <strong>solo días enviados</strong> — un día "
-      + "aún en borrador se lee como cero hasta que se envía, a diferencia de Informes, donde usted elige "
-      + "el rango.",
+      + "postura</strong> de los últimos 7 días completos y su variación frente a los 7 anteriores. "
+      + "Señale un día, o entre al gráfico con el tabulador y use las flechas, para leerlo por separado. "
+      + "Un día que la granja envió sin huevos conserva una marca en la base; un día que nadie envió queda "
+      + "vacío y se lee como <strong>Sin registro</strong>; un día que solo enviaron algunos lotes se "
+      + "dibuja rayado, porque su total es lo mínimo que produjo la granja y no lo que produjo. "
+      + "<strong>Máximo</strong> y <strong>Prom.</strong> salen solo de los días que registraron todos los "
+      + "lotes. El % de postura divide entre los días-gallina de los lotes que registraron, así que un lote que olvida "
+      + "reduce sobre cuánto se mide la cifra, nunca la cifra misma. La ventana es fija (desde ayer hacia "
+      + "atrás) y cuenta <strong>solo días enviados</strong> — un día aún en borrador se lee como Sin "
+      + "registro hasta que se envía, a diferencia de Informes, donde usted elige el rango.",
     dashboardStock:
       "<strong>Existencias</strong>: una <strong>barra apilada</strong> de lo disponible por grado, con "
       + "las cifras al lado; los huevos restringidos se anotan tras el total. Es el mismo total que "
@@ -2410,9 +2428,13 @@ export const es = {
     reportsHeading: "Informes",
     reportsProduction:
       "<strong>Producción</strong> (todos): elija un rango de fechas — huevos por día, pérdidas, "
-      + "vendibles, con defecto, muertes, y <strong>% de puesta diaria</strong> (huevos recolectados ÷ "
-      + "aves vivas ese día × 100), con totales del período y un desglose por grado. Las entradas en "
-      + "borrador y anuladas no cuentan.",
+      + "vendibles, con defecto, muertes, y <strong>% de puesta diaria</strong>, con totales del período "
+      + "y un desglose por grado. Las entradas en borrador y anuladas no cuentan. El % de puesta diaria "
+      + "es huevos recolectados ÷ días-gallina × 100, y divide entre los días-gallina de los "
+      + "<strong>lotes que registraron ese día</strong> — un lote que no envió nada no produjo huevos "
+      + "que este informe pueda ver, así que contar sus aves informaría una tasa que nada respalda. La "
+      + "columna <strong>Días-gallina</strong> son todas las aves vivas, registradas o no, así que la "
+      + "diferencia entre ambas es lo que falta. Un día que nadie registró muestra — en vez de 0 %.",
     // #396 — machine-drafted, pending native review (#182).
     reportsCondition:
       "<strong>Con defecto</strong>: huevos rajados y sucios que pasaron a inventario en vez de "

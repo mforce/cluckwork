@@ -107,6 +107,28 @@ test.describe("README screenshots", () => {
     const heights = await bars.evaluateAll((els) => els.map((e) => (e as HTMLElement).style.height));
     expect(new Set(heights).size).toBeGreaterThan(1);
 
+    // #780 — the day readout's position is derived from the SELECTED slot's own
+    // element, never from a remembered number, so it cannot end up over a day
+    // it is not describing. jsdom cannot see this: every offset there is 0, so
+    // the unit tests are blind to it and only a laid-out page can hold it.
+    //
+    // The sequence that broke it: focus one day, hover a far one, take the
+    // pointer off the strip. The selection returns to the focused day — its
+    // ring and arrow move back — and a stored centre left the box behind.
+    const slots = page.locator(".daystrip > .day");
+    const readoutLeft = () => page.locator(".tip").evaluate((el) => (el as HTMLElement).style.left);
+    const slotCount = await slots.count();
+    if (slotCount > 3) {
+      await slots.nth(1).focus();
+      const parked = await readoutLeft();
+      await slots.nth(slotCount - 1).hover();
+      await expect(page.locator(".tip")).toBeVisible();
+      await page.mouse.move(2, 2);
+      // Back on the focused day, and back at that day's own position.
+      await expect(slots.nth(1)).toHaveClass(/\bon\b/);
+      expect(await readoutLeft()).toBe(parked);
+    }
+
     // Stock: at least one segment on the bar.
     await expect(page.locator(".meter-stack > span").first()).toBeVisible();
 

@@ -12,11 +12,14 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
     private sealed record Created(Guid Id);
     private sealed record DayRow(
         DateOnly Date, int TotalEggs, int Cracked, int Dirty, int Discarded,
-        int Sellable, int FromCounts, int Deaths, long HenDays, decimal? HenDayPct);
+        int Sellable, int FromCounts, int Deaths,
+        int RecordedFlocks, int ExpectedFlocks, int MissingFlocks,
+        long HenDays, long RecordedHenDays, int RatedEggs, decimal? HenDayPct);
     private sealed record GradeRow(Guid EggGradeId, string Name, int Quantity);
     private sealed record ProductionDto(
         List<DayRow> Days, int TotalEggs, int TotalSellable, int TotalFromCounts,
-        int TotalDeaths, long TotalHenDays, decimal? PeriodHenDayPct, List<GradeRow> GradeTotals);
+        int TotalDeaths, long TotalHenDays, long TotalRecordedHenDays,
+        int TotalRatedEggs, decimal? PeriodHenDayPct, List<GradeRow> GradeTotals);
     private sealed record SalesDto(
         int ConfirmedCount, long RevenueMinorUnits, long PaidMinorUnits,
         long OutstandingMinorUnits, int VoidedCount, string CurrencyCode, int CurrencyMinorUnit);
@@ -115,7 +118,8 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         var farmId = Guid.NewGuid();
         var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
         // Seeded flock: 100 birds placed well before the range.
-        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var houseId = Guid.NewGuid();
+        var flockId = await factory.SeedFlockAsync(accountId, farmId, houseId);
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
         async Task<Guid> RecordAsync(DateOnly date, int total, int mortality, bool submit)
@@ -127,7 +131,7 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
             var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
             {
                 farmId,
-                houseId = Guid.NewGuid(),
+                houseId,
                 flockId,
                 date,
                 totalEggs = total,
@@ -167,11 +171,448 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(98, day2.HenDays);   // yesterday's 2 deaths bite today
         Assert.Equal(170, report.TotalEggs);
         Assert.Equal(198, report.TotalHenDays);
-        // Period % = 170/198 — not the average of daily percentages.
+        // Period % = 170/198 — not the average of daily percentages. Every day
+        // here is recorded, so recorded hen-days equal total hen-days and this
+        // assertion would survive a revert of #780's denominator; the guard for
+        // that is Production_RecordedFlocks_... below, not this one.
         Assert.Equal(85.9m, report.PeriodHenDayPct);
         // #394: each submitted day is now graded exactly to its own sellable
         // count (77 + 87), not the old arbitrary total-10 stand-in.
         Assert.Equal(77 + 87, report.GradeTotals.Single().Quantity);
+    }
+
+    // #780 — every figure on a production day defaults to 0, so a day nobody
+    // recorded and a day that genuinely produced no eggs arrived identical to
+    // every consumer. `EntryCount` is the only field that separates them, and
+    // it counts OFFICIAL entries, so a day holding only a Draft is unrecorded
+    // here even though the capture screen shows it as captured.
+    [Fact]
+    public async Task Production_RecordedFlocks_SeparatesAnUnrecordedDayFromAZeroEggDay()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        // The flock's own house, and the entries are filed from it: since #780 a
+        // filing only answers for the house that owes the count.
+        var houseId = Guid.NewGuid();
+        var flockId = await factory.SeedFlockAsync(accountId, farmId, houseId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        async Task RecordAsync(DateOnly date, int total, bool submit)
+        {
+            var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId,
+                houseId,
+                flockId,
+                date,
+                totalEggs = total,
+                crackedEggs = 0,
+                dirtyEggs = 0,
+                discardedEggs = 0,
+                mortalityCount = 0,
+                grades = total == 0
+                    ? Array.Empty<object>()
+                    : [new { eggGradeId = grades["Large"], quantity = total }]
+            });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+            if (submit)
+                Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+                    $"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString())).StatusCode);
+        }
+
+        await RecordAsync(Today.AddDays(-4), 60, submit: true);
+        await RecordAsync(Today.AddDays(-3), 0, submit: true);   // the flock laid nothing, and someone said so
+        // Today-2: nobody recorded anything at all.
+        await RecordAsync(Today.AddDays(-1), 90, submit: false); // a Draft is not an official entry
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={Today.AddDays(-4):yyyy-MM-dd}&to={Today.AddDays(-1):yyyy-MM-dd}");
+
+        Assert.Equal(4, report!.Days.Count);
+        var (laid, zero, missing, draftOnly) = (report.Days[0], report.Days[1], report.Days[2], report.Days[3]);
+
+        Assert.Equal((60, 1), (laid.TotalEggs, laid.RecordedFlocks));
+        // The pair this issue exists for: identical in every other field.
+        Assert.Equal(0, zero.TotalEggs);
+        Assert.Equal(0, missing.TotalEggs);
+        Assert.Equal(1, zero.RecordedFlocks);
+        Assert.Equal(0, missing.RecordedFlocks);
+        // And the Draft sits on the unrecorded side, with its 90 eggs invisible.
+        Assert.Equal((0, 0), (draftOnly.TotalEggs, draftOnly.RecordedFlocks));
+
+        // The lay rate follows the evidence, not the calendar. The house was
+        // alive on all four days, so `HenDays` is 100 throughout and the Reports
+        // column keeps the meaning the glossary gives it; what changes is the
+        // denominator the RATE divides by.
+        Assert.Equal((100L, 100L), (laid.HenDays, laid.RecordedHenDays));
+        Assert.Equal(60m, laid.HenDayPct);
+        // Recorded and genuinely zero: exposure counted, rate is a real 0%.
+        Assert.Equal((100L, 100L), (zero.HenDays, zero.RecordedHenDays));
+        Assert.Equal(0m, zero.HenDayPct);
+        // Nobody reported: birds alive, but no exposure with evidence behind it,
+        // so there is no rate at all. Printing 0.0% here was the conflation.
+        Assert.Equal((100L, 0L), (missing.HenDays, missing.RecordedHenDays));
+        Assert.Null(missing.HenDayPct);
+        Assert.Null(draftOnly.HenDayPct);
+
+        // Period: 60 eggs over the 200 hen-days that reported = 30%, not the
+        // 15% that dividing by all 400 calendar hen-days would give.
+        Assert.Equal(400L, report.TotalHenDays);
+        Assert.Equal(200L, report.TotalRecordedHenDays);
+        Assert.Equal(30m, report.PeriodHenDayPct);
+    }
+
+    // #780 — a day where SOME houses reported is not a day of low production
+    // and not a day of no production; it is a day whose total is a floor. The
+    // count of houses that owed a filing is what makes it visible, and the lay
+    // rate must divide only by the houses that filed or a missing house reads
+    // as a collapse in output.
+    [Fact]
+    public async Task Production_PartiallyRecordedDay_IsCountedAndRatedOnTheHousesThatReported()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        // Two flocks in two houses, 100 birds each, both placed well before the
+        // window. Each files from its own house, which is what a filing has to
+        // do to answer for that house (#780).
+        var houseAId = Guid.NewGuid();
+        var houseBId = Guid.NewGuid();
+        var houseA = await factory.SeedFlockAsync(accountId, farmId, houseAId);
+        var houseB = await factory.SeedFlockAsync(accountId, farmId, houseBId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        async Task RecordAsync(Guid flockId, DateOnly date, int total)
+        {
+            var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId,
+                houseId = flockId == houseA ? houseAId : houseBId,
+                flockId,
+                date,
+                totalEggs = total,
+                crackedEggs = 0,
+                dirtyEggs = 0,
+                discardedEggs = 0,
+                mortalityCount = 0,
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = total } }
+            });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+            Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+                $"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString())).StatusCode);
+        }
+
+        // Day -2: both houses report 80 each. Day -1: only house A does.
+        await RecordAsync(houseA, Today.AddDays(-2), 80);
+        await RecordAsync(houseB, Today.AddDays(-2), 80);
+        await RecordAsync(houseA, Today.AddDays(-1), 80);
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={Today.AddDays(-2):yyyy-MM-dd}&to={Today.AddDays(-1):yyyy-MM-dd}");
+
+        var (full, partial) = (report!.Days[0], report.Days[1]);
+
+        Assert.Equal((2, 2), (full.RecordedFlocks, full.ExpectedFlocks));
+        // The whole point: one of two houses filed, and the row says so.
+        Assert.Equal((1, 2), (partial.RecordedFlocks, partial.ExpectedFlocks));
+
+        // Both houses were alive on both days, so the exposure is 200 either
+        // way; only the reported half of it carries evidence on the second day.
+        Assert.Equal((200L, 200L), (full.HenDays, full.RecordedHenDays));
+        Assert.Equal((200L, 100L), (partial.HenDays, partial.RecordedHenDays));
+
+        // 80% on both days. Dividing the partial day's 80 eggs by all 200
+        // hen-days would report 40% and show a healthy farm halving its output
+        // overnight, when what actually happened is that somebody did not file.
+        Assert.Equal(80m, full.HenDayPct);
+        Assert.Equal(80m, partial.HenDayPct);
+        Assert.Equal(80m, report.PeriodHenDayPct);
+    }
+
+    // #780 — the lay rate's numerator must come from the same flocks as its
+    // denominator. Depletion is routinely recorded after the fact, so a flock
+    // can hold an official entry for a date the bird ledger later says it had
+    // already ended: its eggs are in the day's total, its birds are in no
+    // exposure. Dividing one by the other reported 160% on data the pre-#780
+    // code rated at a correct 80%.
+    [Fact]
+    public async Task Production_BackdatedDepletion_LeavesItsEggsOutOfTheRateRatherThanOver100()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var staying = await factory.SeedFlockAsync(accountId, farmId);
+        var leaving = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var day = Today.AddDays(-1);
+
+        async Task RecordAsync(Guid flockId)
+        {
+            var house = await factory.WithTenantScopeAsync(accountId, async db =>
+                (await db.Flocks.FirstAsync(f => f.Id == flockId)).HouseId);
+            var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId, houseId = house, flockId, date = day,
+                totalEggs = 80, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = 80 } }
+            });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+            Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+                $"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString())).StatusCode);
+        }
+
+        await RecordAsync(staying);
+        await RecordAsync(leaving);
+        // The depletion lands afterwards and is backdated before the entry —
+        // the write path refuses an entry against an already-depleted flock, so
+        // this order is the only way in, and it is how a farm records it.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var f = await db.Flocks.FirstAsync(x => x.Id == leaving);
+            f.Deplete(day.AddDays(-1));
+            await db.SaveChangesAsync();
+        });
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={day:yyyy-MM-dd}&to={day:yyyy-MM-dd}");
+        var row = report!.Days.Single();
+
+        // Both flocks' eggs stay in the day's total — the egg column may not
+        // silently drop a filed row.
+        Assert.Equal(160, row.TotalEggs);
+        // Only the live flock is exposure, and only its eggs are rated.
+        Assert.Equal((100L, 80), (row.RecordedHenDays, row.RatedEggs));
+        Assert.Equal(80m, row.HenDayPct);
+        Assert.Equal(80m, report.PeriodHenDayPct);
+        Assert.True(row.HenDayPct <= 100m, "a lay rate over 100% means the numerator outran its own denominator");
+    }
+
+    // #780 — a filing counts as a filing whatever house id it carries. Matching
+    // the entry's house against the flock's was tried and reverted: houses are
+    // not aggregates yet (`RecordDailyEntryHandler` calls them "phantom ids
+    // until Phase 2's House model" and declines to check them), every flock is
+    // created with the same `SeedDefaults.HouseId`, so the rule could not fire
+    // on real data while a client sending any other id turned a submitted day
+    // into "no entry". This pins the revert so it is not re-introduced without
+    // the write-path check it needs.
+    [Fact]
+    public async Task Production_EntryWithAnUnrelatedHouseId_StillCountsAsThatFlocksFiling()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var day = Today.AddDays(-1);
+
+        var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        {
+            farmId, houseId = Guid.NewGuid(), flockId, date = day,
+            totalEggs = 40, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+            grades = new[] { new { eggGradeId = grades["Large"], quantity = 40 } }
+        });
+        var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString());
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={day:yyyy-MM-dd}&to={day:yyyy-MM-dd}");
+        var row = report!.Days.Single();
+
+        Assert.Equal((40, 1, 1), (row.TotalEggs, row.RecordedFlocks, row.ExpectedFlocks));
+        Assert.Equal(40m, row.HenDayPct);
+    }
+
+    // #780 — a placement date corrected forward past entries that already exist
+    // leaves a day whose filings all come from flocks the ledger says were not
+    // yet placed. Deriving RecordedFlocks from the lifecycle walk made
+    // `recorded <= expected` hold by construction, so that day collapsed to
+    // (0, 0) and the strip drew real submitted eggs as "no flocks".
+    [Fact]
+    public async Task Production_PlacementCorrectedPastItsEntries_StillReportsThemAsFiled()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var day = Today.AddDays(-3);
+
+        var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        {
+            farmId, houseId = Guid.NewGuid(), flockId, date = day,
+            totalEggs = 80, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+            grades = new[] { new { eggGradeId = grades["Large"], quantity = 80 } }
+        });
+        var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString());
+
+        // The typo correction: placement moves to AFTER the day that was filed.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var f = await db.Flocks.FirstAsync(x => x.Id == flockId);
+            f.Update(f.Name, f.Breed, Today.AddDays(-1), f.InitialCount);
+            await db.SaveChangesAsync();
+        });
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={day:yyyy-MM-dd}&to={day:yyyy-MM-dd}");
+        var row = report!.Days.Single();
+
+        // The eggs were submitted and the day says so, however the ledger now
+        // reads. No flock was live, so there is no exposure and no rate.
+        Assert.Equal(80, row.TotalEggs);
+        Assert.Equal((1, 0), (row.RecordedFlocks, row.ExpectedFlocks));
+        Assert.Equal((0L, 0), (row.RecordedHenDays, row.RatedEggs));
+        Assert.Null(row.HenDayPct);
+    }
+
+    // #780 — nothing on the write path bounds a mortality against the flock's
+    // own count, so an over-removed flock has eggs and no birds. Admitting its
+    // eggs to a numerator whose denominator excludes it reported 160% on a farm
+    // laying 80%.
+    [Fact]
+    public async Task Production_OverRemovedFlock_LeavesItsEggsOutOfTheRate()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var wiped = await factory.SeedFlockAsync(accountId, farmId);
+        var healthy = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        async Task RecordAsync(Guid flockId, DateOnly date, int total, int mortality)
+        {
+            var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId, houseId = Guid.NewGuid(), flockId, date,
+                totalEggs = total, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0,
+                mortalityCount = mortality,
+                grades = total == 0 ? Array.Empty<object>() : [new { eggGradeId = grades["Large"], quantity = total }]
+            });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+            Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+                $"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString())).StatusCode);
+        }
+
+        // A mistyped mortality removes ten times the flock's 100 birds.
+        await RecordAsync(wiped, Today.AddDays(-6), 0, 1000);
+        await RecordAsync(wiped, Today.AddDays(-1), 80, 0);
+        await RecordAsync(healthy, Today.AddDays(-1), 80, 0);
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={Today.AddDays(-1):yyyy-MM-dd}&to={Today.AddDays(-1):yyyy-MM-dd}");
+        var row = report!.Days.Single();
+
+        Assert.Equal(160, row.TotalEggs);
+        // Only the flock with birds is exposure, and only its eggs are rated.
+        Assert.Equal((100L, 80), (row.RecordedHenDays, row.RatedEggs));
+        Assert.Equal(80m, row.HenDayPct);
+        Assert.True(row.HenDayPct <= 100m, "a lay rate over 100% means the numerator outran its own denominator");
+        // The payload carries both halves, so the figure is reproducible.
+        Assert.Equal(
+            Math.Round(row.RatedEggs * 100m / row.RecordedHenDays, 1),
+            row.HenDayPct);
+    }
+
+    // #780, found by an external review — completeness cannot be a comparison of
+    // RecordedFlocks against ExpectedFlocks, because they count different SETS.
+    // A flock that files outside its own lifecycle window counts as having
+    // filed and answers nobody's expectation, so two expected flocks against
+    // filings from one of them plus an outsider gives 2 and 2 — and the flock
+    // that never filed vanishes, its shortfall presented as a complete day.
+    [Fact]
+    public async Task Production_EqualFlockCountsOverDifferentSets_StillReportsTheMissingFiling()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var filed = await factory.SeedFlockAsync(accountId, farmId);   // expected, and files
+        var silent = await factory.SeedFlockAsync(accountId, farmId);  // expected, files nothing
+        var outsider = await factory.SeedFlockAsync(accountId, farmId); // files, then leaves
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var day = Today.AddDays(-1);
+
+        async Task RecordAsync(Guid flockId, int total)
+        {
+            var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId, houseId = Guid.NewGuid(), flockId, date = day,
+                totalEggs = total, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = total } }
+            });
+            var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+            await client.PostWithKeyAsync($"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString());
+        }
+
+        await RecordAsync(filed, 80);
+        await RecordAsync(outsider, 80);
+        // The outsider's depletion is backdated behind its own filing, so it is
+        // no longer expected on that date while still having filed on it.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var f = await db.Flocks.FirstAsync(x => x.Id == outsider);
+            f.Deplete(day.AddDays(-1));
+            await db.SaveChangesAsync();
+        });
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={day:yyyy-MM-dd}&to={day:yyyy-MM-dd}");
+        var row = report!.Days.Single();
+
+        // The trap: two filings, two expected flocks. Equal counts, different sets.
+        Assert.Equal((2, 2), (row.RecordedFlocks, row.ExpectedFlocks));
+        // And the flock that never filed is still visible.
+        Assert.Equal(1, row.MissingFlocks);
+        Assert.Equal(160, row.TotalEggs);
+        // Only the live flock that filed is exposure, and only its eggs rated.
+        Assert.Equal((100L, 80), (row.RecordedHenDays, row.RatedEggs));
+        Assert.Equal(80m, row.HenDayPct);
+    }
+
+    // The lifecycle rule behind ExpectedFlocks — placed, not yet depleted or
+    // archived — decides the partial state, the hatched bar, Peak and Avg. It
+    // had no test: counting every loaded flock instead left all of these green.
+    [Fact]
+    public async Task Production_ExpectedFlocks_CountsOnlyFlocksLiveOnThatDay()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var early = await factory.SeedFlockAsync(accountId, farmId);
+        var late = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        // `late` is placed on the middle day of the window; `early` is depleted
+        // on it. So each of the three days expects a different number.
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            var l = await db.Flocks.FirstAsync(x => x.Id == late);
+            l.Update(l.Name, l.Breed, Today.AddDays(-2), l.InitialCount);
+            var e = await db.Flocks.FirstAsync(x => x.Id == early);
+            e.Deplete(Today.AddDays(-2));
+            await db.SaveChangesAsync();
+        });
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={Today.AddDays(-3):yyyy-MM-dd}&to={Today.AddDays(-1):yyyy-MM-dd}");
+
+        // Before placement / after depletion, a flock owes nothing.
+        Assert.Equal(1, report!.Days[0].ExpectedFlocks);  // early only
+        Assert.Equal(2, report.Days[1].ExpectedFlocks);   // both, on the boundary day
+        Assert.Equal(1, report.Days[2].ExpectedFlocks);   // late only
     }
 
     // Depletion writes no removal movement — the flock's contribution must

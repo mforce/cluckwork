@@ -20,6 +20,7 @@ import { daysBefore } from "../lib/dates";
 import {
   captureTiles, dayStrip, henDayTrend, stockBar, todaysEggs, visibleTiles,
 } from "../lib/dashboard";
+import type { DayStripData, DayStripSlot } from "../lib/dashboard";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
 
@@ -106,7 +107,10 @@ export function Dashboard() {
   const panelError = <p className="error">{t("panelLoadError")}</p>;
   const tiles = flocks !== null && entries !== null ? visibleTiles(captureTiles(flocks, entries)) : null;
   const trendData = trend === null ? null : {
-    line: dayStrip([...trend.previous.days, ...trend.current.days], trend.current.days.length),
+    line: dayStrip({
+      days: [...trend.previous.days, ...trend.current.days],
+      recentCount: trend.current.days.length,
+    }),
     henDay: henDayTrend(trend.current, trend.previous),
   };
   const bar = stock === null ? null : stockBar(stock);
@@ -123,12 +127,53 @@ export function Dashboard() {
   // screen-reader user still gets "lowest 0", the conflation the redraw
   // removed for everyone else. Two complete sentences rather than one built by
   // concatenation, so each locale can order its own clauses.
-  const trendLabel = (line: { slots: { recorded: boolean }[]; min: number; max: number; last: number }) => {
-    const blank = line.slots.filter((s) => !s.recorded).length;
-    const figures = { min: fmt.count(line.min), max: fmt.count(line.max), last: fmt.count(line.last) };
-    return blank === 0
+  const trendLabel = (line: DayStripData) => {
+    // Four states, none of which may report a figure it does not have. max and
+    // average are null together — both come from the COMPLETE days — so a
+    // window with none gets a sentence rather than a formatted 0, and which
+    // sentence depends on whether anything was recorded at all.
+    if (line.max === null || line.average === null) {
+      // A window where no flock ever owed a filing is not a window of missing
+      // ones. The day-level fix for that landed without this, so a new farm's
+      // strip drew fourteen blank-but-blameless slots and then announced that
+      // none of them had an entry.
+      if (line.partial === 0 && line.unrecorded === 0) return t("trendStripLabelNoFlocks");
+      return line.partial === 0 ? t("trendStripLabelNone") : t("trendStripLabelNoComplete");
+    }
+    const figures = { max: fmt.count(line.max), avg: fmt.count(line.average, 1) };
+    const gaps = line.partial + line.unrecorded;
+    return gaps === 0
       ? t("trendStripLabel", figures)
-      : t("trendStripLabelBlanks", { ...figures, count: blank, blank: fmt.count(blank) });
+      : t("trendStripLabelBlanks", { ...figures, count: gaps, blank: fmt.count(gaps) });
+  };
+  // One day's readout, and the accessible name of its slot. Every figure is
+  // farm-locale formatted before it reaches a catalog string (#650). The
+  // unrecorded arm carries no count at all — that is the point of #780 — and
+  // the partial arm says its total is a floor rather than the day's output.
+  const trendTip = (slot: DayStripSlot) => {
+    const date = fmt.date(slot.date);
+    switch (slot.kind) {
+      case "none":
+        return t("trendDayTipNoFlocks", { date });
+      case "unrecorded":
+        return t("trendDayTipNone", { date });
+      case "partial":
+        // Plural on the EGG count, which is what the noun beside it is. It
+        // selected on the flock count, so a partly recorded day with one egg
+        // rendered "1 eggs". The flock noun stays plural unconditionally and is
+        // safe there: `partial` requires 1 <= recorded < expected, so `expected`
+        // is never below 2.
+        return t("trendDayTipPartial", {
+          date, count: slot.eggs, total: fmt.count(slot.eggs),
+          recorded: fmt.count(slot.filedFlocks), expected: fmt.count(slot.expectedFlocks),
+        });
+      case "recorded":
+        return t("trendDayTip", { date, count: slot.eggs, total: fmt.count(slot.eggs) });
+      default: {
+        const _exhaustive: never = slot;
+        return _exhaustive;
+      }
+    }
   };
   const deltaClass = (delta: number | null) =>
     delta === null || delta === 0 ? "trend-delta" : delta < 0 ? "trend-delta is-down" : "trend-delta is-up";
@@ -191,7 +236,11 @@ export function Dashboard() {
                 data={trendData.line}
                 label={trendLabel(trendData.line)}
                 title={t("trendScaleTitle")}
-                peak={t("trendPeak", { total: fmt.count(trendData.line.max) })}
+                peak={trendData.line.max === null ? "—" : t("trendPeak", { total: fmt.count(trendData.line.max) })}
+                average={trendData.line.average === null
+                  ? null
+                  : t("trendAvg", { total: fmt.count(trendData.line.average, 1) })}
+                tip={trendTip}
                 from={<FarmDate iso={daysBefore(today, 14)} />}
                 to={<FarmDate iso={daysBefore(today, 1)} />}
               />

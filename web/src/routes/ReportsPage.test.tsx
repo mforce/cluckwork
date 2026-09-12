@@ -38,10 +38,10 @@ const mockGetProfitReport = vi.mocked(getProfitReport);
 // of the `?? "—"` fallback (DATA, left raw per the namespace header comment).
 const PRODUCTION: ProductionReport = {
   days: [
-    { date: "2026-07-19", totalEggs: 100, cracked: 2, dirty: 3, discarded: 5, sellable: 90, fromCounts: 6, deaths: 1, henDays: 98, henDayPct: 91.8 },
-    { date: "2026-07-18", totalEggs: 95, cracked: 1, dirty: 1, discarded: 2, sellable: 91, fromCounts: 0, deaths: 0, henDays: 98, henDayPct: null },
+    { date: "2026-07-19", totalEggs: 100, cracked: 2, dirty: 3, discarded: 5, sellable: 90, fromCounts: 6, deaths: 1, recordedFlocks: 1, expectedFlocks: 1, missingFlocks: 0, henDays: 98, recordedHenDays: 98, ratedEggs: 100, henDayPct: 91.8 },
+    { date: "2026-07-18", totalEggs: 95, cracked: 1, dirty: 1, discarded: 2, sellable: 91, fromCounts: 0, deaths: 0, recordedFlocks: 1, expectedFlocks: 1, missingFlocks: 0, henDays: 98, recordedHenDays: 98, ratedEggs: 95, henDayPct: null },
   ],
-  totalEggs: 195, totalSellable: 181, totalFromCounts: 6, totalDeaths: 1, totalHenDays: 196, periodHenDayPct: 92.3,
+  totalEggs: 195, totalSellable: 181, totalFromCounts: 6, totalDeaths: 1, totalHenDays: 196, totalRecordedHenDays: 196, totalRatedEggs: 195, periodHenDayPct: 92.3,
   gradeTotals: [
     { eggGradeId: "gr1", name: "Grade A", quantity: 60 },
     { eggGradeId: "gr2", name: "Grade B", quantity: 30 },
@@ -88,15 +88,21 @@ describe("ReportsPage production section (renders for every role)", () => {
     renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
 
     const row1 = await screen.findByRole("row", { name: /07\/19\/2026/ });
-    within(row1).getByText("100"); // totalEggs
+    // #780 — Eggs and Rated eggs are equal on an ordinary day, which is the
+    // point: a gap between them means a filing and the bird ledger disagree
+    // about that date, and the rate divides the SECOND one.
+    expect(within(row1).getAllByText("100")).toHaveLength(2); // totalEggs, ratedEggs
     within(row1).getByText("2/3/5"); // cracked/dirty/discarded
     within(row1).getByText("90"); // sellable
-    within(row1).getByText("98"); // henDays
+    // #780 — Hen-days and Recorded are adjacent and equal on a fully recorded
+    // day, which is the point: the gap between them is what a period is
+    // missing, and eggs ÷ Recorded has to reproduce the percentage beside it.
+    expect(within(row1).getAllByText("98")).toHaveLength(2); // henDays, recordedHenDays
     within(row1).getByText("91.8"); // henDayPct
     // #650 — figures are numeric cells: right-aligned tabular nowrap (styles.num.test.ts
     // pins what the class does; this pins that the screen puts it on the figure and
     // its header, and keeps it off the date).
-    expect(within(row1).getByText("100")).toHaveClass("num");
+    for (const cell of within(row1).getAllByText("100")) expect(cell).toHaveClass("num");
     expect(within(row1).getByText("07/19/2026")).not.toHaveClass("num");
     expect(screen.getByRole("columnheader", { name: "Eggs" })).toHaveClass("num");
 
@@ -104,9 +110,9 @@ describe("ReportsPage production section (renders for every role)", () => {
     within(row2).getByText("—"); // null henDayPct falls back to the em dash
 
     const periodRow = screen.getByRole("row", { name: /Period/ });
-    within(periodRow).getByText("195"); // totalEggs
+    expect(within(periodRow).getAllByText("195")).toHaveLength(2); // totalEggs, totalRatedEggs
     within(periodRow).getByText("181"); // totalSellable
-    within(periodRow).getByText("196"); // totalHenDays
+    expect(within(periodRow).getAllByText("196")).toHaveLength(2); // totalHenDays, totalRecordedHenDays
     within(periodRow).getByText("92.3"); // periodHenDayPct
 
     expect(screen.getByText("By grade: Grade A 60, Grade B 30")).toBeInTheDocument();
