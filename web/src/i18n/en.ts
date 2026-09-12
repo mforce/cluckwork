@@ -2949,8 +2949,8 @@ export const en = {
     salesListPrice:
       "Each line also shows its <strong>List price</strong> — the product's price when the line was "
       + "added — next to a <strong>Discount</strong> worked out from it: an amount and a percent when sold "
-      + "under list, <strong>Above list</strong> when sold over, and \"No list price\" when the product had "
-      + "nothing to compare against. A line taken before the farm started keeping list prices says \"List "
+      + "under list, <strong>Above list</strong> when sold over, and \"No list price\" when there is nothing "
+      + "comparable to measure against. A line taken before the farm started keeping list prices says \"List "
       + "price not recorded\" instead — that one means nobody can tell whether it was discounted. "
       + "A line sold under list is marked three ways so it survives a greyscale print: "
       + "a <strong>Below list</strong> tag beside the product, its List price struck through, and a tinted "
@@ -3504,8 +3504,8 @@ export const en = {
     glossaryListPriceTerm: "List price",
     glossaryListPriceDef:
       "The product's price at the moment a line was added, kept with the line so a later price change "
-      + "never rewrites a past order. Shown as \"No list price\" when the product had none to compare "
-      + "against — a recorded fact. A line taken before the farm started keeping list prices shows "
+      + "never rewrites a past order. Shown as \"No list price\" when there is nothing comparable "
+      + "to measure against — a recorded fact. A line taken before the farm started keeping list prices shows "
       + "\"List price not recorded\" instead: that one is missing information, not an answer, so nobody "
       + "can say whether the line was discounted.",
 

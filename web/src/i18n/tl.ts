@@ -2452,7 +2452,7 @@ export const tl = {
       + "noong idinagdag ang linya — katabi ng <strong>Diskwento</strong> na kinalkula mula rito: isang "
       + "halaga at porsyento kapag naibenta sa mas mababa sa listahan, <strong>Higit sa presyo sa "
       + "listahan</strong> kapag naibenta nang mas mataas, at \"Walang presyo sa listahan\" kapag walang "
-      + "maikukumpara ang produkto. Ang linyang nakuha bago pa nagsimulang magtala ng presyo sa listahan "
+      + "maikukumpara. Ang linyang nakuha bago pa nagsimulang magtala ng presyo sa listahan "
       + "ang sakahan ay nagsasabing \"Hindi naitala ang presyo sa listahan\" — ibig sabihin nito, walang "
       + "makapagsasabi kung may diskwento ito. Ang linyang naibenta sa mas mababa sa listahan ay "
       + "minamarkahan sa tatlong paraan, "
@@ -3048,7 +3048,7 @@ export const tl = {
     glossaryListPriceDef:
       "Ang presyo ng produkto nang idagdag ang linya, na iniingatan kasama ng linya para ang susunod na "
       + "pagbabago ng presyo ay hindi na muling isulat ang isang nakaraang order. Ipinapakita bilang "
-      + "\"Walang presyo sa listahan\" kapag walang presyong maikukumpara ang produkto — isang naitalang "
+      + "\"Walang presyo sa listahan\" kapag walang presyong maikukumpara — isang naitalang "
       + "katotohanan. Ang linyang nakuha bago pa nagsimulang magtala ng presyo sa listahan ang sakahan ay "
       + "nagpapakita ng \"Hindi naitala ang presyo sa listahan\": kulang ang impormasyon doon, hindi ito "
       + "sagot, kaya walang makapagsasabi kung may diskwento ang linya.",

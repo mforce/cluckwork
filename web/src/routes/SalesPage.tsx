@@ -214,6 +214,13 @@ function orderDiscount(items: OrderItem[]): OrderDiscount {
 // its label with NotComparable (LIST_PRICE_BASIS_KEYS collapses the two), so
 // the representative chosen here is a labelling detail, not a claim about the
 // lines.
+//
+// `[].every()` is TRUE, so an empty order would answer "PreDating" here. It
+// cannot: both call sites sit behind orderDiscount(...).kind === "unknown",
+// and orderDiscount bails to `atList` for an empty order before measuring, so
+// an order with nothing to measure is never called unmeasurable. Verified by
+// mutation rather than by reading: delete that bail and "an order with no
+// lines reads as an em dash" goes red.
 function orderListPriceBasis(items: OrderItem[]): ListPriceBasisValue {
   return items.every((i) => i.listPriceBasis === "PreDating") ? "PreDating" : "ProductUnpriced";
 }

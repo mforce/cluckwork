@@ -454,8 +454,9 @@ public sealed record SalesOrderItemResponse(
     int Quantity, int QuantityBase,
     long UnitPriceMinorUnits, string CurrencyCode, int CurrencyMinorUnit,
     // #720 — the list price this line was sold against, in the SAME currency
-    // and minor unit as UnitPriceMinorUnits above. NULL means no comparable
-    // list price; read surfaces render that as "No list price", never as 0.
+    // and minor unit as UnitPriceMinorUnits above. NULL is one of three
+    // states, and ListPriceBasis below is what names which; read surfaces
+    // render it as text, never as 0.
     long? ListUnitPriceMinorUnits,
     // #773 — WHY ListUnitPriceMinorUnits is what it is, as the enum MEMBER
     // NAME, like DiscountReasonCode (#721). Required and never defaulted: the

@@ -467,8 +467,8 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         Assert.Equal("NotComparable", order!.Items.Single().ListPriceBasis);
     }
 
-    // #773 — the fourth basis, and the only one this test can't produce through
-    // the API: SalesOrder.cs:544 throws on PreDating precisely so the
+    // #773 — the fourth basis, and the only one this test cannot produce
+    // through the API: SalesOrder.cs:547 throws on PreDating precisely so the
     // application can never write one. So reproduce #720's backfill the way
     // SalesDiscountCeilingTests.cs:94 does — the column holds the member NAME,
     // and a backfilled row carries no list price. This is the whole point of
@@ -491,8 +491,9 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         var order = await client.GetFromJsonAsync<OrderDto>($"/api/v1/sales/{orderId}");
         var line = order!.Items.Single();
         Assert.Equal("PreDating", line.ListPriceBasis);
-        // The control that gives the basis its job: the list price really is
-        // absent, so "PreDating" is the only thing telling the reader why.
+        // A FIXTURE control, not a claim about ToResponse: it fails if the raw
+        // UPDATE above silently did not land, which would leave the assertion
+        // over it passing for a row the backfill never touched.
         Assert.Null(line.ListUnitPriceMinorUnits);
     }
 

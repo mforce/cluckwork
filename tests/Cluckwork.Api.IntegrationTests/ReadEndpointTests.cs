@@ -381,10 +381,14 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(listed.OutstandingMinorUnits, detail!.OutstandingMinorUnits);
     }
 
-    // #773 — same claim as the outstanding test above, for the list price's
-    // basis. The list route is the Orders-list Discount column's only source,
-    // so a basis that reaches only the detail route would let the two screens
-    // give a line different reasons for the same missing list price.
+    // #773 — a TRIPWIRE, weaker than the outstanding test above it, and worth
+    // saying so. Outstanding has two producers (:213 computes it for detail,
+    // :298 reads it from the repository for the list), so comparing them is a
+    // live parity check. The basis has ONE: both routes map through the single
+    // ToResponse, which makes a disagreement unreachable today. What this
+    // catches is the day someone gives the list route its own projection —
+    // verified by doing exactly that and watching it go red. The literal on
+    // the LIST row is what keeps it from comparing a value to itself.
     [Fact]
     public async Task SalesOrderDetail_CarriesTheSameListPriceBasisAsTheList()
     {
@@ -398,8 +402,6 @@ public sealed class ReadEndpointTests(CluckworkWebApplicationFactory factory)
             .Single(o => o.Id == orderId);
         var detail = await client.GetFromJsonAsync<OrderBasisDto>($"/api/v1/sales/{orderId}");
 
-        // The literal on the LIST row is what keeps this non-vacuous: a list
-        // route that dropped the basis would compare null to null and pass.
         var listedLine = listed.Items.Single();
         Assert.Equal("Recorded", listedLine.ListPriceBasis);
         Assert.Equal(listedLine.ListPriceBasis, detail!.Items.Single(i => i.Id == listedLine.Id).ListPriceBasis);

@@ -2361,7 +2361,7 @@ export const es = {
       "Cada línea también muestra su <strong>Precio de lista</strong> — el precio del producto cuando se "
       + "agregó la línea — junto a un <strong>Descuento</strong> calculado a partir de él: un monto y un "
       + "porcentaje cuando se vende por debajo de la lista, <strong>Sobre el precio de lista</strong> cuando "
-      + "se vende por encima, y \"Sin precio de lista\" cuando el producto no tenía nada con qué comparar. "
+      + "se vende por encima, y \"Sin precio de lista\" cuando no hay nada comparable con qué medirla. "
       + "Una línea tomada antes de que la granja empezara a guardar precios de lista dice \"Precio de lista "
       + "no registrado\" — esa significa que nadie puede saber si llevó descuento. Una línea "
       + "vendida por debajo de la lista se marca de tres maneras, para que siga siendo legible en una "
@@ -2944,7 +2944,7 @@ export const es = {
     glossaryListPriceDef:
       "El precio del producto en el momento en que se agregó la línea, guardado junto con la línea para "
       + "que un cambio de precio posterior nunca reescriba un pedido pasado. Se muestra como \"Sin precio "
-      + "de lista\" cuando el producto no tenía uno con el que comparar — un hecho registrado. Una línea "
+      + "de lista\" cuando no hay nada comparable con qué medirla — un hecho registrado. Una línea "
       + "tomada antes de que la granja empezara a guardar precios de lista muestra \"Precio de lista no "
       + "registrado\": eso es información que falta, no una respuesta, así que nadie puede decir si la "
       + "línea llevó descuento.",

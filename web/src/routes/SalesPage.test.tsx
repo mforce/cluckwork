@@ -962,6 +962,25 @@ describe("SalesPage list price and discount (#720)", () => {
     expect(within(unpRow).queryByText(i18n.t("enums:listPriceBasis.PreDating"))).toBeNull();
   });
 
+  // #773 — the collapse, exercised rather than asserted about. NotComparable
+  // (the product's denominations did not match the order's) is a recorded fact
+  // just like ProductUnpriced, so it must read "No list price" and NOT borrow
+  // the pre-dating wording. Nothing else in the suite renders this basis, so
+  // re-pointing its key in LIST_PRICE_BASIS_KEYS would otherwise stay green.
+  it("renders a NotComparable line with the unpriced wording, never the PreDating one", async () => {
+    const notComparable: OrderItem = {
+      ...ITEM_A, id: "lp-nc", listUnitPriceMinorUnits: null, listPriceBasis: "NotComparable",
+    };
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-notcomp"), referenceNumber: "SO-NOTCOMP",
+      totalMinorUnits: 900, items: [notComparable],
+    };
+    const row = await openOrder(order, /Grade A Dozen/);
+
+    expect(within(row).getAllByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toHaveLength(2);
+    expect(within(row).queryByText(i18n.t("enums:listPriceBasis.PreDating"))).toBeNull();
+  });
+
   // #773 — the order panel's sentence. An order EVERY line of which predates
   // capture gets the "we never recorded this" wording; one that merely has no
   // comparable price keeps #723's.
@@ -1001,6 +1020,25 @@ describe("SalesPage list price and discount (#720)", () => {
     const cell = within(listRow).getAllByRole("cell")[4];
     expect(cell).toHaveTextContent(i18n.t("enums:listPriceBasis.ProductUnpriced"));
     expect(cell).not.toHaveTextContent(i18n.t("enums:listPriceBasis.PreDating"));
+  });
+
+  // #773 — the same mixed order with its lines the OTHER way round. Without
+  // this, `items[items.length - 1].listPriceBasis === "PreDating"` passes every
+  // order-level test above: the all-PreDating order ends in PreDating and the
+  // mixed one ends in ProductUnpriced, so a positional read looks total.
+  it("does not decide a mixed order from one line's position", async () => {
+    const unpriced: OrderItem = { ...ITEM_A, id: "rx1", listUnitPriceMinorUnits: null, listPriceBasis: "ProductUnpriced" };
+    const predating: OrderItem = { ...ITEM_B, id: "rx2", listUnitPriceMinorUnits: null, listPriceBasis: "PreDating" };
+    const order: SalesOrder = {
+      ...draftEmpty(2, "USD", "o-revmixed"), referenceNumber: "SO-REVMIXED",
+      totalMinorUnits: 2900, items: [unpriced, predating],
+    };
+    await openOrder(order, /Grade A Dozen/);
+
+    expect(screen.getByTestId("order-discount-unknown"))
+      .toHaveTextContent(i18n.t("sales:discountUnknownOrder"));
+    const cell = within(screen.getByRole("row", { name: /SO-REVMIXED/ })).getAllByRole("cell")[4];
+    expect(cell).toHaveTextContent(i18n.t("enums:listPriceBasis.ProductUnpriced"));
   });
 
   // #723 — the order-level figure. Percent is off LIST, over comparable lines
@@ -1208,7 +1246,7 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     expect(within(row).queryByText(/%/)).toBeNull();
   });
 
-  it("an order with no lines reads as an em dash, not as Unknown", async () => {
+  it("an order with no lines reads as an em dash, not as a list-price basis", async () => {
     // The Orders list ALREADY renders empty orders — SalesPage.test.tsx:1310
     // lists HISTORY_ORDER, built from draftEmpty (:102) with items: []. An
     // empty draft is not an order we cannot measure; calling it Unknown would
@@ -1218,7 +1256,13 @@ describe("SalesPage Orders-list discount column (#724)", () => {
     await renderReady();
     const row = screen.getByRole("row", { name: /SO-empty/ });
     expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("—");
+    // #773 — BOTH labels, because `[].every()` is true: dropping
+    // orderDiscount's empty-order bail (SalesPage.tsx:180) makes an empty
+    // order render "List price not recorded", verified by removing it. The em
+    // dash above is what goes red first; these two name WHICH wrong label the
+    // empty case produces, which the old single assertion got backwards.
     expect(within(row).queryByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toBeNull();
+    expect(within(row).queryByText(i18n.t("enums:listPriceBasis.PreDating"))).toBeNull();
   });
 
   it("names an order predating the list-price snapshot as unrecorded, not unpriced", async () => {
