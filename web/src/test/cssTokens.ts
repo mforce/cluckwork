@@ -227,9 +227,18 @@ const COLOUR_FUNCTIONS = /\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|device-cm
 // is why the caller ALSO requires a var(--) to be present — this narrows what
 // may sit beside the token, it does not stand alone.
 export function literalColourIn(value: string): string | null {
+  // A var() FALLBACK renders whenever the token is undefined, so it is a real
+  // colour and has to be inspected. Dropping it with the reference is how
+  // `var(--day-fill, red)` passed: the whole expression vanished and there was
+  // nothing left to look at. The fallback is unwrapped rather than deleted, and
+  // the loop repeats so `var(--a, var(--b, red))` unwraps all the way down.
   let bare = value;
   let prev;
-  do { prev = bare; bare = bare.replace(/var\(\s*--[\w-]+\s*(,[^()]*)?\)/g, " "); } while (bare !== prev);
+  do {
+    prev = bare;
+    bare = bare.replace(/var\(\s*--[\w-]+\s*,([^()]*)\)/g, " $1 ");
+    bare = bare.replace(/var\(\s*--[\w-]+\s*\)/g, " ");
+  } while (bare !== prev);
   const hex = bare.match(/#[0-9a-f]{3,8}\b/i);
   if (hex) return hex[0];
   const fn = bare.match(COLOUR_FUNCTIONS);
