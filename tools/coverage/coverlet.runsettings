@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  #776 — coverage MEASUREMENT only. Nothing here gates a build; see
+  docs/decisions/776-backend-coverage.md.
+
+  The only interpretive knob is the migrations exclusion below.
+  src/Cluckwork.Infrastructure/Persistence/Migrations is 39,088 of the
+  repository's 77,237 src/ lines (measured 2026-09-12). It is EF-generated,
+  #407 freezes it (never hand-edited), and every integration test executes
+  all of it on container boot regardless of what that test actually asserts.
+  Including it would swamp the measurement in both directions: it would
+  inflate Integration's line count with code nobody wrote and nobody can
+  meaningfully re-test, while diluting every other project's percentage with
+  lines it never touches. Excluding it is the one deliberate filter.
+
+  Everything else stays at coverlet's default, on purpose, to keep this
+  first measurement free of tuning. In particular SkipAutoProps defaults to
+  false, so auto-properties ARE counted as executable lines — a get/set
+  touched once by a constructor counts as covered without asserting
+  anything about it, so the numbers below are slightly optimistic.
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[Cluckwork.*]*</Include>
+          <Exclude>[Cluckwork.*Tests]*</Exclude>
+          <ExcludeByFile>**/Persistence/Migrations/*.cs</ExcludeByFile>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
