@@ -110,6 +110,39 @@
 // never ran". Observing `document` fixes it. When a DOM mutant survives, check
 // for a page error before touching the spec it accuses.
 //
+// ================== THE THIRD BOUNDARY: CSS MUTANTS (#814) ==================
+//
+// The phone mutants break LAYOUT, which is neither a server response nor a DOM
+// node. They mutate the app's own stylesheet through the CSSOM, and the route
+// NOT to take is the obvious one, for a reason that costs a whole debugging
+// session to rediscover.
+//
+// **An injected `<style>` element is BLOCKED, silently.** The app ships
+// `Content-Security-Policy: style-src 'self'` with no `'unsafe-inline'` and no
+// nonce, so a `<style>` created by script parses to nothing: measured,
+// `styleElement.sheet === null` and `cssRules.length` is unreachable.
+// `page.addStyleTag` builds exactly that element and fails exactly that way,
+// and neither reports an error the harness would notice. That is the paragraph
+// above wearing a different hat — a CSS mutant that never installed reports as
+// a SURVIVING MUTANT, which accuses the spec of being vacuous when the mutant
+// is the thing that never ran.
+//
+// **What does work is CSSOM mutation of a sheet the page already loaded.** CSP
+// governs the LOADING of style resources, not later edits to an already-allowed
+// same-origin sheet, so `sheet.insertRule(...)` on the SPA's own `.css` link is
+// permitted and takes effect. `insertCssRule` below is that instrument, and it
+// carries three properties the naive version lacks: it POLLS, because at
+// init-script time the stylesheet link has not been parsed and
+// `document.styleSheets` is empty; it has a DEADLINE and shouts on expiry,
+// rather than giving up quietly into the survivor column; and it inserts once
+// per sheet, so a re-entrant poll cannot stack the same rule twice.
+//
+// **Not `page.route` on the CSS, which was tried and does not work here.** A
+// service worker caches the app shell, so a rewritten stylesheet lands on the
+// FIRST load and every subsequent full `page.goto` is served the original from
+// the SW cache — a mutant that applies to the first navigation of a test and
+// silently lapses for the rest of it.
+//
 // An earlier version of this comment claimed the nav-gate assertions were
 // "covered by spec-level vacuity mutants" instead. **That was false** — no such
 // mutant existed, and three specs' role-gate assertions had no mutation coverage
@@ -172,6 +205,64 @@ async function json(page: Page, pattern: string, status: number, body: unknown):
       body: JSON.stringify(body),
     });
   });
+}
+
+/**
+ * Append one CSS rule to the SPA's own stylesheet, on every navigation.
+ *
+ * See "THE THIRD BOUNDARY" in the header for why this is `insertRule` on a
+ * loaded sheet rather than an injected `<style>` (CSP blocks that) or a
+ * `page.route` rewrite (a service worker serves the original afterwards).
+ *
+ * Appended LAST, so at equal specificity this rule wins — which is what lets a
+ * one-line mutant override a declaration the app makes earlier in the file
+ * without having to out-specify it.
+ */
+async function insertCssRule(page: Page, rule: string): Promise<void> {
+  await page.addInitScript((css: string) => {
+    // The link element has not been parsed yet when this runs, so there is
+    // nothing to insert into. Poll, with a deadline — and when the deadline
+    // expires, SAY SO. A CSS mutant that quietly failed to install is reported
+    // as a surviving mutant, which blames the spec for the harness's problem.
+    const deadline = Date.now() + 15_000;
+    const done = new WeakSet<CSSStyleSheet>();
+
+    const install = (): boolean => {
+      for (const sheet of Array.from(document.styleSheets)) {
+        if (!sheet.href?.endsWith(".css")) continue;
+        if (done.has(sheet)) return true;
+        let rules: CSSRuleList;
+        try {
+          rules = sheet.cssRules;
+        } catch {
+          // A sheet this document may not read. Not ours; keep looking.
+          continue;
+        }
+        sheet.insertRule(css, rules.length);
+        // Marked before anything else can re-enter, so the same rule is never
+        // appended twice to the same sheet.
+        done.add(sheet);
+        return true;
+      }
+      return false;
+    };
+
+    if (install()) return;
+    const poll = setInterval(() => {
+      if (install()) {
+        clearInterval(poll);
+        return;
+      }
+      if (Date.now() > deadline) {
+        clearInterval(poll);
+        const message = `CSS mutant never installed: no same-origin .css sheet appeared. Rule: ${css}`;
+        console.error(message);
+        // Into `pageerror`, where the header tells a reader to look when a DOM
+        // or CSS mutant is reported as having survived.
+        throw new Error(message);
+      }
+    }, 50);
+  }, rule);
 }
 
 export const MUTANTS: Record<string, Mutant> = {
@@ -760,6 +851,183 @@ export const MUTANTS: Record<string, Mutant> = {
         await route.fulfill({ status: 204, body: "" });
       });
     },
+  },
+
+  // --- the phone shell (#814, CSS/DOM-level — see the header) ---------------
+  //
+  // All three are scoped so that they are INERT in the desktop project, and the
+  // mutation harness checks that rather than trusting it: `MUST_STAY_GREEN_ON`
+  // in mutation-check.sh re-runs the whole desktop suite under each of these
+  // and requires it green. A mutant that broke both widths would kill the phone
+  // spec and prove nothing about phone width.
+  "phone-action-bar-under-tabbar": {
+    breaks:
+      "the clearance between the daily-entry action bar and the tab bar — `.entry-foot` parks at "
+      + "`bottom: 0` instead of `bottom: var(--tabbar-h)`, the state the sticky footer was in "
+      + "before the tab bar existed, which puts Submit and Save underneath it",
+    caughtBy: "phone.spec.ts — the daily-entry action bar stays clear of the tab bar",
+    apply: (page) =>
+      // Measured: the action bar's bottom edge moves from 786.40625 to 844, so
+      // it overlaps the tab bar's top edge (788.609375) by 55.4px — the bar's
+      // full height, meaning the whole tab bar sits on top of the buttons.
+      //
+      // THIS IS THE STRONGEST OF THE THREE, because its desktop-green comes
+      // from CSS construction rather than from which tests happen to look.
+      // Doubly so: at 1280 the media query does not match at all, AND
+      // `--tabbar-h` is `0px` there, so `bottom: 0` is what `.entry-foot`
+      // already resolves to. The rule cannot change a desktop pixel even if a
+      // desktop spec did assert on that footer.
+      insertCssRule(page, "@media (max-width: 900px) { .entry-foot { bottom: 0px } }"),
+  },
+
+  "phone-tabbar-removed": {
+    breaks:
+      "BottomNav's tab bar, so the phone shell has no navigation at all — the state the app is in "
+      + "if the bar fails to render, where every destination outside the current screen is "
+      + "unreachable and Sign out does not exist",
+    caughtBy: "phone.spec.ts — the tab bar is the navigation at this width",
+    apply: async (page) => {
+      await page.addInitScript(() => {
+        // `document`, NOT `document.documentElement` — see the header. The root
+        // element does not exist yet when an init script runs, and observing it
+        // throws into `pageerror` while the mutant reports as a survivor.
+        const strip = () => {
+          for (const bar of Array.from(document.querySelectorAll("nav.tabbar"))) bar.remove();
+        };
+        // Terminates: removing a node produces one childList record, the next
+        // pass finds nothing left to remove, and no further record is minted.
+        new MutationObserver(strip).observe(document, { childList: true, subtree: true });
+        strip();
+      });
+
+      // Green at desktop by scope rather than by luck: `.tabbar` is
+      // `display: none` above 900px and no desktop spec locates it, so removing
+      // an element nothing can see and nothing asks for changes no verdict
+      // there. `MUST_STAY_GREEN_ON` is what actually checks that claim.
+    },
+  },
+
+  "phone-action-label-wrapped": {
+    breaks:
+      "the fit between an action button's label and its column at phone width — the label grows past "
+      + "what a 170px flex track can hold on one line, so the pill wraps downwards and ends up taller "
+      + "than it is wide, which is where `border-radius: 999px` clamps into an ellipse and the text "
+      + "leaves its own background (the #740 shape, on a control that is healthy today)",
+    caughtBy: "phone.spec.ts — no action control is taller than it is wide",
+    apply: async (page) => {
+      // TEXT, not CSS, so this needs neither the CSSOM instrument nor a style
+      // element — which is the point: it imitates the cause (a longer string
+      // in this slot) rather than the effect. That is the faithfulness the
+      // a11y mutants above have to settle for and this one does not.
+      //
+      // The measured geometry lives with the ASSERTION, in
+      // specs/phone.spec.ts, and deliberately not here as well. It was in both
+      // places for one commit and the two promptly disagreed — this copy kept
+      // the numbers from an earlier draft of the mutant that rewrote
+      // `textContent`, while the spec carried the shipped one's. One
+      // measurement, one home.
+      //
+      // What belongs here is the mechanism: the asymmetry is the flex track's
+      // width. At 390 the two buttons share ~353px, so a longer label wraps
+      // downwards; at 1280 the row is ~974px, so it grows sideways instead and
+      // never approaches its own height. That is a property of the layout
+      // rather than of which tests happen to look.
+      //
+      // `MUST_STAY_GREEN_ON` runs the whole desktop suite under this mutant,
+      // and what that proves is narrower than it sounds: the phone tests are
+      // excluded at desktop, so a green run says no EXISTING desktop scenario
+      // noticed the longer label — not that the desktop ratio stayed healthy.
+      // No desktop spec measures that ratio at all. The claim this file is
+      // entitled to make is the first one.
+      await page.addInitScript((extra: string) => {
+        const MARK = "data-mutant-label-tail";
+
+        const lengthen = () => {
+          for (const button of Array.from(document.querySelectorAll(".entry-foot button"))) {
+            if (button.querySelector(`[${MARK}]`) !== null) continue;
+            // APPENDED AS AN `aria-hidden` SPAN, never by rewriting the label,
+            // and this is the whole reason the mutant is width-specific.
+            //
+            // Setting `textContent` changes the button's ACCESSIBLE NAME, and
+            // the desktop specs locate these two controls by that name
+            // (`getByRole("button", { name: tEn("dailyEntry:saveDraftButton") })`).
+            // So the first version of this mutant broke the app at every width
+            // and `MUST_STAY_GREEN_ON` caught it: it killed the phone spec and
+            // turned the whole chromium suite red, which makes the kill
+            // evidence that the app broke rather than that phone width shows
+            // something 1280 cannot.
+            //
+            // `aria-hidden` is excluded from accessible-name computation but
+            // still RENDERS, so every locator in the suite keeps matching while
+            // the button reflows. The mutant now applies identically at both
+            // widths and only the layout differs — which is what the
+            // width-specificity claim needs.
+            const tail = document.createElement("span");
+            tail.setAttribute(MARK, "");
+            tail.setAttribute("aria-hidden", "true");
+            tail.textContent = extra;
+            button.appendChild(tail);
+          }
+        };
+        // `document`, NOT `document.documentElement` — see the header. Appending
+        // a node to a button the observer watches mints another record, so the
+        // marker check above is what terminates this rather than luck.
+        new MutationObserver(lengthen).observe(document, { childList: true, subtree: true });
+        lengthen();
+      }, " and discard every line entered on this order so far, then return to the flock list "
+        + "without recording anything at all for today or any earlier day");
+    },
+  },
+
+  "phone-tabs-inert": {
+    breaks:
+      "the four thumb tabs' ability to be tapped, while leaving the bar looking and measuring "
+      + "exactly as it does today — the state a `pointer-events` regression in the phone block "
+      + "would produce, where every destination outside the current screen is unreachable and the "
+      + "screen gives no sign of it",
+    caughtBy: "phone.spec.ts — the tab bar is the navigation at this width",
+    apply: (page) =>
+      // WHY THIS MUTANT EXISTS. An adversarial review pointed out that the test
+      // it targets measured the bar without ever using it: visibility, the 4+1
+      // link/button split and every bounding box stayed green under exactly
+      // this rule, so the whole phone suite could pass with its primary
+      // navigation dead. The test now clicks a tab, and this is what keeps
+      // that click honest.
+      //
+      // Scoped to the anchors, so `More` (a <button>) still opens the sheet —
+      // deliberately, because a mutant that also broke the sheet would be
+      // killed by the OTHER phone test and would not prove anything about the
+      // tabs. Green at desktop by media scope: `.tabbar` is `display: none`
+      // above 900px and no desktop spec locates it.
+      insertCssRule(page, "@media (max-width: 900px) { .tabbar a { pointer-events: none } }"),
+  },
+
+  "phone-table-overflow-unclipped": {
+    breaks:
+      "#441's containment on wide data tables — `contain: layout` and the block-level scroller are "
+      + "both reverted inside the same media block #441 lives in (web/src/styles.css), so a table "
+      + "lays its full content width out into the page instead of scrolling within itself",
+    caughtBy: "phone.spec.ts — no walked screen overflows the viewport horizontally",
+    apply: (page) =>
+      // Four of the six walked routes overflow under this and two do not —
+      // /daily-entry and /stock render no wide data table. That per-route
+      // spread is why the spec's walk asserts PER ROUTE and asserts SOFTLY: a
+      // hard assertion stops at the first and reports a quarter of the damage.
+      // The exact widths are deliberately not recorded here; they drift with
+      // fixture content, and a stale copy of them in this file is a defect
+      // this file has already had once.
+      //
+      // Desktop-green, stated honestly rather than claimed as containment:
+      // the rule is inside `@media (max-width: 900px)`, so it cannot apply at
+      // 1280 — and separately, no desktop test asserts document overflow at
+      // all, so even an unscoped version of this would survive there. Only the
+      // first of those two is a property of the mutant; the second is a gap in
+      // the desktop suite, and it is a gap this mutant is not evidence about.
+      insertCssRule(
+        page,
+        "@media (max-width: 900px) { table.data { display: table; overflow-x: visible; "
+          + "contain: none; white-space: nowrap } }",
+      ),
   },
 };
 

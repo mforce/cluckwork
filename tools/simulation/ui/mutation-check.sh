@@ -43,6 +43,34 @@
 # running and still fails the run if it SURVIVES. It only stops its red from
 # being counted as evidence.
 #
+# ================== TWO PROJECTS, SO A MUTANT NAMES ITS WIDTH ==================
+#
+# The suite runs in two Playwright projects (#814): `chromium` at 1280 and
+# `chromium-phone` at 390, partitioned by the `@phone` tag. A mutant's kill run
+# therefore has to say WHICH, and `PROJECT_FOR` is that table.
+#
+# **Required, not defaulted, and the reason is this file's own history.**
+# `EXPECT_MSG_FOR` and `FALSE_KILLS` both started out advisory here, and both
+# let the score overstate itself until a review round made them mandatory. A
+# defaulted project would do it a third time, and more quietly: a future
+# phone mutant with no entry would run at 1280, where its spec does not even
+# exist, find nothing, and be reported as a survivor — an accusation against a
+# spec that was never executed. So a mutant with no `PROJECT_FOR` entry is
+# skipped and counted as a survivor, exactly as an unmapped `SPEC_FOR` already
+# is.
+#
+# `MUST_STAY_GREEN_ON` asks the second question, which the kill run cannot.
+# Killing a phone spec at 390 proves the spec noticed something; it does not
+# prove the something was WIDTH-SPECIFIC. A mutant that broke the app at every
+# width would kill it just as dead, and the phone gate would be credited with
+# coverage it has not got. So after a killed verdict, the OTHER project's whole
+# suite is re-run under the same mutant and must come back GREEN. A red there is
+# reported as a survivor with its own message and its own log, because the
+# mutant is real but the evidence is not about phone width.
+#
+# Phases 1 and 3 stay UNSCOPED on purpose — no `--project` — so "the suite must
+# be green" keeps meaning both of them.
+#
 # Usage:  bash tools/simulation/ui/mutation-check.sh [mutant-name ...]
 #         (no arguments = every mutant)
 
@@ -80,6 +108,59 @@ declare -A SPEC_FOR=(
   [a11y-probe-alert-control-broken]="specs/a11y-live-regions.spec.ts"
   [a11y-probe-alert-control-silenced]="specs/a11y-live-regions.spec.ts"
   [a11y-probe-off-role-dropped]="specs/a11y-live-regions.spec.ts"
+  [phone-action-bar-under-tabbar]="specs/phone.spec.ts"
+  [phone-tabbar-removed]="specs/phone.spec.ts"
+  [phone-table-overflow-unclipped]="specs/phone.spec.ts"
+  [phone-tabs-inert]="specs/phone.spec.ts"
+  [phone-action-label-wrapped]="specs/phone.spec.ts"
+)
+
+# --- the mutant -> project map ---------------------------------------------
+# Which of the two viewports the kill run happens at. REQUIRED — see the header
+# for why a default here would let a phone mutant run at 1280, find nothing, and
+# be reported as a survivor of a spec that never executed.
+declare -A PROJECT_FOR=(
+  [audit-gate-removed]="chromium"
+  [users-gate-removed]="chromium"
+  [flock-scope-removed]="chromium"
+  [stock-pager-inert]="chromium"
+  [stock-summary-broken]="chromium"
+  [report-range-bound-removed]="chromium"
+  [refresh-always-fails]="chromium"
+  [logout-not-honoured]="chromium"
+  [nav-role-gate-bypassed]="chromium"
+  [payment-never-settles]="chromium"
+  [export-returns-nothing]="chromium"
+  [language-persist-dropped]="chromium"
+  [named-entity-picker-paging-broken]="chromium"
+  [a11y-inert-sweep-removed]="chromium"
+  [a11y-announcer-duplicates-banner]="chromium"
+  [a11y-announcer-renags-on-close]="chromium"
+  [a11y-announcer-writes-transiently]="chromium"
+  [a11y-announcer-writes-late]="chromium"
+  [a11y-inert-never-lifted]="chromium"
+  [a11y-dialog-hidden-from-tree]="chromium"
+  [a11y-probe-live-off-ignored]="chromium"
+  [a11y-probe-alert-control-broken]="chromium"
+  [a11y-probe-alert-control-silenced]="chromium"
+  [a11y-probe-off-role-dropped]="chromium"
+  [phone-action-bar-under-tabbar]="chromium-phone"
+  [phone-tabbar-removed]="chromium-phone"
+  [phone-table-overflow-unclipped]="chromium-phone"
+  [phone-tabs-inert]="chromium-phone"
+  [phone-action-label-wrapped]="chromium-phone"
+)
+
+# The project whose WHOLE suite must still be GREEN under this mutant, checked
+# after a killed verdict. Only the width-scoped mutants have an entry: each of
+# the three claims to change nothing above 900px, and this is what asks the
+# claim instead of believing the comment.
+declare -A MUST_STAY_GREEN_ON=(
+  [phone-action-bar-under-tabbar]="chromium"
+  [phone-tabbar-removed]="chromium"
+  [phone-table-overflow-unclipped]="chromium"
+  [phone-tabs-inert]="chromium"
+  [phone-action-label-wrapped]="chromium"
 )
 
 # The third test in a11y-live-regions.spec.ts (recorded browser facts) has no
@@ -130,6 +211,11 @@ declare -A GREP_FOR=(
   [a11y-probe-alert-control-broken]="recorded browser facts"
   [a11y-probe-alert-control-silenced]="recorded browser facts"
   [a11y-probe-off-role-dropped]="recorded browser facts"
+  [phone-action-bar-under-tabbar]="action bar stays clear of the tab bar"
+  [phone-tabbar-removed]="the tab bar is the navigation at this width"
+  [phone-table-overflow-unclipped]="no walked screen overflows"
+  [phone-tabs-inert]="the tab bar is the navigation at this width"
+  [phone-action-label-wrapped]="no action control is taller than it is wide"
 )
 
 # Mutants whose RED is known not to prove the guarantee they name. See the header.
@@ -157,6 +243,32 @@ declare -A FALSE_KILLS=(
 # judged with expect.soft precisely so both reach the log), and
 # a11y-inert-sweep-removed must additionally fail the browser-facts precondition
 # its GREP_FOR now runs.
+#
+# `nav-role-gate-bypassed`'s entry was RE-OBSERVED for #814, not translated by
+# hand. It used to declare `getByRole('complementary')` — the sidebar landmark
+# `signIn` asserted on. `signIn` now asserts `main#main-content`, so the old
+# string can no longer appear anywhere, and leaving it would have turned a known
+# false kill into an unexplained WRONG ASSERTION. Run, read, paste: the observed
+# line is `locator('main#main-content')`, which says the same thing the header
+# does — this mutant still dies inside sign-in, still proves nothing about the
+# nav gate, and is still counted as a false kill rather than as coverage.
+#
+# The three phone entries were observed the same way. Two of them carry a custom
+# message; `phone-table-overflow-unclipped` declares FOUR lines, one per route it
+# breaks, because the softness of that walk is itself the claim — a hard
+# assertion would stop at /sales and report a quarter of the damage, so requiring
+# all four is what keeps `expect.soft` there honest. /daily-entry and /stock are
+# deliberately absent: neither renders a wide data table, and both stayed at
+# exactly 390 under the mutant.
+#
+# `phone-action-label-wrapped` declares ONE line where that walk declares four,
+# and the difference is not laziness. The route walk's softness is its claim —
+# a regression hits some screens and not others, so requiring every route keeps
+# it honest. The two save buttons share a single flex track, so whatever
+# reshapes one reshapes the other; there is no per-control claim to pin. The
+# declared fragment carries no measurements on purpose: the observed line names
+# 170.6x217.2, and pinning that would turn a font-metric shift into a WRONG
+# ASSERTION against a mutant that worked.
 declare -A EXPECT_MSG_FOR=(
   [audit-gate-removed]="/audit rendered no error for a ReadOnly user"
   [users-gate-removed]="/users rendered no error for a ReadOnly user"
@@ -166,7 +278,7 @@ declare -A EXPECT_MSG_FOR=(
   [report-range-bound-removed]="getByRole('button', { name: 'retry' })"
   [refresh-always-fails]="the silent refresh itself failed"
   [logout-not-honoured]="a live refresh cookie survived the logout"
-  [nav-role-gate-bypassed]="getByRole('complementary')"
+  [nav-role-gate-bypassed]="locator('main#main-content')"
   [payment-never-settles]="so the payment did not settle the balance"
   [export-returns-nothing]="the export downloaded 0 bytes"
   [language-persist-dropped]="the es preference did not survive a reload"
@@ -186,6 +298,14 @@ the injected probe is a body child but the modal sweep did not inert it"
 SIDE 2 — role=alert no longer carries implicit assertive politeness"
   [a11y-probe-alert-control-silenced]="SIDE 2 — role=alert no longer carries implicit assertive politeness"
   [a11y-probe-off-role-dropped]="SIDE 3 — the off probe stopped resolving to alert"
+  [phone-action-bar-under-tabbar]="the daily-entry action bar overlaps the tab bar — its Submit and Save buttons are under it"
+  [phone-tabbar-removed]="there is no tab bar at phone width, so nothing can be navigated to"
+  [phone-tabs-inert]="a tap at the centre of the Sales tab does not land on it"
+  [phone-action-label-wrapped]="at phone width — taller than it is wide, so its pill clamps into an ellipse and the label leaves its background"
+  [phone-table-overflow-unclipped]="/sales scrolls sideways at phone width
+/customers scrolls sideways at phone width
+/flocks scrolls sideways at phone width
+/history scrolls sideways at phone width"
 )
 
 MUTANTS=("$@")
@@ -200,7 +320,10 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            a11y-announcer-writes-late a11y-inert-never-lifted
            a11y-dialog-hidden-from-tree a11y-probe-live-off-ignored
            a11y-probe-alert-control-broken a11y-probe-alert-control-silenced
-           a11y-probe-off-role-dropped)
+           a11y-probe-off-role-dropped
+           phone-action-bar-under-tabbar phone-tabbar-removed
+           phone-table-overflow-unclipped phone-action-label-wrapped
+           phone-tabs-inert)
 fi
 
 rule() { printf '\n%s\n' "────────────────────────────────────────────────────────────────────────"; }
@@ -209,6 +332,9 @@ rule() { printf '\n%s\n' "──────────────────
 rule
 echo "PHASE 1/3 — BASELINE (the suite must be GREEN before anything is mutated)"
 rule
+# UNSCOPED — no `--project`, so this runs BOTH the desktop and the phone
+# project. A baseline scoped to one width would leave the other one's specs
+# unproven before the run that is about to accuse them.
 if npx playwright test --reporter=line; then
   echo "BASELINE: GREEN"
 else
@@ -228,15 +354,37 @@ killed=(); survived=(); false_killed=(); unverified=()
 for name in "${MUTANTS[@]}"; do
   spec="${SPEC_FOR[$name]:-}"
   pattern="${GREP_FOR[$name]:-}"
+  project="${PROJECT_FOR[$name]:-}"
   if [ -z "$spec" ]; then
     echo "  ?? $name — no spec mapped in this script; skipping (fix SPEC_FOR)"
     survived+=("$name (unmapped)")
     continue
   fi
+  # A width-scoped mutant MUST declare the other width's cross-check. Without
+  # this, deleting a MUST_STAY_GREEN_ON row silently downgrades the run to an
+  # ordinary kill — the verification becomes optional exactly the way
+  # EXPECT_MSG_FOR and FALSE_KILLS each did before a review round made them
+  # mandatory, and the header above claims this file no longer does that.
+  # Found by an adversarial pass on #814, which traced the missing-entry branch
+  # straight into `killed+=`.
+  if [ "${PROJECT_FOR[$name]:-}" = "chromium-phone" ] && [ -z "${MUST_STAY_GREEN_ON[$name]:-}" ]; then
+    echo "  ?? $name — runs at chromium-phone but declares no MUST_STAY_GREEN_ON;"
+    echo "     skipping (a phone mutant with no cross-check cannot show it is width-specific)"
+    survived+=("$name (no width cross-check)")
+    continue
+  fi
+  if [ -z "$project" ]; then
+    # Same treatment as an unmapped spec, and for a sharper reason: guessing a
+    # project would run a phone mutant at 1280 against a spec the grep does not
+    # even select there, then blame the spec. See the header.
+    echo "  ?? $name — no project mapped in this script; skipping (fix PROJECT_FOR)"
+    survived+=("$name (no project)")
+    continue
+  fi
 
-  printf '  .. %-28s -> %s\n' "$name" "$spec"
+  printf '  .. %-30s -> %s [%s]\n' "$name" "$spec" "$project"
   if CLUCKWORK_E2E_MUTANT="$name" npx playwright test "$spec" -g "$pattern" \
-       --reporter=line > "/tmp/mutant-$name.log" 2>&1; then
+       --project "$project" --reporter=line > "/tmp/mutant-$name.log" 2>&1; then
     echo "     SURVIVED — the spec still passed with this guarantee broken."
     survived+=("$name")
   else
@@ -323,8 +471,29 @@ for name in "${MUTANTS[@]}"; do
         echo "                   Counted separately; it is NOT evidence for that guarantee."
         false_killed+=("$name")
       else
-        echo "     KILLED — an assertion failed, as it should."
-        killed+=("$name")
+        # The kill is real. One question remains, and only for a mutant that
+        # claims a WIDTH: did it break the other project too? If it did, its red
+        # says "this mutant breaks the app" rather than "this mutant breaks the
+        # app at 390 and the phone spec is what notices" — and the phone gate
+        # gets credited with coverage it has not earned. See the header.
+        other="${MUST_STAY_GREEN_ON[$name]:-}"
+        if [ -n "$other" ]; then
+          cross_log="/tmp/mutant-$name.must-stay-green-on-$other.log"
+          echo "     .. checking it is width-specific: whole $other suite must stay GREEN"
+          if CLUCKWORK_E2E_MUTANT="$name" npx playwright test --project "$other" \
+               --reporter=line > "$cross_log" 2>&1; then
+            echo "     KILLED — an assertion failed, as it should, and $other stayed green."
+            killed+=("$name")
+          else
+            echo "     NOT WIDTH-SPECIFIC — it killed its spec, but it also turned $other RED."
+            echo "                   The kill proves the app broke, not that the phone gate"
+            echo "                   noticed something only phone width can show. See $cross_log"
+            survived+=("$name (not width-specific)")
+          fi
+        else
+          echo "     KILLED — an assertion failed, as it should."
+          killed+=("$name")
+        fi
       fi
     else
       echo "     INCONCLUSIVE — the spec failed, but NOT on an assertion (crash/timeout). See $log"
@@ -337,6 +506,8 @@ done
 rule
 echo "PHASE 3/3 — RESTORE (the suite must be GREEN again)"
 rule
+# UNSCOPED, same as the baseline — the two have to measure the same thing or
+# the comparison between them means nothing.
 if npx playwright test --reporter=line; then
   restore="GREEN"
 else

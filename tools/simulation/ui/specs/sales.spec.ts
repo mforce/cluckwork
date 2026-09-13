@@ -166,15 +166,28 @@ test.describe("Sales", () => {
     // ---- 6. The Orders list answers "is this settled" without opening it ----
     // #769's whole point: the settlement state has to be readable from the LIST,
     // because reading it one order at a time is what the issue exists to end.
-    await page.goto("/sales");
+    // REACHED THROUGH THE CUSTOMER BOOK'S LINK, not by loading /sales bare, and
+    // the difference is correctness rather than taste (#818).
+    //
+    // `SalesOrderRepository` orders the list `OrderDate DESC, Id DESC`.
+    // `OrderDate` is a bare `date` with no time component, and `Id` is a random
+    // v4 Guid (`CreateSalesOrderHandler`: `var orderId = Guid.NewGuid()`), so
+    // every order placed on the SAME DAY is ordered arbitrarily. With
+    // `PAGE = 50` on SalesPage, an order created seconds ago lands in a
+    // uniformly random position among that day's orders and is simply absent
+    // from page one once the day holds more than fifty. On a shared fixture
+    // this spec kept adding to, that is what it looked like: `toHaveCount(1)`
+    // received 0, having passed moments earlier in isolation.
+    //
+    // Scoping to the customer removes the dependence on position entirely, and
+    // it is the path a user takes to ask this question — the customer book
+    // links each name into the URL-filtered Orders list (#512 US5), which is
+    // the SOLE source of truth for that filter. The list is still what answers
+    // "is this settled", which is #769's point and this step's reason to exist.
+    await page.goto("/customers");
+    await page.getByRole("link", { name: customerName, exact: true }).click();
+    await expect(page).toHaveURL(/\/sales\?.*customerId=/);
     const orderRow = page.getByRole("row").filter({ hasText: customerName });
-    // The Orders list's own table, named by the Outstanding column header that
-    // no other table on this screen carries. SalesPage renders it only when
-    // the list is not reloading and has at least one row, which is what makes
-    // it the settled-list anchor the unpaid-filter assertion below needs.
-    const ordersTable = page.getByRole("table").filter({
-      has: page.getByRole("columnheader", { name: tEn("sales:outstanding") }),
-    });
     await expect(orderRow).toHaveCount(1);
     await expect(
       orderRow.getByText(tEn("sales:settledBadge")),
@@ -222,8 +235,20 @@ test.describe("Sales", () => {
     await unpaidOnly.click();
     await listReloaded;
     await expect(unpaidOnly, "the unpaid filter did not take").toBeChecked();
+    // The settled-list anchor is the EMPTY STATE, not the table, because the
+    // customer filter is still on: this customer's only order is the one just
+    // settled, so "unpaid orders for this customer" is correctly empty and
+    // SalesPage renders `noOrdersMatch` in place of the table. That is a
+    // stronger statement than the table surviving with other customers' rows
+    // in it, and it is only reachable now that the list is scoped (#818).
+    //
+    // It serves the same anti-vacuity purpose the table did: `usePagedList`
+    // sets `reloading` while the replacement request is in flight and
+    // SalesPage renders Loading… instead, so a bare `toHaveCount(0)` would be
+    // satisfied by the list being ABSENT rather than by the row being
+    // excluded. `noOrdersMatch` renders only once the reload has settled.
     await expect(
-      ordersTable,
+      page.getByText(tEn("sales:noOrdersMatch")),
       "the Orders list never came back after the unpaid filter's reload",
     ).toBeVisible();
     await expect(

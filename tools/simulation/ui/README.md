@@ -10,7 +10,7 @@ Two modes:
 
 | | What it does | How to run |
 | --- | --- | --- |
-| **Smoke** (#385) | Key flow per persona + cross-cutting session/i18n/PWA guarantees | `npm test` |
+| **Smoke** (#385) | Key flow per persona + cross-cutting session/i18n/PWA guarantees, at two viewports (#814) | `npm test` |
 | **Canary** (#386) | 1–2 browsers recording Core Web Vitals, optionally while k6 loads the backend | `bash run-canary.sh [--with-load]` |
 | **Screenshots** (#549) | Captures the root README's four images into `docs/images/` | `npm run screenshots` |
 
@@ -71,9 +71,12 @@ not start at all). A **system** Chromium works and is what the suite finds.
 ## Layout
 
 ```
-playwright.config.ts          smoke suite: workers=1, retries=0
+playwright.config.ts          smoke suite: workers=1, retries=0, two projects
+  chromium                      1280x720, everything untagged
+  chromium-phone                390x844, @phone only
 playwright.canary.config.ts   canary: 1–2 workers, generous timeouts
 specs/                        the smoke specs
+  phone.spec.ts                 the @phone ones: tab bar, More sheet, overflow
 specs-canary/                 the canary
 src/
   browser.ts     which Chromium, and why there are two right answers
@@ -110,14 +113,36 @@ as "could not fill the field", which points nowhere near the cause. Use
 version is that this exact bug made the k6 harness fail 12.4% of its requests,
 but only between 00:00 UTC and farm midnight, so both recorded baselines passed.
 
+**Tag a phone-width test `@phone`, and nothing else.** `npm test` runs two
+projects off one config: `chromium` at 1280x720 takes everything untagged,
+`chromium-phone` at 390x844 takes `@phone`. They are complements, so a test runs
+in exactly one of them — losing the tag does not widen a test's coverage, it
+moves it to the other width. Use Playwright's structured form,
+`test.describe("…", { tag: "@phone" }, …)`, never a substring of the title: a
+tag in the title shows up in every reporter line and breaks on a reword. The
+viewport is the *only* difference between the two projects, deliberately, so a
+red in one and a green in the other is attributable to width alone.
+
+**`nav` is the desktop sidebar and throws under the phone project.** Below 900px
+the sidebar is `display: none` and BottomNav owns navigation, so a phone test
+uses the `phone` fixture instead. That refusal is load-bearing rather than
+tidy: three specs assert `toBeHidden()` on a sidebar link to prove a role gate,
+and at phone width those links sit inside a *closed* dialog, which is hidden for
+a reason the spec never claimed. For the same reason a sheet link is only
+obtainable from the value `openMore()` returns — the open sheet is a
+precondition the compiler enforces.
+
 **Assert what the user sees and can do.** Not that a request was made, not that
 an element exists. The export spec waits for bytes on disk; the sales spec
 asserts the balance settled by the *"record payment"* button being withdrawn.
 
-**Mutation-check anything new.** `npm run mutation` breaks a guarantee at the
-network boundary — the shape a real regression takes from the browser — and
-requires the spec claiming to cover it to go red. A surviving mutant means the
-spec does not test what it says; report it, do not delete the mutant.
+**Mutation-check anything new.** `npm run mutation` breaks one guarantee at a
+time — at the network boundary for most, in the DOM for the a11y ones (#501),
+through the CSSOM for the phone ones (#814) — and requires the spec claiming to
+cover it to go red. A surviving mutant means the spec does not test what it
+says; report it, do not delete the mutant. Every mutant declares its project,
+and a width-scoped one additionally has to leave the *other* project green, or
+its kill is reported as `NOT WIDTH-SPECIFIC` rather than counted.
 
 ## Known gaps, stated rather than implied
 

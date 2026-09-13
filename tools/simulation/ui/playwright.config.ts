@@ -7,10 +7,14 @@
 import { defineConfig, devices } from "@playwright/test";
 import { resolveBrowser } from "./src/browser";
 import { BASE_URL, UNDER_LOAD } from "./src/env";
+// `import type`, so this erases completely — the config must not pull the
+// fixture module (and through it the cast file and the i18n catalogs) into
+// Playwright's config load.
+import type { Fixtures } from "./src/fixtures";
 
 const { executablePath } = resolveBrowser();
 
-export default defineConfig({
+export default defineConfig<Fixtures>({
   testDir: "./specs",
 
   // NO webServer. Playwright will not start anything: the stack is docker
@@ -66,11 +70,28 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
   },
 
+  // TWO PROJECTS, AND THE ONLY DIFFERENCE BETWEEN THEM IS THE VIEWPORT (#814).
+  //
+  // Same browser, same launch options, same everything else — deliberately, so
+  // that a spec red in one project and green in the other is attributable to
+  // WIDTH ALONE. Add a second variable here (a different browser channel, a
+  // device descriptor, a longer timeout) and every phone-only failure acquires
+  // a second candidate explanation, which is exactly the ambiguity the split
+  // exists to remove.
+  //
+  // The `@phone` tag partitions the suite rather than filtering it: `grep` and
+  // `grepInvert` are complements, so every test runs in exactly one project and
+  // none runs in both. `npm test` runs both; nothing needs a second command.
   projects: [
     {
       name: "chromium",
+      // The desktop shell owns every spec that does not ask for the other one.
+      // Untagged is the default on purpose — 42 specs predate #814 and were
+      // written against the sidebar.
+      grepInvert: /@phone/,
       use: {
         ...devices["Desktop Chrome"],
+        shellLayout: "desktop",
         // OMITTED, not set to `undefined` — Playwright's LaunchOptions declares
         // `executablePath?: string`, and under `exactOptionalPropertyTypes` an
         // explicit `undefined` is a type error rather than "use the default".
@@ -78,6 +99,46 @@ export default defineConfig({
         // build", which is the path CI (#387) takes. On NixOS the resolver finds
         // the system Chromium instead, because the downloaded binaries do not
         // launch there at all. See src/browser.ts for the full reasoning.
+        launchOptions: executablePath ? { executablePath } : {},
+      },
+    },
+    {
+      name: "chromium-phone",
+      grep: /@phone/,
+      use: {
+        ...devices["Desktop Chrome"],
+
+        // AFTER the spread, never before it: `devices["Desktop Chrome"]`
+        // carries its own 1280x720 viewport, and a later key wins. Setting the
+        // frame above the spread silently runs the phone specs at 1280 — where
+        // the tab bar is `display: none`, so they would fail for a reason that
+        // has nothing to do with what they assert. The screenshots config
+        // carries the same trap, for the same reason.
+        //
+        // 390x844 is a phone's CSS viewport, comfortably inside the SPA's
+        // 900px breakpoint rather than sitting on it.
+        viewport: { width: 390, height: 844 },
+
+        shellLayout: "phone",
+
+        // CONSIDERED AND REJECTED: `devices["Pixel 7"]`, or this viewport plus
+        // `isMobile: true` / `hasTouch: true`. Both emulation modes were
+        // measured against the live stack: the six routes the overflow walk
+        // covers reported identical `scrollWidth`/`clientWidth`/`innerWidth`
+        // under each, and the tab bar's own rect was identical too. So
+        // `isMobile` buys nothing measurable for the layout question this
+        // project asks, while adding touch-event dispatch and a mobile user
+        // agent — two behavioural differences unrelated to width, which is the
+        // one variable this project is meant to isolate.
+        //
+        // What that costs, stated rather than implied: `isMobile` is what
+        // drives Chromium's mobile LAYOUT VIEWPORT sizing, and a #441-class
+        // regression — a wide table inflating the layout viewport past the
+        // visual one on a real device — is therefore NOT covered here. The
+        // overflow walk catches the CSS-viewport half of that defect and not
+        // the device half. Reopening this means re-measuring under both modes
+        // and showing a difference, not flipping the flag because it sounds
+        // more realistic.
         launchOptions: executablePath ? { executablePath } : {},
       },
     },
