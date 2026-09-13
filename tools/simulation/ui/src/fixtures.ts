@@ -1,9 +1,24 @@
 // tools/simulation/ui/src/fixtures.ts — the `test` every spec imports.
 //
-// Adds three things to Playwright's base test:
+// Adds five things to Playwright's base test:
 //   * `farm`    — the farm's real timezone/currency, for date fields and money.
 //   * `signIn`  — sign a cast persona in THROUGH THE LOGIN FORM.
-//   * `nav`     — locators for the shell, so specs name destinations, not CSS.
+//   * `nav`     — locators for the DESKTOP shell, so specs name destinations, not CSS.
+//   * `phone`   — locators for the PHONE shell (BottomNav's tab bar + More sheet).
+//   * `shellLayout` — which of those two the project under test is running.
+//
+// ================== WHY THE SHELL IS TWO FIXTURES, NOT ONE ==================
+//
+// Below 900px the sidebar is `display: none` and BottomNav owns navigation
+// (#814). The two shells are not interchangeable renderings of one nav: the
+// sidebar shows every permitted destination at once, while the tab bar shows
+// four and hides the rest inside a CLOSED dialog. So a `toBeHidden()` that
+// means "this role may not go there" on the sidebar means "the sheet happens to
+// be shut" on a phone, and passes for a reason the spec never claimed.
+//
+// `shellLayout` is a per-project option rather than something either fixture
+// sniffs from the viewport, so the answer comes from the run's configuration
+// and a spec cannot end up disagreeing with it.
 //
 // ================== WHY signIn DRIVES THE FORM ==================
 //
@@ -34,10 +49,48 @@ export interface ShellNav {
   signOut: Locator;
 }
 
+/** Which shell the project under test renders. Set per project, never sniffed. */
+export type ShellLayout = "desktop" | "phone";
+
+/**
+ * BottomNav's More sheet, WHILE OPEN.
+ *
+ * This type is only ever produced by `openMore()`, and that is the whole design.
+ * A sheet link is hidden whenever the sheet is shut, so a free-standing
+ * `sheetLink(key)` helper would hand every spec a locator that reports
+ * `toBeHidden()` for two completely different reasons — "this role may not go
+ * there" and "nobody opened the menu". Routing the locator through the value
+ * `openMore()` returns makes the open sheet a precondition the compiler
+ * enforces, rather than a convention a reviewer has to notice.
+ */
+export interface MoreSheet {
+  /** The sheet itself (`role="dialog"`, named nav:menuTitle). */
+  dialog: Locator;
+  /** A destination link inside the open sheet, by its nav i18n key. */
+  link(labelKey: string): Locator;
+  /** The sign-out control in the sheet foot — the phone shell's only one. */
+  signOut: Locator;
+  /** Dismiss the sheet through its own close control and wait for it to go. */
+  close(): Promise<void>;
+}
+
+export interface PhoneShell {
+  /** The fixed bottom bar's nav landmark (`aria-label` = nav:tabBarAriaLabel). */
+  tabbar: Locator;
+  /** One of the four thumb tabs, by its nav i18n key. */
+  tab(labelKey: string): Locator;
+  /** The fifth slot, which opens the sheet holding every other destination. */
+  more: Locator;
+  openMore(): Promise<MoreSheet>;
+}
+
 export interface Fixtures {
   farm: FarmContext;
   signIn: (member: CastMember) => Promise<void>;
+  /** Option fixture, set by the project. Decides which shell fixture is usable. */
+  shellLayout: ShellLayout;
   nav: ShellNav;
+  phone: PhoneShell;
   /** Auto-fixture: installs the mutation harness when CLUCKWORK_E2E_MUTANT is set. Inert otherwise. */
   mutation: void;
 }
@@ -84,23 +137,77 @@ export const test = base.extend<Fixtures>({
       // THE ASSERTION THAT SIGN-IN WORKED is the app shell appearing — not the
       // URL changing, and not the absence of an error. `isLoading` gates the
       // router until the bootstrap refresh settles, so a URL check can pass
-      // while the screen is still empty. The sidebar only ever renders inside
-      // AppLayout, behind ProtectedRoute + SessionProvider, so its presence
-      // means the whole authenticated path completed.
+      // while the screen is still empty. `main#main-content` only ever renders
+      // inside AppLayout, behind ProtectedRoute + SessionProvider, so its
+      // presence means the whole authenticated path completed.
       //
-      // Matched on the `complementary` LANDMARK, with no accessible name.
-      // Naming it (`navigation` + `nav:primaryNavAriaLabel`) would tie signing in
-      // to the ENGLISH label — and a user's language is a persisted server-side
+      // Matched on a STRUCTURAL handle, never on a label. Naming a landmark
+      // (`navigation` + `nav:primaryNavAriaLabel`) would tie signing in to the
+      // ENGLISH label — and a user's language is a persisted server-side
       // preference, so any persona left in es/tl by the i18n spec could no
-      // longer sign in at all. That is not hypothetical; it happened. `main` is
-      // not usable either: the login screen is a `<main>` too, so it cannot tell
-      // the shell from the form it replaced.
-      await expect(page.getByRole("complementary")).toBeVisible();
+      // longer sign in at all. That is not hypothetical; it happened.
+      //
+      // The bare `main` element is not usable either: the login screen is a
+      // `<main class="auth">` too, so it cannot tell the shell from the form it
+      // replaced. The `id` is what separates them — AppLayout's is the only
+      // element in the app carrying `main-content`, and the login screen's has
+      // no id at all.
+      //
+      // This replaced `getByRole("complementary")`, which cannot be used here
+      // any more: the sidebar is `display: none` below 900px (#814), so under
+      // the phone project sign-in would never complete. Say plainly what was
+      // given up — this assertion is NARROWER than the one it replaces. It
+      // proves the authenticated shell mounted; it does NOT prove any nav
+      // chrome rendered, in either layout. A spec that cares about the nav must
+      // assert on it itself, through `nav` or `phone`.
+      await expect(page.locator("main#main-content")).toBeVisible();
     });
   },
 
-  nav: async ({ page }, use) => {
+  // Declared here, supplied by each project's `use` block in
+  // playwright.config.ts. The default is "desktop" so every spec written before
+  // #814 keeps the shell it was written against without being touched.
+  shellLayout: ["desktop", { option: true }],
+
+  nav: async ({ page, shellLayout }, use) => {
+    // REFUSED under the phone layout, on purpose, and this is the load-bearing
+    // half of #814 rather than a convenience.
+    //
+    // Three specs assert `toBeHidden()` on a sidebar link to prove a role gate:
+    // specs/worker.spec.ts ("is not offered the admin setup destinations"),
+    // specs/session-races.spec.ts (the late-refresh race's admin-destination
+    // check) and specs/readonly.spec.ts ("is not offered the destinations it
+    // cannot use"). At phone width those destinations live inside a CLOSED
+    // dialog, so every one of those assertions would pass while the gate was
+    // wide open — the spec would still be green and would prove nothing.
+    //
+    // Making the fixture unavailable turns that into a construction error
+    // instead of something a reviewer has to spot: a spec that wants both
+    // widths has to say which shell it means.
+    if (shellLayout === "phone") {
+      throw new Error(
+        "The `nav` fixture is the DESKTOP sidebar and does not exist below 900px. "
+          + "Use the `phone` fixture, and reach a non-tab destination through "
+          + "`(await phone.openMore()).link(key)` — a sheet link is hidden while the "
+          + "sheet is shut, so a toBeHidden() on the sidebar's locator would pass here "
+          + "for a reason the spec never claimed.",
+      );
+    }
     await use(shellNav(page));
+  },
+
+  phone: async ({ page, shellLayout }, use) => {
+    // The mirror of the refusal above. Above 900px `.tabbar` is `display: none`,
+    // so every locator here would resolve to a hidden element and any
+    // `toBeHidden()` written against it would be vacuous in the same way.
+    if (shellLayout === "desktop") {
+      throw new Error(
+        "The `phone` fixture is BottomNav's tab bar, which is `display: none` above 900px. "
+          + "Tag the test @phone so it runs under the chromium-phone project, or use the "
+          + "`nav` fixture for the desktop sidebar.",
+      );
+    }
+    await use(phoneShell(page));
   },
 });
 
@@ -123,6 +230,44 @@ export function shellNav(page: Page): ShellNav {
     link: (labelKey: string) =>
       primary.getByRole("link", { name: tEn(labelKey as `nav:${string}`), exact: true }),
     signOut: sidebar.getByRole("button", { name: tEn("nav:signOut") }),
+  };
+}
+
+export function phoneShell(page: Page): PhoneShell {
+  // Scoped to the TAB BAR's nav landmark for the same reason `shellNav` scopes
+  // to the sidebar's: both shells are in the DOM at once and CSS decides which
+  // one is on screen, so an unscoped getByRole("link") matches twice.
+  const tabbar = page.getByRole("navigation", { name: tEn("nav:tabBarAriaLabel") });
+
+  // More is a <button> in the bar's fifth slot, not a link — it opens a dialog
+  // rather than navigating, and its accessible name is the `nav:moreButton`
+  // span beside an aria-hidden icon.
+  const more = tabbar.getByRole("button", { name: tEn("nav:moreButton"), exact: true });
+
+  return {
+    tabbar,
+    tab: (labelKey: string) =>
+      tabbar.getByRole("link", { name: tEn(labelKey as `nav:${string}`), exact: true }),
+    more,
+    openMore: async () => {
+      await more.click();
+
+      // The sheet is a Dialog portalled to <body>, so it is scoped by its own
+      // role and title rather than by the bar it was opened from.
+      const dialog = page.getByRole("dialog", { name: tEn("nav:menuTitle") });
+      await expect(dialog).toBeVisible();
+
+      return {
+        dialog,
+        link: (labelKey: string) =>
+          dialog.getByRole("link", { name: tEn(labelKey as `nav:${string}`), exact: true }),
+        signOut: dialog.getByRole("button", { name: tEn("nav:signOut"), exact: true }),
+        close: async () => {
+          await dialog.getByRole("button", { name: tEn("common:close"), exact: true }).click();
+          await expect(dialog).toBeHidden();
+        },
+      };
+    },
   };
 }
 
