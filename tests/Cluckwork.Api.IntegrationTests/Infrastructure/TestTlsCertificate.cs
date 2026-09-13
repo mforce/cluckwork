@@ -11,7 +11,7 @@ using System.Security.Cryptography.X509Certificates;
 //
 // The SAN list is what lets one listener stand in for several hosts. The client
 // dials 127.0.0.1 whatever hostname the request URI names (see
-// TlsClient.ConnectCallback), so the URI authority — and therefore SNI, the
+// TlsKestrelFactory.CreateTlsClient), so the URI authority — and therefore SNI, the
 // Host header and Request.Host — is free to be `cluckwork.test`, a host HSTS's
 // default ExcludedHosts does NOT skip. That is what makes both directions of
 // the header observable over one connection: the loopback names are excluded

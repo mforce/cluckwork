@@ -71,6 +71,17 @@ public sealed class TlsKestrelFactory : CluckworkWebApplicationFactory
         new(new SocketsHttpHandler
         {
             AllowAutoRedirect = allowAutoRedirect,
+            // Load-bearing, and the reason is not obvious. A machine with
+            // HTTP_PROXY/HTTPS_PROXY set hands ConnectCallback the PROXY's
+            // endpoint rather than the one in the request URI, so the callback
+            // below would dial the proxy's port on loopback and never reach the
+            // factory's listener. Against a proxy that refuses the connection
+            // that is a loud failure; against one that answers, the three
+            // `withheld` assertions here would go GREEN without the request
+            // ever reaching the app — a guard passing for the wrong reason,
+            // which is the one failure this file exists to rule out. These
+            // requests are deliberately local, so no proxy is ever correct.
+            UseProxy = false,
             ConnectCallback = async (context, cancellationToken) =>
             {
                 var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
@@ -102,7 +113,10 @@ public sealed class HstsOverRealTlsTests(TlsKestrelFactory factory) : IClassFixt
     private const string Probe = "/health/live";
 
     private async Task<HttpResponseMessage> GetAsync(string scheme, string host)
-        => await factory.CreateTlsClient().GetAsync(factory.Url(scheme, host, Probe));
+    {
+        using var client = factory.CreateTlsClient();
+        return await client.GetAsync(factory.Url(scheme, host, Probe));
+    }
 
     private static string? Hsts(HttpResponseMessage response)
         => response.Headers.TryGetValues("Strict-Transport-Security", out var values)
