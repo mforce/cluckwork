@@ -75,12 +75,23 @@ public sealed class TlsKestrelFactory : CluckworkWebApplicationFactory
             // HTTP_PROXY/HTTPS_PROXY set hands ConnectCallback the PROXY's
             // endpoint rather than the one in the request URI, so the callback
             // below would dial the proxy's port on loopback and never reach the
-            // factory's listener. Against a proxy that refuses the connection
-            // that is a loud failure; against one that answers, the three
-            // `withheld` assertions here would go GREEN without the request
-            // ever reaching the app — a guard passing for the wrong reason,
-            // which is the one failure this file exists to rule out. These
-            // requests are deliberately local, so no proxy is ever correct.
+            // factory's listener. These requests are deliberately local, so no
+            // proxy is ever correct.
+            //
+            // Measured, against a proxy that ACCEPTS and answers 200 with no
+            // headers: `Hsts_is_withheld_over_real_plain_http_from_the_same_host`
+            // goes GREEN off the proxy's reply, without the request reaching the
+            // app — a guard passing for the wrong reason, the one failure this
+            // file exists to rule out. The two TLS `withheld` cases do NOT: the
+            // certificate pinning in SslOptions below rejects the proxy, so they
+            // fail loudly. Both halves matter — the pinning is what confines the
+            // false-green to the plaintext path, and only disabling the pinning
+            // too made all three pass against fabricated responses.
+            //
+            // Neither NO_PROXY nor a narrower opt-out is a substitute: NO_PROXY=*
+            // was measured NOT to bypass the proxy on this runtime, while
+            // ALL_PROXY and HttpClient.DefaultProxy reproduce the false-green
+            // exactly. UseProxy=false is the only setting that closed all of them.
             UseProxy = false,
             ConnectCallback = async (context, cancellationToken) =>
             {
@@ -183,12 +194,17 @@ public sealed class HstsOverRealTlsTests(TlsKestrelFactory factory) : IClassFixt
             response.Headers.Location);
     }
 
-    // Guards the harness itself rather than the product: if the client ever
-    // stopped negotiating TLS (a ConnectCallback that quietly dialled the plain
-    // port, a scheme typo), every assertion above would still be green — the
-    // positive one would fail, but the three withheld-header ones would pass for
-    // the wrong reason. Two real listeners on two different ports is the
-    // premise they all rest on.
+    // Guards the harness itself rather than the product, and ONLY this much:
+    // that two listeners were really bound, on two different ports. It does not
+    // prove the client negotiates TLS — forcing every request onto HTTP was
+    // measured to leave this test green.
+    //
+    // What actually catches a silent downgrade is
+    // `Hsts_is_emitted_over_real_tls_to_a_non_excluded_host`: the server emits
+    // HSTS only when Request.IsHttps, so that assertion cannot pass unless the
+    // connection under it really was TLS. Recorded here because the earlier
+    // version of this comment claimed the downgrade protection for THIS test,
+    // which is a guard reading as safety it does not provide.
     [Fact]
     public void The_harness_binds_two_distinct_real_listeners()
     {
