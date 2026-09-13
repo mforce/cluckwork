@@ -288,8 +288,13 @@ overall_exit=0
 # below; this trap is the backstop for every OTHER exit path. Single-quoted
 # so `$sampler_pid` is read at trap-FIRE time (whichever rep was most
 # recently started), not at registration time — one registration here
-# correctly covers every rep in the loop.
-trap 'kill -TERM "${sampler_pid:-}" 2>/dev/null; wait "${sampler_pid:-}" 2>/dev/null || true' EXIT
+# correctly covers every rep in the loop. `kill` needs its own `|| true`:
+# on the ordinary happy path the sampler was already reaped by the per-rep
+# cleanup below, so this `kill` finds no such process and fails — and
+# because `set -e` is still active while a trap runs, that failure aborts
+# the trap right there and silently replaces the script's real exit code
+# with 1, even after an explicit `exit 0` already ran.
+trap 'kill -TERM "${sampler_pid:-}" 2>/dev/null || true; wait "${sampler_pid:-}" 2>/dev/null || true' EXIT
 
 if [[ -n "$RENDER_ONLY_RUN_ID" ]]; then
   echo "[render-only] skipping reset/docker/k6/monitoring — re-aggregating existing rep-*/ data under ${RUN_DIR}"
