@@ -84,16 +84,31 @@ which makes the deferred decision smaller than it was described as, not larger.
 
 Precache budget, built at the head of each branch:
 
-| | precache | main chunk (gzip) | vs baseline |
-| --- | --- | --- | --- |
-| baseline, hand-rolled | 1312.45 KiB | 85.27 KiB | — |
-| Base UI, `Dialog` actually ported | 1365.15 KiB | 103.37 KiB | +18.1 KiB |
-| **MUI, provider only, zero components** | 1397.79 KiB | 115.45 KiB | **+30.2 KiB** |
+| | precache | JS gzip | CSS gzip | total gzip |
+| --- | --- | --- | --- | --- |
+| baseline, hand-rolled | 1312.45 KiB | 85.27 | 10.10 | **95.4** |
+| Base UI, `Dialog` actually ported | 1365.15 KiB | 103.37 | 10.10 | 113.5 |
+| MUI, provider only, zero components | 1397.79 KiB | 115.45 | 10.10 | 125.6 |
+| **MUI + component kit** | **1632.68 KiB** | 186.98 | 10.10 | **197.1** |
+| Radix Themes + the same kit | 2130.79 KiB | 132.08 | **92.27** | **224.4** |
 
-**MUI's entry fee with nothing rendered exceeds what the headless path costs with a component
-shipped.** This is the real price of the decision and it is accepted deliberately: this is a PWA
-for phones in sheds. Every slice that adopts an MUI component must re-measure, and a slice that
-adds weight without retiring hand-built code should be challenged.
+The kit is the same on both sides — dialog, button, text field, select, table, tabs, tooltip,
+badge, switch, alert — except that MUI's also includes `Autocomplete`, which Radix Themes has no
+equivalent for. So MUI's number buys strictly more.
+
+**MUI costs +320 KiB precache (+24%); Radix Themes costs +818 KiB.** The gap is CSS, not code:
+Radix Themes ships one 730 KiB stylesheet carrying every accent colour in both modes whether or
+not they are used, while MUI generates styles in the browser through Emotion. That inverts the
+usual assumption that the lighter-feeling library is lighter, and it was measured rather than
+guessed.
+
+**The trade MUI makes is bytes for CPU, and that half is NOT settled here.** Radix's stylesheet
+downloads once and the service worker caches it; Emotion runs on every render. On the low-end
+phones this app targets that could favour Radix, and a bundle report cannot tell you. Profile on
+a real device or a throttled CPU before converting all thirteen screens, not after.
+
+This is a PWA for phones in sheds, so every slice that adopts an MUI component re-measures, and
+a slice that adds weight without retiring hand-built code should be challenged.
 
 The second accepted cost is the Material look. MUI renders as a Google app until deliberately
 restyled; that work is the revamp's, not this record's.
