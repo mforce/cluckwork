@@ -27,7 +27,7 @@
 **Deliberate accepts.**
 
 - The tbls image digest is pinned in a shell script, which Dependabot's `docker` ecosystem does not parse — the pin **rots silently** and is bumped manually. Accepted for a doc generator: immutability (post-2026-03 supply-chain incidents) matters more than freshness, and `--check` diffs catch any output change a bump introduces.
-- The CI check runs in `build-and-test`, which has no path filter — web-only PRs pay it too (~30-45s; the postgres image is already warm from Testcontainers, the tbls pull is cold). Chosen over a new path-filtered job because CI cost here is counted in jobs, not seconds. If it grates, the e2e-smoke path-filter pattern is the documented alternative.
+- The CI check runs in `build-and-test`, which has no path filter — web-only PRs pay it too (~30-45s; as of #775 this job no longer runs the integration tests, so it pays for the postgres pull itself; the tbls pull is cold too). Chosen over a new path-filtered job because CI cost here is counted in jobs, not seconds. If it grates, the e2e-smoke path-filter pattern is the documented alternative.
 - Two concurrently open migration PRs both regenerate `docs/schema/`; the second to merge goes stale and must **rebase and regenerate — never hand-resolve a conflict under `docs/schema/`**.
 - The five viewpoint table lists in `.tbls.yml` are hand-kept. A table missing from every viewpoint still appears in the README ERD, its own page, and the completeness guard — viewpoint membership is presentation, not coverage.
 - The runner/dev machine needs Docker, `openssl`, and tzdata (the migrate step boots the host, which asserts an IANA canary per #264 — any full glibc distro or the CI runner qualifies).

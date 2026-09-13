@@ -441,7 +441,7 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
      merging the release PR is a *human* action, so it produces an ordinary
      `push` to `main` that runs CI in full, and `promote` refuses to run without
      `published-digest-<sha>`, which `publish` records only after
-     `build-and-test`, `web` and `image` have all passed. **Release verification
+     `tests`, `build-and-test`, `web` and `image` have all passed. **Release verification
      rests on that artifact gate, not on PR checks.** What this reason buys is
      narrower and still worth having: seeing red *before* the merge rather than
      after, and not deadlocking releases the day required status checks are

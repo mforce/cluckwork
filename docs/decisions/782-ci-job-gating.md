@@ -44,7 +44,7 @@ would stop all four running on exactly the changes they were written to catch.
 `if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}`. **The
 gate is `pull_request`-only**: the classify step short-circuits to
 `docs_only=false` on every other event without consulting git, because `publish`
-declares `needs: [build-and-test, web, image]` and a job whose `needs` dependency
+declares `needs: [tests, build-and-test, web, image]` and a job whose `needs` dependency
 was skipped is skipped too. A push to `main` that skipped `image` would publish
 no `ghcr.io/<owner>/<repo>:sha-<commit>` for that commit, and per #351 a release
 drafted at a commit with no image can never be promoted — it stays a draft with
