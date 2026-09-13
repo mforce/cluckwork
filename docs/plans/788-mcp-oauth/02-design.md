@@ -18,11 +18,11 @@ assistant ──exchange──▶ reference token      (works until revoked)
 | | Decision | Why |
 |---|---|---|
 | **Scope of the server** | Third-party clients only | The SPA's login carries too much earned behaviour to rewrite alongside this. [#793](https://github.com/mforce/cluckwork/issues/793) |
-| **Client registration** | Dynamic self-registration, rate-limited, unapproved apps expire | What the MCP spec recommends. Registration grants **zero** access, so the risk is junk rows, not unauthorized access |
+| **Client registration** | Dynamic self-registration, rate-limited, unapproved apps expire | A deliberate **compatibility** choice — see *Registration: DCR is not the spec's recommendation* below. Registration grants **zero** access, so the risk is junk rows, not unauthorized access |
 | **Who may connect** | Any user, for their own data | A Worker's assistant gets a Worker's view. Effective permission is always `role ∩ scope` |
 | **Approval** | Re-enter current password | Reuses #308's step-up grant. Stops someone at an unlocked laptop silently connecting an assistant |
 | **Scopes** | Two: read farm data, record daily entries | Matches the 7-tool phase-1 surface. A consent screen with eight checkboxes is one people click through without reading |
-| **Token format** | **Reference tokens, not JWTs** | So disconnecting takes effect on the *next call*. A self-contained token would keep working until expiry, contradicting #364's guarantee that revocation is immediate |
+| **Token format** | Reference tokens | Chosen for revocability, **but the format alone does not deliver it** — see *Revocation is not free* below |
 | **Lifetime** | Indefinite until revoked | The point of choosing OAuth: the assistant keeps working without anyone pasting anything |
 | **Visibility** | Users manage their own; an Owner sees and revokes any | Owners already reset passwords and disable users, so this is *less* invasive than powers they hold. Prevents a departed employee's assistant staying connected unseen |
 | **Audit** | First-class columns recording which app acted | Provenance is *who acted*, not a detail — and it must be filterable, which `DetailsJson` is not |
@@ -45,19 +45,79 @@ A useful property comes free: the MCP SDK's `AddAuthorizationFilters()` honours 
 *and filters `tools/list`*, so a read-only connection will not even **see** the write tool, rather than
 seeing it and being refused.
 
-## The checks that are NOT inherited
+## The checks that must be re-established — and who actually owns each
 
-**This is the load-bearing section.** An OAuth-authenticated request does not pass through
-`CredentialEpochMiddleware`, which is where the app does its per-request fail-closed checks for JWT
-callers. Every one must be re-established:
+**An earlier draft of this document said OAuth "bypasses `CredentialEpochMiddleware`" and attributed
+all of these checks to it. That was wrong in both directions** and is corrected here.
+`CredentialEpochMiddleware` inspects **any authenticated principal** and has no
+authentication-scheme exemption, so it *will* run for an OAuth caller — and will reject a token that
+carries no `credential_epoch` claim. Meanwhile flock resolution runs *before* it and
+must-change-password *after* it, so they are separate owners, not one boundary.
 
-| Check | Consequence of omitting it |
-|---|---|
-| **User disabled** | A disabled worker's assistant keeps working |
-| **Farm suspended** | A suspended farm's assistants keep working |
-| **Must-change-password** | A route straight through the #283 gate |
-| **Flock scoping** | A worker's assistant reads flocks they are not assigned to — the hazard [#787](https://github.com/mforce/cluckwork/issues/787) is open about |
-| **Rate limits** | One misbehaving integration exhausts the farm's capacity. Must key on the **shared** `IFixedWindowCounter` (#543/#544), never a process-local limiter — that is the #271 blocker shape derived wrongly twice |
+The real question is therefore not "which checks are skipped" but **where OAuth populates the
+principal, and what claims it supplies**:
+
+| Check | Owner | What OAuth must decide |
+|---|---|---|
+| **Credential epoch** | `CredentialEpochMiddleware` | Does an OAuth token carry `credential_epoch`? If not, it is rejected outright. If yes, role changes revoke it — which is what makes the role promise below true |
+| **User disabled / farm suspended** | Same middleware, one correlated read | Inherited **only if** the principal is populated before it runs |
+| **Must-change-password** | `MustChangePasswordMiddleware` | Enforcement depends on the **claim being supplied**, not merely on the middleware executing |
+| **Flock scoping** | `FlockScopeResolutionMiddleware`, *before* the epoch check | Requires a resolved user; authenticating OAuth too late misses it entirely |
+| **Rate limits** | `UseRateLimiter`, **before** authentication, endpoint opt-in | Not inherited — `/mcp` must opt in, on the shared `IFixedWindowCounter` (#543/#544), never a process-local limiter (#271) |
+
+**The implementable requirement:** authenticate OAuth during `UseAuthentication`, and have the token
+produce a principal carrying the same claims a session JWT does — `sub`, `account_id`,
+`credential_epoch`, roles. Then the existing chain applies unchanged. Departing from that is
+possible but every departure must be justified against this table.
+
+## Role freshness: the promise above is not free
+
+`role ∩ scope` promises the user's **current** authority. Nothing in the pipeline reloads roles:
+`TenantResolutionMiddleware` copies them from token claims, and `AuthPolicies.EffectiveRole` reads
+`IsInRole`/`FindAll("role")` off the principal. Today that is safe **only because a role change bumps
+`CredentialEpoch` and revokes the token** — freshness comes from revocation, not from live reads.
+
+**An earlier draft asserted the opposite** — that roles are read live, so a credential narrows
+automatically after a demotion. That is false, and it was the argument used to justify *not* tying
+credentials to the epoch. Correcting it reverses that conclusion.
+
+So one of these must be chosen explicitly, and the choice belongs in #796:
+
+1. **Carry `credential_epoch` and let the existing check revoke on role change** — reuses the
+   mechanism, costs nothing new, and means a demotion disconnects the assistant (it must reconnect).
+2. **Reconstruct roles live** before authorization and flock resolution — the assistant survives a
+   demotion with narrowed authority, at the cost of a read and a second freshness mechanism.
+
+Failure mode if neither is done: **a Manager demoted to ReadOnly keeps Manager authority through an
+already-issued OAuth token**, passing both gates indefinitely, because the token is valid and the
+scope intersection is computed against a stale role.
+
+## Revocation is not free either
+
+Reference tokens were chosen so Disconnect takes effect on the next call. **The format alone does not
+establish that.** OpenIddict validates *token entries* for reference tokens, but does **not** check
+**authorization-grant** status by default — so revoking the stored authorization can leave its access
+tokens usable. `UseLocalServer()` enables token-entry validation, not authorization-entry validation.
+
+#796 must state exactly what Disconnect revokes and what each request validates. If Disconnect
+revokes the authorization, `EnableAuthorizationEntryValidation()` is required and issued tokens must
+carry the authorization id. This matters more here than it would elsewhere, because lifetimes are
+indefinite: a token that outlives its revoked authorization never expires on its own.
+
+Also worth correcting: JWTs were ruled out partly on the grounds that they cannot be revoked.
+OpenIddict *can* revoke JWTs through token-entry validation. Reference tokens remain the right choice
+for simplicity and because revocation is the default posture, but the stated rationale was too strong.
+
+## Registration: DCR is not the spec's recommendation
+
+The MCP specification (2025-11-25) recommends **Client ID Metadata Documents**; Dynamic Client
+Registration is described as *optional*, for backward compatibility or specific requirements. An
+earlier draft asserted DCR was the recommendation.
+
+DCR is kept as a deliberate **compatibility** choice, since clients in the field implement it — but
+#797 must name the protocol version targeted and decide explicitly whether metadata-document support
+is included or deferred. A client implementing only the recommended mechanism would not interoperate
+with a DCR-only server.
 
 ## The consent screen
 

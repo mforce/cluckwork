@@ -23,9 +23,10 @@ there would mean writing an `AGENTS.md` bullet for code that does not exist.
 **A decision record is owed when the implementation lands**, and the rule it should carry is already
 identifiable:
 
-> An OAuth-authenticated request does not pass through `CredentialEpochMiddleware`, so every
-> fail-closed check that middleware performs — disabled user, suspended farm, must-change-password —
-> must be re-established on the OAuth path. None is inherited.
+> An OAuth-authenticated principal must carry the same claims a session JWT does — `sub`,
+> `account_id`, `credential_epoch`, roles — and must be populated during `UseAuthentication`.
+> The existing middleware chain then applies unchanged. Every departure from that must be justified
+> per-check, because the checks have different owners at different points in the pipeline.
 
 That belongs in `AGENTS.md` with a `→` link here, written by whoever completes [#796](https://github.com/mforce/cluckwork/issues/796).
 

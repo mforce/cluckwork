@@ -38,16 +38,46 @@ asserts **exact set equality** over filter-free entities, so the 4 new tables tu
 adds them deliberately with a reason. That is the guard working as designed — a registry that must be
 consciously edited, not a wall to route around. **Do not relax it to a subset check.**
 
-## 4. Data Protection has no persisted key ring — a latent defect found in passing.
+## 4. Data Protection has no *explicit* key-ring configuration — but the failure boundary is narrower than first stated
 
-No `AddDataProtection()`, no `PersistKeysTo*`, no key-ring configuration anywhere. Meanwhile
-`AddDefaultTokenProviders()` **is** registered, which wires a data-protector-backed token provider, and
-`GeneratePasswordResetTokenAsync` is called today.
+No `AddDataProtection()`, no `PersistKeysTo*`, no key-ring configuration anywhere. `AddDefaultTokenProviders()`
+**is** registered, and `GeneratePasswordResetTokenAsync` is called today.
 
-It only works because the token is minted and consumed in the **same request**. A real forgot-password
-flow, or a second replica, breaks it. It fails **closed**, so nothing is insecure — it simply stops
-working. Filed independently as [#794](https://github.com/mforce/cluckwork/issues/794), and it is a
-prerequisite for [#795](https://github.com/mforce/cluckwork/issues/795).
+**An earlier draft overstated the consequence**, claiming a second replica or a later redemption
+would break it. Corrected: ASP.NET Core Data Protection persists keys **by default** in an
+environment-dependent location, and even an ephemeral ring survives across requests **within one
+process**. `src/Cluckwork.Api/Dockerfile` already acknowledges default keys under the application
+user's home.
+
+The accurate risks are narrower and still real:
+
+- **Container replacement loses an unmounted ring**, invalidating anything protected with it.
+- **A second instance cannot consume a token another instance protected** without a compatible shared
+  ring.
+- Generation and consumption are currently **adjacent calls** in the same operation
+  (`IdentityProvider`, including the CLI recovery path), which is why nothing fails today — not
+  because keys are somehow durable.
+
+So the claim is: **explicit durable, shared configuration is absent**, and two planned features (#320
+TOTP, a real forgot-password flow) would make that absence matter. #794 is reframed accordingly.
+
+## 4b. Roles are NOT read live — and an earlier claim in this very design said they were
+
+`TenantResolutionMiddleware` copies roles from **token claims**
+(`context.User.FindAll("role")`), and `AuthPolicies.EffectiveRole` reads `IsInRole`/`FindAll("role")`
+off the principal. **Nothing reloads roles from the database on a request.**
+
+An earlier round of this design asserted the opposite — that because a credential is opaque and
+database-validated, roles are read live and a demoted user's credential narrows automatically. That
+assertion was used to argue *against* tying credentials to `CredentialEpoch`. It is false.
+
+What actually keeps roles fresh today is **revocation**: a role change bumps `CredentialEpoch`, and
+the next request with the old token is rejected. Freshness is a property of the revocation mechanism,
+not of how the credential is stored.
+
+Consequence for this design: an OAuth token carrying role claims keeps **stale** authority after a
+demotion unless it either carries `credential_epoch` (so the existing check revokes it) or roles are
+reconstructed live. `02-design.md` now records both options; #796 must pick one.
 
 ## 5. Microsoft states there is no PAT primitive.
 
