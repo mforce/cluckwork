@@ -47,14 +47,12 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
     {
         using var collector = new FakeOtlpCollector();
         var headerValue = $"standard-{Guid.NewGuid():N}";
-        await using var child = StartServing(psi =>
+        await using var child = await StartReadyAsync(psi =>
         {
             psi.Environment[OtlpConfigurationResolver.StandardEndpointKey] = collector.Endpoint;
             psi.Environment[OtlpConfigurationResolver.StandardProtocolKey] = "http/protobuf";
             psi.Environment[OtlpConfigurationResolver.StandardHeadersKey] = $"x-otlp-api-key={headerValue}";
         });
-
-        await child.WaitUntilReadyAsync(ReadyTimeout);
         var traceId = await DriveUniqueRequestAsync(child.BaseUrl);
         var trace = await collector.WaitForRequestAsync(
             "/v1/traces", request => OtlpPayloadAssertions.IsExpectedTracePayload(request.Body, traceId), ExportTimeout);
@@ -73,7 +71,7 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
         using var canonicalCollector = new FakeOtlpCollector();
         using var ambientCollector = new FakeOtlpCollector();
         var ambientHeaderValue = $"ambient-{Guid.NewGuid():N}";
-        await using var child = StartServing(psi =>
+        await using var child = await StartReadyAsync(psi =>
         {
             psi.Environment["Otlp__Endpoint"] = canonicalCollector.Endpoint;
             psi.Environment["Otlp__Protocol"] = "http/protobuf";
@@ -81,8 +79,6 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
             psi.Environment[OtlpConfigurationResolver.StandardProtocolKey] = "http/protobuf";
             psi.Environment[OtlpConfigurationResolver.StandardHeadersKey] = $"x-otlp-api-key={ambientHeaderValue}";
         });
-
-        await child.WaitUntilReadyAsync(ReadyTimeout);
         var traceId = await DriveUniqueRequestAsync(child.BaseUrl);
         var trace = await canonicalCollector.WaitForRequestAsync(
             "/v1/traces", request => OtlpPayloadAssertions.IsExpectedTracePayload(request.Body, traceId), ExportTimeout);
@@ -100,15 +96,13 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
     public async Task Canonical_profile_ignores_malformed_ambient_standard_transport()
     {
         using var collector = new FakeOtlpCollector();
-        await using var child = StartServing(psi =>
+        await using var child = await StartReadyAsync(psi =>
         {
             psi.Environment["Otlp__Endpoint"] = collector.Endpoint;
             psi.Environment["Otlp__Protocol"] = "http/protobuf";
             psi.Environment[OtlpConfigurationResolver.StandardEndpointKey] = "not a uri";
             psi.Environment[OtlpConfigurationResolver.StandardProtocolKey] = "not-a-protocol";
         });
-
-        await child.WaitUntilReadyAsync(ReadyTimeout);
         var traceId = await DriveUniqueRequestAsync(child.BaseUrl);
         var trace = await collector.WaitForRequestAsync(
             "/v1/traces", request => OtlpPayloadAssertions.IsExpectedTracePayload(request.Body, traceId), ExportTimeout);
@@ -125,14 +119,12 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
     public async Task Blank_canonical_endpoint_disables_an_ambient_standard_exporter()
     {
         using var collector = new FakeOtlpCollector();
-        await using var child = StartServing(psi =>
+        await using var child = await StartReadyAsync(psi =>
         {
             psi.Environment["Otlp__Endpoint"] = "";
             psi.Environment[OtlpConfigurationResolver.StandardEndpointKey] = collector.Endpoint;
             psi.Environment[OtlpConfigurationResolver.StandardProtocolKey] = "http/protobuf";
         });
-
-        await child.WaitUntilReadyAsync(ReadyTimeout);
         await DriveUniqueRequestAsync(child.BaseUrl);
         await collector.AssertNoRequestAsync(TimeSpan.FromSeconds(3));
     }
@@ -140,43 +132,37 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
     [Fact]
     public async Task Production_https_endpoint_boots()
     {
-        await using var child = StartServing(psi =>
+        await using var child = await StartReadyAsync(psi =>
         {
             ConfigureProduction(psi);
             psi.Environment["Otlp__Endpoint"] = "https://otlp.example:4318";
             psi.Environment["Otlp__Protocol"] = "grpc";
         });
-
-        await child.WaitUntilReadyAsync(ReadyTimeout);
     }
 
     [Fact]
     public async Task Production_plaintext_loopback_endpoint_with_acknowledgement_boots()
     {
         using var collector = new FakeOtlpCollector();
-        await using var child = StartServing(psi =>
+        await using var child = await StartReadyAsync(psi =>
         {
             ConfigureProduction(psi);
             psi.Environment["Otlp__Endpoint"] = collector.Endpoint;
             psi.Environment["Otlp__Protocol"] = "http/protobuf";
             psi.Environment["Otlp__AllowInsecureEndpoint"] = "true";
         });
-
-        await child.WaitUntilReadyAsync(ReadyTimeout);
     }
 
     [Fact]
     public async Task Production_plaintext_private_sidecar_endpoint_with_acknowledgement_boots()
     {
-        await using var child = StartServing(psi =>
+        await using var child = await StartReadyAsync(psi =>
         {
             ConfigureProduction(psi);
             psi.Environment["Otlp__Endpoint"] = "http://otel-collector:4317";
             psi.Environment["Otlp__Protocol"] = "grpc";
             psi.Environment["Otlp__AllowInsecureEndpoint"] = "true";
         });
-
-        await child.WaitUntilReadyAsync(ReadyTimeout);
     }
 
     [Fact]
@@ -184,13 +170,12 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
     {
         var secret = $"collector-secret-{Guid.NewGuid():N}";
         using var standardCollector = new FakeOtlpCollector();
-        await using var standard = StartServing(psi =>
+        await using var standard = await StartReadyAsync(psi =>
         {
             psi.Environment[OtlpConfigurationResolver.StandardEndpointKey] = standardCollector.Endpoint;
             psi.Environment[OtlpConfigurationResolver.StandardProtocolKey] = "http/protobuf";
             psi.Environment[OtlpConfigurationResolver.StandardHeadersKey] = $"x-otlp-api-key={secret}";
         });
-        await standard.WaitUntilReadyAsync(ReadyTimeout);
         var standardTraceId = await DriveUniqueRequestAsync(standard.BaseUrl);
         var standardTrace = await standardCollector.WaitForRequestAsync(
             "/v1/traces", request => OtlpPayloadAssertions.IsExpectedTracePayload(request.Body, standardTraceId), ExportTimeout);
@@ -203,13 +188,12 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
         var (_, standardStdout, standardStderr) = await standard.StopAsync();
 
         using var canonicalCollector = new FakeOtlpCollector();
-        await using var canonical = StartServing(psi =>
+        await using var canonical = await StartReadyAsync(psi =>
         {
             psi.Environment["Otlp__Endpoint"] = canonicalCollector.Endpoint;
             psi.Environment["Otlp__Protocol"] = "http/protobuf";
             psi.Environment["Otlp__Headers"] = $"x-otlp-api-key={secret}";
         });
-        await canonical.WaitUntilReadyAsync(ReadyTimeout);
         var canonicalTraceId = await DriveUniqueRequestAsync(canonical.BaseUrl);
         var canonicalTrace = await canonicalCollector.WaitForRequestAsync(
             "/v1/traces", request => OtlpPayloadAssertions.IsExpectedTracePayload(request.Body, canonicalTraceId), ExportTimeout);
@@ -231,12 +215,11 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
     [Fact]
     public async Task Enabled_boot_log_reports_a_sanitized_endpoint()
     {
-        await using var child = StartServing(psi =>
+        await using var child = await StartReadyAsync(psi =>
         {
             psi.Environment["Otlp__Endpoint"] = "https://otlp.example:4318";
             psi.Environment["Otlp__Protocol"] = "http/protobuf";
         });
-        await child.WaitUntilReadyAsync(ReadyTimeout);
         var (_, stdout, stderr) = await child.StopAsync();
         var output = stdout + stderr;
 
@@ -246,6 +229,54 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
         Assert.DoesNotContain("#", output, StringComparison.Ordinal);
     }
 
+    // The port probe closes before the child binds, so the port can be taken in between; the spawn
+    // retries on a fresh port. Removing that retry makes this red: the child dies on the held port
+    // and the first attempt is the only one.
+    [Fact]
+    public async Task Child_comes_up_when_its_first_port_is_already_taken()
+    {
+        using var holder = new TcpListener(IPAddress.Loopback, 0);
+        holder.Start();
+        var heldPort = ((IPEndPoint)holder.LocalEndpoint).Port;
+        var portsHandedOut = new List<int>();
+        int PortSource()
+        {
+            var port = portsHandedOut.Count == 0 ? heldPort : ServingSubprocess.FreeTcpPort();
+            portsHandedOut.Add(port);
+            return port;
+        }
+
+        await using var child = await ServingSubprocess.StartReadyAsync(
+            PortSource, BuildStartInfo(_database.ConnectionString, psi => psi.Environment["Otlp__Endpoint"] = ""), ReadyTimeout);
+
+        // The invariant is "it recovered onto a port it was handed later", NOT "it took
+        // exactly two attempts". Pinning the count to 2 would make this test fail whenever
+        // the SECOND port was also taken in the gap — which is the very race this harness
+        // exists to survive, so the guard against a flake would itself have been flaky.
+        Assert.True(portsHandedOut.Count > 1, "the first port was held, so one attempt cannot have succeeded");
+        Assert.Equal(portsHandedOut[^1], child.BaseUrl.Port);
+        Assert.NotEqual(heldPort, child.BaseUrl.Port);
+    }
+
+    // A child that binds its port and then never passes /health/ready is the case a retry cannot
+    // help and a leak can hurt: it is alive when the readiness wait gives up. Pointing it at an
+    // unreachable database keeps it serving and permanently unready. If the spawn returned without
+    // disposing it, it would still hold this port; re-binding is what proves it did not.
+    [Fact]
+    public async Task A_child_that_never_becomes_ready_is_not_left_running()
+    {
+        var port = ServingSubprocess.FreeTcpPort();
+        var startInfo = BuildStartInfo(
+            "Host=127.0.0.1;Port=1;Database=nowhere;Username=nobody;Password=nobody",
+            psi => psi.Environment["Otlp__Endpoint"] = "");
+
+        await Assert.ThrowsAsync<TimeoutException>(() =>
+            ServingSubprocess.StartReadyAsync(() => port, startInfo, TimeSpan.FromSeconds(20)));
+
+        using var rebind = new TcpListener(IPAddress.Loopback, port);
+        rebind.Start();
+    }
+
     private static void ConfigureProduction(ProcessStartInfo psi)
     {
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
@@ -253,13 +284,15 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
         psi.Environment["AllowedHosts"] = "cluckwork-test.example";
     }
 
-    private ServingSubprocess StartServing(Action<ProcessStartInfo> configure) =>
-        StartServing(_database.ConnectionString, configure);
+    private Task<ServingSubprocess> StartReadyAsync(Action<ProcessStartInfo> configure) =>
+        ServingSubprocess.StartReadyAsync(BuildStartInfo(_database.ConnectionString, configure), ReadyTimeout);
 
     internal static ServingSubprocess StartServing(
-        string connectionString, Action<ProcessStartInfo> configure)
+        string connectionString, Action<ProcessStartInfo> configure) =>
+        ServingSubprocess.Start(BuildStartInfo(connectionString, configure), ServingSubprocess.FreeTcpPort());
+
+    private static ProcessStartInfo BuildStartInfo(string connectionString, Action<ProcessStartInfo> configure)
     {
-        var port = GetFreeTcpPort();
         var psi = new ProcessStartInfo("dotnet")
         {
             RedirectStandardOutput = true,
@@ -277,7 +310,6 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
                 psi.Environment[name] = value;
         ScrubOtlpTransport(psi);
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
-        psi.Environment["ASPNETCORE_URLS"] = $"http://127.0.0.1:{port}";
         psi.Environment["ConnectionStrings__Default"] = connectionString;
         psi.Environment["Database__Provider"] = "Postgres";
         psi.Environment["Database__AllowInsecureConnection"] = "true";
@@ -293,7 +325,7 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
         psi.Environment["OTEL_BSP_SCHEDULE_DELAY"] = "1000";
         psi.Environment["OTEL_METRIC_EXPORT_INTERVAL"] = "1000";
         configure(psi);
-        return new ServingSubprocess(Process.Start(psi)!, new Uri($"http://127.0.0.1:{port}"));
+        return psi;
     }
 
     private static void ScrubOtlpTransport(ProcessStartInfo psi)
@@ -331,76 +363,9 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
         return traceId;
     }
 
-    private static int GetFreeTcpPort()
-    {
-        using var probe = new TcpListener(IPAddress.Loopback, 0);
-        probe.Start();
-        return ((IPEndPoint)probe.LocalEndpoint).Port;
-    }
-
     private static void AssertHeader(CapturedOtlpRequest request, string name, string expectedValue)
     {
         Assert.True(request.Headers.TryGetValue(name, out var value));
         Assert.Equal(expectedValue, value);
-    }
-
-    internal sealed class ServingSubprocess(Process process, Uri baseUrl) : IAsyncDisposable
-    {
-        private readonly Process _process = process;
-        private readonly Task<string> _stdout = process.StandardOutput.ReadToEndAsync();
-        private readonly Task<string> _stderr = process.StandardError.ReadToEndAsync();
-
-        public Uri BaseUrl { get; } = baseUrl;
-
-        public async Task WaitUntilReadyAsync(TimeSpan timeout)
-        {
-            using var client = new HttpClient { BaseAddress = BaseUrl, Timeout = TimeSpan.FromSeconds(5) };
-            var deadline = DateTime.UtcNow + timeout;
-            Exception? lastError = null;
-            while (DateTime.UtcNow < deadline)
-            {
-                if (_process.HasExited)
-                {
-                    var (_, stdout, stderr) = await WaitForExitAsync(TimeSpan.Zero);
-                    throw new InvalidOperationException($"child exited before readiness. stdout={stdout} stderr={stderr}");
-                }
-                try
-                {
-                    if ((await client.GetAsync("/health/ready")).IsSuccessStatusCode) return;
-                }
-                catch (Exception ex)
-                {
-                    lastError = ex;
-                }
-                await Task.Delay(TimeSpan.FromMilliseconds(200));
-            }
-            throw new TimeoutException($"child at {BaseUrl} did not become ready within {timeout}: {lastError?.Message}");
-        }
-
-        public async Task<(int ExitCode, string Stdout, string Stderr)> WaitForExitAsync(TimeSpan timeout)
-        {
-            if (!_process.HasExited && timeout > TimeSpan.Zero)
-            {
-                var waitForExit = _process.WaitForExitAsync();
-                var exited = await Task.WhenAny(waitForExit, Task.Delay(timeout));
-                if (exited != waitForExit)
-                    throw new TimeoutException($"child did not exit within {timeout}");
-            }
-            return (_process.HasExited ? _process.ExitCode : -1, await _stdout, await _stderr);
-        }
-
-        public async Task<(int ExitCode, string Stdout, string Stderr)> StopAsync()
-        {
-            try { if (!_process.HasExited) _process.Kill(entireProcessTree: true); }
-            catch { /* exited while stopping */ }
-            await _process.WaitForExitAsync();
-            return (_process.ExitCode, await _stdout, await _stderr);
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            try { await StopAsync(); } catch { /* process already disposed */ }
-            _process.Dispose();
-        }
     }
 }

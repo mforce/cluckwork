@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -36,9 +35,6 @@ public sealed class MultiInstanceIdempotencyTests : IAsyncLifetime
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(
         "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
 
-    private readonly List<Process> _liveProcesses = [];
-    private readonly List<Task> _drains = [];
-
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
@@ -47,13 +43,6 @@ public sealed class MultiInstanceIdempotencyTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        foreach (var process in _liveProcesses)
-        {
-            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
-            catch { /* already exited */ }
-            process.Dispose();
-        }
-        try { await Task.WhenAll(_drains); } catch { /* best-effort drain */ }
         await _postgres.DisposeAsync();
     }
 
@@ -97,15 +86,6 @@ public sealed class MultiInstanceIdempotencyTests : IAsyncLifetime
         Assert.True(exitCode == 0, $"schema migration failed: exit={exitCode} stdout={stdout} stderr={stderr}");
     }
 
-    private static int GetFreeTcpPort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
-
     // #283 — the real first-run provisioning path: a one-shot `bootstrap-admin`
     // subprocess on the SAME binary a deploy runs (there is no boot-time admin
     // seeding and no Seed:* config any more — a serving instance provisions no
@@ -144,53 +124,13 @@ public sealed class MultiInstanceIdempotencyTests : IAsyncLifetime
     // deliberately gets NO admin credential config: under #283 a serving
     // process never provisions a user, so both replicas here are pure
     // request-servers reading the admin `bootstrap-admin` already created.
-    private (Process Process, string BaseUrl) StartServingInstance()
+    private Task<ServingSubprocess> StartServingInstanceAsync()
     {
-        var port = GetFreeTcpPort();
         var psi = MakeBaseStartInfo();
-        psi.Environment["ASPNETCORE_URLS"] = $"http://127.0.0.1:{port}";
         psi.Environment["Database__MigrateOnStartup"] = "false";
         psi.Environment["RateLimiting__Login__PermitLimit"] = "1000000";
         psi.Environment["RateLimiting__Refresh__PermitLimit"] = "1000000";
-
-        var process = Process.Start(psi)!;
-        _liveProcesses.Add(process);
-        // A long-running server's stdout/stderr must be drained for its whole
-        // life — an unread pipe fills its OS buffer and the child blocks on
-        // write (same hazard SeedCommandRunner documents for the one-shot
-        // verbs, just for the process's entire lifetime here instead of a
-        // bounded wait).
-        _drains.Add(DrainAsync(process.StandardOutput));
-        _drains.Add(DrainAsync(process.StandardError));
-        return (process, $"http://127.0.0.1:{port}");
-    }
-
-    private static async Task DrainAsync(StreamReader reader)
-    {
-        try { while (await reader.ReadLineAsync() is not null) { } }
-        catch { /* process exited / pipe closed */ }
-    }
-
-    private static async Task WaitUntilReadyAsync(HttpClient client, TimeSpan timeout)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        Exception? lastError = null;
-        while (DateTime.UtcNow < deadline)
-        {
-            try
-            {
-                var response = await client.GetAsync("/health/ready");
-                if (response.IsSuccessStatusCode) return;
-            }
-            catch (Exception ex)
-            {
-                lastError = ex;
-            }
-            await Task.Delay(TimeSpan.FromMilliseconds(200));
-        }
-        throw new TimeoutException(
-            $"instance at {client.BaseAddress} did not become ready within {timeout}"
-            + (lastError is null ? "" : $" (last error: {lastError.Message})"));
+        return ServingSubprocess.StartReadyAsync(psi, ReadyTimeout);
     }
 
     // The acceptance-criterion test: two independently hosted instances,
@@ -211,13 +151,11 @@ public sealed class MultiInstanceIdempotencyTests : IAsyncLifetime
         // Owner with a password only this command ever prints.
         var temporaryPassword = await BootstrapAdminAsync(adminEmail);
 
-        var (_, urlA) = StartServingInstance();
-        using var httpA = new HttpClient { BaseAddress = new Uri(urlA), Timeout = TimeSpan.FromSeconds(30) };
-        await WaitUntilReadyAsync(httpA, ReadyTimeout);
+        await using var instanceA = await StartServingInstanceAsync();
+        using var httpA = new HttpClient { BaseAddress = instanceA.BaseUrl, Timeout = TimeSpan.FromSeconds(30) };
 
-        var (_, urlB) = StartServingInstance();
-        using var httpB = new HttpClient { BaseAddress = new Uri(urlB), Timeout = TimeSpan.FromSeconds(30) };
-        await WaitUntilReadyAsync(httpB, ReadyTimeout);
+        await using var instanceB = await StartServingInstanceAsync();
+        using var httpB = new HttpClient { BaseAddress = instanceB.BaseUrl, Timeout = TimeSpan.FromSeconds(30) };
 
         // Everything from here on is real HTTP against the real, bootstrapped
         // admin — no direct DB/DI reach-in from the test.

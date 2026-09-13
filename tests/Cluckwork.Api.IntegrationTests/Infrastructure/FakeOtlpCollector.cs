@@ -284,7 +284,9 @@ internal sealed class FakeOtlpCollector : IDisposable
     public void Dispose()
     {
         Fault(new ObjectDisposedException(nameof(FakeOtlpCollector)));
-        try { _listener.Stop(); } catch { /* already stopped */ }
+        // No Stop() before this: on the managed listener Stop() already unregisters the prefix, and
+        // Dispose() then removes it a SECOND time, which re-binds the port in between. Anything that
+        // grabbed the port meanwhile turns that re-bind into an "Address already in use" from Dispose().
         ((IDisposable)_listener).Dispose();
         _serveTask.GetAwaiter().GetResult();
     }
