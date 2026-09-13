@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.2](https://github.com/mforce/cluckwork/compare/v0.1.1...v0.1.2) (2026-09-13)
+
+
+### Bug fixes
+
+* **i18n:** tl glossary uses the standard passive of ilagay ([#813](https://github.com/mforce/cluckwork/issues/813)) ([20dec10](https://github.com/mforce/cluckwork/commit/20dec10049cf59ae4e1413ba557d022b5ff4a270)), closes [#738](https://github.com/mforce/cluckwork/issues/738)
+
+
+### Documentation
+
+* **auth:** record the OAuth 2.1 decision for MCP authentication ([#801](https://github.com/mforce/cluckwork/issues/801)) ([0510854](https://github.com/mforce/cluckwork/commit/0510854397745568201512920e1cbd9ac56ca057))
+* **specs:** correct the sales_order_items column list in §10.5 ([#812](https://github.com/mforce/cluckwork/issues/812)) ([afe4a02](https://github.com/mforce/cluckwork/commit/afe4a02d36280692d3d3a3e98280a0c354ff92c3)), closes [#737](https://github.com/mforce/cluckwork/issues/737)
+
 ## [0.1.1](https://github.com/mforce/cluckwork/compare/v0.1.0...v0.1.1) (2026-09-12)
 
 
