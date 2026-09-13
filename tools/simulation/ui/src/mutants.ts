@@ -907,6 +907,65 @@ export const MUTANTS: Record<string, Mutant> = {
     },
   },
 
+  "phone-action-label-wrapped": {
+    breaks:
+      "the fit between an action button's label and its column at phone width — the label grows past "
+      + "what a 170px flex track can hold on one line, so the pill wraps downwards and ends up taller "
+      + "than it is wide, which is where `border-radius: 999px` clamps into an ellipse and the text "
+      + "leaves its own background (the #740 shape, on a control that is healthy today)",
+    caughtBy: "phone.spec.ts — no action control is taller than it is wide",
+    apply: async (page) => {
+      // TEXT, not CSS, so this needs neither the CSSOM instrument nor a style
+      // element — which is the point: it imitates the cause (a longer string
+      // in this slot) rather than the effect. That is the faithfulness the
+      // a11y mutants above have to settle for and this one does not.
+      //
+      // Measured at 390: the two buttons go from 170.6 x 65.2 (ratio 2.62) to
+      // 170.6 x 198.2 (ratio 0.86). The SAME mutant at 1280 leaves them at
+      // 12.46 and 3.38 — the row is ~974px there, so a longer label grows
+      // SIDEWAYS and never approaches its own height. The asymmetry is the
+      // flex track's width, which is a property of the layout rather than of
+      // which tests happen to look.
+      await page.addInitScript((extra: string) => {
+        const MARK = "data-mutant-label-tail";
+
+        const lengthen = () => {
+          for (const button of Array.from(document.querySelectorAll(".entry-foot button"))) {
+            if (button.querySelector(`[${MARK}]`) !== null) continue;
+            // APPENDED AS AN `aria-hidden` SPAN, never by rewriting the label,
+            // and this is the whole reason the mutant is width-specific.
+            //
+            // Setting `textContent` changes the button's ACCESSIBLE NAME, and
+            // the desktop specs locate these two controls by that name
+            // (`getByRole("button", { name: tEn("dailyEntry:saveDraftButton") })`).
+            // So the first version of this mutant broke the app at every width
+            // and `MUST_STAY_GREEN_ON` caught it: it killed the phone spec and
+            // turned the whole chromium suite red, which makes the kill
+            // evidence that the app broke rather than that phone width shows
+            // something 1280 cannot.
+            //
+            // `aria-hidden` is excluded from accessible-name computation but
+            // still RENDERS, so every locator in the suite keeps matching while
+            // the button reflows. The mutant now applies identically at both
+            // widths and only the layout differs — which is what the
+            // width-specificity claim needs.
+            const tail = document.createElement("span");
+            tail.setAttribute(MARK, "");
+            tail.setAttribute("aria-hidden", "true");
+            tail.textContent = extra;
+            button.appendChild(tail);
+          }
+        };
+        // `document`, NOT `document.documentElement` — see the header. Appending
+        // a node to a button the observer watches mints another record, so the
+        // marker check above is what terminates this rather than luck.
+        new MutationObserver(lengthen).observe(document, { childList: true, subtree: true });
+        lengthen();
+      }, " and discard every line entered on this order so far, then return to the flock list "
+        + "without recording anything at all for today or any earlier day");
+    },
+  },
+
   "phone-table-overflow-unclipped": {
     breaks:
       "#441's containment on wide data tables — `contain: layout` and the block-level scroller are "

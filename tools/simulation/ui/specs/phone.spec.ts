@@ -150,6 +150,57 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     ).toBeLessThanOrEqual(barBox.y);
   });
 
+  test("no action control is taller than it is wide", async ({ page }) => {
+    // THE #740 SHAPE, which is the defect this whole issue was opened over. A
+    // label too long for its column wraps, the pill grows downwards, and
+    // `border-radius: 999px` clamps into an ellipse with the text outside its
+    // own background. A control taller than it is wide is that state, and it is
+    // the one geometry a 1280 run can never reach — at desktop these rows are
+    // ~974px and every label stays on one line.
+    //
+    // MEASURED at 390: both buttons are 170.6 x 65.2, a ratio of 2.62, so this
+    // has 1.62 of margin and is not a pin on today's rendering. Under
+    // `phone-action-label-wrapped` they become 170.6 x 217.2, a ratio of 0.79.
+    // That mutant applies identically at 1280 and leaves the whole desktop
+    // suite green — checked by `MUST_STAY_GREEN_ON`, not asserted here —
+    // because the row is ~974px there, so a longer label grows SIDEWAYS.
+    await page.goto("/daily-entry");
+    const foot = page.locator(".entry-foot");
+    await expect(foot).toBeVisible();
+
+    const buttons = foot.getByRole("button");
+    // Non-vacuity: a walk over an empty set passes for free, and this bar is the
+    // only thing being walked. Two saves, always.
+    await expect(buttons).toHaveCount(2);
+
+    const measured = await buttons.evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { name: (el.textContent ?? "").trim(), width: r.width, height: r.height };
+      }));
+
+    for (const b of measured) {
+      // Soft, so one run names both buttons rather than stopping at the first —
+      // they share a flex row, so whatever reshapes one reshapes the other.
+      expect.soft(
+        b.width,
+        `"${b.name}" is ${b.width.toFixed(1)}x${b.height.toFixed(1)} at phone width — `
+          + "taller than it is wide, so its pill clamps into an ellipse and the label leaves its background",
+      ).toBeGreaterThanOrEqual(b.height);
+    }
+  });
+
+  // NOT WALKED HERE, and not because it is clean: the Sales draft-order panel
+  // fails this today. Measured at 390 in ENGLISH, on a draft order —
+  //     Confirm order (allocates stock)   91.5 x 103.2   ratio 0.89   radius 999px
+  //     Cancel draft                      89.8 x 103.2   ratio 0.87
+  //     Close                             89.9 x 103.2   ratio 0.87
+  // — against 285.7 x 40.1 for the first of those at 1280. That is #740, which
+  // is filed as an es/tl defect and reproduces in en at this width; #674 owns
+  // the remedy because it is a decision about how action buttons lay out on a
+  // phone, not a fix this gate should make. Extend the walk to `/sales` when
+  // #740 lands, and delete this comment with it.
+
   test("no walked screen overflows the viewport horizontally", async ({ page }) => {
     const viewport = page.viewportSize();
     if (viewport === null) throw new Error("this project runs with a fixed viewport; none was set.");

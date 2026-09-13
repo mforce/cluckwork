@@ -111,6 +111,7 @@ declare -A SPEC_FOR=(
   [phone-action-bar-under-tabbar]="specs/phone.spec.ts"
   [phone-tabbar-removed]="specs/phone.spec.ts"
   [phone-table-overflow-unclipped]="specs/phone.spec.ts"
+  [phone-action-label-wrapped]="specs/phone.spec.ts"
 )
 
 # --- the mutant -> project map ---------------------------------------------
@@ -145,6 +146,7 @@ declare -A PROJECT_FOR=(
   [phone-action-bar-under-tabbar]="chromium-phone"
   [phone-tabbar-removed]="chromium-phone"
   [phone-table-overflow-unclipped]="chromium-phone"
+  [phone-action-label-wrapped]="chromium-phone"
 )
 
 # The project whose WHOLE suite must still be GREEN under this mutant, checked
@@ -155,6 +157,7 @@ declare -A MUST_STAY_GREEN_ON=(
   [phone-action-bar-under-tabbar]="chromium"
   [phone-tabbar-removed]="chromium"
   [phone-table-overflow-unclipped]="chromium"
+  [phone-action-label-wrapped]="chromium"
 )
 
 # The third test in a11y-live-regions.spec.ts (recorded browser facts) has no
@@ -208,6 +211,7 @@ declare -A GREP_FOR=(
   [phone-action-bar-under-tabbar]="action bar stays clear of the tab bar"
   [phone-tabbar-removed]="the tab bar is the navigation at this width"
   [phone-table-overflow-unclipped]="no walked screen overflows"
+  [phone-action-label-wrapped]="no action control is taller than it is wide"
 )
 
 # Mutants whose RED is known not to prove the guarantee they name. See the header.
@@ -252,6 +256,15 @@ declare -A FALSE_KILLS=(
 # all four is what keeps `expect.soft` there honest. /daily-entry and /stock are
 # deliberately absent: neither renders a wide data table, and both stayed at
 # exactly 390 under the mutant.
+#
+# `phone-action-label-wrapped` declares ONE line where that walk declares four,
+# and the difference is not laziness. The route walk's softness is its claim —
+# a regression hits some screens and not others, so requiring every route keeps
+# it honest. The two save buttons share a single flex track, so whatever
+# reshapes one reshapes the other; there is no per-control claim to pin. The
+# declared fragment carries no measurements on purpose: the observed line names
+# 170.6x217.2, and pinning that would turn a font-metric shift into a WRONG
+# ASSERTION against a mutant that worked.
 declare -A EXPECT_MSG_FOR=(
   [audit-gate-removed]="/audit rendered no error for a ReadOnly user"
   [users-gate-removed]="/users rendered no error for a ReadOnly user"
@@ -283,6 +296,7 @@ SIDE 2 — role=alert no longer carries implicit assertive politeness"
   [a11y-probe-off-role-dropped]="SIDE 3 — the off probe stopped resolving to alert"
   [phone-action-bar-under-tabbar]="the daily-entry action bar overlaps the tab bar — its Submit and Save buttons are under it"
   [phone-tabbar-removed]="there is no tab bar at phone width, so nothing can be navigated to"
+  [phone-action-label-wrapped]="at phone width — taller than it is wide, so its pill clamps into an ellipse and the label leaves its background"
   [phone-table-overflow-unclipped]="/sales scrolls sideways at phone width
 /customers scrolls sideways at phone width
 /flocks scrolls sideways at phone width
@@ -303,7 +317,7 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            a11y-probe-alert-control-broken a11y-probe-alert-control-silenced
            a11y-probe-off-role-dropped
            phone-action-bar-under-tabbar phone-tabbar-removed
-           phone-table-overflow-unclipped)
+           phone-table-overflow-unclipped phone-action-label-wrapped)
 fi
 
 rule() { printf '\n%s\n' "────────────────────────────────────────────────────────────────────────"; }
