@@ -920,12 +920,19 @@ export const MUTANTS: Record<string, Mutant> = {
       // in this slot) rather than the effect. That is the faithfulness the
       // a11y mutants above have to settle for and this one does not.
       //
-      // Measured at 390: the two buttons go from 170.6 x 65.2 (ratio 2.62) to
-      // 170.6 x 198.2 (ratio 0.86). The SAME mutant at 1280 leaves them at
-      // 12.46 and 3.38 — the row is ~974px there, so a longer label grows
-      // SIDEWAYS and never approaches its own height. The asymmetry is the
-      // flex track's width, which is a property of the layout rather than of
-      // which tests happen to look.
+      // The measured geometry lives with the ASSERTION, in
+      // specs/phone.spec.ts, and deliberately not here as well. It was in both
+      // places for one commit and the two promptly disagreed — this copy kept
+      // the numbers from an earlier draft of the mutant that rewrote
+      // `textContent`, while the spec carried the shipped one's. One
+      // measurement, one home.
+      //
+      // What belongs here is the mechanism: the asymmetry is the flex track's
+      // width. At 390 the two buttons share ~353px, so a longer label wraps
+      // downwards; at 1280 the row is ~974px, so it grows sideways instead and
+      // never approaches its own height. That is a property of the layout
+      // rather than of which tests happen to look, and `MUST_STAY_GREEN_ON`
+      // checks it by running the whole desktop suite under this mutant.
       await page.addInitScript((extra: string) => {
         const MARK = "data-mutant-label-tail";
 
