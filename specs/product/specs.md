@@ -1433,6 +1433,7 @@ sales_order_items
 - sales_order_id
 - product_id
 - product_type_snapshot
+- egg_grade_id              (required, FK to egg_grades; present on every line, not only egg products)
 - quantity
 - unit
 - base_unit_factor          (eggs-per-unit snapshot at line creation; see §9.7)
@@ -1440,10 +1441,13 @@ sales_order_items
 - unit_price_cents
 - list_unit_price_cents      (nullable; product's list price snapshotted at line creation, see #720)
 - list_price_basis           (non-nullable; why list_unit_price_cents is null when it is, see #720)
-- line_total_cents
 - created_at
 - updated_at
 ```
+
+The line total is **computed, not stored** — there is no `line_total_cents` column. `LineTotal` is a
+calculated property on the entity and is explicitly ignored by EF Core
+(`SalesOrderConfiguration.cs`), so it is derived from `quantity` and `unit_price_cents` on read.
 
 `quantity_base` stores the normalized quantity:
 
