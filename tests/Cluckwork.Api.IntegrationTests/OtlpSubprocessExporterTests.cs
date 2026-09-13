@@ -249,8 +249,12 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
         await using var child = await ServingSubprocess.StartReadyAsync(
             PortSource, BuildStartInfo(_database.ConnectionString, psi => psi.Environment["Otlp__Endpoint"] = ""), ReadyTimeout);
 
-        Assert.Equal(2, portsHandedOut.Count);
-        Assert.Equal(portsHandedOut[1], child.BaseUrl.Port);
+        // The invariant is "it recovered onto a port it was handed later", NOT "it took
+        // exactly two attempts". Pinning the count to 2 would make this test fail whenever
+        // the SECOND port was also taken in the gap — which is the very race this harness
+        // exists to survive, so the guard against a flake would itself have been flaky.
+        Assert.True(portsHandedOut.Count > 1, "the first port was held, so one attempt cannot have succeeded");
+        Assert.Equal(portsHandedOut[^1], child.BaseUrl.Port);
         Assert.NotEqual(heldPort, child.BaseUrl.Port);
     }
 

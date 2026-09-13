@@ -93,27 +93,38 @@ It does not make `fail-fast` free of judgement: a cancelled leg reports as
 cancelled, not failed, so read the leg that went red rather than the first
 cancellation you see.
 
-## How it is enforced
+## How it is enforced, and what is NOT enforced
 
-One `dotnet test Cluckwork.sln` could not leave a project unrun. A matrix **can**,
-and it fails silently — a new test project simply never executes while every
-check stays green. `SolutionTestProjectSplitTests` closes that:
+One `dotnet test Cluckwork.sln` could not leave a project unrun. A matrix **can**, and it
+fails silently — a new test project simply never executes while every check stays green.
 
-- `EveryTestProjectInTheSolution_IsNamedByTheWorkflow` walks `Cluckwork.sln` for
-  every project under `tests/` and fails unless `ci.yml` names it outside a
-  comment. It walks the solution rather than a remembered list, per AGENTS.md's
-  guard rules.
-- `EveryProjectTheWorkflowNames_Exists` catches the reverse, a leg pointing at a
-  path that is not there.
-- `TheTestMatrix_KeepsFailFastOn` fails on `fail-fast: false`.
+`SolutionTestProjectSplitTests` is a **tripwire on the solution's inventory** and nothing
+more. It asserts that the set of test projects in `Cluckwork.sln` is the set someone last
+reconciled with the matrix. Adding or removing a project fails it, which forces the author
+to go and add or remove the matching leg.
 
-All three were proven red before they were claimed. Dropping the integration leg
-reddens the first by name; `fail-fast: false` reddens the third; renaming a leg's
-project to one that does not exist reddens the first and second together.
+**It deliberately does not read `ci.yml`.** The first version did, scraping the workflow
+text for project paths, and an adversarial review proved it wrong in both directions
+against the real file. Three separate edits left it **green while a leg stopped running**:
+an `if:` on the Test step, deleting a leg while an inline comment still named it, and
+`continue-on-error: true` on the job. And omitting `fail-fast` turned it **red although
+nothing was broken**, because GitHub defaults that setting to true. Each was confirmed by
+running the mutation against the guard, not argued.
 
-Two traps the guard hit while being written, both worth keeping in mind for the
-next file-walking guard here. It first read `dotnet test Cluckwork.sln` out of the
-**prose comment** above the job and counted every project as covered — a vacuous
-pass, which is why comment lines are stripped before matching. And its path
-pattern required a literal `.Tests`, which silently excluded
-`Cluckwork.Api.IntegrationTests`; the projects do not agree on that shape.
+The lesson is the general one: **"mentioned in the file" is not "scheduled by GitHub"**,
+and that is not a boundary a regex over YAML can hold. Doing it properly means parsing the
+workflow, resolving `jobs.tests.strategy.matrix.include` to real project identities, and
+checking the step that consumes them is unconditional — which needs a YAML parser this
+solution does not have. AGENTS.md is explicit that a wrong guard is worse than none because
+it reads as safety, so the broken one was deleted rather than patched a third time.
+
+So these remain **unguarded**, and a reviewer has to catch them by reading:
+
+- an `if:` on the Test step, or on the `tests` job, that skips a leg;
+- `continue-on-error: true` on the job, which lets a failed leg stop cancelling its peers
+  and stop blocking `publish`;
+- `fail-fast: false`, which gives the cancellation saving back in one word;
+- a leg whose `project:` points somewhere that does not exist, which fails loudly in CI
+  rather than silently, and so needs no guard.
+
+A properly parsed replacement is worth having and is a separate piece of work.

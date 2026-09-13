@@ -38,7 +38,7 @@ jobs:
   # not outside it.
   #
   # THE HAZARD THIS IS SHAPED AROUND. `publish` declares
-  # `needs: [build-and-test, web, image]`, and a job whose `needs` dependency was
+  # `needs: [tests, build-and-test, web, image]`, and a job whose `needs` dependency was
   # skipped is skipped too. A push to `main` that skipped `image` would therefore
   # publish no `ghcr.io/<owner>/<repo>:sha-<commit>` for that commit, and per #351
   # a release drafted there can never be promoted — it stays a draft with no git
