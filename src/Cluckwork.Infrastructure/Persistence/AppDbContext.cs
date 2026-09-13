@@ -60,6 +60,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
         builder.ConfigureIdempotency();
         builder.ConfigureSimulationSeedState();
         builder.ConfigureDurableJobs();
+        BusinessRecordModel.Apply(builder);
 
         // Global query filters enforce tenant isolation on every read (tech spec §4.2).
         // A missing WHERE can never leak cross-tenant data.

@@ -7,11 +7,13 @@ using Cluckwork.Domain.Common;
 // depending on the market. Each account carries one row per unit code; part 2
 // resolves eggs-per-unit here at line creation and snapshots it on the sold
 // line, so a later redefinition never reinterprets existing orders.
-public sealed class EggUnitConversion : AggregateRoot<Guid>
+public sealed class EggUnitConversion : AggregateRoot<Guid>, IMutableRecord
 {
     public EggUnit UnitCode { get; private set; }
     public int EggsPerUnit { get; private set; }
     public bool Active { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private EggUnitConversion() { }

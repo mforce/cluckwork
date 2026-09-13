@@ -17,6 +17,8 @@
 | AccountId | uuid |  | false |  |  |  |
 | DiscountReasonCode | varchar(32) |  | true |  |  |  |
 | DiscountReasonNote | varchar(500) |  | true |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 | Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
@@ -30,6 +32,7 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | SalesOrders_AccountId_not_null | n | NOT NULL "AccountId" |
+| SalesOrders_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | SalesOrders_CustomerId_not_null | n | NOT NULL "CustomerId" |
 | SalesOrders_Id_not_null | n | NOT NULL "Id" |
 | SalesOrders_OrderDate_not_null | n | NOT NULL "OrderDate" |
@@ -39,6 +42,7 @@
 | SalesOrders_TotalCurrencyCode_not_null | n | NOT NULL "TotalCurrencyCode" |
 | SalesOrders_TotalCurrencyMinorUnit_not_null | n | NOT NULL "TotalCurrencyMinorUnit" |
 | SalesOrders_TotalMinorUnits_not_null | n | NOT NULL "TotalMinorUnits" |
+| SalesOrders_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | SalesOrders_Version_not_null | n | NOT NULL "Version" |
 | FK_SalesOrders_Customers_CustomerId | FOREIGN KEY | FOREIGN KEY ("CustomerId") REFERENCES "Customers"("Id") ON DELETE RESTRICT |
 | PK_SalesOrders | PRIMARY KEY | PRIMARY KEY ("Id") |
@@ -50,6 +54,13 @@
 | PK_SalesOrders | CREATE UNIQUE INDEX "PK_SalesOrders" ON public."SalesOrders" USING btree ("Id") |
 | IX_SalesOrders_AccountId_ReferenceNumber | CREATE UNIQUE INDEX "IX_SalesOrders_AccountId_ReferenceNumber" ON public."SalesOrders" USING btree ("AccountId", "ReferenceNumber") |
 | IX_SalesOrders_CustomerId | CREATE INDEX "IX_SalesOrders_CustomerId" ON public."SalesOrders" USING btree ("CustomerId") |
+| IX_SalesOrders_Sequence | CREATE UNIQUE INDEX "IX_SalesOrders_Sequence" ON public."SalesOrders" USING btree ("Sequence") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_SalesOrders_BusinessRecordTimestamps | CREATE TRIGGER "TR_SalesOrders_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."SalesOrders" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -75,6 +86,8 @@ erDiagram
   uuid AccountId
   varchar_32_ DiscountReasonCode
   varchar_500_ DiscountReasonNote
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 "public.Payments" {
@@ -92,6 +105,9 @@ erDiagram
   varchar_500_ VoidReason
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.SalesOrderItems" {
   uuid Id
@@ -109,6 +125,8 @@ erDiagram
   uuid AccountId
   bigint ListUnitPriceMinorUnits
   varchar_16_ ListPriceBasis
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.SalesOrderAllocations" {
   uuid Id
@@ -118,6 +136,8 @@ erDiagram
   integer Quantity
   timestamp_with_time_zone ReleasedOnUtc
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.Customers" {
   uuid Id
@@ -128,6 +148,8 @@ erDiagram
   varchar_1000_ Note
   uuid AccountId
   integer Version
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

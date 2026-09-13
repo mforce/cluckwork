@@ -113,7 +113,7 @@ public sealed class VoidSaleHandler(
                 // Void movement, same transaction as the restore.
                 await eggMovements.AddAsync(EggInventoryMovement.Create(
                     Guid.NewGuid(), accountId, lot.Id, EggMovementType.Void,
-                    perLot[lot.Id], nameof(SalesOrder), order.Id, clock.UtcNow,
+                    perLot[lot.Id], nameof(SalesOrder), order.Id,
                     reason: command.Reason), transactionCt);
             }
 

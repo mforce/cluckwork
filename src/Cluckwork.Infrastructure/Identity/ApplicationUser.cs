@@ -1,12 +1,15 @@
 namespace Cluckwork.Infrastructure.Identity;
 
 using Cluckwork.Domain.Catalog;
+using Cluckwork.Domain.Common;
 using Microsoft.AspNetCore.Identity;
 
-public sealed class ApplicationUser : IdentityUser<Guid>
+public sealed class ApplicationUser : IdentityUser<Guid>, IMutableRecord
 {
     public Guid AccountId { get; set; }
     public string? DisplayName { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     // #45 — the user's UI-language preference, a nullable BCP-47 primary subtag
     // (lowercased). NOT a locale: regional/number/date formatting stays a

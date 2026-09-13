@@ -15,6 +15,8 @@
 | Active | boolean |  | false |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -29,10 +31,12 @@
 | InventoryItems_AccountId_not_null | n | NOT NULL "AccountId" |
 | InventoryItems_Active_not_null | n | NOT NULL "Active" |
 | InventoryItems_Category_not_null | n | NOT NULL "Category" |
+| InventoryItems_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | InventoryItems_FarmId_not_null | n | NOT NULL "FarmId" |
 | InventoryItems_Id_not_null | n | NOT NULL "Id" |
 | InventoryItems_Name_not_null | n | NOT NULL "Name" |
 | InventoryItems_Unit_not_null | n | NOT NULL "Unit" |
+| InventoryItems_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | InventoryItems_Version_not_null | n | NOT NULL "Version" |
 | PK_InventoryItems | PRIMARY KEY | PRIMARY KEY ("Id") |
 
@@ -43,6 +47,12 @@
 | PK_InventoryItems | CREATE UNIQUE INDEX "PK_InventoryItems" ON public."InventoryItems" USING btree ("Id") |
 | IX_InventoryItems_AccountId_FarmId | CREATE INDEX "IX_InventoryItems_AccountId_FarmId" ON public."InventoryItems" USING btree ("AccountId", "FarmId") |
 | UX_InventoryItems_Account_Farm_LowerName | CREATE UNIQUE INDEX "UX_InventoryItems_Account_Farm_LowerName" ON public."InventoryItems" USING btree ("AccountId", "FarmId", lower(("Name")::text)) |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_InventoryItems_BusinessRecordTimestamps | CREATE TRIGGER "TR_InventoryItems_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."InventoryItems" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -65,6 +75,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.FeedUsages" {
   uuid Id
@@ -81,6 +93,7 @@ erDiagram
   timestamp_with_time_zone CreatedAtUtc
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.InventoryLots" {
   uuid Id
@@ -95,6 +108,9 @@ erDiagram
   integer UnitCostCurrencyMinorUnit
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.InventoryMovements" {
   uuid Id
@@ -110,6 +126,7 @@ erDiagram
   varchar_50_ ReferenceType
   uuid ReferenceId
   uuid AccountId
+  bigint Sequence
 }
 ```
 

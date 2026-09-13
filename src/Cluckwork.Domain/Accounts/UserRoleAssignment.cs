@@ -6,12 +6,13 @@ namespace Cluckwork.Domain.Accounts;
 // become real (spec defers them). A worker with NO assignment rows keeps
 // account-wide production access (grandfathering #73 workers); adding the
 // first row narrows them to the assigned flocks.
-public sealed class UserRoleAssignment : AggregateRoot<Guid>
+public sealed class UserRoleAssignment : AggregateRoot<Guid>, ICreatedRecord
 {
     public Guid UserId { get; private set; }
     public Guid? FarmId { get; private set; }
     public Guid? HouseId { get; private set; }
     public Guid? FlockId { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
 
     private UserRoleAssignment() { }
 

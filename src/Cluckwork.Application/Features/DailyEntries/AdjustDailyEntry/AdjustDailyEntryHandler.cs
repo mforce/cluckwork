@@ -24,7 +24,6 @@ public sealed class AdjustDailyEntryHandler(
     IBirdMovementRepository birdMovements,
     IFlockRepository flocks,
     IEggInventoryMovementRepository eggMovements,
-    IClock clock,
     IUnitOfWork unitOfWork,
     IAuditWriter audit,
     ILogger<AdjustDailyEntryHandler> logger)
@@ -183,7 +182,7 @@ public sealed class AdjustDailyEntryHandler(
                     if (availableDelta != 0)
                         await eggMovements.AddAsync(EggInventoryMovement.Create(
                             Guid.NewGuid(), accountId, lots[i].Id, EggMovementType.Adjustment,
-                            availableDelta, nameof(DailyEntry), entry.Id, clock.UtcNow,
+                            availableDelta, nameof(DailyEntry), entry.Id,
                             reason: command.Reason), transactionCt);
                 }
             }
@@ -210,7 +209,7 @@ public sealed class AdjustDailyEntryHandler(
                 if (quantity > 0)
                     await eggMovements.AddAsync(EggInventoryMovement.Create(
                         Guid.NewGuid(), accountId, newLot.Id, EggMovementType.Adjustment,
-                        quantity, nameof(DailyEntry), entry.Id, clock.UtcNow,
+                        quantity, nameof(DailyEntry), entry.Id,
                         reason: command.Reason), transactionCt);
             }
 

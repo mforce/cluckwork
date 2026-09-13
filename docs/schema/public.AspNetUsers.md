@@ -28,6 +28,8 @@
 | DisabledBy | uuid |  | true |  |  |  |
 | PreferredStepperUnit | varchar(16) |  | true |  |  |  |
 | StepUpLogoutEpoch | integer | 0 | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -41,6 +43,7 @@
 | ---- | ---- | ---------- |
 | AspNetUsers_AccessFailedCount_not_null | n | NOT NULL "AccessFailedCount" |
 | AspNetUsers_AccountId_not_null | n | NOT NULL "AccountId" |
+| AspNetUsers_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | AspNetUsers_CredentialEpoch_not_null | n | NOT NULL "CredentialEpoch" |
 | AspNetUsers_EmailConfirmed_not_null | n | NOT NULL "EmailConfirmed" |
 | AspNetUsers_Email_not_null | n | NOT NULL "Email" |
@@ -52,6 +55,7 @@
 | AspNetUsers_PhoneNumberConfirmed_not_null | n | NOT NULL "PhoneNumberConfirmed" |
 | AspNetUsers_StepUpLogoutEpoch_not_null | n | NOT NULL "StepUpLogoutEpoch" |
 | AspNetUsers_TwoFactorEnabled_not_null | n | NOT NULL "TwoFactorEnabled" |
+| AspNetUsers_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | AspNetUsers_UserName_not_null | n | NOT NULL "UserName" |
 | FK_AspNetUsers_Accounts_AccountId | FOREIGN KEY | FOREIGN KEY ("AccountId") REFERENCES "Accounts"("Id") ON DELETE RESTRICT |
 | PK_AspNetUsers | PRIMARY KEY | PRIMARY KEY ("Id") |
@@ -65,6 +69,12 @@
 | EmailIndex | CREATE UNIQUE INDEX "EmailIndex" ON public."AspNetUsers" USING btree ("AccountId", "NormalizedEmail") |
 | UserNameIndex | CREATE UNIQUE INDEX "UserNameIndex" ON public."AspNetUsers" USING btree ("AccountId", "NormalizedUserName") |
 | AK_AspNetUsers_Id_AccountId | CREATE UNIQUE INDEX "AK_AspNetUsers_Id_AccountId" ON public."AspNetUsers" USING btree ("Id", "AccountId") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_AspNetUsers_BusinessRecordTimestamps | CREATE TRIGGER "TR_AspNetUsers_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."AspNetUsers" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -103,6 +113,8 @@ erDiagram
   uuid DisabledBy
   varchar_16_ PreferredStepperUnit
   integer StepUpLogoutEpoch
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.AspNetUserClaims" {
   integer Id
@@ -147,6 +159,8 @@ erDiagram
   varchar_32_ Slug
   varchar_24_ WorkerSaleAllocationPolicy
   integer MaxDiscountBasisPoints
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

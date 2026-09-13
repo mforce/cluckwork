@@ -12,6 +12,7 @@
 | Note | varchar(500) |  | true |  |  |  |
 | DailyEntryId | uuid |  | true |  | [public.DailyEntries](public.DailyEntries.md) |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
 | Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
@@ -25,6 +26,7 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | BirdMovements_AccountId_not_null | n | NOT NULL "AccountId" |
+| BirdMovements_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | BirdMovements_Date_not_null | n | NOT NULL "Date" |
 | BirdMovements_FlockId_not_null | n | NOT NULL "FlockId" |
 | BirdMovements_Id_not_null | n | NOT NULL "Id" |
@@ -43,6 +45,13 @@
 | IX_BirdMovements_AccountId_FlockId_Date | CREATE INDEX "IX_BirdMovements_AccountId_FlockId_Date" ON public."BirdMovements" USING btree ("AccountId", "FlockId", "Date") |
 | IX_BirdMovements_DailyEntryId | CREATE INDEX "IX_BirdMovements_DailyEntryId" ON public."BirdMovements" USING btree ("DailyEntryId") |
 | IX_BirdMovements_FlockId | CREATE INDEX "IX_BirdMovements_FlockId" ON public."BirdMovements" USING btree ("FlockId") |
+| IX_BirdMovements_Sequence | CREATE UNIQUE INDEX "IX_BirdMovements_Sequence" ON public."BirdMovements" USING btree ("Sequence") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_BirdMovements_BusinessRecordTimestamps | CREATE TRIGGER "TR_BirdMovements_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."BirdMovements" FOR EACH ROW EXECUTE FUNCTION "StampCreatedBusinessRecord"() |
 
 ## Relations
 
@@ -61,6 +70,7 @@ erDiagram
   varchar_500_ Note
   uuid DailyEntryId FK
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
   bigint Sequence
 }
 "public.Flocks" {
@@ -76,6 +86,8 @@ erDiagram
   date ArchivedOn
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.DailyEntries" {
   uuid Id
@@ -97,6 +109,8 @@ erDiagram
   timestamp_with_time_zone LockedAtUtc
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 ```

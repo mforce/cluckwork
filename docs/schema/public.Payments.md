@@ -18,6 +18,9 @@
 | VoidReason | varchar(500) |  | true |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -31,6 +34,7 @@
 | ---- | ---- | ---------- |
 | Payments_AccountId_not_null | n | NOT NULL "AccountId" |
 | Payments_AmountMinorUnits_not_null | n | NOT NULL "AmountMinorUnits" |
+| Payments_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | Payments_CurrencyCode_not_null | n | NOT NULL "CurrencyCode" |
 | Payments_CurrencyMinorUnit_not_null | n | NOT NULL "CurrencyMinorUnit" |
 | Payments_CustomerId_not_null | n | NOT NULL "CustomerId" |
@@ -38,6 +42,8 @@
 | Payments_Method_not_null | n | NOT NULL "Method" |
 | Payments_PaymentDate_not_null | n | NOT NULL "PaymentDate" |
 | Payments_SalesOrderId_not_null | n | NOT NULL "SalesOrderId" |
+| Payments_Sequence_not_null | n | NOT NULL "Sequence" |
+| Payments_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | Payments_Version_not_null | n | NOT NULL "Version" |
 | Payments_Voided_not_null | n | NOT NULL "Voided" |
 | FK_Payments_Customers_CustomerId | FOREIGN KEY | FOREIGN KEY ("CustomerId") REFERENCES "Customers"("Id") ON DELETE RESTRICT |
@@ -53,6 +59,13 @@
 | IX_Payments_AccountId_SalesOrderId | CREATE INDEX "IX_Payments_AccountId_SalesOrderId" ON public."Payments" USING btree ("AccountId", "SalesOrderId") |
 | IX_Payments_CustomerId | CREATE INDEX "IX_Payments_CustomerId" ON public."Payments" USING btree ("CustomerId") |
 | IX_Payments_SalesOrderId | CREATE INDEX "IX_Payments_SalesOrderId" ON public."Payments" USING btree ("SalesOrderId") |
+| IX_Payments_Sequence | CREATE UNIQUE INDEX "IX_Payments_Sequence" ON public."Payments" USING btree ("Sequence") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_Payments_BusinessRecordTimestamps | CREATE TRIGGER "TR_Payments_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."Payments" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -77,6 +90,9 @@ erDiagram
   varchar_500_ VoidReason
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.SalesOrders" {
   uuid Id
@@ -92,6 +108,8 @@ erDiagram
   uuid AccountId
   varchar_32_ DiscountReasonCode
   varchar_500_ DiscountReasonNote
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 "public.Customers" {
@@ -103,6 +121,8 @@ erDiagram
   varchar_1000_ Note
   uuid AccountId
   integer Version
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

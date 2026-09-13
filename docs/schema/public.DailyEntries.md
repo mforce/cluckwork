@@ -23,6 +23,8 @@
 | LockedAtUtc | timestamp with time zone |  | true |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 | Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
@@ -37,6 +39,7 @@
 | ---- | ---- | ---------- |
 | DailyEntries_AccountId_not_null | n | NOT NULL "AccountId" |
 | DailyEntries_CrackedEggs_not_null | n | NOT NULL "CrackedEggs" |
+| DailyEntries_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | DailyEntries_Date_not_null | n | NOT NULL "Date" |
 | DailyEntries_DirtyEggs_not_null | n | NOT NULL "DirtyEggs" |
 | DailyEntries_DiscardedEggs_not_null | n | NOT NULL "DiscardedEggs" |
@@ -48,6 +51,7 @@
 | DailyEntries_Sequence_not_null | n | NOT NULL "Sequence" |
 | DailyEntries_Status_not_null | n | NOT NULL "Status" |
 | DailyEntries_TotalEggs_not_null | n | NOT NULL "TotalEggs" |
+| DailyEntries_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | DailyEntries_Version_not_null | n | NOT NULL "Version" |
 | PK_DailyEntries | PRIMARY KEY | PRIMARY KEY ("Id") |
 
@@ -57,6 +61,13 @@
 | ---- | ---------- |
 | PK_DailyEntries | CREATE UNIQUE INDEX "PK_DailyEntries" ON public."DailyEntries" USING btree ("Id") |
 | IX_DailyEntries_NaturalKey | CREATE UNIQUE INDEX "IX_DailyEntries_NaturalKey" ON public."DailyEntries" USING btree ("AccountId", "FarmId", "HouseId", "FlockId", "Date") WHERE (("Status")::text <> 'Voided'::text) |
+| IX_DailyEntries_Sequence | CREATE UNIQUE INDEX "IX_DailyEntries_Sequence" ON public."DailyEntries" USING btree ("Sequence") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_DailyEntries_BusinessRecordTimestamps | CREATE TRIGGER "TR_DailyEntries_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."DailyEntries" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -88,6 +99,8 @@ erDiagram
   timestamp_with_time_zone LockedAtUtc
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 "public.DailyEntryGrades" {
@@ -96,6 +109,8 @@ erDiagram
   uuid EggGradeId FK
   integer Quantity
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.BirdMovements" {
   uuid Id
@@ -106,6 +121,7 @@ erDiagram
   varchar_500_ Note
   uuid DailyEntryId FK
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
   bigint Sequence
 }
 "public.WaterUsages" {
@@ -122,6 +138,8 @@ erDiagram
   timestamp_with_time_zone CreatedAtUtc
   integer Version
   uuid AccountId
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.FeedUsages" {
   uuid Id
@@ -138,6 +156,7 @@ erDiagram
   timestamp_with_time_zone CreatedAtUtc
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 ```
 

@@ -12,6 +12,8 @@
 | Note | varchar(1000) |  | true |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
 | Version | integer | 0 | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -24,9 +26,11 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | Customers_AccountId_not_null | n | NOT NULL "AccountId" |
+| Customers_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | Customers_Id_not_null | n | NOT NULL "Id" |
 | Customers_Name_not_null | n | NOT NULL "Name" |
 | Customers_Phone_not_null | n | NOT NULL "Phone" |
+| Customers_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | Customers_Version_not_null | n | NOT NULL "Version" |
 | PK_Customers | PRIMARY KEY | PRIMARY KEY ("Id") |
 
@@ -36,6 +40,12 @@
 | ---- | ---------- |
 | PK_Customers | CREATE UNIQUE INDEX "PK_Customers" ON public."Customers" USING btree ("Id") |
 | IX_Customers_AccountId_Name | CREATE INDEX "IX_Customers_AccountId_Name" ON public."Customers" USING btree ("AccountId", "Name") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_Customers_BusinessRecordTimestamps | CREATE TRIGGER "TR_Customers_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."Customers" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -54,6 +64,8 @@ erDiagram
   varchar_1000_ Note
   uuid AccountId
   integer Version
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.SalesOrders" {
   uuid Id
@@ -69,6 +81,8 @@ erDiagram
   uuid AccountId
   varchar_32_ DiscountReasonCode
   varchar_500_ DiscountReasonNote
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 "public.Payments" {
@@ -86,6 +100,9 @@ erDiagram
   varchar_500_ VoidReason
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 ```
 

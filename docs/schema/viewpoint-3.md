@@ -9,9 +9,9 @@ ASP.NET Identity, refresh tokens, per-flock role assignments.
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
 | [public.AspNetRoles](public.AspNetRoles.md) | 4 |  | BASE TABLE |
-| [public.AspNetUsers](public.AspNetUsers.md) | 24 |  | BASE TABLE |
+| [public.AspNetUsers](public.AspNetUsers.md) | 26 |  | BASE TABLE |
 | [public.refresh_tokens](public.refresh_tokens.md) | 11 |  | BASE TABLE |
-| [public.UserRoleAssignments](public.UserRoleAssignments.md) | 6 |  | BASE TABLE |
+| [public.UserRoleAssignments](public.UserRoleAssignments.md) | 7 |  | BASE TABLE |
 | [public.AspNetRoleClaims](public.AspNetRoleClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserClaims](public.AspNetUserClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserLogins](public.AspNetUserLogins.md) | 4 |  | BASE TABLE |
@@ -62,6 +62,8 @@ erDiagram
   uuid DisabledBy
   varchar_16_ PreferredStepperUnit
   integer StepUpLogoutEpoch
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.refresh_tokens" {
   uuid Id
@@ -83,6 +85,7 @@ erDiagram
   uuid HouseId
   uuid FlockId
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
 }
 "public.AspNetRoleClaims" {
   integer Id

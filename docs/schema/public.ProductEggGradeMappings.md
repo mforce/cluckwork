@@ -8,6 +8,8 @@
 | ProductId | uuid |  | false |  | [public.Products](public.Products.md) |  |
 | EggGradeId | uuid |  | false |  | [public.EggGrades](public.EggGrades.md) |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -20,9 +22,11 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | ProductEggGradeMappings_AccountId_not_null | n | NOT NULL "AccountId" |
+| ProductEggGradeMappings_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | ProductEggGradeMappings_EggGradeId_not_null | n | NOT NULL "EggGradeId" |
 | ProductEggGradeMappings_Id_not_null | n | NOT NULL "Id" |
 | ProductEggGradeMappings_ProductId_not_null | n | NOT NULL "ProductId" |
+| ProductEggGradeMappings_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | FK_ProductEggGradeMappings_EggGrades_EggGradeId | FOREIGN KEY | FOREIGN KEY ("EggGradeId") REFERENCES "EggGrades"("Id") ON DELETE RESTRICT |
 | FK_ProductEggGradeMappings_Products_ProductId | FOREIGN KEY | FOREIGN KEY ("ProductId") REFERENCES "Products"("Id") ON DELETE CASCADE |
 | PK_ProductEggGradeMappings | PRIMARY KEY | PRIMARY KEY ("Id") |
@@ -34,6 +38,12 @@
 | PK_ProductEggGradeMappings | CREATE UNIQUE INDEX "PK_ProductEggGradeMappings" ON public."ProductEggGradeMappings" USING btree ("Id") |
 | IX_ProductEggGradeMappings_EggGradeId | CREATE INDEX "IX_ProductEggGradeMappings_EggGradeId" ON public."ProductEggGradeMappings" USING btree ("EggGradeId") |
 | IX_ProductEggGradeMappings_ProductId | CREATE UNIQUE INDEX "IX_ProductEggGradeMappings_ProductId" ON public."ProductEggGradeMappings" USING btree ("ProductId") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_ProductEggGradeMappings_BusinessRecordTimestamps | CREATE TRIGGER "TR_ProductEggGradeMappings_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."ProductEggGradeMappings" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -48,6 +58,8 @@ erDiagram
   uuid ProductId FK
   uuid EggGradeId FK
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.Products" {
   uuid Id
@@ -62,6 +74,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.EggGrades" {
   uuid Id
@@ -74,6 +88,8 @@ erDiagram
   varchar_16_ DailyEntryKind
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

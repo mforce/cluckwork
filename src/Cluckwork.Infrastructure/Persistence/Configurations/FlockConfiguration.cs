@@ -38,11 +38,6 @@ public sealed class BirdMovementConfiguration : IEntityTypeConfiguration<BirdMov
             .IsRequired();
         builder.Property(e => e.Note).HasMaxLength(BirdMovement.MaxNoteLength);
 
-        // #819 — database-assigned insertion order for same-day list rows.
-        builder.Property<long>("Sequence")
-            .ValueGeneratedOnAdd()
-            .UseIdentityAlwaysColumn();
-
         builder.HasOne<Flock>()
             .WithMany()
             .HasForeignKey(e => e.FlockId)

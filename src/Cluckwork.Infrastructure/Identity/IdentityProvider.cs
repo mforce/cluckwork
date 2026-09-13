@@ -724,13 +724,17 @@ public sealed class IdentityProvider(
                 user.SecurityStamp,
                 user.ConcurrencyStamp,
                 user.CredentialEpoch,
+                user.CreatedAtUtc,
+                user.UpdatedAtUtc,
                 entry.Property(candidate => candidate.Email).OriginalValue,
                 entry.Property(candidate => candidate.NormalizedEmail).OriginalValue,
                 entry.Property(candidate => candidate.UserName).OriginalValue,
                 entry.Property(candidate => candidate.NormalizedUserName).OriginalValue,
                 entry.Property(candidate => candidate.SecurityStamp).OriginalValue,
                 entry.Property(candidate => candidate.ConcurrencyStamp).OriginalValue,
-                entry.Property(candidate => candidate.CredentialEpoch).OriginalValue);
+                entry.Property(candidate => candidate.CredentialEpoch).OriginalValue,
+                entry.Property(candidate => candidate.CreatedAtUtc).OriginalValue,
+                entry.Property(candidate => candidate.UpdatedAtUtc).OriginalValue);
             var priorAudits = db.ChangeTracker.Entries<Cluckwork.Domain.Auditing.AuditEvent>()
                 .Select(auditEntry => auditEntry.Entity)
                 .ToHashSet(ReferenceEqualityComparer.Instance);
@@ -754,6 +758,8 @@ public sealed class IdentityProvider(
                 user.SecurityStamp = priorValues.SecurityStamp;
                 user.ConcurrencyStamp = priorValues.ConcurrencyStamp;
                 user.CredentialEpoch = priorValues.CredentialEpoch;
+                entry.Property(candidate => candidate.CreatedAtUtc).CurrentValue = priorValues.CreatedAtUtc;
+                entry.Property(candidate => candidate.UpdatedAtUtc).CurrentValue = priorValues.UpdatedAtUtc;
 
                 entry.Property(candidate => candidate.Email).OriginalValue = priorValues.OriginalEmail;
                 entry.Property(candidate => candidate.NormalizedEmail).OriginalValue = priorValues.OriginalNormalizedEmail;
@@ -762,6 +768,8 @@ public sealed class IdentityProvider(
                 entry.Property(candidate => candidate.SecurityStamp).OriginalValue = priorValues.OriginalSecurityStamp;
                 entry.Property(candidate => candidate.ConcurrencyStamp).OriginalValue = priorValues.OriginalConcurrencyStamp;
                 entry.Property(candidate => candidate.CredentialEpoch).OriginalValue = priorValues.OriginalCredentialEpoch;
+                entry.Property(candidate => candidate.CreatedAtUtc).OriginalValue = priorValues.OriginalCreatedAtUtc;
+                entry.Property(candidate => candidate.UpdatedAtUtc).OriginalValue = priorValues.OriginalUpdatedAtUtc;
                 foreach (var property in entry.Properties)
                     property.IsModified = priorModified[property.Metadata.Name];
 
@@ -886,13 +894,17 @@ public sealed class IdentityProvider(
         string? SecurityStamp,
         string? ConcurrencyStamp,
         int CredentialEpoch,
+        DateTimeOffset CreatedAtUtc,
+        DateTimeOffset UpdatedAtUtc,
         string? OriginalEmail,
         string? OriginalNormalizedEmail,
         string? OriginalUserName,
         string? OriginalNormalizedUserName,
         string? OriginalSecurityStamp,
         string? OriginalConcurrencyStamp,
-        int OriginalCredentialEpoch);
+        int OriginalCredentialEpoch,
+        DateTimeOffset OriginalCreatedAtUtc,
+        DateTimeOffset OriginalUpdatedAtUtc);
 
     private sealed record TrackedEntrySnapshot(
         EntityEntry Entry,

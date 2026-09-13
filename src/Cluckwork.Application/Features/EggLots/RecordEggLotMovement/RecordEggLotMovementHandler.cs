@@ -15,7 +15,6 @@ public sealed class RecordEggLotMovementHandler(
     IEggLotRepository lots,
     IEggInventoryMovementRepository movements,
     IUnitOfWork unitOfWork,
-    IClock clock,
     IAuditWriter audit,
     ILogger<RecordEggLotMovementHandler> logger)
 {
@@ -31,7 +30,7 @@ public sealed class RecordEggLotMovementHandler(
                 "EggLotMovement.MovementType.Allowed",
                 "Type must be 'Discard', 'InternalUse' or 'Reconciliation'.")).LogFailure(logger, "RecordEggLotMovement");
 
-        Result<RecordEggLotMovementResult>? outcome = null;
+        Result<(EggInventoryMovement Movement, EggLot Lot)>? outcome = null;
 
         await unitOfWork.ExecuteInTransactionAsync(async transactionCt =>
         {
@@ -39,7 +38,7 @@ public sealed class RecordEggLotMovementHandler(
                 .SingleOrDefault();
             if (lot is null)
             {
-                outcome = Result.Failure<RecordEggLotMovementResult>(
+                outcome = Result.Failure<(EggInventoryMovement, EggLot)>(
                     Error.NotFound(nameof(EggLot), command.EggLotId));
                 return false;
             }
@@ -60,7 +59,7 @@ public sealed class RecordEggLotMovementHandler(
                     .Sum(m => (long)m.QuantityDelta);
                 if (command.QuantityDelta > writtenOff)
                 {
-                    outcome = Result.Failure<RecordEggLotMovementResult>(Error.Domain(
+                    outcome = Result.Failure<(EggInventoryMovement, EggLot)>(Error.Domain(
                         "EggLot.ReconcileExceedsWrittenOff",
                         $"Only {writtenOff} eggs have been written off from this lot; a recount above that is a daily-entry adjustment or a sale void."));
                     return false;
@@ -70,30 +69,34 @@ public sealed class RecordEggLotMovementHandler(
             var adjust = lot.AdjustAvailable(command.QuantityDelta);
             if (adjust.IsFailure)
             {
-                outcome = Result.Failure<RecordEggLotMovementResult>(adjust.Error);
+                outcome = Result.Failure<(EggInventoryMovement, EggLot)>(adjust.Error);
                 return false;
             }
 
             var movement = EggInventoryMovement.Create(
                 Guid.NewGuid(), accountId, lot.Id, type, command.QuantityDelta,
-                nameof(EggLot), lot.Id, clock.UtcNow, command.Reason);
+                nameof(EggLot), lot.Id, command.Reason);
             await movements.AddAsync(movement, transactionCt);
 
             // Same transaction as the change (#93).
             await audit.WriteAsync(AuditActions.EggLotMovement, nameof(EggLot), lot.Id,
                 command.Reason, new { command.MovementType, command.QuantityDelta }, transactionCt);
 
-            outcome = Result.Success(new RecordEggLotMovementResult(
-                movement.Id, lot.Id, movement.MovementType.ToString(), movement.QuantityDelta,
-                movement.Reason, movement.CreatedAtUtc, lot.QuantityAvailable, lot.Version));
+            outcome = Result.Success((movement, lot));
             return true;
         }, ct);
 
-        if (outcome!.IsSuccess)
-            logger.LogInformation(
-                "Egg lot movement {EggInventoryMovementId} recorded: {QuantityDelta} on lot {EggLotId} ({MovementType})",
-                outcome.Value.MovementId, command.QuantityDelta, command.EggLotId, command.MovementType);
-        return outcome.LogFailure(logger, "RecordEggLotMovement");
+        if (outcome!.IsFailure)
+            return Result.Failure<RecordEggLotMovementResult>(outcome.Error)
+                .LogFailure(logger, "RecordEggLotMovement");
+
+        var (recordedMovement, updatedLot) = outcome.Value;
+        logger.LogInformation(
+            "Egg lot movement {EggInventoryMovementId} recorded: {QuantityDelta} on lot {EggLotId} ({MovementType})",
+            recordedMovement.Id, command.QuantityDelta, command.EggLotId, command.MovementType);
+        return Result.Success(new RecordEggLotMovementResult(
+            recordedMovement.Id, updatedLot.Id, recordedMovement.MovementType.ToString(), recordedMovement.QuantityDelta,
+            recordedMovement.Reason, recordedMovement.CreatedAtUtc, updatedLot.QuantityAvailable, updatedLot.Version));
     }
 }
 

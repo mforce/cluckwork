@@ -22,6 +22,8 @@
 | BannerHeight | integer |  | true |  |  |  |
 | BannerUpdatedAt | timestamp with time zone |  | true |  |  |  |
 | BannerWidth | integer |  | true |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -34,8 +36,10 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | FarmLogos_AccountId_not_null | n | NOT NULL "AccountId" |
+| FarmLogos_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | FarmLogos_FarmId_not_null | n | NOT NULL "FarmId" |
 | FarmLogos_Id_not_null | n | NOT NULL "Id" |
+| FarmLogos_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | FarmLogos_Version_not_null | n | NOT NULL "Version" |
 | ck_farm_logos_banner_content_length | CHECK | CHECK ((("BannerContent" IS NULL) OR ((octet_length("BannerContent") > 0) AND (octet_length("BannerContent") <= 15728640)))) |
 | ck_farm_logos_content_length | CHECK | CHECK ((("Content" IS NULL) OR ((octet_length("Content") > 0) AND (octet_length("Content") <= 5242880)))) |
@@ -47,6 +51,12 @@
 | ---- | ---------- |
 | PK_FarmLogos | CREATE UNIQUE INDEX "PK_FarmLogos" ON public."FarmLogos" USING btree ("Id") |
 | IX_FarmLogos_AccountId_FarmId | CREATE UNIQUE INDEX "IX_FarmLogos_AccountId_FarmId" ON public."FarmLogos" USING btree ("AccountId", "FarmId") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_FarmLogos_BusinessRecordTimestamps | CREATE TRIGGER "TR_FarmLogos_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."FarmLogos" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -73,6 +83,8 @@ erDiagram
   integer BannerHeight
   timestamp_with_time_zone BannerUpdatedAt
   integer BannerWidth
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

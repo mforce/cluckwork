@@ -22,7 +22,6 @@ public sealed class RecordFeedUsageHandler(
     IFlockScopeGuard flockScope,
     Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository dailyEntries,
     IUnitOfWork unitOfWork,
-    IClock clock,
     IFarmClock farmClock,
     ILogger<RecordFeedUsageHandler> logger)
 {
@@ -117,7 +116,6 @@ public sealed class RecordFeedUsageHandler(
                 return false;
             }
 
-            var createdAt = clock.UtcNow;
             var usageId = Guid.NewGuid();
             var remaining = command.Quantity;
             decimal costMinorUnits = 0;
@@ -145,8 +143,7 @@ public sealed class RecordFeedUsageHandler(
 
                 await movements.AddAsync(InventoryMovement.Create(
                     accountId, item.Id, lot.Id, command.Date,
-                    InventoryMovementType.Usage, -take, item.Unit,
-                    createdAt, flockId: flock.Id, note: command.Note,
+                    InventoryMovementType.Usage, -take, item.Unit, flockId: flock.Id, note: command.Note,
                     referenceType: nameof(FeedUsage), referenceId: usageId), transactionCt);
 
                 remaining -= take;
@@ -162,7 +159,7 @@ public sealed class RecordFeedUsageHandler(
             var estimatedCost = new Money((long)costMinorUnits, currencyCode!, currencyMinorUnit);
             var usage = FeedUsage.Create(
                 usageId, accountId, flock.Id, item.Id,
-                command.Date, command.Quantity, item.Unit, estimatedCost, createdAt, command.Note,
+                command.Date, command.Quantity, item.Unit, estimatedCost, command.Note,
                 dailyEntryId);
             await usages.AddAsync(usage, transactionCt);
 

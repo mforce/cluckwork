@@ -23,7 +23,6 @@ public sealed class VoidDailyEntryHandler(
     IBirdMovementRepository birdMovements,
     IEggInventoryMovementRepository eggMovements,
     IFlockRepository flocks,
-    IClock clock,
     IUnitOfWork unitOfWork,
     IAuditWriter audit,
     ILogger<VoidDailyEntryHandler> logger)
@@ -96,7 +95,7 @@ public sealed class VoidDailyEntryHandler(
                 if (vacated > 0)
                     await eggMovements.AddAsync(EggInventoryMovement.Create(
                         Guid.NewGuid(), accountId, lot.Id, EggMovementType.Void,
-                        -vacated, nameof(DailyEntry), entry.Id, clock.UtcNow,
+                        -vacated, nameof(DailyEntry), entry.Id,
                         reason: command.Reason), transactionCt);
             }
 

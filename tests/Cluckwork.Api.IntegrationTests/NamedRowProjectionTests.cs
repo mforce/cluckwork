@@ -264,17 +264,17 @@ public class NamedRowProjectionTests : IClassFixture<NamedRowProjectionFactory>,
 
             db.WaterUsages.Add(WaterUsage.Create(
                 f.WaterActive, accountId, f.ActiveFlock, From, 10m, "L",
-                WaterSource.Well, null, null, DateTime.UtcNow));
+                WaterSource.Well, null, null));
             db.WaterUsages.Add(WaterUsage.Create(
                 f.WaterArchived, accountId, f.ArchivedFlock, From.AddMonths(1), 11m, "L",
-                WaterSource.Well, null, null, DateTime.UtcNow));
+                WaterSource.Well, null, null));
 
             db.FeedUsages.Add(FeedUsage.Create(
                 f.FeedActive, accountId, f.ActiveFlock, f.ItemId, From, 5m, "kg",
-                Money.Zero("USD"), DateTime.UtcNow));
+                Money.Zero("USD")));
             db.FeedUsages.Add(FeedUsage.Create(
                 f.FeedArchived, accountId, f.ArchivedFlock, f.ItemId, From.AddMonths(1), 6m, "kg",
-                Money.Zero("USD"), DateTime.UtcNow));
+                Money.Zero("USD")));
 
             db.SalesOrders.Add(SalesOrder.Create(
                 f.OrderA, accountId, f.CustomerA, $"{f.Marker}-A", From, "USD"));

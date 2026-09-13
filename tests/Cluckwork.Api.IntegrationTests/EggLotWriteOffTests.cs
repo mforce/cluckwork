@@ -41,20 +41,24 @@ public sealed class EggLotWriteOffTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(90, payload.GetProperty("quantityAvailable").GetInt32());
         Assert.Equal("Discard", payload.GetProperty("movementType").GetString());
         Assert.Equal(-10, payload.GetProperty("quantityDelta").GetInt32());
+        var createdAtUtc = payload.GetProperty("createdAtUtc").GetDateTimeOffset();
+        Assert.NotEqual(default, createdAtUtc);
 
-        var (produced, available, ledgerSum, discardCount) =
+        var (produced, available, ledgerSum, discardCount, persistedCreatedAtUtc) =
             await factory.WithTenantScopeAsync(accountId, async db =>
             {
                 var lot = await db.EggLots.SingleAsync(l => l.Id == lotId);
                 var movements = await db.EggInventoryMovements.Where(m => m.EggLotId == lotId).ToListAsync();
                 return (lot.QuantityProduced, lot.QuantityAvailable,
                         movements.Sum(m => m.QuantityDelta),
-                        movements.Count(m => m.MovementType == EggMovementType.Discard));
+                        movements.Count(m => m.MovementType == EggMovementType.Discard),
+                        movements.Single(m => m.MovementType == EggMovementType.Discard).CreatedAtUtc);
             });
         Assert.Equal(100, produced); // the day's laying is not restated
         Assert.Equal(90, available);
         Assert.Equal(available, ledgerSum); // #101 invariant
         Assert.Equal(1, discardCount);
+        Assert.Equal(persistedCreatedAtUtc, createdAtUtc);
     }
 
     [Fact]

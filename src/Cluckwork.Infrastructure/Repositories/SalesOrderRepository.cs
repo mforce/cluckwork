@@ -83,6 +83,7 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
     private IQueryable<SalesOrder> HiddenPage(SalesOrderListFilter filter, int limit, int offset) =>
         Filtered(filter)
             .OrderByDescending(o => o.OrderDate)
+            .ThenByDescending(o => o.CreatedAtUtc)
             .ThenByDescending(o => EF.Property<long>(o, "Sequence"))
             .Skip(offset)
             .Take(limit);
@@ -115,6 +116,7 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
         // filter is literally that same expression.
         var rows = Filtered(filter)
             .OrderByDescending(o => o.OrderDate)
+            .ThenByDescending(o => o.CreatedAtUtc)
             .ThenByDescending(o => EF.Property<long>(o, "Sequence"))
             .Select(o => new
             {

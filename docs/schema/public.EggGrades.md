@@ -14,6 +14,8 @@
 | DailyEntryKind | varchar(16) | 'Manual'::character varying | false |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -28,6 +30,7 @@
 | ---- | ---- | ---------- |
 | EggGrades_AccountId_not_null | n | NOT NULL "AccountId" |
 | EggGrades_Active_not_null | n | NOT NULL "Active" |
+| EggGrades_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | EggGrades_DailyEntryKind_not_null | n | NOT NULL "DailyEntryKind" |
 | EggGrades_FarmId_not_null | n | NOT NULL "FarmId" |
 | EggGrades_GradeType_not_null | n | NOT NULL "GradeType" |
@@ -35,6 +38,7 @@
 | EggGrades_IsSaleable_not_null | n | NOT NULL "IsSaleable" |
 | EggGrades_Name_not_null | n | NOT NULL "Name" |
 | EggGrades_SortOrder_not_null | n | NOT NULL "SortOrder" |
+| EggGrades_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | EggGrades_Version_not_null | n | NOT NULL "Version" |
 | PK_EggGrades | PRIMARY KEY | PRIMARY KEY ("Id") |
 
@@ -45,6 +49,12 @@
 | PK_EggGrades | CREATE UNIQUE INDEX "PK_EggGrades" ON public."EggGrades" USING btree ("Id") |
 | IX_EggGrades_AccountId_FarmId_DailyEntryKind | CREATE UNIQUE INDEX "IX_EggGrades_AccountId_FarmId_DailyEntryKind" ON public."EggGrades" USING btree ("AccountId", "FarmId", "DailyEntryKind") WHERE (("DailyEntryKind")::text <> 'Manual'::text) |
 | IX_EggGrades_AccountId_FarmId_LowerName | CREATE UNIQUE INDEX "IX_EggGrades_AccountId_FarmId_LowerName" ON public."EggGrades" USING btree ("AccountId", "FarmId", lower(("Name")::text)) |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_EggGrades_BusinessRecordTimestamps | CREATE TRIGGER "TR_EggGrades_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."EggGrades" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -67,6 +77,8 @@ erDiagram
   varchar_16_ DailyEntryKind
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.DailyEntryGrades" {
   uuid Id
@@ -74,6 +86,8 @@ erDiagram
   uuid EggGradeId FK
   integer Quantity
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.EggLots" {
   uuid Id
@@ -86,6 +100,8 @@ erDiagram
   date RestrictedUntil
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 "public.ProductEggGradeMappings" {
@@ -93,6 +109,8 @@ erDiagram
   uuid ProductId FK
   uuid EggGradeId FK
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.SalesOrderItems" {
   uuid Id
@@ -110,6 +128,8 @@ erDiagram
   uuid AccountId
   bigint ListUnitPriceMinorUnits
   varchar_16_ ListPriceBasis
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

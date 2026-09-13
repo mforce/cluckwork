@@ -26,11 +26,6 @@ public sealed class DailyEntryConfiguration : IEntityTypeConfiguration<DailyEntr
         builder.Property(e => e.AdjustedFromJson);
         builder.Property(e => e.Version).IsConcurrencyToken();
 
-        // #819 — database-assigned insertion order for same-day list rows.
-        builder.Property<long>("Sequence")
-            .ValueGeneratedOnAdd()
-            .UseIdentityAlwaysColumn();
-
         // Natural-key uniqueness constraint (functional spec + tech spec §6.3).
         // Partial: voiding vacates the key (#82) — at most one LIVE entry per
         // house/flock/day, any number of voided ones preserved in history.

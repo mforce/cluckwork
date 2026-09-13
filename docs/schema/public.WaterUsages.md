@@ -17,6 +17,8 @@
 | CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -34,8 +36,10 @@
 | WaterUsages_FlockId_not_null | n | NOT NULL "FlockId" |
 | WaterUsages_Id_not_null | n | NOT NULL "Id" |
 | WaterUsages_Quantity_not_null | n | NOT NULL "Quantity" |
+| WaterUsages_Sequence_not_null | n | NOT NULL "Sequence" |
 | WaterUsages_Source_not_null | n | NOT NULL "Source" |
 | WaterUsages_Unit_not_null | n | NOT NULL "Unit" |
+| WaterUsages_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | WaterUsages_Version_not_null | n | NOT NULL "Version" |
 | FK_WaterUsages_DailyEntries_DailyEntryId | FOREIGN KEY | FOREIGN KEY ("DailyEntryId") REFERENCES "DailyEntries"("Id") ON DELETE RESTRICT |
 | FK_WaterUsages_Flocks_FlockId | FOREIGN KEY | FOREIGN KEY ("FlockId") REFERENCES "Flocks"("Id") ON DELETE RESTRICT |
@@ -48,6 +52,13 @@
 | PK_WaterUsages | CREATE UNIQUE INDEX "PK_WaterUsages" ON public."WaterUsages" USING btree ("Id") |
 | IX_WaterUsages_DailyEntryId | CREATE INDEX "IX_WaterUsages_DailyEntryId" ON public."WaterUsages" USING btree ("DailyEntryId") |
 | IX_WaterUsages_FlockId_Date | CREATE INDEX "IX_WaterUsages_FlockId_Date" ON public."WaterUsages" USING btree ("FlockId", "Date") |
+| IX_WaterUsages_Sequence | CREATE UNIQUE INDEX "IX_WaterUsages_Sequence" ON public."WaterUsages" USING btree ("Sequence") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_WaterUsages_BusinessRecordTimestamps | CREATE TRIGGER "TR_WaterUsages_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."WaterUsages" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -71,6 +82,8 @@ erDiagram
   timestamp_with_time_zone CreatedAtUtc
   integer Version
   uuid AccountId
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.Flocks" {
   uuid Id
@@ -85,6 +98,8 @@ erDiagram
   date ArchivedOn
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.DailyEntries" {
   uuid Id
@@ -106,6 +121,8 @@ erDiagram
   timestamp_with_time_zone LockedAtUtc
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 ```

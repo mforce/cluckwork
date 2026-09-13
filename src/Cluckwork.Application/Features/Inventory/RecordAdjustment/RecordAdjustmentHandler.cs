@@ -14,7 +14,6 @@ public sealed class RecordAdjustmentHandler(
     IInventoryLotRepository lots,
     IInventoryMovementRepository movements,
     IUnitOfWork unitOfWork,
-    IClock clock,
     IFarmClock farmClock,
     IAuditWriter audit,
     ILogger<RecordAdjustmentHandler> logger)
@@ -63,7 +62,7 @@ public sealed class RecordAdjustmentHandler(
                 : InventoryMovementType.Adjustment;
             var movement = InventoryMovement.Create(
                 accountId, item.Id, lot.Id, command.Date, type,
-                command.QuantityDelta, item.Unit, clock.UtcNow,
+                command.QuantityDelta, item.Unit,
                 flockId: null, note: command.Reason);
             await movements.AddAsync(movement, transactionCt);
 

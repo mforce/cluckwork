@@ -59,9 +59,8 @@ public sealed class ExpenseRepository(AppDbContext db) : IExpenseRepository
         CancellationToken ct = default) =>
         await Filtered(from, to, categoryId)
             .AsNoTracking()
-            // #819 — Date is day-granularity; Sequence puts later inserts first
-            // within the day and keeps OFFSET paging deterministic.
             .OrderByDescending(e => e.Date)
+            .ThenByDescending(e => e.CreatedAtUtc)
             .ThenByDescending(e => EF.Property<long>(e, "Sequence"))
             .Skip(offset)
             .Take(limit)

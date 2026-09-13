@@ -16,6 +16,8 @@
 | ArchivedOn | date |  | true |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -30,6 +32,7 @@
 | ---- | ---- | ---------- |
 | Flocks_AccountId_not_null | n | NOT NULL "AccountId" |
 | Flocks_Breed_not_null | n | NOT NULL "Breed" |
+| Flocks_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | Flocks_FarmId_not_null | n | NOT NULL "FarmId" |
 | Flocks_HouseId_not_null | n | NOT NULL "HouseId" |
 | Flocks_Id_not_null | n | NOT NULL "Id" |
@@ -37,6 +40,7 @@
 | Flocks_Name_not_null | n | NOT NULL "Name" |
 | Flocks_PlacementDate_not_null | n | NOT NULL "PlacementDate" |
 | Flocks_Status_not_null | n | NOT NULL "Status" |
+| Flocks_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | Flocks_Version_not_null | n | NOT NULL "Version" |
 | PK_Flocks | PRIMARY KEY | PRIMARY KEY ("Id") |
 
@@ -46,6 +50,12 @@
 | ---- | ---------- |
 | PK_Flocks | CREATE UNIQUE INDEX "PK_Flocks" ON public."Flocks" USING btree ("Id") |
 | IX_Flocks_AccountId_FarmId_HouseId | CREATE INDEX "IX_Flocks_AccountId_FarmId_HouseId" ON public."Flocks" USING btree ("AccountId", "FarmId", "HouseId") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_Flocks_BusinessRecordTimestamps | CREATE TRIGGER "TR_Flocks_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."Flocks" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -71,6 +81,8 @@ erDiagram
   date ArchivedOn
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.BirdMovements" {
   uuid Id
@@ -81,6 +93,7 @@ erDiagram
   varchar_500_ Note
   uuid DailyEntryId FK
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
   bigint Sequence
 }
 "public.Expenses" {
@@ -96,6 +109,8 @@ erDiagram
   varchar_500_ Note
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 "public.WaterUsages" {
@@ -112,6 +127,8 @@ erDiagram
   timestamp_with_time_zone CreatedAtUtc
   integer Version
   uuid AccountId
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.FeedUsages" {
   uuid Id
@@ -128,6 +145,7 @@ erDiagram
   timestamp_with_time_zone CreatedAtUtc
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.InventoryMovements" {
   uuid Id
@@ -143,6 +161,7 @@ erDiagram
   varchar_50_ ReferenceType
   uuid ReferenceId
   uuid AccountId
+  bigint Sequence
 }
 ```
 

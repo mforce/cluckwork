@@ -1,6 +1,6 @@
 namespace Cluckwork.Domain.Flocks;
 
-public sealed class Flock : AggregateRoot<Guid>
+public sealed class Flock : AggregateRoot<Guid>, IMutableRecord
 {
     // Match the column widths (Name 200 / Breed 100) so validators and schema
     // agree on one limit.
@@ -20,6 +20,8 @@ public sealed class Flock : AggregateRoot<Guid>
     // calendar day silently moves that cutoff.
     public DateOnly? DepletedOn { get; private set; }
     public DateOnly? ArchivedOn { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private Flock() { }

@@ -99,11 +99,13 @@ public sealed class BaseReferenceDataMigrationTests
             nameof(Account.Slug),
             nameof(Account.Locale),
             nameof(Account.DefaultCurrencyCode),
+            nameof(Account.CreatedAtUtc),
+            nameof(Account.UpdatedAtUtc),
         };
         ReferenceDataComparison.AssertExactMappedPropertyPartition(
             accountEntityType, accountComparedProperties, accountExcludedProperties);
         Assert.Equal(11, accountComparedProperties.Count);
-        Assert.Equal(8, accountExcludedProperties.Count);
+        Assert.Equal(10, accountExcludedProperties.Count);
 
         var actualAccount = Assert.Single(await db.Accounts.IgnoreQueryFilters()
             .Where(account => account.Id == SeedDefaults.AccountId)
@@ -135,6 +137,7 @@ public sealed class BaseReferenceDataMigrationTests
             new HashSet<string>(StringComparer.Ordinal)
             {
                 nameof(EggGrade.Id), nameof(EggGrade.AccountId), nameof(EggGrade.Version),
+                nameof(EggGrade.CreatedAtUtc), nameof(EggGrade.UpdatedAtUtc),
             });
 
         Assert.NotNull(db.Model.FindEntityType(typeof(EggUnitConversion)));
@@ -152,6 +155,8 @@ public sealed class BaseReferenceDataMigrationTests
                 nameof(EggUnitConversion.Id),
                 nameof(EggUnitConversion.AccountId),
                 nameof(EggUnitConversion.Version),
+                nameof(EggUnitConversion.CreatedAtUtc),
+                nameof(EggUnitConversion.UpdatedAtUtc),
             });
     }
 

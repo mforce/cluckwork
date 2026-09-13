@@ -55,7 +55,7 @@ public sealed class SaleAllocationPolicyTests(CluckworkWebApplicationFactory fac
             var lot = EggLot.Create(lotId, accountId, flockId, productionDate ?? Today, gradeId, quantity);
             db.EggInventoryMovements.Add(EggInventoryMovement.Create(
                 Guid.NewGuid(), accountId, lotId, EggMovementType.Production,
-                quantity, "DailyEntry", Guid.NewGuid(), DateTimeOffset.UtcNow));
+                quantity, "DailyEntry", Guid.NewGuid()));
             db.EggLots.Add(lot);
             await db.SaveChangesAsync();
         });

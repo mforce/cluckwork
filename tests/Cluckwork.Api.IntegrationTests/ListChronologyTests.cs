@@ -1,15 +1,19 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Features.Export;
 using Cluckwork.Application.Features.Sales;
+using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Expenses;
 using Cluckwork.Domain.Flocks;
+using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
+using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.Repositories;
 
-// #819 — these lists lead with a date-only value. Their second key must carry
-// insertion chronology; a random v4 Guid is deterministic but not chronological.
+// #819 — these lists lead with a business date and row-creation time. Sequence
+// completes the insertion order without relying on a random v4 Guid.
 [Collection(IntegrationCollection.Name)]
 public sealed class ListChronologyTests(CluckworkWebApplicationFactory factory)
 {
@@ -38,7 +42,10 @@ public sealed class ListChronologyTests(CluckworkWebApplicationFactory factory)
             var flock = Flock.Create(
                 flockId, accountId, farmId, Guid.NewGuid(), "Chronology flock",
                 "Test breed", Today.AddDays(-30), 100);
-            db.AddRange(customer, category, grade, flock);
+            var item = InventoryItem.Create(
+                Guid.NewGuid(), accountId, farmId, "Chronology feed",
+                InventoryCategory.Feed, "kg", Money.Zero("USD"));
+            db.AddRange(customer, category, grade, flock, item);
             await db.SaveChangesAsync();
 
             await InsertSeparatelyAsync(
@@ -58,6 +65,40 @@ public sealed class ListChronologyTests(CluckworkWebApplicationFactory factory)
             await InsertSeparatelyAsync(
                 DailyEntry.Create(EarlierId, accountId, farmId, Guid.NewGuid(), flockId, Today),
                 DailyEntry.Create(LaterId, accountId, farmId, Guid.NewGuid(), flockId, Today));
+            await InsertSeparatelyAsync(
+                Payment.Create(EarlierId, accountId, EarlierId, customer.Id, Today,
+                    100, "USD", 2, PaymentMethod.Cash),
+                Payment.Create(LaterId, accountId, EarlierId, customer.Id, Today,
+                    200, "USD", 2, PaymentMethod.Cash));
+            await InsertSeparatelyAsync(
+                InventoryLot.Create(EarlierId, accountId, item.Id, Today, 10,
+                    Money.Zero("USD"), null, null),
+                InventoryLot.Create(LaterId, accountId, item.Id, Today, 20,
+                    Money.Zero("USD"), null, null));
+            await InsertSeparatelyAsync(
+                FeedUsage.Create(EarlierId, accountId, flockId, item.Id, Today, 1,
+                    "kg", Money.Zero("USD")),
+                FeedUsage.Create(LaterId, accountId, flockId, item.Id, Today, 2,
+                    "kg", Money.Zero("USD")));
+            await InsertSeparatelyAsync(
+                WaterUsage.Create(EarlierId, accountId, flockId, Today, 1,
+                    "L", WaterSource.Well, null, null),
+                WaterUsage.Create(LaterId, accountId, flockId, Today, 2,
+                    "L", WaterSource.Well, null, null));
+
+            var earlierInventoryMovement = InventoryMovement.Create(
+                accountId, item.Id, null, Today, InventoryMovementType.Adjustment, 1, "kg");
+            var laterInventoryMovement = InventoryMovement.Create(
+                accountId, item.Id, null, Today, InventoryMovementType.Adjustment, 2, "kg");
+            await InsertSeparatelyAsync(earlierInventoryMovement, laterInventoryMovement);
+
+            var earlierEggMovement = EggInventoryMovement.Create(
+                EarlierId, accountId, EarlierId, EggMovementType.Production, 1,
+                nameof(DailyEntry), EarlierId);
+            var laterEggMovement = EggInventoryMovement.Create(
+                LaterId, accountId, EarlierId, EggMovementType.Production, 2,
+                nameof(DailyEntry), LaterId);
+            await InsertSeparatelyAsync(earlierEggMovement, laterEggMovement);
 
             var orderFilter = new SalesOrderListFilter(null, null, null, null, SettlementScope.Hidden);
             var hiddenOrders = await new SalesOrderRepository(db).ListAsync(orderFilter, 10, 0);
@@ -75,6 +116,34 @@ public sealed class ListChronologyTests(CluckworkWebApplicationFactory factory)
                 .ListAsync(null, null, null, 10, 0)).Select(x => x.Id));
             AssertLaterFirst((await new DailyEntryRepository(db)
                 .ListAsync(null, null, null, 10, 0)).Select(x => x.Id));
+            AssertLaterFirst((await new PaymentRepository(db)
+                .ListByOrderAsync(EarlierId)).Select(x => x.Id));
+            AssertLaterFirst((await new InventoryLotRepository(db)
+                .ListByItemAsync(item.Id)).Select(x => x.Id));
+            AssertLaterFirst((await new FeedUsageRepository(db)
+                .ListAsync(null, null, null, 10, 0)).Select(x => x.Id));
+            AssertLaterFirst((await new WaterUsageRepository(db)
+                .ListAsync(null, null, null, 10, 0)).Select(x => x.Id));
+            Assert.Equal(
+                [laterInventoryMovement.Id, earlierInventoryMovement.Id],
+                (await new InventoryMovementRepository(db)
+                    .ListByItemAsync(item.Id, 10, 0)).Select(x => x.Id).ToArray());
+            AssertLaterFirst((await new EggInventoryMovementRepository(db)
+                .ListByLotAsync(EarlierId)).Select(x => x.Id));
+
+            var exports = new ExportQueries(db, new TenantContext(), new FlockScope());
+            await AssertExportOrderAsync("sales-orders", EarlierId, LaterId);
+            await AssertExportOrderAsync("bird-movements", EarlierId, LaterId);
+            await AssertExportOrderAsync("expenses", EarlierId, LaterId);
+            await AssertExportOrderAsync("egg-lots", EarlierId, LaterId);
+            await AssertExportOrderAsync("daily-entries", EarlierId, LaterId);
+            await AssertExportOrderAsync("payments", EarlierId, LaterId);
+            await AssertExportOrderAsync("inventory-lots", EarlierId, LaterId);
+            await AssertExportOrderAsync("feed-usages", EarlierId, LaterId);
+            await AssertExportOrderAsync("water-usages", EarlierId, LaterId);
+            await AssertExportOrderAsync(
+                "inventory-movements", earlierInventoryMovement.Id, laterInventoryMovement.Id);
+            await AssertExportOrderAsync("egg-inventory-movements", EarlierId, LaterId);
 
             async Task InsertSeparatelyAsync<TEntity>(TEntity earlier, TEntity later)
                 where TEntity : class
@@ -83,6 +152,20 @@ public sealed class ListChronologyTests(CluckworkWebApplicationFactory factory)
                 await db.SaveChangesAsync();
                 db.Add(later);
                 await db.SaveChangesAsync();
+            }
+
+            async Task AssertExportOrderAsync(string datasetName, Guid earlier, Guid later)
+            {
+                var dataset = Assert.IsType<ExportDataset>(exports.GetDataset(datasetName));
+                var ids = new List<Guid>();
+                await foreach (var row in dataset.Rows)
+                {
+                    var id = Assert.IsType<Guid>(row[0]);
+                    if (id == earlier || id == later)
+                        ids.Add(id);
+                }
+
+                Assert.Equal([earlier, later], ids);
             }
         });
     }

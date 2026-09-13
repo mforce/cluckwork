@@ -14,6 +14,8 @@
 | RestrictedUntil | date |  | true |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 | Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
@@ -28,6 +30,7 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | EggLots_AccountId_not_null | n | NOT NULL "AccountId" |
+| EggLots_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | EggLots_EggGradeId_not_null | n | NOT NULL "EggGradeId" |
 | EggLots_FlockId_not_null | n | NOT NULL "FlockId" |
 | EggLots_Id_not_null | n | NOT NULL "Id" |
@@ -35,6 +38,7 @@
 | EggLots_QuantityAvailable_not_null | n | NOT NULL "QuantityAvailable" |
 | EggLots_QuantityProduced_not_null | n | NOT NULL "QuantityProduced" |
 | EggLots_Sequence_not_null | n | NOT NULL "Sequence" |
+| EggLots_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | EggLots_Version_not_null | n | NOT NULL "Version" |
 | FK_EggLots_EggGrades_EggGradeId | FOREIGN KEY | FOREIGN KEY ("EggGradeId") REFERENCES "EggGrades"("Id") ON DELETE RESTRICT |
 | PK_EggLots | PRIMARY KEY | PRIMARY KEY ("Id") |
@@ -47,6 +51,13 @@
 | IX_EggLots_Allocation | CREATE INDEX "IX_EggLots_Allocation" ON public."EggLots" USING btree ("AccountId", "EggGradeId", "ProductionDate", "QuantityAvailable") |
 | IX_EggLots_DailyEntryId | CREATE INDEX "IX_EggLots_DailyEntryId" ON public."EggLots" USING btree ("DailyEntryId") |
 | IX_EggLots_EggGradeId | CREATE INDEX "IX_EggLots_EggGradeId" ON public."EggLots" USING btree ("EggGradeId") |
+| IX_EggLots_Sequence | CREATE UNIQUE INDEX "IX_EggLots_Sequence" ON public."EggLots" USING btree ("Sequence") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_EggLots_BusinessRecordTimestamps | CREATE TRIGGER "TR_EggLots_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."EggLots" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -68,6 +79,8 @@ erDiagram
   date RestrictedUntil
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 "public.EggInventoryMovements" {
@@ -80,6 +93,7 @@ erDiagram
   varchar_500_ Reason
   timestamp_with_time_zone CreatedAtUtc
   uuid AccountId
+  bigint Sequence
 }
 "public.SalesOrderAllocations" {
   uuid Id
@@ -89,6 +103,8 @@ erDiagram
   integer Quantity
   timestamp_with_time_zone ReleasedOnUtc
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.EggGrades" {
   uuid Id
@@ -101,6 +117,8 @@ erDiagram
   varchar_16_ DailyEntryKind
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

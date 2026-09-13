@@ -6,7 +6,7 @@ namespace Cluckwork.Domain.Eggs;
 // movements (tech-spec rule: cached balances only if rebuildable from
 // ledgers). Append-only like the audit trail: no Version, no update, no
 // delete.
-public sealed class EggInventoryMovement : AggregateRoot<Guid>
+public sealed class EggInventoryMovement : AggregateRoot<Guid>, ICreatedRecord
 {
     public const int MaxReferenceTypeLength = 50;
     public const int MaxReasonLength = 500;
@@ -26,7 +26,7 @@ public sealed class EggInventoryMovement : AggregateRoot<Guid>
     public static EggInventoryMovement Create(
         Guid id, Guid accountId, Guid eggLotId, EggMovementType movementType,
         int quantityDelta, string referenceType, Guid referenceId,
-        DateTimeOffset createdAtUtc, string? reason = null)
+        string? reason = null)
     {
         if (quantityDelta == 0)
             throw new ArgumentException("A movement must change the quantity.", nameof(quantityDelta));
@@ -41,7 +41,6 @@ public sealed class EggInventoryMovement : AggregateRoot<Guid>
             QuantityDelta = quantityDelta,
             ReferenceType = referenceType,
             ReferenceId = referenceId,
-            CreatedAtUtc = createdAtUtc,
             Reason = string.IsNullOrWhiteSpace(reason)
                 ? null
                 : reason.Trim().Length > MaxReasonLength

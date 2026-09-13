@@ -8,11 +8,11 @@ Purchasable supplies, FIFO lots, and the movement ledger.
 
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
-| [public.Flocks](public.Flocks.md) | 12 |  | BASE TABLE |
-| [public.InventoryItems](public.InventoryItems.md) | 11 |  | BASE TABLE |
-| [public.FeedUsages](public.FeedUsages.md) | 14 |  | BASE TABLE |
-| [public.InventoryLots](public.InventoryLots.md) | 12 |  | BASE TABLE |
-| [public.InventoryMovements](public.InventoryMovements.md) | 13 |  | BASE TABLE |
+| [public.Flocks](public.Flocks.md) | 14 |  | BASE TABLE |
+| [public.InventoryItems](public.InventoryItems.md) | 13 |  | BASE TABLE |
+| [public.FeedUsages](public.FeedUsages.md) | 15 |  | BASE TABLE |
+| [public.InventoryLots](public.InventoryLots.md) | 15 |  | BASE TABLE |
+| [public.InventoryMovements](public.InventoryMovements.md) | 14 |  | BASE TABLE |
 
 ## Relations
 
@@ -39,6 +39,8 @@ erDiagram
   date ArchivedOn
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.InventoryItems" {
   uuid Id
@@ -52,6 +54,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.FeedUsages" {
   uuid Id
@@ -68,6 +72,7 @@ erDiagram
   timestamp_with_time_zone CreatedAtUtc
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.InventoryLots" {
   uuid Id
@@ -82,6 +87,9 @@ erDiagram
   integer UnitCostCurrencyMinorUnit
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.InventoryMovements" {
   uuid Id
@@ -97,6 +105,7 @@ erDiagram
   varchar_50_ ReferenceType
   uuid ReferenceId
   uuid AccountId
+  bigint Sequence
 }
 ```
 

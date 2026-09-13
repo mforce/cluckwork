@@ -11,6 +11,8 @@
 | Quantity | integer |  | false |  |  |  |
 | ReleasedOnUtc | timestamp with time zone |  | true |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -23,11 +25,13 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | SalesOrderAllocations_AccountId_not_null | n | NOT NULL "AccountId" |
+| SalesOrderAllocations_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | SalesOrderAllocations_EggLotId_not_null | n | NOT NULL "EggLotId" |
 | SalesOrderAllocations_Id_not_null | n | NOT NULL "Id" |
 | SalesOrderAllocations_Quantity_not_null | n | NOT NULL "Quantity" |
 | SalesOrderAllocations_SalesOrderId_not_null | n | NOT NULL "SalesOrderId" |
 | SalesOrderAllocations_SalesOrderItemId_not_null | n | NOT NULL "SalesOrderItemId" |
+| SalesOrderAllocations_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | FK_SalesOrderAllocations_SalesOrders_SalesOrderId | FOREIGN KEY | FOREIGN KEY ("SalesOrderId") REFERENCES "SalesOrders"("Id") ON DELETE CASCADE |
 | FK_SalesOrderAllocations_EggLots_EggLotId | FOREIGN KEY | FOREIGN KEY ("EggLotId") REFERENCES "EggLots"("Id") ON DELETE RESTRICT |
 | FK_SalesOrderAllocations_SalesOrderItems_SalesOrderItemId | FOREIGN KEY | FOREIGN KEY ("SalesOrderItemId") REFERENCES "SalesOrderItems"("Id") ON DELETE CASCADE |
@@ -41,6 +45,12 @@
 | IX_SalesOrderAllocations_EggLotId | CREATE INDEX "IX_SalesOrderAllocations_EggLotId" ON public."SalesOrderAllocations" USING btree ("EggLotId") |
 | IX_SalesOrderAllocations_SalesOrderId | CREATE INDEX "IX_SalesOrderAllocations_SalesOrderId" ON public."SalesOrderAllocations" USING btree ("SalesOrderId") |
 | IX_SalesOrderAllocations_SalesOrderItemId | CREATE INDEX "IX_SalesOrderAllocations_SalesOrderItemId" ON public."SalesOrderAllocations" USING btree ("SalesOrderItemId") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_SalesOrderAllocations_BusinessRecordTimestamps | CREATE TRIGGER "TR_SalesOrderAllocations_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."SalesOrderAllocations" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -59,6 +69,8 @@ erDiagram
   integer Quantity
   timestamp_with_time_zone ReleasedOnUtc
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.SalesOrders" {
   uuid Id
@@ -74,6 +86,8 @@ erDiagram
   uuid AccountId
   varchar_32_ DiscountReasonCode
   varchar_500_ DiscountReasonNote
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 "public.SalesOrderItems" {
@@ -92,6 +106,8 @@ erDiagram
   uuid AccountId
   bigint ListUnitPriceMinorUnits
   varchar_16_ ListPriceBasis
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.EggLots" {
   uuid Id
@@ -104,6 +120,8 @@ erDiagram
   date RestrictedUntil
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 ```

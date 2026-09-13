@@ -5,7 +5,7 @@ namespace Cluckwork.Domain.Eggs;
 // axis defines a bucket is the farm's choice. Daily-entry grade lines reference
 // these rows and are restricted to saleable grades — non-saleable buckets are
 // captured by the daily entry's cracked/dirty/discarded counts instead.
-public sealed class EggGrade : AggregateRoot<Guid>
+public sealed class EggGrade : AggregateRoot<Guid>, IMutableRecord
 {
     public const int MaxNameLength = 50;
 
@@ -24,6 +24,8 @@ public sealed class EggGrade : AggregateRoot<Guid>
     // enforced by a partial unique index (see InitialCreate).
     public DailyEntryKind DailyEntryKind { get; private set; }
 
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private EggGrade() { }

@@ -21,11 +21,6 @@ public sealed class EggLotConfiguration : IEntityTypeConfiguration<EggLot>
         builder.Property(e => e.QuantityAvailable).IsRequired();
         builder.Property(e => e.Version).IsConcurrencyToken();
 
-        // #819 — database-assigned insertion order for same-day list rows.
-        builder.Property<long>("Sequence")
-            .ValueGeneratedOnAdd()
-            .UseIdentityAlwaysColumn();
-
         // Index supporting FIFO allocation queries
         builder.HasIndex(e => new { e.AccountId, e.EggGradeId, e.ProductionDate, e.QuantityAvailable })
             .HasDatabaseName("IX_EggLots_Allocation");

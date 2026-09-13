@@ -281,12 +281,12 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
                 lotAId, fix.AccountId, fix.FlockA, Today, fix.GradeId, 11));
             db.EggInventoryMovements.Add(EggInventoryMovement.Create(
                 Guid.NewGuid(), fix.AccountId, lotAId, EggMovementType.Production,
-                11, "FilterGuard", Guid.NewGuid(), DateTimeOffset.UtcNow));
+                11, "FilterGuard", Guid.NewGuid()));
             db.EggLots.Add(EggLot.Create(
                 lotBId, fix.AccountId, fix.FlockB, Today, fix.GradeId, 12));
             db.EggInventoryMovements.Add(EggInventoryMovement.Create(
                 Guid.NewGuid(), fix.AccountId, lotBId, EggMovementType.Production,
-                12, "FilterGuard", Guid.NewGuid(), DateTimeOffset.UtcNow));
+                12, "FilterGuard", Guid.NewGuid()));
 
             db.BirdMovements.Add(BirdMovement.Create(
                 birdAId, fix.AccountId, fix.FlockA, Today,
@@ -297,15 +297,15 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
 
             var inventoryA = InventoryMovement.Create(
                 fix.AccountId, itemId, inventoryLotId: null, Today,
-                InventoryMovementType.Adjustment, 1m, "kg", DateTime.UtcNow,
+                InventoryMovementType.Adjustment, 1m, "kg",
                 flockId: fix.FlockA, note: "filter A");
             var inventoryB = InventoryMovement.Create(
                 fix.AccountId, itemId, inventoryLotId: null, Today,
-                InventoryMovementType.Adjustment, 1m, "kg", DateTime.UtcNow,
+                InventoryMovementType.Adjustment, 1m, "kg",
                 flockId: fix.FlockB, note: "filter B");
             var inventoryFarmWide = InventoryMovement.Create(
                 fix.AccountId, itemId, inventoryLotId: null, Today,
-                InventoryMovementType.Adjustment, 1m, "kg", DateTime.UtcNow,
+                InventoryMovementType.Adjustment, 1m, "kg",
                 flockId: null, note: "filter farm-wide");
             inventoryAId = inventoryA.Id;
             inventoryBId = inventoryB.Id;
@@ -314,10 +314,10 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
 
             db.FeedUsages.Add(FeedUsage.Create(
                 feedAId, fix.AccountId, fix.FlockA, itemId, Today,
-                1m, "kg", Money.Zero("USD"), DateTime.UtcNow));
+                1m, "kg", Money.Zero("USD")));
             db.FeedUsages.Add(FeedUsage.Create(
                 feedBId, fix.AccountId, fix.FlockB, itemId, Today,
-                1m, "kg", Money.Zero("USD"), DateTime.UtcNow));
+                1m, "kg", Money.Zero("USD")));
 
             await db.SaveChangesAsync();
 
@@ -410,17 +410,17 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
                 BirdMovementType.Adjustment, 1, "own tenant guard"));
             var inventory = InventoryMovement.Create(
                 fix.AccountId, itemId, inventoryLotId: null, Today,
-                InventoryMovementType.Adjustment, 1m, "kg", DateTime.UtcNow,
+                InventoryMovementType.Adjustment, 1m, "kg",
                 flockId: fix.FlockA, note: "own tenant guard");
             ownInventoryId = inventory.Id;
             db.InventoryMovements.Add(inventory);
             db.FeedUsages.Add(FeedUsage.Create(
                 ownFeedId, fix.AccountId, fix.FlockA, itemId, Today,
-                1m, "kg", Money.Zero("USD"), DateTime.UtcNow));
+                1m, "kg", Money.Zero("USD")));
             db.WaterUsages.Add(WaterUsage.Create(
                 ownWaterId, fix.AccountId, fix.FlockA, Today,
                 1m, "L", WaterSource.Municipal,
-                meterStart: null, meterEnd: null, DateTime.UtcNow));
+                meterStart: null, meterEnd: null));
             db.Expenses.Add(Cluckwork.Domain.Expenses.Expense.Create(
                 ownExpenseId, fix.AccountId, fix.FarmId, categoryId, Today,
                 "Own tenant guard expense", 100, "USD", 2, flockId: fix.FlockA));
@@ -451,17 +451,17 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
                 BirdMovementType.Adjustment, 1, "foreign tenant guard"));
             var inventory = InventoryMovement.Create(
                 foreignAccountId, itemId, inventoryLotId: null, Today,
-                InventoryMovementType.Adjustment, 1m, "kg", DateTime.UtcNow,
+                InventoryMovementType.Adjustment, 1m, "kg",
                 flockId: foreignFlockId, note: "foreign tenant guard");
             foreignInventoryId = inventory.Id;
             db.InventoryMovements.Add(inventory);
             db.FeedUsages.Add(FeedUsage.Create(
                 foreignFeedId, foreignAccountId, foreignFlockId, itemId, Today,
-                1m, "kg", Money.Zero("USD"), DateTime.UtcNow));
+                1m, "kg", Money.Zero("USD")));
             db.WaterUsages.Add(WaterUsage.Create(
                 foreignWaterId, foreignAccountId, foreignFlockId, Today,
                 1m, "L", WaterSource.Municipal,
-                meterStart: null, meterEnd: null, DateTime.UtcNow));
+                meterStart: null, meterEnd: null));
             db.Expenses.Add(Cluckwork.Domain.Expenses.Expense.Create(
                 foreignExpenseId, foreignAccountId, foreignFarmId, categoryId, Today,
                 "Foreign tenant guard expense", 100, "USD", 2,
@@ -518,12 +518,12 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
                 lotAId, fix.AccountId, fix.FlockA, Today, fix.GradeId, 10));
             db.EggInventoryMovements.Add(EggInventoryMovement.Create(
                 movementAId, fix.AccountId, lotAId, EggMovementType.Production,
-                10, "ParentGate", Guid.NewGuid(), DateTimeOffset.UtcNow));
+                10, "ParentGate", Guid.NewGuid()));
             db.EggLots.Add(EggLot.Create(
                 lotBId, fix.AccountId, fix.FlockB, Today, fix.GradeId, 10));
             db.EggInventoryMovements.Add(EggInventoryMovement.Create(
                 movementBId, fix.AccountId, lotBId, EggMovementType.Production,
-                10, "ParentGate", Guid.NewGuid(), DateTimeOffset.UtcNow));
+                10, "ParentGate", Guid.NewGuid()));
             await db.SaveChangesAsync();
         });
 
@@ -565,13 +565,13 @@ public sealed class FlockScopeTests(CluckworkWebApplicationFactory factory)
                 dailyEntryId: dailyAId));
             db.EggInventoryMovements.Add(EggInventoryMovement.Create(
                 Guid.NewGuid(), fix.AccountId, lotAId, EggMovementType.Production,
-                25, "DailyEntry", dailyAId, DateTimeOffset.UtcNow));
+                25, "DailyEntry", dailyAId));
             db.EggLots.Add(EggLot.Create(
                 lotBId, fix.AccountId, fix.FlockB, Today, fix.GradeId, 30,
                 dailyEntryId: dailyBId));
             db.EggInventoryMovements.Add(EggInventoryMovement.Create(
                 Guid.NewGuid(), fix.AccountId, lotBId, EggMovementType.Production,
-                30, "DailyEntry", dailyBId, DateTimeOffset.UtcNow));
+                30, "DailyEntry", dailyBId));
             await db.SaveChangesAsync();
         });
 

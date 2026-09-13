@@ -5,7 +5,7 @@ using Cluckwork.Domain.Common;
 // MVP customer (issue #10): reference-app shape — name + phone required,
 // email/address/note optional. Balances, credit terms, and payments are
 // Phase 1.1.
-public sealed class Customer : AggregateRoot<Guid>
+public sealed class Customer : AggregateRoot<Guid>, IMutableRecord
 {
     public const int MaxNameLength = 200;
     public const int MaxPhoneLength = 50;
@@ -18,6 +18,8 @@ public sealed class Customer : AggregateRoot<Guid>
     public string? Email { get; private set; }
     public string? Address { get; private set; }
     public string? Note { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private Customer() { }

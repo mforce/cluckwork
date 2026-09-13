@@ -6,7 +6,7 @@ namespace Cluckwork.Domain.Expenses;
 // the farm's currency setting later changes. Amounts are minor units (cents).
 // Direct flock allocation only in this slice; shared-allocation methods
 // (bird-count / revenue share) come with profitability reporting.
-public sealed class Expense : AggregateRoot<Guid>
+public sealed class Expense : AggregateRoot<Guid>, IMutableRecord
 {
     public const int MaxDescriptionLength = 200;
     public const int MaxNoteLength = 500;
@@ -20,6 +20,8 @@ public sealed class Expense : AggregateRoot<Guid>
     public int CurrencyMinorUnit { get; private set; }
     public Guid? FlockId { get; private set; }
     public string? Note { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private Expense() { }

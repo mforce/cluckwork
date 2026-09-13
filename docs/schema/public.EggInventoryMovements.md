@@ -13,6 +13,7 @@
 | Reason | varchar(500) |  | true |  |  |  |
 | CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -32,6 +33,7 @@
 | EggInventoryMovements_QuantityDelta_not_null | n | NOT NULL "QuantityDelta" |
 | EggInventoryMovements_ReferenceId_not_null | n | NOT NULL "ReferenceId" |
 | EggInventoryMovements_ReferenceType_not_null | n | NOT NULL "ReferenceType" |
+| EggInventoryMovements_Sequence_not_null | n | NOT NULL "Sequence" |
 | FK_EggInventoryMovements_EggLots_EggLotId | FOREIGN KEY | FOREIGN KEY ("EggLotId") REFERENCES "EggLots"("Id") ON DELETE RESTRICT |
 | PK_EggInventoryMovements | PRIMARY KEY | PRIMARY KEY ("Id") |
 
@@ -42,6 +44,13 @@
 | PK_EggInventoryMovements | CREATE UNIQUE INDEX "PK_EggInventoryMovements" ON public."EggInventoryMovements" USING btree ("Id") |
 | IX_EggInventoryMovements_AccountId_EggLotId_CreatedAtUtc | CREATE INDEX "IX_EggInventoryMovements_AccountId_EggLotId_CreatedAtUtc" ON public."EggInventoryMovements" USING btree ("AccountId", "EggLotId", "CreatedAtUtc") |
 | IX_EggInventoryMovements_EggLotId | CREATE INDEX "IX_EggInventoryMovements_EggLotId" ON public."EggInventoryMovements" USING btree ("EggLotId") |
+| IX_EggInventoryMovements_Sequence | CREATE UNIQUE INDEX "IX_EggInventoryMovements_Sequence" ON public."EggInventoryMovements" USING btree ("Sequence") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_EggInventoryMovements_BusinessRecordTimestamps | CREATE TRIGGER "TR_EggInventoryMovements_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."EggInventoryMovements" FOR EACH ROW EXECUTE FUNCTION "StampCreatedBusinessRecord"() |
 
 ## Relations
 
@@ -60,6 +69,7 @@ erDiagram
   varchar_500_ Reason
   timestamp_with_time_zone CreatedAtUtc
   uuid AccountId
+  bigint Sequence
 }
 "public.EggLots" {
   uuid Id
@@ -72,6 +82,8 @@ erDiagram
   date RestrictedUntil
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 ```

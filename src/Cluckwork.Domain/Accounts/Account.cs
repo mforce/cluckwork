@@ -9,7 +9,7 @@ using Cluckwork.Domain.Sales;
 // so for the single-farm Phase 1 the §4.5 localization fields live here on the
 // account — the same row IFarmClock already reads TimeZoneId from (#35) and the
 // same currency financial rows already snapshot at creation (§4.6).
-public sealed class Account : AggregateRoot<Guid>
+public sealed class Account : AggregateRoot<Guid>, IMutableRecord
 {
     public const int MaxNameLength = 120;
     public const int MaxLocaleLength = 32;
@@ -92,6 +92,8 @@ public sealed class Account : AggregateRoot<Guid>
             ? DiscountCeiling.FromBasisPoints(basisPoints)
             : null;
 
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private Account() { }

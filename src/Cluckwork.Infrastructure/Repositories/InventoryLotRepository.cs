@@ -51,7 +51,9 @@ public sealed class InventoryLotRepository(AppDbContext db) : IInventoryLotRepos
         await db.InventoryLots
             .AsNoTracking()
             .Where(l => l.InventoryItemId == inventoryItemId)
-            .OrderByDescending(l => l.ReceivedDate).ThenByDescending(l => l.Id)
+            .OrderByDescending(l => l.ReceivedDate)
+            .ThenByDescending(l => l.CreatedAtUtc)
+            .ThenByDescending(l => EF.Property<long>(l, "Sequence"))
             .ToListAsync(ct);
 
     public async Task<Dictionary<Guid, decimal>> StockByItemAsync(CancellationToken ct = default) =>

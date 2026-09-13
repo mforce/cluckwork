@@ -38,11 +38,6 @@ public sealed class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
         builder.Property(e => e.Note).HasMaxLength(Expense.MaxNoteLength);
         builder.Property(e => e.Version).IsConcurrencyToken();
 
-        // #819 — database-assigned insertion order for same-day list rows.
-        builder.Property<long>("Sequence")
-            .ValueGeneratedOnAdd()
-            .UseIdentityAlwaysColumn();
-
         // Categories with recorded expenses must not disappear.
         builder.HasOne<ExpenseCategory>()
             .WithMany()

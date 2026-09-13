@@ -16,8 +16,9 @@ public sealed class PaymentRepository(AppDbContext db) : IPaymentRepository
         await db.Payments
             .AsNoTracking()
             .Where(p => p.SalesOrderId == salesOrderId)
-            // Id tiebreaker keeps same-day payments in a stable order.
-            .OrderBy(p => p.PaymentDate).ThenBy(p => p.Id)
+            .OrderByDescending(p => p.PaymentDate)
+            .ThenByDescending(p => p.CreatedAtUtc)
+            .ThenByDescending(p => EF.Property<long>(p, "Sequence"))
             .ToListAsync(ct);
 
     public async Task<long> SumNonVoidedByOrderAsync(

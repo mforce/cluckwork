@@ -8,16 +8,16 @@ The daily egg loop — flocks, daily entries, grading, lots, movements.
 
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
-| [public.DailyEntries](public.DailyEntries.md) | 20 |  | BASE TABLE |
-| [public.EggGrades](public.EggGrades.md) | 10 |  | BASE TABLE |
-| [public.EggUnitConversions](public.EggUnitConversions.md) | 6 |  | BASE TABLE |
-| [public.Flocks](public.Flocks.md) | 12 |  | BASE TABLE |
-| [public.DailyEntryGrades](public.DailyEntryGrades.md) | 5 |  | BASE TABLE |
-| [public.EggLots](public.EggLots.md) | 11 |  | BASE TABLE |
-| [public.BirdMovements](public.BirdMovements.md) | 9 |  | BASE TABLE |
-| [public.WaterUsages](public.WaterUsages.md) | 13 |  | BASE TABLE |
-| [public.FeedUsages](public.FeedUsages.md) | 14 |  | BASE TABLE |
-| [public.EggInventoryMovements](public.EggInventoryMovements.md) | 9 |  | BASE TABLE |
+| [public.DailyEntries](public.DailyEntries.md) | 22 |  | BASE TABLE |
+| [public.EggGrades](public.EggGrades.md) | 12 |  | BASE TABLE |
+| [public.EggUnitConversions](public.EggUnitConversions.md) | 8 |  | BASE TABLE |
+| [public.Flocks](public.Flocks.md) | 14 |  | BASE TABLE |
+| [public.DailyEntryGrades](public.DailyEntryGrades.md) | 7 |  | BASE TABLE |
+| [public.EggLots](public.EggLots.md) | 13 |  | BASE TABLE |
+| [public.BirdMovements](public.BirdMovements.md) | 10 |  | BASE TABLE |
+| [public.WaterUsages](public.WaterUsages.md) | 15 |  | BASE TABLE |
+| [public.FeedUsages](public.FeedUsages.md) | 15 |  | BASE TABLE |
+| [public.EggInventoryMovements](public.EggInventoryMovements.md) | 10 |  | BASE TABLE |
 
 ## Relations
 
@@ -55,6 +55,8 @@ erDiagram
   timestamp_with_time_zone LockedAtUtc
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 "public.EggGrades" {
@@ -68,6 +70,8 @@ erDiagram
   varchar_16_ DailyEntryKind
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.EggUnitConversions" {
   uuid Id
@@ -76,6 +80,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.Flocks" {
   uuid Id
@@ -90,6 +96,8 @@ erDiagram
   date ArchivedOn
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.DailyEntryGrades" {
   uuid Id
@@ -97,6 +105,8 @@ erDiagram
   uuid EggGradeId
   integer Quantity
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.EggLots" {
   uuid Id
@@ -109,6 +119,8 @@ erDiagram
   date RestrictedUntil
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
   bigint Sequence
 }
 "public.BirdMovements" {
@@ -120,6 +132,7 @@ erDiagram
   varchar_500_ Note
   uuid DailyEntryId
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
   bigint Sequence
 }
 "public.WaterUsages" {
@@ -136,6 +149,8 @@ erDiagram
   timestamp_with_time_zone CreatedAtUtc
   integer Version
   uuid AccountId
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.FeedUsages" {
   uuid Id
@@ -152,6 +167,7 @@ erDiagram
   timestamp_with_time_zone CreatedAtUtc
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.EggInventoryMovements" {
   uuid Id
@@ -163,6 +179,7 @@ erDiagram
   varchar_500_ Reason
   timestamp_with_time_zone CreatedAtUtc
   uuid AccountId
+  bigint Sequence
 }
 ```
 

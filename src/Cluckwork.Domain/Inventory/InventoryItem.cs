@@ -4,7 +4,7 @@ namespace Cluckwork.Domain.Inventory;
 // (#66), but the category axis covers the later medication/vaccine/etc.
 // slices so the schema doesn't churn. Quantities live on lots; an item is the
 // definition (what it is, how it's measured, what it usually costs).
-public sealed class InventoryItem : AggregateRoot<Guid>
+public sealed class InventoryItem : AggregateRoot<Guid>, IMutableRecord
 {
     public const int MaxNameLength = 200;
     public const int MaxUnitLength = 20;
@@ -22,6 +22,8 @@ public sealed class InventoryItem : AggregateRoot<Guid>
     public Money? DefaultUnitCost { get; private set; }
 
     public bool Active { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private InventoryItem() { }

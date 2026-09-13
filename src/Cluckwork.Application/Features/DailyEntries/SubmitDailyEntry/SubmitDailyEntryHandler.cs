@@ -25,7 +25,6 @@ public sealed class SubmitDailyEntryHandler(
     IEggInventoryMovementRepository eggMovements,
     IFlockRepository flocks,
     IFlockScopeGuard flockScope,
-    IClock clock,
     IAuditWriter audit,
     IUnitOfWork unitOfWork,
     ILogger<SubmitDailyEntryHandler> logger)
@@ -94,7 +93,7 @@ public sealed class SubmitDailyEntryHandler(
             // QuantityAvailable always equals the sum of movements.
             await eggMovements.AddAsync(EggInventoryMovement.Create(
                 Guid.NewGuid(), accountId, lot.Id, EggMovementType.Production,
-                line.Quantity, nameof(DailyEntry), entry.Id, clock.UtcNow), ct);
+                line.Quantity, nameof(DailyEntry), entry.Id), ct);
         }
 
         // #396 — the counter-backed lots, in the same transaction as the manual
@@ -123,7 +122,7 @@ public sealed class SubmitDailyEntryHandler(
 
             await eggMovements.AddAsync(EggInventoryMovement.Create(
                 Guid.NewGuid(), accountId, lot.Id, EggMovementType.Production,
-                quantity, nameof(DailyEntry), entry.Id, clock.UtcNow), ct);
+                quantity, nameof(DailyEntry), entry.Id), ct);
         }
 
         // The day's mortality becomes a ledger row so the flock's current count

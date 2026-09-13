@@ -23,6 +23,8 @@
 | Slug | varchar(32) |  | false |  |  |  |
 | WorkerSaleAllocationPolicy | varchar(24) | 'AssignedFlocksOnly'::character varying | false |  |  |  |
 | MaxDiscountBasisPoints | integer |  | true |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -36,6 +38,7 @@
 | ---- | ---- | ---------- |
 | Accounts_AccountId_not_null | n | NOT NULL "AccountId" |
 | Accounts_Brand_not_null | n | NOT NULL "Brand" |
+| Accounts_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | Accounts_DefaultCurrencyCode_not_null | n | NOT NULL "DefaultCurrencyCode" |
 | Accounts_DefaultCurrencyMinorUnit_not_null | n | NOT NULL "DefaultCurrencyMinorUnit" |
 | Accounts_DefaultStepperUnit_not_null | n | NOT NULL "DefaultStepperUnit" |
@@ -46,6 +49,7 @@
 | Accounts_Slug_not_null | n | NOT NULL "Slug" |
 | Accounts_TimeZoneId_not_null | n | NOT NULL "TimeZoneId" |
 | Accounts_UnitSystem_not_null | n | NOT NULL "UnitSystem" |
+| Accounts_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | Accounts_Version_not_null | n | NOT NULL "Version" |
 | Accounts_WorkerSaleAllocationPolicy_not_null | n | NOT NULL "WorkerSaleAllocationPolicy" |
 | CK_Accounts_MaxDiscountBasisPoints | CHECK | CHECK ((("MaxDiscountBasisPoints" IS NULL) OR (("MaxDiscountBasisPoints" >= 0) AND ("MaxDiscountBasisPoints" <= 10000)))) |
@@ -57,6 +61,12 @@
 | ---- | ---------- |
 | PK_Accounts | CREATE UNIQUE INDEX "PK_Accounts" ON public."Accounts" USING btree ("Id") |
 | IX_Accounts_Slug | CREATE UNIQUE INDEX "IX_Accounts_Slug" ON public."Accounts" USING btree ("Slug") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_Accounts_BusinessRecordTimestamps | CREATE TRIGGER "TR_Accounts_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."Accounts" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -85,6 +95,8 @@ erDiagram
   varchar_32_ Slug
   varchar_24_ WorkerSaleAllocationPolicy
   integer MaxDiscountBasisPoints
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.AspNetUsers" {
   uuid Id
@@ -111,6 +123,8 @@ erDiagram
   uuid DisabledBy
   varchar_16_ PreferredStepperUnit
   integer StepUpLogoutEpoch
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

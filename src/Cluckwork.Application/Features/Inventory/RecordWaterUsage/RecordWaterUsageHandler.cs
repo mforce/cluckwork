@@ -14,7 +14,6 @@ public sealed class RecordWaterUsageHandler(
     IFlockScopeGuard flockScope,
     Cluckwork.Application.Features.DailyEntries.IDailyEntryRepository dailyEntries,
     IUnitOfWork unitOfWork,
-    IClock clock,
     IFarmClock farmClock,
     ILogger<RecordWaterUsageHandler> logger)
 {
@@ -56,7 +55,7 @@ public sealed class RecordWaterUsageHandler(
         var usage = WaterUsage.Create(
             Guid.NewGuid(), accountId, flock.Id, command.Date,
             quantity, command.Unit ?? "L", source,
-            command.MeterStart, command.MeterEnd, clock.UtcNow, command.Note,
+            command.MeterStart, command.MeterEnd, command.Note,
             dailyEntryId);
 
         await waterUsages.AddAsync(usage, ct);
