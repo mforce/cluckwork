@@ -3,7 +3,6 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
-using System.Net.Sockets;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
@@ -38,9 +37,6 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
     private readonly RedisContainer _redis =
         new RedisBuilder("redis:7.4-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2").Build();
 
-    private readonly List<Process> _liveProcesses = [];
-    private readonly List<Task> _drains = [];
-
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
@@ -50,13 +46,6 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        foreach (var process in _liveProcesses)
-        {
-            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
-            catch { /* already exited */ }
-            process.Dispose();
-        }
-        try { await Task.WhenAll(_drains); } catch { /* best-effort drain */ }
         await _postgres.DisposeAsync();
         await _redis.DisposeAsync();
     }
@@ -104,15 +93,6 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
         Assert.True(exitCode == 0, $"schema migration failed: exit={exitCode} stdout={stdout} stderr={stderr}");
     }
 
-    private static int GetFreeTcpPort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
-
     // Boots a REAL serving instance (no CLI verb — the normal Kestrel path)
     // against the shared Postgres + shared Redis, with its own ephemeral port
     // and its own OS process. Database:MigrateOnStartup=false because
@@ -121,53 +101,13 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
     // #544 — the login budget is SMALL on purpose (5 per 900s). The
     // idempotency harness sets a 1000000 override that DISABLES the limiter —
     // the opposite of what this test needs, so it deliberately does not.
-    private (Process Process, string BaseUrl) StartServingInstance()
+    private Task<ServingSubprocess> StartServingInstanceAsync()
     {
-        var port = GetFreeTcpPort();
         var psi = MakeBaseStartInfo();
-        psi.Environment["ASPNETCORE_URLS"] = $"http://127.0.0.1:{port}";
         psi.Environment["Database__MigrateOnStartup"] = "false";
         psi.Environment["RateLimiting__Login__PermitLimit"] = PermitLimit.ToString();
         psi.Environment["RateLimiting__Login__WindowSeconds"] = "900";
-
-        var process = Process.Start(psi)!;
-        _liveProcesses.Add(process);
-        // A long-running server's stdout/stderr must be drained for its whole
-        // life — an unread pipe fills its OS buffer and the child blocks on
-        // write (same hazard SeedCommandRunner documents for the one-shot
-        // verbs, just for the process's entire lifetime here instead of a
-        // bounded wait).
-        _drains.Add(DrainAsync(process.StandardOutput));
-        _drains.Add(DrainAsync(process.StandardError));
-        return (process, $"http://127.0.0.1:{port}");
-    }
-
-    private static async Task DrainAsync(StreamReader reader)
-    {
-        try { while (await reader.ReadLineAsync() is not null) { } }
-        catch { /* process exited / pipe closed */ }
-    }
-
-    private static async Task WaitUntilReadyAsync(HttpClient client, TimeSpan timeout)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        Exception? lastError = null;
-        while (DateTime.UtcNow < deadline)
-        {
-            try
-            {
-                var response = await client.GetAsync("/health/ready");
-                if (response.IsSuccessStatusCode) return;
-            }
-            catch (Exception ex)
-            {
-                lastError = ex;
-            }
-            await Task.Delay(TimeSpan.FromMilliseconds(200));
-        }
-        throw new TimeoutException(
-            $"instance at {client.BaseAddress} did not become ready within {timeout}"
-            + (lastError is null ? "" : $" (last error: {lastError.Message})"));
+        return ServingSubprocess.StartReadyAsync(psi, ReadyTimeout);
     }
 
     // #544 acceptance criterion: two independently hosted instances sharing
@@ -180,13 +120,11 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
         // pre-lookup property under test. MigrateSchemaAsync already ran in
         // InitializeAsync, so /health/ready passes and the app serves.
 
-        var (_, urlA) = StartServingInstance();
-        using var httpA = new HttpClient { BaseAddress = new Uri(urlA), Timeout = TimeSpan.FromSeconds(30) };
-        await WaitUntilReadyAsync(httpA, ReadyTimeout);
+        await using var instanceA = await StartServingInstanceAsync();
+        using var httpA = new HttpClient { BaseAddress = instanceA.BaseUrl, Timeout = TimeSpan.FromSeconds(30) };
 
-        var (_, urlB) = StartServingInstance();
-        using var httpB = new HttpClient { BaseAddress = new Uri(urlB), Timeout = TimeSpan.FromSeconds(30) };
-        await WaitUntilReadyAsync(httpB, ReadyTimeout);
+        await using var instanceB = await StartServingInstanceAsync();
+        using var httpB = new HttpClient { BaseAddress = instanceB.BaseUrl, Timeout = TimeSpan.FromSeconds(30) };
 
         // Both clients hit 127.0.0.1, so the server sees the same loopback
         // client IP on both instances → the SAME derived key on both.
