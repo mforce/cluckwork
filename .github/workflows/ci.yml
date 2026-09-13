@@ -145,8 +145,89 @@ jobs:
           fi
           echo "$verdict" >> "$GITHUB_OUTPUT"
 
+  # #775 — one `dotnet test Cluckwork.sln` ran all four test projects inside
+  # `build-and-test`, so the 791 Domain, Application and AppHost tests — about
+  # seven seconds of work — reported only after the 1,793 Testcontainers tests
+  # finished, and a broken domain invariant cost the job's full wall clock to
+  # surface.
+  #
+  # They are matrix LEGS rather than separate jobs, and that is the whole point.
+  # GitHub does not cancel a sibling job, so four jobs would each run to
+  # completion no matter which one went red: a five-second domain failure would
+  # still leave the integration leg burning its remaining eight minutes of runner
+  # time. `fail-fast` cancels the in-progress legs of a matrix the moment one
+  # fails, which is the only built-in mechanism that stops that spend. It is the
+  # default and is stated here anyway, because setting it to false would silently
+  # give the saving back.
+  #
+  # `web` and `image` stay separate jobs on purpose. They are ~3m38s and ~1m57s
+  # against this matrix's ~9m40s worst leg, so they have normally finished before
+  # a .NET failure could cancel anything, and folding them in would mean splitting
+  # the web job's typecheck, build and two npm audit gates away from its tests.
+  #
+  # Deliberately NOT gated on `changes`, for the same reason `build-and-test` is
+  # not (#782): a job `publish` needs must never be skipped on a push to main, or
+  # that commit gets no image and a release drafted there can never be promoted.
+  #
+  # Each leg restores the solution (`--locked-mode` needs it) and then builds only
+  # its own project graph, so the three fast legs never pay for Api or
+  # Infrastructure. Measured cold: Domain 5s, Application 10s, AppHost 5.5s.
+  tests:
+    name: Tests (${{ matrix.group }})
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - group: domain
+            project: tests/Cluckwork.Domain.Tests
+            timeout: 10
+          - group: application
+            project: tests/Cluckwork.Application.Tests
+            timeout: 10
+          - group: apphost
+            project: tests/Cluckwork.AppHost.Tests
+            timeout: 10
+          # The only leg that needs Docker: Testcontainers brings up a real
+          # Postgres per collection fixture (no SQLite, #407 and AGENTS.md).
+          - group: integration
+            project: tests/Cluckwork.Api.IntegrationTests
+            timeout: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            Directory.Packages.props
+
+      - name: Restore dependencies
+        run: dotnet restore Cluckwork.sln --locked-mode
+
+      - name: Test
+        run: dotnet test ${{ matrix.project }} --configuration Release --no-restore --verbosity normal
+
+  # No longer runs tests (#775): the four test projects are legs of the `tests`
+  # matrix above, so a failing group can cancel the others. What is left here is
+  # the work that has to happen exactly once per run rather than once per leg —
+  # the blocking NuGet advisory gate (#146) and the schema-docs freshness check
+  # (#417) — plus the solution build both of them reuse. That build is also what
+  # enforces warnings-as-errors across every project, including any a test leg's
+  # own graph would not reach.
+  #
+  # Still deliberately NOT gated on `changes` (#782): the schema-docs check is
+  # load-bearing on a markdown-only change.
   build-and-test:
-    name: Build and test
+    name: Build, audit and schema docs
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -189,13 +270,11 @@ jobs:
       - name: Build
         run: dotnet build Cluckwork.sln --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test Cluckwork.sln --configuration Release --no-build --verbosity normal
-
       # #417 — the committed docs/schema/ must be exactly what the migrations
-      # produce: the script regenerates from an ephemeral migrated Postgres
-      # (same digest-pinned image Testcontainers just pulled for the tests,
-      # so the pull is warm) and byte-diffs against the committed docs.
+      # produce: the script regenerates from an ephemeral migrated Postgres and
+      # byte-diffs against the committed docs. It pulls that image itself now:
+      # before #775 the integration tests ran in this job and Testcontainers had
+      # already warmed the pull, which is no longer true, so this step pays for it.
       # Reuses the Release build from the steps above. Rationale + the
       # deliberate everything-runs-it trade-off: docs/decisions/417-schema-docs.md
       - name: Verify schema docs are current
@@ -654,13 +733,18 @@ jobs:
   # ordering hazards, and impossible to race: two merges publish two different
   # names.
   #
-  # Gated on build-and-test, web AND image: those run in parallel, so only a job
-  # downstream of all three knows the run was green.
+  # Gated on tests, build-and-test, web AND image: those run in parallel, so only
+  # a job downstream of all four knows the run was green. `tests` joined that list
+  # with #775 — it holds every test project, which `build-and-test` used to run —
+  # and per #351 a job that should gate a release belongs in this `needs`, because
+  # this list is exactly what the digest artifact proves. Naming the matrix job
+  # once covers all of its legs: `needs` is satisfied only when every leg
+  # succeeded, and a leg cancelled by `fail-fast` is not a success.
   publish:
     name: Publish the commit image
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [build-and-test, web, image]
+    needs: [tests, build-and-test, web, image]
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
       || github.event_name == 'workflow_dispatch'
