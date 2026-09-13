@@ -51,9 +51,16 @@ internal sealed class ServingSubprocess : IAsyncDisposable
                 await child.WaitUntilReadyAsync(readyTimeout);
                 return child;
             }
-            catch (ChildExitedBeforeReadyException ex) when (ex.LostItsPort)
+            catch (Exception ex)
             {
+                // The caller's `await using` binds only a child this method RETURNS, so every
+                // unsuccessful attempt has to dispose its own. A readiness TIMEOUT is the case that
+                // bites: the child is still alive, so leaving it holds its port and a database
+                // connection for the rest of the run — a flake source, in the file that exists to
+                // remove one.
                 await child.DisposeAsync();
+                if (ex is not ChildExitedBeforeReadyException { LostItsPort: true })
+                    throw;
                 if (attempt >= BindAttempts)
                     throw new InvalidOperationException(
                         $"child lost its port on all {BindAttempts} attempts. {ex.Message}", ex);

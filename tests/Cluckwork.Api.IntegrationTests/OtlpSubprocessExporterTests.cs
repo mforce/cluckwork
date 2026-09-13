@@ -254,6 +254,25 @@ public sealed class OtlpSubprocessExporterTests(OtlpSubprocessDatabaseFixture da
         Assert.NotEqual(heldPort, child.BaseUrl.Port);
     }
 
+    // A child that binds its port and then never passes /health/ready is the case a retry cannot
+    // help and a leak can hurt: it is alive when the readiness wait gives up. Pointing it at an
+    // unreachable database keeps it serving and permanently unready. If the spawn returned without
+    // disposing it, it would still hold this port; re-binding is what proves it did not.
+    [Fact]
+    public async Task A_child_that_never_becomes_ready_is_not_left_running()
+    {
+        var port = ServingSubprocess.FreeTcpPort();
+        var startInfo = BuildStartInfo(
+            "Host=127.0.0.1;Port=1;Database=nowhere;Username=nobody;Password=nobody",
+            psi => psi.Environment["Otlp__Endpoint"] = "");
+
+        await Assert.ThrowsAsync<TimeoutException>(() =>
+            ServingSubprocess.StartReadyAsync(() => port, startInfo, TimeSpan.FromSeconds(20)));
+
+        using var rebind = new TcpListener(IPAddress.Loopback, port);
+        rebind.Start();
+    }
+
     private static void ConfigureProduction(ProcessStartInfo psi)
     {
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
