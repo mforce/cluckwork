@@ -11,8 +11,10 @@ CSS custom properties already in `src/styles.css`, read back off the document at
 single source of truth for colour and the four farm palettes (#149/#586) reach MUI with no
 per-palette configuration.
 
-Tailwind + shadcn/ui is **not** adopted and is **not** rejected: it is deferred to its own
-decision, because it replaces the layout half of `styles.css` rather than sitting beside it.
+Tailwind + shadcn/ui is **declined** (owner, 2026-09-13), not deferred. It was the live
+alternative while the choice was open, and this record keeps the evidence for it because the
+reasons it lost are not obvious — but it is a closed question, not a queued one. Re-opening it
+needs a new decision record, not a follow-up ticket.
 
 ## Why there was a decision to make at all
 
@@ -133,7 +135,7 @@ and verifies in a real browser anything jsdom cannot see.
 
 ## What is NOT decided here
 
-- **Tailwind + shadcn/ui** — deferred to its own issue and record.
+- **Tailwind + shadcn/ui** — declined above, not deferred. No follow-up issue exists on purpose.
 - **A chart library** (Recharts/visx, §8.1) — two charts exist and both work. Revisit at a third.
 - **TanStack Query, React Hook Form + Zod, Dexie, an OpenAPI-generated client** — §8.1 also
   prescribes these and none is installed. Out of scope here; #50 owns the offline half.
