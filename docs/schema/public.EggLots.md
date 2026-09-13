@@ -14,6 +14,7 @@
 | RestrictedUntil | date |  | true |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -33,6 +34,7 @@
 | EggLots_ProductionDate_not_null | n | NOT NULL "ProductionDate" |
 | EggLots_QuantityAvailable_not_null | n | NOT NULL "QuantityAvailable" |
 | EggLots_QuantityProduced_not_null | n | NOT NULL "QuantityProduced" |
+| EggLots_Sequence_not_null | n | NOT NULL "Sequence" |
 | EggLots_Version_not_null | n | NOT NULL "Version" |
 | FK_EggLots_EggGrades_EggGradeId | FOREIGN KEY | FOREIGN KEY ("EggGradeId") REFERENCES "EggGrades"("Id") ON DELETE RESTRICT |
 | PK_EggLots | PRIMARY KEY | PRIMARY KEY ("Id") |
@@ -66,6 +68,7 @@ erDiagram
   date RestrictedUntil
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.EggInventoryMovements" {
   uuid Id

@@ -25,6 +25,12 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
             .HasMaxLength(SalesOrder.MaxDiscountReasonNoteLength);
         builder.Property(o => o.Version).IsConcurrencyToken();
 
+        // #819 — database-assigned insertion order for same-day list rows.
+        // Shadow state keeps this persistence concern out of the API/domain.
+        builder.Property<long>("Sequence")
+            .ValueGeneratedOnAdd()
+            .UseIdentityAlwaysColumn();
+
         // Reference numbers are 8-hex truncations — the index turns a birthday
         // collision into a retryable 409 instead of silent duplicates.
         builder.HasIndex(o => new { o.AccountId, o.ReferenceNumber }).IsUnique();

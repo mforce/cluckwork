@@ -23,6 +23,7 @@
 | LockedAtUtc | timestamp with time zone |  | true |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -44,6 +45,7 @@
 | DailyEntries_HouseId_not_null | n | NOT NULL "HouseId" |
 | DailyEntries_Id_not_null | n | NOT NULL "Id" |
 | DailyEntries_MortalityCount_not_null | n | NOT NULL "MortalityCount" |
+| DailyEntries_Sequence_not_null | n | NOT NULL "Sequence" |
 | DailyEntries_Status_not_null | n | NOT NULL "Status" |
 | DailyEntries_TotalEggs_not_null | n | NOT NULL "TotalEggs" |
 | DailyEntries_Version_not_null | n | NOT NULL "Version" |
@@ -86,6 +88,7 @@ erDiagram
   timestamp_with_time_zone LockedAtUtc
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.DailyEntryGrades" {
   uuid Id
@@ -103,6 +106,7 @@ erDiagram
   varchar_500_ Note
   uuid DailyEntryId FK
   uuid AccountId
+  bigint Sequence
 }
 "public.WaterUsages" {
   uuid Id

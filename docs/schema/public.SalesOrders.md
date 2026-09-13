@@ -17,6 +17,7 @@
 | AccountId | uuid |  | false |  |  |  |
 | DiscountReasonCode | varchar(32) |  | true |  |  |  |
 | DiscountReasonNote | varchar(500) |  | true |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -33,6 +34,7 @@
 | SalesOrders_Id_not_null | n | NOT NULL "Id" |
 | SalesOrders_OrderDate_not_null | n | NOT NULL "OrderDate" |
 | SalesOrders_ReferenceNumber_not_null | n | NOT NULL "ReferenceNumber" |
+| SalesOrders_Sequence_not_null | n | NOT NULL "Sequence" |
 | SalesOrders_Status_not_null | n | NOT NULL "Status" |
 | SalesOrders_TotalCurrencyCode_not_null | n | NOT NULL "TotalCurrencyCode" |
 | SalesOrders_TotalCurrencyMinorUnit_not_null | n | NOT NULL "TotalCurrencyMinorUnit" |
@@ -73,6 +75,7 @@ erDiagram
   uuid AccountId
   varchar_32_ DiscountReasonCode
   varchar_500_ DiscountReasonNote
+  bigint Sequence
 }
 "public.Payments" {
   uuid Id

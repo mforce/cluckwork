@@ -74,6 +74,7 @@ erDiagram
   uuid AccountId
   varchar_32_ DiscountReasonCode
   varchar_500_ DiscountReasonNote
+  bigint Sequence
 }
 "public.SalesOrderItems" {
   uuid Id
@@ -103,6 +104,7 @@ erDiagram
   date RestrictedUntil
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 ```
 

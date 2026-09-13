@@ -108,6 +108,7 @@ erDiagram
   uuid AccountId
   varchar_32_ DiscountReasonCode
   varchar_500_ DiscountReasonNote
+  bigint Sequence
 }
 "public.Products" {
   uuid Id

@@ -59,9 +59,10 @@ public sealed class ExpenseRepository(AppDbContext db) : IExpenseRepository
         CancellationToken ct = default) =>
         await Filtered(from, to, categoryId)
             .AsNoTracking()
-            // Id tiebreaker: Date alone is non-unique, and unstable ordering
-            // under OFFSET paging drops or duplicates rows across pages.
-            .OrderByDescending(e => e.Date).ThenByDescending(e => e.Id)
+            // #819 — Date is day-granularity; Sequence puts later inserts first
+            // within the day and keeps OFFSET paging deterministic.
+            .OrderByDescending(e => e.Date)
+            .ThenByDescending(e => EF.Property<long>(e, "Sequence"))
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);

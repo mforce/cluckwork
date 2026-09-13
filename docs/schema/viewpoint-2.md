@@ -12,9 +12,9 @@ Customers, orders, FIFO allocations, payments, expenses, products.
 | [public.EggGrades](public.EggGrades.md) | 10 |  | BASE TABLE |
 | [public.ExpenseCategories](public.ExpenseCategories.md) | 6 |  | BASE TABLE |
 | [public.Products](public.Products.md) | 12 |  | BASE TABLE |
-| [public.SalesOrders](public.SalesOrders.md) | 13 |  | BASE TABLE |
-| [public.EggLots](public.EggLots.md) | 10 |  | BASE TABLE |
-| [public.Expenses](public.Expenses.md) | 12 |  | BASE TABLE |
+| [public.SalesOrders](public.SalesOrders.md) | 14 |  | BASE TABLE |
+| [public.EggLots](public.EggLots.md) | 11 |  | BASE TABLE |
+| [public.Expenses](public.Expenses.md) | 13 |  | BASE TABLE |
 | [public.ProductEggGradeMappings](public.ProductEggGradeMappings.md) | 4 |  | BASE TABLE |
 | [public.Payments](public.Payments.md) | 14 |  | BASE TABLE |
 | [public.SalesOrderItems](public.SalesOrderItems.md) | 15 |  | BASE TABLE |
@@ -97,6 +97,7 @@ erDiagram
   uuid AccountId
   varchar_32_ DiscountReasonCode
   varchar_500_ DiscountReasonNote
+  bigint Sequence
 }
 "public.EggLots" {
   uuid Id
@@ -109,6 +110,7 @@ erDiagram
   date RestrictedUntil
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.Expenses" {
   uuid Id
@@ -123,6 +125,7 @@ erDiagram
   varchar_500_ Note
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.ProductEggGradeMappings" {
   uuid Id

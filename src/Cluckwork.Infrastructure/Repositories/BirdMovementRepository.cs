@@ -16,7 +16,8 @@ public sealed class BirdMovementRepository(AppDbContext db) : IBirdMovementRepos
         await db.BirdMovements
             .AsNoTracking()
             .Where(m => m.FlockId == flockId)
-            .OrderByDescending(m => m.Date).ThenByDescending(m => m.Id)
+            .OrderByDescending(m => m.Date)
+            .ThenByDescending(m => EF.Property<long>(m, "Sequence"))
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);

@@ -64,6 +64,7 @@ erDiagram
   varchar_500_ Note
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 ```
 

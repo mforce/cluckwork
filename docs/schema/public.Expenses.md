@@ -16,6 +16,7 @@
 | Note | varchar(500) |  | true |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -36,6 +37,7 @@
 | Expenses_ExpenseCategoryId_not_null | n | NOT NULL "ExpenseCategoryId" |
 | Expenses_FarmId_not_null | n | NOT NULL "FarmId" |
 | Expenses_Id_not_null | n | NOT NULL "Id" |
+| Expenses_Sequence_not_null | n | NOT NULL "Sequence" |
 | Expenses_Version_not_null | n | NOT NULL "Version" |
 | FK_Expenses_ExpenseCategories_ExpenseCategoryId | FOREIGN KEY | FOREIGN KEY ("ExpenseCategoryId") REFERENCES "ExpenseCategories"("Id") ON DELETE RESTRICT |
 | FK_Expenses_Flocks_FlockId | FOREIGN KEY | FOREIGN KEY ("FlockId") REFERENCES "Flocks"("Id") ON DELETE RESTRICT |
@@ -72,6 +74,7 @@ erDiagram
   varchar_500_ Note
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.ExpenseCategories" {
   uuid Id

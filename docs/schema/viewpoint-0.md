@@ -8,13 +8,13 @@ The daily egg loop — flocks, daily entries, grading, lots, movements.
 
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
-| [public.DailyEntries](public.DailyEntries.md) | 19 |  | BASE TABLE |
+| [public.DailyEntries](public.DailyEntries.md) | 20 |  | BASE TABLE |
 | [public.EggGrades](public.EggGrades.md) | 10 |  | BASE TABLE |
 | [public.EggUnitConversions](public.EggUnitConversions.md) | 6 |  | BASE TABLE |
 | [public.Flocks](public.Flocks.md) | 12 |  | BASE TABLE |
 | [public.DailyEntryGrades](public.DailyEntryGrades.md) | 5 |  | BASE TABLE |
-| [public.EggLots](public.EggLots.md) | 10 |  | BASE TABLE |
-| [public.BirdMovements](public.BirdMovements.md) | 8 |  | BASE TABLE |
+| [public.EggLots](public.EggLots.md) | 11 |  | BASE TABLE |
+| [public.BirdMovements](public.BirdMovements.md) | 9 |  | BASE TABLE |
 | [public.WaterUsages](public.WaterUsages.md) | 13 |  | BASE TABLE |
 | [public.FeedUsages](public.FeedUsages.md) | 14 |  | BASE TABLE |
 | [public.EggInventoryMovements](public.EggInventoryMovements.md) | 9 |  | BASE TABLE |
@@ -55,6 +55,7 @@ erDiagram
   timestamp_with_time_zone LockedAtUtc
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.EggGrades" {
   uuid Id
@@ -108,6 +109,7 @@ erDiagram
   date RestrictedUntil
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.BirdMovements" {
   uuid Id
@@ -118,6 +120,7 @@ erDiagram
   varchar_500_ Note
   uuid DailyEntryId
   uuid AccountId
+  bigint Sequence
 }
 "public.WaterUsages" {
   uuid Id

@@ -36,7 +36,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.AspNetUsers](public.AspNetUsers.md) | 24 |  | BASE TABLE |
 | [public.AuditEvents](public.AuditEvents.md) | 11 |  | BASE TABLE |
 | [public.Customers](public.Customers.md) | 8 |  | BASE TABLE |
-| [public.DailyEntries](public.DailyEntries.md) | 19 |  | BASE TABLE |
+| [public.DailyEntries](public.DailyEntries.md) | 20 |  | BASE TABLE |
 | [public.durable_jobs](public.durable_jobs.md) | 9 |  | BASE TABLE |
 | [public.EggGrades](public.EggGrades.md) | 10 |  | BASE TABLE |
 | [public.EggUnitConversions](public.EggUnitConversions.md) | 6 |  | BASE TABLE |
@@ -54,11 +54,11 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.AspNetUserLogins](public.AspNetUserLogins.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserRoles](public.AspNetUserRoles.md) | 3 |  | BASE TABLE |
 | [public.AspNetUserTokens](public.AspNetUserTokens.md) | 4 |  | BASE TABLE |
-| [public.SalesOrders](public.SalesOrders.md) | 13 |  | BASE TABLE |
+| [public.SalesOrders](public.SalesOrders.md) | 14 |  | BASE TABLE |
 | [public.DailyEntryGrades](public.DailyEntryGrades.md) | 5 |  | BASE TABLE |
-| [public.EggLots](public.EggLots.md) | 10 |  | BASE TABLE |
-| [public.BirdMovements](public.BirdMovements.md) | 8 |  | BASE TABLE |
-| [public.Expenses](public.Expenses.md) | 12 |  | BASE TABLE |
+| [public.EggLots](public.EggLots.md) | 11 |  | BASE TABLE |
+| [public.BirdMovements](public.BirdMovements.md) | 9 |  | BASE TABLE |
+| [public.Expenses](public.Expenses.md) | 13 |  | BASE TABLE |
 | [public.WaterUsages](public.WaterUsages.md) | 13 |  | BASE TABLE |
 | [public.FeedUsages](public.FeedUsages.md) | 14 |  | BASE TABLE |
 | [public.InventoryLots](public.InventoryLots.md) | 12 |  | BASE TABLE |
@@ -211,6 +211,7 @@ erDiagram
   timestamp_with_time_zone LockedAtUtc
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.durable_jobs" {
   uuid Id
@@ -396,6 +397,7 @@ erDiagram
   uuid AccountId
   varchar_32_ DiscountReasonCode
   varchar_500_ DiscountReasonNote
+  bigint Sequence
 }
 "public.DailyEntryGrades" {
   uuid Id
@@ -415,6 +417,7 @@ erDiagram
   date RestrictedUntil
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.BirdMovements" {
   uuid Id
@@ -425,6 +428,7 @@ erDiagram
   varchar_500_ Note
   uuid DailyEntryId FK
   uuid AccountId
+  bigint Sequence
 }
 "public.Expenses" {
   uuid Id
@@ -439,6 +443,7 @@ erDiagram
   varchar_500_ Note
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.WaterUsages" {
   uuid Id

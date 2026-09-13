@@ -73,6 +73,7 @@ erDiagram
   timestamp_with_time_zone LockedAtUtc
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.EggGrades" {
   uuid Id

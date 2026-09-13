@@ -18,7 +18,8 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
             .Where(l => eggGradeId == null || l.EggGradeId == eggGradeId)
             .Where(l => from == null || l.ProductionDate >= from)
             .Where(l => to == null || l.ProductionDate <= to)
-            .OrderByDescending(l => l.ProductionDate).ThenByDescending(l => l.Id)
+            .OrderByDescending(l => l.ProductionDate)
+            .ThenByDescending(l => EF.Property<long>(l, "Sequence"))
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);

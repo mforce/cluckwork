@@ -81,6 +81,7 @@ erDiagram
   varchar_500_ Note
   uuid DailyEntryId FK
   uuid AccountId
+  bigint Sequence
 }
 "public.Expenses" {
   uuid Id
@@ -95,6 +96,7 @@ erDiagram
   varchar_500_ Note
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.WaterUsages" {
   uuid Id

@@ -60,7 +60,7 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
 
     // Locals, not filter.X in the expression tree: EF parameterises a captured
     // member the same way it parameterises a local, and keeping the shape
-    // identical to the pre-#769 query keeps its emitted SQL identical too.
+    // identical to the pre-#769 query keeps its emitted predicates identical.
     private IQueryable<SalesOrder> Filtered(SalesOrderListFilter filter)
     {
         var status = filter.Status;
@@ -76,12 +76,14 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
                      && (to == null || o.OrderDate <= to));
     }
 
-    // #769 SettlementScope.Hidden — the pre-#769 query, untouched. A caller
-    // outside the money tier gets SQL that never names Payments; the null
-    // outstanding is then a fact about the query, not a field blanked after it.
+    // #769 SettlementScope.Hidden — the pre-#769 query, with only #819's
+    // chronological tiebreak changed. A caller outside the money tier gets SQL
+    // that never names Payments; the null outstanding is then a fact about the
+    // query, not a field blanked after it.
     private IQueryable<SalesOrder> HiddenPage(SalesOrderListFilter filter, int limit, int offset) =>
         Filtered(filter)
-            .OrderByDescending(o => o.OrderDate).ThenByDescending(o => o.Id)
+            .OrderByDescending(o => o.OrderDate)
+            .ThenByDescending(o => EF.Property<long>(o, "Sequence"))
             .Skip(offset)
             .Take(limit);
 
@@ -112,7 +114,8 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
         // without complaint, so the figure below is still written ONCE and the
         // filter is literally that same expression.
         var rows = Filtered(filter)
-            .OrderByDescending(o => o.OrderDate).ThenByDescending(o => o.Id)
+            .OrderByDescending(o => o.OrderDate)
+            .ThenByDescending(o => EF.Property<long>(o, "Sequence"))
             .Select(o => new
             {
                 Order = o,

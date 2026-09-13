@@ -12,6 +12,7 @@
 | Note | varchar(500) |  | true |  |  |  |
 | DailyEntryId | uuid |  | true |  | [public.DailyEntries](public.DailyEntries.md) |  |
 | AccountId | uuid |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -28,6 +29,7 @@
 | BirdMovements_FlockId_not_null | n | NOT NULL "FlockId" |
 | BirdMovements_Id_not_null | n | NOT NULL "Id" |
 | BirdMovements_Quantity_not_null | n | NOT NULL "Quantity" |
+| BirdMovements_Sequence_not_null | n | NOT NULL "Sequence" |
 | BirdMovements_Type_not_null | n | NOT NULL "Type" |
 | FK_BirdMovements_DailyEntries_DailyEntryId | FOREIGN KEY | FOREIGN KEY ("DailyEntryId") REFERENCES "DailyEntries"("Id") ON DELETE RESTRICT |
 | FK_BirdMovements_Flocks_FlockId | FOREIGN KEY | FOREIGN KEY ("FlockId") REFERENCES "Flocks"("Id") ON DELETE RESTRICT |
@@ -59,6 +61,7 @@ erDiagram
   varchar_500_ Note
   uuid DailyEntryId FK
   uuid AccountId
+  bigint Sequence
 }
 "public.Flocks" {
   uuid Id
@@ -94,6 +97,7 @@ erDiagram
   timestamp_with_time_zone LockedAtUtc
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 ```
 
