@@ -111,6 +111,7 @@ declare -A SPEC_FOR=(
   [phone-action-bar-under-tabbar]="specs/phone.spec.ts"
   [phone-tabbar-removed]="specs/phone.spec.ts"
   [phone-table-overflow-unclipped]="specs/phone.spec.ts"
+  [phone-tabs-inert]="specs/phone.spec.ts"
   [phone-action-label-wrapped]="specs/phone.spec.ts"
 )
 
@@ -146,6 +147,7 @@ declare -A PROJECT_FOR=(
   [phone-action-bar-under-tabbar]="chromium-phone"
   [phone-tabbar-removed]="chromium-phone"
   [phone-table-overflow-unclipped]="chromium-phone"
+  [phone-tabs-inert]="chromium-phone"
   [phone-action-label-wrapped]="chromium-phone"
 )
 
@@ -157,6 +159,7 @@ declare -A MUST_STAY_GREEN_ON=(
   [phone-action-bar-under-tabbar]="chromium"
   [phone-tabbar-removed]="chromium"
   [phone-table-overflow-unclipped]="chromium"
+  [phone-tabs-inert]="chromium"
   [phone-action-label-wrapped]="chromium"
 )
 
@@ -211,6 +214,7 @@ declare -A GREP_FOR=(
   [phone-action-bar-under-tabbar]="action bar stays clear of the tab bar"
   [phone-tabbar-removed]="the tab bar is the navigation at this width"
   [phone-table-overflow-unclipped]="no walked screen overflows"
+  [phone-tabs-inert]="the tab bar is the navigation at this width"
   [phone-action-label-wrapped]="no action control is taller than it is wide"
 )
 
@@ -296,6 +300,7 @@ SIDE 2 — role=alert no longer carries implicit assertive politeness"
   [a11y-probe-off-role-dropped]="SIDE 3 — the off probe stopped resolving to alert"
   [phone-action-bar-under-tabbar]="the daily-entry action bar overlaps the tab bar — its Submit and Save buttons are under it"
   [phone-tabbar-removed]="there is no tab bar at phone width, so nothing can be navigated to"
+  [phone-tabs-inert]="a tap at the centre of the Sales tab does not land on it"
   [phone-action-label-wrapped]="at phone width — taller than it is wide, so its pill clamps into an ellipse and the label leaves its background"
   [phone-table-overflow-unclipped]="/sales scrolls sideways at phone width
 /customers scrolls sideways at phone width
@@ -317,7 +322,8 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            a11y-probe-alert-control-broken a11y-probe-alert-control-silenced
            a11y-probe-off-role-dropped
            phone-action-bar-under-tabbar phone-tabbar-removed
-           phone-table-overflow-unclipped phone-action-label-wrapped)
+           phone-table-overflow-unclipped phone-action-label-wrapped
+           phone-tabs-inert)
 fi
 
 rule() { printf '\n%s\n' "────────────────────────────────────────────────────────────────────────"; }
@@ -352,6 +358,19 @@ for name in "${MUTANTS[@]}"; do
   if [ -z "$spec" ]; then
     echo "  ?? $name — no spec mapped in this script; skipping (fix SPEC_FOR)"
     survived+=("$name (unmapped)")
+    continue
+  fi
+  # A width-scoped mutant MUST declare the other width's cross-check. Without
+  # this, deleting a MUST_STAY_GREEN_ON row silently downgrades the run to an
+  # ordinary kill — the verification becomes optional exactly the way
+  # EXPECT_MSG_FOR and FALSE_KILLS each did before a review round made them
+  # mandatory, and the header above claims this file no longer does that.
+  # Found by an adversarial pass on #814, which traced the missing-entry branch
+  # straight into `killed+=`.
+  if [ "${PROJECT_FOR[$name]:-}" = "chromium-phone" ] && [ -z "${MUST_STAY_GREEN_ON[$name]:-}" ]; then
+    echo "  ?? $name — runs at chromium-phone but declares no MUST_STAY_GREEN_ON;"
+    echo "     skipping (a phone mutant with no cross-check cannot show it is width-specific)"
+    survived+=("$name (no width cross-check)")
     continue
   fi
   if [ -z "$project" ]; then

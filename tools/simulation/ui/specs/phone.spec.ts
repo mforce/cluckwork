@@ -29,8 +29,14 @@ import { tEn } from "../src/i18n";
 const OWNER_TABS = ["nav:dailyEntry", "nav:stock", "nav:sales", "nav:history"];
 
 /**
- * The smallest target a thumb can reliably hit, on both axes (WCAG 2.2 AA,
- * 2.5.8 Target Size (Minimum)).
+ * The smallest target a thumb can reliably hit, on both axes.
+ *
+ * This is WCAG 2.2 **AAA** 2.5.5 Target Size (Enhanced). It is NOT the AA
+ * criterion: 2.5.8 Target Size (Minimum) asks for 24px, with exceptions, and an
+ * earlier version of this comment cited it for 44 — attributing the app's own,
+ * stricter choice to a standard that does not require it. The floor is the
+ * app's: `.tab` carries `min-height: 3.4rem` "clears the 44px touch target the
+ * rest of the app now holds to" (web/src/styles.css).
  *
  * Not a pin on today's geometry: the measured tabs are 78 x 54.4, so this has
  * ~34px of margin on the long axis and ~10px on the short one. A change that
@@ -96,6 +102,45 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     const moreBox = await rectOf(phone.more, "the More button");
     expect.soft(moreBox.width, "the More button is too narrow to hit").toBeGreaterThanOrEqual(MIN_TARGET_PX);
     expect.soft(moreBox.height, "the More button is too short to hit").toBeGreaterThanOrEqual(MIN_TARGET_PX);
+
+    // AND IT HAS TO ACTUALLY NAVIGATE. Everything above measures the bar
+    // without ever using it, and an adversarial read found the hole: a
+    // phone-only `.tabbar a { pointer-events: none }` preserves visibility, the
+    // 4+1 split and every bounding box, so all of it stays green while none of
+    // the four tabs does anything. The test is called "the tab bar IS the
+    // navigation", and until this line it never once navigated.
+    //
+    // `phone-tabs-inert` is the mutant for exactly that.
+    //
+    // HIT-TESTED FIRST, and not by clicking. `.click()` under
+    // `pointer-events: none` does not fail — it waits for actionability until
+    // the test times out, which the mutation harness correctly refuses to
+    // count ("the spec failed, but NOT on an assertion"). Measured: the first
+    // version of this line produced `locator.click: Test timeout of 45000ms
+    // exceeded` and would have been reported INCONCLUSIVE.
+    //
+    // `elementFromPoint` at the tab's centre is the same question asked as a
+    // measurement: does a tap there land on this tab? It fails as an ordinary
+    // assertion, in milliseconds, and it is what a thumb actually does.
+    const salesTab = phone.tab("nav:sales");
+    const hit = await salesTab.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return top === el || el.contains(top);
+    });
+    expect(
+      hit,
+      "a tap at the centre of the Sales tab does not land on it — the bar renders and measures "
+        + "correctly but cannot be used",
+    ).toBe(true);
+
+    // Then actually navigate, because being hittable is not the same as being
+    // wired to anything.
+    await salesTab.click();
+    await expect(
+      page,
+      "a thumb tab did not navigate — the bar renders and is hittable but goes nowhere",
+    ).toHaveURL(/\/sales$/);
   });
 
   test("a destination that is not a tab is reachable only through More", async ({ page, phone }) => {
@@ -205,11 +250,21 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     const viewport = page.viewportSize();
     if (viewport === null) throw new Error("this project runs with a fixed viewport; none was set.");
 
-    // THIS LIST ASSERTS, IT DOES NOT DISCOVER. It is six routes somebody
-    // measured, not every route the app has, so adding a screen does not get it
-    // covered here — measure the new route at 390 first, then add it. A route
-    // added blind would either pass for free or arrive red, and neither
-    // outcome tells you anything about the route.
+    // THIS LIST ASSERTS, IT DOES NOT DISCOVER, and the selection rule is
+    // stated so the omissions are a decision rather than a memory. Covered:
+    // every route whose main content is a `table.data`, because a wide table is
+    // the thing #441's containment holds in and therefore the only content that
+    // can push this document sideways. Not covered, by that same rule:
+    // `/reports` and `/expenses` (a filter bar over summary panels), `/feed`
+    // and `/water` (a flock picker over a narrow ledger), `/users`, `/audit`
+    // and `/settings`. If one of those grows a wide table it belongs here —
+    // measure it at 390 first, then add it, because a route added blind either
+    // passes for free or arrives red and neither result says anything about
+    // the route.
+    //
+    // `/inventory` is the one judgement call: it renders a table and is left
+    // out because its own movement ledger is reached through `/flocks`, which
+    // IS walked. Add it if that stops being true.
     //
     // `/` IS DELIBERATELY EXCLUDED, and not because it is clean. It measures
     // 443/390 at this width today, traced to a `<span class="num">` holding
@@ -221,11 +276,39 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // flake with a good reason, which is still a flake. The underlying layout
     // weakness — a long money string in a dash-list row having no way to wrap
     // or truncate — is real and is tracked separately as #816.
-    const ROUTES = ["/sales", "/daily-entry", "/customers", "/flocks", "/stock", "/history"];
+    // Each route names the content whose width is actually being judged, rather
+    // than sharing one selector. A blanket `table.data` was tried and was wrong
+    // on the first run: `/daily-entry` renders a grade-entry grid and a sticky
+    // foot, no data table at all, so the precondition failed there while the
+    // route is one of the more interesting ones to measure.
+    const ROUTES: ReadonlyArray<{ path: string; content: string; what: string }> = [
+      { path: "/sales", content: "table.data", what: "the orders table" },
+      { path: "/daily-entry", content: ".entry-foot", what: "the entry form's sticky foot" },
+      { path: "/customers", content: "table.data", what: "the customer book" },
+      { path: "/flocks", content: "table.data", what: "the flock table" },
+      { path: "/stock", content: "table.data", what: "the stock table" },
+      { path: "/history", content: "table.data", what: "the entry history table" },
+    ];
 
-    for (const route of ROUTES) {
+    for (const { path: route, content, what } of ROUTES) {
       await page.goto(route);
-      await expect(page.locator("main#main-content")).toBeVisible();
+
+      // THE CONTENT HAS TO BE ON SCREEN BEFORE ITS WIDTH MEANS ANYTHING, and
+      // this is the second hole an adversarial read found. `main#main-content`
+      // proves the shell mounted, and `networkidle` proves the requests
+      // settled — neither proves the table rendered. Both SalesPage and
+      // CustomersPage answer a failed read with a small error section and NO
+      // table (SalesPage.tsx, CustomersPage.tsx), which is a perfectly
+      // 390px-wide screen. So every route on this walk could break, render an
+      // error, measure exactly 390, and report clean.
+      //
+      // Asserting the table is present makes the measurement mean what the
+      // test says it means: this screen's real content fits the frame.
+      await expect(
+        page.locator(content).first(),
+        `${route} rendered no ${what} at phone width, so measuring its width proves nothing — `
+          + "the screen is empty, erroring or still loading",
+      ).toBeVisible();
       // The shell mounting is not enough: the widest thing on most of these
       // screens is a data table that arrives with its fetch, so measuring on
       // paint would measure an empty page and pass for free. `networkidle` is

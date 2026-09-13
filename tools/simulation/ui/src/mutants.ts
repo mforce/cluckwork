@@ -931,8 +931,14 @@ export const MUTANTS: Record<string, Mutant> = {
       // width. At 390 the two buttons share ~353px, so a longer label wraps
       // downwards; at 1280 the row is ~974px, so it grows sideways instead and
       // never approaches its own height. That is a property of the layout
-      // rather than of which tests happen to look, and `MUST_STAY_GREEN_ON`
-      // checks it by running the whole desktop suite under this mutant.
+      // rather than of which tests happen to look.
+      //
+      // `MUST_STAY_GREEN_ON` runs the whole desktop suite under this mutant,
+      // and what that proves is narrower than it sounds: the phone tests are
+      // excluded at desktop, so a green run says no EXISTING desktop scenario
+      // noticed the longer label — not that the desktop ratio stayed healthy.
+      // No desktop spec measures that ratio at all. The claim this file is
+      // entitled to make is the first one.
       await page.addInitScript((extra: string) => {
         const MARK = "data-mutant-label-tail";
 
@@ -973,6 +979,29 @@ export const MUTANTS: Record<string, Mutant> = {
     },
   },
 
+  "phone-tabs-inert": {
+    breaks:
+      "the four thumb tabs' ability to be tapped, while leaving the bar looking and measuring "
+      + "exactly as it does today — the state a `pointer-events` regression in the phone block "
+      + "would produce, where every destination outside the current screen is unreachable and the "
+      + "screen gives no sign of it",
+    caughtBy: "phone.spec.ts — the tab bar is the navigation at this width",
+    apply: (page) =>
+      // WHY THIS MUTANT EXISTS. An adversarial review pointed out that the test
+      // it targets measured the bar without ever using it: visibility, the 4+1
+      // link/button split and every bounding box stayed green under exactly
+      // this rule, so the whole phone suite could pass with its primary
+      // navigation dead. The test now clicks a tab, and this is what keeps
+      // that click honest.
+      //
+      // Scoped to the anchors, so `More` (a <button>) still opens the sheet —
+      // deliberately, because a mutant that also broke the sheet would be
+      // killed by the OTHER phone test and would not prove anything about the
+      // tabs. Green at desktop by media scope: `.tabbar` is `display: none`
+      // above 900px and no desktop spec locates it.
+      insertCssRule(page, "@media (max-width: 900px) { .tabbar a { pointer-events: none } }"),
+  },
+
   "phone-table-overflow-unclipped": {
     breaks:
       "#441's containment on wide data tables — `contain: layout` and the block-level scroller are "
@@ -980,12 +1009,13 @@ export const MUTANTS: Record<string, Mutant> = {
       + "lays its full content width out into the page instead of scrolling within itself",
     caughtBy: "phone.spec.ts — no walked screen overflows the viewport horizontally",
     apply: (page) =>
-      // Measured under this mutant, per route: /sales 1420/390, /history
-      // 1545/390, /flocks 1366/390, /customers 884/390 — while /daily-entry and
-      // /stock stay exactly 390/390, because neither renders a wide data table.
-      // That spread is why the spec's walk asserts PER ROUTE and asserts
-      // SOFTLY: a hard assertion stops at /sales and reports one of the four
-      // screens this breaks.
+      // Four of the six walked routes overflow under this and two do not —
+      // /daily-entry and /stock render no wide data table. That per-route
+      // spread is why the spec's walk asserts PER ROUTE and asserts SOFTLY: a
+      // hard assertion stops at the first and reports a quarter of the damage.
+      // The exact widths are deliberately not recorded here; they drift with
+      // fixture content, and a stale copy of them in this file is a defect
+      // this file has already had once.
       //
       // Desktop-green, stated honestly rather than claimed as containment:
       // the rule is inside `@media (max-width: 900px)`, so it cannot apply at

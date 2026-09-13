@@ -55,13 +55,19 @@ export type ShellLayout = "desktop" | "phone";
 /**
  * BottomNav's More sheet, WHILE OPEN.
  *
- * This type is only ever produced by `openMore()`, and that is the whole design.
- * A sheet link is hidden whenever the sheet is shut, so a free-standing
- * `sheetLink(key)` helper would hand every spec a locator that reports
- * `toBeHidden()` for two completely different reasons — "this role may not go
- * there" and "nobody opened the menu". Routing the locator through the value
- * `openMore()` returns makes the open sheet a precondition the compiler
- * enforces, rather than a convention a reviewer has to notice.
+ * This type is only ever produced by `openMore()`, which is what stops a spec
+ * reaching for a sheet link without opening the sheet: a locator that reports
+ * `toBeHidden()` means "this role may not go there" and "nobody opened the
+ * menu" indistinguishably, and only the first is ever the claim.
+ *
+ * **What that does NOT do, stated because an earlier version of this comment
+ * claimed otherwise.** The returned locators are ordinary and reusable, and
+ * `openMore()` checks visibility once, when it returns. Nothing re-checks that
+ * the sheet is still open at the moment a locator is used — so an absence
+ * assertion written AFTER something closed the sheet (clicking a destination
+ * closes it; BottomNav does that itself) would be vacuous again. The compiler
+ * enforces the handle, not the state. Pair any absence claim with a visible
+ * control in the same sheet, the way the role-gate specs do on the sidebar.
  */
 export interface MoreSheet {
   /** The sheet itself (`role="dialog"`, named nav:menuTitle). */
@@ -181,8 +187,18 @@ export const test = base.extend<Fixtures>({
     // specs/session-races.spec.ts (the late-refresh race's admin-destination
     // check) and specs/readonly.spec.ts ("is not offered the destinations it
     // cannot use"). At phone width those destinations live inside a CLOSED
-    // dialog, so every one of those assertions would pass while the gate was
-    // wide open — the spec would still be green and would prove nothing.
+    // dialog, so every one of those NEGATIVE assertions would pass with the
+    // gate wide open.
+    //
+    // Precisely, because an earlier version of this comment overstated it:
+    // those three tests would not go green — each pairs its hidden-links loop
+    // with a positive control (`nav.link("nav:stock")` and friends must be
+    // VISIBLE), and the control is what would fail against an absent sidebar.
+    // So the failure mode is not a silently passing suite; it is a suite that
+    // fails for the wrong reason while the assertions carrying the actual
+    // guarantee have quietly stopped being able to fail. That is still the
+    // thing worth preventing, and it is why the refusal is here rather than in
+    // a comment asking people to be careful.
     //
     // Making the fixture unavailable turns that into a construction error
     // instead of something a reviewer has to spot: a spec that wants both
