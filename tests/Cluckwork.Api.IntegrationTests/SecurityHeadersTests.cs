@@ -139,6 +139,18 @@ public sealed class SecurityProxyFactory : CluckworkWebApplicationFactory
             // HSTS's default ExcludedHosts skips loopback; the TestServer speaks
             // to localhost, so clear it to observe the header (a real deployment's
             // public host is never excluded, so production is unaffected).
+            //
+            // Clearing it is also what this factory CANNOT assert: with the
+            // exclusion list emptied, the wrong-host direction — the header
+            // emitted for a host that should never receive a one-year
+            // commitment — is unobservable here, and so is the scheme gate,
+            // since the TestServer has no transport and `X-Forwarded-Proto`
+            // stands in for HTTPS. Both now run over a real TLS socket in
+            // HstsOverRealTlsTests (#344), which leaves ExcludedHosts alone and
+            // varies the request host instead. What remains unverifiable
+            // in-process is nothing about this middleware; it is whether a
+            // production edge forwards a scheme the app trusts, which is a
+            // deploy concern (#260's boot guard, cluckwork-deploy#8).
             services.Configure<Microsoft.AspNetCore.HttpsPolicy.HstsOptions>(o => o.ExcludedHosts.Clear());
         });
     }
