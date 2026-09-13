@@ -236,7 +236,6 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
 
       const measured = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
-        innerWidth: window.innerWidth,
       }));
 
       // SOFT, so one run names EVERY offending route instead of stopping at the
@@ -247,21 +246,36 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // exactly 390. A hard assertion would report one quarter of that and
       // send the reader to fix one screen.
       //
-      // Both messages name the route, and the mutation harness greps for them.
-      // They are load-bearing text, not decoration.
+      // The message names the route, and the mutation harness greps for it.
+      // Load-bearing text, not decoration.
       expect.soft(
         measured.scrollWidth,
         `${route} scrolls sideways at phone width — the document is wider than the ${viewport.width}px frame`,
       ).toBeLessThanOrEqual(viewport.width);
 
-      // The second half of #441's defect, and a different failure from the
-      // first: a wide element can inflate the LAYOUT viewport itself, which is
-      // what anchors BottomNav's `position: fixed`. When that happens the tab
-      // bar renders below the visible screen while the document looks fine.
-      expect.soft(
-        measured.innerWidth,
-        `${route} inflated the layout viewport at phone width — innerWidth left the ${viewport.width}px frame`,
-      ).toBe(viewport.width);
+      // THERE IS DELIBERATELY NO `window.innerWidth` ASSERTION HERE, and the
+      // reason is worth keeping because the missing one looks obviously right.
+      //
+      // #441's defect has two halves. One is the document scrolling sideways,
+      // asserted above. The other is a wide element inflating the LAYOUT
+      // viewport itself — which is what anchors BottomNav's `position: fixed`,
+      // so the tab bar renders below the visible screen while the document
+      // looks fine. That half is what `contain: layout` exists for.
+      //
+      // An `expect(innerWidth).toBe(viewport.width)` for it shipped here for
+      // two commits and COULD NOT FAIL. Layout-viewport inflation is mobile
+      // emulation behaviour, and this project runs `devices["Desktop Chrome"]`
+      // with a viewport override and no `isMobile` (see playwright.config.ts,
+      // which says so). Under desktop emulation `innerWidth` tracks the frame
+      // whatever the content does. Proof rather than reasoning: under
+      // `phone-table-overflow-unclipped`, with /sales at scrollWidth 1420
+      // against a 390 frame, that assertion fired ZERO times across all six
+      // routes while four of them tripped the one above.
+      //
+      // So it was a guard that read as #441 coverage and was incapable of
+      // providing any — and it contradicted the config, which already states
+      // the device half is not covered. Restoring it means enabling `isMobile`
+      // and re-measuring, not re-adding the line.
     }
   });
 });
