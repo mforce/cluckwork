@@ -3099,7 +3099,7 @@ export const tl = {
       + "presyo sa listahan para mapawalang-bisa iyon. Ang order na walang anumang linya ay "
       + "walang masusukat at nakikitang gitling sa listahan ng mga order, na walang linya ng diskwento sa "
       + "mismong order. Iba ito sa diskwentong maaaring ilagay ng nagbebenta sa "
-      + "buong order — ito ay awtomatikong nakukuha, hindi ilinalagay.",
+      + "buong order — ito ay awtomatikong nakukuha, hindi inilalagay.",
 
     glossaryDiscountReasonTerm: "Dahilan ng diskwento",
     glossaryDiscountReasonDef:
