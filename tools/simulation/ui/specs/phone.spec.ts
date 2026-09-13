@@ -169,7 +169,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // this fixture. An assertion whose verdict changes with spec order is a
     // flake with a good reason, which is still a flake. The underlying layout
     // weakness — a long money string in a dash-list row having no way to wrap
-    // or truncate — is real and is tracked separately as TODO(#NNN).
+    // or truncate — is real and is tracked separately as #816.
     const ROUTES = ["/sales", "/daily-entry", "/customers", "/flocks", "/stock", "/history"];
 
     for (const route of ROUTES) {
