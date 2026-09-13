@@ -70,8 +70,11 @@ export interface MoreSheet {
   link(labelKey: string): Locator;
   /** The sign-out control in the sheet foot — the phone shell's only one. */
   signOut: Locator;
-  /** Dismiss the sheet through its own close control and wait for it to go. */
-  close(): Promise<void>;
+  // No `close()`. The one spec here dismisses the sheet by clicking a
+  // destination, which is what BottomNav's own onClick does, so an explicit
+  // close helper would be a locator (`common:close` on the Dialog's × button)
+  // that no run ever exercises — an untested handle sitting in a fixture other
+  // specs will copy from. Add it with its first real caller, and not before.
 }
 
 export interface PhoneShell {
@@ -262,10 +265,6 @@ export function phoneShell(page: Page): PhoneShell {
         link: (labelKey: string) =>
           dialog.getByRole("link", { name: tEn(labelKey as `nav:${string}`), exact: true }),
         signOut: dialog.getByRole("button", { name: tEn("nav:signOut"), exact: true }),
-        close: async () => {
-          await dialog.getByRole("button", { name: tEn("common:close"), exact: true }).click();
-          await expect(dialog).toBeHidden();
-        },
       };
     },
   };

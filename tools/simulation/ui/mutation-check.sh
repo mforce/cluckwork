@@ -236,25 +236,22 @@ declare -A FALSE_KILLS=(
 # a11y-inert-sweep-removed must additionally fail the browser-facts precondition
 # its GREP_FOR now runs.
 #
-# ####################################################################
-# # FOUR ENTRIES BELOW ARE `TODO-OBSERVE` PLACEHOLDERS. DO NOT GUESS  #
-# # THEM. The repo owner fills them from an OBSERVED run, which is    #
-# # the rule this whole table exists to enforce — a declaration       #
-# # written from the spec source rather than from a log is a          #
-# # prediction, and a wrong prediction here reads as coverage.        #
-# ####################################################################
+# `nav-role-gate-bypassed`'s entry was RE-OBSERVED for #814, not translated by
+# hand. It used to declare `getByRole('complementary')` — the sidebar landmark
+# `signIn` asserted on. `signIn` now asserts `main#main-content`, so the old
+# string can no longer appear anywhere, and leaving it would have turned a known
+# false kill into an unexplained WRONG ASSERTION. Run, read, paste: the observed
+# line is `locator('main#main-content')`, which says the same thing the header
+# does — this mutant still dies inside sign-in, still proves nothing about the
+# nav gate, and is still counted as a false kill rather than as coverage.
 #
-# The placeholder is a sentence no Playwright log can contain, so the harness
-# REJECTS it loudly: the mutant dies, none of its declared text is found, and it
-# is reported as WRONG ASSERTION and counted as a survivor, which fails the run.
-# That is deliberate. An empty entry would be reported UNVERIFIED, which also
-# fails the run, but says "nobody declared one" rather than "somebody owes one".
-#
-# `nav-role-gate-bypassed` is in the list because #814 changed what it kills on.
-# Its old declaration was `getByRole('complementary')` — the sidebar landmark
-# `signIn` used to assert on. `signIn` now asserts `main#main-content`, so that
-# string can no longer appear, and a stale entry here would demote a known
-# false kill into a mystery. Re-observe it rather than hand-translating it.
+# The three phone entries were observed the same way. Two of them carry a custom
+# message; `phone-table-overflow-unclipped` declares FOUR lines, one per route it
+# breaks, because the softness of that walk is itself the claim — a hard
+# assertion would stop at /sales and report a quarter of the damage, so requiring
+# all four is what keeps `expect.soft` there honest. /daily-entry and /stock are
+# deliberately absent: neither renders a wide data table, and both stayed at
+# exactly 390 under the mutant.
 declare -A EXPECT_MSG_FOR=(
   [audit-gate-removed]="/audit rendered no error for a ReadOnly user"
   [users-gate-removed]="/users rendered no error for a ReadOnly user"
@@ -264,7 +261,7 @@ declare -A EXPECT_MSG_FOR=(
   [report-range-bound-removed]="getByRole('button', { name: 'retry' })"
   [refresh-always-fails]="the silent refresh itself failed"
   [logout-not-honoured]="a live refresh cookie survived the logout"
-  [nav-role-gate-bypassed]="TODO-OBSERVE: run this mutant and paste the assertion text it dies on"
+  [nav-role-gate-bypassed]="locator('main#main-content')"
   [payment-never-settles]="so the payment did not settle the balance"
   [export-returns-nothing]="the export downloaded 0 bytes"
   [language-persist-dropped]="the es preference did not survive a reload"
@@ -284,9 +281,12 @@ the injected probe is a body child but the modal sweep did not inert it"
 SIDE 2 — role=alert no longer carries implicit assertive politeness"
   [a11y-probe-alert-control-silenced]="SIDE 2 — role=alert no longer carries implicit assertive politeness"
   [a11y-probe-off-role-dropped]="SIDE 3 — the off probe stopped resolving to alert"
-  [phone-action-bar-under-tabbar]="TODO-OBSERVE: run this mutant and paste the assertion text it dies on"
-  [phone-tabbar-removed]="TODO-OBSERVE: run this mutant and paste the assertion text it dies on"
-  [phone-table-overflow-unclipped]="TODO-OBSERVE: run this mutant and paste the assertion text it dies on"
+  [phone-action-bar-under-tabbar]="the daily-entry action bar overlaps the tab bar — its Submit and Save buttons are under it"
+  [phone-tabbar-removed]="there is no tab bar at phone width, so nothing can be navigated to"
+  [phone-table-overflow-unclipped]="/sales scrolls sideways at phone width
+/customers scrolls sideways at phone width
+/flocks scrolls sideways at phone width
+/history scrolls sideways at phone width"
 )
 
 MUTANTS=("$@")

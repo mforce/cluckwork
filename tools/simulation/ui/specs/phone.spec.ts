@@ -59,7 +59,14 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
   });
 
   test("the tab bar is the navigation at this width", async ({ page, phone }) => {
-    await expect(phone.tabbar).toBeVisible();
+    // Carries a custom message, and that is not decoration. Without one,
+    // Playwright's failure line is its locator — `getByRole('navigation',
+    // { name: 'Sections' })` — so mutation-check.sh's EXPECT_MSG_FOR entry
+    // would have to declare an ENGLISH label as the text the mutant must die
+    // on, which is the one thing this suite refuses to hardcode. A message
+    // names the guarantee instead, and survives a relabel and a translation.
+    await expect(phone.tabbar, "there is no tab bar at phone width, so nothing can be navigated to")
+      .toBeVisible();
 
     // The other half of the same guarantee, and the half that makes it a
     // guarantee at all. "The tab bar is visible" would pass with BOTH shells on
