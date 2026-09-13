@@ -7,10 +7,22 @@
 # change that broke this suite and nothing reported it for a day — the exact
 # #370 rot the dispatch-only header used to warn about. The original cost
 # estimate ("roughly 6-10 billed minutes") is also stale: the measured job is
-# ~3 minutes wall (image build + boot + migrate + seed + 28 specs), which is
+# ~3 minutes wall (image build + boot + migrate + seed + 46 specs), which is
 # in proportion to a PR gate. Path-filtered to changes the suite can actually
 # see, and superseded runs are cancelled, so docs-only PRs and force-push
 # churn cost nothing.
+#
+# The spec count was stale at 28 for long enough to be worth naming: it is the
+# kind of number nothing checks, so read it as an order of magnitude and not as
+# a contract.
+#
+# ================== TWO PROJECTS, ONE COMMAND ==================
+#
+# Since #814 the smoke suite runs in two Playwright projects — `chromium` at
+# 1280 and `chromium-phone` at 390 — partitioned by the `@phone` tag, so every
+# spec runs in exactly one of them and none runs twice. `npm test` runs both
+# already, which is why nothing in the steps below changes: the phone project
+# is a config fact, not a second job.
 #
 # workflow_dispatch remains for the modes a PR run never exercises — `slow`
 # (the real 15-minute expiry spec) and `canary` — and for the k6 sibling the
