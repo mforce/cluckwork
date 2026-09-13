@@ -82,9 +82,7 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
     // query, not a field blanked after it.
     private IQueryable<SalesOrder> HiddenPage(SalesOrderListFilter filter, int limit, int offset) =>
         Filtered(filter)
-            .OrderByDescending(o => o.OrderDate)
-            .ThenByDescending(o => o.CreatedAtUtc)
-            .ThenByDescending(o => EF.Property<long>(o, "Sequence"))
+            .OrderByBusinessChronologyDescending(o => o.OrderDate)
             .Skip(offset)
             .Take(limit);
 
@@ -115,9 +113,7 @@ public sealed class SalesOrderRepository(AppDbContext db) : ISalesOrderRepositor
         // without complaint, so the figure below is still written ONCE and the
         // filter is literally that same expression.
         var rows = Filtered(filter)
-            .OrderByDescending(o => o.OrderDate)
-            .ThenByDescending(o => o.CreatedAtUtc)
-            .ThenByDescending(o => EF.Property<long>(o, "Sequence"))
+            .OrderByBusinessChronologyDescending(o => o.OrderDate)
             .Select(o => new
             {
                 Order = o,

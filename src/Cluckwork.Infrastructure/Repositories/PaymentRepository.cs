@@ -16,9 +16,7 @@ public sealed class PaymentRepository(AppDbContext db) : IPaymentRepository
         await db.Payments
             .AsNoTracking()
             .Where(p => p.SalesOrderId == salesOrderId)
-            .OrderByDescending(p => p.PaymentDate)
-            .ThenByDescending(p => p.CreatedAtUtc)
-            .ThenByDescending(p => EF.Property<long>(p, "Sequence"))
+            .OrderByBusinessChronology(p => p.PaymentDate)
             .ToListAsync(ct);
 
     public async Task<long> SumNonVoidedByOrderAsync(

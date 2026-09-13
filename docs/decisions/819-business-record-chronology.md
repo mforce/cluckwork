@@ -44,6 +44,9 @@ Exports keep their established direction but use the same complete tuple in
 that direction. FIFO selection and `FOR UPDATE` lock acquisition keep their
 existing business-date and UUID order because those queries define allocation
 behavior and canonical lock order rather than presentation chronology.
+The flock export also keeps its established `PlacementDate, Id` order: flock
+screens are name-ordered, so flocks are not a chronological paged list and do
+not gain a persistence sequence solely for export formatting.
 
 ## Existing rows
 
@@ -52,6 +55,9 @@ store it, the migration uses the earliest exact creation audit whose
 `EntityType`, `EntityId`, and action match a frozen table-specific whitelist.
 If no such event exists, it uses `1970-01-01T00:00:00Z` as an explicit unknown
 sentinel. The sentinel is not a recovered historical time.
+Fresh databases replay the same migration history, so base reference rows that
+predate this migration also receive the sentinel; it means unknown there too,
+not that those records were created in 1970.
 
 For mutable rows, the migration uses the latest exact mutating audit from a
 frozen table-specific whitelist. It ignores read-only actions and events aimed
@@ -64,6 +70,12 @@ the original insertion order. For new rows, PostgreSQL allocates `Sequence` at
 insert time, not commit time. A transaction that commits later may have a lower
 sequence than a transaction that commits earlier. Neither a timestamp nor an
 identity sequence claims exact commit chronology.
+
+`CreatedAtUtc` deliberately precedes `Sequence` in the agreed display tuple.
+The sequence therefore resolves equal timestamps; it does not repair a system
+clock that moves backwards. Offset pagination has a complete order for a fixed
+dataset, but concurrent inserts can still move rows between pages. Cursor or
+snapshot pagination would be a separate contract.
 
 ## Why PostgreSQL owns the timestamps
 
@@ -84,6 +96,12 @@ The unmerged sequence migration is replaced by one chronology migration. The
 migration adds and backfills columns before it installs triggers. It takes table
 locks and runs through the pre-deploy migration process. Schema documentation
 is regenerated from the final model.
+
+The migration begins with a five-second `lock_timeout`. That limits how long it
+waits to acquire a lock, not how long acquired locks remain held; the migration
+transaction retains them until commit. CI proves the upgrade on its fixture,
+not its duration at production volume, so deployment must time it on a
+production-sized copy before running the pre-deploy job.
 
 An executable model census classifies every mapped type as mutable,
 create-only, or excluded. It also fixes the set of chronological tables. A new

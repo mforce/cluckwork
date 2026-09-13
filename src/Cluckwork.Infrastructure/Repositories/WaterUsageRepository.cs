@@ -18,9 +18,7 @@ public sealed class WaterUsageRepository(AppDbContext db) : IWaterUsageRepositor
             .Where(u => (flockId == null || u.FlockId == flockId)
                      && (from == null || u.Date >= from)
                      && (to == null || u.Date <= to))
-            .OrderByDescending(u => u.Date)
-            .ThenByDescending(u => u.CreatedAtUtc)
-            .ThenByDescending(u => EF.Property<long>(u, "Sequence"))
+            .OrderByBusinessChronologyDescending(u => u.Date)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);

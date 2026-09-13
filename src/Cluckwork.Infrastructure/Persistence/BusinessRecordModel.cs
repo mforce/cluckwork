@@ -1,8 +1,6 @@
 namespace Cluckwork.Infrastructure.Persistence;
 
-using Cluckwork.Domain.Accounts;
 using Cluckwork.Domain.Auditing;
-using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Expenses;
@@ -18,36 +16,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 internal static class BusinessRecordModel
 {
-    private static readonly Type[] TimestampedRecordTypes =
-    [
-        typeof(Account),
-        typeof(Flock),
-        typeof(BirdMovement),
-        typeof(DailyEntry),
-        typeof(DailyEntryGrade),
-        typeof(EggGrade),
-        typeof(EggLot),
-        typeof(EggInventoryMovement),
-        typeof(Customer),
-        typeof(SalesOrder),
-        typeof(SalesOrderItem),
-        typeof(SalesOrderAllocation),
-        typeof(Payment),
-        typeof(InventoryItem),
-        typeof(InventoryLot),
-        typeof(InventoryMovement),
-        typeof(FeedUsage),
-        typeof(WaterUsage),
-        typeof(ExpenseCategory),
-        typeof(Expense),
-        typeof(Product),
-        typeof(ProductEggGradeMapping),
-        typeof(EggUnitConversion),
-        typeof(UserRoleAssignment),
-        typeof(FarmLogo),
-        typeof(ApplicationUser)
-    ];
-
+    // Sequence is persistence-only, so this is the deliberate policy list;
+    // unlike timestamp classification, no domain interface should expose it.
     private static readonly Type[] ChronologicalListTypes =
     [
         typeof(SalesOrder),
@@ -81,11 +51,17 @@ internal static class BusinessRecordModel
 
     public static void Apply(ModelBuilder builder)
     {
-        var timestampedRecords = TimestampedRecordTypes.ToHashSet();
+        var mappedTypes = builder.Model.GetEntityTypes()
+            .Where(entityType => !entityType.IsOwned())
+            .Select(entityType => entityType.ClrType)
+            .ToHashSet();
+        var timestampedRecords = mappedTypes
+            .Where(typeof(ICreatedRecord).IsAssignableFrom)
+            .ToHashSet();
         var chronologicalLists = ChronologicalListTypes.ToHashSet();
         var exclusions = MappedExclusions.ToHashSet();
 
-        ValidateCensus(builder, timestampedRecords, chronologicalLists, exclusions);
+        ValidateCensus(mappedTypes, timestampedRecords, chronologicalLists, exclusions);
 
         foreach (var recordType in timestampedRecords)
         {
@@ -106,32 +82,17 @@ internal static class BusinessRecordModel
     }
 
     private static void ValidateCensus(
-        ModelBuilder builder,
+        HashSet<Type> mappedTypes,
         HashSet<Type> timestampedRecords,
         HashSet<Type> chronologicalLists,
         HashSet<Type> exclusions)
     {
-        if (TimestampedRecordTypes.Length != 26 || timestampedRecords.Count != 26)
-            throw new InvalidOperationException("The timestamped business-record census must contain 26 types.");
-        if (ChronologicalListTypes.Length != 11 || chronologicalLists.Count != 11)
-            throw new InvalidOperationException("The chronological-list census must contain 11 types.");
+        if (ChronologicalListTypes.Length != chronologicalLists.Count)
+            throw new InvalidOperationException("The chronological-list census contains a duplicate type.");
         if (!chronologicalLists.IsSubsetOf(timestampedRecords))
             throw new InvalidOperationException("Every chronological list must be a timestamped business record.");
         if (timestampedRecords.Overlaps(exclusions))
             throw new InvalidOperationException("A mapped entity cannot be both timestamped and excluded.");
-
-        var mappedTypes = builder.Model.GetEntityTypes()
-            .Where(entityType => !entityType.IsOwned())
-            .Select(entityType => entityType.ClrType)
-            .ToHashSet();
-
-        foreach (var recordType in timestampedRecords)
-        {
-            if (!mappedTypes.Contains(recordType))
-                throw new InvalidOperationException($"Timestamped business record '{recordType.Name}' is not mapped.");
-            if (!typeof(ICreatedRecord).IsAssignableFrom(recordType))
-                throw new InvalidOperationException($"Timestamped business record '{recordType.Name}' must implement {nameof(ICreatedRecord)}.");
-        }
 
         foreach (var excludedType in exclusions)
         {
@@ -139,12 +100,14 @@ internal static class BusinessRecordModel
                 throw new InvalidOperationException($"Mapped exclusion '{excludedType.Name}' is not mapped.");
         }
 
-        var unclassifiedType = mappedTypes
+        var unclassifiedTypes = mappedTypes
             .Except(timestampedRecords)
             .Except(exclusions)
-            .SingleOrDefault();
-        if (unclassifiedType is not null)
-            throw new InvalidOperationException($"Mapped entity '{unclassifiedType.Name}' has no business-record timestamp policy.");
+            .OrderBy(type => type.Name, StringComparer.Ordinal)
+            .ToArray();
+        if (unclassifiedTypes.Length != 0)
+            throw new InvalidOperationException(
+                $"Mapped entities have no business-record timestamp policy: {string.Join(", ", unclassifiedTypes.Select(type => type.Name))}.");
     }
 
     private static void ConfigureTimestamps(

@@ -8,15 +8,6 @@ public partial class AddBusinessRecordChronology : Migration
 {
     private const string UnknownCreatedAtUtc = "1970-01-01 00:00:00+00";
 
-    private static readonly string[] NewCreatedAtTables =
-    [
-        "Accounts", "Flocks", "BirdMovements", "DailyEntries", "DailyEntryGrades",
-        "EggGrades", "EggLots", "Customers", "SalesOrders", "SalesOrderItems",
-        "SalesOrderAllocations", "Payments", "InventoryItems", "InventoryLots",
-        "ExpenseCategories", "Expenses", "Products", "ProductEggGradeMappings",
-        "EggUnitConversions", "UserRoleAssignments", "FarmLogos", "AspNetUsers"
-    ];
-
     private static readonly (string Table, string EntityType, string[] Actions)[] CreatedAuditMappings =
     [
         ("Accounts", "Account", ["Account.Provisioned"]),
@@ -74,7 +65,7 @@ public partial class AddBusinessRecordChronology : Migration
             ["Account.SetLogo", "Account.RemoveLogo", "Account.SetBanner", "Account.RemoveBanner"]),
         ("AspNetUsers", "User",
             ["User.Update", "User.PasswordSet", "User.PasswordChanged", "User.EmailChanged",
-             "User.Disabled", "User.Enabled", "User.BreakGlassReset"])
+             "User.Disabled", "User.Enabled", "User.RoleChanged", "User.BreakGlassReset"])
     ];
 
     private static readonly (string Table, string OrderBy)[] ChronologicalTables =
@@ -102,7 +93,7 @@ public partial class AddBusinessRecordChronology : Migration
     {
         migrationBuilder.Sql("SET LOCAL lock_timeout = '5s';");
 
-        foreach (var table in NewCreatedAtTables)
+        foreach (var (table, _, _) in CreatedAuditMappings)
         {
             migrationBuilder.AddColumn<DateTimeOffset>(
                 name: "CreatedAtUtc",
@@ -126,7 +117,7 @@ public partial class AddBusinessRecordChronology : Migration
         foreach (var mapping in MutableAuditMappings)
             BackfillUpdatedAtUtc(migrationBuilder, mapping.Table, mapping.EntityType, mapping.Actions);
 
-        foreach (var table in NewCreatedAtTables)
+        foreach (var (table, _, _) in CreatedAuditMappings)
         {
             migrationBuilder.AlterColumn<DateTimeOffset>(
                 name: "CreatedAtUtc",
@@ -179,7 +170,9 @@ public partial class AddBusinessRecordChronology : Migration
                 RETURN NEW;
             END;
             $$;
-
+            """);
+        migrationBuilder.Sql(
+            """
             CREATE FUNCTION "StampCreatedBusinessRecord"()
             RETURNS trigger
             LANGUAGE plpgsql
@@ -211,6 +204,9 @@ public partial class AddBusinessRecordChronology : Migration
         migrationBuilder.Sql(
             """
             DROP FUNCTION "StampMutableBusinessRecord"();
+            """);
+        migrationBuilder.Sql(
+            """
             DROP FUNCTION "StampCreatedBusinessRecord"();
             """);
 
@@ -223,7 +219,7 @@ public partial class AddBusinessRecordChronology : Migration
         foreach (var (table, _, _) in MutableAuditMappings)
             migrationBuilder.DropColumn(name: "UpdatedAtUtc", table: table);
 
-        foreach (var table in NewCreatedAtTables)
+        foreach (var (table, _, _) in CreatedAuditMappings)
             migrationBuilder.DropColumn(name: "CreatedAtUtc", table: table);
     }
 
@@ -240,6 +236,7 @@ public partial class AddBusinessRecordChronology : Migration
                    SELECT MIN(a."OccurredAtUtc")
                    FROM "AuditEvents" AS a
                    WHERE a."EntityType" = '{entityType}'
+                     AND a."AccountId" = row."AccountId"
                      AND a."EntityId" = row."Id"
                      AND a."Action" IN ({SqlLiterals(actions)})
                ), TIMESTAMPTZ '{UnknownCreatedAtUtc}')
@@ -266,6 +263,7 @@ public partial class AddBusinessRecordChronology : Migration
                        SELECT MAX(a."OccurredAtUtc")
                        FROM "AuditEvents" AS a
                        WHERE a."EntityType" = '{entityType}'
+                         AND a."AccountId" = row."AccountId"
                          AND a."EntityId" = row."Id"
                          AND a."Action" IN ({SqlLiterals(actions)})
                    ), row."CreatedAtUtc"))
@@ -281,7 +279,8 @@ public partial class AddBusinessRecordChronology : Migration
     {
         migrationBuilder.Sql($"""
             ALTER TABLE "{table}" ADD COLUMN "Sequence" bigint;
-
+            """);
+        migrationBuilder.Sql($"""
             WITH ranked AS (
                 SELECT "Id", row_number() OVER (ORDER BY {orderBy}) AS sequence
                 FROM "{table}"
@@ -290,10 +289,14 @@ public partial class AddBusinessRecordChronology : Migration
             SET "Sequence" = ranked.sequence
             FROM ranked
             WHERE target."Id" = ranked."Id";
-
+            """);
+        migrationBuilder.Sql($"""
             ALTER TABLE "{table}" ALTER COLUMN "Sequence" SET NOT NULL;
+            """);
+        migrationBuilder.Sql($"""
             ALTER TABLE "{table}" ALTER COLUMN "Sequence" ADD GENERATED ALWAYS AS IDENTITY;
-
+            """);
+        migrationBuilder.Sql($"""
             SELECT setval(
                 pg_get_serial_sequence('"{table}"', 'Sequence'),
                 COALESCE((SELECT MAX("Sequence") FROM "{table}"), 0) + 1,

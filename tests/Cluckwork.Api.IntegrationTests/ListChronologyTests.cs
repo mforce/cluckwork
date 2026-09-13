@@ -116,8 +116,10 @@ public sealed class ListChronologyTests(CluckworkWebApplicationFactory factory)
                 .ListAsync(null, null, null, 10, 0)).Select(x => x.Id));
             AssertLaterFirst((await new DailyEntryRepository(db)
                 .ListAsync(null, null, null, 10, 0)).Select(x => x.Id));
-            AssertLaterFirst((await new PaymentRepository(db)
-                .ListByOrderAsync(EarlierId)).Select(x => x.Id));
+            Assert.Equal(
+                [EarlierId, LaterId],
+                (await new PaymentRepository(db)
+                    .ListByOrderAsync(EarlierId)).Select(x => x.Id).ToArray());
             AssertLaterFirst((await new InventoryLotRepository(db)
                 .ListByItemAsync(item.Id)).Select(x => x.Id));
             AssertLaterFirst((await new FeedUsageRepository(db)

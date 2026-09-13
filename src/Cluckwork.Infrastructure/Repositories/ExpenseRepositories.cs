@@ -59,9 +59,7 @@ public sealed class ExpenseRepository(AppDbContext db) : IExpenseRepository
         CancellationToken ct = default) =>
         await Filtered(from, to, categoryId)
             .AsNoTracking()
-            .OrderByDescending(e => e.Date)
-            .ThenByDescending(e => e.CreatedAtUtc)
-            .ThenByDescending(e => EF.Property<long>(e, "Sequence"))
+            .OrderByBusinessChronologyDescending(e => e.Date)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);

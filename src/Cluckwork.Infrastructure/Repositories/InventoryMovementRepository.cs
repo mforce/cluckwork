@@ -15,9 +15,7 @@ public sealed class InventoryMovementRepository(AppDbContext db) : IInventoryMov
         await db.InventoryMovements
             .AsNoTracking()
             .Where(m => m.InventoryItemId == inventoryItemId)
-            .OrderByDescending(m => m.Date)
-            .ThenByDescending(m => m.CreatedAtUtc)
-            .ThenByDescending(m => EF.Property<long>(m, "Sequence"))
+            .OrderByBusinessChronologyDescending(m => m.Date)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);

@@ -18,7 +18,6 @@ public sealed class EggInventoryMovementRepository(AppDbContext db) : IEggInvent
         await db.EggInventoryMovements
             .AsNoTracking()
             .Where(m => m.EggLotId == eggLotId)
-            .OrderByDescending(m => m.CreatedAtUtc)
-            .ThenByDescending(m => EF.Property<long>(m, "Sequence"))
+            .OrderByCreationChronologyDescending()
             .ToListAsync(ct);
 }

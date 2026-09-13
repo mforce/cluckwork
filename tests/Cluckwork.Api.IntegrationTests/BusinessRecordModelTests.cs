@@ -1,32 +1,18 @@
 namespace Cluckwork.Api.IntegrationTests;
 
 using Cluckwork.Domain.Accounts;
-using Cluckwork.Domain.Catalog;
 using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Eggs;
 using Cluckwork.Domain.Expenses;
 using Cluckwork.Domain.Flocks;
 using Cluckwork.Domain.Inventory;
 using Cluckwork.Domain.Sales;
-using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
 public sealed class BusinessRecordModelTests
 {
-    private static readonly Type[] TimestampedTypes =
-    [
-        typeof(Account), typeof(FarmLogo), typeof(UserRoleAssignment),
-        typeof(EggUnitConversion), typeof(Product), typeof(ProductEggGradeMapping),
-        typeof(DailyEntry), typeof(DailyEntryGrade), typeof(EggGrade), typeof(EggLot),
-        typeof(EggInventoryMovement), typeof(Expense), typeof(ExpenseCategory),
-        typeof(Flock), typeof(BirdMovement), typeof(FeedUsage), typeof(InventoryItem),
-        typeof(InventoryLot), typeof(InventoryMovement), typeof(WaterUsage),
-        typeof(Customer), typeof(Payment), typeof(SalesOrder), typeof(SalesOrderItem),
-        typeof(SalesOrderAllocation), typeof(ApplicationUser)
-    ];
-
     private static readonly Type[] CreatedOnlyTypes =
     [
         typeof(UserRoleAssignment), typeof(BirdMovement), typeof(FeedUsage),
@@ -53,10 +39,13 @@ public sealed class BusinessRecordModelTests
     {
         using var db = BuildContext();
 
-        Assert.Equal(26, TimestampedTypes.Distinct().Count());
-        Assert.Equal(21, TimestampedTypes.Except(CreatedOnlyTypes).Count());
+        var timestampedTypes = db.Model.GetEntityTypes()
+            .Where(entity => !entity.IsOwned()
+                && typeof(ICreatedRecord).IsAssignableFrom(entity.ClrType))
+            .Select(entity => entity.ClrType)
+            .ToArray();
 
-        foreach (var type in TimestampedTypes)
+        foreach (var type in timestampedTypes)
         {
             var entity = db.Model.FindEntityType(type);
             Assert.NotNull(entity);
@@ -71,6 +60,11 @@ public sealed class BusinessRecordModelTests
             Assert.Equal(mutable, typeof(IMutableRecord).IsAssignableFrom(type));
             Assert.Equal(mutable, entity.FindProperty(nameof(IMutableRecord.UpdatedAtUtc)) is not null);
         }
+
+        Assert.Equal(
+            CreatedOnlyTypes.OrderBy(type => type.Name),
+            timestampedTypes.Where(type => !typeof(IMutableRecord).IsAssignableFrom(type))
+                .OrderBy(type => type.Name));
     }
 
     [Fact]
@@ -78,7 +72,12 @@ public sealed class BusinessRecordModelTests
     {
         using var db = BuildContext();
 
-        foreach (var type in TimestampedTypes)
+        var timestampedTypes = db.Model.GetEntityTypes()
+            .Where(entity => !entity.IsOwned()
+                && typeof(ICreatedRecord).IsAssignableFrom(entity.ClrType))
+            .Select(entity => entity.ClrType);
+
+        foreach (var type in timestampedTypes)
         {
             var entity = db.Model.FindEntityType(type)!;
             var sequence = entity.FindProperty("Sequence");
