@@ -253,8 +253,9 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // THIS LIST ASSERTS, IT DOES NOT DISCOVER, and the selection rule is
     // stated so the omissions are a decision rather than a memory. Covered:
     // every route whose main content is a `table.data`, because a wide table is
-    // the thing #441's containment holds in and therefore the only content that
-    // can push this document sideways. Not covered, by that same rule:
+    // what #441's containment holds in — plus `/`, which carries no table but
+    // does carry the widest intrinsic content in the app, a money string in a
+    // `max-content` grid track. Not covered, by that same rule:
     // `/reports` and `/expenses` (a filter bar over summary panels), `/feed`
     // and `/water` (a flock picker over a narrow ledger), `/users`, `/audit`
     // and `/settings`. If one of those grows a wide table it belongs here —
@@ -266,22 +267,33 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // out because its own movement ledger is reached through `/flocks`, which
     // IS walked. Add it if that stops being true.
     //
-    // `/` IS DELIBERATELY EXCLUDED, and not because it is clean. It measures
-    // 443/390 at this width today, traced to a `<span class="num">` holding
-    // `$9,999,999.99` inside `ul.dash-list > li` — a row named
-    // "E2E Worker Sale …", which is RESIDUE THIS SUITE WROTE
-    // (worker-sale-allocation.spec.ts, #612). So the dashboard's overflow is
-    // run-order dependent: it depends on whether that spec has run yet against
-    // this fixture. An assertion whose verdict changes with spec order is a
-    // flake with a good reason, which is still a flake. The underlying layout
-    // weakness — a long money string in a dash-list row having no way to wrap
-    // or truncate — is real and is tracked separately as #816.
+    // `/` IS WALKED, and the story of why it briefly was not is worth keeping.
+    //
+    // It measured 443/390 during this PR's first probe — a `<span class="num">`
+    // holding `$9,999,999.99` inside `ul.dash-list > li`, pushed 53px off
+    // screen. That was real, and it was STALE BYTES: the sim stack had been up
+    // 28 hours, so it was serving an image built before #781
+    // (`7193ebe fix(dashboard): give recent sales real columns…`, 2026-09-12),
+    // which is the commit that gave this list its container-query narrow
+    // layout and is seven commits behind this branch's base. Rebuilding the
+    // stack made the dashboard measure 390/390 with those same rows present,
+    // the list resolving to `grid-template-columns: 179.219px 112px` and the
+    // widest amount sitting at x=346.6 inside a 353px panel.
+    //
+    // AGENTS.md says this in as many words — a long-running sim stack serves
+    // the bytes it was built from, not the branch under review — and it is the
+    // rule this PR's own description quotes. Rebuild before believing a
+    // rendered measurement.
     // Each route names the content whose width is actually being judged, rather
     // than sharing one selector. A blanket `table.data` was tried and was wrong
     // on the first run: `/daily-entry` renders a grade-entry grid and a sticky
     // foot, no data table at all, so the precondition failed there while the
     // route is one of the more interesting ones to measure.
     const ROUTES: ReadonlyArray<{ path: string; content: string; what: string }> = [
+      // The dashboard is first because it is the screen the phone context is
+      // FOR, and its recent-sales list is the widest intrinsic content in the
+      // app — a money string in a `max-content` track beside a name.
+      { path: "/", content: "ul.dash-list", what: "the recent-sales list" },
       { path: "/sales", content: "table.data", what: "the orders table" },
       { path: "/daily-entry", content: ".entry-foot", what: "the entry form's sticky foot" },
       { path: "/customers", content: "table.data", what: "the customer book" },
