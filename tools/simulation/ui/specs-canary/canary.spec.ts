@@ -35,9 +35,10 @@ import { UNDER_LOAD } from "../src/env";
 import { tEn } from "../src/i18n";
 import { installVitals, readVitals, type ScreenSample } from "../src/vitals";
 import { daysBefore, farmToday } from "../src/farm";
-import { selectOptionContaining } from "../src/dom";
+import { commitNamedPicker } from "../src/dom";
 
 type CanaryPage = import("../src/fixtures").Page;
+type CanaryLocator = import("../src/fixtures").Locator;
 
 /**
  * The screens the canary walks, each with the assertion that means "this is
@@ -47,7 +48,10 @@ const SCREENS = [
   {
     name: "dashboard",
     path: "/",
-    ready: (page: CanaryPage) => page.locator(".capture-tile").first(),
+    ready: (page: CanaryPage) => page.locator(".capture-grid"),
+    // The dashboard carries no table at all since #654 — its per-flock capture
+    // tiles are the rows, and they are what a lost `/api/v1/flocks` empties.
+    rows: (ready: CanaryLocator) => ready.locator(".capture-tile"),
     emptyMessageKey: "dashboard:noFlocksMessage",
     // The dashboard is a pure readout — it has no control to press. Left null
     // rather than inventing an interaction (a theme toggle, say) that no farmer
@@ -62,6 +66,7 @@ const SCREENS = [
       page.getByRole("table").filter({
         has: page.getByRole("columnheader", { name: tEn("stock:gradeHeader") }),
       }),
+    rows: (ready: CanaryLocator) => ready.locator("tbody tr"),
     emptyMessageKey: "stock:noStockMessage",
     // Expanding a grade's lots fires a fetch and re-renders a table — the most
     // common thing anyone does on this screen.
@@ -78,6 +83,7 @@ const SCREENS = [
       page.getByRole("table").filter({
         has: page.getByRole("columnheader", { name: tEn("reports:dateHeader") }),
       }),
+    rows: (ready: CanaryLocator) => ready.locator("tbody tr"),
     emptyMessageKey: null,
     // Widening the range is the expensive interaction on this screen and the one
     // #311 is about — 30 days rather than the max, because this measures the
@@ -110,14 +116,14 @@ const SCREENS = [
       page.getByRole("table").filter({
         has: page.getByRole("columnheader", { name: tEn("history:dateHeader") }),
       }),
+    rows: (ready: CanaryLocator) => ready.locator("tbody tr"),
     emptyMessageKey: "history:noEntriesMatch",
     // Filtering to one flock — a re-query plus a re-render.
     interact: async (page: CanaryPage) => {
-      const flock = page.getByLabel(tEn("history:flockLabel"));
-      // Clicking the control first is both what a user does and what produces an
-      // Event Timing entry — `selectOption()` alone emits none.
-      await flock.click();
-      await selectOptionContaining(flock, "Sim House A");
+      // The filter is a #512 searchable picker, not a `<select>`. Committing it
+      // clicks the trigger and then the option, so the Event Timing entry this
+      // screen's `yieldsEventTiming` asserts on comes from real clicks.
+      await commitNamedPicker(page, tEn("history:flockLabel"), "Sim House A");
     },
     yieldsEventTiming: true,
   },
@@ -143,14 +149,16 @@ test.describe("canary", () => {
       // that actually widens, and the one a farmer would describe as "slow".
       const ready = screen.ready(page);
       await expect(ready).toBeVisible();
-      // POPULATED, not merely present. A table rendered with headers and no rows
-      // is exactly what a degraded backend produces, and "the header exists" was
-      // green for it (PR #391 review). Reports has no empty-state message at all,
-      // so for that screen this is the ONLY thing standing between a valid-but-
-      // empty report and a passing canary.
+      // POPULATED, not merely present. A container rendered with headers and no
+      // rows is exactly what a degraded backend produces, and "the header exists"
+      // was green for it (PR #391 review). Reports has no empty-state message at
+      // all, so for that screen this is the ONLY thing standing between a
+      // valid-but-empty report and a passing canary. Each screen names its own
+      // rows because they are not all table rows (#841): the dashboard's are
+      // tiles, and a hardcoded `tbody tr` counted 0 there forever.
       await expect(
-        ready.locator("tbody tr"),
-        `${screen.name} rendered its table with no rows against a populated fixture`,
+        screen.rows(ready),
+        `${screen.name} rendered no rows against a populated fixture`,
       ).not.toHaveCount(0);
       const usableInMs = Date.now() - startedAt;
 
