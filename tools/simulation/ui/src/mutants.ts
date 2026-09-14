@@ -176,6 +176,16 @@
 //   * the nav role gates — for the reason above;
 //   * the in-memory-token guarantee (#145) — a purely client-side property;
 //   * the PWA specs — see 277-decisions.md on why `sw.js` cannot be mutated here.
+//   * csp-nonce.spec.ts (#873) — covered, but NOT from here. Its two mutants
+//     (drop the nonce from the header; drop the meta from the document) were run
+//     as SOURCE mutations with an image rebuild, and both had to be, for the
+//     same reason the PWA specs are unreachable: the service worker answers
+//     navigations from the precache, so a `page.route` rewrite of the document
+//     or its headers lands on the first load and silently lapses for the offline
+//     half — which is the half that spec exists for. A network mutant there
+//     would have killed the online test, survived the offline one, and read as
+//     a vacuous spec rather than an unfaithful instrument. The rebuild outputs
+//     are in PR #873.
 //
 // ================== SAFETY ==================
 //
