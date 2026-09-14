@@ -458,6 +458,44 @@ public sealed class ModuleLedgerTests : IDisposable
     }
 
     [Fact]
+    public void GlobalAliasToAnExactRoot_IsAFailure()
+    {
+        const string owners = """
+              "owners": {
+                "Hub":  { "kind": "platform", "namespaces": ["Cluckwork.Temp.Hub"], "exactNamespaces": ["Cluckwork.Temp"] },
+                "Red":  { "kind": "module",   "namespaces": ["Cluckwork.Temp.Red"] },
+                "Blue": { "kind": "module",   "namespaces": ["Cluckwork.Temp.Blue"] }
+              }
+            """;
+        WriteSource("src/Root.cs", "namespace Cluckwork.Temp;\npublic class Root { }\n");
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Globals.cs", "global using T = Cluckwork.Temp;\n");
+
+        var failure = Evaluate(WriteLedger(string.Empty, owners))
+            .FirstOrDefault(f => f.Contains("global using of module namespace"));
+
+        Assert.False(string.IsNullOrEmpty(failure), "expected the root alias to be rejected");
+        Assert.Contains("'Cluckwork.Temp'", failure!);
+    }
+
+    [Fact]
+    public void SingleIdentifierRelativeImport_IsAnEdge()
+    {
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Red.cs", """
+            namespace Cluckwork.Temp.Red
+            {
+                using Blue;
+                public class R { }
+            }
+            """);
+
+        var edge = Assert.Single(Scan(WriteLedger(string.Empty)).LiveEdges);
+
+        Assert.Equal(("Red", "Blue", "Cluckwork.Temp.Red.R"), (edge.From, edge.To, edge.Symbol));
+    }
+
+    [Fact]
     public void TempTreeFloor_IsItsOwnFileCount()
     {
         WriteSource("src/Blue.cs", BlueSource);

@@ -262,19 +262,28 @@ public static class ModuleLedgerScanner
             var scope = directive.Parent is BaseNamespaceDeclarationSyntax block
                 ? attributions.Where(a => a.Scope is not null && a.Scope.Ancestors().Contains(block)).ToList()
                 : attributions;
-            foreach (var dotted in directive.DescendantNodes()
+            // A single-identifier import (`using Sales;` inside a namespace) is a
+            // relative namespace name too, so it joins the dotted names.
+            var names = directive.DescendantNodes()
                 .Where(node => node is QualifiedNameSyntax or MemberAccessExpressionSyntax)
                 .Where(IsOutermostDotted)
                 .Select(DottedText)
                 .OfType<string>()
-                .Distinct(StringComparer.Ordinal))
+                .ToList();
+            if (directive.NamespaceOrType is IdentifierNameSyntax single)
+            {
+                names.Add(single.Identifier.ValueText);
+            }
+
+            foreach (var dotted in names.Distinct(StringComparer.Ordinal))
             {
                 var directiveNamespace = directive.Parent is BaseNamespaceDeclarationSyntax
                     ? NamespaceOf(directive, rootNamespace)
                     : fileNamespace;
                 var resolved = ResolveReferenced(namespaceOwners, dotted, directiveNamespace);
-                if (directive.GlobalKeyword != default && resolved is { } owner &&
-                    ownerKinds.TryGetValue(owner.Owner, out var kind) && kind == ModuleLedger.ModuleKind)
+                if (directive.GlobalKeyword != default && resolved is { } owner
+                    && ownerKinds.TryGetValue(owner.Owner, out var kind)
+                    && (kind == ModuleLedger.ModuleKind || IsRootAlias(directive, owner.Namespace)))
                 {
                     globalModuleImports.Add(new GlobalModuleImport(owner.Namespace, relative, LineOf(directive)));
                 }
@@ -403,6 +412,13 @@ public static class ModuleLedgerScanner
             }
         }
     }
+
+    // `global using D = Cluckwork.Domain;` names an exactly claimed root, and
+    // `D.Sales.Customer` at a use site cannot be expanded by this walk, so the
+    // alias would hide every module namespace below the root.
+    private static bool IsRootAlias(UsingDirectiveSyntax directive, string resolvedNamespace) =>
+        directive.Alias is not null
+        && DottedText(directive.NamespaceOrType) == resolvedNamespace;
 
     private static bool IsPlatform(IReadOnlyDictionary<string, string> kinds, string owner) =>
         kinds.TryGetValue(owner, out var kind) && kind == ModuleLedger.PlatformKind;
