@@ -18,7 +18,11 @@ production history, in the database your IDE-run API is already pointed at.
 - [`first-admin-provisioning.md`](first-admin-provisioning.md) — the database
   has no Owner. Do that first; this runbook needs one.
 - `seed --profile demo` ([280](../decisions/280-seed-and-simulation.md)) — the
-  small, look-at-it fixture. Prefer it when you do not need volume.
+  small, look-at-it fixture. Prefer it when you do not need volume. It also
+  takes `--farm-code <slug>`, which seeds that farm instead of the default one
+  (unknown code: exit 1 naming `list-accounts`). `--profile simulation` refuses
+  the flag — every command form in this runbook writes the **default** account,
+  and there is no supported way to point this fixture elsewhere.
 
 **Blast radius:** the target database's default account, permanently. The seed
 writes ~100 flocks, ~100 customers and `2 × HistoryDays` daily entries with

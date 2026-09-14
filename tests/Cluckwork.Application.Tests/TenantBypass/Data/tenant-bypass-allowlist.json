@@ -45,9 +45,9 @@
     "justification": "Background sweep releases stale locks across ALL tenants (it runs with no tenant resolved, under the single-leader gate #271). Every row it touches is re-checked against its own AccountId."
   },
   {
-    "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.SeedAsync(CancellationToken ct)",
+    "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.SeedAsync(Guid? targetAccountId, CancellationToken ct)",
     "file": "src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs",
-    "justification": "Dev-only seeder runs at unresolved tenant by design (#280); every query carries an explicit AccountId predicate or is a whole-account operation."
+    "justification": "Dev-only seeder runs at unresolved tenant by design (#280); every query carries an explicit AccountId predicate or is a whole-account operation. Re-read when targetAccountId landed: the account is now the CALLER's (seed --profile demo --farm-code <slug>) rather than always SeedDefaults.AccountId, and the predicate is the same local either way — these queries run BEFORE tenant.Resolve, so the bypass is still what lets the preflight see the target farm at all."
   },
   {
     "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.MissingBaseDataAsync(Guid accountId, CancellationToken ct)",

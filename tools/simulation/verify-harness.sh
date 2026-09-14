@@ -411,15 +411,22 @@ PY
 # reset.sh wipes the volume before failing on the empty credential downstream
 # (PR #371 review), which is precisely the destructive false green this gate
 # exists to prevent.
+#
+# README_* are the same shape, for the second farm reset.sh provisions and
+# demo-seeds (the README dashboard capture). They land in the same destructive
+# position: a blank README_OWNER_PASSWORD passes a `grep -q`, and reset.sh then
+# wipes the volume and rebuilds the image before failing on it five minutes
+# later.
 env_fail=0
-for required in SIM_ADMIN_EMAIL SIM_ADMIN_PASSWORD; do
+for required in SIM_ADMIN_EMAIL SIM_ADMIN_PASSWORD \
+                README_FARM_CODE README_FARM_NAME README_OWNER_EMAIL README_OWNER_PASSWORD; do
   line="$(grep -E "^${required}=" "$ENV_FILE" | tail -n1 || true)"
   value="${line#*=}"
   if [[ -z "$line" ]]; then
     echo "  FAIL: $required missing — regenerate: bash tools/simulation/bootstrap.sh --force" >&2
     env_fail=1
   elif [[ -z "${value//[[:space:]]/}" ]]; then
-    echo "  FAIL: $required is blank — reset.sh needs it to provision the first Owner" >&2
+    echo "  FAIL: $required is blank — reset.sh needs it to provision a farm's Owner" >&2
     env_fail=1
   fi
 done
@@ -433,7 +440,52 @@ for retired in Seed__AdminEmail Seed__AdminPassword Seed__Demo Seed__Enabled; do
     env_fail=1
   fi
 done
-(( env_fail )) || echo "  .env.sim script-level vars OK (SIM_ADMIN_* present and non-blank, no retired keys)"
+(( env_fail )) || echo "  .env.sim script-level vars OK (SIM_ADMIN_*/README_* present and non-blank, no retired keys)"
+
+# --- 5. The cast file, when there is one ---------------------------------
+#
+# .sim-cast.json is git-ignored, so it OUTLIVES the bootstrap.sh that wrote it —
+# the known failure mode this harness already documents. A file generated before
+# the README-capture farm existed parses fine, satisfies every check above, and
+# then fails inside Playwright's globalSetup after reset.sh has already spent
+# five minutes. Checked only when the file is present: bootstrap.sh writes
+# .env.sim and .sim-cast.json together, but reset.sh reads only the former, so a
+# cast-less stack is a legitimate state for k6-free use.
+#
+# Structure only, never values. A credential check here would mean a credential
+# in this script's output.
+CAST_FILE="$SIM_DIR/.sim-cast.json"
+if [[ -f "$CAST_FILE" ]]; then
+  if CAST_FILE="$CAST_FILE" python3 - <<'PY'
+import json
+import os
+import sys
+
+with open(os.environ["CAST_FILE"]) as f:
+    cast = json.load(f)
+
+farm = cast.get("readmeFarm")
+if not isinstance(farm, dict):
+    print(
+        "  FAIL: .sim-cast.json has no 'readmeFarm' key — it predates the README-capture "
+        "farm. Regenerate: bash tools/simulation/bootstrap.sh --force",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+missing = [k for k in ("farmCode", "email", "password") if not str(farm.get(k) or "").strip()]
+if missing:
+    print(
+        f"  FAIL: .sim-cast.json 'readmeFarm' is missing or blank for: {', '.join(missing)}. "
+        "Regenerate: bash tools/simulation/bootstrap.sh --force",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+print(f"  .sim-cast.json OK (readmeFarm present for '{farm['farmCode']}')")
+PY
+  then :; else env_fail=1; fi
+fi
 
 if (( env_fail )); then
   echo "== harness self-check FAILED — fix the above before booting the stack ==" >&2

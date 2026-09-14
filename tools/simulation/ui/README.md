@@ -23,6 +23,18 @@ for the staleness contract.
 
 **Run it on a freshly reset fixture.** `npm test` leaves its own rows behind — flocks and customers named `E2E …`, which sort ahead of the seeded `Sim …` ones — so a capture taken after a smoke run photographs test data and the daily-entry capture opens on an empty flock. `bash tools/simulation/reset.sh` first, then `npm run screenshots`, with no smoke run in between.
 
+**The dashboard capture drives a DIFFERENT FARM**, and it is the only thing in
+this suite that does. The simulation fixture cannot produce that image: its ~100
+catalog flocks (#627) are placed, active and never file, so every day owes a
+count nobody filed, no day is complete, and the trend strip draws fourteen
+identical floor stubs — the spec's own "bars are not all one height" assertion is
+what says so. `reset.sh` therefore provisions a second farm, `readme-farm`, and
+seeds it with the DEMO profile: two houses, ~240 days of submitted history on
+one, today unrecorded on the other. `cast.ts` exposes its Owner as
+`readmeFarmOwner()`, whose `farmCode` the `signIn` fixture reads; every other
+persona has no `farmCode` and keeps signing into `default-farm`. Full reasoning
+in `tools/simulation/README.md` under "Two farms on this stack".
+
 **Playwright is never the load generator.** k6 stays the crowd.
 
 ## Quickstart
@@ -80,7 +92,8 @@ specs/                        the smoke specs
 specs-canary/                 the canary
 src/
   browser.ts     which Chromium, and why there are two right answers
-  cast.ts        personas from ../.sim-cast.json; cast label -> SPA role
+  cast.ts        personas from ../.sim-cast.json; cast label -> SPA role,
+                 plus readmeFarmOwner() for the second farm
   farm.ts        farm-local dates via Intl, mirroring web/src/lib/dates.ts
   i18n.ts        selector text read from the SPA's own en/es/tl catalogs
   api.ts         HTTP, for preflight and ground truth only — never assertions

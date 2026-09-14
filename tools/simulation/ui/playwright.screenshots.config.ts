@@ -84,11 +84,20 @@ export default defineConfig({
     {
       name: "chromium-dashboard",
       // #660: the 1280x800 frame showed only the alarm-state tile grid — the
-      // 14-day trend, stock, and recent-sales panels fell below the fold.
-      // 1280x1180, measured against the rendered page (content ends ~1115px):
-      // tall enough to clear the tile grid, "Last 14 days", "Stock" and the
-      // sales list, without so much trailing blank space below the sales
-      // panel that the shot reads as a screenshot of a scrollbar.
+      // 14-day trend, stock, and recent-sales panels fell below the fold, so
+      // this capture got its own project at 1280x1180.
+      //
+      // WHAT DECIDES THAT NUMBER HAS CHANGED, and the height is no longer
+      // shrinkable to fit the content. Since the capture moved to the
+      // demo-seeded README farm, its main column ends at 700px — two tiles
+      // instead of twelve — and there is visible empty page below it. The
+      // SIDEBAR is what holds the frame open now: signed in as an Owner every
+      // destination is offered, and measured against the rendered page that
+      // column's own content ends at 1164px with the footer pinned to the
+      // viewport bottom. Anything shorter clips the navigation mid-list and
+      // overlaps it with Night/Sign out, which looks broken in a way the empty
+      // space does not. Re-measure before changing it; do not infer it from the
+      // main column.
       grep: /dashboard — the morning view/,
       use: {
         ...devices["Desktop Chrome"],

@@ -52,9 +52,17 @@ public sealed class DemoDataSeeder(
     ConfirmSaleHandler confirmSale,
     ILogger<DemoDataSeeder> logger)
 {
-    public async Task<SeedResult> SeedAsync(CancellationToken ct = default)
+    // `targetAccountId` is the farm to seed, and it is an explicit parameter
+    // rather than ambient state on purpose: `tenant` is single-assignment, so a
+    // seeder that read the tenant instead of setting it could only ever run
+    // where somebody else had already resolved one. Null means the default farm,
+    // which is every caller but `seed --profile demo --farm-code <slug>` (#865
+    // follow-up — the README dashboard is captured from a second, demo-seeded
+    // farm on the sim stack, because the simulation fixture's 100 catalog flocks
+    // make every day a partial day).
+    public async Task<SeedResult> SeedAsync(Guid? targetAccountId = null, CancellationToken ct = default)
     {
-        var accountId = SeedDefaults.AccountId;
+        var accountId = targetAccountId ?? SeedDefaults.AccountId;
 
         // Preflight the base prerequisite (#284 review): demo needs the default
         // account, the Admin role, and the default egg grades (FK dep for the
@@ -68,10 +76,11 @@ public sealed class DemoDataSeeder(
         if (missingBaseData)
         {
             const string message =
-                "Demo seed prerequisites missing: the base data (default account, Admin role, default egg " +
-                "grades) is not present. It ships as part of the EF migrations (#283) — run `migrate` (or " +
-                "let this command's own migrate-first step apply it) against a current schema, then re-run " +
-                "`seed --profile demo`.";
+                "Demo seed prerequisites missing: the base data (the account, the Admin role, its default " +
+                "egg grades) is not present. For the default farm it ships as part of the EF migrations " +
+                "(#283) — run `migrate` (or let this command's own migrate-first step apply it) against a " +
+                "current schema. A farm created by `provision-account` gets the same reference data at " +
+                "provisioning time. Then re-run `seed --profile demo`.";
             logger.LogError(message);
             return SeedResult.PrerequisitesMissing(message);
         }
@@ -97,7 +106,7 @@ public sealed class DemoDataSeeder(
             // the same message. AdminRecoveryService documents that trap; this
             // is the second place it bites.
             var message = disabledOwners > 0
-                ? "Demo seed prerequisites missing: the default account's Owner role is held only by DISABLED " +
+                ? "Demo seed prerequisites missing: the account's Owner role is held only by DISABLED " +
                   "user(s), so the seeded records would be signed by an account that cannot log in. There is " +
                   "no in-product repair for this state today, so do not go looking for one: `bootstrap-admin` " +
                   "counts Owner role rows without checking DisabledAt and reports 'already provisioned'; " +
@@ -105,9 +114,11 @@ public sealed class DemoDataSeeder(
                   "is Owner-only, which nobody can now reach. Clear BOTH DisabledAt and DisabledBy for that " +
                   "user directly in the database — they describe one fact, and EnableUserAsync always " +
                   "clears them together — then re-run `seed --profile demo`."
-                : "Demo seed prerequisites missing: the default account has no user in the Owner role, so the " +
-                  "seeded records would have no author. Run `dotnet Cluckwork.Api.dll bootstrap-admin --email " +
-                  "<e>` against this database, then re-run `seed --profile demo`.";
+                : "Demo seed prerequisites missing: the account has no user in the Owner role, so the " +
+                  "seeded records would have no author. The default farm's Owner comes from `dotnet " +
+                  "Cluckwork.Api.dll bootstrap-admin --email <e>`; any other farm gets one from " +
+                  "`provision-account`. Run the right one against this database, then re-run `seed " +
+                  "--profile demo`.";
             logger.LogError(message);
             return SeedResult.PrerequisitesMissing(message);
         }

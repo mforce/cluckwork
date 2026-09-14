@@ -36,7 +36,14 @@ export async function signInForToken(member: CastMember): Promise<string> {
   const res = await fetch(`${BASE_URL}${API_PREFIX}/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ farmCode: "default-farm", email: member.email, password: member.password }),
+    // Same member-first resolution as the browser sign-in fixture, and for the
+    // same reason: a member of the README-capture farm sent to `default-farm`
+    // fails with Auth.UnknownFarmCode, which reads as a broken fixture.
+    body: JSON.stringify({
+      farmCode: member.farmCode ?? "default-farm",
+      email: member.email,
+      password: member.password,
+    }),
   });
   if (!res.ok) {
     throw new ApiProbeError(
