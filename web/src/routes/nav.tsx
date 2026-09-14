@@ -80,9 +80,7 @@ export function navGroups(role: Role, isAdmin: boolean): NavGroup[] {
     groups.push({
       labelKey: "groupSetup",
       entries: [
-        // Same gate as the API's /account/settings (AdminOnly = Owner or
-        // Manager), not the narrower Users one.
-        { to: "/settings", labelKey: "farmSettings", Icon: Settings },
+        ...(role === "Admin" ? [{ to: "/settings", labelKey: "farmSettings" as const, Icon: Settings }] : []),
         { to: "/grades", labelKey: "grades", Icon: Tags },
         { to: "/products", labelKey: "products", Icon: Package },
         ...(role === "Admin" ? [{ to: "/users", labelKey: "users" as const, Icon: UserCog }] : []),

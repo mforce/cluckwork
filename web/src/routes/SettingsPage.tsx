@@ -144,7 +144,7 @@ function keyFor(attempt: Attempt | null, payload: string): Attempt {
     : { key: newId(), payload };
 }
 
-// #123 — farm settings (admin). The §4.5 localization set plus the logo, with
+// #123/#729 — farm settings (Owner-only). The §4.5 localization set plus the logo, with
 // §4.6's currency lock surfaced as a locked field instead of a 422 the user
 // only meets after typing.
 export function SettingsPage() {

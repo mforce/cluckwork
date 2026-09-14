@@ -9,7 +9,7 @@ Add one farm setting controlling how a restricted plain Worker allocates eggs
 when confirming a sale:
 
 - `AssignedFlocksOnly` — default for existing and new farms.
-- `AllFarmFlocks` — explicit Owner/Manager opt-in.
+- `AllFarmFlocks` — explicit Owner opt-in (#729).
 
 Owner, Manager, and Sales confirmations remain farm-wide. ReadOnly cannot
 confirm. A Worker with no concrete restriction remains farm-wide.

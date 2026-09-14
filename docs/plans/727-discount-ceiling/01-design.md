@@ -6,6 +6,10 @@ Epic #719, slice 6. Cut from `origin/main` at `e6b37d0`, after #720 (`cffed5e`),
 Synthesized from two independent design candidates (Phase B of `architect`). The
 synthesis decision is in §7.
 
+> **Permission update (#729, 2026-09-14):** Farm settings are now Owner-only.
+> Owners and Managers may still approve a sale above the ceiling. The fixed
+> decision below records the authorization boundary when #727 shipped.
+
 ## 0. What already shipped, read from the code at `e6b37d0`
 
 | Fact | Where |

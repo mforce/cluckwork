@@ -453,14 +453,14 @@ only if that falls short does it check whether the farm's full FIFO stock
 would have covered the sale — returning a distinct, generic 422
 (`EggLot.AssignedFlocksInsufficientStock`) when it would, so the sale is
 refused without revealing what stock exists outside the worker's flocks.
-`AllFarmFlocks` is an explicit Owner/Manager opt-in restoring farm-wide
+`AllFarmFlocks` is an explicit Owner opt-in restoring farm-wide
 allocation for restricted Workers too. Owner, Manager, and Sales
 confirmations are always farm-wide regardless of this setting (Read-only
 cannot confirm a sale at all, so it is not part of this list) — only a plain
 Worker with concrete flock assignments (not zero rows, not a farm-wide row)
 is ever affected. A restricted Worker never sees the detailed grade/quantity
 422 on insufficient stock, even under `AllFarmFlocks`, and its distinct
-`EggLot.AssignedFlocksInsufficientStock` copy tells them an Owner/Manager can
+`EggLot.AssignedFlocksInsufficientStock` copy tells them an Owner can
 enable selling from other flocks in Farm settings, without naming which
 flock or how much is short. The FIFO lock/query itself never changes shape
 or runs twice; the policy only decides which already-locked lots the plan
@@ -544,7 +544,7 @@ as *not recorded*, never as *no discount*.
 
 **Discount ceiling (#727)** — the most a farm lets a *Sales* user or *Worker*
 take off a **sales line's** **list price**, set in **Farm settings** by an
-Owner or Manager. Measured **per line**, never against the order total, so it
+Owner. Measured **per line**, never against the order total, so it
 cannot be evaded by padding an order with at-list lines, and *exactly* at the
 ceiling is allowed. A farm that sets none has no ceiling, and **blank and zero
 are different settings**: zero means *give nothing away*. Above it the seller
@@ -913,9 +913,11 @@ by farm.
 **Farm settings (#123, spec §4.5)** — the farm's own name plus the four things
 that decide how it reads: **timezone**, **locale**, **currency**, and **unit
 system**, with optional **first day of week** and date/time format overrides.
-Owner and Manager can edit them; everyone reads them, because formatting money,
-dates and numbers is not a permission. They live on one screen — **Setup → Farm
-settings** — which is also where the logo is uploaded and cleared.
+Only an Owner can open or edit them. Every authenticated role reads the
+formatting and branding values through the account response because formatting
+money, dates, and numbers is not a permission. They live on one screen —
+**Setup → Farm settings** — which is also where the logo is uploaded and
+cleared.
 
 What each one *does today* is not yet what it will do. The **timezone** is fully
 wired: it decides the operational day, and every capture screen's date field
@@ -936,8 +938,8 @@ what carries number and date conventions. Saving uses the same **version
 copy gets a 409 and reloads.
 
 **Farm logo (#123)** — an image shown as branding in the app chrome, falling
-back to Cluckwork's own branding when none is set. Owner and Manager can upload
-or clear it; everyone sees it. **PNG, JPEG or WebP, up to a configurable cap (2 MB by default) and 4096
+back to Cluckwork's own branding when none is set. Only an Owner can upload or
+clear it; everyone sees it. **PNG, JPEG or WebP, up to a configurable cap (2 MB by default) and 4096
 pixels a side, and it must be a still image.** SVG is refused: it is a document that
 can carry script, and this image is rendered back to every user of the farm.
 Animated PNG and animated WebP are refused too — an animated frame can hide
@@ -968,7 +970,7 @@ or neither — setting or clearing one never touches the other. Same upload rule
 as the logo (PNG/JPEG/WebP, a still image, no SVG, dimensions and metadata
 handled the same way — see below), but its own larger size cap (5 MB by default,
 since a detailed hero image is typically heavier than a small sidebar mark) and its own
-Owner/Manager-only upload and everyone-sees-it read, same as the logo. The
+Owner-only upload and everyone-sees-it read, same as the logo. The
 splash is skipped entirely when no banner is set — it is never shown empty, and
 never shown on the pre-login screen (that screen has no farm to show a banner
 for yet).
@@ -984,7 +986,7 @@ image's own header, so a small file claiming to be 30000 pixels across is turned
 away before it can lock up the browser of everyone who loads the page.
 
 **Farm palette** — The accent colour used across the app for everyone on a
-farm, chosen by an admin in Farm settings from a curated set (Aubergine,
+farm, chosen by an Owner in Farm settings from a curated set (Aubergine,
 Forest, Slate, Terracotta). It is farm-wide and applies to every role. Distinct
 from **night mode**, which each person sets for themselves on each device: the
 two are independent, and choosing a farm palette never changes anyone's
@@ -1168,9 +1170,9 @@ Water. Change the farm's timezone and every capped picker follows on the next
 screen that renders.
 
 **Roles (#103, spec §5.1)** — five shipped: **Admin (owner)** does
-everything including user management; **Manager** runs the farm — every
-corrective, config, and money capability except managing users, including
-**creating flocks**; **Worker** (a user with no role) records the day's
+everything, including farm settings, branding, and user management;
+**Manager** runs farm operations, including corrections, operational catalogs,
+money reports, and **creating flocks**; **Worker** (a user with no role) records the day's
 work — daily entries, feed, water — for assigned/unrestricted flocks
 (spec §5.3 — no assignments = account-wide, the first assignment
 restricts), but **cannot create a flock** (#388: a scoped Worker cannot

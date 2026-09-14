@@ -19,7 +19,7 @@ interface AuthState {
   // exchanged (#145).
   isLoading: boolean;
   // UI visibility only (#73/#103) — every gated endpoint re-checks the role.
-  // isAdmin = Owner OR Manager (the corrective/config tier).
+  // isAdmin = Owner OR Manager (the operations and corrective tier).
   isAdmin: boolean;
   role: Role;
   // #356 — the token's own "sub" claim, for guards that must not depend on

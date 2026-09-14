@@ -7,8 +7,9 @@ using Cluckwork.Domain.Accounts;
 // tier, never a raw role name (#84).
 //
 // The matrix:
-//   Owner    → everything (user management is Owner-only)
-//   Manager  → corrective actions, config, money — everything but user mgmt
+//   Owner    → full access, including farm configuration and identity
+//   Manager  → farm operations, inventory, health, reports; no farm config
+//              or user management
 //   Sales    → customers, orders, payments; no production writes, no expenses
 //   Worker   → production recording (a user with NO elevated role), flock-
 //              scoped once assignments exist (IFlockScopeGuard)
@@ -16,7 +17,7 @@ using Cluckwork.Domain.Accounts;
 public static class AuthPolicies
 {
     public const string AdminOnly = "AdminOnly";       // Owner + Manager (historic name kept — #73 gates)
-    public const string OwnerOnly = "OwnerOnly";       // user management
+    public const string OwnerOnly = "OwnerOnly";       // farm configuration, identity, and user management
     public const string SalesAccess = "SalesAccess";   // Owner/Manager/Sales
     public const string SalesFlow = "SalesFlow";       // everyone but ReadOnly (workers sell — #73 principle)
     public const string ProductionWrite = "ProductionWrite"; // Owner/Manager/Worker(no elevated role)
@@ -36,9 +37,9 @@ public static class AuthPolicies
             .RequireAssertion(ctx => EffectiveRole(ctx.User) != DeniedRole)
             .Build();
 
-        // Owner + Manager: the "undo, correct, configure, see money" tier.
-        // Every pre-#103 AdminOnly gate now admits Managers too (spec §5.1:
-        // Manager = farm operations, inventory, reports).
+        // Owner + Manager: the "undo, correct, operate, see money" tier.
+        // Every pre-#103 AdminOnly gate now admits Managers too. Spec §5.1
+        // defines Manager as farm operations, inventory, health, and reports.
         opts.AddPolicy(AdminOnly, p => p.RequireRole(Roles.Owner, Roles.Manager));
 
         opts.AddPolicy(OwnerOnly, p => p.RequireRole(Roles.Owner));

@@ -126,7 +126,7 @@ public sealed class AdminGatingTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden,
             (await worker.GetAsync("/api/v1/expense-categories")).StatusCode);
 
-        // Farm settings (#123): the settings SCREEN is admin-only, but the
+        // Farm settings (#123/#729): the settings screen is Owner-only, but the
         // plain account read stays open — §4.5 formatting applies to every
         // screen a worker sees.
         Assert.Equal(HttpStatusCode.Forbidden,

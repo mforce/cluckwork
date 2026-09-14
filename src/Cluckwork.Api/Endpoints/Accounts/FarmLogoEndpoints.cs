@@ -26,7 +26,7 @@ public static class FarmLogoEndpoints
     {
         // Open to every authenticated role: the logo is farm branding in the
         // SPA chrome, which a read-only viewer sees like anyone else. The two
-        // writes below are admin-gated.
+        // writes below are Owner-only.
         group.MapGet("/logo", GetLogo)
             .WithName("GetFarmLogo")
             .WithSummary("The farm logo image. 404 when none is set; the chrome falls back to app branding.");
@@ -41,7 +41,7 @@ public static class FarmLogoEndpoints
             // stream capped BEFORE idempotency buffers the whole thing to hash
             // it. See that file for why this couldn't be WithMaxRequestBodyBytes.
             .WithMetadata(new FarmLogoUploadCapMetadata())
-            .RequireAuthorization(AuthPolicies.AdminOnly)
+            .RequireAuthorization(AuthPolicies.OwnerOnly)
             .WithName("SetFarmLogo")
             .WithSummary(
                 "Upload or replace the farm logo. Raw image body (PNG/JPEG/WebP), capped by the " +
@@ -49,7 +49,7 @@ public static class FarmLogoEndpoints
                 "The stored image is a rewritten copy with metadata and trailing bytes removed.");
 
         group.MapDelete("/logo", RemoveLogo)
-            .RequireAuthorization(AuthPolicies.AdminOnly)
+            .RequireAuthorization(AuthPolicies.OwnerOnly)
             .WithName("RemoveFarmLogo")
             .WithSummary("Clear the farm logo.");
 

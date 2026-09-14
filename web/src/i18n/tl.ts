@@ -135,7 +135,7 @@ export const tl = {
     "Me.Language.Format": "Dapat 2–8 letrang code ang wika, halimbawa 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":
       "Wala pang sapat na stock ang mga kawan na nakatalaga sa iyo para sa "
-      + "bentang ito. Maaaring paganahin ng isang Owner o Manager ang pagbenta "
+      + "bentang ito. Maaaring paganahin ng isang Owner ang pagbenta "
       + "mula sa ibang kawan sa Mga setting ng bukid.",
     // #721
     "SalesOrder.DiscountReasonRequired":
@@ -147,8 +147,8 @@ export const tl = {
     // #727
     "SalesOrder.DiscountCeilingExceeded":
       "May linya sa order na ito na mas malaki ang diskwento kaysa sa pinapayagan ng "
-      + "bukid na ito. Maaaring kumpirmahin ito ng isang Owner o Manager, o baguhin ang "
-      + "Pinakamataas na diskwento sa Mga setting ng bukid.",
+      + "bukid na ito. Maaaring kumpirmahin ito ng isang Owner o Manager. Owner lang ang "
+      + "maaaring magbago ng Pinakamataas na diskwento sa Mga setting ng bukid.",
     "SalesOrder.DiscountNotMeasurable":
       "May linya sa order na ito na hindi masusukat ang diskwento laban sa "
       + "pinakamataas. Kailangan itong kumpirmahin ng isang Owner o Manager.",
@@ -1267,7 +1267,7 @@ export const tl = {
     workerSaleAllocationPolicyHint:
       "Kinokontrol kung saang mga lote ng itlog maaaring kumuha ng stock ang "
       + "benta ng isang nakatalagang plain Worker. Nakatalagang kawan lang "
-      + "ang default; ang mga may-ari at manager ay maaaring pumili ng lahat "
+      + "ang default; ang mga may-ari ay maaaring pumili ng lahat "
       + "ng kawan sa bukid.",
     // #727
     maxDiscountPercentLabel: "Pinakamataas na diskwento",
@@ -1328,10 +1328,10 @@ export const tl = {
     roleDescription:
       "Itinatala ng mga manggagawa ang trabaho ng araw (opsyonal na "
       + "nakalimita sa mga naka-assign na kawan). Ginagawa rin ng mga "
-      + "Manager ang pagtatama, pag-void, at pag-configure. Ang Benta ang "
+      + "Manager ang pagtatama, pag-void, at pamamahala sa mga operational catalog. Ang Benta ang "
       + "humahawak sa customer, order, at bayad. Nakikita ng Read-only ang "
       + "stock, history, at reports. Ginagawa ng Admin (may-ari) ang lahat, "
-      + "kasama ang pamamahala ng mga user.",
+      + "kasama ang Mga Setting ng Bukid, pagkakakilanlan ng bukid, at pamamahala ng mga user.",
 
     // Create-user dialog
     emailFieldLabel: "Email *",
@@ -2189,8 +2189,8 @@ export const tl = {
       + "sa kanya sa mga nakalista lang. Hindi puwedeng gumawa ng kawan ang mga manggagawa — "
       + "administrasyon iyon ng May-ari/Manager.",
     rolesManagers:
-      "Ginagawa ng mga <strong>Manager</strong> ang lahat ng ginagawa ng manggagawa, dagdag pa ang lahat "
-      + "ng <strong>nag-a-undo, nagtatama, o nag-co-configure</strong>: void, pagtatama ng stock at tubig, "
+      "Ginagawa ng mga <strong>Manager</strong> ang lahat ng ginagawa ng manggagawa, dagdag pa ang operational "
+      + "na gawaing <strong>nag-a-undo o nagtatama</strong>: void, pagtatama ng stock at tubig, "
       + "paggawa ng kawan at mga pagbabago sa lifecycle ng kawan, pag-cull, ang mga katalogo ng "
       + "grado/produkto/item, gastos, report ng pera, audit log, at export.",
     rolesSalesReadOnly:
@@ -2199,7 +2199,8 @@ export const tl = {
       + "only</strong> ang stock, history, at report, at hindi puwedeng magbago ng anuman.",
     rolesAdmin:
       "Ginagawa ng <strong>Admin (may-ari)</strong> ang lahat ng ginagawa ng manager at siya lang ang "
-      + "tungkuling namamahala ng mga user: gumagawa ng sign-in sa screen na <strong>Mga User</strong> "
+      + "tungkuling namamahala sa Mga Setting ng Bukid, pagkakakilanlan ng bukid, at mga user: gumagawa "
+      + "ng sign-in sa screen na <strong>Mga User</strong> "
       + "(email, password, opsyonal na pangalan, at tungkulin) at nag-a-assign ng manggagawa sa mga kawan. "
       + "Puwedeng baguhin sa ibang pagkakataon ang pangalan ng isang user mula sa aksyong "
       + "<strong>i-edit</strong> ng row, at nagtatakda ang aksyong <strong>password</strong> ng nakalimutang "
@@ -2502,7 +2503,7 @@ export const tl = {
       + "order</strong> hanggang mabago ang presyo ng linya. Nananatiling draft ang order — walang "
       + "pinipilahan at walang inaabisuhan, kaya humingi sa isang Owner o Manager, na maaaring "
       + "kumpirmahin ito nang walang binabago. Hindi kailanman nililimitahan ang mga Owner at Manager. "
-      + "Itinatakda ang limitasyon sa Mga setting ng bukid bilang <strong>Pinakamataas na "
+      + "Owner lang ang nagtatakda ng limitasyon sa Mga setting ng bukid bilang <strong>Pinakamataas na "
       + "diskwento</strong>.",
     salesConfirming:
       "Ang <strong>Pagkumpirma</strong> ng isang order ay naglalaan ng aktwal na stock — pinakalumang lote "
@@ -2665,9 +2666,10 @@ export const tl = {
       "Naglalaman ang mga column ng pera ng minor unit (sentimo) kasama ang currency — eksaktong halaga, "
       + "hindi display formatting. ISO ang mga petsa (YYYY-MM-DD), at UTC ang mga timestamp.",
 
-    farmSettingsHeading: "Mga Setting ng Bukid (admin)",
+    farmSettingsHeading: "Mga Setting ng Bukid (Owner lang)",
     farmSettingsIntro:
-      "Nasa <strong>Setup → Mga Setting ng Bukid</strong> ang pangalan ng bukid at ang apat na bagay na "
+      "Owner lang ang maaaring magbukas o magbago ng <strong>Setup → Mga Setting ng Bukid</strong>. Nandoon "
+      + "ang pangalan ng bukid at ang apat na bagay na "
       + "nagdedesisyon kung paano babasahin ang lahat: <strong>time zone</strong>, <strong>locale</strong>, "
       + "<strong>currency</strong>, at <strong>sistema ng yunit</strong>. Opsyonal ang unang araw ng linggo at ang "
       + "mga format ng petsa at oras — iwanan itong blangko at ang locale ang magdedesisyon. Agad na "
@@ -2736,7 +2738,7 @@ export const tl = {
 
     farmPaletteHeading: "Paleta ng Bukid",
     farmPaletteIntro:
-      "Ang mga setting ng bukid ay nagpapahintulot sa isang admin na pumili ng accent color na ginagamit "
+      "Ang mga setting ng bukid ay nagpapahintulot sa isang Owner na pumili ng accent color na ginagamit "
       + "sa buong app para sa lahat sa bukid: Talong, Kagubatan, Slate, o Terracotta. Naaaplay ang pinili "
       + "kapag nag-save ka, at nakikita ito ng lahat sa susunod na pag-load ng app nila."
       + " Naaalala rin ng bawat device ang paleta para sa bawat bukid, kaya maaaring lumabas ang sariling "
@@ -3114,8 +3116,8 @@ export const tl = {
     glossaryDiscountCeilingTerm: "Limitasyon ng diskwento",
     glossaryDiscountCeilingDef:
       "Ang pinakamalaking diskwento na maaaring ilagay ng isang user na Benta o Manggagawa sa "
-      + "isang linya ng benta. Itinatakda ito ng isang Owner o Manager sa Mga setting ng bukid "
-      + "bilang Pinakamataas na diskwento, at sila lang ang makakakumpirma ng order na "
+      + "isang linya ng benta. Itinatakda ito ng isang Owner sa Mga setting ng bukid bilang Pinakamataas "
+      + "na diskwento. Maaaring kumpirmahin ng isang Owner o Manager ang order na "
       + "lalampas dito. Ang linyang lampas sa limitasyon ay may markang Higit sa pinakamataas, "
       + "at nananatiling naka-block ang Kumpirmahin ang order hanggang mabago ang presyo ng "
       + "linya o kumpirmahin ng isang Owner o Manager ang order nang walang binabago. Ang "
@@ -3168,8 +3170,9 @@ export const tl = {
     glossaryRolesTerm: "Mga Tungkulin",
     glossaryRolesDef:
       "Admin (may-ari), Manager, Manggagawa, Benta, Read-only — tingnan ang \"Sino ang puwedeng gumawa ng "
-      + "ano\". Nagtatala ang mga manggagawa; nagtatama at nagko-configure rin ang mga manager; "
-      + "hinahawakan ng benta ang mga order at bayad; nanonood lang ang read-only.",
+      + "ano\". Nagtatala ang mga manggagawa; nagtatama at namamahala rin sa mga operational catalog ang "
+      + "mga manager; namamahala ang mga may-ari sa Mga Setting ng Bukid, pagkakakilanlan ng bukid, at mga "
+      + "user; hinahawakan ng benta ang mga order at bayad; nanonood lang ang read-only.",
 
     glossaryFlockScopingTerm: "Saklaw ng Kawan",
     glossaryFlockScopingDef:
@@ -3201,8 +3204,9 @@ export const tl = {
     glossaryFarmSettingsDef:
       "Ang pangalan ng bukid, time zone, locale, currency, at unit system, kasama ang opsyonal na unang "
       + "araw ng linggo at mga format ng petsa/oras — pinipili mula sa dropdown ng mga preset, o "
-      + "ini-type bilang custom na .NET format string. Setup → Mga Setting ng Bukid; nag-e-edit ang mga "
-      + "may-ari at manager, nakakabasa ang lahat — hindi permission ang pag-format ng pera at petsa.",
+      + "ini-type bilang custom na .NET format string. Mga may-ari lang ang nagbubukas at nag-e-edit ng "
+      + "Setup → Mga Setting ng Bukid. Binabasa ng bawat naka-authenticate na role ang formatting at "
+      + "branding values mula sa farm account response.",
 
     glossaryCurrencyLockTerm: "Currency lock",
     glossaryCurrencyLockDef:
@@ -3228,7 +3232,7 @@ export const tl = {
 
     glossaryFarmPaletteTerm: "Paleta ng Bukid",
     glossaryFarmPaletteDef:
-      "Ang accent color para sa buong bukid, pinipili ng isang admin sa Mga Setting ng Bukid. Hiwalay ito "
+      "Ang accent color para sa buong bukid, pinipili ng isang Owner sa Mga Setting ng Bukid. Hiwalay ito "
       + "sa sariling setting ng light/night mode ng bawat tao."
       + " Naaalala ito bawat bukid sa bawat device, kaya maaari itong lumabas sa sign-in screen bago "
       + "mag-sign in ang sinuman; ang device na nakakaalala ng ilang bukid ay nagpapakita ng default "

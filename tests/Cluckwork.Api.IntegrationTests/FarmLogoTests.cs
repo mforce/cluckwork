@@ -636,9 +636,10 @@ public sealed class FarmLogoTests(CluckworkWebApplicationFactory factory)
     // --- who may do it -----------------------------------------------------
 
     [Theory]
+    [InlineData(Roles.Manager)]
     [InlineData(Roles.ReadOnly)]
     [InlineData(Roles.Sales)]
-    public async Task NonAdmins_CannotChangeTheBranding(string role)
+    public async Task NonOwners_CannotChangeTheBranding(string role)
     {
         var (_, accountId, _) = await AdminAsync();
         var email = $"n-{Guid.NewGuid():N}@test.local";

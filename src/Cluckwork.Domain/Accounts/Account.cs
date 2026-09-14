@@ -67,13 +67,13 @@ public sealed class Account : AggregateRoot<Guid>, IMutableRecord
     public string? DateFormatOverride { get; private set; }
     public string? TimeFormatOverride { get; private set; }
 
-    // The farm's accent palette (#149). Farm-wide and admin-chosen, orthogonal
+    // The farm's accent palette (#149). Farm-wide and Owner-chosen, orthogonal
     // to each user's own light/night preference, which the SPA keeps locally.
     public string Brand { get; private set; } = FarmBrands.Default;
     public bool IsActive { get; private set; }
 
     // #612 — default for existing and new farms; AllFarmFlocks is an explicit
-    // Owner/Manager opt-in. Only a plain Worker is ever affected by this.
+    // Owner-only opt-in (#729). Only a plain Worker is ever affected by this.
     public WorkerSaleAllocationPolicy WorkerSaleAllocationPolicy { get; private set; } =
         WorkerSaleAllocationPolicy.AssignedFlocksOnly;
 

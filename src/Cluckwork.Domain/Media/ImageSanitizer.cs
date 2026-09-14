@@ -36,7 +36,7 @@ using Cluckwork.Domain.Common;
 //     that; pixel data can carry anything by construction. It is accepted here
 //     because the response is served with a sniffed Content-Type under nosniff
 //     and the #144 CSP, so an inert blob is not an execution vector, and
-//     because uploads are Owner/Manager only.
+//     because uploads are Owner-only (#729).
 //  4. Declared dimensions are read from the header and capped. This is the one
 //     bomb vector the no-decode approach still has to answer for: our server
 //     never allocates the pixels, but the browsers of everyone on the farm
@@ -199,7 +199,7 @@ public static class ImageSanitizer
     // construction). That is an accepted limit, not an oversight: the response
     // is served with a sniffed Content-Type under X-Content-Type-Options:
     // nosniff and the #144 CSP, so an inert blob is not an execution vector,
-    // and uploads are Owner/Manager only. What this table stops is the case
+    // and uploads are Owner-only (#729). What this table stops is the case
     // where the surplus is unambiguous because the specification left no room
     // for it.
     private static bool PngChunkLengthIsLegal(uint type, int length)
