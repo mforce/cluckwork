@@ -4,43 +4,34 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+// StackExchange.Redis exports its own TestHarness, which collides with the
+// suite's; alias the one this file needs.
+using TestHarness = Cluckwork.Api.IntegrationTests.Infrastructure.TestHarness;
 using StackExchange.Redis;
 using Testcontainers.Redis;
 
-// #840 — the census reproduced "expected 429, got 401" once in 36 runs and then
-// got 0 failures in 80 instrumented runs, so it had the flake and not the trace.
-// The reason the instrumentation proved nothing is that it recorded what the
-// counter was ASKED to count and never who asked. The login bucket key is
-// "auth-login:<client-ip>" and nothing else (RateLimitKey.ForClient), so a
-// request from ANY concurrently running test class that presents the loopback
-// address spends the same budget this test is measuring — and several classes
-// do: FakeRemoteIpStartupFilter rewrites Connection.RemoteIpAddress only when
-// the X-Test-Remote header is present, so a login that omits it keeps the real
-// socket peer, 127.0.0.1.
+// #840 — the census reproduced "expected 429, got 401" once in 36 runs and got
+// 0 failures in 80 instrumented runs: it had the reproduction and not the trace.
+// Its instrumentation recorded what the counter was asked to count and never who
+// asked, and the login bucket key is "auth-login:<client-ip>" alone
+// (RateLimitKey.ForClient), so any concurrently running class that presents the
+// loopback address spends the budget this probe measures.
 //
-// This probe reads the SHARED key directly instead of inferring it from a
-// response code. It is deliberately not an assertion about production behaviour:
-// the budget-sharing it measures is correct by design (#544) and the collision
-// is a property of the test suite, not of the limiter. It exists to answer one
-// question with a number — when this test's budget is wrong, is the count wrong
-// because something else spent it, or because the counter fell back?
-//
-// It runs in its own collection (no [Collection] attribute) exactly like
-// MultiInstanceRateLimitTests, so it sees the same concurrency the flake does.
+// It reads the shared key directly instead of inferring it from a status code,
+// and emits instead of asserting: the budget sharing is correct by design (#544)
+// and the collision belongs to the test suite, not the limiter, so a green run
+// is information too. Unattributed spend on the key answers the one question —
+// was the budget wrong because something else spent it, or because the counter
+// fell back?
 public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
 {
     private static readonly string ApiDllPath = typeof(Program).Assembly.Location;
     private static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(60);
-    private static readonly TimeSpan SubprocessExitTimeout = TimeSpan.FromSeconds(30);
 
-    // The same window the flaky test configures. The bucket is derived from
-    // Redis's own clock as floor(epoch_ms / window), so the probe can compute
-    // the live key name without knowing anything about the counter's internals.
     private const int WindowSeconds = 900;
     private const int PermitLimit = 5;
 
-    // The same pinned image MultiInstanceRateLimitTests and
-    // SharedState/RedisFixture.cs use, verbatim.
+    // The same pinned image MultiInstanceRateLimitTests uses, verbatim.
     private readonly RedisContainer _redis =
         new RedisBuilder("redis:7.4-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2").Build();
 
@@ -58,10 +49,10 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         await _redis.DisposeAsync();
     }
 
-    // The key the limiter counts: "{cluckwork:auth-login:127.0.0.1}:<bucket>",
-    // with the braces being the cluster hash tag RedisFixedWindowCounter adds.
-    // Read by SCAN rather than by name, so a drift in the namespace or the hash
-    // tag shape shows up as "no keys" instead of a false zero.
+    // "{cluckwork:auth-login:127.0.0.1}:<bucket>" — the braces are the cluster
+    // hash tag RedisFixedWindowCounter adds. Scanned rather than read by name, so
+    // a drift in the namespace or hash-tag shape shows up as "no keys" instead of
+    // a false zero.
     private async Task<Dictionary<string, long>> ReadLoginKeysAsync()
     {
         var db = _mux.GetDatabase();
@@ -97,9 +88,8 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         // developer's local user-secrets (same reason CluckworkWebApplicationFactory
         // pins it).
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
-        // No database is needed to reach the limiter — the login policy runs
-        // before any account lookup (#544) — but the serving boot resolves the
-        // connection string, so it points at nothing and never gets used.
+        // The login policy runs before any account lookup (#544), so no database
+        // is reachable or needed — but the serving boot resolves the string.
         psi.Environment["ConnectionStrings__Default"] =
             "Host=127.0.0.1;Port=1;Database=none;Username=none;Password=none;Timeout=1";
         psi.Environment["Database__Provider"] = "Postgres";
@@ -128,18 +118,11 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         {
             var response = await http.PostAsJsonAsync(
                 "/api/v1/auth/login",
-                new { farmCode = Infrastructure.TestHarness.DefaultFarmCode, email = "nobody@example.com", password = "WrongPassw0rd!" });
+                new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = "WrongPassw0rd!" });
             statuses.Add(response.StatusCode);
         }
 
         var after = await ReadLoginKeysAsync();
-
-        // The probe's own budget: PermitLimit requests admitted, then 429s. A
-        // failure HERE is the collision, observed on purpose — some other
-        // collection spent this bucket while this test was running.
-        var foreignBefore = before.Sum(kv => kv.Value);
-        var foreignDuring = after.Where(kv => !before.TryGetValue(kv.Key, out var was))
-            .Sum(kv => kv.Value);
 
         var report = new
         {
@@ -149,17 +132,15 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
             observedStatuses = statuses.Select(s => (int)s).ToArray(),
             keysBefore = before,
             keysAfter = after,
-            // Anything above PermitLimit on a key this test did not create is a
-            // foreign spender; a count of exactly PermitLimit+1 with a non-429
-            // status is the fallback path (ResilientFixedWindowCounter caught a
-            // Redis error and counted locally instead).
-            spendBeforeThisTest = foreignBefore,
-            spendOnNewKeys = foreignDuring,
+            // Spend on a key this probe did not create names a foreign spender;
+            // a full budget with a non-429 status names the fallback path
+            // (ResilientFixedWindowCounter caught a Redis error and counted
+            // locally instead).
+            spendBeforeThisTest = before.Sum(kv => kv.Value),
+            spendOnKeysThisTestDidNotCreate =
+                after.Where(kv => !before.ContainsKey(kv.Key)).Sum(kv => kv.Value),
         };
 
-        // Emitted rather than asserted: this is the instrument the census was
-        // missing, and a green run is information too. CI captures it with
-        // --logger "console;verbosity=detailed".
         Console.WriteLine("CLUCKWORK_840_PROBE " + JsonSerializer.Serialize(report));
 
         Assert.Equal(PermitLimit + 2, statuses.Count);
