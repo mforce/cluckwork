@@ -239,10 +239,17 @@ public static class ModuleLedgerScanner
 
         foreach (var directive in root.DescendantNodes().OfType<UsingDirectiveSyntax>())
         {
-            if (DottedText(directive.NamespaceOrType) is string dotted)
+            if (DottedText(directive.NamespaceOrType) is not string dotted)
             {
-                Record(dotted, LineOf(directive), attributions);
+                continue;
             }
+
+            // A directive inside a namespace block scopes to the types declared in
+            // that block; one at compilation-unit level scopes to the whole file.
+            var scope = directive.Parent is BaseNamespaceDeclarationSyntax block
+                ? attributions.Where(a => a.Scope is not null && a.Scope.Ancestors().Contains(block)).ToList()
+                : attributions;
+            Record(dotted, LineOf(directive), scope);
         }
 
         foreach (var node in root.DescendantNodes())

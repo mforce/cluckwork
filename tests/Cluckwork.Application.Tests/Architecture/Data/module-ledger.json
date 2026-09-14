@@ -12,8 +12,8 @@
   },
   "edges": [
     {
-      "from": "Access", "to": "Commerce", "kind": "R",
-      "reason": "Identity carries the per-user stepper-unit preference: ApplicationUser stores Domain.Catalog.EggUnit, IdentityProvider reads and writes it, and SetStepperUnitHandler/SetStepperUnitValidator resolve it through Commerce's IEggUnitConversionRepository so a preference can never point at a conversion the farm deactivated. AccountProvisioner additionally seeds EggUnitConversion.Defaults for a new farm. Design 3.4 shows Access -> Commerce as none; this is live coupling the target design has still to remove.",
+      "from": "Access", "to": "Commerce", "kind": "W",
+      "reason": "W because AccountProvisioner inserts EggUnitConversion.Defaults for a new farm inside its provisioning transaction; the rest of the cell reads. Identity carries the per-user stepper-unit preference: ApplicationUser stores Domain.Catalog.EggUnit, IdentityProvider reads and writes it, and SetStepperUnitHandler/SetStepperUnitValidator resolve it through Commerce's IEggUnitConversionRepository so a preference can never point at a conversion the farm deactivated. Design 3.4 shows Access -> Commerce as none; this is live coupling the target design has still to remove.",
       "symbols": [
         "Cluckwork.Application.Features.Users.SetStepperUnit.SetStepperUnitHandler",
         "Cluckwork.Application.Features.Users.SetStepperUnit.SetStepperUnitValidator",
@@ -24,8 +24,8 @@
       ]
     },
     {
-      "from": "Access", "to": "EggOperations", "kind": "R",
-      "reason": "AccountProvisioner seeds a new farm's default grades with Domain.Eggs.EggGrade.Defaults(accountId, SeedDefaults.FarmId), so farm provisioning depends on Egg Operations' grade shape. Design 3.4 shows Access -> Egg Ops as none; this is live coupling the target design has still to remove.",
+      "from": "Access", "to": "EggOperations", "kind": "W",
+      "reason": "W because AccountProvisioner inserts a new farm's default grades, Domain.Eggs.EggGrade.Defaults(accountId, SeedDefaults.FarmId), inside its provisioning transaction, so farm provisioning writes Egg Operations' table and depends on its grade shape. Design 3.4 shows Access -> Egg Ops as none; this is live coupling the target design has still to remove.",
       "symbols": [
         "Cluckwork.Infrastructure.Identity.AccountProvisionOutcome",
         "Cluckwork.Infrastructure.Identity.AccountProvisioner"

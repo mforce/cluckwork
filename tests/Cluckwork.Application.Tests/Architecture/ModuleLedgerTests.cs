@@ -183,6 +183,27 @@ public sealed class ModuleLedgerTests : IDisposable
     }
 
     [Fact]
+    public void UsingInsideANamespaceBlock_ScopesToThatBlockOnly()
+    {
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Red.cs", """
+            namespace Cluckwork.Temp.Red
+            {
+                using Cluckwork.Temp.Blue;
+                public class Inside { }
+            }
+            namespace Cluckwork.Temp.Red
+            {
+                public class Sibling { }
+            }
+            """);
+
+        var report = Scan(WriteLedger(string.Empty));
+
+        Assert.Equal("Cluckwork.Temp.Red.Inside", Assert.Single(report.LiveEdges).Symbol);
+    }
+
+    [Fact]
     public void NestedType_RollsUpToItsTopLevelType()
     {
         WriteSource("src/Blue.cs", BlueSource);
