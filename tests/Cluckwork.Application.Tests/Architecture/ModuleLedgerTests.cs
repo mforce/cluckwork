@@ -496,6 +496,22 @@ public sealed class ModuleLedgerTests : IDisposable
     }
 
     [Fact]
+    public void SingleIdentifierAliasToALocalType_IsNotAnEdge()
+    {
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Red.cs", """
+            namespace Cluckwork.Temp.Red
+            {
+                using Alias = Blue;
+                public class Blue { }
+                public class R { public Alias? Value; }
+            }
+            """);
+
+        Assert.Empty(Scan(WriteLedger(string.Empty)).LiveEdges);
+    }
+
+    [Fact]
     public void TempTreeFloor_IsItsOwnFileCount()
     {
         WriteSource("src/Blue.cs", BlueSource);

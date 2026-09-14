@@ -263,14 +263,16 @@ public static class ModuleLedgerScanner
                 ? attributions.Where(a => a.Scope is not null && a.Scope.Ancestors().Contains(block)).ToList()
                 : attributions;
             // A single-identifier import (`using Sales;` inside a namespace) is a
-            // relative namespace name too, so it joins the dotted names.
+            // relative namespace name too. A single-identifier ALIAS target may
+            // name a type in the same namespace instead, and a syntax walk cannot
+            // tell which, so it is left alone.
             var names = directive.DescendantNodes()
                 .Where(node => node is QualifiedNameSyntax or MemberAccessExpressionSyntax)
                 .Where(IsOutermostDotted)
                 .Select(DottedText)
                 .OfType<string>()
                 .ToList();
-            if (directive.NamespaceOrType is IdentifierNameSyntax single)
+            if (directive.Alias is null && directive.NamespaceOrType is IdentifierNameSyntax single)
             {
                 names.Add(single.Identifier.ValueText);
             }
