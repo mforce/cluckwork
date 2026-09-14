@@ -5,6 +5,7 @@ import { render } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import type { FormControlLabelProps } from "@mui/material/FormControlLabel";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
@@ -30,6 +31,16 @@ import { tokensFor } from "./farmTokens.test";
 //   the zero-specificity rule was the ONLY source and won by being the only
 //   declaration, stacking a checkbox above its label instead of beside it.
 //
+// A SECOND local round, over the fix for the finding above, found the fix
+// itself was wrong for three of `FormControlLabel`'s four placements: an
+// unconditional `root.flexDirection` sits ahead of `FormControlLabel`'s own
+// `variants` for `labelPlacement="start"|"top"|"bottom"` (which set
+// `row-reverse`/`column-reverse`/`column` with real specificity that already
+// beat `:where(label)` on its own) and wins regardless — a real render of all
+// four placements computed `row` for every one. The reset is now scoped to
+// the `labelPlacementEnd` slot, which MUI composes only when that IS the
+// resolved placement, leaving the other three to MUI's own variants.
+//
 // These render the real component tree and read the actual cascade result
 // instead of the theme object, so both classes of bug are visible here.
 //
@@ -46,28 +57,52 @@ function emotionCssText(): string {
     .join("\n");
 }
 
-describe("FarmThemeProvider against the real DOM (#871 local review)", () => {
-  it("keeps a FormControlLabel's checkbox and label side by side", () => {
-    // The real stylesheet, injected exactly as `main.tsx` loads it — this is
-    // the cascade the bug depends on, and a component test that never loads
-    // `styles.css` would not see it.
-    const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
-    const style = document.createElement("style");
-    style.textContent = css;
-    document.head.appendChild(style);
+// MUI's own direction per placement, from its own `variants` rather than this
+// app's theme — the thing the second local round found the first fix overrode.
+const EXPECTED_DIRECTION: Record<NonNullable<FormControlLabelProps["labelPlacement"]>, string> = {
+  end: "row",
+  start: "row-reverse",
+  top: "column-reverse",
+  bottom: "column",
+};
 
-    const theme = createFarmTheme(tokensFor(DEFAULT_BRAND, "light"), "light");
-    const { container } = render(
-      <ThemeProvider theme={theme}>
-        <FormControlLabel control={<Checkbox />} label="Keep chickens" />
-      </ThemeProvider>,
-    );
-    const label = container.querySelector("label.MuiFormControlLabel-root");
-    expect(label, "FormControlLabel root").toBeTruthy();
-    const computed = getComputedStyle(label as Element);
-    expect(computed.flexDirection, "FormControlLabel flex-direction").toBe("row");
-    expect(computed.gap, "FormControlLabel gap").toBe("0px");
-  });
+describe("FarmThemeProvider against the real DOM (#871 local review)", () => {
+  it.each(Object.entries(EXPECTED_DIRECTION))(
+    "keeps FormControlLabel's own direction at labelPlacement=%s, with no stylesheet gap",
+    (placement, expectedDirection) => {
+      // The real stylesheet, injected exactly as `main.tsx` loads it — this is
+      // the cascade the bug depends on, and a component test that never loads
+      // `styles.css` would not see it.
+      const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+      const style = document.createElement("style");
+      style.textContent = css;
+      document.head.appendChild(style);
+
+      const theme = createFarmTheme(tokensFor(DEFAULT_BRAND, "light"), "light");
+      const { container } = render(
+        <ThemeProvider theme={theme}>
+          <FormControlLabel
+            control={<Checkbox />}
+            label="Keep chickens"
+            labelPlacement={placement as FormControlLabelProps["labelPlacement"]}
+          />
+        </ThemeProvider>,
+      );
+      const label = container.querySelector("label.MuiFormControlLabel-root");
+      expect(label, `FormControlLabel root at ${placement}`).toBeTruthy();
+      const computed = getComputedStyle(label as Element);
+      // `end` is this app's own reset; the other three are MUI's OWN
+      // `variants` for `labelPlacement`, which the reset must not reach —
+      // this is the exact regression: an unconditional `root.flexDirection`
+      // sits ahead of them and computed `row` for every placement.
+      expect(computed.flexDirection, `${placement} flex-direction`).toBe(expectedDirection);
+      // `:where(label)`'s `gap: 0.35rem` leaks equally at every placement —
+      // MUI spaces the control from the label with `margin`, never `gap`, at
+      // any placement — so the reset belongs on `root` regardless of which
+      // direction wins.
+      expect(computed.gap, `${placement} gap`).toBe("0px");
+    },
+  );
 
   it("resets DialogActions' sibling spacing and adds a vertical gap at phone width", () => {
     const theme = createFarmTheme(tokensFor(DEFAULT_BRAND, "light"), "light");

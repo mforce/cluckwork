@@ -167,10 +167,29 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       // demotion neutralises it only where MUI itself declares the property —
       // `FormControlLabel` never declares `flex-direction`/`gap` on its own
       // root, so the zero-specificity rule was the only source and stacked its
-      // checkbox above its label instead of beside it. MUI's own default is
-      // already row/no-gap; this makes that the DECLARED value so a real class
-      // beats the bare-element rule instead of leaving the property undeclared.
-      MuiFormControlLabel: { styleOverrides: { root: { flexDirection: "row", gap: 0 } } },
+      // checkbox above its label instead of beside it.
+      //
+      // `flexDirection` and `gap` need different scopes, because MUI's own
+      // coverage of the two differs. `FormControlLabel` carries its own
+      // `variants` for `labelPlacement="start"|"top"|"bottom"` (`row-reverse`,
+      // `column-reverse`, `column`), each with real specificity that already
+      // beats `:where(label)`'s zero — so `flexDirection` on `root`
+      // unconditionally would sit AHEAD of those variants and win regardless
+      // of placement; measured directly, it computed `row` for all four.
+      // Scoped to the `labelPlacementEnd` slot instead: MUI composes
+      // `styles[labelPlacementEnd]` only when that IS the resolved placement
+      // (`end`, the default and the only one this app uses today), leaving
+      // the other three to MUI's own variants untouched. `gap` gets no such
+      // variant from MUI at ANY placement — it spaces the control from the
+      // label with `margin` instead (visible in the root's own
+      // `margin-left`/`margin-right`) — so `:where(label)`'s 0.35rem leaks
+      // at every placement equally and the reset belongs on `root`.
+      MuiFormControlLabel: {
+        styleOverrides: {
+          root: { gap: 0 },
+          labelPlacementEnd: { flexDirection: "row" },
+        },
+      },
     },
   });
 }
