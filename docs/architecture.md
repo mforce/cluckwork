@@ -23,7 +23,7 @@ flowchart TD
     CLI -->|yes| EXIT["run, then exit — the HTTP<br/>pipeline is never registered"]
     CLI -->|no| EDGE
 
-    EDGE["forwarded headers · security headers · cache defaults<br/>HSTS <i>(not in Development)</i> · exception handler<br/>HTTPS redirect · static files · request logging"]
+    EDGE["forwarded headers · security headers · cache defaults<br/>HSTS <i>(not in Development)</i> · exception handler<br/>HTTPS redirect · SPA shell · static files · request logging"]
     EDGE --> LIMITS["rate limiter · per-endpoint body caps"]
     LIMITS --> AUTHN["UseAuthentication<br/><i>JWT → HttpContext.User</i>"]
     AUTHN --> AMBIENT["AmbientPrincipalMiddleware<br/><i>blanks the ambient principal for endpoints that must ignore a bearer</i>"]
@@ -33,10 +33,10 @@ flowchart TD
     EPOCH --> MCP["MustChangePasswordMiddleware<br/><i>403s everything but change-password + logout</i>"]
     MCP --> AUTHZ["UseAuthorization"]
     AUTHZ --> IDEM["IdempotencyMiddleware"]
-    IDEM --> ENDPOINT["endpoint · /health · SPA fallback"]
+    IDEM --> ENDPOINT["endpoint · /health · SPA shell fallback"]
 ```
 
-Four positions in that chain are decisions, not accidents:
+Five positions in that chain are decisions, not accidents:
 
 | Placement | Why | Break it and |
 |---|---|---|
@@ -44,6 +44,7 @@ Four positions in that chain are decisions, not accidents:
 | `CredentialEpochMiddleware` **after** tenant resolution | It reads the user's current epoch from the tenant's database | A revoked credential keeps working (#364) |
 | `MustChangePasswordMiddleware` **before** `UseAuthorization` | The gate then applies uniformly, whatever policy tier an endpoint carries | An endpoint's own policy decides whether a forced reset is enforced (#283) |
 | `IdempotencyMiddleware` **after** `UseAuthorization` | A replay returns a cached response *without invoking the endpoint* | A role-denied caller replaying someone else's key gets the cached response instead of a 403 |
+| `SpaShell` **before** the static-file middleware | It templates `/` and `/index.html` with this response's CSP nonce (#873), and the static middleware would otherwise serve the untemplated file from `wwwroot` first | MUI's Emotion styles are refused by the browser and nothing says so — worst on the clients that installed the service worker, which precaches `/index.html` and answers every navigation from it |
 
 The epoch check is a database round trip on **every authenticated request**, on
 purpose — the round trip *is* the fail-closed guarantee. Do not cache it.
