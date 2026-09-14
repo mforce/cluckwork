@@ -1146,11 +1146,10 @@ input.cell {
 .entry-foot-sum.done b { color: var(--success); }
 .entry-foot-sum.over b { color: var(--error); }
 
-/* The responsive pass (#49) makes any .actions sticky on a phone. Inside the
-   bar that would be a sticky within a sticky — the bar is the sticky thing
-   now. Specificity beats the media-query rule, which adds none. */
+/* The phone block gives .actions its own padding and top margin; inside the
+   bar those double the bar's own. Specificity beats the media-query rule,
+   which adds none. */
 .entry-foot .actions {
-  position: static;
   margin: 0;
   padding: 0;
 }
@@ -2988,10 +2987,16 @@ dl.glossary {
     flex: 1 1 100%;
   }
 
+  /* #740 — one action per line, each the full width of its container. A
+     999px radius never clamps into an ellipse once the button is wider than
+     it is tall, so the longest tl label costs a line of height instead of
+     reshaping the control.
+
+     NOT sticky, which it was until #823: three stacked buttons parked above
+     the tab bar is ~170px of chrome on an 844px viewport. `.entry-foot` is
+     still sticky and still the field-first capture bar. */
   .actions {
-    position: sticky;
-    bottom: var(--tabbar-h); /* clear the tab bar */
-    background: var(--canvas);
+    flex-direction: column;
     padding: 0.75rem 0;
     margin-top: 0.75rem;
   }
@@ -3075,13 +3080,18 @@ dl.glossary {
     to { transform: none; }
   }
 
-  .dialog .dialog-foot button {
-    flex: 1;
-    padding: 0.85rem 0.5rem;
+  /* `justify-content: flex-end` still applies down the block axis, so the
+     buttons need `align-items` to fill the row rather than sit at their
+     intrinsic width. `.actions` stretches by default and needs neither. */
+  .dialog .dialog-foot {
+    flex-direction: column;
+    align-items: stretch;
   }
 
+  /* The padding, not the retired `flex: 1`, is what holds these to a 44px
+     touch target: the base button padding lands at about 39px. */
+  .dialog .dialog-foot button,
   .actions button {
-    flex: 1;
     padding: 0.85rem 0.5rem;
   }
 }
