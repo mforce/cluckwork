@@ -31,13 +31,13 @@ table of intentions. Candidate 1 (Opus) scored 3 on four rows; candidate 3 (Sonn
 
 ## Grafts
 
-From candidate 1: the ten bare element selectors (§2.3) and their consequence for #823; the
+Grafted from candidate 1: the ten bare element selectors (§2.3) and their consequence for #823; the
 Popper correction; the #740 evidence block (English reproduction, `phone.spec.ts` instruction,
 `phone-action-label-wrapped` mutant); the jsdom fallback-palette trap (6 of 17 values differ);
 the coverage-ratchet trap (D10); the `CssBaseline` comparison table; the four-radius defect in the
 bridge; the `BusyButton` sibling live-region reason; the `Autocomplete` English default strings.
 
-From candidate 3: the elevation guard is self-detecting (equality assertion); `emptyStates.guard`
+Grafted from candidate 3: the elevation guard is self-detecting (equality assertion); `emptyStates.guard`
 as the existence proof for source-shape guards; `GradingChip` is a drag source; `font-optical-sizing:
 auto` over a fixed `"opsz" 32`.
 
