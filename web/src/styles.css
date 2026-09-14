@@ -3018,6 +3018,23 @@ dl.glossary {
     margin-top: 0.75rem;
   }
 
+  /* The one exemption, and F134 is only half the reason. The other half is that
+     the #864 mockup the owner confirmed keeps these two side by side at 390
+     (docs/designs/864-visual-language/daily-entry.html, `grid-template-columns:
+     1fr 1fr`), so the mockup decides and this rule follows it. The negative
+     margins below buy back the 2.3rem of width that makes the pair fit a thumb.
+
+     It is safe here and nowhere else: this row holds exactly two controls with
+     short labels, where the Sales draft panel holds three and is where #740
+     actually reproduced. Every other `.actions` and every dialog foot stacks. */
+  .entry-foot .actions {
+    flex-direction: row;
+  }
+
+  .entry-foot .actions button {
+    flex: 1;
+  }
+
   /* Daily entry (F134). The bar runs edge to edge on a phone — inset by the
      content gutter it would read as a floating card rather than a fixed rail,
      and the negative margins buy back 2.3rem of width for two buttons that

@@ -915,8 +915,10 @@ export const MUTANTS: Record<string, Mutant> = {
   "phone-action-label-wrapped": {
     breaks:
       "#823's phone action rule — `.actions` and `.dialog .dialog-foot` go back to laying out side "
-      + "by side below 900px, so three buttons share ~295px, each takes about a third of the row, "
-      + "and any label longer than that third wraps the pill downwards into the #740 ellipse",
+      + "by side below 900px, so the Sales draft panel's three buttons share ~295px, each takes "
+      + "about a third of the row, and any label longer than that third wraps the pill downwards "
+      + "into the #740 ellipse. The daily-entry save bar is untouched: it carries its own "
+      + "`flex-direction: row` (F134, and the confirmed #864 mockup) and outranks this rule",
     caughtBy: "phone.spec.ts — no action control is taller than it is wide",
     apply: (page) =>
       // CSS, not a longer label, and that is the re-targeting. A full-width
@@ -932,6 +934,27 @@ export const MUTANTS: Record<string, Mutant> = {
       insertCssRule(
         page,
         "@media (max-width: 900px) { .actions, .dialog .dialog-foot { flex-direction: row } }",
+      ),
+  },
+
+  // The mirror of the mutant above, and it exists because #823 left the walk
+  // with a branch nothing could falsify. One row must be full width and one
+  // must stay side by side, so a mutant that only breaks the stacking proves
+  // half the rule; this one breaks the other half.
+  "phone-entry-foot-stacked": {
+    breaks:
+      "F134 and the confirmed #864 mockup, which keep the daily-entry save bar's two controls side "
+      + "by side at 390 — the pair stacks like every other action row, which costs a thumb's reach "
+      + "the negative margins on that bar exist to buy back, and lengthens the sticky bar by a "
+      + "whole control on an 844px viewport",
+    caughtBy: "phone.spec.ts — no action control is taller than it is wide",
+    apply: (page) =>
+      // Equal specificity to the rule it reverts (`.entry-foot .actions`), so it
+      // wins on order — `insertCssRule` appends. Scoped inside the same media
+      // query, so it is inert at 1280, which `MUST_STAY_GREEN_ON` checks.
+      insertCssRule(
+        page,
+        "@media (max-width: 900px) { .entry-foot .actions { flex-direction: column } }",
       ),
   },
 

@@ -61,20 +61,28 @@ async function rectOf(locator: Locator, what: string) {
 
 /**
  * Every `.actions` row that exists at phone width, with the number of buttons
- * it must hold and how to reach it.
+ * it must hold, the layout it must have, and how to reach it.
  *
  * Each row opens itself, and that is not indirection for its own sake: they
  * live on different routes, so a locator resolved before the walk moves on
  * matches nothing by the time it is measured.
+ *
+ * `layout` is what makes this a table rather than a loop over two selectors.
+ * #823 stacks action rows below 900px, and the daily-entry bar is exempt: the
+ * #864 mockup the owner confirmed keeps its two saves side by side (F134), so
+ * a walk that demanded full width everywhere would fail on the one row the
+ * design says must not be full width.
  */
 const PHONE_ACTION_ROWS: ReadonlyArray<{
   what: string;
   buttons: number;
+  layout: "stacked" | "side by side";
   open: (page: Page) => Promise<Locator>;
 }> = [
   {
     what: "the daily-entry save bar",
     buttons: 2,
+    layout: "side by side",
     open: async (page) => {
       await page.goto("/daily-entry");
       const foot = page.locator(".entry-foot");
@@ -85,6 +93,7 @@ const PHONE_ACTION_ROWS: ReadonlyArray<{
   {
     what: "the Sales draft-order panel",
     buttons: 3,
+    layout: "stacked",
     open: async (page) => {
       await page.goto("/sales");
       // The fixture seeds two draft orders and never confirms them
@@ -252,21 +261,22 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // collapsed to its intrinsic width — which is the same defect one step on.
     //
     // MEASURED at 390 after #823, recorded here where this suite keeps its
-    // measurements. Daily entry: both saves 353.2x46.2 in a 353.2 row. Sales
-    // draft: all three 295.2 wide, 46.2 and 44.2 tall, in a 295.2 row — against
-    // 91.5x103.2, 89.8x103.2 and 89.9x103.2 before, which is the #740 ellipse.
+    // measurements. Sales draft: all three 295.2 wide, 46.2 and 44.2 tall, 100%
+    // of a 295.2 row — against 91.5x103.2, 89.8x103.2 and 89.9x103.2 before,
+    // which is the #740 ellipse. Daily entry: both saves 170.6x65.2, 48% each
+    // of a 353.2 row, unchanged from before #823 because that row is exempt.
     //
-    // Under `phone-action-label-wrapped` the rows go back to side by side and
-    // every button drops to a fraction of its container: 25% and 71% on daily
-    // entry, 51% and 22% on Sales, with `close` at 54.0x65.2 — taller than it
-    // is wide, so the ratio assertion below fires there too. Both assertions
-    // are therefore proved live rather than argued.
+    // Under `phone-action-label-wrapped` the Sales row goes back to side by
+    // side and every button drops to a fraction of its container: 51% and 22%,
+    // with `close` at 54.0x65.2 — taller than it is wide, so the ratio
+    // assertion fires there too. The daily-entry row is untouched by that
+    // mutant and is not evidence for it.
     //
     // BOTH ROWS ARE WALKED, and the Sales one is why the walk exists: the
     // daily-entry bar passed the ratio check before #823 and the Sales draft
     // panel did not, so a walk that stopped at the bar asserted the one row
     // that was never broken.
-    for (const { what, buttons, open } of PHONE_ACTION_ROWS) {
+    for (const { what, buttons, layout, open } of PHONE_ACTION_ROWS) {
       const row = await open(page);
       // Non-vacuity: a walk over an empty set passes for free.
       await expect(row.getByRole("button"), `${what} renders no buttons`).toHaveCount(buttons);
@@ -291,15 +301,27 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
             + "its own background",
         ).toBeGreaterThanOrEqual(b.height);
 
-        // 90%, not 100%: a row can carry its own padding, and a floor that
-        // pinned the exact width would go red on a gutter change that reshapes
-        // nothing. Side by side lands a pair at ~47% and a trio at ~32%, so
-        // this separates the two layouts rather than pinning today's pixels.
-        expect.soft(
-          share,
-          `"${b.name}" in ${what} spans ${(100 * share).toFixed(0)}% of its row — the action row `
-            + "is side by side again, which is what #740 was",
-        ).toBeGreaterThanOrEqual(0.9);
+        // The width share is asserted in BOTH directions, one per layout, so
+        // neither can drift into the other unnoticed.
+        //
+        // 90% and 60% rather than 100% and 50%: a row carries its own padding
+        // and gap, and a floor that pinned the exact width would go red on a
+        // gutter change that reshapes nothing. Measured, a stacked button is
+        // 100% and a side-by-side pair is ~47% each, so both bounds sit far
+        // from what they separate.
+        if (layout === "stacked") {
+          expect.soft(
+            share,
+            `"${b.name}" in ${what} spans ${(100 * share).toFixed(0)}% of its row — the action row `
+              + "is side by side again, which is what #740 was",
+          ).toBeGreaterThanOrEqual(0.9);
+        } else {
+          expect.soft(
+            share,
+            `"${b.name}" in ${what} spans ${(100 * share).toFixed(0)}% of its row — that row is `
+              + "meant to stay side by side (F134, and the confirmed #864 mockup), and it stacked",
+          ).toBeLessThan(0.6);
+        }
       }
     }
   });
