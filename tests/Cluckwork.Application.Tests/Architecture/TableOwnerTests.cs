@@ -10,7 +10,7 @@ namespace Cluckwork.Application.Tests.Architecture
              new("Blue", "module", [], ["Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Blue"])], [], [])
         {
             Tables = [new("Red", "Parents"), new("Blue", "Children")],
-            ForeignKeys = [new("FK_Children_Parents_ParentId", "Blue", "Red", "a child references its parent")],
+            ForeignKeys = [new("Children", "FK_Children_Parents_ParentId", "Blue", "Red", "a child references its parent")],
         };
 
         private static TableOwnerReport Scan(ModuleLedger ledger, Action<ModelBuilder>? configure = null)
@@ -27,7 +27,7 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             Assert.Empty(Evaluate(Ledger()));
             var fk = Assert.Single(Scan(Ledger()).CrossOwnerForeignKeys);
-            Assert.Equal(new CrossOwnerForeignKey("FK_Children_Parents_ParentId", "Blue", "Red"), fk);
+            Assert.Equal(new CrossOwnerForeignKey("Children", "FK_Children_Parents_ParentId", "Blue", "Red"), fk);
         }
 
         [Fact]
@@ -85,23 +85,23 @@ namespace Cluckwork.Application.Tests.Architecture
 
         [Fact]
         public void UndeclaredForeignKey_PrintsJsonRow() =>
-            Assert.Contains("undeclared cross-owner foreign key FK_Children_Parents_ParentId from Blue to Red — add " +
-                "{\"name\":\"FK_Children_Parents_ParentId\",\"from\":\"Blue\",\"to\":\"Red\",\"reason\":\"\"}",
+            Assert.Contains("undeclared cross-owner foreign key FK_Children_Parents_ParentId on Children from Blue to Red — add " +
+                "{\"table\":\"Children\",\"name\":\"FK_Children_Parents_ParentId\",\"from\":\"Blue\",\"to\":\"Red\",\"reason\":\"\"}",
                 Evaluate(Ledger() with { ForeignKeys = [] }));
 
         [Fact]
         public void RemovedForeignKey_LeavesStaleRow() =>
-            Assert.Contains("stale foreign-key row 'FK_Gone' from Blue to Red", Evaluate(Ledger() with
-                { ForeignKeys = [.. Ledger().ForeignKeys, new("FK_Gone", "Blue", "Red", "removed")] }));
+            Assert.Contains("stale foreign-key row 'FK_Gone' on Children from Blue to Red", Evaluate(Ledger() with
+                { ForeignKeys = [.. Ledger().ForeignKeys, new("Children", "FK_Gone", "Blue", "Red", "removed")] }));
 
         [Fact]
         public void ForeignKeyEndpoints_MustMatchModelOwners() =>
-            Assert.Contains("foreign-key row 'FK_Children_Parents_ParentId' from Red to Blue disagrees with model owners Blue to Red",
-                Evaluate(Ledger() with { ForeignKeys = [new("FK_Children_Parents_ParentId", "Red", "Blue", "wrong direction")] }));
+            Assert.Contains("foreign-key row 'FK_Children_Parents_ParentId' on Children from Red to Blue disagrees with model owners Blue to Red",
+                Evaluate(Ledger() with { ForeignKeys = [new("Children", "FK_Children_Parents_ParentId", "Red", "Blue", "wrong direction")] }));
 
         [Fact]
         public void BlankForeignKeyReason_IsRegistryError() =>
-            Assert.Contains("table-owner registry error: foreign-key row 'FK_Children_Parents_ParentId' has a blank name or reason",
+            Assert.Contains("table-owner registry error: foreign-key row 'FK_Children_Parents_ParentId' has a blank table, name or reason",
                 Evaluate(Ledger() with { ForeignKeys = [Ledger().ForeignKeys[0] with { Reason = " " }] }));
 
         [Theory]
@@ -116,6 +116,28 @@ namespace Cluckwork.Application.Tests.Architecture
             };
             Assert.Empty(Evaluate(ledger));
             Assert.Empty(Scan(ledger).CrossOwnerForeignKeys);
+        }
+
+        [Fact]
+        public void SplitTableFragment_IsDiscovered() =>
+            Assert.Contains(Evaluate(Ledger(), m => m.Entity<Fixtures.Parent>()
+                .SplitToTable("ParentDetails", t => t.Property(p => p.Name))),
+                f => f.StartsWith("table 'ParentDetails' ") && f.EndsWith("has no owner"));
+
+        [Fact]
+        public void ForeignKeysSharingAConstraintName_NeedOneRowEach()
+        {
+            void SecondDependent(ModelBuilder m) => m.Entity<Fixtures.Blue.Models.Other>().ToTable("Others")
+                .HasOne<Fixtures.Parent>().WithMany().HasForeignKey(o => o.ParentId)
+                .HasConstraintName("FK_Children_Parents_ParentId");
+            var ledger = Ledger() with { Tables = [.. Ledger().Tables, new("Blue", "Others")] };
+
+            Assert.Contains(Evaluate(ledger, SecondDependent),
+                f => f.StartsWith("undeclared cross-owner foreign key FK_Children_Parents_ParentId on Others"));
+            Assert.Empty(Evaluate(ledger with
+            {
+                ForeignKeys = [.. ledger.ForeignKeys, new("Others", "FK_Children_Parents_ParentId", "Blue", "Red", "same name, second table")],
+            }, SecondDependent));
         }
 
         [Fact]
@@ -242,6 +264,8 @@ namespace Cluckwork.Application.Tests.Architecture.TableOwnerFixtures
     public sealed class Parent
     {
         public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Note { get; set; } = "";
         public Blue.OwnedValue Value { get; set; } = new();
     }
 
@@ -254,6 +278,12 @@ namespace Cluckwork.Application.Tests.Architecture.TableOwnerFixtures
 namespace Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Blue.Models
 {
     public sealed class Child
+    {
+        public int Id { get; set; }
+        public int ParentId { get; set; }
+    }
+
+    public sealed class Other
     {
         public int Id { get; set; }
         public int ParentId { get; set; }

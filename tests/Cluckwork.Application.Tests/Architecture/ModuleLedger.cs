@@ -14,7 +14,7 @@ public sealed record EdgeCell(string From, string To, string Kind, string Reason
 
 public sealed record TableClaim(string Owner, string Table);
 
-public sealed record ForeignKeyCell(string Name, string From, string To, string Reason);
+public sealed record ForeignKeyCell(string Table, string Name, string From, string To, string Reason);
 
 public sealed record TableOwnerOverride(string Table, string Reason);
 
@@ -105,7 +105,7 @@ public sealed record ModuleLedger(
             }
 
             var foreignKeys = ReadRows(root, "foreignKeys", errors, (row, label) =>
-                new ForeignKeyCell(RequiredString(row, "name", label, errors),
+                new ForeignKeyCell(RequiredString(row, "table", label, errors), RequiredString(row, "name", label, errors),
                     RequiredString(row, "from", label, errors), RequiredString(row, "to", label, errors),
                     RequiredString(row, "reason", label, errors)));
             var overrides = ReadRows(root, "tableOwnerOverrides", errors, (row, label) =>

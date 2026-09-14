@@ -4,7 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
-public sealed record CrossOwnerForeignKey(string Name, string From, string To);
+public sealed record CrossOwnerForeignKey(string Table, string Name, string From, string To);
 
 public sealed record TableOwnerReport(
     int WalkedTableCount,
@@ -26,8 +26,10 @@ public static class TableOwnerScanner
         var claims = ledger.Tables.GroupBy(t => t.Table, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.Select(t => t.Owner).Distinct(StringComparer.Ordinal)
                 .Order(StringComparer.Ordinal).ToArray(), StringComparer.Ordinal);
-        var mapped = model.GetEntityTypes().Where(e => TableName(e) is not null)
-            .GroupBy(e => TableName(e)!, StringComparer.Ordinal)
+        // Every table an entity maps to: its primary table plus any SplitToTable fragment.
+        var mapped = model.GetEntityTypes()
+            .SelectMany(e => TableNames(e).Select(t => (Table: t, Entity: e)))
+            .GroupBy(p => p.Table, StringComparer.Ordinal)
             .OrderBy(g => g.Key, StringComparer.Ordinal).ToList();
         var tableNames = mapped.Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
         ValidateRegistry(ledger, kinds, tableNames, errors);
@@ -40,9 +42,9 @@ public static class TableOwnerScanner
         {
             // Shared owned values and join dictionaries do not reclassify their enclosing table.
             // Keep the group itself, including an owned-only or shadow-only distinct table.
-            var entities = table.Where(e => !e.IsOwned() && !e.HasSharedClrType).ToList();
+            var entities = table.Select(p => p.Entity).Where(e => !e.IsOwned() && !e.HasSharedClrType).ToList();
             if (entities.Count == 0)
-                entities = table.ToList();
+                entities = table.Select(p => p.Entity).ToList();
             if (!claims.TryGetValue(table.Key, out var owners))
                 violations.Add($"table '{table.Key}' (entity {entities[0].Name}) has no owner");
             else if (owners.Length > 1)
@@ -74,24 +76,27 @@ public static class TableOwnerScanner
                 if (name is null || from is null || to is null || from == to
                     || kinds[from] == ModuleLedger.PlatformKind || kinds[to] == ModuleLedger.PlatformKind)
                     continue;
-                foreignKeys.Add(new CrossOwnerForeignKey(name, from, to));
+                foreignKeys.Add(new CrossOwnerForeignKey(TableName(entity)!, name, from, to));
             }
         }
-        var live = foreignKeys.Distinct().OrderBy(f => f.Name, StringComparer.Ordinal)
-            .ThenBy(f => f.From, StringComparer.Ordinal).ThenBy(f => f.To, StringComparer.Ordinal).ToList();
+        // Keyed by dependent table AND constraint name: PostgreSQL allows one
+        // constraint name on several tables, and one row must excuse only one FK.
+        var live = foreignKeys.Distinct().OrderBy(f => f.Table, StringComparer.Ordinal)
+            .ThenBy(f => f.Name, StringComparer.Ordinal).ThenBy(f => f.From, StringComparer.Ordinal)
+            .ThenBy(f => f.To, StringComparer.Ordinal).ToList();
         foreach (var fk in live)
         {
-            if (!ledger.ForeignKeys.Any(row => row.Name == fk.Name && row.From == fk.From && row.To == fk.To))
-                violations.Add($"undeclared cross-owner foreign key {fk.Name} from {fk.From} to {fk.To} — add " +
-                    JsonSerializer.Serialize(new { name = fk.Name, from = fk.From, to = fk.To, reason = "" }));
+            if (!ledger.ForeignKeys.Any(row => row.Table == fk.Table && row.Name == fk.Name && row.From == fk.From && row.To == fk.To))
+                violations.Add($"undeclared cross-owner foreign key {fk.Name} on {fk.Table} from {fk.From} to {fk.To} — add " +
+                    JsonSerializer.Serialize(new { table = fk.Table, name = fk.Name, from = fk.From, to = fk.To, reason = "" }));
         }
         foreach (var row in ledger.ForeignKeys)
         {
-            var matches = live.Where(f => f.Name == row.Name).ToList();
+            var matches = live.Where(f => f.Table == row.Table && f.Name == row.Name).ToList();
             if (matches.Count == 0)
-                violations.Add($"stale foreign-key row '{row.Name}' from {row.From} to {row.To}");
+                violations.Add($"stale foreign-key row '{row.Name}' on {row.Table} from {row.From} to {row.To}");
             else if (!matches.Any(f => f.From == row.From && f.To == row.To))
-                violations.Add($"foreign-key row '{row.Name}' from {row.From} to {row.To} disagrees with model owners " +
+                violations.Add($"foreign-key row '{row.Name}' on {row.Table} from {row.From} to {row.To} disagrees with model owners " +
                     string.Join(", ", matches.Select(f => $"{f.From} to {f.To}")));
         }
 
@@ -108,8 +113,25 @@ public static class TableOwnerScanner
     }
 
     private static string? TableName(IEntityType entity) => entity.GetTableName() is { } table
-        ? entity.GetSchema() is { } schema && schema != "public" ? $"{schema}.{table}" : table
+        ? Qualify(table, entity.GetSchema())
         : null;
+
+    private static IEnumerable<string> TableNames(IEntityType entity)
+    {
+        if (TableName(entity) is { } primary)
+        {
+            yield return primary;
+        }
+
+        foreach (var fragment in entity.GetMappingFragments()
+                     .Where(f => f.StoreObject.StoreObjectType == StoreObjectType.Table))
+        {
+            yield return Qualify(fragment.StoreObject.Name, fragment.StoreObject.Schema);
+        }
+    }
+
+    private static string Qualify(string table, string? schema) =>
+        schema is { } s && s != "public" ? $"{s}.{table}" : table;
 
     private static string[] ResolveOwners(string? ns, ModuleLedger ledger)
     {
@@ -137,13 +159,13 @@ public static class TableOwnerScanner
             errors.Add($"table '{duplicate.Key.Table}' listed twice under owner {duplicate.Key.Owner}");
         foreach (var row in ledger.ForeignKeys)
         {
-            if (string.IsNullOrWhiteSpace(row.Name) || string.IsNullOrWhiteSpace(row.Reason))
-                errors.Add($"foreign-key row '{row.Name}' has a blank name or reason");
+            if (string.IsNullOrWhiteSpace(row.Table) || string.IsNullOrWhiteSpace(row.Name) || string.IsNullOrWhiteSpace(row.Reason))
+                errors.Add($"foreign-key row '{row.Name}' has a blank table, name or reason");
             foreach (var owner in new[] { row.From, row.To })
                 if (!kinds.ContainsKey(owner))
                     errors.Add($"foreign-key row '{row.Name}' references unknown owner '{owner}'");
         }
-        foreach (var duplicate in ledger.ForeignKeys.GroupBy(f => (f.Name, f.From, f.To)).Where(g => g.Count() > 1))
+        foreach (var duplicate in ledger.ForeignKeys.GroupBy(f => (f.Table, f.Name, f.From, f.To)).Where(g => g.Count() > 1))
             errors.Add($"duplicate foreign-key row '{duplicate.Key.Name}'");
         foreach (var row in ledger.TableOwnerOverrides)
         {
