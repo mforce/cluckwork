@@ -8,7 +8,7 @@ React + Vite + TypeScript SPA for Cluckwork, consuming the JSON API
 - React 19 + React Router 7
 - Vite 6 (dev server + build)
 - TypeScript (strict)
-- No CSS framework yet — plain CSS in `src/styles.css`
+- MUI (`@mui/material`) for components, themed from the CSS custom properties in `src/styles.css` via `src/theme/FarmThemeProvider.tsx` — the stylesheet stays the single source of truth for colour ([decision #674](../docs/decisions/674-ui-component-library.md))
 
 ## Running
 
