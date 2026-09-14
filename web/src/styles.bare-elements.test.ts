@@ -119,12 +119,20 @@ const DEMOTED: ReadonlyArray<readonly [selector: string, props: string]> = [
 ];
 
 /**
- * The one global rule that is deliberately NOT demoted.
+ * The global rules that are deliberately NOT demoted.
+ *
+ * The first two are the app's baseline, and they are exactly what MUI's own
+ * `CssBaseline` sets from these same tokens — so they are supposed to reach
+ * MUI's DOM. #823 tried to hand them over and could not: the production CSP is
+ * `style-src 'self'`, so the browser refuses Emotion's injected stylesheet and
+ * the baseline never applies. They go when that is settled.
  *
  * `prefers-reduced-motion` is an accessibility override carrying `!important`,
  * and it is supposed to reach MUI's transitions as well as the app's own.
  */
 const DELIBERATE: ReadonlyArray<readonly [selector: string, props: string]> = [
+  ["*", "box-sizing"],
+  ["body", "margin background color -webkit-font-smoothing"],
   ["*", "transition animation"],
 ];
 

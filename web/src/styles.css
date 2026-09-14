@@ -300,7 +300,7 @@
    #823 — every rule whose selector names an element and carries no class of
    its own is wrapped in `:where()`, which contributes no specificity. The
    app's raw controls keep these values, because nothing else declares them;
-   MUI's DOM does not, because one Emotion class now outranks the set.
+   MUI's DOM does not, because one Emotion class outranks the whole set.
    `web/src/styles.bare-elements.test.ts` walks the file and holds that.
 
    A theme override cannot do this job. To outrank
@@ -308,11 +308,28 @@
    `.MuiButton-contained:hover` (0,2,0) as well, so it cannot hand the hover
    colour back to MUI's variant — it has to decide it for every variant.
 
-   `*` and `body` went to MUI's `CssBaseline`, which sets the same four
-   declarations from the same tokens. `h1`-`h4` did not: no screen renders
-   `Typography` yet, so deleting them would restyle every heading in the app.
-   They die with the last screen slice (#833).
+   The two rules below are the exception and stay global on purpose. They are
+   the app's baseline, and they are what MUI's own `CssBaseline` would set from
+   these same tokens — which #823 tried to adopt and could not: the production
+   CSP is `style-src 'self'` (src/Cluckwork.Api/Security/SecurityHeaders.cs),
+   so Emotion's injected stylesheet is refused and no MUI style reaches the
+   screen at all. Until that is settled this file IS the baseline.
+
+   `h1`-`h4` is demoted rather than deleted for a different reason: no screen
+   renders `Typography` yet, so deleting it would restyle every heading in the
+   app. It dies with the last screen slice (#833).
    ------------------------------------------------------------------------ */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
 :where(h1, h2, h3, h4) {
   font-weight: 800;
   letter-spacing: -0.02em; /* DESIGN.md: negative tracking on display sizes */

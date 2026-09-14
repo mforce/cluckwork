@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import CssBaseline from "@mui/material/CssBaseline";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import type { Shadows, Theme } from "@mui/material/styles";
 import {
@@ -163,9 +162,15 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
  * repaint every hand-styled surface and leave every MUI surface on the old
  * palette, which is the specific split-brain this provider exists to prevent.
  *
- * #823 adopts `CssBaseline`, which replaces `styles.css`'s own `*` and `body`
- * resets and re-leads body text from the browser's `normal` to `body1`'s 1.5.
- * Reversible: drop the element below and restore those two rules.
+ * Still NOT rendering `CssBaseline`, and #823 changed the reason. #822 D6 took
+ * the decision to adopt it; the production CSP is `style-src 'self'`
+ * (src/Cluckwork.Api/Security/SecurityHeaders.cs), so the browser refuses every
+ * stylesheet Emotion injects and the baseline never applied. Measured against
+ * the sim stack: the tag is in the document, `html` computes `content-box`, and
+ * the console carries "Applying inline style violates ... 'style-src 'self''".
+ * That blocks every MUI style, not only this one, so the theme below is
+ * groundwork until the CSP is settled. Adopting it is then one element here
+ * plus deleting `styles.css`'s `*` and `body` rules.
  */
 export function FarmThemeProvider({ children }: { children: ReactNode }) {
   const [signal, setSignal] = useState(0);
@@ -191,10 +196,5 @@ export function FarmThemeProvider({ children }: { children: ReactNode }) {
     [signal],
   );
 
-  return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      {children}
-    </ThemeProvider>
-  );
+  return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
 }
