@@ -58,7 +58,8 @@ public sealed class CouplingMatrixRealTreeTests
     {
         var oldLines = committed.Split('\n');
         var newLines = regenerated.Split('\n');
-        var builder = new System.Text.StringBuilder("--- committed coupling-matrix.md\n+++ regenerated coupling-matrix.md\n");
+        var builder = new System.Text.StringBuilder();
+        builder.Append("--- committed coupling-matrix.md\n+++ regenerated coupling-matrix.md\n");
         var count = Math.Max(oldLines.Length, newLines.Length);
         for (var index = 0; index < count; index++)
         {
