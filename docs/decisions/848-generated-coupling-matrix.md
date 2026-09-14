@@ -7,11 +7,11 @@
 
 ## What happened
 
-No incident. Design section 3.4 lived only in the #514 epic comments. Its hand-written values differed from live source references in seven cells, including two letter classifications. This record supersedes that copy with a generated file.
+No incident. Design section 3.4 lived only in the #514 epic comments. Seven observable `W`/`R`/dash cells differ from the generated matrix, including two letter classifications. The record also preserves the historical `E`, `Q`, and Platform cells separately because the walks cannot observe them. This record supersedes that copy with a generated file.
 
 ## The rule
 
-Generate `tests/Cluckwork.Application.Tests/Architecture/Data/coupling-matrix.md` from `module-ledger.json`, the module-edge walk, the EF-model table walk, and the adapter-reach walk. Do not edit the generated Markdown. The real-tree test byte-compares it with a fresh render and checks that live module pairs equal the ledger's edge pairs.
+Generate `tests/Cluckwork.Application.Tests/Architecture/Data/coupling-matrix.md` from `module-ledger.json`, the module-edge walk, the EF-model table walk, and the adapter-reach walk. Do not edit the generated Markdown. The real-tree test rejects any invalid source report before rendering, compares normalized line endings with a fresh render, and checks that live module pairs equal the ledger's edge pairs.
 
 ## Why not the obvious alternative
 
@@ -19,7 +19,7 @@ Keeping the matrix as prose asks every later change to update two copies of the 
 
 ## What this does NOT cover
 
-`W` means a ledgered synchronous write and `R` means a ledgered read or validation edge. `P` marks the free Platform hub, and `A` counts Platform adapter reaches. The walks cannot see after-commit events or read-model queries, so `E` and `Q` do not appear as claims in this matrix. The matrix does not authorise a dependency, schema change, or data write.
+`W` means a ledgered synchronous write and `R` means a ledgered read or validation edge. `P` marks the free Platform hub, and `A` counts Platform adapter reaches. The observable table compares only `W`, `R`, and dash values. The second table preserves the hand-written `E`, `Q`, and Platform cells against the generator's structural output. The matrix does not authorise a dependency, schema change, or data write.
 
 ## How it is enforced
 

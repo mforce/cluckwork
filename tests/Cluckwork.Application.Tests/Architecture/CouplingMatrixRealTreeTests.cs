@@ -16,7 +16,7 @@ public sealed class CouplingMatrixRealTreeTests
         var edgeReport = ModuleLedgerScanner.Scan(Path.Combine(repoRoot, "src"), ledgerPath);
         var adapterReport = AdapterReachScanner.Scan(Path.Combine(repoRoot, "src"), ledgerPath);
         var tableReport = ScanTables(ledger);
-        var regenerated = CouplingMatrix.Render(ledger, edgeReport, tableReport, adapterReport);
+        var regenerated = RenderChecked(ledger, edgeReport, tableReport, adapterReport);
         var committedPath = Path.Combine(repoRoot, "tests", "Cluckwork.Application.Tests", "Architecture", "Data",
             "coupling-matrix.md");
 
@@ -25,8 +25,7 @@ public sealed class CouplingMatrixRealTreeTests
             File.WriteAllText(committedPath, regenerated);
         }
 
-        var committed = File.ReadAllText(committedPath);
-        Assert.True(committed == regenerated, "coupling matrix differs:\n" + UnifiedDiff(committed, regenerated));
+        AssertCommittedMatrixMatches(File.ReadAllText(committedPath), regenerated);
     }
 
     [Fact]
@@ -54,6 +53,28 @@ public sealed class CouplingMatrixRealTreeTests
         return TableOwnerScanner.Scan(context.Model, ledger);
     }
 
+    internal static string RenderChecked(ModuleLedger ledger, ModuleLedgerReport edges, TableOwnerReport tables,
+        AdapterReachReport adapters)
+    {
+        var failures = ModuleLedgerScanner.Evaluate(edges).Concat(TableOwnerScanner.Evaluate(tables))
+            .Concat(AdapterReachScanner.Evaluate(adapters)).ToList();
+        if (failures.Count > 0)
+        {
+            throw new InvalidOperationException("coupling matrix reports are invalid:\n" + string.Join("\n", failures));
+        }
+        return CouplingMatrix.Render(ledger, edges, tables, adapters);
+    }
+
+    internal static void AssertCommittedMatrixMatches(string committed, string regenerated)
+    {
+        var normalizedCommitted = NormalizeLineEndings(committed);
+        var normalizedRegenerated = NormalizeLineEndings(regenerated);
+        Assert.True(normalizedCommitted == normalizedRegenerated,
+            "coupling matrix differs:\n" + UnifiedDiff(normalizedCommitted, normalizedRegenerated));
+    }
+
+    private static string NormalizeLineEndings(string value) => value.Replace("\r\n", "\n", StringComparison.Ordinal);
+
     private static string UnifiedDiff(string committed, string regenerated)
     {
         var oldLines = committed.Split('\n');
@@ -70,14 +91,14 @@ public sealed class CouplingMatrixRealTreeTests
                 continue;
             }
 
-            builder.Append("@@ -").Append(index + 1).Append(" +").Append(index + 1).AppendLine(" @@");
+            builder.Append("@@ -").Append(index + 1).Append(" +").Append(index + 1).Append(" @@\n");
             if (oldLine is not null)
             {
-                builder.Append('-').AppendLine(oldLine);
+                builder.Append('-').Append(oldLine).Append("\n");
             }
             if (newLine is not null)
             {
-                builder.Append('+').AppendLine(newLine);
+                builder.Append('+').Append(newLine).Append("\n");
             }
         }
         return builder.ToString();

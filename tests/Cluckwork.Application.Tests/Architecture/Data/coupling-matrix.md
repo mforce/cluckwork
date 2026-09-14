@@ -30,7 +30,7 @@
 | FK_WaterUsages_DailyEntries_DailyEntryId | WaterUsages | GeneralInventory | EggOperations |
 | FK_WaterUsages_Flocks_FlockId | WaterUsages | GeneralInventory | FlockManagement |
 
-## Differences from the 2026-08 hand-written matrix
+## Observable differences
 
 | from | to | hand-written | generated |
 |---|---|---|---|
@@ -41,3 +41,27 @@
 | Commerce | Access | — | R (1) |
 | GeneralInventory | EggOperations | — | R (2) fk:2 |
 | Finance | Farm | W | R (2) |
+
+## Cells the generator cannot observe
+
+After-commit events and read-model queries are not syntactically observable, and Platform is the free hub, so these cells show the generator's structural output instead.
+
+| from | to | hand-written | generated |
+|---|---|---|---|
+| Access | Insights | E | — |
+| Farm | Insights | E | — |
+| FlockManagement | Insights | E | — |
+| EggOperations | Insights | E | — |
+| Commerce | Insights | E | — |
+| GeneralInventory | Insights | E | — |
+| Finance | Insights | E | — |
+| Insights | Platform | Q/P | P |
+| Platform/adapters | Access | W | A (43) |
+| Platform/adapters | Farm | W | A (18) |
+| Platform/adapters | FlockManagement | W | A (22) |
+| Platform/adapters | EggOperations | W | A (22) |
+| Platform/adapters | Commerce | W | A (31) |
+| Platform/adapters | GeneralInventory | W | A (18) |
+| Platform/adapters | Finance | W | A (9) |
+| Platform/adapters | Insights | R | A (25) |
+| Platform/adapters | Platform | — | — |

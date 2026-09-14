@@ -94,6 +94,67 @@ public sealed class CouplingMatrixTests : IDisposable
         Assert.Contains("| Access | Farm | R | W (1) |", rendered);
     }
 
+    [Fact]
+    public void Render_ReportsAHandWrittenEventAsUnobservable()
+    {
+        var sourceRoot = Path.Combine(_root, "event-src");
+        Directory.CreateDirectory(sourceRoot);
+        File.WriteAllText(Path.Combine(sourceRoot, "Access.cs"), """
+            namespace Cluckwork.Access;
+            public sealed class Writer { }
+            """);
+        File.WriteAllText(Path.Combine(sourceRoot, "Insights.cs"), """
+            namespace Cluckwork.Insights;
+            public sealed class Projection { }
+            """);
+        var ledgerPath = Path.Combine(_root, "event-ledger.json");
+        File.WriteAllText(ledgerPath, """
+            {
+              "owners": {
+                "Access": { "kind": "module", "namespaces": ["Cluckwork.Access"] },
+                "Insights": { "kind": "module", "namespaces": ["Cluckwork.Insights"] },
+                "Platform": { "kind": "platform", "namespaces": ["Cluckwork.Platform"] }
+              },
+              "edges": []
+            }
+            """);
+        var ledger = ModuleLedger.Load(ledgerPath);
+        var edgeReport = ModuleLedgerScanner.Scan(sourceRoot, ledgerPath);
+        var emptyTables = new TableOwnerReport(0, [], [], []) { ExpectedTableCountFloor = 0 };
+        var emptyAdapters = new AdapterReachReport([], [], [], [], [], [], [], 0, 0);
+
+        var rendered = CouplingMatrix.Render(ledger, edgeReport, emptyTables, emptyAdapters);
+
+        Assert.Contains("## Cells the generator cannot observe", rendered);
+        Assert.Contains("| Access | Insights | E | — |", rendered);
+    }
+
+    [Fact]
+    public void CommittedMatrixWithCrLfEndings_MatchesRegeneration()
+    {
+        CouplingMatrixRealTreeTests.AssertCommittedMatrixMatches("first\r\nsecond\r\n", "first\nsecond\n");
+    }
+
+    [Fact]
+    public void RenderChecked_RefusesAStaleForeignKeyRow()
+    {
+        var ledger = new ModuleLedger([], [], [])
+        {
+            ForeignKeys = [new ForeignKeyCell("Missing", "FK_Missing", "Access", "Farm", "test")],
+        };
+        var edges = new ModuleLedgerReport([], [], [], [], [], [], [], 0, 0);
+        var tables = new TableOwnerReport(0, [], [], ["stale foreign-key row 'FK_Missing'"])
+        {
+            ExpectedTableCountFloor = 0,
+        };
+        var adapters = new AdapterReachReport([], [], [], [], [], [], [], 0, 0);
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            CouplingMatrixRealTreeTests.RenderChecked(ledger, edges, tables, adapters));
+
+        Assert.Contains("stale foreign-key row 'FK_Missing'", exception.Message);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
