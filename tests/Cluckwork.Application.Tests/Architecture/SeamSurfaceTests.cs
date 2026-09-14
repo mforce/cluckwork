@@ -204,6 +204,54 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.SelfExpandingGen
     }
 }
 
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.ExternalBase
+{
+    using Cluckwork.Domain.Flocks;
+
+    public interface IReader<T>
+    {
+        IQueryable<T> Read();
+    }
+}
+
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.InheritedExternalMember
+{
+    using Cluckwork.Domain.Flocks;
+
+    public interface IInheritedExternalMemberFixture : ExternalBase.IReader<Flock>
+    {
+    }
+}
+
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.InterfaceConstraint
+{
+    using Cluckwork.Domain.Flocks;
+
+    public interface IInterfaceConstraintFixture<T> where T : IQueryable<Flock>
+    {
+    }
+}
+
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.StaticAbstractOperator
+{
+    using Cluckwork.Domain.Flocks;
+
+    public interface IStaticAbstractOperatorFixture<TSelf> where TSelf : IStaticAbstractOperatorFixture<TSelf>
+    {
+        static abstract IQueryable<Flock> operator +(TSelf left, TSelf right);
+    }
+}
+
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.FunctionPointer
+{
+    using Cluckwork.Domain.Flocks;
+
+    public unsafe interface IFunctionPointerFixture
+    {
+        delegate*<IQueryable<Flock>, void> Callback();
+    }
+}
+
 namespace Cluckwork.Application.Tests.Architecture
 {
     using QueryableReturnFixtures = SeamFixtures.QueryableReturn;
@@ -224,6 +272,10 @@ namespace Cluckwork.Application.Tests.Architecture
     using NamedDelegateFixtures = SeamFixtures.NamedDelegate;
     using GenericConstraintFixtures = SeamFixtures.GenericConstraint;
     using SelfExpandingGenericFixtures = SeamFixtures.SelfExpandingGeneric;
+    using InheritedExternalMemberFixtures = SeamFixtures.InheritedExternalMember;
+    using InterfaceConstraintFixtures = SeamFixtures.InterfaceConstraint;
+    using StaticAbstractOperatorFixtures = SeamFixtures.StaticAbstractOperator;
+    using FunctionPointerFixtures = SeamFixtures.FunctionPointer;
 
     public sealed class SeamSurfaceTests
     {
@@ -310,9 +362,12 @@ namespace Cluckwork.Application.Tests.Architecture
         [Fact]
         public void InheritedGenericBaseInterface_SubstitutedArgumentIsAViolation()
         {
-            var failure = Assert.Single(Evaluate<InheritedGenericBaseFixtures.IInheritedGenericBaseFixture>());
-            Assert.Contains("IInheritedGenericBaseFixture.: IReader<IQueryable<Flock>>", failure);
-            Assert.Contains("IQueryable", failure);
+            var failures = Evaluate<InheritedGenericBaseFixtures.IInheritedGenericBaseFixture>();
+
+            Assert.Equal(2, failures.Count);
+            Assert.Contains(failures, f => f.Contains("IInheritedGenericBaseFixture.: IReader<IQueryable<Flock>>"));
+            Assert.Contains(failures, f => f.Contains("IInheritedGenericBaseFixture.Read"));
+            Assert.All(failures, f => Assert.Contains("IQueryable", f));
         }
 
         [Fact]
@@ -366,6 +421,43 @@ namespace Cluckwork.Application.Tests.Architecture
         public void SelfExpandingGenericDto_TerminatesAndIsGreen()
         {
             Assert.Empty(Evaluate<SelfExpandingGenericFixtures.ISelfExpandingGenericFixture>());
+        }
+
+        [Fact]
+        public void MemberInheritedFromAnExternalBaseInterface_IsAViolation()
+        {
+            var failure = Assert.Single(Evaluate<InheritedExternalMemberFixtures.IInheritedExternalMemberFixture>());
+            Assert.Contains("IInheritedExternalMemberFixture.Read", failure);
+            Assert.Contains("IQueryable", failure);
+        }
+
+        [Fact]
+        public void ConstraintOnTheInterfaceOwnTypeParameter_IsAViolation()
+        {
+            var failure = Assert.Single(Evaluate<InterfaceConstraintFixtures.IInterfaceConstraintFixture<IQueryable<Cluckwork.Domain.Flocks.Flock>>>());
+            Assert.Contains("IInterfaceConstraintFixture`1.<T>", failure);
+            Assert.Contains("IQueryable", failure);
+        }
+
+        [Fact]
+        public void StaticAbstractOperator_IsAViolation()
+        {
+            var report = SeamSurfaceScanner.Scan(
+                typeof(StaticAbstractOperatorFixtures.IStaticAbstractOperatorFixture<>).Assembly,
+                [typeof(StaticAbstractOperatorFixtures.IStaticAbstractOperatorFixture<>).Namespace!],
+                minimumInterfaceFloor: 1);
+
+            var failure = Assert.Single(SeamSurfaceScanner.Evaluate(report));
+            Assert.Contains("op_Addition", failure);
+            Assert.Contains("IQueryable", failure);
+        }
+
+        [Fact]
+        public void FunctionPointerParameter_IsAViolation()
+        {
+            var failure = Assert.Single(Evaluate<FunctionPointerFixtures.IFunctionPointerFixture>());
+            Assert.Contains("IFunctionPointerFixture.Callback", failure);
+            Assert.Contains("IQueryable", failure);
         }
 
         [Fact]

@@ -20,8 +20,11 @@ Added after the first contract ships, it would arrive with a backlog.
 A public interface in `Cluckwork.Application.Features.*` or
 `Cluckwork.Application.Common` may not expose persistence anywhere in its
 signatures. `SeamSurfaceRealAssemblyTests` reflects over every such interface,
-recursing through parameters, return types, generic arguments and the public
-properties of any `Cluckwork.*` type it reaches, and fails on `DbContext`,
+including the members it inherits from base interfaces (with substituted type
+arguments), operators, indexers, events and its own generic constraints,
+recursing through parameters, return types, generic arguments, delegates,
+function pointers and the public properties of any `Cluckwork.*` type it
+reaches, and fails on `DbContext`,
 `DbSet<>`, `IQueryable`, any `Microsoft.EntityFrameworkCore` type, the bases
 `Entity` and `AggregateRoot` as a declared type, or any `Cluckwork.Infrastructure`
 type. A second assertion pins that the Application assembly references no

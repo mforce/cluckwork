@@ -49,36 +49,22 @@ public static class SeamSurfaceScanner
         var violations = new List<SeamSurfaceViolation>();
         foreach (var iface in interfaces)
         {
-            void Check(Type type, string member) =>
-                Walk(type, [FormatShort(type)], new HashSet<Type>(), iface.FullName!, member, violations);
+            if (iface.IsGenericTypeDefinition)
+            {
+                foreach (var parameter in iface.GetGenericArguments())
+                {
+                    Walk(parameter, [FormatShort(parameter)], new HashSet<Type>(), iface.FullName!, $"<{parameter.Name}>", violations);
+                }
+            }
 
-            // Reflection does not surface inherited interface members; walking the
-            // constructed base interfaces catches the substituted type arguments.
+            CheckMembers(iface, iface.FullName!, violations);
+
+            // Reflection does not surface inherited interface members; the
+            // constructed base interfaces carry them with substituted arguments.
             foreach (var baseInterface in iface.GetInterfaces())
             {
-                Check(baseInterface, $": {FormatShort(baseInterface)}");
-            }
-
-            foreach (var method in iface.GetMethods().Where(m => !m.IsSpecialName))
-            {
-                CheckMethod(method, iface.FullName!, violations);
-            }
-
-            foreach (var property in iface.GetProperties())
-            {
-                Check(property.PropertyType, property.Name);
-                foreach (var index in property.GetIndexParameters())
-                {
-                    Check(index.ParameterType, property.Name);
-                }
-            }
-
-            foreach (var evt in iface.GetEvents())
-            {
-                if (evt.EventHandlerType is { } handler)
-                {
-                    Check(handler, evt.Name);
-                }
+                Walk(baseInterface, [FormatShort(baseInterface)], new HashSet<Type>(), iface.FullName!, $": {FormatShort(baseInterface)}", violations);
+                CheckMembers(baseInterface, iface.FullName!, violations);
             }
         }
 
@@ -130,6 +116,39 @@ public static class SeamSurfaceScanner
         }
 
         return failures;
+    }
+
+    private static void CheckMembers(Type declaring, string interfaceName, List<SeamSurfaceViolation> violations)
+    {
+        void Check(Type type, string member) =>
+            Walk(type, [FormatShort(type)], new HashSet<Type>(), interfaceName, member, violations);
+
+        // Only accessors are skipped; their property or event is walked below.
+        // Operators are special-name too and must be walked.
+        var accessors = declaring.GetProperties().SelectMany(p => p.GetAccessors())
+            .Concat(declaring.GetEvents().SelectMany(e => new[] { e.AddMethod, e.RemoveMethod }.OfType<MethodInfo>()))
+            .ToHashSet();
+        foreach (var method in declaring.GetMethods().Where(m => !accessors.Contains(m)))
+        {
+            CheckMethod(method, interfaceName, violations);
+        }
+
+        foreach (var property in declaring.GetProperties())
+        {
+            Check(property.PropertyType, property.Name);
+            foreach (var index in property.GetIndexParameters())
+            {
+                Check(index.ParameterType, property.Name);
+            }
+        }
+
+        foreach (var evt in declaring.GetEvents())
+        {
+            if (evt.EventHandlerType is { } handler)
+            {
+                Check(handler, evt.Name);
+            }
+        }
     }
 
     private static void CheckMethod(MethodInfo method, string interfaceName, List<SeamSurfaceViolation> violations)
@@ -193,6 +212,18 @@ public static class SeamSurfaceScanner
             {
                 Walk(argument, [.. path, FormatShort(argument)], visited, interfaceName, member, violations);
             }
+        }
+
+        if (resolved.IsFunctionPointer)
+        {
+            foreach (var parameter in resolved.GetFunctionPointerParameterTypes())
+            {
+                Walk(parameter, [.. path, FormatShort(parameter)], visited, interfaceName, member, violations);
+            }
+
+            Walk(resolved.GetFunctionPointerReturnType(), [.. path, FormatShort(resolved.GetFunctionPointerReturnType())],
+                visited, interfaceName, member, violations);
+            return;
         }
 
         if (typeof(Delegate).IsAssignableFrom(resolved) && resolved.GetMethod("Invoke") is { } invoke)
