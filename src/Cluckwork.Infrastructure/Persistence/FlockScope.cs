@@ -17,7 +17,8 @@ public sealed class FlockScope
     // Unresolved contexts are Unrestricted. HTTP middleware resolves every
     // request explicitly; design-time factories, seeders, one-shot verbs and
     // hand-built test contexts do not run that middleware and must retain the
-    // existing account-wide read behavior (INV-3/INV-4, FlockScopeGuard line 70).
+    // existing account-wide READ behavior (INV-3/INV-4). #787 made the separate
+    // write guard fail closed; unresolved reads remain unrestricted by design.
     public bool IsUnrestricted { get; private set; } = true;
     public IReadOnlyCollection<Guid> AssignedFlockIds { get; private set; } = [];
     public bool IsResolved { get; private set; }

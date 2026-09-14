@@ -13,10 +13,11 @@ using Microsoft.EntityFrameworkCore;
 //
 // #612 — skips the DB read for any non-Worker effective role (Owner, Manager,
 // Sales, ReadOnly, Denied — role check from the resolved user, no I/O).
-// An unresolved user (seeders, one-shot verbs, background jobs) is Unrestricted
-// (matches FlockScopeGuard line 70 fail-open behavior).
+// An unresolved user (seeders, one-shot verbs, background jobs) is Unrestricted.
+// This read-scope default is separate from FlockScopeGuard, which fails closed
+// for unresolved actors on writes (#787).
 // 0 assignment rows (grandfathered #73) and any farm-wide row (FlockId=null)
-// are Unrestricted too — mirroring FlockScopeGuard lines 80 and 84 exactly.
+// are Unrestricted too, matching FlockScopeGuard's resolved-worker rules.
 public sealed class FlockScopeResolutionMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context, FlockScope scope, CurrentUserContext user, AppDbContext db)
@@ -67,7 +68,7 @@ public sealed class FlockScopeResolutionMiddleware(RequestDelegate next)
 
         if (assignments.Any(a => a.FlockId == null))
         {
-            // Farm-wide row: grants everything (matches FlockScopeGuard line 84). Unrestricted.
+            // Farm-wide row: grants everything. Unrestricted.
             scope.Resolve(true, []);
             await next(context);
             return;

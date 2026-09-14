@@ -38,20 +38,10 @@ public sealed class CurrentUserContext : ICurrentUser
     // label is now chosen deliberately instead of defaulted to "(unresolved)"
     // by a fallback nobody could see.
     //
-    // Roles stays empty on purpose — but READ THE NEXT PARAGRAPH before treating
-    // that as "unprivileged", because it is not.
-    //
-    // Empty roles means FlockScopeGuard's role bypass does not apply. It does
-    // NOT mean the actor is restricted: the guard then looks for
-    // UserRoleAssignment rows, a system actor has none, and zero rows is its
-    // "unscoped, account-wide" case. So a system actor has MORE effective flock
-    // reach than a restricted worker, not less.
-    //
-    // That is acceptable only because every current system-actor caller touches
-    // no flock-scoped handler at all. A future system
-    // actor that reaches RecordDailyEntry, SubmitDailyEntry, RecordFeedUsage or
-    // RecordWaterUsage would silently bypass flock scoping, and needs its own
-    // answer rather than this one.
+    // Roles stays empty on purpose. If a system actor later reaches a
+    // flock-scoped handler, FlockScopeGuard will treat its zero assignment rows
+    // as account-wide. No current system-actor caller reaches such a handler;
+    // adding one requires an explicit review of that access.
     public void ResolveSystemActor(string label)
     {
         UserId = Guid.Empty;
