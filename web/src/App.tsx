@@ -1,6 +1,7 @@
 import { lazy } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { AuthProvider } from "./auth/AuthContext";
+import { FarmThemeProvider } from "./theme/FarmThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { UpdatePrompt } from "./pwa/UpdatePrompt";
 import { SessionProvider } from "./session/SessionContext";
@@ -38,6 +39,11 @@ export function App() {
     // these; without this one they are the blank page. Its fallback is a plain
     // anchor, so it needs no router.
     <ErrorBoundary scope="app">
+      {/* #674 — MUI's theme follows `data-brand`/`data-theme` on <html>, which
+          the pre-paint script sets before React mounts. Placed OUTSIDE
+          AuthProvider so the login screen is themed too: a farm's palette is
+          applied from this device's cache before anyone signs in (#586). */}
+      <FarmThemeProvider>
       <AuthProvider>
         <BrowserRouter>
           <Routes>
@@ -76,6 +82,7 @@ export function App() {
           </Routes>
         </BrowserRouter>
       </AuthProvider>
+      </FarmThemeProvider>
       {/* Outside the router and the auth gate: an update is worth offering on
           any screen, including the login page, and it needs no route context.
           Inside the boundary so a throw here can't blank the app (#142). */}
