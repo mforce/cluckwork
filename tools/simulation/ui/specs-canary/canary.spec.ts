@@ -144,8 +144,12 @@ const SCREENS = [
     // Filtering to one flock — a re-query plus a re-render.
     interact: async (page: CanaryPage) => {
       // The filter is a #512 searchable picker, not a `<select>`. Committing it
-      // clicks the trigger and then the option, so the Event Timing entry this
-      // screen's `yieldsEventTiming` asserts on comes from real clicks.
+      // clicks the trigger and then the option. Those are real clicks, which is
+      // NECESSARY for an Event Timing entry and not sufficient for one: vitals.ts
+      // observes at `durationThreshold: 16`, so a click under one frame is never
+      // reported. Both clicks here fetch and re-render, and the quiet baseline
+      // records 26 interactions, so the screen's `yieldsEventTiming` holds on
+      // margin rather than by construction (codex review of #841).
       await commitNamedPicker(page, tEn("history:flockLabel"), "Sim House A");
     },
     yieldsEventTiming: true,
