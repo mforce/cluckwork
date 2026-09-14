@@ -49,7 +49,7 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
         Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync("/api/v1/flocks")).StatusCode);
 
         // M4 strengthen (mutation-check record): a 0-assignment worker is
-        // UNRESTRICTED (grandfathered #73, matches FlockScopeGuard line 80), so
+        // UNRESTRICTED (grandfathered #73, matches FlockScopeGuard), so
         // BOTH seeded flocks must be visible in its list — not an empty
         // restricted scope. Guards a Resolve(false, []) in the 0-assignment
         // branch (which would empty every read).
@@ -109,7 +109,7 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         // M5 strengthen (mutation-check record): a farm-wide (FlockId=null) row
-        // grants everything (matches FlockScopeGuard line 84), so BOTH flocks
+        // grants everything (matches FlockScopeGuard), so BOTH flocks
         // must be visible — not an empty restricted scope. Guards removing the
         // farm-wide branch entirely (which would fall through to Resolve(false,
         // []) and empty every read).
