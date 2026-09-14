@@ -13,7 +13,7 @@
   "edges": [
     {
       "from": "Access", "to": "Commerce", "kind": "W",
-      "reason": "W because AccountProvisioner inserts EggUnitConversion.Defaults for a new farm inside its provisioning transaction; the rest of the cell reads. Identity carries the per-user stepper-unit preference: ApplicationUser stores Domain.Catalog.EggUnit, IdentityProvider reads and writes it, and SetStepperUnitHandler/SetStepperUnitValidator resolve it through Commerce's IEggUnitConversionRepository so a preference can never point at a conversion the farm deactivated. Design 3.4 shows Access -> Commerce as none; this is live coupling the target design has still to remove.",
+      "reason": "W because AccountProvisioner inserts EggUnitConversion.Defaults for a new farm inside its provisioning transaction; the rest of the cell reads. Identity carries the per-user stepper-unit preference: ApplicationUser stores Domain.Catalog.EggUnit, IdentityProvider reads and writes it, SetStepperUnitHandler resolves it through Commerce's IEggUnitConversionRepository and rejects inactive conversions, and SetStepperUnitValidator validates only the enum name. Nothing prevents a stored preference from pointing at a conversion later deactivated through UpdateEggUnitConversionHandler. Design 3.4 shows Access -> Commerce as none; this is live coupling the target design has still to remove.",
       "symbols": [
         "Cluckwork.Application.Features.Users.SetStepperUnit.SetStepperUnitHandler",
         "Cluckwork.Application.Features.Users.SetStepperUnit.SetStepperUnitValidator",
@@ -32,8 +32,8 @@
       ]
     },
     {
-      "from": "Access", "to": "Farm", "kind": "R",
-      "reason": "Identity is where a farm is created, renamed, suspended and recovered. AccountProvisioner, AccountRenameService, AccountSuspensionService, AdminRecoveryService, FirstRunAdminService and FirstRunStatusService load Domain.Accounts.Account or inject Farm's IAccountRepository, and IdentityProvider takes that repository by fully qualified name for the account-scoped login (#532). The user validators read Domain.Accounts.Roles for the assignable role set, and IUserRoleAssignmentRepository returns Domain.Accounts.UserRoleAssignment rows. Design 3.4 row Access -> Farm = R.",
+      "from": "Access", "to": "Farm", "kind": "W",
+      "reason": "W because AccountProvisioner inserts the new Account inside its provisioning transaction and AccountRenameService calls Account.Rename and saves; the rest of the cell reads. Identity is where a farm is created, renamed, suspended and recovered. AccountProvisioner, AccountRenameService, AccountSuspensionService, AdminRecoveryService, FirstRunAdminService and FirstRunStatusService load Domain.Accounts.Account or inject Farm's IAccountRepository, and IdentityProvider takes that repository by fully qualified name for the account-scoped login (#532). The user validators read Domain.Accounts.Roles for the assignable role set, and IUserRoleAssignmentRepository returns Domain.Accounts.UserRoleAssignment rows. Design 3.4 row Access -> Farm = R.",
       "symbols": [
         "Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler",
         "Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler",

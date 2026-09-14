@@ -316,6 +316,83 @@ public sealed class ModuleLedgerTests : IDisposable
     }
 
     [Fact]
+    public void RelativeQualifiedName_IsAnEdge()
+    {
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red; public record R(Temp.Blue.B Value);");
+
+        var report = Scan(WriteLedger(string.Empty));
+        Assert.True(report.LiveEdges.Count == 1, string.Join(" | ", report.UnownedNamespaces));
+        var edge = report.LiveEdges[0];
+        Assert.Equal(("Red", "Blue"), (edge.From, edge.To));
+    }
+
+    [Fact]
+    public void CompoundUsingAlias_IsAnEdge()
+    {
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Red.cs", "using Bs = System.Collections.Generic.List<Cluckwork.Temp.Blue.B>; namespace Cluckwork.Temp.Red; public class R { }");
+
+        var edge = Assert.Single(Scan(WriteLedger(string.Empty)).LiveEdges);
+        Assert.Equal(("Red", "Blue"), (edge.From, edge.To));
+    }
+
+    [Fact]
+    public void GlobalModuleImport_IsAFailure_ButPlatformImportIsGreen()
+    {
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Hub.cs", "global using Cluckwork.Temp.Blue; namespace Cluckwork.Temp.Hub; public class H { }");
+
+        var failure = Assert.Single(Evaluate(WriteLedger(string.Empty)));
+        Assert.Contains("global using of module namespace 'Cluckwork.Temp.Blue'", failure);
+
+        WriteSource("src/Hub.cs", "global using Cluckwork.Temp.Hub; namespace Cluckwork.Temp.Hub; public class H { }");
+        Assert.Empty(Evaluate(WriteLedger(string.Empty)));
+    }
+
+    [Fact]
+    public void GenericTopLevelTypes_HaveDistinctSymbols()
+    {
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Red.cs", "using Cluckwork.Temp.Blue; namespace Cluckwork.Temp.Red; public class R { } public class R<T> { }");
+
+        Assert.Equal(["Cluckwork.Temp.Red.R", "Cluckwork.Temp.Red.R<T>"], Scan(WriteLedger(string.Empty)).LiveEdges.Select(edge => edge.Symbol));
+    }
+
+    [Fact]
+    public void NamespaceDeclarationNames_AreNotReferences()
+    {
+        WriteSource("src/Both.cs", "namespace Cluckwork.Temp.Red { public class R { } } namespace Cluckwork.Temp.Blue { public class B { } }");
+
+        Assert.Empty(Scan(WriteLedger(string.Empty)).LiveEdges);
+    }
+
+    [Fact]
+    public void ExactClaim_ResolvesAReferencedTypeBelowItsNamespace()
+    {
+        const string owners = """
+              "owners": {
+                "Hub": { "kind": "platform", "namespaces": ["Cluckwork.Temp.Hub"], "exactNamespaces": ["Cluckwork.Temp"] },
+                "Red": { "kind": "module", "namespaces": ["Cluckwork.Temp.Red"] }
+              }
+            """;
+        WriteSource("src/Root.cs", "namespace Cluckwork.Temp; public class Root { }");
+        WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red; public class R { Cluckwork.Temp.Root? Value; }");
+
+        Assert.Empty(Evaluate(WriteLedger(string.Empty, owners)));
+    }
+
+    [Fact]
+    public void Net10PreprocessorSymbol_EnablesAUsingEdge()
+    {
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Red.cs", "#if NET10_0\nusing Cluckwork.Temp.Blue;\n#endif\nnamespace Cluckwork.Temp.Red; public class R { }");
+
+        var edge = Assert.Single(Scan(WriteLedger(string.Empty)).LiveEdges);
+        Assert.Equal(("Red", "Blue"), (edge.From, edge.To));
+    }
+
+    [Fact]
     public void CellWithOneOwnerOnBothEnds_IsARegistryError()
     {
         WriteSource("src/Red.cs", "namespace Cluckwork.Temp.Red;\npublic class R { }\n");

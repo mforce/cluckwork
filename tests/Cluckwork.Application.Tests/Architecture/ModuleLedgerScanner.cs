@@ -19,11 +19,14 @@ public sealed record CrossOwnerEdge(
 
 public sealed record StaleLedgerSymbol(string From, string To, string Symbol, string Reason);
 
+public sealed record GlobalModuleImport(string Namespace, string File, int Line);
+
 public sealed record ModuleLedgerReport(
     IReadOnlyList<CrossOwnerEdge> LiveEdges,
     IReadOnlyList<CrossOwnerEdge> UndeclaredEdges,
     IReadOnlyList<StaleLedgerSymbol> StaleSymbols,
     IReadOnlyList<string> UnownedNamespaces,
+    IReadOnlyList<GlobalModuleImport> GlobalModuleImports,
     IReadOnlyList<string> ParseErrors,
     IReadOnlyList<string> RegistryErrors,
     int ScannedFileCount,
@@ -57,11 +60,15 @@ public static class ModuleLedgerScanner
         var parseErrors = new List<string>();
         var rawEdges = new List<CrossOwnerEdge>();
         var unowned = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        var globalModuleImports = new List<GlobalModuleImport>();
 
         foreach (var file in files)
         {
             var relative = Relative(repoRoot, file);
-            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file), path: file);
+            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file),
+                CSharpParseOptions.Default.WithPreprocessorSymbols(
+                    "NET10_0", "NET10_0_OR_GREATER", "NET", "NETCOREAPP", "NET5_0_OR_GREATER",
+                    "NET6_0_OR_GREATER", "NET7_0_OR_GREATER", "NET8_0_OR_GREATER", "NET9_0_OR_GREATER"), file);
             var root = tree.GetCompilationUnitRoot();
 
             foreach (var diagnostic in tree.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error))
@@ -70,7 +77,7 @@ public static class ModuleLedgerScanner
                 parseErrors.Add($"{relative}:{line}: {diagnostic.Id} {diagnostic.GetMessage()}");
             }
 
-            ScanFile(root, relative, ProjectRootNamespace(srcFull, file), namespaceOwners, ownerKinds, rawEdges, unowned);
+            ScanFile(root, relative, ProjectRootNamespace(srcFull, file), namespaceOwners, ownerKinds, rawEdges, unowned, globalModuleImports);
         }
 
         var liveEdges = Collapse(rawEdges);
@@ -111,6 +118,7 @@ public static class ModuleLedgerScanner
                 .ThenBy(s => s.Symbol, StringComparer.Ordinal)
                 .ToList(),
             unowned.Values.ToList(),
+            globalModuleImports,
             parseErrors,
             registryErrors,
             files.Count,
@@ -145,6 +153,9 @@ public static class ModuleLedgerScanner
 
         failures.AddRange(report.UnownedNamespaces);
 
+        failures.AddRange(report.GlobalModuleImports.Select(import =>
+            $"global using of module namespace '{import.Namespace}' in {import.File}:{import.Line} — a global import hides every dependency on it from this walk; import it per file instead"));
+
         foreach (var edge in report.UndeclaredEdges)
         {
             failures.Add(
@@ -168,7 +179,8 @@ public static class ModuleLedgerScanner
         IReadOnlyDictionary<string, Claim> namespaceOwners,
         IReadOnlyDictionary<string, string> ownerKinds,
         List<CrossOwnerEdge> edges,
-        SortedDictionary<string, string> unowned)
+        SortedDictionary<string, string> unowned,
+        List<GlobalModuleImport> globalModuleImports)
     {
         var topLevelTypes = root.DescendantNodes()
             .Where(IsTypeDeclaration)
@@ -183,7 +195,7 @@ public static class ModuleLedgerScanner
         foreach (var type in topLevelTypes)
         {
             var declared = NamespaceOf(type, rootNamespace);
-            var owner = Resolve(namespaceOwners, declared);
+            var owner = Resolve(namespaceOwners, declared, declared: true);
             if (owner is null)
             {
                 RecordUnowned(unowned, declared,
@@ -195,7 +207,7 @@ public static class ModuleLedgerScanner
 
         if (attributions.Count == 0)
         {
-            var owner = Resolve(namespaceOwners, fileNamespace);
+            var owner = Resolve(namespaceOwners, fileNamespace, declared: true);
             if (owner is null)
             {
                 RecordUnowned(unowned, fileNamespace,
@@ -207,16 +219,15 @@ public static class ModuleLedgerScanner
 
         void Record(string dotted, int line, IEnumerable<(SyntaxNode? Scope, string Symbol, string? Owner)> targets)
         {
-            if (!dotted.StartsWith(Prefix, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            var to = Resolve(namespaceOwners, dotted);
+            var resolved = ResolveReferenced(namespaceOwners, dotted, fileNamespace);
+            var to = resolved;
             if (to is null)
             {
-                RecordUnowned(unowned, dotted,
-                    $"unowned namespace '{dotted}' referenced from {relative}:{line} — every referenced Cluckwork namespace must be claimed by exactly one ledger owner");
+                if (dotted.StartsWith(Prefix, StringComparison.Ordinal))
+                {
+                    RecordUnowned(unowned, dotted,
+                        $"unowned namespace '{dotted}' referenced from {relative}:{line} — every referenced Cluckwork namespace must be claimed by exactly one ledger owner");
+                }
                 return;
             }
 
@@ -239,17 +250,27 @@ public static class ModuleLedgerScanner
 
         foreach (var directive in root.DescendantNodes().OfType<UsingDirectiveSyntax>())
         {
-            if (DottedText(directive.NamespaceOrType) is not string dotted)
-            {
-                continue;
-            }
-
             // A directive inside a namespace block scopes to the types declared in
             // that block; one at compilation-unit level scopes to the whole file.
             var scope = directive.Parent is BaseNamespaceDeclarationSyntax block
                 ? attributions.Where(a => a.Scope is not null && a.Scope.Ancestors().Contains(block)).ToList()
                 : attributions;
-            Record(dotted, LineOf(directive), scope);
+            foreach (var dotted in directive.DescendantNodes()
+                .Where(node => node is QualifiedNameSyntax or MemberAccessExpressionSyntax)
+                .Where(IsOutermostDotted)
+                .Select(DottedText)
+                .OfType<string>()
+                .Distinct(StringComparer.Ordinal))
+            {
+                var resolved = ResolveReferenced(namespaceOwners, dotted, fileNamespace);
+                if (directive.GlobalKeyword != default && resolved is { } owner &&
+                    ownerKinds.TryGetValue(owner.Owner, out var kind) && kind == ModuleLedger.ModuleKind)
+                {
+                    globalModuleImports.Add(new GlobalModuleImport(owner.Namespace, relative, LineOf(directive)));
+                }
+
+                Record(dotted, LineOf(directive), scope);
+            }
         }
 
         foreach (var node in root.DescendantNodes())
@@ -257,6 +278,12 @@ public static class ModuleLedgerScanner
             if (node is not (QualifiedNameSyntax or MemberAccessExpressionSyntax)
                 || !IsOutermostDotted(node)
                 || node.FirstAncestorOrSelf<UsingDirectiveSyntax>() is not null)
+            {
+                continue;
+            }
+
+            if (node.FirstAncestorOrSelf<BaseNamespaceDeclarationSyntax>() is { } namespaceDeclaration &&
+                namespaceDeclaration.Name.Span.Contains(node.Span))
             {
                 continue;
             }
@@ -370,12 +397,40 @@ public static class ModuleLedgerScanner
     private static bool IsPlatform(IReadOnlyDictionary<string, string> kinds, string owner) =>
         kinds.TryGetValue(owner, out var kind) && kind == ModuleLedger.PlatformKind;
 
-    private static (string Owner, string Namespace)? Resolve(IReadOnlyDictionary<string, Claim> index, string dotted)
+    private static (string Owner, string Namespace)? ResolveReferenced(
+        IReadOnlyDictionary<string, Claim> index, string dotted, string fileNamespace)
+    {
+        if (dotted.StartsWith(Prefix, StringComparison.Ordinal))
+        {
+            return Resolve(index, dotted, declared: false);
+        }
+
+        var prefix = fileNamespace;
+        while (true)
+        {
+            var candidate = $"{prefix}.{dotted}";
+            var owner = Resolve(index, candidate, declared: false);
+            if (owner is { } resolved && resolved.Namespace.Length > prefix.Length)
+            {
+                return resolved;
+            }
+
+            var cut = prefix.LastIndexOf('.');
+            if (cut < 0)
+            {
+                return null;
+            }
+
+            prefix = prefix[..cut];
+        }
+    }
+
+    private static (string Owner, string Namespace)? Resolve(IReadOnlyDictionary<string, Claim> index, string dotted, bool declared)
     {
         var probe = dotted;
         while (true)
         {
-            if (index.TryGetValue(probe, out var claim) && (claim.Subtree || probe == dotted))
+            if (index.TryGetValue(probe, out var claim) && (claim.Subtree || !declared || probe == dotted))
             {
                 return (claim.Owner, probe);
             }
@@ -430,10 +485,14 @@ public static class ModuleLedgerScanner
 
     private static string Identifier(SyntaxNode node) => node switch
     {
+        TypeDeclarationSyntax type => GenericIdentifier(type.Identifier.ValueText, type.TypeParameterList),
         BaseTypeDeclarationSyntax type => type.Identifier.ValueText,
-        DelegateDeclarationSyntax @delegate => @delegate.Identifier.ValueText,
+        DelegateDeclarationSyntax @delegate => GenericIdentifier(@delegate.Identifier.ValueText, @delegate.TypeParameterList),
         _ => throw new InvalidOperationException($"ModuleLedgerScanner: {node.Kind()} is not a type declaration."),
     };
+
+    private static string GenericIdentifier(string identifier, TypeParameterListSyntax? parameters) =>
+        parameters is null ? identifier : $"{identifier}<{string.Join(", ", parameters.Parameters.Select(p => p.Identifier.ValueText))}>";
 
     private static string NamespaceOf(SyntaxNode node, string rootNamespace)
     {
