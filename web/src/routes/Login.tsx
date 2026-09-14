@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import Chip from "@mui/material/Chip";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
@@ -211,27 +210,6 @@ export function Login() {
   return (
     <main className="auth">
       <ThemeToggle className="auth-theme" showLabel={false} iconSize={18} />
-      {/* #873 — the only rendered MUI component in the app today, and it exists
-          to be measured rather than seen. Emotion's injected <style> is what the
-          CSP nonce admits, and Emotion injects nothing until an MUI component
-          renders, so without this the end-to-end check has nothing to read: the
-          spec asserts this element's themed background under the real
-          Production policy, online and offline.
-
-          Hidden from both audiences deliberately. `.sr-only` takes it off screen
-          and `aria-hidden` takes it out of the accessibility tree, because #873
-          is groundwork sequenced BEFORE every screen slice — putting a visible
-          Chip on the login screen would make a product styling decision that
-          #864 owns. The first slice that renders a real MUI component deletes
-          this and points the spec at that component instead. */}
-      <Chip
-        label="MUI"
-        color="primary"
-        size="small"
-        className="sr-only"
-        aria-hidden="true"
-        data-testid="csp-style-probe"
-      />
       <form className="card" onSubmit={onSubmit}>
         <h1>{t("title")}</h1>
         {needsSetup && (
