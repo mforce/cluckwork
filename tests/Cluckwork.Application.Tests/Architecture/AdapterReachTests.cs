@@ -78,6 +78,105 @@ public sealed class AdapterReachTests : IDisposable
         Assert.Contains("src/Cli.cs:2", failure);
     }
 
+    [Theory]
+    [InlineData("MapGet")]
+    [InlineData("MapPost")]
+    [InlineData("MapPut")]
+    [InlineData("MapDelete")]
+    [InlineData("MapPatch")]
+    [InlineData("MapMethods")]
+    public void TypedInlineLambdaParameter_IsReachOfTheMappingMethod(string map)
+    {
+        WriteSource("Endpoint.cs", $$"""
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint {
+                public void Run() {
+                    group.{{map}}("/", (Cluckwork.Temp.Farm.Account account) => account);
+                }
+            }
+            """);
+        var report = Scan();
+        Assert.Equal(1, report.WalkedAdapterCount);
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(report));
+        Assert.Contains(Symbol + " -> Farm", failure);
+        Assert.Contains("Cluckwork.Temp.Farm.Account", failure);
+        Assert.Contains("src/Endpoint.cs:4", failure);
+    }
+
+    [Fact]
+    public void TypedInlineLambdaPersistenceParameter_IsForbiddenAtTheMappingMethod()
+    {
+        WriteSource("Endpoint.cs", """
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint {
+                public void Run() {
+                    group.MapPost("/", (Cluckwork.Infrastructure.Persistence.AppDbContext db) => db);
+                }
+            }
+            """);
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan(Row())));
+        Assert.Contains("forbidden persistence type Cluckwork.Infrastructure.Persistence.AppDbContext", failure);
+        Assert.Contains(Symbol, failure);
+        Assert.Contains("src/Endpoint.cs:4", failure);
+    }
+
+    [Theory]
+    [InlineData("account => account")]
+    [InlineData("(account) => account")]
+    public void UntypedInlineLambdaParameter_IsIgnored(string lambda)
+    {
+        WriteSource("Endpoint.cs", $$"""
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { public void Run() { group.MapGet("/", {{lambda}}); } }
+            """);
+        var report = Scan();
+        Assert.Equal(1, report.WalkedAdapterCount);
+        Assert.Empty(report.LiveReach);
+        Assert.Empty(report.UnresolvedTypes);
+        Assert.Empty(AdapterReachScanner.Evaluate(report));
+    }
+
+    [Theory]
+    [InlineData("GetService")]
+    [InlineData("GetRequiredService")]
+    [InlineData("GetKeyedService")]
+    [InlineData("GetRequiredKeyedService")]
+    public void NonGenericServiceResolution_RecordsReachAndRejectsEndpointPersistence(string service)
+    {
+        var key = service.Contains("Keyed", StringComparison.Ordinal) ? ", key" : "";
+        WriteSource("Endpoint.cs", $$"""
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint {
+                public void Run() {
+                    services.{{service}}(typeof(Cluckwork.Temp.Farm.Account){{key}});
+                    var db = (AppDbContext)context.HttpContext.RequestServices.{{service}}(typeof(AppDbContext){{key}});
+                }
+            }
+            """);
+        var report = Scan();
+        var reach = Assert.Single(report.LiveReach);
+        Assert.Equal((Symbol, "Farm", "Cluckwork.Temp.Farm.Account", 4),
+            (reach.Symbol, reach.Owner, reach.Type, reach.Line));
+        var persistence = Assert.Single(report.PersistenceViolations);
+        Assert.Contains("forbidden persistence type AppDbContext", persistence);
+        Assert.Contains(Symbol, persistence);
+        Assert.Contains("src/Endpoint.cs:5", persistence);
+        Assert.Equal(2, AdapterReachScanner.Evaluate(report).Count);
+    }
+
+    [Fact]
+    public void GenericOptionalKeyedService_IsReach()
+    {
+        WriteSource("Cli.cs", """
+            namespace Cluckwork.Temp.Cli;
+            public class Verb { public void Run() { services.GetKeyedService<Cluckwork.Temp.Flocks.Flock>(key); } }
+            """);
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan()));
+        Assert.Contains("Cluckwork.Temp.Cli.Verb.Run -> FlockManagement", failure);
+        Assert.Contains("Cluckwork.Temp.Flocks.Flock", failure);
+        Assert.Contains("src/Cli.cs:2", failure);
+    }
+
     [Fact]
     public void GenericArgument_ResolvesThroughUsingAndLongestExactOwnerClaim()
     {

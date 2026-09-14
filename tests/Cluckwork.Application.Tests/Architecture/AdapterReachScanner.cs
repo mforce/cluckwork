@@ -83,13 +83,17 @@ public static class AdapterReachScanner
                     var types = parameters.Parameters.Select(p => p.Type).OfType<TypeSyntax>().ToList();
                     if (node is BaseMethodDeclarationSyntax method)
                     {
-                        // Lambdas and local functions are not adapters; their service calls still belong to this body.
+                        // Inline handlers belong to the mapping adapter, not to separate ledger rows.
                         var body = (SyntaxNode?)method.Body ?? method.ExpressionBody;
                         if (body is not null)
                         {
+                            types.AddRange(body.DescendantNodes().OfType<ParenthesizedLambdaExpressionSyntax>()
+                                .SelectMany(lambda => lambda.ParameterList.Parameters)
+                                .Select(parameter => parameter.Type).OfType<TypeSyntax>());
+                            types.AddRange(body.DescendantNodes().OfType<SimpleLambdaExpressionSyntax>()
+                                .Select(lambda => lambda.Parameter.Type).OfType<TypeSyntax>());
                             types.AddRange(body.DescendantNodes().OfType<InvocationExpressionSyntax>()
-                                .Select(ServiceName).OfType<GenericNameSyntax>()
-                                .SelectMany(g => g.TypeArgumentList.Arguments));
+                                .SelectMany(ServiceTypes));
                         }
                     }
 
@@ -288,27 +292,31 @@ public static class AdapterReachScanner
         }
     }
 
-    private static GenericNameSyntax? ServiceName(InvocationExpressionSyntax call)
+    private static IEnumerable<TypeSyntax> ServiceTypes(InvocationExpressionSyntax call)
     {
         var name = call.Expression switch
         {
-            MemberAccessExpressionSyntax member => member.Name as GenericNameSyntax,
-            MemberBindingExpressionSyntax binding => binding.Name as GenericNameSyntax,
-            GenericNameSyntax generic => generic,
+            MemberAccessExpressionSyntax member => member.Name,
+            MemberBindingExpressionSyntax binding => binding.Name,
+            SimpleNameSyntax simple => simple,
             _ => null,
         };
-        if (name?.Identifier.ValueText is "GetRequiredService" or "GetService" or "GetRequiredKeyedService")
+        if (name?.Identifier.ValueText is "GetRequiredService" or "GetService"
+            or "GetKeyedService" or "GetRequiredKeyedService")
         {
-            return name;
+            return name is GenericNameSyntax generic
+                ? generic.TypeArgumentList.Arguments
+                : call.ArgumentList.Arguments.Select(argument => argument.Expression)
+                    .OfType<TypeOfExpressionSyntax>().Select(typeOf => typeOf.Type);
         }
-        if (name?.Identifier.ValueText == "CreateInstance"
+        if (name is GenericNameSyntax { Identifier.ValueText: "CreateInstance" } create
             && call.Expression is MemberAccessExpressionSyntax access
             && ModuleLedgerScanner.DottedText(access.Expression) is { } receiver
             && (receiver == "ActivatorUtilities" || receiver == "Microsoft.Extensions.DependencyInjection.ActivatorUtilities"))
         {
-            return name;
+            return create.TypeArgumentList.Arguments;
         }
-        return null;
+        return [];
     }
 
     private static IEnumerable<NameSyntax> NamedTypes(TypeSyntax type) =>

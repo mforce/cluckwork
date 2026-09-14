@@ -511,6 +511,12 @@
       ]
     },
     {
+      "symbol": "Cluckwork.Api.Endpoints.Catalog.ProductEndpoints.MapProductEndpoints",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
       "symbol": "Cluckwork.Api.Endpoints.Catalog.ProductEndpoints.SetActive",
       "reaches": [
         "Commerce"
@@ -630,6 +636,12 @@
       "reaches": [
         "EggOperations",
         "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.MapEggGradeEndpoints",
+      "reaches": [
+        "EggOperations"
       ]
     },
     {
@@ -833,6 +845,12 @@
     },
     {
       "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.ListMovements",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.MapInventoryEndpoints",
       "reaches": [
         "GeneralInventory"
       ]

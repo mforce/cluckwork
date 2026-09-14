@@ -12,7 +12,7 @@ No incident. This is epic #514, slice 4, Track B, stacked on #845's table-owner
 ledger. The module ledger treats Platform as a free hub, so it cannot detect an
 endpoint or infrastructure adapter acquiring another business module's port.
 
-The baseline walk finds **397 adapter declarations and 147 non-empty adapter
+The baseline walk finds **397 adapter declarations and 150 non-empty adapter
 rows**. Rows come from `AdapterReachScanner.RenderAdapters`, rather than a manual
 inventory. `ExpenseEndpoints.ListExpenses` reaches Farm, Finance,
 FlockManagement, and Insights. Its `IAuditEventRepository` belongs to Insights
@@ -50,8 +50,13 @@ The adapter definition deliberately over-approximates runtime entry points.
 Private endpoint helpers and request-record constructors count even when the
 HTTP router never invokes them directly. That can raise the recorded ceiling,
 but it avoids hiding dependencies behind a remembered list of routed handlers.
-Lambdas and local functions are not independent adapters. Service resolutions
-inside a method's lambdas or local functions are attributed to that method.
+Lambdas and local functions are not independent adapters. Typed lambda
+parameters, including inline route handlers, and service resolutions inside a
+method's lambdas or local functions are attributed to that method. Untyped
+lambda parameters cannot be resolved and are ignored. Review found that the
+initial walk missed typed lambda parameters; adding them generated three new
+mapping-method rows for Products, Egg Grades, and Inventory, increasing the
+ledger from 147 to 150 rows without changing an existing row.
 Overloads share the specified enclosing-type-plus-member key and their reach
 is combined. Moving a file or adding a comment does not change the member key. Generic
 enclosing types retain their arity in that key.
@@ -63,12 +68,14 @@ endpoint-only ban, with no source refactoring or persistence exceptions ledger.
 ## What this does NOT cover
 
 The walk is syntax-only and does not boot a host or bind a Roslyn compilation.
-It reads parameter types, including generic arguments, and generic type arguments
-of `GetRequiredService`, `GetService`, `GetRequiredKeyedService`, and
-`ActivatorUtilities.CreateInstance` calls in method and constructor bodies.
-It does not follow return types, fields, properties, arbitrary object creation,
-non-generic service resolution, reflection, inferred types, dependency forwarding,
-or the transitive dependencies of an injected handler. Primary constructors
+It reads method and constructor parameter types, typed lambda parameters in
+their bodies, and each type's generic arguments. It reads generic type arguments
+and direct `typeof` arguments of `GetRequiredService`, `GetService`,
+`GetRequiredKeyedService`, and `GetKeyedService`, plus generic type arguments
+of `ActivatorUtilities.CreateInstance`. It does not follow return types,
+fields, properties, arbitrary object creation, service types passed through
+variables instead of `typeof`, reflection, inferred types, dependency
+forwarding, or the transitive dependencies of an injected handler. Primary constructors
 contribute their parameter types, not field initializers.
 
 Owner resolution reuses the module ledger's longest namespace prefix. Exact
@@ -84,7 +91,7 @@ compilation branches are outside this walk.
 
 A simple name without a matching import or local declaration is ignored and
 listed in `UnresolvedTypes`; it is never assigned to an arbitrary imported
-module. The baseline has 607 such references, covering these 37 external names,
+module. The baseline has 619 such references, covering these 37 external names,
 and **no unresolved Cluckwork type**:
 
 `Action`, `CancellationToken`, `ClaimsPrincipal`, `CookieOptions`, `DateOnly`,
@@ -128,7 +135,7 @@ dotnet test tests/Cluckwork.Application.Tests \
   --logger 'console;verbosity=detailed'
 ```
 
-Four real-tree mutations were run against the built syntax scanner with
+Five real-tree mutations were run against the built syntax scanner with
 `--no-build`, so compiler failures from intentionally incomplete edits could
 not substitute for guard failures. Each was reverted with `git checkout -- src`.
 The output files are local evidence under `/tmp/514/mutations-846/`:
@@ -139,3 +146,4 @@ The output files are local evidence under `/tmp/514/mutations-846/`:
 | Add `AppDbContext db` to `ListExpenses` | RED, forbidden persistence type at `ListExpenses` | `2-endpoint-dbcontext.txt` |
 | Remove `IFlockRepository flocks` from `ListExpenses` | GREEN, `Loosenable` names `ListExpenses -> FlockManagement` | `3-remove-flock-parameter.txt` |
 | Resolve `CreateFlockHandler` in `MigrateCliCommand.RunAsync` | RED, `MigrateCliCommand.RunAsync -> FlockManagement` | `4-cli-flock-service.txt` |
+| Add `AppDbContext db` to the inline deactivate handler in `MapEggGradeEndpoints` | RED, forbidden persistence type at `EggGradeEndpoints.cs:37` | `5-lambda-dbcontext.txt` |
