@@ -97,7 +97,7 @@ SEED_ADMIN_EMAIL="admin@${EMAIL_DOMAIN}"
 # Generating it in reset.sh instead would mint a new credential on every reset
 # and leave .sim-cast.json describing the previous one.
 README_FARM_CODE="readme-farm"
-README_FARM_NAME="Meadowlark Farm"
+README_FARM_NAME="Meadowlark"
 README_OWNER_EMAIL="readme-owner@${EMAIL_DOMAIN}"
 
 echo "== Generating #243 sim-harness secrets =="
