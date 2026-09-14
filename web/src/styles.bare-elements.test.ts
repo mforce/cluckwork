@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import postcss from "postcss";
+import type { AtRule, Container, Document, Rule } from "postcss";
 
 // #823 §2.3 — the rules in `styles.css` that style an element by NAME.
 //
@@ -23,12 +24,12 @@ import postcss from "postcss";
 // touch. A hand list is what AGENTS.md's guard rules call the thing a guard
 // exists to stop anyone trusting, and the point of this one is that the NEXT
 // bare-element rule anybody adds arrives here red.
-
-const ELEMENTS = [
-  "*", "body", "h1", "h2", "h3", "h4",
-  "button", "label", "input", "select", "textarea",
-  "a", "table", "th", "td",
-];
+//
+// That applies to the ELEMENT NAMES too, and the first version of this file got
+// it wrong: it matched a fixed list of fifteen, so a global `fieldset { ... }`
+// or `img { ... }` would have passed without being looked at. Any type selector
+// counts now, which is the same "walk everything, exclude deliberately" rule
+// turned on the guard's own input. The one exclusion is written down below.
 
 const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
@@ -75,12 +76,28 @@ interface BareRule {
   props: string;
 }
 
+/**
+ * The deliberate exclusion: `@keyframes` selectors.
+ *
+ * `from` and `to` parse as type selectors and are not — they name a position on
+ * a timeline and match no element, so counting them would put six phantom rows
+ * in a pin whose whole job is to say which rules reach MUI's DOM. A percentage
+ * keyframe (`50%`) does not parse as a tag and needs no exclusion.
+ */
+const inKeyframes = (rule: Rule) => {
+  for (let node: Container | Document | undefined = rule.parent; node; node = node.parent) {
+    if (node.type === "atrule" && /keyframes$/.test((node as AtRule).name)) return true;
+  }
+  return false;
+};
+
 function bareElementRules(): BareRule[] {
   const found: BareRule[] = [];
   postcss.parse(css).walkRules((rule) => {
+    if (inKeyframes(rule)) return;
     for (const selector of rule.selectors) {
       const parts = allCompounds(selector);
-      if (!parts.some((part) => ELEMENTS.includes(tagOf(part) ?? ""))) continue;
+      if (!parts.some((part) => tagOf(part) !== null)) continue;
       found.push({
         selector,
         global: !parts.some((part) => /[.#]/.test(part)),
@@ -141,8 +158,9 @@ describe("bare element selectors against MUI's DOM (#823)", () => {
 
   it("is walking a stylesheet it can actually see", () => {
     // Non-vacuity. A broken parse or a renamed file would otherwise turn every
-    // assertion below into a walk over nothing.
-    expect(rules.length).toBeGreaterThan(100);
+    // assertion below into a walk over nothing. A floor, not a pin: the count
+    // moves with every screen slice and 181 rules name an element today.
+    expect(rules.length).toBeGreaterThan(150);
     expect(rules.filter((rule) => rule.global).length).toBe(DEMOTED.length + DELIBERATE.length);
   });
 
