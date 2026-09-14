@@ -143,10 +143,34 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       },
       MuiChip: { styleOverrides: { root: { borderRadius: pillRadius } } },
       // #740 / D3.4. `DialogActions` sets `alignItems: center`, which would leave
-      // stacked buttons at their intrinsic width.
+      // stacked buttons at their intrinsic width. Its OWN `& > :not(style) ~
+      // :not(style) { marginLeft: 8 }` spacing rule survives this override
+      // untouched — it is a sibling-combinator rule at the same specificity as
+      // `root`, not a property `root` itself carries, so declaring
+      // `flexDirection`/`alignItems` alone leaves it in place: a stacked column
+      // still pushes every button after the first 8px to the right, with no gap
+      // between rows. Phone-scope resets it to 0 and a `gap` on the flex
+      // container replaces it with real vertical space.
       MuiDialogActions: {
-        styleOverrides: { root: { [phone]: { flexDirection: "column", alignItems: "stretch" } } },
+        styleOverrides: {
+          root: {
+            [phone]: {
+              flexDirection: "column",
+              alignItems: "stretch",
+              gap: 8,
+              "& > :not(style) ~ :not(style)": { marginLeft: 0 },
+            },
+          },
+        },
       },
+      // A raw `<label>` styles.css still targets (§2.3's `:where(label)`
+      // demotion neutralises it only where MUI itself declares the property —
+      // `FormControlLabel` never declares `flex-direction`/`gap` on its own
+      // root, so the zero-specificity rule was the only source and stacked its
+      // checkbox above its label instead of beside it. MUI's own default is
+      // already row/no-gap; this makes that the DECLARED value so a real class
+      // beats the bare-element rule instead of leaving the property undeclared.
+      MuiFormControlLabel: { styleOverrides: { root: { flexDirection: "row", gap: 0 } } },
     },
   });
 }

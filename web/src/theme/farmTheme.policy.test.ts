@@ -141,6 +141,18 @@ describe("farm theme policy (#823 G2)", () => {
       // `DialogActions` sets `alignItems: center`, which leaves a stacked button
       // at its intrinsic width — half of #740 rather than all of it.
       expect(narrow.alignItems, `${label}`).toBe("stretch");
+      // `DialogActions` ALSO carries its own sibling-combinator spacing
+      // (`& > :not(style) ~ :not(style) { marginLeft: 8 }`, from its own
+      // `variants`, not from this override), which stacking direction alone
+      // does not touch: a column of buttons still pushed every one after the
+      // first 8px right, with no space between rows. This object read is not
+      // the full proof — the nested selector shares the sibling-margin
+      // property with several unrelated rules a theme walk cannot tell apart
+      // by intent — so FarmThemeProvider.render.test.tsx reads the actual
+      // generated CSS for the property this reset REPLACES.
+      const spacing = slot(narrow["& > :not(style) ~ :not(style)"], `${label} MuiDialogActions phone spacing`);
+      expect(spacing.marginLeft, `${label} sibling margin reset`).toBe(0);
+      expect(narrow.gap, `${label} vertical gap between stacked buttons`).toBe(8);
     }
   });
 
