@@ -34,7 +34,7 @@ import type { FullConfig } from "@playwright/test";
 import { apiGet, isReady, signInForToken } from "./api";
 import { loadCast, owner, restrictedWorker, unrestrictedWorker } from "./cast";
 import { describeBrowser, resolveBrowser } from "./browser";
-import { farmContext } from "./farm";
+import { daysBefore, farmContext, farmToday } from "./farm";
 import { BASE_URL } from "./env";
 
 interface FlockRow { id: string; name: string }
@@ -116,9 +116,35 @@ export default async function preflight(_config: FullConfig): Promise<void> {
   lines.push(`fixture:  ${countOf(flocks)} flocks, daily entries present, sales orders present`);
 
   // 5. The farm clock. Resolved here so an unresolvable zone fails once, loudly,
-  //    instead of once per date field.
+  //    instead of once per date field, and because the range check below has to
+  //    ask the farm what "today" is.
   const farm = await farmContext();
   lines.push(`farm:     "${farm.name}" tz=${farm.timeZoneId} locale=${farm.locale}`);
+
+  // The specs widen date ranges to 30 days and then assert the figures are not
+  // zero. That is only sound while the fixture's production LANDS in that
+  // window, and it silently stops being true on an old database:
+  // SimulationDataSeeder persists its original anchor and REUSES it on a
+  // re-seed, so reseeding a stale database reproduces stale dates. Without this,
+  // a healthy backend answers zero for the window and the failure reads as a
+  // reports regression (codex review of #841).
+  // FARM today, not UTC today: a farm west of UTC rejects a `to` that is still
+  // tomorrow there, which is a 400 rather than an empty report.
+  const to = farmToday(farm.timeZoneId);
+  const from = daysBefore(to, 30);
+  const production = await apiGet<{ totalEggs?: number }>(
+    ownerToken,
+    `/reports/production?from=${from}&to=${to}`,
+  );
+  if (!(production.totalEggs && production.totalEggs > 0)) {
+    fail(
+      `the fixture recorded no eggs between ${from} and ${to}; its production is older than the `
+        + `30-day window the specs widen to. A re-seed does NOT fix this on its own — the seeder `
+        + `reuses the anchor it first persisted.`,
+      `Reseed from an empty database: bash tools/simulation/reset.sh`,
+    );
+  }
+  lines.push(`window:   ${production.totalEggs} eggs from ${from} to ${to}`);
 
   // 6. Which browser binary is about to run. Printed, never inferred — the two
   //    paths (system chromium here, downloaded on a runner) are easy to confuse
