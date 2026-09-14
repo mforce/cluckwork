@@ -52,7 +52,10 @@ const SCREENS = [
     // The dashboard carries no table at all since #654 — its per-flock capture
     // tiles are the rows, and they are what a lost `/api/v1/flocks` empties.
     rows: (ready: CanaryLocator) => ready.locator(".capture-tile"),
-    emptyMessageKey: "dashboard:noFlocksMessage",
+    // All three data panels, not just the flock one. A tile renders for a flock
+    // that filed nothing today, so the tiles alone cannot tell a working stock
+    // or sales read from a failed one.
+    emptyMessageKeys: ["dashboard:noFlocksMessage", "dashboard:noStockMessage", "dashboard:noOrdersMessage"],
     // The dashboard is a pure readout — it has no control to press. Left null
     // rather than inventing an interaction (a theme toggle, say) that no farmer
     // performs on this screen and whose latency would mean nothing.
@@ -67,7 +70,7 @@ const SCREENS = [
         has: page.getByRole("columnheader", { name: tEn("stock:gradeHeader") }),
       }),
     rows: (ready: CanaryLocator) => ready.locator("tbody tr"),
-    emptyMessageKey: "stock:noStockMessage",
+    emptyMessageKeys: ["stock:noStockMessage"],
     // Expanding a grade's lots fires a fetch and re-renders a table — the most
     // common thing anyone does on this screen.
     interact: async (page: CanaryPage) => {
@@ -84,7 +87,7 @@ const SCREENS = [
         has: page.getByRole("columnheader", { name: tEn("reports:dateHeader") }),
       }),
     rows: (ready: CanaryLocator) => ready.locator("tbody tr"),
-    emptyMessageKey: null,
+    emptyMessageKeys: [],
     // Widening the range is the expensive interaction on this screen and the one
     // #311 is about — 30 days rather than the max, because this measures the
     // ordinary case under load, not the boundary.
@@ -117,7 +120,7 @@ const SCREENS = [
         has: page.getByRole("columnheader", { name: tEn("history:dateHeader") }),
       }),
     rows: (ready: CanaryLocator) => ready.locator("tbody tr"),
-    emptyMessageKey: "history:noEntriesMatch",
+    emptyMessageKeys: ["history:noEntriesMatch"],
     // Filtering to one flock — a re-query plus a re-render.
     interact: async (page: CanaryPage) => {
       // The filter is a #512 searchable picker, not a `<select>`. Committing it
@@ -129,6 +132,44 @@ const SCREENS = [
   },
 ] as const;
 
+
+
+type CanaryScreen = (typeof SCREENS)[number];
+
+/**
+ * The correctness contract, asserted on load and again after the screen's
+ * interaction. A saturated backend must degrade by being SLOW, never by showing
+ * a farm an empty table or an error where its data should be. That confusion is
+ * the failure worth catching: "no stock today" reads as a fact about the farm,
+ * not as a fact about the server.
+ */
+async function assertScreenIsCorrect(
+  screen: CanaryScreen,
+  page: CanaryPage,
+  ready: CanaryLocator,
+  when: string,
+): Promise<void> {
+  await expect(
+    screen.rows(ready),
+    `${screen.name} rendered no rows ${when}, against a populated fixture`,
+  ).not.toHaveCount(0);
+
+  // `.error` as well as `role="alert"`: the dashboard's per-panel failure is a
+  // plain `<p class="error">`, so a role query walks straight past a panel whose
+  // fetch failed (#841).
+  await expect(
+    page.locator('.error, [role="alert"]'),
+    `${screen.name} rendered an error ${when} — the backend's load became the user's problem`,
+  ).toHaveCount(0);
+
+  for (const key of screen.emptyMessageKeys) {
+    await expect(
+      page.getByText(tEn(key as `dashboard:${string}`)),
+      `${screen.name} showed an EMPTY state ${when} against a populated fixture — `
+        + `a failed fetch is being presented to the farm as "you have no data"`,
+    ).toBeHidden();
+  }
+}
 
 test.describe("canary", () => {
   for (const screen of SCREENS) {
@@ -156,35 +197,22 @@ test.describe("canary", () => {
       // valid-but-empty report and a passing canary. Each screen names its own
       // rows because they are not all table rows (#841): the dashboard's are
       // tiles, and a hardcoded `tbody tr` counted 0 there forever.
-      await expect(
-        screen.rows(ready),
-        `${screen.name} rendered no rows against a populated fixture`,
-      ).not.toHaveCount(0);
+      await assertScreenIsCorrect(screen, page, ready, "on load");
       const usableInMs = Date.now() - startedAt;
-
-      // THE CORRECTNESS ASSERTIONS — as strict under load as off it.
-      //
-      // A saturated backend must degrade by being SLOW, never by showing a farm
-      // an empty table or an error where its data should be. That confusion is
-      // the failure worth catching: "no stock today" reads as a fact about the
-      // farm, not as a fact about the server.
-      await expect(
-        page.getByRole("alert"),
-        `${screen.name} rendered an error — the backend's load became the user's problem`,
-      ).toBeHidden();
-      if (screen.emptyMessageKey) {
-        await expect(
-          page.getByText(tEn(screen.emptyMessageKey as `dashboard:${string}`)),
-          `${screen.name} showed its EMPTY state against a populated fixture — under load, `
-            + `a failed fetch is being presented to the farm as "you have no data"`,
-        ).toBeHidden();
-      }
 
       // One representative interaction, so `longestInteractionMs` measures
       // something. Without it the metric is reported as null (see vitals.ts) —
       // deliberately, because a 0 there would read as "instant" when it means
       // "never measured".
-      if (screen.interact) await screen.interact(page, farm.timeZoneId);
+      //
+      // The screen must still be CORRECT afterwards. Every interaction here is a
+      // re-query plus a re-render, and without this second check a filter that
+      // came back empty or failed would leave the canary green on the strength
+      // of the pre-interaction state it had already left behind (#841).
+      if (screen.interact) {
+        await screen.interact(page, farm.timeZoneId);
+        await assertScreenIsCorrect(screen, page, ready, "after the interaction");
+      }
 
       const vitals = await readVitals(page);
 
