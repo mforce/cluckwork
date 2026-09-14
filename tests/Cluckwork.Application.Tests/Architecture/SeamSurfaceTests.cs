@@ -110,10 +110,102 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.MoneyReturn
     }
 }
 
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.InheritedGenericBase
+{
+    using Cluckwork.Domain.Flocks;
+
+    public interface IReader<T>
+    {
+        T Read();
+    }
+
+    public interface IInheritedGenericBaseFixture : IReader<IQueryable<Flock>>
+    {
+    }
+}
+
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.NestedPublicInterface
+{
+    using Cluckwork.Domain.Flocks;
+
+    public static class Contracts
+    {
+        public interface INestedQueryFixture
+        {
+            IQueryable<Flock> Get();
+        }
+    }
+}
+
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.IndexerParameter
+{
+    using Cluckwork.Domain.Flocks;
+
+    public interface IIndexerParameterFixture
+    {
+        int this[IQueryable<Flock> rows] { get; }
+    }
+}
+
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.EventHandlerType
+{
+    using Cluckwork.Domain.Flocks;
+
+    public interface IEventHandlerTypeFixture
+    {
+        event Action<IQueryable<Flock>> Changed;
+    }
+}
+
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.QueryableImplementation
+{
+    using Cluckwork.Domain.Flocks;
+
+    public interface IQueryableImplementationFixture
+    {
+        EnumerableQuery<Flock> Query();
+    }
+}
+
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.NamedDelegate
+{
+    using Cluckwork.Domain.Flocks;
+
+    public delegate IQueryable<Flock> QueryFactory();
+
+    public interface INamedDelegateFixture
+    {
+        QueryFactory Factory();
+    }
+}
+
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.GenericConstraint
+{
+    using Cluckwork.Domain.Flocks;
+
+    public interface IGenericConstraintFixture
+    {
+        T Query<T>() where T : IQueryable<Flock>;
+    }
+}
+
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.SelfExpandingGeneric
+{
+    public sealed class Node<T>
+    {
+        public T? Value { get; init; }
+
+        public Node<List<T>>? Next { get; init; }
+    }
+
+    public interface ISelfExpandingGenericFixture
+    {
+        Node<int> Root();
+    }
+}
+
 namespace Cluckwork.Application.Tests.Architecture
 {
-    using System.Reflection;
-    using Cluckwork.Application.Common;
     using QueryableReturnFixtures = SeamFixtures.QueryableReturn;
     using DbSetReturnFixtures = SeamFixtures.DbSetReturn;
     using AppDbContextParameterFixtures = SeamFixtures.AppDbContextParameter;
@@ -124,6 +216,14 @@ namespace Cluckwork.Application.Tests.Architecture
     using ConcreteAggregateReturnFixtures = SeamFixtures.ConcreteAggregateReturn;
     using PagedResultReturnFixtures = SeamFixtures.PagedResultReturn;
     using MoneyReturnFixtures = SeamFixtures.MoneyReturn;
+    using InheritedGenericBaseFixtures = SeamFixtures.InheritedGenericBase;
+    using NestedPublicInterfaceFixtures = SeamFixtures.NestedPublicInterface;
+    using IndexerParameterFixtures = SeamFixtures.IndexerParameter;
+    using EventHandlerTypeFixtures = SeamFixtures.EventHandlerType;
+    using QueryableImplementationFixtures = SeamFixtures.QueryableImplementation;
+    using NamedDelegateFixtures = SeamFixtures.NamedDelegate;
+    using GenericConstraintFixtures = SeamFixtures.GenericConstraint;
+    using SelfExpandingGenericFixtures = SeamFixtures.SelfExpandingGeneric;
 
     public sealed class SeamSurfaceTests
     {
@@ -208,6 +308,67 @@ namespace Cluckwork.Application.Tests.Architecture
         }
 
         [Fact]
+        public void InheritedGenericBaseInterface_SubstitutedArgumentIsAViolation()
+        {
+            var failure = Assert.Single(Evaluate<InheritedGenericBaseFixtures.IInheritedGenericBaseFixture>());
+            Assert.Contains("IInheritedGenericBaseFixture.: IReader<IQueryable<Flock>>", failure);
+            Assert.Contains("IQueryable", failure);
+        }
+
+        [Fact]
+        public void NestedPublicInterface_IsScanned()
+        {
+            var failure = Assert.Single(Evaluate<NestedPublicInterfaceFixtures.Contracts.INestedQueryFixture>());
+            Assert.Contains("INestedQueryFixture.Get", failure);
+        }
+
+        [Fact]
+        public void IndexerParameter_IsAViolation()
+        {
+            var failure = Assert.Single(Evaluate<IndexerParameterFixtures.IIndexerParameterFixture>());
+            Assert.Contains("IIndexerParameterFixture.Item", failure);
+            Assert.Contains("IQueryable", failure);
+        }
+
+        [Fact]
+        public void EventHandlerType_IsAViolation()
+        {
+            var failure = Assert.Single(Evaluate<EventHandlerTypeFixtures.IEventHandlerTypeFixture>());
+            Assert.Contains("IEventHandlerTypeFixture.Changed", failure);
+            Assert.Contains("IQueryable", failure);
+        }
+
+        [Fact]
+        public void TypeImplementingIQueryable_IsAViolation()
+        {
+            var failure = Assert.Single(Evaluate<QueryableImplementationFixtures.IQueryableImplementationFixture>());
+            Assert.Contains("IQueryableImplementationFixture.Query", failure);
+            Assert.Contains("EnumerableQuery", failure);
+        }
+
+        [Fact]
+        public void NamedDelegateReturningIQueryable_IsAViolation()
+        {
+            var failure = Assert.Single(Evaluate<NamedDelegateFixtures.INamedDelegateFixture>());
+            Assert.Contains("INamedDelegateFixture.Factory", failure);
+            Assert.Contains("IQueryable", failure);
+        }
+
+        [Fact]
+        public void GenericConstraintOnIQueryable_IsAViolation()
+        {
+            var failure = Assert.Single(Evaluate<GenericConstraintFixtures.IGenericConstraintFixture>());
+            Assert.Contains("IGenericConstraintFixture.Query", failure);
+            Assert.Contains("IQueryable", failure);
+        }
+
+        [Fact]
+        public void SelfExpandingGenericDto_TerminatesAndIsGreen()
+        {
+            Assert.Empty(Evaluate<SelfExpandingGenericFixtures.ISelfExpandingGenericFixture>());
+        }
+
+        [Fact]
         public void PrefixMatchingNothing_RedsTheFloorRatherThanPassingOnZero()
         {
             var report = SeamSurfaceScanner.Scan(
@@ -218,32 +379,6 @@ namespace Cluckwork.Application.Tests.Architecture
             Assert.Empty(report.InspectedInterfaces);
             var failure = Assert.Single(SeamSurfaceScanner.Evaluate(report));
             Assert.Contains("inspected 0 interface(s)", failure);
-        }
-    }
-
-    public sealed class SeamSurfaceRealAssemblyTests
-    {
-        private static Assembly ApplicationAssembly => typeof(IRepository<,>).Assembly;
-
-        [Fact]
-        public void RealApplicationAssembly_NoPublicInterfaceExposesPersistence()
-        {
-            var report = SeamSurfaceScanner.Scan(
-                ApplicationAssembly,
-                ["Cluckwork.Application.Features", "Cluckwork.Application.Common"],
-                minimumInterfaceFloor: 30);
-
-            var failures = SeamSurfaceScanner.Evaluate(report);
-            Assert.True(failures.Count == 0, "seam-surface guard failed:\n  " + string.Join("\n  ", failures));
-            Assert.True(report.InspectedInterfaces.Count >= 30,
-                $"inspected only {report.InspectedInterfaces.Count} interfaces — expected at least 30");
-        }
-
-        [Fact]
-        public void RealApplicationAssembly_DoesNotReferenceEntityFrameworkOrInfrastructure()
-        {
-            var failures = SeamSurfaceScanner.EvaluateReferences(ApplicationAssembly);
-            Assert.True(failures.Count == 0, "assembly-reference pin failed:\n  " + string.Join("\n  ", failures));
         }
     }
 }

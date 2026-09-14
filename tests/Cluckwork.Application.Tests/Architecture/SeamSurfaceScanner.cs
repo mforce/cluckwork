@@ -28,10 +28,7 @@ public static class SeamSurfaceScanner
     [
         (t => typeof(DbContext).IsAssignableFrom(t), "a DbContext"),
         (t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(DbSet<>), "a DbSet<>"),
-        (t => t == typeof(IQueryable)
-              || (t.IsGenericType && (t.GetGenericTypeDefinition() == typeof(IQueryable<>)
-                                       || t.GetGenericTypeDefinition() == typeof(IOrderedQueryable<>))),
-            "an IQueryable"),
+        (t => typeof(IQueryable).IsAssignableFrom(t), "an IQueryable"),
         (t => InNamespace(t, EfNamespace), "in Microsoft.EntityFrameworkCore"),
         (t => t.IsGenericType && (t.GetGenericTypeDefinition() == typeof(Entity<>)
                                    || t.GetGenericTypeDefinition() == typeof(AggregateRoot<>)),
@@ -45,32 +42,43 @@ public static class SeamSurfaceScanner
         Assembly assembly, IReadOnlyList<string> namespacePrefixes, int minimumInterfaceFloor)
     {
         var interfaces = assembly.GetTypes()
-            .Where(t => t.IsInterface && t.IsPublic && MatchesPrefix(t.Namespace, namespacePrefixes))
+            .Where(t => t.IsInterface && IsPubliclyReachable(t) && MatchesPrefix(t.Namespace, namespacePrefixes))
             .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 
         var violations = new List<SeamSurfaceViolation>();
         foreach (var iface in interfaces)
         {
+            void Check(Type type, string member) =>
+                Walk(type, [FormatShort(type)], new HashSet<Type>(), iface.FullName!, member, violations);
+
+            // Reflection does not surface inherited interface members; walking the
+            // constructed base interfaces catches the substituted type arguments.
+            foreach (var baseInterface in iface.GetInterfaces())
+            {
+                Check(baseInterface, $": {FormatShort(baseInterface)}");
+            }
+
             foreach (var method in iface.GetMethods().Where(m => !m.IsSpecialName))
             {
-                foreach (var parameter in method.GetParameters())
-                {
-                    Walk(parameter.ParameterType, [FormatShort(parameter.ParameterType)], new HashSet<Type>(),
-                        iface.FullName!, method.Name, violations);
-                }
-
-                if (method.ReturnType != typeof(void))
-                {
-                    Walk(method.ReturnType, [FormatShort(method.ReturnType)], new HashSet<Type>(),
-                        iface.FullName!, method.Name, violations);
-                }
+                CheckMethod(method, iface.FullName!, violations);
             }
 
             foreach (var property in iface.GetProperties())
             {
-                Walk(property.PropertyType, [FormatShort(property.PropertyType)], new HashSet<Type>(),
-                    iface.FullName!, property.Name, violations);
+                Check(property.PropertyType, property.Name);
+                foreach (var index in property.GetIndexParameters())
+                {
+                    Check(index.ParameterType, property.Name);
+                }
+            }
+
+            foreach (var evt in iface.GetEvents())
+            {
+                if (evt.EventHandlerType is { } handler)
+                {
+                    Check(handler, evt.Name);
+                }
             }
         }
 
@@ -124,6 +132,22 @@ public static class SeamSurfaceScanner
         return failures;
     }
 
+    private static void CheckMethod(MethodInfo method, string interfaceName, List<SeamSurfaceViolation> violations)
+    {
+        void Check(Type type) =>
+            Walk(type, [FormatShort(type)], new HashSet<Type>(), interfaceName, method.Name, violations);
+
+        foreach (var parameter in method.GetParameters())
+        {
+            Check(parameter.ParameterType);
+        }
+
+        if (method.ReturnType != typeof(void))
+        {
+            Check(method.ReturnType);
+        }
+    }
+
     private static void Walk(
         Type type,
         List<string> path,
@@ -133,17 +157,26 @@ public static class SeamSurfaceScanner
         List<SeamSurfaceViolation> violations)
     {
         var resolved = type.IsByRef ? type.GetElementType()! : type;
+        if (!visited.Add(resolved))
+        {
+            return;
+        }
+
+        if (resolved.IsGenericParameter)
+        {
+            foreach (var constraint in resolved.GetGenericParameterConstraints())
+            {
+                Walk(constraint, [.. path, FormatShort(constraint)], visited, interfaceName, member, violations);
+            }
+
+            return;
+        }
 
         var rule = ForbiddenRules.FirstOrDefault(r => r.Matches(resolved));
         if (rule.Reason is not null)
         {
             violations.Add(new SeamSurfaceViolation(
                 interfaceName, member, resolved.FullName ?? resolved.Name, string.Join(" -> ", path)));
-            return;
-        }
-
-        if (!visited.Add(resolved))
-        {
             return;
         }
 
@@ -162,8 +195,28 @@ public static class SeamSurfaceScanner
             }
         }
 
+        if (typeof(Delegate).IsAssignableFrom(resolved) && resolved.GetMethod("Invoke") is { } invoke)
+        {
+            foreach (var parameter in invoke.GetParameters())
+            {
+                Walk(parameter.ParameterType, [.. path, FormatShort(parameter.ParameterType)], visited,
+                    interfaceName, member, violations);
+            }
+
+            if (invoke.ReturnType != typeof(void))
+            {
+                Walk(invoke.ReturnType, [.. path, FormatShort(invoke.ReturnType)], visited,
+                    interfaceName, member, violations);
+            }
+        }
+
+        // Properties are followed once per generic definition: a Cluckwork type
+        // whose property re-expands its own type argument would otherwise mint a
+        // new constructed type at every step and never terminate.
         var assemblyName = resolved.Assembly.GetName().Name;
-        if (assemblyName is not null && assemblyName.StartsWith("Cluckwork.", StringComparison.Ordinal))
+        var definition = resolved.IsGenericType ? resolved.GetGenericTypeDefinition() : resolved;
+        if (assemblyName is not null && assemblyName.StartsWith("Cluckwork.", StringComparison.Ordinal)
+            && (definition == resolved || visited.Add(definition)))
         {
             foreach (var property in resolved.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
@@ -172,6 +225,9 @@ public static class SeamSurfaceScanner
             }
         }
     }
+
+    private static bool IsPubliclyReachable(Type type) =>
+        type.IsPublic || (type.IsNestedPublic && IsPubliclyReachable(type.DeclaringType!));
 
     private static bool InNamespace(Type type, string prefix) =>
         type.Namespace is string ns && (ns == prefix || ns.StartsWith(prefix + ".", StringComparison.Ordinal));
