@@ -109,15 +109,26 @@ fourteen logins, and reads the key before and after.
 
     CLUCKWORK_840_PROBE {"permitBurst":14,
       "observedStatuses":[401,401,401,401,401,401,401,401,401,429,429,429,429,429],
-      "keysBefore":{"{cluckwork:win:auth-login:127.0.0.1}:1988218":1},
-      "keysAfter":{"{cluckwork:win:auth-login:127.0.0.1}:1988218":20}}
+      "keysBefore":{"{cluckwork:win:auth-login:127.0.0.1}:1988220":1},
+      "keysAfter":{"{cluckwork:win:auth-login:127.0.0.1}:1988220":20},
+      "spendBeforeThisProbe":1,"bucketCountAfter":1,
+      "spendOnKeysThisProbeDidNotCreate":0}
+
+Identical on the local run and on CI, which is what a mechanism claim needs.
 
 Two things follow, one confirming and one correcting.
 
 **Confirmed:** the key is shared and spendable by anyone on the loopback address.
 `keysBefore` was already `1` — a login from somewhere else in the suite had spent
 this bucket before the probe's first request — and the count moved by 19 while the
-probe sent 14. So the collision is real, not theoretical.
+probe sent 14. So the collision is real, not theoretical. `bucketCountAfter` is `1`
+and `spendOnKeysThisProbeDidNotCreate` is `0`, which rules out the other explanation
+for a delta larger than the burst: the window did not roll over mid-burst, so the
+extra five increments were written into the same bucket by other classes.
+
+The probe uses the **shipped** budget (10 per 900 s) rather than a test-local one,
+so the 429 starts at request 10 — one after the foreign spend — exactly where the
+production configuration says it must.
 
 **Corrected:** the key shape in this file's earlier draft was wrong. The live key
 is `{cluckwork:win:auth-login:127.0.0.1}:<bucket>` — the namespace and window
