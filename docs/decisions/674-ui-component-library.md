@@ -104,10 +104,27 @@ not they are used, while MUI generates styles in the browser through Emotion. Th
 usual assumption that the lighter-feeling library is lighter, and it was measured rather than
 guessed.
 
-**The trade MUI makes is bytes for CPU, and that half is NOT settled here.** Radix's stylesheet
-downloads once and the service worker caches it; Emotion runs on every render. On the low-end
-phones this app targets that could favour Radix, and a bundle report cannot tell you. Profile on
-a real device or a throttled CPU before converting all thirteen screens, not after.
+**The trade MUI makes is bytes for CPU, and that half is now measured.** Three PRODUCTION builds,
+9 runs each, 6x CPU throttling, phone viewport, timed to the last Dashboard panel visible:
+
+| build | wall | script | style recalc | layout |
+| --- | --- | --- | --- | --- |
+| base, no MUI | 917 ms | 107 ms | 15 ms | 26 ms |
+| + theme provider | 921 ms | 119 ms | 15 ms | 26 ms |
+| + MUI Dashboard (11 components) | 919 ms | 136 ms | 15 ms | 25 ms |
+
+Three readings. **Wall time is flat** — 4 ms across 27 runs, because ~900 ms is network and API,
+not rendering. **Style recalculation does not move at all**, which retires the specific concern
+that Emotion's runtime CSS injection would be expensive; it is 15 ms in all three. **Script time
+does rise** and is the honest cost: +12 ms for the provider, +29 ms with eleven components, at 6x
+throttle — so roughly +5 ms on the real device.
+
+The caveat is the slope, not the value: +27% script time for eleven components. It scales with MUI
+usage, and this is a light dose. A screen using `Autocomplete` or a data grid needs its own
+measurement before the slope is assumed flat.
+
+An earlier figure taken against the Vite DEV server (1168 ms vs 1213 ms) is superseded by the table
+above: a dev server carries HMR overhead and no minification, so it could not answer this.
 
 This is a PWA for phones in sheds, so every slice that adopts an MUI component re-measures, and
 a slice that adds weight without retiring hand-built code should be challenged.
