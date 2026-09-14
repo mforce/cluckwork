@@ -311,7 +311,7 @@ public sealed class ConfirmSaleHandler(
                 // stay distinguishable (codex #102).
                 await eggMovements.AddAsync(EggInventoryMovement.Create(
                     Guid.NewGuid(), accountId, lot.Id, EggMovementType.Sale,
-                    -draw.Quantity, nameof(SalesOrderAllocation), allocation.Id, clock.UtcNow), transactionCt);
+                    -draw.Quantity, nameof(SalesOrderAllocation), allocation.Id), transactionCt);
             }
 
             var confirmResult = order.Confirm(discountReasonCode, command.DiscountReasonNote);

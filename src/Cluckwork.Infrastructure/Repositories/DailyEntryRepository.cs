@@ -72,9 +72,7 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
             .Where(e => (flockId == null || e.FlockId == flockId)
                      && (from == null || e.Date >= from)
                      && (to == null || e.Date <= to))
-            // Id tiebreaker: Date alone is non-unique, and unstable ordering under
-            // OFFSET paging drops or duplicates rows across pages.
-            .OrderByDescending(e => e.Date).ThenByDescending(e => e.Id)
+            .OrderByBusinessChronologyDescending(e => e.Date)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);

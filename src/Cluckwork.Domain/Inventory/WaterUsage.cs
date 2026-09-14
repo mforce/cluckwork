@@ -4,7 +4,7 @@ namespace Cluckwork.Domain.Inventory;
 // lot/ledger behind water — recording it affects nothing downstream — so the
 // record itself is EDITABLE (Update + Version token) rather than corrected via
 // compensating rows. Corrections become admin-gated with #73.
-public sealed class WaterUsage : AggregateRoot<Guid>
+public sealed class WaterUsage : AggregateRoot<Guid>, IMutableRecord
 {
     public const int MaxNoteLength = 500;
     public static readonly string[] AllowedUnits = ["L", "gal"];
@@ -26,7 +26,8 @@ public sealed class WaterUsage : AggregateRoot<Guid>
     // touches it. See FeedUsage for the full contract.
     public Guid? DailyEntryId { get; private set; }
 
-    public DateTime CreatedAtUtc { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private WaterUsage() { }
@@ -34,7 +35,7 @@ public sealed class WaterUsage : AggregateRoot<Guid>
     public static WaterUsage Create(
         Guid id, Guid accountId, Guid flockId, DateOnly date,
         decimal quantity, string unit, WaterSource source,
-        decimal? meterStart, decimal? meterEnd, DateTime createdAtUtc,
+        decimal? meterStart, decimal? meterEnd,
         string? note = null, Guid? dailyEntryId = null)
     {
         var guard = Validate(flockId, quantity, unit, meterStart, meterEnd, note);
@@ -47,7 +48,6 @@ public sealed class WaterUsage : AggregateRoot<Guid>
             Quantity = quantity, Unit = unit,
             Source = source,
             MeterStart = meterStart, MeterEnd = meterEnd,
-            CreatedAtUtc = createdAtUtc,
             Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
             DailyEntryId = dailyEntryId
         };

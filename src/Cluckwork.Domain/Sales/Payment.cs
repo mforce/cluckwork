@@ -7,7 +7,7 @@ namespace Cluckwork.Domain.Sales;
 // rule transactionally (Σ non-voided payments ≤ order total).
 // Corrections follow the void pattern (#89): a mistaken payment is voided
 // with a reason, never deleted — the row stays for the ledger.
-public sealed class Payment : AggregateRoot<Guid>
+public sealed class Payment : AggregateRoot<Guid>, IMutableRecord
 {
     public const int MaxReferenceLength = 50;
     public const int MaxNoteLength = 500;
@@ -23,6 +23,8 @@ public sealed class Payment : AggregateRoot<Guid>
     public string? Note { get; private set; }
     public bool Voided { get; private set; }
     public string? VoidReason { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private Payment() { }

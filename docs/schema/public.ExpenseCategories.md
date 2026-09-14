@@ -10,6 +10,8 @@
 | Active | boolean |  | false |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -23,9 +25,11 @@
 | ---- | ---- | ---------- |
 | ExpenseCategories_AccountId_not_null | n | NOT NULL "AccountId" |
 | ExpenseCategories_Active_not_null | n | NOT NULL "Active" |
+| ExpenseCategories_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | ExpenseCategories_FarmId_not_null | n | NOT NULL "FarmId" |
 | ExpenseCategories_Id_not_null | n | NOT NULL "Id" |
 | ExpenseCategories_Name_not_null | n | NOT NULL "Name" |
+| ExpenseCategories_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | ExpenseCategories_Version_not_null | n | NOT NULL "Version" |
 | PK_ExpenseCategories | PRIMARY KEY | PRIMARY KEY ("Id") |
 
@@ -35,6 +39,12 @@
 | ---- | ---------- |
 | PK_ExpenseCategories | CREATE UNIQUE INDEX "PK_ExpenseCategories" ON public."ExpenseCategories" USING btree ("Id") |
 | IX_ExpenseCategories_NameCi | CREATE UNIQUE INDEX "IX_ExpenseCategories_NameCi" ON public."ExpenseCategories" USING btree ("AccountId", "FarmId", lower(("Name")::text)) |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_ExpenseCategories_BusinessRecordTimestamps | CREATE TRIGGER "TR_ExpenseCategories_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."ExpenseCategories" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -50,6 +60,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.Expenses" {
   uuid Id
@@ -64,6 +76,9 @@ erDiagram
   varchar_500_ Note
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 ```
 

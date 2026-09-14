@@ -48,6 +48,7 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
             new HashSet<string>(StringComparer.Ordinal)
             {
                 nameof(EggGrade.Id), nameof(EggGrade.AccountId), nameof(EggGrade.Version),
+                nameof(EggGrade.CreatedAtUtc), nameof(EggGrade.UpdatedAtUtc),
             });
         var conversions = await db.EggUnitConversions.IgnoreQueryFilters()
             .Where(conversion => conversion.AccountId == outcome.AccountId)
@@ -62,6 +63,8 @@ public sealed class AccountProvisioningTests(CluckworkWebApplicationFactory fact
                 nameof(EggUnitConversion.Id),
                 nameof(EggUnitConversion.AccountId),
                 nameof(EggUnitConversion.Version),
+                nameof(EggUnitConversion.CreatedAtUtc),
+                nameof(EggUnitConversion.UpdatedAtUtc),
             });
 
         var owner = await db.Users.SingleAsync(u => u.AccountId == outcome.AccountId && u.Email == email);

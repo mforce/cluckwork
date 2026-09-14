@@ -5,7 +5,7 @@ namespace Cluckwork.Domain.Inventory;
 // seam rejects Update/Remove). Mistakes are corrected by a compensating
 // Adjustment row. Lot QuantityAvailable is the balance; these rows are the
 // explanation of how it got there.
-public sealed class InventoryMovement : AggregateRoot<Guid>
+public sealed class InventoryMovement : AggregateRoot<Guid>, ICreatedRecord
 {
     public const int MaxNoteLength = 500;
 
@@ -27,7 +27,7 @@ public sealed class InventoryMovement : AggregateRoot<Guid>
     // When the row was appended (as opposed to Date, the backdatable operational
     // day) — same-day rows order by this, keeping ledger chronology honest.
     // CreatedBy joins with the audit-log slice; single login today.
-    public DateTime CreatedAtUtc { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
 
     // What generated this row (spec §12.3 reference_type/reference_id):
     // "FeedUsage" + the usage id for usage rows, so several same-day feedings
@@ -41,7 +41,7 @@ public sealed class InventoryMovement : AggregateRoot<Guid>
     public static InventoryMovement Create(
         Guid accountId, Guid inventoryItemId, Guid? inventoryLotId,
         DateOnly date, InventoryMovementType type, decimal quantityDelta,
-        string unit, DateTime createdAtUtc, Guid? flockId = null, string? note = null,
+        string unit, Guid? flockId = null, string? note = null,
         string? referenceType = null, Guid? referenceId = null)
     {
         if ((referenceType is null) != (referenceId is null))
@@ -69,7 +69,6 @@ public sealed class InventoryMovement : AggregateRoot<Guid>
             Type = type,
             QuantityDelta = quantityDelta,
             Unit = unit,
-            CreatedAtUtc = createdAtUtc,
             ReferenceType = referenceType,
             ReferenceId = referenceId,
             FlockId = flockId,

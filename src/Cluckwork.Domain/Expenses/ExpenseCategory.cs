@@ -4,13 +4,15 @@ namespace Cluckwork.Domain.Expenses;
 // "Repairs"). Expenses reference these rows; deactivating a category hides it
 // from new expenses while recorded ones keep rendering it (the grandfathering
 // pattern grades established).
-public sealed class ExpenseCategory : AggregateRoot<Guid>
+public sealed class ExpenseCategory : AggregateRoot<Guid>, IMutableRecord
 {
     public const int MaxNameLength = 100;
 
     public Guid FarmId { get; private set; }
     public string Name { get; private set; } = string.Empty;
     public bool Active { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private ExpenseCategory() { }

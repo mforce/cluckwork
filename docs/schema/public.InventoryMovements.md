@@ -17,6 +17,7 @@
 | ReferenceType | varchar(50) |  | true |  |  |  |
 | ReferenceId | uuid |  | true |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -34,6 +35,7 @@
 | InventoryMovements_Id_not_null | n | NOT NULL "Id" |
 | InventoryMovements_InventoryItemId_not_null | n | NOT NULL "InventoryItemId" |
 | InventoryMovements_QuantityDelta_not_null | n | NOT NULL "QuantityDelta" |
+| InventoryMovements_Sequence_not_null | n | NOT NULL "Sequence" |
 | InventoryMovements_Type_not_null | n | NOT NULL "Type" |
 | InventoryMovements_Unit_not_null | n | NOT NULL "Unit" |
 | FK_InventoryMovements_Flocks_FlockId | FOREIGN KEY | FOREIGN KEY ("FlockId") REFERENCES "Flocks"("Id") ON DELETE RESTRICT |
@@ -49,6 +51,13 @@
 | IX_InventoryMovements_FlockId | CREATE INDEX "IX_InventoryMovements_FlockId" ON public."InventoryMovements" USING btree ("FlockId") |
 | IX_InventoryMovements_InventoryItemId_Date | CREATE INDEX "IX_InventoryMovements_InventoryItemId_Date" ON public."InventoryMovements" USING btree ("InventoryItemId", "Date") |
 | IX_InventoryMovements_InventoryLotId | CREATE INDEX "IX_InventoryMovements_InventoryLotId" ON public."InventoryMovements" USING btree ("InventoryLotId") |
+| IX_InventoryMovements_Sequence | CREATE UNIQUE INDEX "IX_InventoryMovements_Sequence" ON public."InventoryMovements" USING btree ("Sequence") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_InventoryMovements_BusinessRecordTimestamps | CREATE TRIGGER "TR_InventoryMovements_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."InventoryMovements" FOR EACH ROW EXECUTE FUNCTION "StampCreatedBusinessRecord"() |
 
 ## Relations
 
@@ -73,6 +82,7 @@ erDiagram
   varchar_50_ ReferenceType
   uuid ReferenceId
   uuid AccountId
+  bigint Sequence
 }
 "public.InventoryItems" {
   uuid Id
@@ -86,6 +96,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.InventoryLots" {
   uuid Id
@@ -100,6 +112,9 @@ erDiagram
   integer UnitCostCurrencyMinorUnit
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.Flocks" {
   uuid Id
@@ -114,6 +129,8 @@ erDiagram
   date ArchivedOn
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

@@ -6,10 +6,12 @@ using Cluckwork.Domain.Common;
 // eggs from lots of the mapped grade. Phase 1 enforces exactly ONE mapping per
 // product (unique index on ProductId); multi-grade products (mixed cartons)
 // arrive with a later slice, which is why this is a table and not a column.
-public sealed class ProductEggGradeMapping : Entity<Guid>
+public sealed class ProductEggGradeMapping : Entity<Guid>, IMutableRecord
 {
     public Guid ProductId { get; private set; }
     public Guid EggGradeId { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     private ProductEggGradeMapping() { }
 

@@ -4,7 +4,7 @@ namespace Cluckwork.Domain.Inventory;
 // Created only — the stock effect lives in the lots/movement ledger, and a
 // mis-entered usage is corrected there via a compensating Adjustment (an edit
 // here would silently detach the record from the movements it generated).
-public sealed class FeedUsage : AggregateRoot<Guid>
+public sealed class FeedUsage : AggregateRoot<Guid>, ICreatedRecord
 {
     public const int MaxNoteLength = 500;
 
@@ -28,7 +28,7 @@ public sealed class FeedUsage : AggregateRoot<Guid>
     public string? Note { get; private set; }
 
     // Append timestamp — same-day records order by this, like movement rows.
-    public DateTime CreatedAtUtc { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
 
     public int Version { get; private set; }
 
@@ -37,7 +37,7 @@ public sealed class FeedUsage : AggregateRoot<Guid>
     public static FeedUsage Create(
         Guid id, Guid accountId, Guid flockId, Guid inventoryItemId,
         DateOnly date, decimal quantity, string unit, Money estimatedCost,
-        DateTime createdAtUtc, string? note = null, Guid? dailyEntryId = null)
+        string? note = null, Guid? dailyEntryId = null)
     {
         if (flockId == Guid.Empty)
             throw new ArgumentException("Flock id is required.", nameof(flockId));
@@ -61,7 +61,6 @@ public sealed class FeedUsage : AggregateRoot<Guid>
             Quantity = quantity,
             Unit = unit,
             EstimatedCost = estimatedCost,
-            CreatedAtUtc = createdAtUtc,
             Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
             DailyEntryId = dailyEntryId
         };

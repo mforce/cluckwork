@@ -158,17 +158,17 @@ public sealed class InventoryTests
     {
         var usage = FeedUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            Today, 12.5m, "kg", new Money(30000, "USD", 2), Now, "  morning feed  ");
+            Today, 12.5m, "kg", new Money(30000, "USD", 2), "  morning feed  ");
         Assert.Equal(12.5m, usage.Quantity);
         Assert.Equal("morning feed", usage.Note);
-        Assert.Equal(Now, usage.CreatedAtUtc);
+        Assert.Equal(default, usage.CreatedAtUtc);
 
         Assert.Throws<ArgumentOutOfRangeException>(() => FeedUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            Today, 0m, "kg", Money.Zero("USD"), Now));
+            Today, 0m, "kg", Money.Zero("USD")));
         Assert.Throws<ArgumentException>(() => FeedUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            Today, 1m, "kg", new Money(-1, "USD", 2), Now));
+            Today, 1m, "kg", new Money(-1, "USD", 2)));
     }
 
     [Fact]
@@ -176,10 +176,10 @@ public sealed class InventoryTests
     {
         Assert.Throws<ArgumentException>(() => InventoryMovement.Create(
             Guid.NewGuid(), Guid.NewGuid(), null, Today,
-            InventoryMovementType.Usage, -1m, "kg", Now, referenceType: "FeedUsage"));
+            InventoryMovementType.Usage, -1m, "kg", referenceType: "FeedUsage"));
         Assert.Throws<ArgumentException>(() => InventoryMovement.Create(
             Guid.NewGuid(), Guid.NewGuid(), null, Today,
-            InventoryMovementType.Usage, -1m, "kg", Now, referenceId: Guid.NewGuid()));
+            InventoryMovementType.Usage, -1m, "kg", referenceId: Guid.NewGuid()));
     }
 
     // --- WaterUsage ---
@@ -189,7 +189,7 @@ public sealed class InventoryTests
     {
         var usage = WaterUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
-            120.5m, "L", WaterSource.Well, null, null, Now, "  tank refill  ");
+            120.5m, "L", WaterSource.Well, null, null, "  tank refill  ");
         Assert.Equal(120.5m, usage.Quantity);
         Assert.Equal("tank refill", usage.Note);
         Assert.Null(usage.MeterStart);
@@ -201,23 +201,23 @@ public sealed class InventoryTests
         // Meters must travel together.
         Assert.Throws<ArgumentException>(() => WaterUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
-            10m, "L", WaterSource.Well, 100m, null, Now));
+            10m, "L", WaterSource.Well, 100m, null));
         // End before start refused; equal readings too (zero delta would
         // otherwise surface as a confusing quantity error).
         Assert.Throws<ArgumentException>(() => WaterUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
-            10m, "L", WaterSource.Well, 100m, 90m, Now));
+            10m, "L", WaterSource.Well, 100m, 90m));
         Assert.Throws<ArgumentException>(() => WaterUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
-            10m, "L", WaterSource.Well, 100m, 100m, Now));
+            10m, "L", WaterSource.Well, 100m, 100m));
         // Quantity must equal the delta.
         Assert.Throws<ArgumentException>(() => WaterUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
-            15m, "L", WaterSource.Well, 100m, 110m, Now));
+            15m, "L", WaterSource.Well, 100m, 110m));
         // Consistent meters accepted.
         var ok = WaterUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
-            10m, "L", WaterSource.Municipal, 100m, 110m, Now);
+            10m, "L", WaterSource.Municipal, 100m, 110m);
         Assert.Equal(10m, ok.Quantity);
     }
 
@@ -226,7 +226,7 @@ public sealed class InventoryTests
     {
         var usage = WaterUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
-            50m, "L", WaterSource.Well, null, null, Now);
+            50m, "L", WaterSource.Well, null, null);
         var before = usage.Version;
 
         var result = usage.Update(60m, "gal", WaterSource.Tank, null, null, "recount");
@@ -242,25 +242,23 @@ public sealed class InventoryTests
     {
         Assert.Throws<ArgumentException>(() => WaterUsage.Create(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Today,
-            10m, "m3", WaterSource.Well, null, null, Now));
+            10m, "m3", WaterSource.Well, null, null));
     }
 
     // --- InventoryMovement ---
-
-    private static readonly DateTime Now = new(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
     public void Movement_PurchaseMustBePositive_UsageMustBeNegative()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => InventoryMovement.Create(
             Guid.NewGuid(), Guid.NewGuid(), null, Today,
-            InventoryMovementType.Purchase, -5m, "kg", Now));
+            InventoryMovementType.Purchase, -5m, "kg"));
         Assert.Throws<ArgumentOutOfRangeException>(() => InventoryMovement.Create(
             Guid.NewGuid(), Guid.NewGuid(), null, Today,
-            InventoryMovementType.Usage, 5m, "kg", Now));
+            InventoryMovementType.Usage, 5m, "kg"));
         Assert.Throws<ArgumentOutOfRangeException>(() => InventoryMovement.Create(
             Guid.NewGuid(), Guid.NewGuid(), null, Today,
-            InventoryMovementType.Adjustment, 0m, "kg", Now));
+            InventoryMovementType.Adjustment, 0m, "kg"));
     }
 
     [Fact]
@@ -268,9 +266,9 @@ public sealed class InventoryTests
     {
         var movement = InventoryMovement.Create(
             Guid.NewGuid(), Guid.NewGuid(), null, Today,
-            InventoryMovementType.Adjustment, -2.5m, "kg", Now, note: "spillage correction");
+            InventoryMovementType.Adjustment, -2.5m, "kg", note: "spillage correction");
         Assert.Equal(-2.5m, movement.QuantityDelta);
         Assert.Equal("spillage correction", movement.Note);
-        Assert.Equal(Now, movement.CreatedAtUtc);
+        Assert.Equal(default, movement.CreatedAtUtc);
     }
 }

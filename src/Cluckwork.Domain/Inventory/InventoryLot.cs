@@ -4,7 +4,7 @@ namespace Cluckwork.Domain.Inventory;
 // own cost and optional supplier lot number / expiry. Stock on hand for an
 // item = Σ QuantityAvailable across its lots — the lots are the source of
 // truth; InventoryMovement rows are the audit ledger derived from them.
-public sealed class InventoryLot : AggregateRoot<Guid>
+public sealed class InventoryLot : AggregateRoot<Guid>, IMutableRecord
 {
     public const int MaxLotNumberLength = 100;
 
@@ -21,6 +21,8 @@ public sealed class InventoryLot : AggregateRoot<Guid>
 
     // Row-version token; the usage path consumes under FOR UPDATE like egg-lot
     // allocation (canonical (ReceivedDate, Id) lock order).
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private InventoryLot() { }

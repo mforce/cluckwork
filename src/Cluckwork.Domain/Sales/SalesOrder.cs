@@ -1,6 +1,6 @@
 namespace Cluckwork.Domain.Sales;
 
-public sealed class SalesOrder : AggregateRoot<Guid>
+public sealed class SalesOrder : AggregateRoot<Guid>, IMutableRecord
 {
     public const int MaxVoidReasonLength = 500;
     public const int MaxDiscountReasonNoteLength = 500;
@@ -26,6 +26,8 @@ public sealed class SalesOrder : AggregateRoot<Guid>
     /// meaningless without it. Never non-null while the code is null.
     /// </summary>
     public string? DiscountReasonNote { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     public IReadOnlyList<SalesOrderItem> Items => _items.AsReadOnly();
@@ -420,7 +422,7 @@ public enum ListPriceBasis
     PreDating,
 }
 
-public sealed class SalesOrderItem : Entity<Guid>
+public sealed class SalesOrderItem : Entity<Guid>, IMutableRecord
 {
     public Guid SalesOrderId { get; private set; }
     public Guid ProductId { get; private set; }
@@ -463,6 +465,8 @@ public sealed class SalesOrderItem : Entity<Guid>
     /// </summary>
     public ListPriceBasis ListPriceBasis { get; private set; }
     public Money LineTotal => UnitPrice.Multiply(Quantity);
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     private SalesOrderItem() { }
 

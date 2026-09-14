@@ -30,7 +30,7 @@ using Cluckwork.Domain.Media;
 // migration, own EF configuration, own repository) was judged not worth it for
 // one extra image. The logo and banner sides are otherwise fully independent —
 // see HasLogo/HasBanner and Replace/ReplaceBanner/ClearLogo/ClearBanner below.
-public sealed class FarmLogo : AggregateRoot<Guid>
+public sealed class FarmLogo : AggregateRoot<Guid>, IMutableRecord
 {
     public Guid FarmId { get; private set; }
 
@@ -112,6 +112,8 @@ public sealed class FarmLogo : AggregateRoot<Guid>
     // No client sends this: a raw-body PUT has no base version to carry. It is
     // server-side only, and the loser gets the 409 that Program.cs already maps
     // from DbUpdateConcurrencyException.
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private FarmLogo() { }

@@ -289,7 +289,7 @@ internal static class TestHarness
             // the real submit path writes it.
             db.EggInventoryMovements.Add(Cluckwork.Domain.Eggs.EggInventoryMovement.Create(
                 Guid.NewGuid(), accountId, lotId, Cluckwork.Domain.Eggs.EggMovementType.Production,
-                quantity, "DailyEntry", Guid.NewGuid(), DateTimeOffset.UtcNow));
+                quantity, "DailyEntry", Guid.NewGuid()));
             db.EggLots.Add(lot);
             await db.SaveChangesAsync();
         });

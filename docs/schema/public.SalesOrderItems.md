@@ -19,6 +19,8 @@
 | AccountId | uuid |  | false |  |  |  |
 | ListUnitPriceMinorUnits | bigint |  | true |  |  |  |
 | ListPriceBasis | varchar(16) |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -32,6 +34,7 @@
 | ---- | ---- | ---------- |
 | SalesOrderItems_AccountId_not_null | n | NOT NULL "AccountId" |
 | SalesOrderItems_BaseUnitFactor_not_null | n | NOT NULL "BaseUnitFactor" |
+| SalesOrderItems_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | SalesOrderItems_EggGradeId_not_null | n | NOT NULL "EggGradeId" |
 | SalesOrderItems_Id_not_null | n | NOT NULL "Id" |
 | SalesOrderItems_ListPriceBasis_not_null | n | NOT NULL "ListPriceBasis" |
@@ -44,6 +47,7 @@
 | SalesOrderItems_UnitPriceCurrencyMinorUnit_not_null | n | NOT NULL "UnitPriceCurrencyMinorUnit" |
 | SalesOrderItems_UnitPriceMinorUnits_not_null | n | NOT NULL "UnitPriceMinorUnits" |
 | SalesOrderItems_Unit_not_null | n | NOT NULL "Unit" |
+| SalesOrderItems_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | FK_SalesOrderItems_EggGrades_EggGradeId | FOREIGN KEY | FOREIGN KEY ("EggGradeId") REFERENCES "EggGrades"("Id") ON DELETE RESTRICT |
 | FK_SalesOrderItems_Products_ProductId | FOREIGN KEY | FOREIGN KEY ("ProductId") REFERENCES "Products"("Id") ON DELETE RESTRICT |
 | FK_SalesOrderItems_SalesOrders_SalesOrderId | FOREIGN KEY | FOREIGN KEY ("SalesOrderId") REFERENCES "SalesOrders"("Id") ON DELETE CASCADE |
@@ -57,6 +61,12 @@
 | IX_SalesOrderItems_EggGradeId | CREATE INDEX "IX_SalesOrderItems_EggGradeId" ON public."SalesOrderItems" USING btree ("EggGradeId") |
 | IX_SalesOrderItems_ProductId | CREATE INDEX "IX_SalesOrderItems_ProductId" ON public."SalesOrderItems" USING btree ("ProductId") |
 | IX_SalesOrderItems_SalesOrderId | CREATE INDEX "IX_SalesOrderItems_SalesOrderId" ON public."SalesOrderItems" USING btree ("SalesOrderId") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_SalesOrderItems_BusinessRecordTimestamps | CREATE TRIGGER "TR_SalesOrderItems_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."SalesOrderItems" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -84,6 +94,8 @@ erDiagram
   uuid AccountId
   bigint ListUnitPriceMinorUnits
   varchar_16_ ListPriceBasis
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.SalesOrderAllocations" {
   uuid Id
@@ -93,6 +105,8 @@ erDiagram
   integer Quantity
   timestamp_with_time_zone ReleasedOnUtc
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.SalesOrders" {
   uuid Id
@@ -108,6 +122,9 @@ erDiagram
   uuid AccountId
   varchar_32_ DiscountReasonCode
   varchar_500_ DiscountReasonNote
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.Products" {
   uuid Id
@@ -122,6 +139,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.EggGrades" {
   uuid Id
@@ -134,6 +153,8 @@ erDiagram
   varchar_16_ DailyEntryKind
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

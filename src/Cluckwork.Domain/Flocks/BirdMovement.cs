@@ -7,7 +7,7 @@ namespace Cluckwork.Domain.Flocks;
 //
 // Quantity is "birds removed" — positive shrinks the flock. Adjustment rows
 // may be negative to add birds back (miscount corrections).
-public sealed class BirdMovement : AggregateRoot<Guid>
+public sealed class BirdMovement : AggregateRoot<Guid>, ICreatedRecord
 {
     public const int MaxNoteLength = 500;
 
@@ -20,6 +20,7 @@ public sealed class BirdMovement : AggregateRoot<Guid>
     // so a future reconciliation flow (manager adjust / void-and-resubmit) can
     // find and correct the ledger side. Null for manual movements.
     public Guid? DailyEntryId { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
 
     private BirdMovement() { }
 

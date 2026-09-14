@@ -16,6 +16,9 @@
 | Note | varchar(500) |  | true |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -29,6 +32,7 @@
 | ---- | ---- | ---------- |
 | Expenses_AccountId_not_null | n | NOT NULL "AccountId" |
 | Expenses_AmountMinorUnits_not_null | n | NOT NULL "AmountMinorUnits" |
+| Expenses_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | Expenses_CurrencyCode_not_null | n | NOT NULL "CurrencyCode" |
 | Expenses_CurrencyMinorUnit_not_null | n | NOT NULL "CurrencyMinorUnit" |
 | Expenses_Date_not_null | n | NOT NULL "Date" |
@@ -36,6 +40,8 @@
 | Expenses_ExpenseCategoryId_not_null | n | NOT NULL "ExpenseCategoryId" |
 | Expenses_FarmId_not_null | n | NOT NULL "FarmId" |
 | Expenses_Id_not_null | n | NOT NULL "Id" |
+| Expenses_Sequence_not_null | n | NOT NULL "Sequence" |
+| Expenses_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | Expenses_Version_not_null | n | NOT NULL "Version" |
 | FK_Expenses_ExpenseCategories_ExpenseCategoryId | FOREIGN KEY | FOREIGN KEY ("ExpenseCategoryId") REFERENCES "ExpenseCategories"("Id") ON DELETE RESTRICT |
 | FK_Expenses_Flocks_FlockId | FOREIGN KEY | FOREIGN KEY ("FlockId") REFERENCES "Flocks"("Id") ON DELETE RESTRICT |
@@ -50,6 +56,13 @@
 | IX_Expenses_AccountId_ExpenseCategoryId | CREATE INDEX "IX_Expenses_AccountId_ExpenseCategoryId" ON public."Expenses" USING btree ("AccountId", "ExpenseCategoryId") |
 | IX_Expenses_ExpenseCategoryId | CREATE INDEX "IX_Expenses_ExpenseCategoryId" ON public."Expenses" USING btree ("ExpenseCategoryId") |
 | IX_Expenses_FlockId | CREATE INDEX "IX_Expenses_FlockId" ON public."Expenses" USING btree ("FlockId") |
+| IX_Expenses_Sequence | CREATE UNIQUE INDEX "IX_Expenses_Sequence" ON public."Expenses" USING btree ("Sequence") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_Expenses_BusinessRecordTimestamps | CREATE TRIGGER "TR_Expenses_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."Expenses" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -72,6 +85,9 @@ erDiagram
   varchar_500_ Note
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.ExpenseCategories" {
   uuid Id
@@ -80,6 +96,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.Flocks" {
   uuid Id
@@ -94,6 +112,8 @@ erDiagram
   date ArchivedOn
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

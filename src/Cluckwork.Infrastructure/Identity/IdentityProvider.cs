@@ -712,25 +712,7 @@ public sealed class IdentityProvider(
             }
 
             var entry = db.Entry(user);
-            var priorModified = entry.Properties.ToDictionary(
-                property => property.Metadata.Name,
-                property => property.IsModified,
-                StringComparer.Ordinal);
-            var priorValues = new UserEmailMutationSnapshot(
-                user.Email,
-                user.NormalizedEmail,
-                user.UserName,
-                user.NormalizedUserName,
-                user.SecurityStamp,
-                user.ConcurrencyStamp,
-                user.CredentialEpoch,
-                entry.Property(candidate => candidate.Email).OriginalValue,
-                entry.Property(candidate => candidate.NormalizedEmail).OriginalValue,
-                entry.Property(candidate => candidate.UserName).OriginalValue,
-                entry.Property(candidate => candidate.NormalizedUserName).OriginalValue,
-                entry.Property(candidate => candidate.SecurityStamp).OriginalValue,
-                entry.Property(candidate => candidate.ConcurrencyStamp).OriginalValue,
-                entry.Property(candidate => candidate.CredentialEpoch).OriginalValue);
+            var targetSnapshot = TrackedEntrySnapshot.Capture(entry);
             var priorAudits = db.ChangeTracker.Entries<Cluckwork.Domain.Auditing.AuditEvent>()
                 .Select(auditEntry => auditEntry.Entity)
                 .ToHashSet(ReferenceEqualityComparer.Instance);
@@ -741,37 +723,16 @@ public sealed class IdentityProvider(
             // never sent to PostgreSQL, so restoration never has to replace a
             // real generated key with its old temporary value.
             var priorDirtyEntries = db.ChangeTracker.Entries()
-                .Where(candidate => candidate.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+                .Where(candidate => !ReferenceEquals(candidate.Entity, user)
+                    && candidate.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
                 .Select(TrackedEntrySnapshot.Capture)
                 .ToArray();
 
             void RestoreTrackerAfterFailure()
             {
-                user.Email = priorValues.Email;
-                user.NormalizedEmail = priorValues.NormalizedEmail;
-                user.UserName = priorValues.UserName;
-                user.NormalizedUserName = priorValues.NormalizedUserName;
-                user.SecurityStamp = priorValues.SecurityStamp;
-                user.ConcurrencyStamp = priorValues.ConcurrencyStamp;
-                user.CredentialEpoch = priorValues.CredentialEpoch;
-
-                entry.Property(candidate => candidate.Email).OriginalValue = priorValues.OriginalEmail;
-                entry.Property(candidate => candidate.NormalizedEmail).OriginalValue = priorValues.OriginalNormalizedEmail;
-                entry.Property(candidate => candidate.UserName).OriginalValue = priorValues.OriginalUserName;
-                entry.Property(candidate => candidate.NormalizedUserName).OriginalValue = priorValues.OriginalNormalizedUserName;
-                entry.Property(candidate => candidate.SecurityStamp).OriginalValue = priorValues.OriginalSecurityStamp;
-                entry.Property(candidate => candidate.ConcurrencyStamp).OriginalValue = priorValues.OriginalConcurrencyStamp;
-                entry.Property(candidate => candidate.CredentialEpoch).OriginalValue = priorValues.OriginalCredentialEpoch;
-                foreach (var property in entry.Properties)
-                    property.IsModified = priorModified[property.Metadata.Name];
-
+                targetSnapshot.RestoreTargetAfterFailure();
                 foreach (var dirtyEntry in priorDirtyEntries)
-                {
-                    if (ReferenceEquals(dirtyEntry.Entry.Entity, user))
-                        dirtyEntry.RestoreTargetAfterFailure();
-                    else
-                        dirtyEntry.RestoreExact();
-                }
+                    dirtyEntry.RestoreExact();
 
                 foreach (var auditEntry in db.ChangeTracker.Entries<Cluckwork.Domain.Auditing.AuditEvent>()
                              .Where(candidate => candidate.State == EntityState.Added
@@ -785,13 +746,9 @@ public sealed class IdentityProvider(
 
             void RestoreCallerEntriesAfterSuccess()
             {
+                targetSnapshot.RestoreTargetAfterSuccessfulSave();
                 foreach (var dirtyEntry in priorDirtyEntries)
-                {
-                    if (ReferenceEquals(dirtyEntry.Entry.Entity, user))
-                        dirtyEntry.RestoreTargetAfterSuccessfulSave();
-                    else
-                        dirtyEntry.RestoreExact();
-                }
+                    dirtyEntry.RestoreExact();
             }
 
             try
@@ -800,8 +757,9 @@ public sealed class IdentityProvider(
                 // same restore boundary as both saves. If a later snapshot
                 // throws while being suppressed, the earlier ones are still
                 // restored exactly by the catch below.
+                targetSnapshot.Suspend(isTarget: true);
                 foreach (var dirtyEntry in priorDirtyEntries)
-                    dirtyEntry.Suspend(ReferenceEquals(dirtyEntry.Entry.Entity, user));
+                    dirtyEntry.Suspend(isTarget: false);
 
                 var oldEmail = user.Email;
                 user.Email = email;
@@ -872,27 +830,6 @@ public sealed class IdentityProvider(
             SqlState: PostgresErrorCodes.UniqueViolation,
             ConstraintName: "EmailIndex" or "UserNameIndex"
         };
-
-    private sealed record UserEmailMutationSnapshot(
-        // IdentityUser declares these as nullable even though this app's EF
-        // model requires all four login columns. Keep the compiler-truthful
-        // nullable types here; the strongly typed EF property access below
-        // avoids the former object? originals without asserting a narrower
-        // C# invariant than ApplicationUser actually declares.
-        string? Email,
-        string? NormalizedEmail,
-        string? UserName,
-        string? NormalizedUserName,
-        string? SecurityStamp,
-        string? ConcurrencyStamp,
-        int CredentialEpoch,
-        string? OriginalEmail,
-        string? OriginalNormalizedEmail,
-        string? OriginalUserName,
-        string? OriginalNormalizedUserName,
-        string? OriginalSecurityStamp,
-        string? OriginalConcurrencyStamp,
-        int OriginalCredentialEpoch);
 
     private sealed record TrackedEntrySnapshot(
         EntityEntry Entry,

@@ -7,7 +7,7 @@ namespace Cluckwork.Domain.Sales;
 // (stock returned to the source lots) instead of deleting them. A Confirmed
 // order therefore always has pending rows (orders confirmed before this table
 // existed are the one exception; those cannot be voided).
-public sealed class SalesOrderAllocation : Entity<Guid>
+public sealed class SalesOrderAllocation : Entity<Guid>, IMutableRecord
 {
     public Guid SalesOrderId { get; private set; }
     public Guid SalesOrderItemId { get; private set; }
@@ -17,6 +17,8 @@ public sealed class SalesOrderAllocation : Entity<Guid>
     // Set when a void returned this quantity to the source lot. Null = the
     // allocation is live (the order holds this stock).
     public DateTime? ReleasedOnUtc { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     private SalesOrderAllocation() { }
 

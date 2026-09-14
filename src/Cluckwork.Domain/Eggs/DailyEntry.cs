@@ -2,7 +2,7 @@ namespace Cluckwork.Domain.Eggs;
 
 using System.Text.Json;
 
-public sealed class DailyEntry : AggregateRoot<Guid>
+public sealed class DailyEntry : AggregateRoot<Guid>, IMutableRecord
 {
     public const int MaxReasonLength = 500;
 
@@ -45,6 +45,9 @@ public sealed class DailyEntry : AggregateRoot<Guid>
     public string? AdjustedFromJson { get; private set; }
     public string? VoidReason { get; private set; }
     public DateTimeOffset? LockedAtUtc { get; private set; }
+
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     // Optimistic concurrency token — functional spec §10.9.1
     public int Version { get; private set; }
@@ -314,11 +317,13 @@ public enum DailyEntryStatus { Draft, Submitted, Locked, ManagerAdjusted, Voided
 // saleable grades before this reaches the aggregate.
 public sealed record GradeQuantity(Guid EggGradeId, int Quantity);
 
-public sealed class DailyEntryGrade : Entity<Guid>
+public sealed class DailyEntryGrade : Entity<Guid>, IMutableRecord
 {
     public Guid DailyEntryId { get; private set; }
     public Guid EggGradeId { get; private set; }
     public int Quantity { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     private DailyEntryGrade() { }
 

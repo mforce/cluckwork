@@ -10,6 +10,7 @@
 | HouseId | uuid |  | true |  |  |  |
 | FlockId | uuid |  | true |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -22,6 +23,7 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | UserRoleAssignments_AccountId_not_null | n | NOT NULL "AccountId" |
+| UserRoleAssignments_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | UserRoleAssignments_Id_not_null | n | NOT NULL "Id" |
 | UserRoleAssignments_UserId_not_null | n | NOT NULL "UserId" |
 | PK_UserRoleAssignments | PRIMARY KEY | PRIMARY KEY ("Id") |
@@ -33,6 +35,12 @@
 | PK_UserRoleAssignments | CREATE UNIQUE INDEX "PK_UserRoleAssignments" ON public."UserRoleAssignments" USING btree ("Id") |
 | IX_UserRoleAssignments_AccountId_UserId | CREATE INDEX "IX_UserRoleAssignments_AccountId_UserId" ON public."UserRoleAssignments" USING btree ("AccountId", "UserId") |
 | IX_UserRoleAssignments_UserId_FlockId | CREATE UNIQUE INDEX "IX_UserRoleAssignments_UserId_FlockId" ON public."UserRoleAssignments" USING btree ("UserId", "FlockId") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_UserRoleAssignments_BusinessRecordTimestamps | CREATE TRIGGER "TR_UserRoleAssignments_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."UserRoleAssignments" FOR EACH ROW EXECUTE FUNCTION "StampCreatedBusinessRecord"() |
 
 ## Relations
 
@@ -47,6 +55,7 @@ erDiagram
   uuid HouseId
   uuid FlockId
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
 }
 ```
 

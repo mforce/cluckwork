@@ -114,12 +114,12 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.InitialCount, x.Status, x.DepletedOn, x.ArchivedOn, x.Version]),
 
             "bird-movements" => Rows(activeDb.BirdMovements.AsNoTracking()
-                    .OrderBy(x => x.Date).ThenBy(x => x.Id),
+                    .OrderByBusinessChronology(x => x.Date),
                 ["id", "flockId", "date", "type", "quantity", "note", "dailyEntryId"],
                 x => [x.Id, x.FlockId, x.Date, x.Type, x.Quantity, x.Note, x.DailyEntryId]),
 
             "daily-entries" => Rows(activeDb.DailyEntries.AsNoTracking()
-                    .OrderBy(x => x.Date).ThenBy(x => x.Id),
+                    .OrderByBusinessChronology(x => x.Date),
                 // #396 — the two snapshot ids ride next to the counters they
                 // explain. Without them an export records that a day had 40
                 // cracked eggs but not whether those became saleable stock or a
@@ -151,7 +151,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.DailyEntryKind, x.Active, x.Version]),
 
             "egg-lots" => Rows(activeDb.EggLots.AsNoTracking()
-                    .OrderBy(x => x.ProductionDate).ThenBy(x => x.Id),
+                    .OrderByBusinessChronology(x => x.ProductionDate),
                 ["id", "flockId", "productionDate", "eggGradeId", "quantityProduced",
                  "quantityAvailable", "dailyEntryId", "restrictedUntil", "version"],
                 x => [x.Id, x.FlockId, x.ProductionDate, x.EggGradeId, x.QuantityProduced,
@@ -166,7 +166,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
             // export of the table, and the reason is a column on it. The
             // discount TOTALS a report would show stay with #725.
             "sales-orders" => Rows(activeDb.SalesOrders.AsNoTracking()
-                    .OrderBy(x => x.OrderDate).ThenBy(x => x.Id),
+                    .OrderByBusinessChronology(x => x.OrderDate),
                 ["id", "referenceNumber", "customerId", "status", "orderDate",
                  "totalMinorUnits", "currencyCode", "currencyMinorUnit", "voidReason",
                  "discountReasonCode", "discountReasonNote", "version"],
@@ -196,7 +196,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                 x => [x.Id, x.SalesOrderId, x.SalesOrderItemId, x.EggLotId, x.Quantity, x.ReleasedOnUtc]),
 
             "payments" => Rows(activeDb.Payments.AsNoTracking()
-                    .OrderBy(x => x.PaymentDate).ThenBy(x => x.Id),
+                    .OrderByBusinessChronology(x => x.PaymentDate),
                 ["id", "salesOrderId", "customerId", "paymentDate", "amountMinorUnits",
                  "currencyCode", "currencyMinorUnit", "method", "referenceNumber",
                  "note", "voided", "voidReason", "version"],
@@ -212,7 +212,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.Active, x.Version]),
 
             "inventory-lots" => Rows(activeDb.InventoryLots.AsNoTracking()
-                    .OrderBy(x => x.ReceivedDate).ThenBy(x => x.Id),
+                    .OrderByBusinessChronology(x => x.ReceivedDate),
                 ["id", "inventoryItemId", "receivedDate", "lotNumber", "expiryDate",
                  "quantityReceived", "quantityAvailable", "unitCostMinorUnits",
                  "currencyCode", "currencyMinorUnit", "version"],
@@ -221,14 +221,14 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.UnitCost.CurrencyCode, x.UnitCost.CurrencyMinorUnit, x.Version]),
 
             "inventory-movements" => Rows(activeDb.InventoryMovements.AsNoTracking()
-                    .OrderBy(x => x.Date).ThenBy(x => x.CreatedAtUtc).ThenBy(x => x.Id),
+                    .OrderByBusinessChronology(x => x.Date),
                 ["id", "inventoryItemId", "inventoryLotId", "date", "type", "quantityDelta",
                  "unit", "flockId", "note", "createdAtUtc", "referenceType", "referenceId"],
                 x => [x.Id, x.InventoryItemId, x.InventoryLotId, x.Date, x.Type, x.QuantityDelta,
                       x.Unit, x.FlockId, x.Note, x.CreatedAtUtc, x.ReferenceType, x.ReferenceId]),
 
             "feed-usages" => Rows(activeDb.FeedUsages.AsNoTracking()
-                    .OrderBy(x => x.Date).ThenBy(x => x.Id),
+                    .OrderByBusinessChronology(x => x.Date),
                 ["id", "flockId", "inventoryItemId", "date", "quantity", "unit",
                  "estimatedCostMinorUnits", "currencyCode", "currencyMinorUnit",
                  "dailyEntryId", "note", "createdAtUtc", "version"],
@@ -238,7 +238,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.CreatedAtUtc, x.Version]),
 
             "water-usages" => Rows(activeDb.WaterUsages.AsNoTracking()
-                    .OrderBy(x => x.Date).ThenBy(x => x.Id),
+                    .OrderByBusinessChronology(x => x.Date),
                 ["id", "flockId", "date", "quantity", "unit", "source", "meterStart",
                  "meterEnd", "note", "dailyEntryId", "createdAtUtc", "version"],
                 x => [x.Id, x.FlockId, x.Date, x.Quantity, x.Unit, x.Source, x.MeterStart,
@@ -250,7 +250,7 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                 x => [x.Id, x.FarmId, x.Name, x.Active, x.Version]),
 
             "expenses" => Rows(activeDb.Expenses.AsNoTracking()
-                    .OrderBy(x => x.Date).ThenBy(x => x.Id),
+                    .OrderByBusinessChronology(x => x.Date),
                 ["id", "farmId", "expenseCategoryId", "date", "description",
                  "amountMinorUnits", "currencyCode", "currencyMinorUnit",
                  "flockId", "note", "version"],
@@ -259,14 +259,15 @@ public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockSc
                       x.FlockId, x.Note, x.Version]),
 
             "egg-inventory-movements" => Rows(activeDb.EggInventoryMovements.AsNoTracking()
-                    .OrderBy(x => x.CreatedAtUtc).ThenBy(x => x.Id),
+                    .OrderByCreationChronology(),
                 ["id", "eggLotId", "movementType", "quantityDelta",
                  "referenceType", "referenceId", "reason", "createdAtUtc"],
                 x => [x.Id, x.EggLotId, x.MovementType, x.QuantityDelta,
                       x.ReferenceType, x.ReferenceId, x.Reason, x.CreatedAtUtc]),
 
             "audit-events" => Rows(activeDb.AuditEvents.AsNoTracking()
-                    .OrderBy(x => x.OccurredAtUtc).ThenBy(x => x.Id),
+                    .OrderBy(x => x.OccurredAtUtc)
+                    .ThenBy(x => EF.Property<long>(x, "Sequence")),
                 ["id", "occurredAtUtc", "actorUserId", "actorEmail", "action",
                  "entityType", "entityId", "reason", "detailsJson"],
                 x => [x.Id, x.OccurredAtUtc, x.ActorUserId, x.ActorEmail, x.Action,

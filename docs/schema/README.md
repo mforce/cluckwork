@@ -31,43 +31,50 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
 | [public.__EFMigrationsHistory](public.__EFMigrationsHistory.md) | 2 |  | BASE TABLE |
-| [public.Accounts](public.Accounts.md) | 19 |  | BASE TABLE |
+| [public.Accounts](public.Accounts.md) | 21 |  | BASE TABLE |
 | [public.AspNetRoles](public.AspNetRoles.md) | 4 |  | BASE TABLE |
-| [public.AspNetUsers](public.AspNetUsers.md) | 24 |  | BASE TABLE |
+| [public.AspNetUsers](public.AspNetUsers.md) | 26 |  | BASE TABLE |
 | [public.AuditEvents](public.AuditEvents.md) | 11 |  | BASE TABLE |
-| [public.Customers](public.Customers.md) | 8 |  | BASE TABLE |
-| [public.DailyEntries](public.DailyEntries.md) | 19 |  | BASE TABLE |
+| [public.Customers](public.Customers.md) | 10 |  | BASE TABLE |
+| [public.DailyEntries](public.DailyEntries.md) | 22 |  | BASE TABLE |
 | [public.durable_jobs](public.durable_jobs.md) | 9 |  | BASE TABLE |
-| [public.EggGrades](public.EggGrades.md) | 10 |  | BASE TABLE |
-| [public.EggUnitConversions](public.EggUnitConversions.md) | 6 |  | BASE TABLE |
-| [public.ExpenseCategories](public.ExpenseCategories.md) | 6 |  | BASE TABLE |
-| [public.FarmLogos](public.FarmLogos.md) | 18 |  | BASE TABLE |
-| [public.Flocks](public.Flocks.md) | 12 |  | BASE TABLE |
+| [public.EggGrades](public.EggGrades.md) | 12 |  | BASE TABLE |
+| [public.EggUnitConversions](public.EggUnitConversions.md) | 8 |  | BASE TABLE |
+| [public.ExpenseCategories](public.ExpenseCategories.md) | 8 |  | BASE TABLE |
+| [public.FarmLogos](public.FarmLogos.md) | 20 |  | BASE TABLE |
+| [public.Flocks](public.Flocks.md) | 14 |  | BASE TABLE |
 | [public.idempotency_records](public.idempotency_records.md) | 13 |  | BASE TABLE |
-| [public.InventoryItems](public.InventoryItems.md) | 11 |  | BASE TABLE |
-| [public.Products](public.Products.md) | 12 |  | BASE TABLE |
+| [public.InventoryItems](public.InventoryItems.md) | 13 |  | BASE TABLE |
+| [public.Products](public.Products.md) | 14 |  | BASE TABLE |
 | [public.refresh_tokens](public.refresh_tokens.md) | 11 |  | BASE TABLE |
 | [public.simulation_seed_state](public.simulation_seed_state.md) | 3 |  | BASE TABLE |
-| [public.UserRoleAssignments](public.UserRoleAssignments.md) | 6 |  | BASE TABLE |
+| [public.UserRoleAssignments](public.UserRoleAssignments.md) | 7 |  | BASE TABLE |
 | [public.AspNetRoleClaims](public.AspNetRoleClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserClaims](public.AspNetUserClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserLogins](public.AspNetUserLogins.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserRoles](public.AspNetUserRoles.md) | 3 |  | BASE TABLE |
 | [public.AspNetUserTokens](public.AspNetUserTokens.md) | 4 |  | BASE TABLE |
-| [public.SalesOrders](public.SalesOrders.md) | 13 |  | BASE TABLE |
-| [public.DailyEntryGrades](public.DailyEntryGrades.md) | 5 |  | BASE TABLE |
-| [public.EggLots](public.EggLots.md) | 10 |  | BASE TABLE |
-| [public.BirdMovements](public.BirdMovements.md) | 8 |  | BASE TABLE |
-| [public.Expenses](public.Expenses.md) | 12 |  | BASE TABLE |
-| [public.WaterUsages](public.WaterUsages.md) | 13 |  | BASE TABLE |
-| [public.FeedUsages](public.FeedUsages.md) | 14 |  | BASE TABLE |
-| [public.InventoryLots](public.InventoryLots.md) | 12 |  | BASE TABLE |
-| [public.ProductEggGradeMappings](public.ProductEggGradeMappings.md) | 4 |  | BASE TABLE |
-| [public.Payments](public.Payments.md) | 14 |  | BASE TABLE |
-| [public.SalesOrderItems](public.SalesOrderItems.md) | 15 |  | BASE TABLE |
-| [public.EggInventoryMovements](public.EggInventoryMovements.md) | 9 |  | BASE TABLE |
-| [public.InventoryMovements](public.InventoryMovements.md) | 13 |  | BASE TABLE |
-| [public.SalesOrderAllocations](public.SalesOrderAllocations.md) | 7 |  | BASE TABLE |
+| [public.SalesOrders](public.SalesOrders.md) | 16 |  | BASE TABLE |
+| [public.DailyEntryGrades](public.DailyEntryGrades.md) | 7 |  | BASE TABLE |
+| [public.EggLots](public.EggLots.md) | 13 |  | BASE TABLE |
+| [public.BirdMovements](public.BirdMovements.md) | 10 |  | BASE TABLE |
+| [public.Expenses](public.Expenses.md) | 15 |  | BASE TABLE |
+| [public.WaterUsages](public.WaterUsages.md) | 15 |  | BASE TABLE |
+| [public.FeedUsages](public.FeedUsages.md) | 15 |  | BASE TABLE |
+| [public.InventoryLots](public.InventoryLots.md) | 15 |  | BASE TABLE |
+| [public.ProductEggGradeMappings](public.ProductEggGradeMappings.md) | 6 |  | BASE TABLE |
+| [public.Payments](public.Payments.md) | 17 |  | BASE TABLE |
+| [public.SalesOrderItems](public.SalesOrderItems.md) | 17 |  | BASE TABLE |
+| [public.EggInventoryMovements](public.EggInventoryMovements.md) | 10 |  | BASE TABLE |
+| [public.InventoryMovements](public.InventoryMovements.md) | 14 |  | BASE TABLE |
+| [public.SalesOrderAllocations](public.SalesOrderAllocations.md) | 9 |  | BASE TABLE |
+
+## Stored procedures and functions
+
+| Name | ReturnType | Arguments | Type |
+| ---- | ------- | ------- | ---- |
+| public.StampMutableBusinessRecord | trigger |  | FUNCTION |
+| public.StampCreatedBusinessRecord | trigger |  | FUNCTION |
 
 ## Relations
 
@@ -135,6 +142,8 @@ erDiagram
   varchar_32_ Slug
   varchar_24_ WorkerSaleAllocationPolicy
   integer MaxDiscountBasisPoints
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.AspNetRoles" {
   uuid Id
@@ -167,6 +176,8 @@ erDiagram
   uuid DisabledBy
   varchar_16_ PreferredStepperUnit
   integer StepUpLogoutEpoch
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.AuditEvents" {
   uuid Id
@@ -190,6 +201,8 @@ erDiagram
   varchar_1000_ Note
   uuid AccountId
   integer Version
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.DailyEntries" {
   uuid Id
@@ -211,6 +224,9 @@ erDiagram
   timestamp_with_time_zone LockedAtUtc
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.durable_jobs" {
   uuid Id
@@ -234,6 +250,8 @@ erDiagram
   varchar_16_ DailyEntryKind
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.EggUnitConversions" {
   uuid Id
@@ -242,6 +260,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.ExpenseCategories" {
   uuid Id
@@ -250,6 +270,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.FarmLogos" {
   uuid Id
@@ -270,6 +292,8 @@ erDiagram
   integer BannerHeight
   timestamp_with_time_zone BannerUpdatedAt
   integer BannerWidth
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.Flocks" {
   uuid Id
@@ -284,6 +308,8 @@ erDiagram
   date ArchivedOn
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.idempotency_records" {
   uuid Id
@@ -312,6 +338,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.Products" {
   uuid Id
@@ -326,6 +354,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.refresh_tokens" {
   uuid Id
@@ -352,6 +382,7 @@ erDiagram
   uuid HouseId
   uuid FlockId
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
 }
 "public.AspNetRoleClaims" {
   integer Id
@@ -396,6 +427,9 @@ erDiagram
   uuid AccountId
   varchar_32_ DiscountReasonCode
   varchar_500_ DiscountReasonNote
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.DailyEntryGrades" {
   uuid Id
@@ -403,6 +437,8 @@ erDiagram
   uuid EggGradeId FK
   integer Quantity
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.EggLots" {
   uuid Id
@@ -415,6 +451,9 @@ erDiagram
   date RestrictedUntil
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.BirdMovements" {
   uuid Id
@@ -425,6 +464,8 @@ erDiagram
   varchar_500_ Note
   uuid DailyEntryId FK
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  bigint Sequence
 }
 "public.Expenses" {
   uuid Id
@@ -439,6 +480,9 @@ erDiagram
   varchar_500_ Note
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.WaterUsages" {
   uuid Id
@@ -454,6 +498,8 @@ erDiagram
   timestamp_with_time_zone CreatedAtUtc
   integer Version
   uuid AccountId
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.FeedUsages" {
   uuid Id
@@ -470,6 +516,7 @@ erDiagram
   timestamp_with_time_zone CreatedAtUtc
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.InventoryLots" {
   uuid Id
@@ -484,12 +531,17 @@ erDiagram
   integer UnitCostCurrencyMinorUnit
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.ProductEggGradeMappings" {
   uuid Id
   uuid ProductId FK
   uuid EggGradeId FK
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.Payments" {
   uuid Id
@@ -506,6 +558,9 @@ erDiagram
   varchar_500_ VoidReason
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.SalesOrderItems" {
   uuid Id
@@ -523,6 +578,8 @@ erDiagram
   uuid AccountId
   bigint ListUnitPriceMinorUnits
   varchar_16_ ListPriceBasis
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.EggInventoryMovements" {
   uuid Id
@@ -534,6 +591,7 @@ erDiagram
   varchar_500_ Reason
   timestamp_with_time_zone CreatedAtUtc
   uuid AccountId
+  bigint Sequence
 }
 "public.InventoryMovements" {
   uuid Id
@@ -549,6 +607,7 @@ erDiagram
   varchar_50_ ReferenceType
   uuid ReferenceId
   uuid AccountId
+  bigint Sequence
 }
 "public.SalesOrderAllocations" {
   uuid Id
@@ -558,6 +617,8 @@ erDiagram
   integer Quantity
   timestamp_with_time_zone ReleasedOnUtc
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

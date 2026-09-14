@@ -18,7 +18,7 @@ public sealed class FeedUsageRepository(AppDbContext db) : IFeedUsageRepository
             .Where(u => (flockId == null || u.FlockId == flockId)
                      && (from == null || u.Date >= from)
                      && (to == null || u.Date <= to))
-            .OrderByDescending(u => u.Date).ThenByDescending(u => u.CreatedAtUtc).ThenByDescending(u => u.Id)
+            .OrderByBusinessChronologyDescending(u => u.Date)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);

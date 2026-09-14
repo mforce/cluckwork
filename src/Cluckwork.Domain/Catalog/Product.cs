@@ -6,7 +6,7 @@ using Cluckwork.Domain.Common;
 // products are creatable (they map to an egg grade via
 // ProductEggGradeMapping); the enum already carries the future types so the
 // schema doesn't churn when live birds / meat / services arrive.
-public sealed class Product : AggregateRoot<Guid>
+public sealed class Product : AggregateRoot<Guid>, IMutableRecord
 {
     public const int MaxNameLength = 100;
     public const int MaxNotesLength = 500;
@@ -22,6 +22,8 @@ public sealed class Product : AggregateRoot<Guid>
     public int CurrencyMinorUnit { get; private set; }
     public string? Notes { get; private set; }
     public bool Active { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private Product() { }

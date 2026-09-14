@@ -59,9 +59,7 @@ public sealed class ExpenseRepository(AppDbContext db) : IExpenseRepository
         CancellationToken ct = default) =>
         await Filtered(from, to, categoryId)
             .AsNoTracking()
-            // Id tiebreaker: Date alone is non-unique, and unstable ordering
-            // under OFFSET paging drops or duplicates rows across pages.
-            .OrderByDescending(e => e.Date).ThenByDescending(e => e.Id)
+            .OrderByBusinessChronologyDescending(e => e.Date)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);

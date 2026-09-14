@@ -15,9 +15,7 @@ public sealed class InventoryMovementRepository(AppDbContext db) : IInventoryMov
         await db.InventoryMovements
             .AsNoTracking()
             .Where(m => m.InventoryItemId == inventoryItemId)
-            // CreatedAtUtc tiebreak: same-day rows order by when they were
-            // appended, not by random id.
-            .OrderByDescending(m => m.Date).ThenByDescending(m => m.CreatedAtUtc).ThenByDescending(m => m.Id)
+            .OrderByBusinessChronologyDescending(m => m.Date)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(ct);

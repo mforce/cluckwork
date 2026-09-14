@@ -16,6 +16,9 @@
 | UnitCostCurrencyMinorUnit | integer |  | false |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -28,14 +31,17 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | InventoryLots_AccountId_not_null | n | NOT NULL "AccountId" |
+| InventoryLots_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | InventoryLots_Id_not_null | n | NOT NULL "Id" |
 | InventoryLots_InventoryItemId_not_null | n | NOT NULL "InventoryItemId" |
 | InventoryLots_QuantityAvailable_not_null | n | NOT NULL "QuantityAvailable" |
 | InventoryLots_QuantityReceived_not_null | n | NOT NULL "QuantityReceived" |
 | InventoryLots_ReceivedDate_not_null | n | NOT NULL "ReceivedDate" |
+| InventoryLots_Sequence_not_null | n | NOT NULL "Sequence" |
 | InventoryLots_UnitCostCurrencyCode_not_null | n | NOT NULL "UnitCostCurrencyCode" |
 | InventoryLots_UnitCostCurrencyMinorUnit_not_null | n | NOT NULL "UnitCostCurrencyMinorUnit" |
 | InventoryLots_UnitCostMinorUnits_not_null | n | NOT NULL "UnitCostMinorUnits" |
+| InventoryLots_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | InventoryLots_Version_not_null | n | NOT NULL "Version" |
 | FK_InventoryLots_InventoryItems_InventoryItemId | FOREIGN KEY | FOREIGN KEY ("InventoryItemId") REFERENCES "InventoryItems"("Id") ON DELETE RESTRICT |
 | PK_InventoryLots | PRIMARY KEY | PRIMARY KEY ("Id") |
@@ -46,6 +52,13 @@
 | ---- | ---------- |
 | PK_InventoryLots | CREATE UNIQUE INDEX "PK_InventoryLots" ON public."InventoryLots" USING btree ("Id") |
 | IX_InventoryLots_InventoryItemId_ReceivedDate | CREATE INDEX "IX_InventoryLots_InventoryItemId_ReceivedDate" ON public."InventoryLots" USING btree ("InventoryItemId", "ReceivedDate") |
+| IX_InventoryLots_Sequence | CREATE UNIQUE INDEX "IX_InventoryLots_Sequence" ON public."InventoryLots" USING btree ("Sequence") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_InventoryLots_BusinessRecordTimestamps | CREATE TRIGGER "TR_InventoryLots_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."InventoryLots" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -68,6 +81,9 @@ erDiagram
   integer UnitCostCurrencyMinorUnit
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.InventoryMovements" {
   uuid Id
@@ -83,6 +99,7 @@ erDiagram
   varchar_50_ ReferenceType
   uuid ReferenceId
   uuid AccountId
+  bigint Sequence
 }
 "public.InventoryItems" {
   uuid Id
@@ -96,6 +113,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

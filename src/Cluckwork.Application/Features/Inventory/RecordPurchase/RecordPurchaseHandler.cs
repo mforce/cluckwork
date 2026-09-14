@@ -15,7 +15,6 @@ public sealed class RecordPurchaseHandler(
     IInventoryMovementRepository movements,
     IAccountRepository accounts,
     IUnitOfWork unitOfWork,
-    IClock clock,
     IFarmClock farmClock,
     ILogger<RecordPurchaseHandler> logger)
 {
@@ -83,8 +82,7 @@ public sealed class RecordPurchaseHandler(
 
             var movement = InventoryMovement.Create(
                 accountId, item.Id, lot.Id, command.ReceivedDate,
-                InventoryMovementType.Purchase, command.Quantity, item.Unit,
-                clock.UtcNow, flockId: null, note: command.Note);
+                InventoryMovementType.Purchase, command.Quantity, item.Unit, flockId: null, note: command.Note);
 
             await lots.AddAsync(lot, transactionCt);
             await movements.AddAsync(movement, transactionCt);

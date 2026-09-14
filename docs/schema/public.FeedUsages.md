@@ -18,6 +18,7 @@
 | CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| Sequence | bigint |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -40,6 +41,7 @@
 | FeedUsages_Id_not_null | n | NOT NULL "Id" |
 | FeedUsages_InventoryItemId_not_null | n | NOT NULL "InventoryItemId" |
 | FeedUsages_Quantity_not_null | n | NOT NULL "Quantity" |
+| FeedUsages_Sequence_not_null | n | NOT NULL "Sequence" |
 | FeedUsages_Unit_not_null | n | NOT NULL "Unit" |
 | FeedUsages_Version_not_null | n | NOT NULL "Version" |
 | FK_FeedUsages_DailyEntries_DailyEntryId | FOREIGN KEY | FOREIGN KEY ("DailyEntryId") REFERENCES "DailyEntries"("Id") ON DELETE RESTRICT |
@@ -55,6 +57,13 @@
 | IX_FeedUsages_DailyEntryId | CREATE INDEX "IX_FeedUsages_DailyEntryId" ON public."FeedUsages" USING btree ("DailyEntryId") |
 | IX_FeedUsages_FlockId_Date | CREATE INDEX "IX_FeedUsages_FlockId_Date" ON public."FeedUsages" USING btree ("FlockId", "Date") |
 | IX_FeedUsages_InventoryItemId_Date | CREATE INDEX "IX_FeedUsages_InventoryItemId_Date" ON public."FeedUsages" USING btree ("InventoryItemId", "Date") |
+| IX_FeedUsages_Sequence | CREATE UNIQUE INDEX "IX_FeedUsages_Sequence" ON public."FeedUsages" USING btree ("Sequence") |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_FeedUsages_BusinessRecordTimestamps | CREATE TRIGGER "TR_FeedUsages_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."FeedUsages" FOR EACH ROW EXECUTE FUNCTION "StampCreatedBusinessRecord"() |
 
 ## Relations
 
@@ -80,6 +89,7 @@ erDiagram
   timestamp_with_time_zone CreatedAtUtc
   integer Version
   uuid AccountId
+  bigint Sequence
 }
 "public.Flocks" {
   uuid Id
@@ -94,6 +104,8 @@ erDiagram
   date ArchivedOn
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.InventoryItems" {
   uuid Id
@@ -107,6 +119,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.DailyEntries" {
   uuid Id
@@ -128,6 +142,9 @@ erDiagram
   timestamp_with_time_zone LockedAtUtc
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 ```
 

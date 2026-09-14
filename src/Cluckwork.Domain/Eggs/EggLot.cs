@@ -1,6 +1,6 @@
 namespace Cluckwork.Domain.Eggs;
 
-public sealed class EggLot : AggregateRoot<Guid>
+public sealed class EggLot : AggregateRoot<Guid>, IMutableRecord
 {
     public Guid FlockId { get; private set; }
     public DateOnly ProductionDate { get; private set; }
@@ -20,6 +20,8 @@ public sealed class EggLot : AggregateRoot<Guid>
 
     // Row-version token for optimistic concurrency on reads;
     // sales-allocation path uses pessimistic FOR UPDATE (tech spec §3.3).
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
     public int Version { get; private set; }
 
     private EggLot() { }

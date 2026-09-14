@@ -8,17 +8,17 @@ Customers, orders, FIFO allocations, payments, expenses, products.
 
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
-| [public.Customers](public.Customers.md) | 8 |  | BASE TABLE |
-| [public.EggGrades](public.EggGrades.md) | 10 |  | BASE TABLE |
-| [public.ExpenseCategories](public.ExpenseCategories.md) | 6 |  | BASE TABLE |
-| [public.Products](public.Products.md) | 12 |  | BASE TABLE |
-| [public.SalesOrders](public.SalesOrders.md) | 13 |  | BASE TABLE |
-| [public.EggLots](public.EggLots.md) | 10 |  | BASE TABLE |
-| [public.Expenses](public.Expenses.md) | 12 |  | BASE TABLE |
-| [public.ProductEggGradeMappings](public.ProductEggGradeMappings.md) | 4 |  | BASE TABLE |
-| [public.Payments](public.Payments.md) | 14 |  | BASE TABLE |
-| [public.SalesOrderItems](public.SalesOrderItems.md) | 15 |  | BASE TABLE |
-| [public.SalesOrderAllocations](public.SalesOrderAllocations.md) | 7 |  | BASE TABLE |
+| [public.Customers](public.Customers.md) | 10 |  | BASE TABLE |
+| [public.EggGrades](public.EggGrades.md) | 12 |  | BASE TABLE |
+| [public.ExpenseCategories](public.ExpenseCategories.md) | 8 |  | BASE TABLE |
+| [public.Products](public.Products.md) | 14 |  | BASE TABLE |
+| [public.SalesOrders](public.SalesOrders.md) | 16 |  | BASE TABLE |
+| [public.EggLots](public.EggLots.md) | 13 |  | BASE TABLE |
+| [public.Expenses](public.Expenses.md) | 15 |  | BASE TABLE |
+| [public.ProductEggGradeMappings](public.ProductEggGradeMappings.md) | 6 |  | BASE TABLE |
+| [public.Payments](public.Payments.md) | 17 |  | BASE TABLE |
+| [public.SalesOrderItems](public.SalesOrderItems.md) | 17 |  | BASE TABLE |
+| [public.SalesOrderAllocations](public.SalesOrderAllocations.md) | 9 |  | BASE TABLE |
 
 ## Relations
 
@@ -48,6 +48,8 @@ erDiagram
   varchar_1000_ Note
   uuid AccountId
   integer Version
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.EggGrades" {
   uuid Id
@@ -60,6 +62,8 @@ erDiagram
   varchar_16_ DailyEntryKind
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.ExpenseCategories" {
   uuid Id
@@ -68,6 +72,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.Products" {
   uuid Id
@@ -82,6 +88,8 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.SalesOrders" {
   uuid Id
@@ -97,6 +105,9 @@ erDiagram
   uuid AccountId
   varchar_32_ DiscountReasonCode
   varchar_500_ DiscountReasonNote
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.EggLots" {
   uuid Id
@@ -109,6 +120,9 @@ erDiagram
   date RestrictedUntil
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.Expenses" {
   uuid Id
@@ -123,12 +137,17 @@ erDiagram
   varchar_500_ Note
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.ProductEggGradeMappings" {
   uuid Id
   uuid ProductId
   uuid EggGradeId
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.Payments" {
   uuid Id
@@ -145,6 +164,9 @@ erDiagram
   varchar_500_ VoidReason
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
+  bigint Sequence
 }
 "public.SalesOrderItems" {
   uuid Id
@@ -162,6 +184,8 @@ erDiagram
   uuid AccountId
   bigint ListUnitPriceMinorUnits
   varchar_16_ ListPriceBasis
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.SalesOrderAllocations" {
   uuid Id
@@ -171,6 +195,8 @@ erDiagram
   integer Quantity
   timestamp_with_time_zone ReleasedOnUtc
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 

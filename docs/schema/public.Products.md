@@ -16,6 +16,8 @@
 | Active | boolean |  | false |  |  |  |
 | Version | integer |  | false |  |  |  |
 | AccountId | uuid |  | false |  |  |  |
+| CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
 
 ## Viewpoints
 
@@ -29,6 +31,7 @@
 | ---- | ---- | ---------- |
 | Products_AccountId_not_null | n | NOT NULL "AccountId" |
 | Products_Active_not_null | n | NOT NULL "Active" |
+| Products_CreatedAtUtc_not_null | n | NOT NULL "CreatedAtUtc" |
 | Products_CurrencyCode_not_null | n | NOT NULL "CurrencyCode" |
 | Products_CurrencyMinorUnit_not_null | n | NOT NULL "CurrencyMinorUnit" |
 | Products_DefaultUnit_not_null | n | NOT NULL "DefaultUnit" |
@@ -36,6 +39,7 @@
 | Products_Id_not_null | n | NOT NULL "Id" |
 | Products_Name_not_null | n | NOT NULL "Name" |
 | Products_ProductType_not_null | n | NOT NULL "ProductType" |
+| Products_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | Products_Version_not_null | n | NOT NULL "Version" |
 | PK_Products | PRIMARY KEY | PRIMARY KEY ("Id") |
 
@@ -45,6 +49,12 @@
 | ---- | ---------- |
 | PK_Products | CREATE UNIQUE INDEX "PK_Products" ON public."Products" USING btree ("Id") |
 | IX_Products_AccountId_LowerName | CREATE UNIQUE INDEX "IX_Products_AccountId_LowerName" ON public."Products" USING btree ("AccountId", lower(("Name")::text)) |
+
+## Triggers
+
+| Name | Definition |
+| ---- | ---------- |
+| TR_Products_BusinessRecordTimestamps | CREATE TRIGGER "TR_Products_BusinessRecordTimestamps" BEFORE INSERT OR UPDATE ON public."Products" FOR EACH ROW EXECUTE FUNCTION "StampMutableBusinessRecord"() |
 
 ## Relations
 
@@ -67,12 +77,16 @@ erDiagram
   boolean Active
   integer Version
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.ProductEggGradeMappings" {
   uuid Id
   uuid ProductId FK
   uuid EggGradeId FK
   uuid AccountId
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 "public.SalesOrderItems" {
   uuid Id
@@ -90,6 +104,8 @@ erDiagram
   uuid AccountId
   bigint ListUnitPriceMinorUnits
   varchar_16_ ListPriceBasis
+  timestamp_with_time_zone CreatedAtUtc
+  timestamp_with_time_zone UpdatedAtUtc
 }
 ```
 
