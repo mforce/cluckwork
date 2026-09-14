@@ -85,6 +85,9 @@ services:
       Database__Provider: ${Database__Provider}
       Database__MigrateOnStartup: ${Database__MigrateOnStartup}
       ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      # #556 — ConnectionStrings__LeaderLease is deliberately NOT set: this
+      # stack's db is a direct sidecar (no transaction pooler), so Default is
+      # already session-pinned and the lease shares it.
       # #261/#262 — this service runs Production config, where the TLS floor
       # fails the boot on anything below sslmode=Require (an unset sslmode
       # means Npgsql's 'Prefer', which is exactly the rejected case). The db

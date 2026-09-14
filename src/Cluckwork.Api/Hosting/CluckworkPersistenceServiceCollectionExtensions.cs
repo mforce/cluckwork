@@ -43,9 +43,20 @@ internal static class CluckworkPersistenceServiceCollectionExtensions
                 configuration.GetValue<bool>("Database:AllowInsecureConnection"),
             onWarning: connectionStringWarnings.Add);
 
-        // #271 — the leader lease opens its own dedicated, non-pooled connection
-        // from the same normalised, TLS-floor-validated string the DbContext uses.
-        services.AddSingleton(new LeaderLeaseConnectionString(connectionString));
+        // #271/#556 — the leader lease opens its own dedicated, non-pooled connection.
+        // When ConnectionStrings:LeaderLease is configured, it uses that endpoint
+        // (intended for a session-pinned connection bypassing a transaction pooler);
+        // otherwise it shares the normalised Default string.
+        var rawLeaseConnectionString = configuration.GetConnectionString("LeaderLease");
+        var leaseConnectionString = !string.IsNullOrWhiteSpace(rawLeaseConnectionString)
+            ? PostgresConnectionString.NormalizeAndValidate(
+                rawLeaseConnectionString,
+                isProduction: environment.IsProduction(),
+                allowInsecureConnection:
+                    configuration.GetValue<bool>("Database:AllowInsecureConnection"),
+                onWarning: connectionStringWarnings.Add)
+            : connectionString;
+        services.AddSingleton(new LeaderLeaseConnectionString(leaseConnectionString));
 
         services.AddScoped<TenantStampInterceptor>();
         services.AddDbContext<AppDbContext>((sp, options) =>

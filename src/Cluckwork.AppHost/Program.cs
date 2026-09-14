@@ -29,6 +29,9 @@ var api = builder.AddProject<Projects.Cluckwork_Api>("api")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
     .WithHttpEndpoint(name: "http", port: LocalPort("Api"))
+    // #556 — ConnectionStrings:LeaderLease is optional (the lease falls back to
+    // Default). Aspire's direct Postgres is already session-pinned, so no
+    // dedicated lease endpoint is needed here.
     .WithReference(database, connectionName: "Default")
     .WithEnvironment(
         "SharedState__Redis__ConnectionString",
