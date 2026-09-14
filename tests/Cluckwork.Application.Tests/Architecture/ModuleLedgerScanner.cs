@@ -222,9 +222,11 @@ public static class ModuleLedgerScanner
             attributions.Add((null, $"<file>:{relative}", owner?.Owner));
         }
 
-        void Record(string dotted, int line, IEnumerable<(SyntaxNode? Scope, string Symbol, string? Owner)> targets)
+        // A relative name resolves against the namespace of the node that uses
+        // it, which in a multi-block file is not always the first one declared.
+        void Record(string dotted, int line, string enclosingNamespace, IEnumerable<(SyntaxNode? Scope, string Symbol, string? Owner)> targets)
         {
-            var resolved = ResolveReferenced(namespaceOwners, dotted, fileNamespace);
+            var resolved = ResolveReferenced(namespaceOwners, dotted, enclosingNamespace);
             var to = resolved;
             if (to is null)
             {
@@ -267,14 +269,17 @@ public static class ModuleLedgerScanner
                 .OfType<string>()
                 .Distinct(StringComparer.Ordinal))
             {
-                var resolved = ResolveReferenced(namespaceOwners, dotted, fileNamespace);
+                var directiveNamespace = directive.Parent is BaseNamespaceDeclarationSyntax
+                    ? NamespaceOf(directive, rootNamespace)
+                    : fileNamespace;
+                var resolved = ResolveReferenced(namespaceOwners, dotted, directiveNamespace);
                 if (directive.GlobalKeyword != default && resolved is { } owner &&
                     ownerKinds.TryGetValue(owner.Owner, out var kind) && kind == ModuleLedger.ModuleKind)
                 {
                     globalModuleImports.Add(new GlobalModuleImport(owner.Namespace, relative, LineOf(directive)));
                 }
 
-                Record(dotted, LineOf(directive), scope);
+                Record(dotted, LineOf(directive), directiveNamespace, scope);
             }
         }
 
@@ -305,7 +310,7 @@ public static class ModuleLedgerScanner
                 target = attributions[0];
             }
 
-            Record(dotted, LineOf(node), [target]);
+            Record(dotted, LineOf(node), NamespaceOf(node, rootNamespace), [target]);
         }
     }
 

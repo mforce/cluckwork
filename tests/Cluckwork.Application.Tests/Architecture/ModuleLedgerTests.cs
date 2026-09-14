@@ -438,6 +438,26 @@ public sealed class ModuleLedgerTests : IDisposable
     }
 
     [Fact]
+    public void RelativeName_ResolvesAgainstItsOwnNamespaceBlock()
+    {
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Mixed.cs", """
+            namespace Cluckwork.Temp.Hub
+            {
+                public class H { }
+            }
+            namespace Cluckwork.Temp.Red
+            {
+                public class R { public string Go() => Blue.B.Name; }
+            }
+            """);
+
+        var edge = Assert.Single(Scan(WriteLedger(string.Empty)).LiveEdges);
+
+        Assert.Equal(("Red", "Blue", "Cluckwork.Temp.Red.R"), (edge.From, edge.To, edge.Symbol));
+    }
+
+    [Fact]
     public void TempTreeFloor_IsItsOwnFileCount()
     {
         WriteSource("src/Blue.cs", BlueSource);
