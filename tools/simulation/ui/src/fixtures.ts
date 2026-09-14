@@ -138,7 +138,13 @@ export const test = base.extend<Fixtures>({
 
       // Both fields are `<label>Text<input/></label>`, so the label text IS the
       // accessible name — getByLabel is the user-visible handle, not a structural one.
-      await page.getByLabel(tEn("auth:farmCode")).fill("default-farm");
+      //
+      // The farm code comes from the MEMBER, because this stack carries two farms:
+      // the simulation fixture on `default-farm` and the README-capture farm the
+      // dashboard screenshot is taken from. Only that second farm's Owner carries
+      // a `farmCode`, so every persona written before it keeps signing into the
+      // default farm without being touched.
+      await page.getByLabel(tEn("auth:farmCode")).fill(member.farmCode ?? "default-farm");
       await page.getByLabel(tEn("auth:email")).fill(member.email);
       await page.getByLabel(tEn("auth:password")).fill(member.password);
       await page.getByRole("button", { name: tEn("auth:signIn") }).click();

@@ -37,7 +37,7 @@
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "../src/fixtures";
-import { castMember } from "../src/cast";
+import { castMember, readmeFarmOwner } from "../src/cast";
 import { daysBefore, farmToday } from "../src/farm";
 import { tEn } from "../src/i18n";
 
@@ -65,24 +65,35 @@ test.describe("README screenshots", () => {
   // ================== THE DASHBOARD SHOT (#654) ==================
   //
   // #549 left the Dashboard out because its Today panel was empty in every
-  // fixture capture. Since #654 that emptiness IS the feature: a house with
-  // no entry is the alarm state the screen exists to show, so the tiles are
-  // captured as the fixture leaves them — twelve "no entry" tiles and the
-  // "N more flocks" link (the fixture seeds ~100 active flocks for the picker
-  // catalog, #627).
+  // fixture capture. Since #654 that emptiness IS the feature: a house with no
+  // entry is the alarm state the screen exists to show, so the tiles are
+  // captured as the fixture leaves them.
+  //
+  // THIS ONE CAPTURE DOES NOT USE THE SIMULATION FIXTURE, and the reason is the
+  // panel directly below the tiles. The fixture seeds ~100 catalog flocks for
+  // the picker (#627) which are placed, active and never file — so every day
+  // owes a count nobody filed, no day in the window is complete, `dayStrip` has
+  // no peak to scale against, and all fourteen bars render as the 2% floor stub.
+  // The guard below is what says so; it fails on that fixture, correctly. The
+  // product rule is right and the fixture's counts are pinned by the
+  // picker-paging specs, k6 and the e2e suite, so what moved is the capture:
+  // reset.sh provisions a SECOND farm and seeds it with the demo profile, which
+  // is shaped like a real small farm — two houses, ~240 days of submitted
+  // history on one, and today deliberately unrecorded on the other, which is the
+  // "no entry" state the README's caption describes.
+  //
+  // Signed in as that farm's Owner rather than a Manager: provisioning creates
+  // exactly one user and it holds the Owner role. Both derive `isAdmin`, so the
+  // recent-sales panel asserted below renders either way.
   //
   // The image IS committed and the README embeds it (#660, #663) — all four
-  // captures this file produces are now tracked, so an untracked fifth image
-  // would be the anomaly, not this one. The alarm state is still what gets
-  // photographed: on the current fixture the twelve leading tiles are all
-  // catalog flocks with no entries (#627 seeds ~100), so the two real houses
-  // sit behind the "N more flocks" link. #660 gave this test its own project
+  // captures this file produces are tracked. #660 gave this test its own project
   // in playwright.screenshots.config.ts at a taller 1280x1180 frame, so the
-  // trend, stock and recent-sales panels are captured below the tiles instead
-  // of falling off a 1280x800 fold.
+  // trend, stock and recent-sales panels are captured below the tiles instead of
+  // falling off a 1280x800 fold.
 
   test("dashboard — the morning view: capture status, the fortnight, stock by grade", async ({ page, signIn }) => {
-    await signIn(castMember("Manager"));
+    await signIn(readmeFarmOwner());
     await page.goto("/");
 
     // The page has ONE loading gate over six reads (Promise.allSettled), so
@@ -96,16 +107,35 @@ test.describe("README screenshots", () => {
     // name interpolates a flock name this spec does not know.
     await expect(page.locator(".capture-tile").first()).toBeVisible();
 
-    // Trend: the day strip is there AND not flat — the fixture seeds 90 days
-    // of production, so bars of one height mean the report did not arrive.
-    // Fourteen slots are drawn whatever the figures (#777), so counting slots
-    // would pass on a missing report; the BAR heights are the live signal.
+    // Trend: the day strip is there AND not flat. Fourteen slots are drawn
+    // whatever the figures (#777), so counting slots would pass on a missing
+    // report; the BAR heights are the live signal. On a farm where no day is
+    // complete every bar is the same 2% stub, which is the exact condition that
+    // moved this capture to the demo-seeded farm — so this assertion is not
+    // decoration, it is the one that failed.
     const strip = page.locator(".daystrip");
     await expect(strip).toBeVisible();
     const bars = strip.locator(".day > i");
     expect(await bars.count()).toBeGreaterThan(1);
     const heights = await bars.evaluateAll((els) => els.map((e) => (e as HTMLElement).style.height));
     expect(new Set(heights).size).toBeGreaterThan(1);
+
+    // Stock: at least one segment on the bar.
+    await expect(page.locator(".meter-stack > span").first()).toBeVisible();
+
+    // Sales: the Owner sees the panel and the demo fixture has one confirmed
+    // order and one draft — scoped to the sales list, never the shell's own
+    // list items.
+    await expect(page.locator(".dash-list li").first()).toBeVisible();
+
+    // CAPTURED BEFORE THE INTERACTION BELOW, and that ordering is the whole
+    // reason the #780 block moved down here. Focusing a day leaves the strip
+    // holding a focus ring and its readout balloon, and `capture`'s blur does
+    // not dismiss either — so the published image showed a tooltip over one day
+    // and a ring around it, which reads as a screenshot somebody took by
+    // accident. Same argument the blur itself rests on, one interaction further
+    // out.
+    await capture(page, "dashboard.png");
 
     // #780 — the day readout's position is derived from the SELECTED slot's own
     // element, never from a remembered number, so it cannot end up over a day
@@ -128,15 +158,6 @@ test.describe("README screenshots", () => {
       await expect(slots.nth(1)).toHaveClass(/\bon\b/);
       expect(await readoutLeft()).toBe(parked);
     }
-
-    // Stock: at least one segment on the bar.
-    await expect(page.locator(".meter-stack > span").first()).toBeVisible();
-
-    // Sales: a Manager sees the panel and the fixture has orders — scoped to
-    // the sales list, never the shell's own list items.
-    await expect(page.locator(".dash-list li").first()).toBeVisible();
-
-    await capture(page, "dashboard.png");
   });
 
   test("daily entry — a recorded day, by grade", async ({ page, signIn, farm }) => {

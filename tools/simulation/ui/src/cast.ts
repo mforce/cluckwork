@@ -41,13 +41,31 @@ export interface CastMember {
   spaRole: SpaRole;
   /** What `currentUserIsAdmin()` will return — Admin or Manager. */
   isAdmin: boolean;
+  /**
+   * The farm this member signs into, when it is not the default one.
+   *
+   * Absent for everybody in `cast` and for `owner`, which is the whole reason it
+   * is optional rather than a field every entry carries a copy of: the sim
+   * fixture is one farm, and a required `farmCode` would put the same literal on
+   * ten members so that one could differ. `signIn` reads it, falling back to
+   * `default-farm` — see src/fixtures.ts.
+   */
+  farmCode?: string;
+}
+
+interface RawCastMember {
+  email: string;
+  password: string;
+  role: CastRole;
 }
 
 interface RawCastFile {
   generatedAt: string;
   emailDomain: string;
-  owner: { email: string; password: string; role: CastRole };
-  cast: Array<{ email: string; password: string; role: CastRole }>;
+  owner: RawCastMember;
+  cast: RawCastMember[];
+  /** The README-capture farm's Owner — a different farm, hence its own code. */
+  readmeFarm?: RawCastMember & { farmCode: string };
 }
 
 const CAST_PATH = fileURLToPath(new URL("../../.sim-cast.json", import.meta.url));
@@ -65,7 +83,7 @@ const SPA_ROLE_FOR: Record<CastRole, SpaRole> = {
   ReadOnly: "ReadOnly",
 };
 
-function decorate(raw: { email: string; password: string; role: CastRole }): CastMember {
+function decorate(raw: RawCastMember & { farmCode?: string }): CastMember {
   const spaRole = SPA_ROLE_FOR[raw.role];
   if (!spaRole) {
     throw new Error(
@@ -77,14 +95,12 @@ function decorate(raw: { email: string; password: string; role: CastRole }): Cas
 }
 
 let cached: CastMember[] | null = null;
+let cachedFile: RawCastFile | null = null;
 
-/** Every cast member, owner first. Read once per process. */
-export function loadCast(): CastMember[] {
-  if (cached) return cached;
-
-  let raw: RawCastFile;
+function loadFile(): RawCastFile {
+  if (cachedFile) return cachedFile;
   try {
-    raw = JSON.parse(readFileSync(CAST_PATH, "utf8")) as RawCastFile;
+    cachedFile = JSON.parse(readFileSync(CAST_PATH, "utf8")) as RawCastFile;
   } catch (cause) {
     throw new Error(
       `Could not read the simulation cast at ${CAST_PATH}. `
@@ -92,7 +108,20 @@ export function loadCast(): CastMember[] {
       { cause },
     );
   }
+  return cachedFile;
+}
 
+/**
+ * Every cast member of the DEFAULT farm, owner first. Read once per process.
+ *
+ * `readmeFarm` is deliberately not in here. Every caller of this function —
+ * preflight's persona checks, `castMember`, `castMembers` — is asking about the
+ * simulation fixture, and a member of another farm in that list would be a
+ * persona whose data none of those callers' assertions describe.
+ */
+export function loadCast(): CastMember[] {
+  if (cached) return cached;
+  const raw = loadFile();
   cached = [decorate(raw.owner), ...raw.cast.map(decorate)];
   return cached;
 }
@@ -155,6 +184,33 @@ export function unrestrictedWorker(): CastMember {
     );
   }
   return workers[1]!;
+}
+
+/**
+ * The Owner of the README-capture farm — a SECOND farm on the same stack, seeded
+ * with the demo profile by `reset.sh`.
+ *
+ * It exists because the README's dashboard image cannot be captured from the
+ * simulation fixture: that fixture seeds ~100 catalog flocks which are placed,
+ * active and never file, so every day owes a count nobody filed and the trend
+ * strip has no complete day to scale against. Only the dashboard capture uses
+ * this persona; every other spec in this suite drives the simulation fixture on
+ * `default-farm`.
+ *
+ * The return type widens `farmCode` from optional to required, so a caller
+ * cannot accidentally sign this member into the default farm and get a
+ * `Auth.UnknownFarmCode` twenty lines later.
+ */
+export function readmeFarmOwner(): CastMember & { farmCode: string } {
+  const raw = loadFile().readmeFarm;
+  if (!raw) {
+    throw new Error(
+      `.sim-cast.json has no "readmeFarm" — it was generated before the README-capture farm `
+        + `existed. Regenerate and reseed: bash tools/simulation/bootstrap.sh --force `
+        + `&& bash tools/simulation/reset.sh`,
+    );
+  }
+  return { ...decorate(raw), farmCode: raw.farmCode };
 }
 
 /**
