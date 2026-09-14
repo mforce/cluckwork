@@ -1,5 +1,6 @@
 namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
+using System.Diagnostics;
 using System.Security.Cryptography;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -28,12 +29,23 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
 
     public async Task InitializeAsync()
     {
+        var started = Stopwatch.GetTimestamp();
         await _postgres.StartAsync();
+        var ready = Stopwatch.GetTimestamp();
+        LogInitializationTiming("container", Stopwatch.GetElapsedTime(started, ready));
         if (!MigrateSchemaOnInitialize) return;
 
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync();
+        LogInitializationTiming("host-migrate", Stopwatch.GetElapsedTime(ready));
+    }
+
+    private void LogInitializationTiming(string phase, TimeSpan elapsed)
+    {
+        if (Environment.GetEnvironmentVariable("CLUCKWORK_TEST_TIMING") == "1")
+            Console.WriteLine(FormattableString.Invariant(
+                $"[fixture-timing] {GetType().Name} {phase} {elapsed.TotalSeconds:F6}"));
     }
 
     public new async Task DisposeAsync()
