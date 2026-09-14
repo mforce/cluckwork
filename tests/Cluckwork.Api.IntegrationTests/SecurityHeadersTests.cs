@@ -32,6 +32,29 @@ public sealed class SecurityHeadersTests(CluckworkWebApplicationFactory factory)
         return match.Groups["nonce"].Value;
     }
 
+    // #874 review (local Codex pass): written independently of
+    // SecurityHeaders.BuildContentSecurityPolicy rather than calling it, so a
+    // directive dropped, reordered, or widened in the implementation changes
+    // only ONE side of the comparison below. Calling the builder on both sides
+    // (the prior version of this test) meant a deleted directive vanished from
+    // both the response and the "expected" value identically, and nothing in
+    // the file would have caught it — confirmed by mutation: removing
+    // `form-action 'self'` from the builder left this test green until the
+    // string below was pinned by hand.
+    private static string ExpectedContentSecurityPolicy(string styleNonce) =>
+        "default-src 'self'; "
+        + "script-src 'self'; "
+        + $"style-src 'self' 'nonce-{styleNonce}'; "
+        + "img-src 'self' blob:; "
+        + "font-src 'self'; "
+        + "connect-src 'self'; "
+        + "frame-src 'none'; "
+        + "worker-src 'self'; "
+        + "frame-ancestors 'none'; "
+        + "base-uri 'self'; "
+        + "form-action 'self'; "
+        + "object-src 'none'";
+
     [Theory]
     [InlineData("/health/live")]              // a normal 200
     [InlineData("/definitely-not-a-route")]   // a 404 — headers come from OnStarting, so still present
@@ -39,11 +62,12 @@ public sealed class SecurityHeadersTests(CluckworkWebApplicationFactory factory)
     {
         var res = await factory.CreateClient().GetAsync(path);
 
-        // The WHOLE policy, not a set of Contains checks: rebuilt from the one
-        // value that is allowed to vary, so any other directive that changed —
-        // added, dropped, reordered, widened — fails here (#873).
+        // The WHOLE policy, not a set of Contains checks: compared against an
+        // independently written expected string (#874 review) with only the
+        // nonce substituted, so any other directive that changed — added,
+        // dropped, reordered, widened — fails here (#873).
         var csp = res.Headers.GetValues("Content-Security-Policy").Single();
-        Assert.Equal(SecurityHeaders.BuildContentSecurityPolicy(StyleNonce(csp)), csp);
+        Assert.Equal(ExpectedContentSecurityPolicy(StyleNonce(csp)), csp);
         Assert.Equal("nosniff", res.Headers.GetValues("X-Content-Type-Options").Single());
         Assert.Equal("no-referrer", res.Headers.GetValues("Referrer-Policy").Single());
         Assert.Equal("DENY", res.Headers.GetValues("X-Frame-Options").Single());
