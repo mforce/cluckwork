@@ -1,0 +1,183 @@
+namespace Cluckwork.Application.Tests.Architecture;
+
+// #842 — the committed module ledger: owners by namespace, one cell per cross-owner dependency.
+
+using System.Text.Json;
+
+public sealed record OwnerDefinition(
+    string Name,
+    string Kind,
+    IReadOnlyList<string> Namespaces,
+    IReadOnlyList<string> ExactNamespaces);
+
+public sealed record EdgeCell(string From, string To, string Kind, string Reason, IReadOnlyList<string> Symbols);
+
+public sealed record ModuleLedger(
+    IReadOnlyList<OwnerDefinition> Owners,
+    IReadOnlyList<EdgeCell> Edges,
+    IReadOnlyList<string> RegistryErrors)
+{
+    public const string ModuleKind = "module";
+    public const string PlatformKind = "platform";
+
+    private static readonly JsonDocumentOptions Options = new()
+    {
+        CommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+    };
+
+    public static ModuleLedger Load(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return new ModuleLedger([], [], [$"ledger file not found: {path}"]);
+        }
+
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(File.ReadAllText(path), Options);
+        }
+        catch (JsonException ex)
+        {
+            return new ModuleLedger([], [], [$"ledger is not valid JSON: {ex.Message}"]);
+        }
+
+        using (document)
+        {
+            var errors = new List<string>();
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return new ModuleLedger([], [], ["ledger root must be a JSON object with 'owners' and 'edges'"]);
+            }
+
+            var owners = new List<OwnerDefinition>();
+            if (!root.TryGetProperty("owners", out var ownersElement) || ownersElement.ValueKind != JsonValueKind.Object)
+            {
+                errors.Add("ledger has no 'owners' object");
+            }
+            else
+            {
+                foreach (var owner in ownersElement.EnumerateObject())
+                {
+                    owners.Add(ReadOwner(owner, errors));
+                }
+            }
+
+            var edges = new List<EdgeCell>();
+            if (!root.TryGetProperty("edges", out var edgesElement) || edgesElement.ValueKind != JsonValueKind.Array)
+            {
+                errors.Add("ledger has no 'edges' array");
+            }
+            else
+            {
+                var index = 0;
+                foreach (var edge in edgesElement.EnumerateArray())
+                {
+                    edges.Add(ReadEdge(edge, index++, errors));
+                }
+            }
+
+            return new ModuleLedger(owners, edges, errors);
+        }
+    }
+
+    private static OwnerDefinition ReadOwner(JsonProperty property, List<string> errors)
+    {
+        var name = property.Name;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            errors.Add("owner with a blank name");
+        }
+
+        if (property.Value.ValueKind != JsonValueKind.Object)
+        {
+            errors.Add($"owner '{name}' is not an object");
+            return new OwnerDefinition(name, string.Empty, [], []);
+        }
+
+        var kind = ReadString(property.Value, "kind");
+        if (kind is not (ModuleKind or PlatformKind))
+        {
+            errors.Add($"owner '{name}' has kind '{kind ?? "<missing>"}' — must be '{ModuleKind}' or '{PlatformKind}'");
+        }
+
+        var namespaces = ReadStringArray(property.Value, "namespaces", $"owner '{name}'", errors);
+        var exact = property.Value.TryGetProperty("exactNamespaces", out _)
+            ? ReadStringArray(property.Value, "exactNamespaces", $"owner '{name}'", errors)
+            : [];
+        if (namespaces.Count == 0 && exact.Count == 0)
+        {
+            errors.Add($"owner '{name}' claims no namespaces");
+        }
+
+        return new OwnerDefinition(name, kind ?? string.Empty, namespaces, exact);
+    }
+
+    private static EdgeCell ReadEdge(JsonElement element, int index, List<string> errors)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            errors.Add($"edges[{index}] is not an object");
+            return new EdgeCell(string.Empty, string.Empty, string.Empty, string.Empty, []);
+        }
+
+        var from = ReadString(element, "from");
+        var to = ReadString(element, "to");
+        var kind = ReadString(element, "kind");
+        var reason = ReadString(element, "reason");
+        var label = string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to)
+            ? $"edges[{index}]"
+            : $"edge {from} -> {to}";
+
+        if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+        {
+            errors.Add($"edges[{index}] is missing 'from' or 'to'");
+        }
+
+        if (kind is not ("W" or "R"))
+        {
+            errors.Add($"{label} has kind '{kind ?? "<missing>"}' — must be 'W' or 'R'");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            errors.Add($"{label} has a blank reason — an undocumented cell is what this ledger exists to prevent");
+        }
+
+        var symbols = ReadStringArray(element, "symbols", label, errors);
+
+        return new EdgeCell(from ?? string.Empty, to ?? string.Empty, kind ?? string.Empty, reason ?? string.Empty, symbols);
+    }
+
+    private static string? ReadString(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static IReadOnlyList<string> ReadStringArray(
+        JsonElement element, string name, string label, List<string> errors)
+    {
+        if (!element.TryGetProperty(name, out var array) || array.ValueKind != JsonValueKind.Array)
+        {
+            errors.Add($"{label} has no '{name}' array");
+            return [];
+        }
+
+        var values = new List<string>();
+        foreach (var item in array.EnumerateArray())
+        {
+            var value = item.ValueKind == JsonValueKind.String ? item.GetString() : null;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                errors.Add($"{label} has a blank or non-string entry in '{name}'");
+                continue;
+            }
+
+            values.Add(value);
+        }
+
+        return values;
+    }
+}
