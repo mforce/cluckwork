@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dashboard · Default Farm · Cluckwork</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&display=swap" rel="stylesheet">
+<style>
+/* ---- Tokens, copied from web/src/styles.css (#52, #149). Aubergine is :root. ---- */
+:root {
+  --brand:#4a154b; --brand-press:#611f69; --brand-tint:#592466; --on-brand:#ffffff; --on-brand-mute:#d9bdde;
+  --ink:#1d1d1d; --muted:#696969; --link:#1264a3; --link-hover:#3860be;
+  --canvas:#faf7fc; --surface:#ffffff; --surface-2:#f6f1f8; --lavender:#f9f0ff; --hairline:#e6e6e6; --row-hover:#faf5fc;
+  --grade-1:#2076a0; --grade-2:#8d55b3; --grade-3:#54862f; --grade-4:#da475d; --grade-5:#8a7972; --grade-6:#138a8e; --grade-7:#b24a80; --grade-8:#5069b8;
+  --error:#bd3a14; --success:#007a5a; --warn:#8a5a00;
+  --tint-accent:#f3e9f5; --tint-ok:#e2f2ec; --tint-warn:#f7ecd9; --tint-danger:#f9e5df; --tint-muted:#eeeaf0;
+  --stat-accent:var(--brand); --focus:var(--stat-accent);
+  --shadow-dialog:0 24px 64px rgba(29,21,33,.24); --shadow-bar:0 -8px 24px rgba(29,21,33,.08);
+  --font:"Inter Variable",Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --tabbar-h:0px;
+  /* Direction tokens (new). Rule, not hairline: the 1px line a ledger is ruled with. */
+  --rule:var(--hairline);
+  --rule-strong:color-mix(in srgb, var(--ink) 28%, transparent);
+  --r-control:4px; --r-tile:8px; --r-dialog:12px;
+  color-scheme:light;
+}
+:root[data-brand="forest"] { --brand:#14432a; --brand-press:#1b5a38; --brand-tint:#1a5133; --on-brand:#ffffff; --on-brand-mute:#bcd9c6; --tint-accent:#e6f2ea; --canvas:#f7fbf8; --surface-2:#eef6f1; --lavender:#eefaf1; --row-hover:#f5faf7; }
+:root[data-brand="slate"] { --brand:#1b3a5c; --brand-press:#254e79; --brand-tint:#22456b; --on-brand:#ffffff; --on-brand-mute:#c0d4e6; --tint-accent:#e7eff7; --canvas:#f7f9fc; --surface-2:#eef3f9; --lavender:#eef4fb; --row-hover:#f5f8fc; }
+:root[data-brand="terracotta"] { --brand:#6b2716; --brand-press:#8a3520; --brand-tint:#7d2f1c; --on-brand:#ffffff; --on-brand-mute:#eec3b3; --tint-accent:#f8eae4; --canvas:#fdf8f6; --surface-2:#f9efea; --lavender:#fdf0e9; --row-hover:#fdf6f3; }
+:root[data-theme="dark"] {
+  --ink:#f2ecf4; --muted:#b3a8b8; --link:#7fb4e6; --link-hover:#a9cef0;
+  --canvas:#17121a; --surface:#221a26; --surface-2:#2b2231; --lavender:#241c2a; --hairline:#3a2f40; --row-hover:#2b2231;
+  --grade-1:#2fb0ef; --grade-2:#c08fe0; --grade-3:#8fbf6e; --grade-4:#f5858a; --grade-5:#afa498; --grade-6:#4fdadb; --grade-7:#e98fb4; --grade-8:#8fa3e8;
+  --error:#ff8666; --success:#4bbf97; --warn:#e0a44a;
+  --tint-accent:#33203a; --tint-ok:#14342b; --tint-warn:#3a2e18; --tint-danger:#3a2019; --tint-muted:#2c2333;
+  --stat-accent:#e6c7ec;
+  --shadow-dialog:0 24px 64px rgba(0,0,0,.6); --shadow-bar:0 -8px 24px rgba(0,0,0,.45);
+  color-scheme:dark;
+}
+:root[data-brand="forest"][data-theme="dark"] { --stat-accent:#a8dcbb; --tint-accent:#16301f; --canvas:#111814; --surface-2:#1e2a22; --row-hover:#1e2a22; --lavender:#17241b; }
+:root[data-brand="slate"][data-theme="dark"] { --stat-accent:#aecfeb; --tint-accent:#182a3b; --canvas:#101519; --surface-2:#1d2731; --row-hover:#1d2731; --lavender:#16202a; }
+:root[data-brand="terracotta"][data-theme="dark"] { --stat-accent:#f2b79c; --tint-accent:#36211a; --canvas:#1a1210; --surface-2:#2e211c; --row-hover:#2e211c; --lavender:#251a16; }
+
+/* ---- Base ---- */
+* { box-sizing:border-box; }
+html, body { margin:0; }
+body { font-family:var(--font); font-size:14px; line-height:20px; color:var(--ink); background:var(--surface); -webkit-font-smoothing:antialiased; font-optical-sizing:auto; font-variant-numeric:tabular-nums; }
+a { color:inherit; text-decoration:underline; text-decoration-color:var(--rule-strong); text-underline-offset:3px; }
+a:hover { text-decoration-color:currentColor; }
+:focus-visible { outline:2px solid var(--focus); outline-offset:2px; border-radius:2px; }
+.num { font-variant-numeric:tabular-nums; text-align:right; font-weight:500; }
+
+/* ---- Type scale. Inter optical size follows font-size. ---- */
+h1 { font-size:24px; line-height:28px; font-weight:600; letter-spacing:-0.015em; margin:0; }
+h2 { font-size:13px; line-height:16px; font-weight:600; margin:0; }
+.display { font-size:40px; line-height:44px; font-weight:600; letter-spacing:-0.02em; }
+.caption { font-size:12px; line-height:16px; color:var(--muted); }
+.caps { font-size:11px; line-height:16px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+
+/* ---- Shell: tinted nav rail + paper ---- */
+.shell { display:grid; grid-template-columns:244px 1fr; min-height:100vh; }
+.nav { background:var(--lavender); border-right:1px solid var(--rule); padding:20px 0; display:flex; flex-direction:column; gap:20px; position:sticky; top:0; height:100vh; overflow:auto; }
+.farm { display:flex; align-items:center; gap:10px; padding:0 20px; color:var(--stat-accent); font-weight:600; font-size:16px; }
+.farm svg { width:18px; height:18px; }
+.nav .caps { padding:0 20px; margin:0 0 4px; }
+.nav ul { list-style:none; margin:0; padding:0; }
+.nav li a { display:block; padding:6px 20px 6px 18px; border-left:2px solid transparent; text-decoration:none; color:var(--ink); }
+.nav li a:hover { background:var(--row-hover); }
+.nav li a[aria-current] { border-left-color:var(--stat-accent); color:var(--stat-accent); font-weight:600; }
+.nav .foot { margin-top:auto; padding:0 20px; }
+.nav .foot a { display:block; text-decoration:none; padding:6px 0; color:var(--muted); }
+.nav .foot .caption { padding-top:8px; }
+.page { padding:36px 48px 64px; max-width:1040px; }
+.page-head { display:flex; align-items:baseline; justify-content:space-between; gap:16px; }
+.page-head .date { color:var(--muted); }
+.tabbar, .topbar { display:none; }
+
+/* ---- Attention line: one line, never two. Extra items fold into the count. ---- */
+.attn { display:flex; align-items:center; gap:10px; margin:10px 0 0; min-height:24px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.attn .mark { flex:none; width:8px; height:8px; border-radius:50%; background:var(--warn); }
+.attn.is-quiet { color:var(--muted); }
+.attn.is-quiet .mark { background:transparent; border:1px solid var(--rule-strong); }
+.attn.is-error .mark { background:var(--error); }
+.attn .sep { color:var(--muted); margin:0 6px; }
+.attn a { margin-left:2px; }
+.at-narrow { display:none; }
+
+/* ---- Ledger rows: ruled, no boxes ---- */
+section { margin-top:40px; }
+.section-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding-bottom:8px; border-bottom:1px solid var(--rule-strong); }
+.cols { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:0 40px; align-items:start; }
+.col-side { border-left:1px solid var(--rule); padding-left:40px; }
+.col-main > section:first-child, .col-side > section:first-child { margin-top:40px; }
+.lrow { display:grid; align-items:center; gap:12px; min-height:36px; padding:4px 0; border-bottom:1px solid var(--rule); }
+.lrow:hover { background:var(--row-hover); }
+.lrow.head { min-height:32px; font-size:12px; line-height:16px; color:var(--muted); border-bottom-color:var(--rule-strong); }
+.lrow.head:hover { background:transparent; }
+.lrow.total { border-bottom:0; border-top:3px double var(--rule-strong); margin-top:-1px; font-weight:600; min-height:44px; }
+.lrow.total:hover { background:transparent; }
+.lrow.total .num { font-size:20px; line-height:24px; letter-spacing:-0.01em; font-weight:600; }
+.house { grid-template-columns:150px 1fr auto 110px; grid-template-areas:"name meta act num"; }
+.house.missing { border-left:3px solid var(--warn); padding-left:9px; }
+.h-name { grid-area:name; font-weight:500; }
+.h-meta { grid-area:meta; }
+.h-act { grid-area:act; text-align:right; }
+.h-num { grid-area:num; }
+.house-total { grid-template-columns:1fr auto; grid-template-areas:"name num"; }
+.rows.sales { display:grid; grid-template-columns:minmax(120px,1fr) auto auto auto minmax(150px,auto); }
+.sale { grid-column:1 / -1; grid-template-columns:subgrid; grid-template-areas:"who qty amt state act"; }
+.s-qty, .s-amt, .s-state { white-space:nowrap; }
+.s-who { grid-area:who; font-weight:500; }
+.s-who em { display:block; font-style:normal; font-size:12px; line-height:16px; font-weight:400; color:var(--muted); }
+.s-qty { grid-area:qty; text-align:right; }
+.s-amt { grid-area:amt; }
+.s-state { grid-area:state; }
+.s-act { grid-area:act; text-align:right; }
+.status { display:inline-flex; align-items:center; gap:8px; }
+.status::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--muted); }
+.status.draft::before { background:transparent; border:1px solid var(--rule-strong); }
+.status.paid::before, .status.recorded::before { background:var(--success); }
+.status.allocated::before { background:var(--stat-accent); }
+.status.missing::before { background:var(--warn); }
+.status.missing { color:var(--warn); font-weight:500; }
+.grades { width:100%; border-collapse:collapse; margin-top:12px; }
+.grades th, .grades td { padding:8px 0 8px 12px; text-align:left; border-bottom:1px solid var(--rule); height:36px; }
+.grades th { font-size:12px; line-height:16px; font-weight:500; color:var(--muted); border-bottom-color:var(--rule-strong); }
+.grades th:first-child, .grades td:first-child { padding-left:0; }
+.grades .num { text-align:right; }
+.grades tbody tr:hover td { background:var(--row-hover); }
+.sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:10px; vertical-align:-1px; }
+.g1 { background:var(--grade-1); } .g2 { background:var(--grade-2); } .g3 { background:var(--grade-3); } .g4 { background:var(--grade-6); } .g5 { background:var(--grade-5); }
+.kpi { display:flex; align-items:baseline; gap:10px; margin-top:16px; }
+.meter { display:flex; height:10px; margin-top:12px; border-radius:2px; overflow:hidden; gap:2px; }
+.meter i { display:block; height:100%; }
+
+/* ---- Buttons. A row action is ruled text at 1280 and a 44px button at 390. ---- */
+.btn { font:inherit; font-weight:600; line-height:20px; padding:7px 14px; border-radius:var(--r-control); border:1px solid transparent; background:transparent; color:var(--ink); cursor:pointer; white-space:normal; text-align:left; }
+.btn.primary { background:var(--brand); color:var(--on-brand); }
+.btn.primary:hover { background:var(--brand-press); }
+.btn.secondary { border-color:var(--rule-strong); }
+.btn.secondary:hover { background:var(--row-hover); }
+.btn.act { padding:0; border:0; font-weight:400; text-decoration:underline; text-decoration-color:var(--rule-strong); text-underline-offset:3px; text-align:right; }
+.btn.act:hover { text-decoration-color:currentColor; }
+
+/* ---- Last 14 days: candidate 1's strip as it rendered, scale from 800, in these tokens ---- */
+.strip { margin:16px 0 0; }
+.strip-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; color:var(--muted); font-size:12px; line-height:16px; }
+.strip-head .figs { display:flex; gap:10px; }
+.strip-head .fig { color:var(--ink); font-weight:600; font-size:13px; }
+.dock { height:26px; }
+.days { position:relative; display:flex; align-items:flex-end; gap:4px; height:84px; }
+.day { position:relative; flex:1 1 0; height:100%; display:flex; align-items:flex-end; margin:0; padding:0; border:0; background:var(--surface-2); border-radius:2px; cursor:pointer; font:inherit; color:inherit; }
+.day > i { display:block; width:100%; height:var(--h); background:var(--stat-accent); border-radius:2px; }
+.day.on { outline:2px solid var(--focus); outline-offset:1px; }
+.day.partial > i { background:none; border-top:3px solid var(--stat-accent); }
+.day.week { margin-left:9px; }
+.day .tip { display:none; position:absolute; bottom:calc(100% + 5px); left:50%; transform:translateX(-50%); white-space:nowrap; font-size:12px; line-height:16px; padding:3px 8px; background:var(--surface); color:var(--ink); border:1px solid var(--rule-strong); border-radius:var(--r-control); z-index:1; }
+.day.on .tip, .day:hover .tip { display:block; }
+.days:hover .day.on:not(:hover) .tip { display:none; }
+.day:first-child .tip { left:0; transform:none; }
+.day:last-child .tip { left:auto; right:0; transform:none; }
+.avgline { position:absolute; left:0; right:0; border-top:1px dashed var(--ink); opacity:.5; pointer-events:none; }
+.range { display:flex; justify-content:space-between; margin-top:6px; padding-top:5px; border-top:1px solid var(--rule); }
+.kpi .delta { font-weight:600; font-size:13px; }
+.kpi .delta.up { color:var(--success); }
+.kpi .delta.down { color:var(--warn); }
+.note { display:block; margin-top:2px; }
+.h-link { display:none; }
+
+.specimen { margin-top:56px; padding-top:16px; border-top:1px dashed var(--rule-strong); }
+.specimen .attn { margin-top:12px; }
+
+/* ================= Phone: field-first ================= */
+@media (max-width: 900px) {
+  :root { --tabbar-h:64px; }
+  body { font-size:16px; line-height:24px; }
+  .shell { display:block; }
+  .nav { display:none; }
+  .page { padding:16px 16px calc(var(--tabbar-h) + 24px); max-width:none; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; color:var(--stat-accent); font-weight:600; margin-bottom:16px; }
+  .topbar .caption { color:var(--muted); font-weight:400; }
+  h1 { font-size:28px; line-height:32px; }
+  h2 { font-size:15px; line-height:20px; }
+  .page-head .date { display:none; }
+  .at-wide { display:none; }
+  .at-narrow { display:inline; }
+  .attn a { display:inline-block; padding:14px 0; margin:-14px 0; }
+  .section-head a { display:inline-block; padding:14px 0; margin:-14px 0; }
+  section { margin-top:32px; }
+  .cols { display:block; }
+  .col-side { border-left:0; padding-left:0; }
+  .col-main > section:first-child { margin-top:32px; }
+
+  /* Phone Today, default: a ruled list. Name and state left, count right. */
+  .houses { margin-top:12px; }
+  .house { grid-template-columns:1fr auto; grid-template-areas:"name num" "meta num" "act act"; gap:0 12px; min-height:56px; padding:10px 0; }
+  .house:hover { background:transparent; }
+  .h-name { font-size:16px; line-height:24px; }
+  .h-meta { font-size:14px; line-height:20px; }
+  .h-num { font-size:16px; line-height:24px; align-self:center; }
+  .h-act { text-align:left; margin-top:8px; }
+  .house .btn.act.text { display:inline-block; width:auto; min-height:0; padding:12px 0; margin:-8px 0 -12px; border:0; font-weight:400; text-decoration:underline; text-decoration-color:var(--rule-strong); text-underline-offset:3px; text-align:left; }
+  .house.missing { background:var(--tint-warn); border-left:3px solid var(--warn); margin:0 -16px; padding:12px 16px 12px 13px; }
+  .house.missing .h-num { display:none; }
+  .house-total { grid-template-areas:"name num"; grid-template-columns:1fr auto; padding:12px 0 0; }
+  .house-total .h-num { font-size:20px; line-height:24px; }
+
+  /* Phone Today, variant: compact 2x2 tiles, the whole tile is the target. <html data-variant="tiles"> or ?variant=tiles */
+  html[data-variant="tiles"] .houses { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  html[data-variant="tiles"] .house { position:relative; grid-template-areas:"name" "num" "meta"; grid-template-columns:1fr; gap:2px; align-content:start; min-height:88px; padding:12px 14px; border:1px solid var(--rule); border-radius:var(--r-tile); margin:0; }
+  html[data-variant="tiles"] .house:hover { background:var(--row-hover); }
+  html[data-variant="tiles"] .h-name { font-size:14px; line-height:20px; }
+  html[data-variant="tiles"] .h-num { font-size:24px; line-height:28px; font-weight:600; letter-spacing:-0.01em; text-align:left; }
+  html[data-variant="tiles"] .h-meta { font-size:12px; line-height:16px; }
+  html[data-variant="tiles"] .h-act { display:none; }
+  html[data-variant="tiles"] .h-link { display:block; position:absolute; inset:0; border-radius:inherit; }
+  html[data-variant="tiles"] .house.missing { border:1px solid var(--warn); padding:12px 14px; }
+  html[data-variant="tiles"] .house.missing .h-num { display:block; color:var(--muted); }
+  html[data-variant="tiles"] .house-total { grid-column:1 / -1; border:0; border-top:3px double var(--rule-strong); border-radius:0; min-height:0; }
+
+  .lrow { min-height:52px; padding:12px 0; gap:2px 12px; }
+  .lrow:hover { background:transparent; }
+  .lrow.head { display:none; }
+  .rows.sales { display:block; }
+  .sale { grid-template-columns:1fr auto; grid-template-areas:"who amt" "qty state" "act act"; }
+  .s-qty { text-align:left; color:var(--muted); font-size:14px; line-height:20px; }
+  .s-state { justify-self:end; font-size:14px; line-height:20px; }
+  .s-act { text-align:left; margin-top:10px; }
+  .btn.act { display:block; width:100%; min-height:48px; padding:12px 16px; border:1px solid var(--rule-strong); font-weight:600; text-decoration:none; text-align:center; }
+  .house.missing .btn.act { border-color:var(--warn); }
+  .specimen { display:none; }
+
+  .tabbar { position:fixed; left:0; right:0; bottom:0; height:var(--tabbar-h); display:grid; grid-template-columns:repeat(5,1fr); background:var(--surface); border-top:1px solid var(--rule); box-shadow:var(--shadow-bar); padding-bottom:env(safe-area-inset-bottom); }
+  .tabbar a { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; text-decoration:none; color:var(--muted); font-size:11px; line-height:14px; min-height:44px; }
+  .tabbar a[aria-current] { color:var(--stat-accent); font-weight:600; }
+  .tabbar svg { width:22px; height:22px; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="nav" aria-label="Main">
+    <div class="farm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-3 4-6 7-6 11a6 6 0 0 0 12 0c0-4-3-7-6-11z"/></svg>Default Farm</div>
+    <div><p class="caps">Overview</p><ul><li><a href="#" aria-current="page">Dashboard</a></li></ul></div>
+    <div><p class="caps">Production</p><ul><li><a href="daily-entry.html">Daily entry</a></li><li><a href="#">Flocks</a></li><li><a href="#">Feed</a></li><li><a href="#">Water</a></li><li><a href="#">Inventory</a></li></ul></div>
+    <div><p class="caps">Sales &amp; stock</p><ul><li><a href="#">Stock</a></li><li><a href="#">Customers</a></li><li><a href="#">Sales</a></li><li><a href="#">History</a></li></ul></div>
+    <div><p class="caps">Insights</p><ul><li><a href="#">Reports</a></li><li><a href="#">Expenses</a></li></ul></div>
+    <div><p class="caps">Setup</p><ul><li><a href="#">Farm settings</a></li><li><a href="#">Grades</a></li><li><a href="#">Products</a></li><li><a href="#">Audit</a></li><li><a href="#">Export</a></li></ul></div>
+    <div class="foot"><a href="#">Night</a><a href="#">Sign out</a><span class="caption">v0.0.4</span></div>
+  </nav>
+
+  <main class="page">
+    <div class="topbar"><span>Default Farm</span><span class="caption">Mon 14 Sep</span></div>
+    <header>
+      <div class="page-head"><h1>Dashboard</h1><span class="date">Monday 14 September 2026</span></div>
+      <p class="attn"><span class="mark"></span><span>House C not recorded<span class="at-wide"><span class="sep">&middot;</span>Cracked stock 1,500 is below its 2,000 floor</span></span><a href="#"><span class="at-wide">+1 more</span><span class="at-narrow">+2 more</span></a></p>
+    </header>
+
+    <div class="cols">
+      <div class="col-main">
+        <section>
+          <div class="section-head"><h2>Today</h2><span class="caption">3 of 4 houses in</span></div>
+          <div class="houses">
+            <div class="lrow house"><span class="h-name">House A</span><a class="h-link" href="daily-entry.html" aria-label="House A, 327 eggs, recorded 06:40"></a><span class="h-meta"><span class="status recorded">Recorded 06:40</span></span><span class="h-num num">327</span></div>
+            <div class="lrow house"><span class="h-name">House B</span><a class="h-link" href="daily-entry.html" aria-label="House B, 298 eggs, draft"></a><span class="h-meta"><span class="status draft">Draft, saved 06:52</span></span><span class="h-act"><button class="btn act text" type="button">Continue House B</button></span><span class="h-num num">298</span></div>
+            <div class="lrow house missing"><span class="h-name">House C</span><a class="h-link" href="daily-entry.html" aria-label="House C, not recorded"></a><span class="h-meta"><span class="status missing">Not recorded</span></span><span class="h-act"><button class="btn act" type="button">Record House C</button></span><span class="h-num num">&mdash;</span></div>
+            <div class="lrow house"><span class="h-name">House D</span><a class="h-link" href="daily-entry.html" aria-label="House D, 341 eggs, recorded 07:05"></a><span class="h-meta"><span class="status recorded">Recorded 07:05</span></span><span class="h-num num">341</span></div>
+            <div class="lrow total house-total"><span class="h-name">Today so far</span><span class="h-num num">966</span></div>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-head"><h2>Recent sales</h2><a class="caption" href="#">All orders</a></div>
+          <div class="rows sales">
+            <div class="lrow head sale"><span class="s-who">Customer</span><span class="s-qty">Eggs</span><span class="s-amt num" style="font-weight:500">Amount</span><span class="s-state">Status</span><span class="s-act"></span></div>
+            <div class="lrow sale"><span class="s-who">Ramos Grocery<em>SO-3F2A91C4</em></span><span class="s-qty">3,600 Large</span><span class="s-amt num">&#8369;27,000.00</span><span class="s-state"><span class="status paid">Paid</span></span></div>
+            <div class="lrow sale"><span class="s-who">Villanueva<em>SO-8B17D0E2</em></span><span class="s-qty">1,200 Medium</span><span class="s-amt num">&#8369;8,160.00</span><span class="s-state"><span class="status draft">Draft</span></span><span class="s-act"><button class="btn act" type="button" lang="tl">Kumpirmahin ang order (maglalaan ng stock)</button></span></div>
+            <div class="lrow sale"><span class="s-who">Sta. Cruz Market<em>SO-C55A7E19</em></span><span class="s-qty">6,000 Large</span><span class="s-amt num">&#8369;45,000.00</span><span class="s-state"><span class="status allocated">Allocated</span></span></div>
+            <div class="lrow sale"><span class="s-who">Del Rosario<em>SO-1D9E4B70</em></span><span class="s-qty">900 Small</span><span class="s-amt num">&#8369;5,400.00</span><span class="s-state"><span class="status paid">Paid</span></span></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-side">
+        <section>
+          <div class="section-head"><h2>Eggs on hand</h2><span class="caption">By grade</span></div>
+          <div class="kpi"><span class="display">63,122</span><span class="caption">eggs available</span></div>
+          <div class="meter" aria-hidden="true"><i class="g1" style="width:45%"></i><i class="g2" style="width:31.5%"></i><i class="g3" style="width:14.5%"></i><i class="g4" style="width:6.6%"></i><i class="g5" style="width:2.4%"></i></div>
+          <table class="grades">
+            <thead><tr><th>Grade</th><th class="num">Eggs</th><th class="num">Share</th></tr></thead>
+            <tbody>
+              <tr><td><span class="sw g1"></span>Large</td><td class="num">28,410</td><td class="num">45.0%</td></tr>
+              <tr><td><span class="sw g2"></span>Medium</td><td class="num">19,880</td><td class="num">31.5%</td></tr>
+              <tr><td><span class="sw g3"></span>Small</td><td class="num">9,132</td><td class="num">14.5%</td></tr>
+              <tr><td><span class="sw g4"></span>Jumbo</td><td class="num">4,200</td><td class="num">6.7%</td></tr>
+              <tr><td><span class="sw g5"></span>Cracked</td><td class="num">1,500</td><td class="num">2.4%</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <div class="section-head"><h2>Last 14 days</h2><span class="caption">All houses</span></div>
+          <figure class="strip">
+            <figcaption class="strip-head"><span>Eggs per day</span><span class="figs"><span class="fig">Avg 972.6</span><span class="fig">Peak 1,009</span></span></figcaption>
+            <div class="dock" aria-hidden="true"></div>
+            <div class="days" role="group" aria-label="Daily totals, last 14 days">
+              <button class="day" type="button" style="--h:80.0%" aria-label="1 Sep, 968 eggs"><i></i><span class="tip">1 Sep, 968 eggs</span></button>
+              <button class="day" type="button" style="--h:91.0%" aria-label="2 Sep, 991 eggs"><i></i><span class="tip">2 Sep, 991 eggs</span></button>
+              <button class="day" type="button" style="--h:97.1%" aria-label="3 Sep, 1,004 eggs"><i></i><span class="tip">3 Sep, 1,004 eggs</span></button>
+              <button class="day" type="button" style="--h:74.8%" aria-label="4 Sep, 957 eggs"><i></i><span class="tip">4 Sep, 957 eggs</span></button>
+              <button class="day" type="button" style="--h:83.3%" aria-label="5 Sep, 975 eggs"><i></i><span class="tip">5 Sep, 975 eggs</span></button>
+              <button class="day" type="button" style="--h:77.1%" aria-label="6 Sep, 962 eggs"><i></i><span class="tip">6 Sep, 962 eggs</span></button>
+              <button class="day on" type="button" style="--h:38.1%" aria-label="7 Sep, 880 eggs"><i></i><span class="tip">7 Sep, 880 eggs</span></button>
+              <button class="day week" type="button" style="--h:96.2%" aria-label="8 Sep, 1,002 eggs"><i></i><span class="tip">8 Sep, 1,002 eggs</span></button>
+              <button class="day" type="button" style="--h:89.5%" aria-label="9 Sep, 988 eggs"><i></i><span class="tip">9 Sep, 988 eggs</span></button>
+              <button class="day" type="button" style="--h:73.3%" aria-label="10 Sep, 954 eggs"><i></i><span class="tip">10 Sep, 954 eggs</span></button>
+              <button class="day" type="button" style="--h:99.5%" aria-label="11 Sep, 1,009 eggs"><i></i><span class="tip">11 Sep, 1,009 eggs</span></button>
+              <button class="day" type="button" style="--h:86.2%" aria-label="12 Sep, 981 eggs"><i></i><span class="tip">12 Sep, 981 eggs</span></button>
+              <button class="day" type="button" style="--h:82.4%" aria-label="13 Sep, 973 eggs"><i></i><span class="tip">13 Sep, 973 eggs</span></button>
+              <button class="day partial" type="button" style="--h:79.0%" aria-label="14 Sep, 966 eggs so far, House C open"><i></i><span class="tip">14 Sep, 966 eggs so far, House C open</span></button>
+              <span class="avgline" style="bottom:82.2%" aria-hidden="true"></span>
+            </div>
+            <div class="range caption"><span>1 Sep</span><span>scale from 800</span><span>14 Sep</span></div>
+            <div class="kpi"><span class="display">84.6%</span><span class="delta up">+1.2 pts</span></div>
+            <span class="caption note">Hen-day, last 7 days against the 7 before.</span>
+          </figure>
+        </section>
+      </div>
+    </div>
+
+    <div class="specimen">
+      <span class="caption">Specimen, not app content. The attention line in its three states; it is never two lines.</span>
+      <p class="attn is-quiet"><span class="mark"></span><span>Nothing needs attention. All four houses recorded, nothing low.</span></p>
+      <p class="attn"><span class="mark"></span><span>House C not recorded</span><a href="#">Record House C</a></p>
+      <p class="attn is-error"><span class="mark"></span><span>Submission failed for House A<span class="at-wide"><span class="sep">&middot;</span>Cracked stock 1,500 is below its 2,000 floor</span></span><a href="#"><span class="at-wide">+3 more</span><span class="at-narrow">+4 more</span></a></p>
+    </div>
+  </main>
+</div>
+
+<nav class="tabbar" aria-label="Primary">
+  <a href="#" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg>Today</a>
+  <a href="daily-entry.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>Entry</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-3 4-6 7-6 11a6 6 0 0 0 12 0c0-4-3-7-6-11z"/></svg>Stock</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h2l2 12h11l2-8H7"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg>Sales</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>More</a>
+</nav>
+
+<script>
+  /* Mockup convenience only: ?brand=forest&theme=dark sets the same attributes the app writes; ?variant=tiles picks the phone Today tiles. */
+  const q = new URLSearchParams(location.search), h = document.documentElement;
+  if (q.get('brand')) h.dataset.brand = q.get('brand');
+  if (q.get('theme')) h.dataset.theme = q.get('theme');
+  if (q.get('variant')) h.dataset.variant = q.get('variant');
+</script>
+</body>
+</html>
