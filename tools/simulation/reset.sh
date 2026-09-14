@@ -24,6 +24,13 @@
 # in Production) — same command an operator would type by hand, mirroring
 # `seed --profile demo` (#280).
 #
+# This stack carries TWO farms. After the simulation fixture lands, the script
+# provisions `readme-farm` and seeds it with the DEMO profile, because the
+# README's dashboard screenshot cannot be captured from the simulation fixture
+# at all — see the block that does it for the full reason. Nothing else in this
+# harness reads that farm; every k6 persona and every e2e spec but the dashboard
+# capture still signs into `default-farm`.
+#
 # HARD SAFETY RULE: every docker command below runs under the dedicated
 # `cluckwork-sim` compose project. Before anything destructive, the project
 # name that will actually be used is asserted to equal `cluckwork-sim` and
@@ -72,6 +79,118 @@ compose() {
 read_env_value() {
   local key="$1"
   grep -E "^${key}=" "$ENV_FILE" | tail -n1 | cut -d'=' -f2-
+}
+
+# Rotates a freshly provisioned Owner off the one-time password its verb printed
+# and onto the stable one .sim-cast.json carries, through the REAL login +
+# change-password endpoints — the same pair the SPA's first-login "Set your
+# password" screen uses. Proving the login also proves the temporary password
+# actually reached the account, and change-password clears #283's
+# MustChangePassword gate before anything else in this script runs.
+#
+# One function, two callers: the default farm's bootstrap-admin Owner and the
+# README-capture farm's provision-account Owner. They differ only by farm code,
+# and a second copy of a credential-rotation block is exactly the duplication
+# that drifts on the half nobody re-reads.
+rotate_owner_password() {
+  FARM_CODE="$1" OWNER_EMAIL="$2" TEMP_PASSWORD="$3" FINAL_PASSWORD="$4" \
+    APP_PORT="$APP_PORT" python3 - <<'PY'
+import json
+import os
+import sys
+import urllib.request
+import uuid
+
+base = f"http://127.0.0.1:{os.environ['APP_PORT']}/api/v1/auth"
+farm_code = os.environ["FARM_CODE"]
+email = os.environ["OWNER_EMAIL"]
+temp_password = os.environ["TEMP_PASSWORD"]
+final_password = os.environ["FINAL_PASSWORD"]
+
+
+def post(path, body, token=None, idempotency_key=None):
+    req = urllib.request.Request(
+        f"{base}{path}",
+        data=json.dumps(body).encode(),
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    if idempotency_key:
+        req.add_header("Idempotency-Key", idempotency_key)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        print(f"FAILED: POST {path} -> {exc.code}: {exc.read().decode()}", file=sys.stderr)
+        sys.exit(1)
+
+
+login = post("/login", {"farmCode": farm_code, "email": email, "password": temp_password})
+post(
+    "/change-password",
+    {"currentPassword": temp_password, "newPassword": final_password},
+    token=login["accessToken"],
+    idempotency_key=str(uuid.uuid4()),
+)
+print(f"Owner {email} ({farm_code}) rotated onto the stable .sim-cast.json password.")
+PY
+}
+
+# Signs in with the STABLE password and reports how much production data the farm
+# holds. Two jobs in one round trip, both of which the caller needs: the login
+# answers "does .sim-cast.json still match this database", and the flock count
+# answers "is there anything here to photograph". A seed that reports
+# AlreadySeeded exits 0 while proving neither.
+verify_owner_farm() {
+  FARM_CODE="$1" OWNER_EMAIL="$2" OWNER_PASSWORD="$3" MIN_FLOCKS="$4" \
+    APP_PORT="$APP_PORT" python3 - <<'PY'
+import json
+import os
+import sys
+import urllib.request
+
+base = f"http://127.0.0.1:{os.environ['APP_PORT']}/api/v1"
+farm_code = os.environ["FARM_CODE"]
+email = os.environ["OWNER_EMAIL"]
+password = os.environ["OWNER_PASSWORD"]
+min_flocks = int(os.environ["MIN_FLOCKS"])
+
+req = urllib.request.Request(
+    f"{base}/auth/login",
+    data=json.dumps({"farmCode": farm_code, "email": email, "password": password}).encode(),
+    method="POST",
+    headers={"Content-Type": "application/json"},
+)
+try:
+    with urllib.request.urlopen(req) as resp:
+        token = json.loads(resp.read())["accessToken"]
+except urllib.error.HTTPError as exc:
+    print(
+        f"FAILED: {email} cannot sign in to '{farm_code}' ({exc.code}) — .sim-cast.json and "
+        f"the database disagree. Regenerate and reseed: bash tools/simulation/bootstrap.sh "
+        f"--force && bash tools/simulation/reset.sh",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+flocks_req = urllib.request.Request(
+    f"{base}/flocks?includeArchived=true", headers={"Authorization": f"Bearer {token}"}
+)
+with urllib.request.urlopen(flocks_req) as resp:
+    flocks = json.loads(resp.read())
+
+if len(flocks) < min_flocks:
+    print(
+        f"FAILED: farm '{farm_code}' holds {len(flocks)} flock(s), expected at least "
+        f"{min_flocks} — the demo seed did not land.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+print(f"farm '{farm_code}' OK: Owner signs in, {len(flocks)} flocks.")
+PY
 }
 
 echo "== Sim reset: project ${COMPOSE_PROJECT_NAME} =="
@@ -199,53 +318,7 @@ if [[ -z "$TEMP_PASSWORD" ]]; then
 fi
 echo "bootstrap-admin -> Owner created; rotating off the printed temporary password."
 
-SEED_ADMIN_EMAIL="$SEED_ADMIN_EMAIL" TEMP_PASSWORD="$TEMP_PASSWORD" \
-  SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" APP_PORT="$APP_PORT" python3 - <<'PY'
-import json
-import os
-import sys
-import urllib.request
-import uuid
-
-base = f"http://127.0.0.1:{os.environ['APP_PORT']}/api/v1/auth"
-email = os.environ["SEED_ADMIN_EMAIL"]
-temp_password = os.environ["TEMP_PASSWORD"]
-final_password = os.environ["SEED_ADMIN_PASSWORD"]
-
-
-def post(path, body, token=None, idempotency_key=None):
-    req = urllib.request.Request(
-        f"{base}{path}",
-        data=json.dumps(body).encode(),
-        method="POST",
-        headers={"Content-Type": "application/json"},
-    )
-    if token:
-        req.add_header("Authorization", f"Bearer {token}")
-    if idempotency_key:
-        req.add_header("Idempotency-Key", idempotency_key)
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as exc:
-        print(f"FAILED: POST {path} -> {exc.code}: {exc.read().decode()}", file=sys.stderr)
-        sys.exit(1)
-
-
-# The printed one-time password IS a real login (bootstrap-admin logs the
-# account in with MustChangePassword=true, not merely creates it) — proving
-# that also proves the temp password actually reached the account.
-login = post("/login", {"farmCode": "default-farm", "email": email, "password": temp_password})
-# Clears MustChangePassword server-side and rotates every session — the SAME
-# endpoint the SPA's first-login "Set your password" screen uses.
-post(
-    "/change-password",
-    {"currentPassword": temp_password, "newPassword": final_password},
-    token=login["accessToken"],
-    idempotency_key=str(uuid.uuid4()),
-)
-print(f"Owner {email} rotated onto the stable .sim-cast.json password.")
-PY
+rotate_owner_password "default-farm" "$SEED_ADMIN_EMAIL" "$TEMP_PASSWORD" "$SEED_ADMIN_PASSWORD"
 
 # --- Simulation seed: explicit one-shot command (#279) ---------------------
 # The serving `app` container (started above) never boot-seeds simulation
@@ -315,7 +388,90 @@ if actual_users != expected_users:
 print(f"manifest OK: complete=true, counts.usersTotal={actual_users}.")
 PY
 
+# --- The README-capture farm: a SECOND farm, demo-seeded --------------------
+#
+# WHY IT EXISTS, because it is not obvious and will otherwise be deleted as
+# clutter: the root README embeds a dashboard screenshot, and the simulation
+# fixture above cannot produce one. That fixture seeds ~100 catalog flocks which
+# are placed, active and never file, so every day owes a count nobody filed, no
+# day is complete, the trend strip has no peak to scale against and draws
+# fourteen identical 2% floor stubs. The product rule is right and the fixture's
+# counts are pinned by the picker-paging specs, k6 and the e2e suite — so the
+# fixture stays and the capture moves to a farm shaped like a real small one.
+# The demo profile is exactly that shape: two houses, one of them deliberately
+# unrecorded today, which is the "no entry" alarm state the README caption
+# describes.
+#
+# Its timezone is Simulation__TimeZoneId, not a literal: two farms on one stack
+# disagreeing about what day it is would make every farm-clock spec's answer
+# depend on which farm it happened to ask.
+README_FARM_CODE="$(read_env_value README_FARM_CODE)"
+README_FARM_NAME="$(read_env_value README_FARM_NAME)"
+README_OWNER_EMAIL="$(read_env_value README_OWNER_EMAIL)"
+README_OWNER_PASSWORD="$(read_env_value README_OWNER_PASSWORD)"
+README_FARM_TIMEZONE="$(read_env_value Simulation__TimeZoneId)"
+
+echo "-- provision-account ${README_FARM_CODE} (one-shot, README capture farm) --"
+# Same redaction as bootstrap-admin above, and for the same reason:
+# provision-account prints "Temporary password: <value>" on stdout by design, and
+# this script needs the value but must never echo it into a CI log.
+#
+# stderr is folded into the capture so the already-exists branch can read the
+# verb's own failure code rather than guessing from an exit status.
+if PROVISION_OUTPUT="$(compose run --rm app provision-account \
+      --slug "$README_FARM_CODE" \
+      --name "$README_FARM_NAME" \
+      --owner-email "$README_OWNER_EMAIL" \
+      --timezone "$README_FARM_TIMEZONE" 2>&1)"; then
+  printf '%s\n' "$PROVISION_OUTPUT" | sed 's/Temporary password: .*/Temporary password: <redacted>/'
+  README_TEMP_PASSWORD="$(printf '%s\n' "$PROVISION_OUTPUT" | sed -n 's/^Temporary password: //p')"
+  if [[ -z "$README_TEMP_PASSWORD" ]]; then
+    echo "FAILED: could not find a 'Temporary password: ' line in provision-account's output." >&2
+    exit 1
+  fi
+  rotate_owner_password "$README_FARM_CODE" "$README_OWNER_EMAIL" \
+    "$README_TEMP_PASSWORD" "$README_OWNER_PASSWORD"
+else
+  printf '%s\n' "$PROVISION_OUTPUT" | sed 's/Temporary password: .*/Temporary password: <redacted>/'
+  # This script's own flow reaches here never: `down -v` ran at the top, so the
+  # farm cannot already exist — the same reasoning the bootstrap-admin block
+  # states for its "already provisioned" no-op. The branch is here because
+  # provision-account's duplicate behaviour is NOT a no-op like
+  # bootstrap-admin's: it exits 1 with Provision.SlugTaken* and prints no
+  # password, so a hand-run of this section against a live stack would otherwise
+  # abort on a farm that is already correct. Converging needs the credential to
+  # still work, which is the one thing the exit code does not say — so ask.
+  if printf '%s' "$PROVISION_OUTPUT" | grep -q 'Provision.SlugTaken'; then
+    echo "-- ${README_FARM_CODE} already exists; checking the stable credential still works --"
+    verify_owner_farm "$README_FARM_CODE" "$README_OWNER_EMAIL" "$README_OWNER_PASSWORD" 0
+  else
+    echo "FAILED: 'provision-account --slug ${README_FARM_CODE}' exited non-zero." >&2
+    exit 1
+  fi
+fi
+
+# No `--user 0` here, unlike the simulation seed above: the demo profile writes
+# no completion manifest, so this one-shot never touches the ./out bind mount and
+# the image's non-root `app` user is enough. ASPNETCORE_ENVIRONMENT is still
+# overridden — DemoDataSeeder is not registered in Production.
+echo "-- seed --profile demo --farm-code ${README_FARM_CODE} (one-shot, non-Production) --"
+if ! compose run --rm -e ASPNETCORE_ENVIRONMENT=Development app \
+    seed --profile demo --farm-code "$README_FARM_CODE"; then
+  echo "FAILED: 'seed --profile demo --farm-code ${README_FARM_CODE}' exited non-zero." >&2
+  exit 1
+fi
+echo "seed --profile demo --farm-code ${README_FARM_CODE} -> exit 0."
+
+# --- Preflight 4: the capture farm is signable and populated ---------------
+# Exit 0 above covers the fresh path but not the converging one: a seed that
+# finds flocks already there reports AlreadySeeded, which is a success. Three
+# flocks is the demo fixture's own count (two active houses plus the depleted
+# 2025 batch).
+echo "-- preflight: ${README_FARM_CODE} is signable and populated --"
+verify_owner_farm "$README_FARM_CODE" "$README_OWNER_EMAIL" "$README_OWNER_PASSWORD" 3
+
 echo "== Sim reset complete: cluckwork-sim is up, migrated, seeded, and verified. =="
 echo "App:      http://127.0.0.1:${APP_PORT}/"
 echo "Manifest: ${MANIFEST_FILE}"
 echo "Cast:     $(dirname "$ENV_FILE")/.sim-cast.json"
+echo "Farms:    default-farm (simulation fixture), ${README_FARM_CODE} (demo, README capture)"

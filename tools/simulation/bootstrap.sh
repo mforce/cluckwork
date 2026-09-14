@@ -12,7 +12,9 @@
 #     `docker compose run` against this same env file (#279).
 #   - tools/simulation/.sim-cast.json — the k6/Playwright LOGIN SOURCE: the
 #     Owner (reused seeded admin) + every deterministic cast member this
-#     script's counts imply. This is NOT SimulationDataSeeder's own
+#     script's counts imply, plus the README-capture farm's own Owner under
+#     `readmeFarm` (a second farm reset.sh provisions and demo-seeds — see the
+#     cast-shape block below). This is NOT SimulationDataSeeder's own
 #     completion manifest (that lands at tools/simulation/out/manifest.json,
 #     written by the app itself via Simulation__CredentialOutputPath) — this
 #     file is the credential list a test driver logs in with.
@@ -79,6 +81,24 @@ WORKERS=3
 READONLY=4
 EMAIL_DOMAIN="sim.local"
 SEED_ADMIN_EMAIL="admin@${EMAIL_DOMAIN}"
+
+# --- The README-capture farm ----------------------------------------------
+# A SECOND farm on the same stack, provisioned and demo-seeded by reset.sh, and
+# the only thing it is for is the dashboard image the root README embeds. The
+# simulation fixture cannot produce that image: it seeds ~100 catalog flocks
+# that never file, so every day owes a count nobody filed, no day is complete,
+# and the trend strip draws fourteen identical floor stubs. Those counts are
+# pinned by the picker-paging specs, k6 and the e2e suite, so the fixture stays
+# as it is and the capture moves to a farm shaped like a real small one.
+#
+# The password is generated HERE, exactly like SIM_ADMIN_PASSWORD: reset.sh
+# provisions the farm, reads the one-time password provision-account prints, and
+# rotates onto this stable value through the real login + change-password API.
+# Generating it in reset.sh instead would mint a new credential on every reset
+# and leave .sim-cast.json describing the previous one.
+README_FARM_CODE="readme-farm"
+README_FARM_NAME="Meadowlark Farm"
+README_OWNER_EMAIL="readme-owner@${EMAIL_DOMAIN}"
 
 echo "== Generating #243 sim-harness secrets =="
 
@@ -153,8 +173,9 @@ gen_db_password() {
 
 SEED_ADMIN_PASSWORD="$(gen_password)"
 SIM_CAST_PASSWORD="$(gen_password)"
+README_OWNER_PASSWORD="$(gen_password)"
 POSTGRES_PASSWORD="$(gen_db_password)"
-echo "Passwords generated (Owner, shared cast, sim Postgres)."
+echo "Passwords generated (Owner, shared cast, README-farm Owner, sim Postgres)."
 
 POSTGRES_DB="cluckwork_sim"
 POSTGRES_USER="cluckwork_sim"
@@ -212,6 +233,17 @@ Jwt__PrivateKeyPem="${JWT_PRIVATE_PEM}"
 # keeps a stable, known Owner credential exactly as before #283. ---
 SIM_ADMIN_EMAIL=${SEED_ADMIN_EMAIL}
 SIM_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD}
+
+# --- README-capture farm — also SCRIPT-LEVEL, same no-double-underscore
+# reasoning as SIM_ADMIN_* above: reset.sh reads these back to run
+# provision-account and then seed --profile demo --farm-code, and the app never
+# reads a farm credential from configuration. The farm's timezone is not
+# repeated here: reset.sh passes Simulation__TimeZoneId, so the two farms on
+# this stack cannot end up on different clocks. ---
+README_FARM_CODE=${README_FARM_CODE}
+README_FARM_NAME=${README_FARM_NAME}
+README_OWNER_EMAIL=${README_OWNER_EMAIL}
+README_OWNER_PASSWORD=${README_OWNER_PASSWORD}
 
 # --- #243 simulation cast/fixture (SimulationOptions) -----------------
 Simulation__CastPassword=${SIM_CAST_PASSWORD}
@@ -293,6 +325,8 @@ echo "Wrote $(basename "$ENV_FILE")."
 MANAGERS="$MANAGERS" SALES="$SALES" WORKERS="$WORKERS" READONLY="$READONLY" \
   EMAIL_DOMAIN="$EMAIL_DOMAIN" SEED_ADMIN_EMAIL="$SEED_ADMIN_EMAIL" \
   SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" SIM_CAST_PASSWORD="$SIM_CAST_PASSWORD" \
+  README_FARM_CODE="$README_FARM_CODE" README_OWNER_EMAIL="$README_OWNER_EMAIL" \
+  README_OWNER_PASSWORD="$README_OWNER_PASSWORD" \
   CAST_FILE="$CAST_FILE" \
   python3 - <<'PY'
 import datetime
@@ -328,9 +362,22 @@ doc = {
         "app via Simulation__CredentialOutputPath).",
         "Worker entries carry no Identity role row in the app (CreateUserValidator.WorkerRole "
         "maps to a null role) — 'role': 'Worker' here is descriptive only.",
+        "'readmeFarm' is a SECOND farm on the same stack, demo-seeded by reset.sh for the "
+        "README dashboard capture. It carries its own farmCode; every entry in 'cast' and "
+        "'owner' signs into default-farm.",
     ],
     "owner": {"email": admin_email, "password": admin_password, "role": "Owner"},
     "cast": cast,
+    # A SECOND farm, outside `cast` on purpose: every entry in `cast` belongs to
+    # the default farm and a driver iterating it must not have to ask which farm
+    # each member signs into. This one carries its own farmCode, which is what
+    # the Playwright sign-in fixture reads.
+    "readmeFarm": {
+        "farmCode": os.environ["README_FARM_CODE"],
+        "email": os.environ["README_OWNER_EMAIL"],
+        "password": os.environ["README_OWNER_PASSWORD"],
+        "role": "Owner",
+    },
 }
 
 with open(out_path, "w") as f:
@@ -338,7 +385,7 @@ with open(out_path, "w") as f:
     f.write("\n")
 PY
 chmod 0600 "$CAST_FILE"
-echo "Wrote $(basename "$CAST_FILE") ($((1 + MANAGERS + SALES + WORKERS + READONLY)) users: 1 Owner + ${MANAGERS} Manager + ${SALES} Sales + ${WORKERS} Worker + ${READONLY} ReadOnly)."
+echo "Wrote $(basename "$CAST_FILE") ($((1 + MANAGERS + SALES + WORKERS + READONLY)) users: 1 Owner + ${MANAGERS} Manager + ${SALES} Sales + ${WORKERS} Worker + ${READONLY} ReadOnly), plus the ${README_FARM_CODE} Owner."
 
 echo "== Done. Both files are git-ignored (tools/simulation/.gitignore) — never commit them. =="
 echo "Next: bash tools/simulation/reset.sh"
