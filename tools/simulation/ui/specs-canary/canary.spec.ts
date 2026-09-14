@@ -35,9 +35,10 @@ import { UNDER_LOAD } from "../src/env";
 import { tEn } from "../src/i18n";
 import { installVitals, readVitals, type ScreenSample } from "../src/vitals";
 import { daysBefore, farmToday } from "../src/farm";
-import { selectOptionContaining } from "../src/dom";
+import { commitNamedPicker } from "../src/dom";
 
 type CanaryPage = import("../src/fixtures").Page;
+type CanaryLocator = import("../src/fixtures").Locator;
 
 /**
  * The screens the canary walks, each with the assertion that means "this is
@@ -47,8 +48,14 @@ const SCREENS = [
   {
     name: "dashboard",
     path: "/",
-    ready: (page: CanaryPage) => page.locator(".capture-tile").first(),
-    emptyMessageKey: "dashboard:noFlocksMessage",
+    ready: (page: CanaryPage) => page.locator(".capture-grid"),
+    // The dashboard carries no table at all since #654 — its per-flock capture
+    // tiles are the rows, and they are what a lost `/api/v1/flocks` empties.
+    rows: (ready: CanaryLocator) => ready.locator(".capture-tile"),
+    // All three data panels, not just the flock one. A tile renders for a flock
+    // that filed nothing today, so the tiles alone cannot tell a working stock
+    // or sales read from a failed one.
+    emptyMessageKeys: ["dashboard:noFlocksMessage", "dashboard:noStockMessage", "dashboard:noOrdersMessage"],
     // The dashboard is a pure readout — it has no control to press. Left null
     // rather than inventing an interaction (a theme toggle, say) that no farmer
     // performs on this screen and whose latency would mean nothing.
@@ -62,7 +69,11 @@ const SCREENS = [
       page.getByRole("table").filter({
         has: page.getByRole("columnheader", { name: tEn("stock:gradeHeader") }),
       }),
-    emptyMessageKey: "stock:noStockMessage",
+    rows: (ready: CanaryLocator) => ready.locator("tbody tr"),
+    // `noLotsMessage` covers the INTERACTION: expanding a grade whose lots come
+    // back empty renders the heading beside that message, which the grade table
+    // alone would not notice (#841).
+    emptyMessageKeys: ["stock:noStockMessage", "stock:noLotsMessage"],
     // Expanding a grade's lots fires a fetch and re-renders a table — the most
     // common thing anyone does on this screen.
     interact: async (page: CanaryPage) => {
@@ -78,13 +89,19 @@ const SCREENS = [
       page.getByRole("table").filter({
         has: page.getByRole("columnheader", { name: tEn("reports:dateHeader") }),
       }),
-    emptyMessageKey: null,
+    rows: (ready: CanaryLocator) => ready.locator("tbody tr"),
+    emptyMessageKeys: [],
     // Widening the range is the expensive interaction on this screen and the one
     // #311 is about — 30 days rather than the max, because this measures the
     // ordinary case under load, not the boundary.
     interact: async (page: CanaryPage, timeZoneId: string) => {
       const today = farmToday(timeZoneId);
       const from = page.getByLabel(tEn("reports:fromLabel"), { exact: true });
+      // ReportsPage loads production first and the three money reports after it,
+      // so the table is on the glass while they are still in flight. Waiting for
+      // the last of them is what stops the post-interaction check passing just
+      // before a 500 lands (#841). Registered BEFORE the fill that triggers it.
+      const settled = page.waitForResponse((res) => res.url().includes("/api/v1/reports/profit"));
       // CLICK the field before filling it. `fill()` alone sets the value through
       // a synthetic path that produces NO Event Timing entry, so the interaction
       // metric would stay null while the spec looked like it interacted —
@@ -92,7 +109,19 @@ const SCREENS = [
       // click is also the faithful version of this interaction.
       await from.click();
       await from.fill(daysBefore(today, 30));
-      await expect(page.getByRole("alert")).toBeHidden();
+      await settled;
+      // A POSITIVE check, because the money section renders only once all three
+      // of its reads land. Asserting the ABSENCE of an error here would pass in
+      // the gap between a 500 arriving and React rendering it (#841).
+      await expect(page.getByText(tEn("reports:profitRowLabel"))).toBeVisible();
+      // The production table alone does not prove production: ReportQueries
+      // emits a row per calendar day in the range whether or not anything was
+      // recorded, so a report of nothing but zeroes satisfies a row count. The
+      // period total is the one figure that cannot be zero-filled (#841).
+      await expect(
+        page.locator("table.data tfoot th.num").first(),
+        "the widened report totals zero eggs — a range with production in it came back empty",
+      ).not.toHaveText(/^0$/);
     },
     // MEASURED, and it does not: a `<input type="date">` produces no Event
     // Timing entry for a programmatic click+fill, so this screen's interaction
@@ -110,19 +139,61 @@ const SCREENS = [
       page.getByRole("table").filter({
         has: page.getByRole("columnheader", { name: tEn("history:dateHeader") }),
       }),
-    emptyMessageKey: "history:noEntriesMatch",
+    rows: (ready: CanaryLocator) => ready.locator("tbody tr"),
+    emptyMessageKeys: ["history:noEntriesMatch"],
     // Filtering to one flock — a re-query plus a re-render.
     interact: async (page: CanaryPage) => {
-      const flock = page.getByLabel(tEn("history:flockLabel"));
-      // Clicking the control first is both what a user does and what produces an
-      // Event Timing entry — `selectOption()` alone emits none.
-      await flock.click();
-      await selectOptionContaining(flock, "Sim House A");
+      // The filter is a #512 searchable picker, not a `<select>`. Committing it
+      // clicks the trigger and then the option. Those are real clicks, which is
+      // NECESSARY for an Event Timing entry and not sufficient for one: vitals.ts
+      // observes at `durationThreshold: 16`, so a click under one frame is never
+      // reported. Both clicks here fetch and re-render, and the quiet baseline
+      // records 26 interactions, so the screen's `yieldsEventTiming` holds on
+      // margin rather than by construction (codex review of #841).
+      await commitNamedPicker(page, tEn("history:flockLabel"), "Sim House A");
     },
     yieldsEventTiming: true,
   },
 ] as const;
 
+
+
+type CanaryScreen = (typeof SCREENS)[number];
+
+/**
+ * The correctness contract, asserted on load and again after the screen's
+ * interaction. A saturated backend must degrade by being SLOW, never by showing
+ * a farm an empty table or an error where its data should be. That confusion is
+ * the failure worth catching: "no stock today" reads as a fact about the farm,
+ * not as a fact about the server.
+ */
+async function assertScreenIsCorrect(
+  screen: CanaryScreen,
+  page: CanaryPage,
+  ready: CanaryLocator,
+  when: string,
+): Promise<void> {
+  await expect(
+    screen.rows(ready),
+    `${screen.name} rendered no rows ${when}, against a populated fixture`,
+  ).not.toHaveCount(0);
+
+  // `.error` as well as `role="alert"`: the dashboard's per-panel failure is a
+  // plain `<p class="error">`, so a role query walks straight past a panel whose
+  // fetch failed (#841).
+  await expect(
+    page.locator('.error, [role="alert"]'),
+    `${screen.name} rendered an error ${when} — the backend's load became the user's problem`,
+  ).toHaveCount(0);
+
+  for (const key of screen.emptyMessageKeys) {
+    await expect(
+      page.getByText(tEn(key as `dashboard:${string}`)),
+      `${screen.name} showed an EMPTY state ${when} against a populated fixture — `
+        + `a failed fetch is being presented to the farm as "you have no data"`,
+    ).toBeHidden();
+  }
+}
 
 test.describe("canary", () => {
   for (const screen of SCREENS) {
@@ -143,40 +214,29 @@ test.describe("canary", () => {
       // that actually widens, and the one a farmer would describe as "slow".
       const ready = screen.ready(page);
       await expect(ready).toBeVisible();
-      // POPULATED, not merely present. A table rendered with headers and no rows
-      // is exactly what a degraded backend produces, and "the header exists" was
-      // green for it (PR #391 review). Reports has no empty-state message at all,
-      // so for that screen this is the ONLY thing standing between a valid-but-
-      // empty report and a passing canary.
-      await expect(
-        ready.locator("tbody tr"),
-        `${screen.name} rendered its table with no rows against a populated fixture`,
-      ).not.toHaveCount(0);
+      // POPULATED, not merely present. A container rendered with headers and no
+      // rows is exactly what a degraded backend produces, and "the header exists"
+      // was green for it (PR #391 review). Reports has no empty-state message at
+      // all, so for that screen this is the ONLY thing standing between a
+      // valid-but-empty report and a passing canary. Each screen names its own
+      // rows because they are not all table rows (#841): the dashboard's are
+      // tiles, and a hardcoded `tbody tr` counted 0 there forever.
+      await assertScreenIsCorrect(screen, page, ready, "on load");
       const usableInMs = Date.now() - startedAt;
-
-      // THE CORRECTNESS ASSERTIONS — as strict under load as off it.
-      //
-      // A saturated backend must degrade by being SLOW, never by showing a farm
-      // an empty table or an error where its data should be. That confusion is
-      // the failure worth catching: "no stock today" reads as a fact about the
-      // farm, not as a fact about the server.
-      await expect(
-        page.getByRole("alert"),
-        `${screen.name} rendered an error — the backend's load became the user's problem`,
-      ).toBeHidden();
-      if (screen.emptyMessageKey) {
-        await expect(
-          page.getByText(tEn(screen.emptyMessageKey as `dashboard:${string}`)),
-          `${screen.name} showed its EMPTY state against a populated fixture — under load, `
-            + `a failed fetch is being presented to the farm as "you have no data"`,
-        ).toBeHidden();
-      }
 
       // One representative interaction, so `longestInteractionMs` measures
       // something. Without it the metric is reported as null (see vitals.ts) —
       // deliberately, because a 0 there would read as "instant" when it means
       // "never measured".
-      if (screen.interact) await screen.interact(page, farm.timeZoneId);
+      //
+      // The screen must still be CORRECT afterwards. Every interaction here is a
+      // re-query plus a re-render, and without this second check a filter that
+      // came back empty or failed would leave the canary green on the strength
+      // of the pre-interaction state it had already left behind (#841).
+      if (screen.interact) {
+        await screen.interact(page, farm.timeZoneId);
+        await assertScreenIsCorrect(screen, page, ready, "after the interaction");
+      }
 
       const vitals = await readVitals(page);
 
