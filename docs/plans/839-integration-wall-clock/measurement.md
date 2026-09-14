@@ -152,6 +152,46 @@ made `git rev-parse --show-toplevel` return the binary directory instead of the
 worktree root. The same hook and commit-message validation passed outside that
 environment. No hook or unrelated test was changed.
 
+## Correction: the 25.8% figure is not a speedup
+
+The section above reports a clean before/after difference of 112.05 seconds and
+already calls it one observed comparison rather than a throughput estimate. A
+paired re-run on the same machine, minutes apart, at the same configuration,
+removes even that reading:
+
+| Run | Config | Wall seconds | Outcome |
+| --- | --- | ---: | --- |
+| `main` (`18b45dc`, no orderer) | Debug | 320 | 1,801 passed |
+| This branch | Debug | 326 | 1,815 passed |
+| This branch | Release | 341 | 1,815 passed |
+| This branch, via `measure.py` | Debug | 331.5 | 1,815 passed |
+
+The orderer and the unmodified scheduler land inside each other's spread. The
+comparison that produced 25.8% was against a single 434.51-second run, and this
+report's own diagnostic section shows the **unmodified** scheduler reaching
+327.06 seconds on its second attempt. The slow run was an unlucky collection
+schedule, not the normal cost of the suite.
+
+So the change is a **variance reduction, not a throughput win**. xUnit 2.9.3
+documents its default collection order as unstable between runs; pinning the
+long serialized collection to the front removes the schedule that puts it last
+and leaves a long tail behind it. It does not make any test cheaper, and no
+percentage should be claimed from it.
+
+Two premises in the issue also did not survive measurement.
+
+**Container reuse is already done.** The shared collection holds one
+`ICollectionFixture<CluckworkWebApplicationFactory>` covering 1,024 of 1,815
+tests. The 119 Postgres containers in a run are overwhelmingly the specialized
+factories that need their own database, migration state, or advisory-lock
+behavior, not accidental per-class startup.
+
+**The remaining cost is not SQL.** Container readiness occupies 156.6 distinct
+wall-clock seconds out of 331.5, and it overlaps test execution. What does not
+overlap is repeated one-shot process startup: `SeedCommandTests` 131.14s,
+`ProcessRoleGuardTests` 127.26s, `OneShotVerbMinimalConfigTests` 119.05s. Those
+three classes are the largest single lever left and the issue never names them.
+
 ## Files changed
 
 - `tests/Cluckwork.Api.IntegrationTests/Infrastructure/IntegrationCollectionOrderer.cs`
