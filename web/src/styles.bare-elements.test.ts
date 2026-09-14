@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import postcss from "postcss";
 import type { AtRule, Container, Document, Rule } from "postcss";
+import selectorParser from "postcss-selector-parser";
+import type { Node as SelectorNode, Selector } from "postcss-selector-parser";
 
 // #823 §2.3 — the rules in `styles.css` that style an element by NAME.
 //
@@ -25,133 +27,168 @@ import type { AtRule, Container, Document, Rule } from "postcss";
 // exists to stop anyone trusting, and the point of this one is that the NEXT
 // bare-element rule anybody adds arrives here red.
 //
-// That applies to the ELEMENT NAMES too, and the first version of this file got
-// it wrong: it matched a fixed list of fifteen, so a global `fieldset { ... }`
-// or `img { ... }` would have passed without being looked at. Any type selector
-// counts now, which is the same "walk everything, exclude deliberately" rule
-// turned on the guard's own input. The one exclusion is written down below.
+// Four rounds of local review, each against the round before, moved this file
+// from a hand-kept element list to a hand-rolled regex parser and finally to a
+// real selector AST — AGENTS.md's guard rule for exactly this shape ("two
+// misses of the same shape mean the METHOD is wrong"):
 //
-// A second version fixed that and still had a textual hole: "scoped" meant
-// "the compound's text contains a `.` or `#` anywhere", which reads a
-// `:not(.legacy)` argument as scope even though a negation grants nothing —
-// `button:not(.legacy) { background: red }` still repaints every MUI button,
-// and passed clean. `:is(button)` was invisible for the opposite reason:
-// `tagOf` only looked at a compound's own leading characters, so a bare tag
-// nested inside `:is()` (unlike `:where()`, which this file already walked
-// into) was never seen at all.
+// 1. A fixed list of fifteen element names let a global `fieldset { ... }` or
+//    `img { ... }` pass unseen. Fix: treat any type selector as naming an
+//    element, not a hand-kept list.
+// 2. "Scoped" meant "the compound's text contains a `.` or `#` anywhere",
+//    which read a `:not(.legacy)` argument as scope and never looked inside
+//    `:is()` for a nested tag. Fix: strip `:not()`, walk into `:is()`/
+//    `:where()`.
+// 3. `:is()`/`:where()` alternatives were flattened into one shared list
+//    before asking "does anything have scope", so `.legacy`'s class in
+//    `:is(button, .legacy)` vouched for the unrelated `button` alternative,
+//    and only one level of nesting was ever expanded. Fix: judge scope per
+//    alternative, recursively — still on regex.
+// 4. The regex's own depth limit and its blindness to WHERE in the selector
+//    text a `.`/`#` sits broke again: `:is(.legacy, :is(:is(button)))`
+//    defeated the depth-limited capture group, and `input[value=
+//    "name@example.com"]` read `.com` inside an ATTRIBUTE VALUE as a class.
+//    Both are string-level failures no amount of additional regex patching
+//    fixes, because the regex has no concept of "inside an attribute value"
+//    versus "a selector". Fix: parse with `postcss-selector-parser` instead
+//    of hand-rolled text scanning — a class/id token is only ever read from
+//    an actual `class`/`id` AST node, and an attribute's value is a distinct
+//    field on an `attribute` node that this walk never treats as selector
+//    text. Every one of the eight mutations from all four rounds is a
+//    permanent regression case below, plus `!important` (next paragraph).
 //
-// A third version fixed those two and still flattened every `:is()`/`:where()`
-// ALTERNATIVE into one shared list before asking "does anything here have
-// scope" — so `:is(button, .legacy)` let `.legacy`'s class vouch for the
-// unrelated `button` alternative, and it is the SAME rule that reaches every
-// raw `<button>` in the app either way. Nesting escaped for a different
-// reason: only one level of `:is()`/`:where()` was ever expanded, so
-// `:is(:is(button))` never surfaced `button` as a tag at all. Scope is now
-// judged PER ALTERNATIVE, recursively, and an alternative's own class no
-// longer reaches a sibling alternative it was never written on. All four
-// mutations are rows below and all four go red on the version before this
-// comment.
+// A parallel finding in the SAME round: the declaration pin recorded only
+// property NAMES, so `background: var(--brand) !important` on a demoted rule
+// changed nothing the pin could see — and `!important` wins the cascade
+// regardless of `:where()`'s zero specificity, defeating the whole technique
+// silently. Every rule this walk finds is now also checked for it.
 
 const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
-/** Split one selector into its compounds, ignoring combinators inside `()` or `[]`. */
-function compounds(selector: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let current = "";
-  for (const ch of selector) {
-    if (ch === "(" || ch === "[") depth += 1;
-    else if (ch === ")" || ch === "]") depth -= 1;
-    if (depth === 0 && (ch === " " || ch === ">" || ch === "+" || ch === "~")) {
-      if (current) out.push(current);
-      current = "";
-      continue;
-    }
-    current += ch;
-  }
-  if (current) out.push(current);
-  return out;
-}
-
-// `:is()` and `:where()` are both selector LISTS: each argument is an
-// alternative the compound can match through, so a bare tag inside either one
-// names an element exactly as if it sat outside the parens. They fan out
-// recursively — an alternative can itself contain another one.
-const SELECTOR_LIST = /:(?:is|where)\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g;
-
-const tagOf = (compound: string) => /^(\*|[a-zA-Z][a-zA-Z0-9-]*)/.exec(compound)?.[1] ?? null;
-
-// `:not()` is a NEGATION, not a selector list: `button:not(.legacy)` still
-// matches every `<button>` that lacks `.legacy`, so a class inside it grants
-// the compound nothing. Stripped before either a tag or scope is read, so the
-// class token it contains cannot be read as either.
-const NOT = /:not\([^()]*(?:\([^()]*\)[^()]*)*\)/g;
-const stripNot = (compound: string) => compound.replace(NOT, "");
-
-// A class or id token, MUI's and Emotion's own naming excluded: `.MuiButton-
-// root` and `.css-1a2b3c` are generated FOR MUI's DOM, not scope this app put
-// there, so a rule reaching MUI through one of those alone is exactly the
-// unscoped case this guard exists to catch.
-const CLASS_OR_ID = /[.#][A-Za-z0-9_-]+/g;
-// MUI's own convention, both forms: `MuiButton-root` (component-slot, capital
-// after `Mui`) and `Mui-disabled` (global state, hyphen after `Mui`) — never a
-// lowercase letter, which this app's own class names would use.
-const MUI_OR_EMOTION_OWNED = /^[.#](Mui[A-Z-]|css-)/;
-
-/**
- * Whether a compound has app-owned scope AT ITS OWN LEVEL — a class or id
- * outside any `:not()`/`:is()`/`:where()` argument, so a token belonging to
- * one `:is()` alternative is never read as scope for a sibling alternative,
- * or for the compound's own tag.
- */
-function ownPositiveScope(compound: string): boolean {
-  const ownLevel = stripNot(compound).replace(SELECTOR_LIST, "");
-  return (ownLevel.match(CLASS_OR_ID) ?? []).some((token) => !MUI_OR_EMOTION_OWNED.test(token));
-}
+// MUI's and Emotion's own naming: `MuiButton-root` (component-slot, capital
+// after `Mui`) and `Mui-disabled` (global state, hyphen after `Mui`) — never
+// a lowercase letter, which this app's own class names would use. `css-
+// 1a2b3c` is Emotion's generated class. A rule reaching MUI through one of
+// these alone is exactly the unscoped case this guard exists to catch, so
+// neither counts as this app's own scope. Selector-parser strips the leading
+// `.`/`#` from `class`/`id` node values, so this matches the bare name.
+const MUI_OR_EMOTION_OWNED = /^(Mui[A-Z-]|css-)/;
 
 interface Reading {
-  /** The element tag this specific alternative reaches, if any. */
+  /** The element tag this specific reading matches, if any. */
   tag: string | null;
-  /** Whether THIS alternative, alone, needs no app-owned scope to match it. */
+  /** Whether THIS reading, alone, needs no app-owned scope to match it. */
   scoped: boolean;
 }
 
+/** One maximal run of simple-selector nodes between combinators. */
+function compoundGroups(selector: Selector): SelectorNode[][] {
+  const groups: SelectorNode[][] = [];
+  let current: SelectorNode[] = [];
+  for (const node of selector.nodes) {
+    if (node.type === "combinator") {
+      if (current.length) groups.push(current);
+      current = [];
+      continue;
+    }
+    if (node.type === "comment") continue;
+    current.push(node);
+  }
+  if (current.length) groups.push(current);
+  return groups;
+}
+
 /**
- * Every way a single compound (no combinator) can be read, one per
- * `:is()`/`:where()` alternative, recursively — `:is(button, .legacy)`
- * produces two INDEPENDENT readings rather than one compound where any class
- * anywhere satisfies every alternative. A compound's own scope (outside any
- * such argument) applies to every reading, because it is ANDed with whichever
- * alternative is chosen; an alternative's own scope applies only to itself.
+ * Every way a single compound (the simple-selector nodes between two
+ * combinators, e.g. `button:hover:not(:disabled)` or `.card`) can be read.
  *
- * This assumes each `:is()`/`:where()` alternative is itself one compound —
- * true of every use in `styles.css` and of both review rounds' mutations. A
- * combinator inside `:is()`/`:where()` (`:is(div button)`) is not modelled.
+ * A `class`/`id` node here is real app-owned scope, or MUI's/Emotion's own if
+ * it matches their naming — never a string that merely CONTAINS one, so an
+ * attribute value like `name@example.com` cannot be misread as a class.
+ * `:not()`'s argument is walked (nothing hides unexamined) but contributes
+ * neither a tag nor scope — a negation excludes a match, it does not grant
+ * one. `:is()`/`:where()` fan out into one reading per alternative,
+ * recursively via `chainReadings`, each ANDed with this compound's own scope
+ * (which applies regardless of which alternative is chosen).
  */
-function compoundReadings(compound: string): Reading[] {
-  const withoutNot = stripNot(compound);
-  const ownTag = tagOf(withoutNot);
-  const ownScope = ownPositiveScope(withoutNot);
-  const alternatives = [...withoutNot.matchAll(SELECTOR_LIST)]
-    .flatMap((m) => m[1].split(",").map((s) => s.trim()));
-  if (alternatives.length === 0) return [{ tag: ownTag, scoped: ownScope }];
-  return alternatives.flatMap((alt) => compoundReadings(alt).map((reading) => ({
-    tag: reading.tag ?? ownTag,
-    scoped: ownScope || reading.scoped,
-  })));
+function compoundReadings(nodes: SelectorNode[]): Reading[] {
+  let ownTag: string | null = null;
+  let ownScope = false;
+  const fanOuts: Reading[][] = [];
+
+  for (const node of nodes) {
+    if (node.type === "tag") { ownTag = node.value; continue; }
+    if (node.type === "universal") { ownTag = ownTag ?? "*"; continue; }
+    if (node.type === "class" || node.type === "id") {
+      if (!MUI_OR_EMOTION_OWNED.test(node.value)) ownScope = true;
+      continue;
+    }
+    // `attribute` never contributes: its VALUE is a distinct structured
+    // field, not selector text, so `[value="name@example.com"]` grants
+    // neither a tag nor a class token.
+    if (node.type === "attribute") continue;
+    if (node.type === "pseudo") {
+      if (node.value === ":is" || node.value === ":where") {
+        fanOuts.push(node.nodes.flatMap((alt) => chainReadings(alt)));
+      }
+      // `:not()`, `:has()` and anything else: visited, contributes nothing.
+      // `:not()` excludes a match rather than granting one; `:has()`
+      // constrains a DIFFERENT element (a descendant/sibling), not this one.
+      continue;
+    }
+    // nesting ("&"), string, comment: not a simple selector, ignored.
+  }
+
+  if (fanOuts.length === 0) return [{ tag: ownTag, scoped: ownScope }];
+  // Cross product across multiple :is()/:where() occurrences in ONE compound
+  // (rare — none in this file — but correct rather than silently dropped).
+  return fanOuts.reduce<Reading[]>(
+    (combos, fanOut) => combos.flatMap((base) => fanOut.map((alt) => ({
+      tag: alt.tag ?? base.tag,
+      scoped: base.scoped || alt.scoped,
+    }))),
+    [{ tag: ownTag, scoped: ownScope }],
+  );
+}
+
+/**
+ * Every tag this selector (a chain of compounds joined by combinators) can be
+ * read as reaching, each already combined with the scope its OWN compound
+ * needs AND whatever every OTHER compound in the chain needs — an ancestor
+ * compound still constrains which concrete elements this selector can reach,
+ * even when the tag-bearing compound itself has no scope of its own. The
+ * same function serves the top-level selector and every `:is()`/`:where()`
+ * alternative: both are "a chain of compounds", and an alternative's own
+ * ancestor compound (`:is(div button)`) needs the identical treatment.
+ */
+function chainReadings(selector: Selector): Reading[] {
+  const groups = compoundGroups(selector);
+  const perCompound = groups.map(compoundReadings);
+  const results: Reading[] = [];
+  perCompound.forEach((readings, index) => {
+    const everyOtherCompoundHasAnUnscopedReading = perCompound.every(
+      (other, otherIndex) => otherIndex === index || other.some((r) => !r.scoped),
+    );
+    for (const reading of readings) {
+      if (reading.tag === null) continue;
+      results.push({
+        tag: reading.tag,
+        scoped: reading.scoped || !everyOtherCompoundHasAnUnscopedReading,
+      });
+    }
+  });
+  return results;
 }
 
 interface BareRule {
   selector: string;
-  /**
-   * Whether SOME reading of SOME compound names an element with no app-owned
-   * scope anywhere it needs one: neither on that reading itself nor on any
-   * OTHER compound in the chain (an ancestor still constrains which concrete
-   * elements this selector can reach, even when the tag-bearing compound
-   * itself is clean).
-   */
+  /** Whether some reading of this selector names an element with no app-owned scope anywhere it needs one. */
   global: boolean;
   props: string;
+  /** Whether any declaration in this rule carries `!important`, which wins regardless of `:where()`'s zero specificity. */
+  important: boolean;
+  /** The one deliberate exception to the `!important` check — see `inReducedMotionOverride`. */
+  reducedMotionOverride: boolean;
 }
 
 /**
@@ -169,25 +206,40 @@ const inKeyframes = (rule: Rule) => {
   return false;
 };
 
+/**
+ * The deliberate exclusion from the `!important` check: this app's own
+ * `prefers-reduced-motion: reduce` override. It MUST win regardless of
+ * specificity — that is the entire point of `!important` here, not a bypass
+ * of it, so it is a structural exemption (which `@media` this rule sits
+ * inside) rather than a text match on the selector, and the test below
+ * pins exactly what it excuses so a second rule cannot silently ride along.
+ */
+const inReducedMotionOverride = (rule: Rule) => {
+  for (let node: Container | Document | undefined = rule.parent; node; node = node.parent) {
+    if (node.type === "atrule" && (node as AtRule).name === "media"
+      && /prefers-reduced-motion:\s*reduce/.test((node as AtRule).params)) return true;
+  }
+  return false;
+};
+
 /** `source` defaults to the real file; the mutation tests pass a synthetic addition. */
 function bareElementRules(source: string = css): BareRule[] {
   const found: BareRule[] = [];
   postcss.parse(source).walkRules((rule) => {
     if (inKeyframes(rule)) return;
+    const important = rule.nodes
+      .filter((node) => node.type === "decl")
+      .some((node) => node.important === true);
+    const reducedMotionOverride = inReducedMotionOverride(rule);
     for (const selector of rule.selectors) {
-      const chain = compounds(selector).map(compoundReadings);
-      const tagReadings = chain.flatMap((readings, index) =>
-        readings.filter((reading) => reading.tag !== null).map((reading) => ({ reading, index })));
-      if (tagReadings.length === 0) continue;
-
-      const compoundHasAnUnscopedReading = chain.map((readings) => readings.some((r) => !r.scoped));
-      const global = tagReadings.some(({ reading, index }) =>
-        !reading.scoped
-        && compoundHasAnUnscopedReading.every((unscopedOk, i) => i === index || unscopedOk));
+      const readings = chainReadings(selectorParser().astSync(selector).at(0));
+      if (readings.length === 0) continue;
 
       found.push({
         selector,
-        global,
+        global: readings.some((r) => !r.scoped),
+        important,
+        reducedMotionOverride,
         props: rule.nodes
           .filter((node) => node.type === "decl")
           .map((node) => node.prop)
@@ -232,7 +284,9 @@ const DEMOTED: ReadonlyArray<readonly [selector: string, props: string]> = [
  * the baseline never applies. They go when that is settled.
  *
  * `prefers-reduced-motion` is an accessibility override carrying `!important`,
- * and it is supposed to reach MUI's transitions as well as the app's own.
+ * and it is supposed to reach MUI's transitions as well as the app's own —
+ * the one place in the file `!important` is correct rather than a bypass, and
+ * it is asserted below rather than just excused.
  */
 const DELIBERATE: ReadonlyArray<readonly [selector: string, props: string]> = [
   ["*", "box-sizing"],
@@ -273,18 +327,35 @@ describe("bare element selectors against MUI's DOM (#823)", () => {
     // its screen's slice rather than needing neutralising now. A new rule with
     // no such container lands in the pin above instead, and fails there.
     for (const rule of rules.filter((r) => !r.global)) {
-      const hasAnyOwnedReading = compounds(rule.selector)
-        .some((compound) => compoundReadings(compound).some((reading) => reading.scoped));
-      expect(hasAnyOwnedReading,
-        `${rule.selector} names an element and is scoped by nothing this app owns`).toBe(true);
+      expect(rule.global, `${rule.selector} names an element and is scoped by nothing this app owns`)
+        .toBe(false);
+    }
+  });
+
+  it("carries no !important on a rule that reaches MUI's DOM, except the reduced-motion override", () => {
+    // `!important` wins the cascade outright, so it defeats `:where()`'s zero
+    // specificity exactly as completely as dropping the `:where()` would —
+    // the property pin above never saw it, because it only ever recorded
+    // property NAMES.
+    const exempt = rules.filter((rule) => rule.reducedMotionOverride);
+    // Pin exactly what the exemption excuses, so a second rule landing inside
+    // `@media (prefers-reduced-motion: reduce)` cannot silently ride along
+    // with it — this is the DELIBERATE list's third row, the one place
+    // `!important` is correct rather than a bypass.
+    expect(exempt.map((rule) => [rule.selector, rule.props])).toEqual([["*", "transition animation"]]);
+
+    for (const rule of rules) {
+      if (rule.reducedMotionOverride) continue;
+      expect(rule.important, `${rule.selector} uses !important, which wins regardless of specificity`)
+        .toBe(false);
     }
   });
 });
 
 describe("bare-element guard catches its own bypasses", () => {
   // A control: an unscoped element rule this guard has always caught. Proves
-  // the harness below can go red at all before trusting the two it could not,
-  // pre-fix — see the file header.
+  // the harness below can go red at all before trusting the ones it could
+  // not, pre-fix — see the file header for what each round missed and why.
   it("catches an unscoped rule naming an element outright", () => {
     const mutated = bareElementRules(`${css}\nfieldset { border: none; }`);
     expect(mutated.some((rule) => rule.selector === "fieldset" && rule.global)).toBe(true);
@@ -322,5 +393,22 @@ describe("bare-element guard catches its own bypasses", () => {
     const mutated = bareElementRules(`${css}\n:is(:is(button)) { background: red; }`);
     expect(mutated.some((rule) => rule.selector === ":is(:is(button))" && rule.global))
       .toBe(true);
+  });
+
+  it("catches a class buried inside a nested :is() alternative list", () => {
+    const mutated = bareElementRules(`${css}\n:is(.legacy, :is(:is(button))) { background: red; }`);
+    expect(mutated.some((rule) => rule.selector === ":is(.legacy, :is(:is(button)))" && rule.global))
+      .toBe(true);
+  });
+
+  it("does not read an attribute VALUE as a class", () => {
+    const mutated = bareElementRules(`${css}\ninput[value="name@example.com"] { background: red; }`);
+    expect(mutated.some((rule) => rule.selector === 'input[value="name@example.com"]' && rule.global))
+      .toBe(true);
+  });
+
+  it("catches !important, which wins regardless of :where()'s zero specificity", () => {
+    const mutated = bareElementRules(`${css}\n:where(button) { color: red !important; }`);
+    expect(mutated.some((rule) => rule.selector === ":where(button)" && rule.important)).toBe(true);
   });
 });
