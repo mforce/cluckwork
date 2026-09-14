@@ -76,8 +76,8 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       fontFamily: tokens["--font"],
       // Sizes copied from what the stylesheet already renders, not a new scale.
       // `body1` is what `CssBaseline` applies to `<body>`, so its letterSpacing
-      // is reset from MUI's 0.00938em: leaving the default would re-track every
-      // paragraph in the app on the day the baseline lands.
+      // is reset from MUI's 0.00938em now rather than on the day the baseline
+      // lands, when it would silently re-track every paragraph in the app.
       body1: { fontSize: "1rem", lineHeight: 1.5, letterSpacing: 0 },
       body2: { fontSize: "0.95rem" },
       h1: { fontSize: "2rem", fontWeight: 800 },
