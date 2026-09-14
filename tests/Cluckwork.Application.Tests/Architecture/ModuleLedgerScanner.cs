@@ -67,7 +67,7 @@ public static class ModuleLedgerScanner
             var relative = Relative(repoRoot, file);
             var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file),
                 CSharpParseOptions.Default.WithPreprocessorSymbols(
-                    "NET10_0", "NET10_0_OR_GREATER", "NET", "NETCOREAPP", "NET5_0_OR_GREATER",
+                    "DEBUG", "TRACE", "NET10_0", "NET10_0_OR_GREATER", "NET", "NETCOREAPP", "NET5_0_OR_GREATER",
                     "NET6_0_OR_GREATER", "NET7_0_OR_GREATER", "NET8_0_OR_GREATER", "NET9_0_OR_GREATER"), file);
             var root = tree.GetCompilationUnitRoot();
 
@@ -202,7 +202,12 @@ public static class ModuleLedgerScanner
                     $"unowned namespace '{declared}' declared in {relative} — every namespace in src/ must be claimed by exactly one ledger owner");
             }
 
-            attributions.Add((type, $"{declared}.{Identifier(type)}", owner?.Owner));
+            // A file-local type is visible in its own file only, so two files may
+            // declare the same name; the path keeps their rows apart.
+            var symbol = IsFileLocal(type)
+                ? $"{declared}.{Identifier(type)}@{relative}"
+                : $"{declared}.{Identifier(type)}";
+            attributions.Add((type, symbol, owner?.Owner));
         }
 
         if (attributions.Count == 0)
@@ -491,8 +496,16 @@ public static class ModuleLedgerScanner
         _ => throw new InvalidOperationException($"ModuleLedgerScanner: {node.Kind()} is not a type declaration."),
     };
 
+    // Arity only: type parameter names are not part of a generic type's identity.
     private static string GenericIdentifier(string identifier, TypeParameterListSyntax? parameters) =>
-        parameters is null ? identifier : $"{identifier}<{string.Join(", ", parameters.Parameters.Select(p => p.Identifier.ValueText))}>";
+        parameters is null ? identifier : $"{identifier}<{new string(',', parameters.Parameters.Count - 1)}>";
+
+    private static bool IsFileLocal(SyntaxNode node) => node switch
+    {
+        BaseTypeDeclarationSyntax type => type.Modifiers.Any(SyntaxKind.FileKeyword),
+        DelegateDeclarationSyntax @delegate => @delegate.Modifiers.Any(SyntaxKind.FileKeyword),
+        _ => false,
+    };
 
     private static string NamespaceOf(SyntaxNode node, string rootNamespace)
     {

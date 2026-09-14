@@ -356,7 +356,7 @@ public sealed class ModuleLedgerTests : IDisposable
         WriteSource("src/Blue.cs", BlueSource);
         WriteSource("src/Red.cs", "using Cluckwork.Temp.Blue; namespace Cluckwork.Temp.Red; public class R { } public class R<T> { }");
 
-        Assert.Equal(["Cluckwork.Temp.Red.R", "Cluckwork.Temp.Red.R<T>"], Scan(WriteLedger(string.Empty)).LiveEdges.Select(edge => edge.Symbol));
+        Assert.Equal(["Cluckwork.Temp.Red.R", "Cluckwork.Temp.Red.R<>"], Scan(WriteLedger(string.Empty)).LiveEdges.Select(edge => edge.Symbol));
     }
 
     [Fact]
@@ -400,6 +400,41 @@ public sealed class ModuleLedgerTests : IDisposable
         var failure = RegistryFailure(WriteLedger(Cell("Red", "Red", "Cluckwork.Temp.Red.R")));
 
         Assert.Contains("names one owner on both ends", failure);
+    }
+
+    [Fact]
+    public void FileLocalTypes_WithTheSameName_HaveDistinctSymbols()
+    {
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/One.cs", """
+            namespace Cluckwork.Temp.Red;
+            using Cluckwork.Temp.Blue;
+            file class Probe { }
+            """);
+        WriteSource("src/Two.cs", """
+            namespace Cluckwork.Temp.Red;
+            using Cluckwork.Temp.Blue;
+            file class Probe { }
+            """);
+
+        Assert.Equal(
+            ["Cluckwork.Temp.Red.Probe@src/One.cs", "Cluckwork.Temp.Red.Probe@src/Two.cs"],
+            Scan(WriteLedger(string.Empty)).LiveEdges.Select(edge => edge.Symbol));
+    }
+
+    [Fact]
+    public void DebugPreprocessorSymbol_EnablesAUsingEdge()
+    {
+        WriteSource("src/Blue.cs", BlueSource);
+        WriteSource("src/Red.cs", """
+            namespace Cluckwork.Temp.Red;
+            #if DEBUG
+            using Cluckwork.Temp.Blue;
+            #endif
+            public class R { }
+            """);
+
+        Assert.Single(Scan(WriteLedger(string.Empty)).LiveEdges);
     }
 
     [Fact]
