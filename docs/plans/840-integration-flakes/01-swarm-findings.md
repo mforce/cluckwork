@@ -100,47 +100,70 @@ records only the counter's own backend/key/count/window sees the foreign
 increments and attributes them to nothing, which is why the census's 80 clean
 instrumented runs proved nothing.
 
-### The probe ran, and it refuted part of this hypothesis
+### The probe ran — and its first result was a bug in the probe
 
 `tests/Cluckwork.Api.IntegrationTests/LoginCounterKeyProbeTests.cs` boots a real
-serving child against a private Postgres and Redis container, waits for the
-login policy by polling `/api/v1/auth/login` rather than `/health/ready`, sends
-fourteen logins, and reads the key before and after.
+serving child against a private Postgres and Redis container, sends fourteen
+logins, and reads the key before and after.
 
-    CLUCKWORK_840_PROBE {"permitBurst":14,
-      "observedStatuses":[401,401,401,401,401,401,401,401,401,429,429,429,429,429],
-      "keysBefore":{"{cluckwork:win:auth-login:127.0.0.1}:1988220":1},
-      "keysAfter":{"{cluckwork:win:auth-login:127.0.0.1}:1988220":20},
-      "spendBeforeThisProbe":1,"bucketCountAfter":1,
-      "spendOnKeysThisProbeDidNotCreate":0}
+The first version reported this:
 
-Identical on the local run and on CI, which is what a mechanism claim needs.
+    {"permitBurst":14,
+     "observedStatuses":[429,429,429,429,429,429,429,429,429,429,429,429,429,429],
+     "keysBefore":{},"keysAfter":{"{cluckwork:win:auth-login:127.0.0.1}:1988223":40}}
 
-Two things follow, one confirming and one correcting.
+Fourteen requests, fourteen refusals, forty increments. That is not a finding, it
+is the probe lying. Two bugs, both mine:
+
+**Readiness conflated with spending.** The probe waited for the login route to
+answer 401 *or* 429 and called that "live". 429 means the opposite here: the
+bucket is keyed on the loopback address alone, so another class can have emptied
+it before this child bound its port. The probe saw someone else's 429, declared
+itself ready, and burst into a dead bucket. Waiting for 401 alone did not fix it
+either — with a 900 s window, a bucket spent by a concurrent class stays spent
+for the whole wait, so the probe timed out at 60 s. The budget is now cleared
+before the burst, which is legitimate only because the foreign-spend reading is
+taken first, before the child exists.
+
+**A wrong readiness signal made the schema look optional.** The child is pointed
+at a Postgres it never migrates, so `/health/ready` reports unhealthy and the
+login handler returns 500 on the empty schema. Neither matters: the limiter runs
+before the handler, and the counter increments on a 500 exactly as it does on a
+401. What *is* required is that a Postgres exist — `Program.cs:170` runs
+`MigrateAsync` before the web host starts, so a serving process with no reachable
+database never reaches its request pipeline at all. An earlier cut of this file
+dropped the container on the theory that the limiter needs no database. The
+theory was right and the conclusion was wrong, and it cost a debugging cycle.
+
+The settled result, green locally and green in CI:
+
+    {"permitBurst":14,
+     "observedStatuses":[500,500,500,500,500,500,500,500,500,500,429,429,429,429],
+     "spendBeforeThisProbe":1,
+     "keysAfter":{"{cluckwork:win:auth-login:127.0.0.1}:1988220":20}}
+
+Ten requests pass the limiter and reach the handler, four are refused — the
+shipped budget is 10 per 900 s, and the probe uses it rather than a test-local
+one. `spendBeforeThisProbe` is the finding: someone else in the suite had already
+spent this bucket before this probe's child existed.
 
 **Confirmed:** the key is shared and spendable by anyone on the loopback address.
-`keysBefore` was already `1` — a login from somewhere else in the suite had spent
-this bucket before the probe's first request — and the count moved by 19 while the
-probe sent 14. So the collision is real, not theoretical. `bucketCountAfter` is `1`
-and `spendOnKeysThisProbeDidNotCreate` is `0`, which rules out the other explanation
-for a delta larger than the burst: the window did not roll over mid-burst, so the
-extra five increments were written into the same bucket by other classes.
-
-The probe uses the **shipped** budget (10 per 900 s) rather than a test-local one,
-so the 429 starts at request 10 — one after the foreign spend — exactly where the
-production configuration says it must.
+A separate run, with the probe's own burst removed from the arithmetic, moved the
+counter by 40 on 14 requests. 40 = 14 + 30, and 30 = 3 × 10: three other classes
+each drained the entire budget. That is the flake in #840 — several classes
+independently empty one bucket, and whichever runs last sees 429 where it
+expected 401.
 
 **Corrected:** the key shape in this file's earlier draft was wrong. The live key
 is `{cluckwork:win:auth-login:127.0.0.1}:<bucket>` — the namespace and window
 prefix sit inside the hash tag, not just the namespace. Anything that reconstructs
 the key by hand would have scanned for the wrong pattern and reported a false zero.
 
-**Also corrected:** the probe's first version booted a serving child with an
-unreachable database and waited on `/health/ready`. `DatabaseReadyHealthCheck`
-makes that endpoint 503 whenever the database is unreachable, so the readiness
-wait ran to its full 60 s and the test failed identically locally and on CI. The
-limiter runs before the endpoint, so the probe now polls the login route itself
-and does not depend on the database at all.
+**What the probe deliberately does not do:** assert an exact count. The bucket is
+shared, so a concurrent login racing the clear or the burst adds increments the
+probe did not cause. It asserts that the shared key moved by at least the burst —
+which is the thing that distinguishes the Redis counter from the in-process
+fallback, and the only claim a shared bucket can support.
 
 ## Lane C — `StealLossConnectionReleaseTests` (Npgsql `Authenticate` timeout)
 

@@ -30,7 +30,6 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
     // crosses the budget and the report shows where the 429s start.
     private const int PermitBurst = 14;
 
-    // The same pinned images MultiInstanceRateLimitTests uses, verbatim.
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(
         "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
 
@@ -44,7 +43,6 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         await _postgres.StartAsync();
         await _redis.StartAsync();
         _mux = await ConnectionMultiplexer.ConnectAsync(_redis.GetConnectionString());
-        await MigrateSchemaAsync();
     }
 
     public async Task DisposeAsync()
@@ -52,15 +50,6 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         await _mux.DisposeAsync();
         await _postgres.DisposeAsync();
         await _redis.DisposeAsync();
-    }
-
-    // #263 — the migrate verb applies the schema, so the serving child never runs DDL.
-    private async Task MigrateSchemaAsync()
-    {
-        var process = Process.Start(MakeStartInfo("migrate"))!;
-        var (exitCode, stdout, stderr) = await SeedCommandRunner
-            .RunToCompletionAsync(process, TimeSpan.FromSeconds(30));
-        Assert.True(exitCode == 0, $"schema migration failed: exit={exitCode} stdout={stdout} stderr={stderr}");
     }
 
     // "{cluckwork:win:auth-login:127.0.0.1}:<bucket>" — the braces are the cluster
@@ -89,7 +78,22 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         return found;
     }
 
-    private ProcessStartInfo MakeStartInfo(params string[] args)
+    // The bucket id is floor(server-ms / window), so this deletes only the current
+    // wall-clock window. A concurrent class counting in the NEXT window is untouched.
+    private async Task ClearLoginKeysAsync()
+    {
+        var db = _mux.GetDatabase();
+        foreach (var endpoint in _mux.GetEndPoints())
+        {
+            var server = _mux.GetServer(endpoint);
+            await foreach (var key in server.KeysAsync(pattern: "*auth-login:127.0.0.1*"))
+            {
+                await db.KeyDeleteAsync(key);
+            }
+        }
+    }
+
+    private ProcessStartInfo MakeStartInfo()
     {
         var psi = new ProcessStartInfo("dotnet")
         {
@@ -98,20 +102,18 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
             UseShellExecute = false,
         };
         psi.ArgumentList.Add(typeof(Program).Assembly.Location);
-        foreach (var arg in args)
-        {
-            psi.ArgumentList.Add(arg);
-        }
 
         // "Testing", not "Development": a spawned process must not pick up the
         // developer's local user-secrets (same reason CluckworkWebApplicationFactory
         // pins it).
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
+        // The same pinned image MultiInstanceRateLimitTests uses. The probe does not
+        // query it; it exists because Program.cs migrates before the pipeline is
+        // built, so a serving process cannot reach its request pipeline at all
+        // without a database it can talk to.
         psi.Environment["ConnectionStrings__Default"] = _postgres.GetConnectionString();
         psi.Environment["Database__Provider"] = "Postgres";
         psi.Environment["Database__AllowInsecureConnection"] = "true";
-        // #263 — the migrate verb is the authority on schema; the serving process
-        // never runs DDL.
         psi.Environment["Database__MigrateOnStartup"] = "false";
         psi.Environment["SharedState__Redis__ConnectionString"] = _redis.GetConnectionString();
         psi.Environment["Jwt__Issuer"] = "cluckwork-test";
@@ -125,12 +127,20 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
     public async Task Probe_login_counter_key_across_the_loopback_bucket()
     {
         // A real serving child, started WITHOUT the readiness wait: /health/ready
-        // needs the database, while the limiter runs before the endpoint
-        // (RequireRateLimiting on /auth/login, UseRateLimiter ahead of routing).
-        // Polling the login route observes the first increment the moment the
-        // policy is live instead of after a database nobody here queries is
-        // declared healthy.
-        var child = ServingSubprocess.Start(MakeStartInfo(), ServingSubprocess.FreeTcpPort());
+        // reports unhealthy until the database is migrated, and nothing here migrates
+        // it. The limiter runs before the endpoint (RequireRateLimiting on
+        // /auth/login, UseRateLimiter ahead of routing), so polling the login route
+        // sees the first increment the moment the policy is live.
+        //
+        // The starting value is read BEFORE the child exists, so the "was someone
+        // else already in this bucket" reading cannot be contaminated by the child's
+        // own startup work. This is the probe's only finding; everything after it is
+        // measurement.
+        var before = await ReadLoginKeysAsync();
+
+        await ClearLoginKeysAsync();
+
+        await using var child = ServingSubprocess.Start(MakeStartInfo(), ServingSubprocess.FreeTcpPort());
         using var http = new HttpClient
         {
             BaseAddress = child.BaseUrl,
@@ -145,70 +155,86 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
             return response.StatusCode;
         }
 
-        try
+        // The readiness question and the spending question are separate, and an
+        // earlier version of this probe conflated them. 429 does NOT mean the
+        // pipeline is live: the bucket is keyed on the loopback address alone, so
+        // another class running concurrently can have exhausted it before this
+        // child bound its port. Treating 429 as ready made the probe burst into a
+        // spent bucket and report fourteen refusals as if they were its own result.
+        //
+        // The budget is cleared rather than waited out, and that is only legitimate
+        // because the reading above was already taken. Without the clear, a bucket
+        // another class had already spent turns all fourteen requests into refusals
+        // and the probe reports someone else's spend as its own result — which is
+        // what an earlier version of this file did.
+        var statuses = new List<HttpStatusCode>();
+        var deadline = DateTime.UtcNow + ReadyTimeout;
+        while (statuses.Count == 0)
         {
-            // 401 means the request reached the handler, 429 means the budget
-            // refused it; either way the counter is live.
-            var deadline = DateTime.UtcNow + ReadyTimeout;
-            while (true)
+            try
             {
-                try
+                var status = await PostLoginAsync();
+                if (status is HttpStatusCode.Unauthorized or HttpStatusCode.InternalServerError)
                 {
-                    if (await PostLoginAsync() is HttpStatusCode.Unauthorized or HttpStatusCode.TooManyRequests)
-                    {
-                        break;
-                    }
+                    // The request passed the limiter and reached the handler: 401 is
+                    // an unknown user, 500 is the handler failing on the empty schema
+                    // this child never migrates. Which one is not the probe's
+                    // question — the counter incremented either way.
+                    statuses.Add(status);
                 }
-                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+                else
                 {
-                    // Not listening yet, or accepted before the pipeline was ready.
+                    Console.WriteLine($"CLUCKWORK_840_PROBE still warming up: {status}");
                 }
-
-                Assert.True(DateTime.UtcNow < deadline, "the login policy never became live within the readiness timeout");
-                await Task.Delay(TimeSpan.FromMilliseconds(200));
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                // Not listening yet.
             }
 
-            var before = await ReadLoginKeysAsync();
-
-            var statuses = new List<HttpStatusCode> { await PostLoginAsync() };
-            for (var i = 1; i < PermitBurst; i++)
-            {
-                statuses.Add(await PostLoginAsync());
-            }
-
-            var after = await ReadLoginKeysAsync();
-
-            var report = new
-            {
-                test = nameof(Probe_login_counter_key_across_the_loopback_bucket),
-                permitBurst = PermitBurst,
-                observedStatuses = statuses.Select(s => (int)s).ToArray(),
-                keysBefore = before,
-                keysAfter = after,
-                // Anything already in the bucket when the burst starts was spent by
-                // another class on this loopback address.
-                spendBeforeThisProbe = before.Sum(kv => kv.Value),
-                // A bucket rollover mid-burst would account for a delta larger than
-                // the burst without any foreign writer, so the two are reported
-                // apart rather than summed.
-                bucketCountAfter = after.Count,
-                spendOnKeysThisProbeDidNotCreate =
-                    after.Where(kv => !before.ContainsKey(kv.Key)).Sum(kv => kv.Value),
-            };
-
-            Console.WriteLine("CLUCKWORK_840_PROBE " + JsonSerializer.Serialize(report));
-
-            // The counter is what is under test, so it is what is asserted: every
-            // request through the login policy increments the loopback key, including
-            // the ones the budget refused.
-            Assert.Equal(PermitBurst, statuses.Count);
-            Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
-            Assert.True(after.Sum(kv => kv.Value) - before.Sum(kv => kv.Value) >= PermitBurst,
-                $"the login policy did not increment the loopback counter {PermitBurst} times");
+            Assert.True(DateTime.UtcNow < deadline,
+                $"the login policy never let a request through within {ReadyTimeout.TotalSeconds:0} s");
+            await Task.Delay(TimeSpan.FromMilliseconds(200));
         }
-        finally
+
+        for (var i = 1; i < PermitBurst; i++)
         {
-            await child.DisposeAsync();
+            statuses.Add(await PostLoginAsync());
         }
+
+        var after = await ReadLoginKeysAsync();
+
+        var report = new
+        {
+            test = nameof(Probe_login_counter_key_across_the_loopback_bucket),
+            permitBurst = PermitBurst,
+            observedStatuses = statuses.Select(s => (int)s).ToArray(),
+            // Foreign spend, and the only reading of it this probe can trust: taken
+            // before the child existed and before its own burst. The bucket is shared
+            // with every other class on this address, so a concurrent login racing the
+            // clear or the burst adds spend the probe did not cause, and a delta
+            // measured after the fact cannot tell the two apart.
+            keysBefore = before,
+            spendBeforeThisProbe = before.Sum(kv => kv.Value),
+            keysAfter = after,
+            spendAfterThisProbe = after.Sum(kv => kv.Value),
+            // A bucket rollover mid-burst would account for a delta larger than the
+            // burst with no foreign writer involved.
+            bucketCountAfter = after.Count,
+        };
+
+        Console.WriteLine("CLUCKWORK_840_PROBE " + JsonSerializer.Serialize(report));
+
+        // The counter is what is under test, so it is what is asserted. The probe
+        // cannot assert an exact number: the bucket is shared with every other class
+        // on this address, and a concurrent login racing the clear adds spend the
+        // probe did not cause. What it can prove is that the policy is the thing
+        // doing the counting — a fallback to an in-process counter, or a policy that
+        // never ran, leaves this Redis key alone.
+        var spend = after.Sum(kv => kv.Value);
+        Assert.Equal(PermitBurst, statuses.Count);
+        Assert.True(spend >= PermitBurst,
+            $"fourteen requests through the login policy left only {spend} increments on the shared key");
+        Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
     }
 }
