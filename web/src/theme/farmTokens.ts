@@ -20,14 +20,19 @@
 
 /**
  * The tokens MUI needs. Deliberately a small subset of the stylesheet's ~50:
- * every entry here has to map onto something in MUI's palette, and a token
- * with no mapping belongs in the CSS that uses it, not in this list.
+ * every entry here has to map onto something the theme decides — the palette,
+ * `shape`, or the `shadows` array — and a token with no mapping belongs in the
+ * CSS that uses it, not in this list.
  */
 export const THEME_TOKENS = [
   "--brand", "--brand-press", "--on-brand",
-  "--ink", "--muted", "--canvas", "--surface", "--hairline",
+  "--ink", "--muted", "--canvas", "--surface", "--surface-2", "--hairline",
   "--error", "--success", "--warn", "--danger", "--on-danger",
-  "--link", "--focus", "--r-card", "--font",
+  "--tint-ok", "--tint-warn", "--tint-danger", "--tint-accent", "--tint-muted",
+  "--stat-accent",
+  "--link", "--focus", "--font",
+  "--r-input", "--r-panel", "--r-card", "--r-pill",
+  "--shadow-bar", "--shadow-dialog",
 ] as const;
 
 export type ThemeToken = (typeof THEME_TOKENS)[number];
@@ -48,11 +53,17 @@ export type ThemeMode = "light" | "dark";
 const JSDOM_FALLBACK = {
   "--brand": "#4a154b", "--brand-press": "#611f69", "--on-brand": "#ffffff",
   "--ink": "#1d1d1d", "--muted": "#696969", "--canvas": "#ffffff",
-  "--surface": "#ffffff", "--hairline": "#e6e6e6",
+  "--surface": "#ffffff", "--surface-2": "#f6f1f8", "--hairline": "#e6e6e6",
   "--error": "#cc4117", "--success": "#007a5a", "--warn": "#b8730a",
   "--danger": "#cc4117", "--on-danger": "#ffffff",
+  "--tint-ok": "#e2f2ec", "--tint-warn": "#f7ecd9", "--tint-danger": "#f9e5df",
+  "--tint-accent": "#f3e9f5", "--tint-muted": "#eeeaf0",
+  "--stat-accent": "#4a154b",
   "--link": "#1264a3", "--focus": "#4a154b",
-  "--r-card": "12px", "--font": "system-ui, sans-serif",
+  "--font": "system-ui, sans-serif",
+  "--r-input": "6px", "--r-panel": "10px", "--r-card": "12px", "--r-pill": "999px",
+  "--shadow-bar": "0 -8px 24px rgba(29, 21, 33, 0.08)",
+  "--shadow-dialog": "0 24px 64px rgba(29, 21, 33, 0.24)",
 } as const satisfies TokenValues;
 
 /**

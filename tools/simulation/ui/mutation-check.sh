@@ -113,6 +113,7 @@ declare -A SPEC_FOR=(
   [phone-table-overflow-unclipped]="specs/phone.spec.ts"
   [phone-tabs-inert]="specs/phone.spec.ts"
   [phone-action-label-wrapped]="specs/phone.spec.ts"
+  [phone-entry-foot-stacked]="specs/phone.spec.ts"
 )
 
 # --- the mutant -> project map ---------------------------------------------
@@ -149,6 +150,7 @@ declare -A PROJECT_FOR=(
   [phone-table-overflow-unclipped]="chromium-phone"
   [phone-tabs-inert]="chromium-phone"
   [phone-action-label-wrapped]="chromium-phone"
+  [phone-entry-foot-stacked]="chromium-phone"
 )
 
 # The project whose WHOLE suite must still be GREEN under this mutant, checked
@@ -161,6 +163,7 @@ declare -A MUST_STAY_GREEN_ON=(
   [phone-table-overflow-unclipped]="chromium"
   [phone-tabs-inert]="chromium"
   [phone-action-label-wrapped]="chromium"
+  [phone-entry-foot-stacked]="chromium"
 )
 
 # The third test in a11y-live-regions.spec.ts (recorded browser facts) has no
@@ -216,6 +219,7 @@ declare -A GREP_FOR=(
   [phone-table-overflow-unclipped]="no walked screen overflows"
   [phone-tabs-inert]="the tab bar is the navigation at this width"
   [phone-action-label-wrapped]="no action control is taller than it is wide"
+  [phone-entry-foot-stacked]="no action control is taller than it is wide"
 )
 
 # Mutants whose RED is known not to prove the guarantee they name. See the header.
@@ -261,14 +265,24 @@ declare -A FALSE_KILLS=(
 # deliberately absent: neither renders a wide data table, and both stayed at
 # exactly 390 under the mutant.
 #
-# `phone-action-label-wrapped` declares ONE line where that walk declares four,
-# and the difference is not laziness. The route walk's softness is its claim —
-# a regression hits some screens and not others, so requiring every route keeps
-# it honest. The two save buttons share a single flex track, so whatever
-# reshapes one reshapes the other; there is no per-control claim to pin. The
-# declared fragment carries no measurements on purpose: the observed line names
-# 170.6x217.2, and pinning that would turn a font-metric shift into a WRONG
-# ASSERTION against a mutant that worked.
+# The two phone action mutants split the walk's rule between them, and each
+# declares only what it can actually redden. #823 stacks every action row below
+# 900px EXCEPT the daily-entry save bar, which stays side by side (F134, and the
+# #864 mockup the owner confirmed). So `phone-action-label-wrapped` un-stacks
+# the rows that must stack and reddens the Sales draft panel alone, while
+# `phone-entry-foot-stacked` stacks the one row that must not and reddens the
+# daily-entry bar alone. Neither can reach the other's assertion, which is why
+# there are two: with only the first, the walk's side-by-side branch was an
+# assertion nothing could falsify.
+#
+# `phone-action-label-wrapped` also declares the original taller-than-wide line,
+# observed on `close` at 54.0x65.2. Without it that assertion would be free to
+# rot behind the newer width check.
+#
+# No fragment carries a measurement or a control LABEL. The observed lines name
+# percentages and English button text, and pinning either would turn a font
+# shift or a re-worded label into a WRONG ASSERTION against a mutant that
+# worked. Row names are this file's own prose and are safe to pin.
 declare -A EXPECT_MSG_FOR=(
   [audit-gate-removed]="/audit rendered no error for a ReadOnly user"
   [users-gate-removed]="/users rendered no error for a ReadOnly user"
@@ -301,7 +315,9 @@ SIDE 2 — role=alert no longer carries implicit assertive politeness"
   [phone-action-bar-under-tabbar]="the daily-entry action bar overlaps the tab bar — its Submit and Save buttons are under it"
   [phone-tabbar-removed]="there is no tab bar at phone width, so nothing can be navigated to"
   [phone-tabs-inert]="a tap at the centre of the Sales tab does not land on it"
-  [phone-action-label-wrapped]="at phone width — taller than it is wide, so its pill clamps into an ellipse and the label leaves its background"
+  [phone-action-label-wrapped]="in the Sales draft-order panel spans
+taller than it is wide, so its pill clamps into an ellipse"
+  [phone-entry-foot-stacked]="in the daily-entry save bar spans"
   [phone-table-overflow-unclipped]="/sales scrolls sideways at phone width
 /customers scrolls sideways at phone width
 /flocks scrolls sideways at phone width
@@ -323,6 +339,7 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            a11y-probe-off-role-dropped
            phone-action-bar-under-tabbar phone-tabbar-removed
            phone-table-overflow-unclipped phone-action-label-wrapped
+           phone-entry-foot-stacked
            phone-tabs-inert)
 fi
 

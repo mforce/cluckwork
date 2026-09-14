@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Daily entry · House B · Cluckwork</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&display=swap" rel="stylesheet">
+<style>
+/* ---- Tokens, copied from web/src/styles.css (#52, #149). Aubergine is :root. ---- */
+:root {
+  --brand:#4a154b; --brand-press:#611f69; --brand-tint:#592466; --on-brand:#ffffff; --on-brand-mute:#d9bdde;
+  --ink:#1d1d1d; --muted:#696969; --link:#1264a3; --link-hover:#3860be;
+  --canvas:#faf7fc; --surface:#ffffff; --surface-2:#f6f1f8; --lavender:#f9f0ff; --hairline:#e6e6e6; --row-hover:#faf5fc;
+  --grade-1:#2076a0; --grade-2:#8d55b3; --grade-3:#54862f; --grade-4:#da475d; --grade-5:#8a7972; --grade-6:#138a8e; --grade-7:#b24a80; --grade-8:#5069b8;
+  --error:#bd3a14; --success:#007a5a; --warn:#8a5a00;
+  --tint-accent:#f3e9f5; --tint-ok:#e2f2ec; --tint-warn:#f7ecd9; --tint-danger:#f9e5df; --tint-muted:#eeeaf0;
+  --stat-accent:var(--brand); --focus:var(--stat-accent);
+  --shadow-dialog:0 24px 64px rgba(29,21,33,.24); --shadow-bar:0 -8px 24px rgba(29,21,33,.08);
+  --font:"Inter Variable",Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --tabbar-h:0px;
+  --rule:var(--hairline);
+  --rule-strong:color-mix(in srgb, var(--ink) 28%, transparent);
+  --r-control:4px; --r-tile:8px; --r-dialog:12px;
+  color-scheme:light;
+}
+:root[data-brand="forest"] { --brand:#14432a; --brand-press:#1b5a38; --brand-tint:#1a5133; --on-brand:#ffffff; --on-brand-mute:#bcd9c6; --tint-accent:#e6f2ea; --canvas:#f7fbf8; --surface-2:#eef6f1; --lavender:#eefaf1; --row-hover:#f5faf7; }
+:root[data-brand="slate"] { --brand:#1b3a5c; --brand-press:#254e79; --brand-tint:#22456b; --on-brand:#ffffff; --on-brand-mute:#c0d4e6; --tint-accent:#e7eff7; --canvas:#f7f9fc; --surface-2:#eef3f9; --lavender:#eef4fb; --row-hover:#f5f8fc; }
+:root[data-brand="terracotta"] { --brand:#6b2716; --brand-press:#8a3520; --brand-tint:#7d2f1c; --on-brand:#ffffff; --on-brand-mute:#eec3b3; --tint-accent:#f8eae4; --canvas:#fdf8f6; --surface-2:#f9efea; --lavender:#fdf0e9; --row-hover:#fdf6f3; }
+:root[data-theme="dark"] {
+  --ink:#f2ecf4; --muted:#b3a8b8; --link:#7fb4e6; --link-hover:#a9cef0;
+  --canvas:#17121a; --surface:#221a26; --surface-2:#2b2231; --lavender:#241c2a; --hairline:#3a2f40; --row-hover:#2b2231;
+  --grade-1:#2fb0ef; --grade-2:#c08fe0; --grade-3:#8fbf6e; --grade-4:#f5858a; --grade-5:#afa498; --grade-6:#4fdadb; --grade-7:#e98fb4; --grade-8:#8fa3e8;
+  --error:#ff8666; --success:#4bbf97; --warn:#e0a44a;
+  --tint-accent:#33203a; --tint-ok:#14342b; --tint-warn:#3a2e18; --tint-danger:#3a2019; --tint-muted:#2c2333;
+  --stat-accent:#e6c7ec;
+  --shadow-dialog:0 24px 64px rgba(0,0,0,.6); --shadow-bar:0 -8px 24px rgba(0,0,0,.45);
+  color-scheme:dark;
+}
+:root[data-brand="forest"][data-theme="dark"] { --stat-accent:#a8dcbb; --tint-accent:#16301f; --canvas:#111814; --surface-2:#1e2a22; --row-hover:#1e2a22; --lavender:#17241b; }
+:root[data-brand="slate"][data-theme="dark"] { --stat-accent:#aecfeb; --tint-accent:#182a3b; --canvas:#101519; --surface-2:#1d2731; --row-hover:#1d2731; --lavender:#16202a; }
+:root[data-brand="terracotta"][data-theme="dark"] { --stat-accent:#f2b79c; --tint-accent:#36211a; --canvas:#1a1210; --surface-2:#2e211c; --row-hover:#2e211c; --lavender:#251a16; }
+
+/* ---- Base ---- */
+* { box-sizing:border-box; }
+html, body { margin:0; }
+body {
+  font-family:var(--font); font-size:14px; line-height:20px; color:var(--ink); background:var(--surface);
+  -webkit-font-smoothing:antialiased; font-optical-sizing:auto; font-variant-numeric:tabular-nums;
+}
+a { color:inherit; text-decoration:underline; text-decoration-color:var(--rule-strong); text-underline-offset:3px; }
+a:hover { text-decoration-color:currentColor; }
+:focus-visible { outline:2px solid var(--focus); outline-offset:2px; border-radius:2px; }
+
+h1 { font-size:24px; line-height:28px; font-weight:600; letter-spacing:-0.015em; margin:0; }
+h2 { font-size:13px; line-height:16px; font-weight:600; margin:0; }
+.caption { font-size:12px; line-height:16px; color:var(--muted); }
+.caps { font-size:11px; line-height:16px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+
+/* ---- Shell ---- */
+.shell { display:grid; grid-template-columns:244px 1fr; min-height:100vh; }
+.nav { background:var(--lavender); border-right:1px solid var(--rule); padding:20px 0; display:flex; flex-direction:column; gap:20px; position:sticky; top:0; height:100vh; overflow:auto; }
+.farm { display:flex; align-items:center; gap:10px; padding:0 20px; color:var(--stat-accent); font-weight:600; font-size:16px; }
+.farm svg { width:18px; height:18px; }
+.nav .caps { padding:0 20px; margin:0 0 4px; }
+.nav ul { list-style:none; margin:0; padding:0; }
+.nav li a { display:block; padding:6px 20px 6px 18px; border-left:2px solid transparent; text-decoration:none; color:var(--ink); }
+.nav li a:hover { background:var(--row-hover); }
+.nav li a[aria-current] { border-left-color:var(--stat-accent); color:var(--stat-accent); font-weight:600; }
+.nav .foot { margin-top:auto; padding:0 20px; }
+.nav .foot a { display:block; text-decoration:none; padding:6px 0; color:var(--muted); }
+
+.page { padding:36px 48px 0; max-width:1040px; display:flex; flex-direction:column; min-height:100vh; }
+.page-head { display:flex; align-items:baseline; justify-content:space-between; gap:16px; }
+.page-head .state { color:var(--muted); }
+
+.attn { display:flex; align-items:center; gap:10px; margin:10px 0 0; min-height:24px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.attn .mark { flex:none; width:8px; height:8px; border-radius:50%; background:var(--warn); }
+.attn .n { font-weight:600; }
+.attn .sep { color:var(--muted); margin:0 4px; }
+
+/* ---- Context row: which house, which day. Underline fields, no boxes. ---- */
+.context { display:flex; gap:40px; margin-top:28px; padding-bottom:16px; border-bottom:1px solid var(--rule-strong); }
+.context label { display:flex; flex-direction:column; gap:2px; }
+.select { font:inherit; font-weight:500; color:var(--ink); background:transparent; border:0; border-bottom:1px solid var(--rule-strong); border-radius:0; padding:4px 24px 4px 0; min-width:180px; appearance:none; -webkit-appearance:none;
+  background-image:linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%); background-position:calc(100% - 10px) 12px, calc(100% - 5px) 12px; background-size:5px 5px; background-repeat:no-repeat; }
+.select:focus-visible { outline:0; border-bottom:2px solid var(--focus); padding-bottom:3px; }
+.context .flock { align-self:flex-end; padding-bottom:5px; color:var(--muted); }
+
+/* ---- Form ledger: label left, control right, ruled ---- */
+.two-up { display:grid; grid-template-columns:3fr 2fr; gap:0 40px; margin-top:8px; }
+.two-up > * + * { border-left:1px solid var(--rule); padding-left:40px; }
+section { margin-top:32px; }
+.section-head { display:flex; align-items:baseline; justify-content:space-between; padding-bottom:8px; border-bottom:1px solid var(--rule-strong); }
+.row { display:grid; grid-template-columns:1fr auto; align-items:center; min-height:44px; padding:4px 0; border-bottom:1px solid var(--rule); }
+.row.total { border-bottom:0; border-top:1px solid var(--rule-strong); margin-top:-1px; font-weight:600; min-height:48px; }
+.row.total .sum { font-size:20px; line-height:24px; letter-spacing:-0.01em; }
+.row.total .sum .ok { color:var(--success); font-weight:500; font-size:14px; margin-left:8px; }
+.row .lbl { display:flex; flex-direction:column; }
+.row .lbl .caption { margin-top:0; }
+.stepper { display:inline-grid; grid-template-columns:36px auto 36px; align-items:center; gap:4px; }
+.stepper button { font:inherit; font-size:18px; line-height:1; width:36px; height:36px; border:1px solid var(--rule-strong); border-radius:var(--r-control); background:transparent; color:var(--ink); cursor:pointer; }
+.stepper button:hover { background:var(--row-hover); }
+.stepper button:disabled { color:var(--muted); border-color:var(--rule); cursor:default; }
+.field { font:inherit; font-size:20px; line-height:24px; font-weight:500; font-variant-numeric:tabular-nums; text-align:right; width:6ch; padding:5px 4px; color:var(--ink); background:transparent; border:0; border-bottom:1px solid var(--rule-strong); border-radius:0; }
+.field:focus-visible { outline:0; border-bottom:2px solid var(--focus); padding-bottom:4px; }
+.field::placeholder { color:var(--muted); font-weight:400; }
+.unit { display:inline-block; width:3ch; margin-left:6px; color:var(--muted); }
+.stepper.with-unit { grid-template-columns:36px auto auto 36px; }
+
+/* ---- Sticky action bar: the one thing on this page that floats ---- */
+.actions { position:sticky; bottom:var(--tabbar-h); margin-top:auto; margin-left:-48px; margin-right:-48px; padding:16px 48px; background:var(--surface); border-top:1px solid var(--rule); box-shadow:var(--shadow-bar); display:flex; align-items:center; gap:12px; }
+.btn { font:inherit; font-weight:600; line-height:20px; padding:9px 18px; border-radius:var(--r-control); border:1px solid transparent; background:transparent; color:var(--ink); cursor:pointer; white-space:normal; }
+.btn.primary { background:var(--brand); color:var(--on-brand); }
+.btn.primary:hover { background:var(--brand-press); }
+.btn.secondary { border-color:var(--rule-strong); }
+.btn.secondary:hover { background:var(--row-hover); }
+.actions .caption { margin-left:auto; }
+.tabbar, .topbar { display:none; }
+
+/* ================= Phone: one task, glove-sized ================= */
+@media (max-width: 900px) {
+  :root { --tabbar-h:64px; }
+  body { font-size:16px; line-height:24px; }
+  .shell { display:block; }
+  .nav { display:none; }
+  .page { padding:16px 16px var(--tabbar-h); max-width:none; min-height:100vh; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; color:var(--stat-accent); font-weight:600; margin-bottom:16px; }
+  .topbar .caption { font-weight:400; }
+  h1 { font-size:28px; line-height:32px; }
+  h2 { font-size:15px; line-height:20px; }
+  .page-head { flex-direction:column; gap:4px; }
+  .attn { white-space:normal; align-items:flex-start; }
+  .attn .mark { margin-top:8px; }
+  .context { gap:16px; margin-top:20px; padding-bottom:12px; }
+  .context label { flex:1; }
+  .select { min-width:0; width:100%; min-height:44px; font-size:16px; }
+  .context .flock { display:none; }
+  .two-up { display:block; }
+  .two-up > * + * { border-left:0; padding-left:0; }
+  section { margin-top:28px; }
+  .row { min-height:64px; padding:8px 0; }
+  .stepper { grid-template-columns:48px auto 48px; gap:8px; }
+  .stepper.with-unit { grid-template-columns:48px auto auto 48px; }
+  .stepper button { width:48px; height:48px; font-size:22px; }
+  .field { font-size:28px; line-height:32px; width:4.5ch; padding:6px 2px; }
+  .unit { width:2.5ch; }
+  .row.total .sum { font-size:24px; line-height:28px; }
+  .row.total .sum .ok { display:block; margin:0; font-size:14px; }
+  .actions { margin-left:-16px; margin-right:-16px; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .actions .btn { min-height:48px; padding:12px 16px; font-size:16px; text-align:center; }
+  .actions .caption { display:none; }
+  .tabbar { position:fixed; left:0; right:0; bottom:0; height:var(--tabbar-h); display:grid; grid-template-columns:repeat(5,1fr); background:var(--surface); border-top:1px solid var(--rule); box-shadow:var(--shadow-bar); padding-bottom:env(safe-area-inset-bottom); }
+  .tabbar a { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; text-decoration:none; color:var(--muted); font-size:11px; line-height:14px; min-height:44px; }
+  .tabbar a[aria-current] { color:var(--stat-accent); font-weight:600; }
+  .tabbar svg { width:22px; height:22px; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="nav" aria-label="Main">
+    <div class="farm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-3 4-6 7-6 11a6 6 0 0 0 12 0c0-4-3-7-6-11z"/></svg>Default Farm</div>
+    <div><p class="caps">Overview</p><ul><li><a href="dashboard.html">Dashboard</a></li></ul></div>
+    <div><p class="caps">Production</p><ul><li><a href="#" aria-current="page">Daily entry</a></li><li><a href="#">Flocks</a></li><li><a href="#">Feed</a></li><li><a href="#">Water</a></li><li><a href="#">Inventory</a></li></ul></div>
+    <div><p class="caps">Sales &amp; stock</p><ul><li><a href="#">Stock</a></li><li><a href="#">Customers</a></li><li><a href="#">Sales</a></li><li><a href="#">History</a></li></ul></div>
+    <div><p class="caps">Insights</p><ul><li><a href="#">Reports</a></li><li><a href="#">Expenses</a></li></ul></div>
+    <div><p class="caps">Setup</p><ul><li><a href="#">Farm settings</a></li><li><a href="#">Grades</a></li><li><a href="#">Products</a></li><li><a href="#">Audit</a></li><li><a href="#">Export</a></li></ul></div>
+    <div class="foot"><a href="#">Night</a><a href="#">Sign out</a><span class="caption">v0.0.4</span></div>
+  </nav>
+
+  <main class="page">
+    <div class="topbar"><span>Default Farm</span><span class="caption">Mon 14 Sep</span></div>
+    <header>
+      <div class="page-head"><h1>Daily entry</h1><span class="state">Draft, saved 06:52</span></div>
+      <p class="attn"><span class="mark"></span><span><span class="n">2 things.</span> Draft not submitted<span class="sep">&middot;</span>Mortality 1 recorded, flock count will drop to 4,119 on submit</span></p>
+    </header>
+
+    <form class="context" onsubmit="return false">
+      <label><span class="caption">House</span>
+        <select class="select"><option>House A</option><option selected>House B</option><option>House C</option><option>House D</option></select></label>
+      <label><span class="caption">Date</span>
+        <select class="select"><option selected>Mon 14 Sep 2026</option><option>Sun 13 Sep 2026</option></select></label>
+      <span class="flock">ISA Brown &middot; 4,120 hens</span>
+    </form>
+
+    <div class="two-up">
+      <section aria-labelledby="eggs">
+        <div class="section-head"><h2 id="eggs">Eggs by grade</h2><span class="caption">Counted 298</span></div>
+        <div class="row"><label class="lbl" for="g-large">Large</label>
+          <div class="stepper"><button type="button" aria-label="One fewer">&minus;</button><input class="field" id="g-large" inputmode="numeric" value="180"><button type="button" aria-label="One more">+</button></div></div>
+        <div class="row"><label class="lbl" for="g-medium">Medium</label>
+          <div class="stepper"><button type="button" aria-label="One fewer">&minus;</button><input class="field" id="g-medium" inputmode="numeric" value="90"><button type="button" aria-label="One more">+</button></div></div>
+        <div class="row"><label class="lbl" for="g-small">Small</label>
+          <div class="stepper"><button type="button" aria-label="One fewer">&minus;</button><input class="field" id="g-small" inputmode="numeric" value="28"><button type="button" aria-label="One more">+</button></div></div>
+        <div class="row"><label class="lbl" for="g-jumbo">Jumbo<span class="caption">Not entered yet</span></label>
+          <div class="stepper"><button type="button" aria-label="One fewer" disabled>&minus;</button><input class="field" id="g-jumbo" inputmode="numeric" placeholder="0"><button type="button" aria-label="One more">+</button></div></div>
+        <div class="row"><label class="lbl" for="g-cracked">Cracked<span class="caption">Not sellable</span></label>
+          <div class="stepper"><button type="button" aria-label="One fewer" disabled>&minus;</button><input class="field" id="g-cracked" inputmode="numeric" value="0"><button type="button" aria-label="One more">+</button></div></div>
+        <div class="row total"><span>Graded</span><span class="sum">298 of 298<span class="ok">The day adds up</span></span></div>
+      </section>
+
+      <section aria-labelledby="inputs">
+        <div class="section-head"><h2 id="inputs">Feed, water, mortality</h2><span class="caption">Today</span></div>
+        <div class="row"><label class="lbl" for="feed">Feed</label>
+          <div class="stepper with-unit"><button type="button" aria-label="One less">&minus;</button><input class="field" id="feed" inputmode="decimal" value="62"><span class="unit">kg</span><button type="button" aria-label="One more">+</button></div></div>
+        <div class="row"><label class="lbl" for="water">Water</label>
+          <div class="stepper with-unit"><button type="button" aria-label="One less">&minus;</button><input class="field" id="water" inputmode="numeric" value="410"><span class="unit">L</span><button type="button" aria-label="One more">+</button></div></div>
+        <div class="row"><label class="lbl" for="mortality">Mortality<span class="caption">Hens lost today</span></label>
+          <div class="stepper with-unit"><button type="button" aria-label="One fewer">&minus;</button><input class="field" id="mortality" inputmode="numeric" value="1"><span class="unit">hen</span><button type="button" aria-label="One more">+</button></div></div>
+      </section>
+    </div>
+
+    <div class="actions">
+      <button class="btn secondary" type="button">Save draft</button>
+      <button class="btn primary" type="button">Submit day</button>
+      <span class="caption">Submitting creates egg lots for 298 sellable eggs and locks the day</span>
+    </div>
+  </main>
+</div>
+
+<nav class="tabbar" aria-label="Primary">
+  <a href="dashboard.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg>Today</a>
+  <a href="#" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>Entry</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-3 4-6 7-6 11a6 6 0 0 0 12 0c0-4-3-7-6-11z"/></svg>Stock</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h2l2 12h11l2-8H7"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg>Sales</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>More</a>
+</nav>
+
+<script>
+  /* Mockup convenience only: ?brand=forest&theme=dark sets the same attributes the app writes. */
+  const q = new URLSearchParams(location.search), h = document.documentElement;
+  if (q.get('brand')) h.dataset.brand = q.get('brand');
+  if (q.get('theme')) h.dataset.theme = q.get('theme');
+</script>
+</body>
+</html>

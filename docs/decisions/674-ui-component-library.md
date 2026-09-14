@@ -165,3 +165,37 @@ and verifies in a real browser anything jsdom cannot see.
   audit gate.
 - `FarmThemeProvider` must not render MUI's `CssBaseline`: its global resets would fight
   `styles.css` across all 124 components. Adopting it is a whole-app visual decision.
+
+## Amendment (2026-09-14)
+
+#822's design doc read this record's claims back against the code at `b0638e1` and four of them
+moved. The corrections live here rather than in the design doc, so nobody re-derives them a third
+time.
+
+1. **"all 124 components"** is `find src -name "*.tsx" | wc -l` = 125 files, of which 56 are not
+   tests. The number counted test files and was one out besides.
+2. **The two consequences above landed in PR #860**, not in this record's own commit.
+   `specs/technical/tech_spec.md` §8.1 and `web/README.md:11` were both still unamended at
+   `b0638e1`; `c3a9a49` fixed them.
+3. **"`FarmThemeProvider` must not render `CssBaseline`" still holds, and the reason changed.**
+   #822 D6 took the decision to adopt it and #823 tried. It does not apply, and neither does any
+   other MUI style: the production CSP is `style-src 'self'`
+   (`src/Cluckwork.Api/Security/SecurityHeaders.cs`), so the browser refuses the stylesheet
+   Emotion injects. Measured against the sim harness at 390: the `<style data-emotion>` tag is in
+   the document, `html` computes `box-sizing: content-box` rather than CssBaseline's `border-box`,
+   the page overflows to 419px in a 390px frame, and the console carries *"Applying inline style
+   violates the following Content Security Policy directive 'style-src 'self''"*. **This blocks
+   the whole migration, not one slice** — every `sx`, `styled()` and `styleOverrides` value in
+   #826 to #836 arrives the same way. Nobody saw it before #823 because the app renders no MUI
+   component yet, so the theme had nothing to emit. Adopting `CssBaseline` is one element in
+   `FarmThemeProvider` once the CSP question is settled; settling it is its own decision, and the
+   three candidate answers are `'unsafe-inline'` (a real relaxation), a per-request nonce threaded
+   into `@emotion/cache` (which needs `index.html` templated per request rather than served as a
+   static file), and a build-time extraction that emits MUI's CSS to a real stylesheet.
+   The ten bare element selectors are a separate problem and #823 neutralises them regardless.
+4. **"Inter's `opsz` axis is already installed, zero download cost"** is wrong in the way that
+   matters. The files are in the package and the app does not load them: `main.tsx:3` imports
+   `@fontsource-variable/inter`, whose `index.css` carries only `wght` faces. The `opsz` faces are
+   a separate entry, and adopting them costs +118.9 KiB of precache (+24.1 KiB on the latin subset
+   a phone fetches). So `font-variation-settings: "opsz" 32` on today's face does nothing. #835
+   owns the swap and is charged against #825's ceiling.
