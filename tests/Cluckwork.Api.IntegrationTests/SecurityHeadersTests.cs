@@ -93,10 +93,16 @@ public sealed class SecurityHeadersTests(CluckworkWebApplicationFactory factory)
         Assert.Equal("'self'", tokens[1]);
         Assert.StartsWith("'nonce-", tokens[2], StringComparison.Ordinal);
 
-        // A cryptographic nonce, not a counter or a constant: exactly the
-        // 16 bytes SecurityHeaders says it mints, base64-encoded.
-        Assert.Equal(SecurityHeaders.NonceByteCount,
-            Convert.FromBase64String(StyleNonce(csp)).Length);
+        // A cryptographic nonce, not a counter or a constant: at least 16
+        // decoded bytes (128 bits, CSP's own floor for "unguessable"),
+        // base64-encoded. A literal minimum, not SecurityHeaders.NonceByteCount
+        // itself (#874 review round 2, local Codex pass): comparing against the
+        // implementation's own constant meant shrinking NonceByteCount from 16
+        // to 4 changed both sides of the assertion identically and stayed
+        // green — confirmed by mutation, reverted after.
+        var decodedNonce = Convert.FromBase64String(StyleNonce(csp));
+        Assert.True(decodedNonce.Length >= 16,
+            $"nonce must decode to at least 16 bytes (128 bits), got {decodedNonce.Length}");
 
         // Nowhere else. script-src taking a nonce would be a far larger
         // concession than this change makes, and it must not ride along.
