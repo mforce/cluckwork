@@ -44,12 +44,20 @@ the two exact seeder roots select those types themselves.
 In a listed program's global statements, inline lambdas, anonymous methods,
 and local-function or method-group handlers passed to `MapGet`, `MapPost`,
 `MapPut`, `MapDelete`, `MapPatch`, `MapMethods`, `MapFallback`, or `Map` count as
-endpoint adapters. The key is `<RootNamespace>.Program.<route literal>`, using
-the first string literal argument, or the method-group name when there is no
-literal. Handler declarations supply their parameter types and service calls.
+endpoint adapters. The key includes the mapping method and first route string
+literal, for example `Cluckwork.Api.Program.MapGet(/api/v1/x)`. Review found
+that a route-only key merged GET and POST allowances for the same path;
+`MapGet(/api/v1/x)` and `MapPost(/api/v1/x)` now have independent reach.
+`MapMethods` includes its fully literal HTTP method list when present, for
+example `MapMethods(/api/v1/x;[GET,POST])`. Literal arrays, collection
+expressions and collection initializers use ordinally sorted, distinct method
+values so formatting and method order do not change the key. Runtime method
+list variables are not resolved. Method-group names follow the route, for
+example `MapGet(/api/v1/x).Read` or `MapFallback().Read` without a literal route.
+Handler declarations supply their parameter types and service calls.
 Other startup composition is outside reach. The real `Program.cs` has three
-such adapters: `/error`, `/api/{**rest}`, and `/health/{**rest}`. None reaches a
-module, so regeneration leaves the 150 adapter rows unchanged. The total rises
+such adapters: `Map(/error)`, `Map(/api/{**rest})`, and `Map(/health/{**rest})`.
+None reaches a module, so regeneration leaves the 150 adapter rows unchanged. The total rises
 from 397 to 400 walked adapters.
 
 ## Why not the obvious alternative
@@ -162,7 +170,9 @@ dotnet test tests/Cluckwork.Application.Tests \
 Six real-tree mutations were run against the built syntax scanner with
 `--no-build`, so compiler failures from intentionally incomplete edits could
 not substitute for guard failures. Each was reverted with `git checkout -- src`.
-The output files are local evidence under `/tmp/514/mutations-846/`:
+The output files are local evidence under `/tmp/514/mutations-846/`.
+Mutation 6 predates the mapping-method key and records the former
+`Cluckwork.Api.Program./probe` symbol:
 
 | Mutation | Result | Output file |
 |---|---|---|

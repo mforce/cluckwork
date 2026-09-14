@@ -266,16 +266,19 @@ public sealed class AdapterReachTests : IDisposable
             """);
         var report = Scan();
         Assert.Equal(1, report.WalkedAdapterCount);
-        Assert.All(report.LiveReach, r => Assert.Equal("Cluckwork.Temp.Api.Program./api/v1/x", r.Symbol));
+        var symbol = map == "MapMethods"
+            ? "Cluckwork.Temp.Api.Program.MapMethods(/api/v1/x;[GET])"
+            : $"Cluckwork.Temp.Api.Program.{map}(/api/v1/x)";
+        Assert.All(report.LiveReach, r => Assert.Equal(symbol, r.Symbol));
         Assert.Equal(["Farm"], report.LiveReach.Select(r => r.Owner).Distinct());
         var failure = Assert.Single(report.PersistenceViolations);
-        Assert.Contains("AppDbContext in Cluckwork.Temp.Api.Program./api/v1/x", failure);
+        Assert.Contains("AppDbContext in " + symbol, failure);
         Assert.Contains("src/Cluckwork.Temp.Api/Program.cs:3", failure);
     }
 
     [Theory]
-    [InlineData("app.MapGet(\"/x\", Handler);", "Cluckwork.Temp.Api.Program./x")]
-    [InlineData("app.MapFallback(Handler);", "Cluckwork.Temp.Api.Program.Handler")]
+    [InlineData("app.MapGet(\"/x\", Handler);", "Cluckwork.Temp.Api.Program.MapGet(/x).Handler")]
+    [InlineData("app.MapFallback(Handler);", "Cluckwork.Temp.Api.Program.MapFallback().Handler")]
     public void TopLevelLocalFunctionHandler_IsResolvedWithoutScanningOtherLocalFunctions(string mapping, string symbol)
     {
         WriteSource("Cluckwork.Temp.Api/Program.cs", $$"""
@@ -308,8 +311,8 @@ public sealed class AdapterReachTests : IDisposable
             """);
         var report = Scan();
         Assert.Equal(1, report.WalkedAdapterCount);
-        Assert.Equal("Cluckwork.Temp.Api.Program./account", Assert.Single(report.LiveReach).Symbol);
-        Assert.Contains("AppDbContext in Cluckwork.Temp.Api.Program./account", Assert.Single(report.PersistenceViolations));
+        Assert.Equal("Cluckwork.Temp.Api.Program.MapGet(/account).Read", Assert.Single(report.LiveReach).Symbol);
+        Assert.Contains("AppDbContext in Cluckwork.Temp.Api.Program.MapGet(/account).Read", Assert.Single(report.PersistenceViolations));
     }
 
     [Fact]
@@ -338,7 +341,7 @@ public sealed class AdapterReachTests : IDisposable
         var report = Scan();
         Assert.Empty(report.RouteErrors);
         Assert.Equal(1, report.TopLevelProgramAdapterCount);
-        Assert.Equal("Cluckwork.Temp.Api.Program./x", Assert.Single(report.LiveReach).Symbol);
+        Assert.Equal("Cluckwork.Temp.Api.Program.MapGet(/x).Handler", Assert.Single(report.LiveReach).Symbol);
         Assert.Single(report.PersistenceViolations);
     }
 
@@ -377,7 +380,58 @@ public sealed class AdapterReachTests : IDisposable
         Assert.Empty(report.ParseErrors);
         Assert.Empty(report.RouteErrors);
         Assert.Equal(1, report.TopLevelProgramAdapterCount);
-        Assert.Contains("AppDbContext in Cluckwork.Temp.Api.Program./x", Assert.Single(report.PersistenceViolations));
+        Assert.Contains("AppDbContext in Cluckwork.Temp.Api.Program.MapGet(/x)", Assert.Single(report.PersistenceViolations));
+    }
+
+    [Fact]
+    public void TopLevelSamePathUnderDifferentVerbs_HasIndependentReachAllowances()
+    {
+        WriteSource("Cluckwork.Temp.Api/Program.cs", """
+            app.MapGet("/api/v1/x", (Cluckwork.Temp.Farm.Account account) => account);
+            app.MapPost("/api/v1/x", (Cluckwork.Temp.Farm.Account account) => account);
+            """);
+        const string get = "Cluckwork.Temp.Api.Program.MapGet(/api/v1/x)";
+        const string post = "Cluckwork.Temp.Api.Program.MapPost(/api/v1/x)";
+        var report = Scan(Row(symbol: get));
+        Assert.Equal([get, post], report.LiveReach.Select(r => r.Symbol));
+        Assert.Equal(post, Assert.Single(report.Undeclared).Symbol);
+        Assert.Contains(post + " -> Farm", Assert.Single(AdapterReachScanner.Evaluate(report)));
+    }
+
+    [Theory]
+    [InlineData("new[] { \"GET\" }", "new[] { \"POST\" }")]
+    [InlineData("new string[] { \"GET\" }", "new string[] { \"POST\" }")]
+    [InlineData("[\"GET\"]", "[\"POST\"]")]
+    [InlineData("new List<string> { \"GET\" }", "new List<string> { \"POST\" }")]
+    public void TopLevelMapMethodsLiteralLists_HaveIndependentReachAllowances(string getMethods, string postMethods)
+    {
+        WriteSource("Cluckwork.Temp.Api/Program.cs", $$"""
+            app.MapMethods("/x", {{getMethods}}, (Cluckwork.Temp.Farm.Account account) => account);
+            app.MapMethods("/x", {{postMethods}}, (Cluckwork.Temp.Farm.Account account) => account);
+            """);
+        const string get = "Cluckwork.Temp.Api.Program.MapMethods(/x;[GET])";
+        const string post = "Cluckwork.Temp.Api.Program.MapMethods(/x;[POST])";
+        var report = Scan(Row(symbol: get));
+        Assert.Equal([get, post], report.LiveReach.Select(r => r.Symbol));
+        Assert.Equal(post, Assert.Single(report.Undeclared).Symbol);
+        Assert.Contains(post + " -> Farm", Assert.Single(AdapterReachScanner.Evaluate(report)));
+    }
+
+    [Fact]
+    public void TopLevelSameRouteWithDifferentMethodGroups_KeepsTheHandlerName()
+    {
+        WriteSource("Cluckwork.Temp.Api/Program.cs", """
+            app.MapGet("/x", Read);
+            app.MapGet("/x", Write);
+            object Read(Cluckwork.Temp.Farm.Account account) => account;
+            object Write(Cluckwork.Temp.Farm.Account account) => account;
+            """);
+        const string read = "Cluckwork.Temp.Api.Program.MapGet(/x).Read";
+        const string write = "Cluckwork.Temp.Api.Program.MapGet(/x).Write";
+        var report = Scan(Row(symbol: read));
+        Assert.Equal([read, write], report.LiveReach.Select(r => r.Symbol));
+        Assert.Equal(write, Assert.Single(report.Undeclared).Symbol);
+        Assert.Contains(write + " -> Farm", Assert.Single(AdapterReachScanner.Evaluate(report)));
     }
 
     [Fact]

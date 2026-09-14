@@ -382,6 +382,8 @@ public static class AdapterReachScanner
             .SelectMany(statement => statement.DescendantNodes().OfType<InvocationExpressionSyntax>())
             .Where(call => CalledName(call) is { } name && RouteCalls.Contains(name.Identifier.ValueText)))
         {
+            var mapping = CalledName(call)!.Identifier.ValueText;
+            var methodList = mapping == "MapMethods" ? LiteralMethodList(call) : null;
             var route = call.ArgumentList.Arguments.Select(a => a.Expression).OfType<LiteralExpressionSyntax>()
                 .FirstOrDefault(literal => literal.IsKind(SyntaxKind.StringLiteralExpression))?.Token.ValueText;
             foreach (var argument in call.ArgumentList.Arguments)
@@ -416,9 +418,38 @@ public static class AdapterReachScanner
                         $"{expression.GetLocation().GetLineSpan().StartLinePosition.Line + 1}; " +
                         "the walk cannot be trusted without a source handler declaration and a route literal or method name");
                 }
-                yield return new ProgramRoute(route ?? methodName ?? "<lambda>", handlers);
+                var name = $"{mapping}({route}{(methodList is null ? string.Empty : ";" + methodList)})";
+                yield return new ProgramRoute(name + (methodName is null ? string.Empty : "." + methodName), handlers);
             }
         }
+    }
+
+    private static string? LiteralMethodList(InvocationExpressionSyntax call)
+    {
+        foreach (var argument in call.ArgumentList.Arguments)
+        {
+            IEnumerable<ExpressionSyntax>? elements = argument.Expression switch
+            {
+                ImplicitArrayCreationExpressionSyntax array => array.Initializer.Expressions,
+                ArrayCreationExpressionSyntax { Initializer: { } initializer } => initializer.Expressions,
+                ObjectCreationExpressionSyntax { Initializer: { } initializer } => initializer.Expressions,
+                CollectionExpressionSyntax collection when collection.Elements.All(e => e is ExpressionElementSyntax)
+                    => collection.Elements.Cast<ExpressionElementSyntax>().Select(e => e.Expression),
+                _ => null,
+            };
+            if (elements is null)
+            {
+                continue;
+            }
+            var items = elements.ToList();
+            if (items.All(item => item is LiteralExpressionSyntax literal && literal.IsKind(SyntaxKind.StringLiteralExpression)))
+            {
+                // HTTP method order and source formatting do not change the route's reach allowance.
+                return "[" + string.Join(",", items.Cast<LiteralExpressionSyntax>().Select(item => item.Token.ValueText)
+                    .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)) + "]";
+            }
+        }
+        return null;
     }
 
     private static IReadOnlyList<SyntaxNode> ResolveRouteHandlers(ExpressionSyntax expression, string methodName,
