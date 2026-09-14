@@ -208,7 +208,14 @@ app.UseHttpsRedirection();
 // public — mounted before auth. API routes and the SPA fallback are wired below.
 // #141 — hashed /assets/* are immutable-forever, index.html revalidates, so a
 // fronting CDN (and browsers) can cache aggressively without serving a stale app.
-app.UseDefaultFiles();
+//
+// #873 — index.html is NOT one of those static assets any more. It carries a
+// per-response CSP nonce, so it is read and split once here and written by
+// SpaShell below; `null` means there is no built SPA (Development, the test
+// host), and everything then behaves exactly as it did before.
+var spaShell = SpaShell.Load(app.Environment);
+if (spaShell is not null)
+    app.UseSpaShell(spaShell);
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = StaticAssetCaching.ApplyCacheHeaders
@@ -563,12 +570,15 @@ app.Map("/health/{**rest}", () => Results.Problem(
 // index.html. Lowest route priority, so the /api/v1 endpoints and /health above
 // always match first. No-op in dev (no wwwroot) — dev uses the Vite server.
 // #141 — the fallback ALWAYS serves index.html, so it unconditionally emits
-// no-cache (AlwaysRevalidateHeader): a new deploy propagates immediately even
-// through a fronting CDN, and a missing /assets/x can never be pinned immutable.
-app.MapFallbackToFile("index.html", new StaticFileOptions
-{
-    OnPrepareResponse = StaticAssetCaching.AlwaysRevalidateHeader
-});
+// no-cache: a new deploy propagates immediately even through a fronting CDN,
+// and a missing /assets/x can never be pinned immutable.
+if (spaShell is not null)
+    app.MapFallback(spaShell.WriteAsync);
+else
+    app.MapFallbackToFile("index.html", new StaticFileOptions
+    {
+        OnPrepareResponse = StaticAssetCaching.AlwaysRevalidateHeader
+    });
 
 app.Run();
 return 0;
