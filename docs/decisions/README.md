@@ -64,6 +64,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Skip the web and image jobs on documentation-only pull requests (#782)](782-ci-job-gating.md) | AGENTS · CI security gates |
 | [Adopt a UI component library, and which one: MUI (#674)](674-ui-component-library.md) | `web/README.md` · Stack · and `specs/technical/tech_spec.md` §8.1 |
 | [Cross-module references are declared in the module ledger (#514, #842)](514-module-ledger.md) | AGENTS · Conventions |
+| [No persistence type crosses an Application seam (#514, #847)](847-seam-surface-guard.md) | AGENTS · Conventions |
 
 **Every bullet that cites an issue has a record here; the plain conventions do
 not, and should not.** The Result pattern, handler-per-feature, FluentValidation,
