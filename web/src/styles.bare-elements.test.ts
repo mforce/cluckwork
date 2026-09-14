@@ -30,6 +30,16 @@ import type { AtRule, Container, Document, Rule } from "postcss";
 // or `img { ... }` would have passed without being looked at. Any type selector
 // counts now, which is the same "walk everything, exclude deliberately" rule
 // turned on the guard's own input. The one exclusion is written down below.
+//
+// A second version fixed that and still had a textual hole: "scoped" meant
+// "the compound's text contains a `.` or `#` anywhere", which reads a
+// `:not(.legacy)` argument as scope even though a negation grants nothing —
+// `button:not(.legacy) { background: red }` still repaints every MUI button,
+// and passed clean. `:is(button)` was invisible for the opposite reason:
+// `tagOf` only looked at a compound's own leading characters, so a bare tag
+// nested inside `:is()` (unlike `:where()`, which this file already walked
+// into) was never seen at all. Both are mutation rows below and both go red
+// on the version before this comment.
 
 const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
@@ -52,26 +62,54 @@ function compounds(selector: string): string[] {
   return out;
 }
 
-const WHERE = /:where\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g;
+// `:is()` and `:where()` are both selector LISTS: each argument is an
+// alternative the compound can match through, so a bare tag inside either one
+// names an element exactly as if it sat outside the parens.
+const SELECTOR_LIST = /:(?:is|where)\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g;
 
 /**
- * Every compound a selector can match on, `:where()` arguments included.
+ * Every compound a selector can match on, `:is()`/`:where()` arguments
+ * included.
  *
  * Reading the demoted form as "no longer names an element" would make this
  * guard blind to the very rules it exists to hold: `:where(button)` still
- * styles every raw `<button>` in the app.
+ * styles every raw `<button>` in the app, and `:is(button)` would too.
  */
 function allCompounds(selector: string): string[] {
-  const inner = [...selector.matchAll(WHERE)].flatMap((m) => m[1].split(",").map((s) => s.trim()));
-  const outer = selector.replace(WHERE, "");
+  const inner = [...selector.matchAll(SELECTOR_LIST)].flatMap((m) => m[1].split(",").map((s) => s.trim()));
+  const outer = selector.replace(SELECTOR_LIST, "");
   return [outer, ...inner].filter(Boolean).flatMap(compounds);
 }
 
 const tagOf = (compound: string) => /^(\*|[a-zA-Z][a-zA-Z0-9-]*)/.exec(compound)?.[1] ?? null;
 
+// `:not()` is a NEGATION, not a selector list: `button:not(.legacy)` still
+// matches every `<button>` that lacks `.legacy`, so a class inside it grants
+// the compound nothing. Stripped before scope is judged, so the class token
+// it contains cannot be read as scope.
+const NOT = /:not\([^()]*(?:\([^()]*\)[^()]*)*\)/g;
+const stripNot = (compound: string) => compound.replace(NOT, "");
+
+// A class or id token, MUI's and Emotion's own naming excluded: `.MuiButton-
+// root` and `.css-1a2b3c` are generated FOR MUI's DOM, not scope this app put
+// there, so a rule reaching MUI through one of those alone is exactly the
+// unscoped case this guard exists to catch.
+const CLASS_OR_ID = /[.#][A-Za-z0-9_-]+/g;
+// MUI's own convention, both forms: `MuiButton-root` (component-slot, capital
+// after `Mui`) and `Mui-disabled` (global state, hyphen after `Mui`) — never a
+// lowercase letter, which this app's own class names would use.
+const MUI_OR_EMOTION_OWNED = /^[.#](Mui[A-Z-]|css-)/;
+const hasAppOwnedScope = (compound: string) =>
+  (stripNot(compound).match(CLASS_OR_ID) ?? []).some((token) => !MUI_OR_EMOTION_OWNED.test(token));
+
 interface BareRule {
   selector: string;
-  /** No class and no id anywhere, so it can match MUI's DOM on any screen. */
+  /**
+   * No POSITIVE app-owned class or id on the compound or an ancestor
+   * compound — so it can match MUI's DOM on any screen. A `:not(.x)` grants
+   * no scope, and a `.Mui*`/`.css-*` class is MUI's or Emotion's own naming,
+   * not this app's.
+   */
   global: boolean;
   props: string;
 }
@@ -91,16 +129,17 @@ const inKeyframes = (rule: Rule) => {
   return false;
 };
 
-function bareElementRules(): BareRule[] {
+/** `source` defaults to the real file; the mutation tests pass a synthetic addition. */
+function bareElementRules(source: string = css): BareRule[] {
   const found: BareRule[] = [];
-  postcss.parse(css).walkRules((rule) => {
+  postcss.parse(source).walkRules((rule) => {
     if (inKeyframes(rule)) return;
     for (const selector of rule.selectors) {
       const parts = allCompounds(selector);
       if (!parts.some((part) => tagOf(part) !== null)) continue;
       found.push({
         selector,
-        global: !parts.some((part) => /[.#]/.test(part)),
+        global: !parts.some(hasAppOwnedScope),
         props: rule.nodes
           .filter((node) => node.type === "decl")
           .map((node) => node.prop)
@@ -186,8 +225,40 @@ describe("bare element selectors against MUI's DOM (#823)", () => {
     // its screen's slice rather than needing neutralising now. A new rule with
     // no such container lands in the pin above instead, and fails there.
     for (const rule of rules.filter((r) => !r.global)) {
-      expect(allCompounds(rule.selector).some((part) => /[.#]/.test(part)),
-        `${rule.selector} names an element and is scoped by nothing`).toBe(true);
+      expect(allCompounds(rule.selector).some(hasAppOwnedScope),
+        `${rule.selector} names an element and is scoped by nothing this app owns`).toBe(true);
     }
+  });
+});
+
+describe("bare-element guard catches its own bypasses", () => {
+  // A control: an unscoped element rule this guard has always caught. Proves
+  // the harness below can go red at all before trusting the two it could not,
+  // pre-fix — see the file header.
+  it("catches an unscoped rule naming an element outright", () => {
+    const mutated = bareElementRules(`${css}\nfieldset { border: none; }`);
+    expect(mutated.some((rule) => rule.selector === "fieldset" && rule.global)).toBe(true);
+  });
+
+  it("catches a :not() argument used as if it were scope", () => {
+    const mutated = bareElementRules(`${css}\nbutton:not(.legacy) { background: red; }`);
+    expect(mutated.some((rule) => rule.selector === "button:not(.legacy)" && rule.global)).toBe(true);
+  });
+
+  it("catches a type selector nested inside :is()", () => {
+    const mutated = bareElementRules(`${css}\n:is(button) { background: red; }`);
+    expect(mutated.some((rule) => rule.selector === ":is(button)" && rule.global)).toBe(true);
+  });
+
+  it("does not flag a rule scoped by an ancestor's own app class", () => {
+    const mutated = bareElementRules(`${css}\n.card button:not(.legacy) { background: red; }`);
+    expect(mutated.some((rule) => rule.selector === ".card button:not(.legacy)" && rule.global))
+      .toBe(false);
+  });
+
+  it("does not accept a MUI-owned class as this app's scope", () => {
+    const mutated = bareElementRules(`${css}\n.MuiButton-root button { background: red; }`);
+    expect(mutated.some((rule) => rule.selector === ".MuiButton-root button" && rule.global))
+      .toBe(true);
   });
 });
