@@ -94,12 +94,42 @@ The census ruled out mid-test `_down` flips because the class is one collection.
 That reasoning never considered a **cross-collection key collision on the
 loopback address**, which is the shape this finding has.
 
-Cheapest confirming experiment: read the shared key's count at the moment of the
-failing request and assert it equals `PermitLimit + 1`. A count above that names
-a foreign spender; a count below it names the fallback path. Instrumentation
-that records only the counter's own backend/key/count/window will see the
-foreign increments but attributes them to nothing unless the source is recorded
-too — which is why the census's 80 clean instrumented runs proved nothing.
+Confirming experiment: read the shared key's count around a controlled burst and
+report what was already spent when the burst started. Instrumentation that
+records only the counter's own backend/key/count/window sees the foreign
+increments and attributes them to nothing, which is why the census's 80 clean
+instrumented runs proved nothing.
+
+### The probe ran, and it refuted part of this hypothesis
+
+`tests/Cluckwork.Api.IntegrationTests/LoginCounterKeyProbeTests.cs` boots a real
+serving child against a private Postgres and Redis container, waits for the
+login policy by polling `/api/v1/auth/login` rather than `/health/ready`, sends
+fourteen logins, and reads the key before and after.
+
+    CLUCKWORK_840_PROBE {"permitBurst":14,
+      "observedStatuses":[401,401,401,401,401,401,401,401,401,429,429,429,429,429],
+      "keysBefore":{"{cluckwork:win:auth-login:127.0.0.1}:1988218":1},
+      "keysAfter":{"{cluckwork:win:auth-login:127.0.0.1}:1988218":20}}
+
+Two things follow, one confirming and one correcting.
+
+**Confirmed:** the key is shared and spendable by anyone on the loopback address.
+`keysBefore` was already `1` — a login from somewhere else in the suite had spent
+this bucket before the probe's first request — and the count moved by 19 while the
+probe sent 14. So the collision is real, not theoretical.
+
+**Corrected:** the key shape in this file's earlier draft was wrong. The live key
+is `{cluckwork:win:auth-login:127.0.0.1}:<bucket>` — the namespace and window
+prefix sit inside the hash tag, not just the namespace. Anything that reconstructs
+the key by hand would have scanned for the wrong pattern and reported a false zero.
+
+**Also corrected:** the probe's first version booted a serving child with an
+unreachable database and waited on `/health/ready`. `DatabaseReadyHealthCheck`
+makes that endpoint 503 whenever the database is unreachable, so the readiness
+wait ran to its full 60 s and the test failed identically locally and on CI. The
+limiter runs before the endpoint, so the probe now polls the login route itself
+and does not depend on the database at all.
 
 ## Lane C — `StealLossConnectionReleaseTests` (Npgsql `Authenticate` timeout)
 

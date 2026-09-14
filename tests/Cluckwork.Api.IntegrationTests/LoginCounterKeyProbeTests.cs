@@ -2,8 +2,10 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Diagnostics;
 using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Testcontainers.PostgreSql;
 // StackExchange.Redis exports its own TestHarness, which collides with the
 // suite's; alias the one this file needs.
 using TestHarness = Cluckwork.Api.IntegrationTests.Infrastructure.TestHarness;
@@ -25,13 +27,16 @@ using Testcontainers.Redis;
 // fell back?
 public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
 {
-    private static readonly string ApiDllPath = typeof(Program).Assembly.Location;
     private static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(60);
 
-    private const int WindowSeconds = 900;
-    private const int PermitLimit = 5;
+    // Above the shipped login PermitLimit (10 per 900 s), so the burst always
+    // crosses the budget and the report shows where the 429s start.
+    private const int PermitBurst = 14;
 
-    // The same pinned image MultiInstanceRateLimitTests uses, verbatim.
+    // The same pinned images MultiInstanceRateLimitTests uses, verbatim.
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(
+        "postgres:18.4-trixie@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a").Build();
+
     private readonly RedisContainer _redis =
         new RedisBuilder("redis:7.4-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2").Build();
 
@@ -39,14 +44,27 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        await _postgres.StartAsync();
         await _redis.StartAsync();
         _mux = await ConnectionMultiplexer.ConnectAsync(_redis.GetConnectionString());
+        await MigrateSchemaAsync();
     }
 
     public async Task DisposeAsync()
     {
         await _mux.DisposeAsync();
+        await _postgres.DisposeAsync();
         await _redis.DisposeAsync();
+    }
+
+    // #263 — the migrate verb applies the schema, so the serving child's
+    // /health/ready passes without that process ever running DDL.
+    private async Task MigrateSchemaAsync()
+    {
+        var process = Process.Start(MakeStartInfo("migrate"))!;
+        var (exitCode, stdout, stderr) = await SeedCommandRunner
+            .RunToCompletionAsync(process, TimeSpan.FromSeconds(30));
+        Assert.True(exitCode == 0, $"schema migration failed: exit={exitCode} stdout={stdout} stderr={stderr}");
     }
 
     // "{cluckwork:auth-login:127.0.0.1}:<bucket>" — the braces are the cluster
@@ -74,7 +92,7 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         return found;
     }
 
-    private ProcessStartInfo MakeStartInfo()
+    private ProcessStartInfo MakeStartInfo(params string[] args)
     {
         var psi = new ProcessStartInfo("dotnet")
         {
@@ -82,22 +100,23 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
             RedirectStandardError = true,
             UseShellExecute = false,
         };
-        psi.ArgumentList.Add(ApiDllPath);
+        psi.ArgumentList.Add(typeof(Program).Assembly.Location);
+        foreach (var arg in args)
+        {
+            psi.ArgumentList.Add(arg);
+        }
 
         // "Testing", not "Development": a spawned process must not pick up the
         // developer's local user-secrets (same reason CluckworkWebApplicationFactory
         // pins it).
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
-        // The login policy runs before any account lookup (#544), so no database
-        // is reachable or needed — but the serving boot resolves the string.
-        psi.Environment["ConnectionStrings__Default"] =
-            "Host=127.0.0.1;Port=1;Database=none;Username=none;Password=none;Timeout=1";
+        psi.Environment["ConnectionStrings__Default"] = _postgres.GetConnectionString();
         psi.Environment["Database__Provider"] = "Postgres";
         psi.Environment["Database__AllowInsecureConnection"] = "true";
+        // #263 — the migrate verb is the authority on schema; the serving process
+        // never runs DDL.
         psi.Environment["Database__MigrateOnStartup"] = "false";
         psi.Environment["SharedState__Redis__ConnectionString"] = _redis.GetConnectionString();
-        psi.Environment["RateLimiting__Login__PermitLimit"] = PermitLimit.ToString();
-        psi.Environment["RateLimiting__Login__WindowSeconds"] = WindowSeconds.ToString();
         psi.Environment["Jwt__Issuer"] = "cluckwork-test";
         psi.Environment["Jwt__Audience"] = "cluckwork-api-test";
         psi.Environment["Jwt__PublicKeyPem"] = TestJwtKeys.PublicKeyPem;
@@ -108,41 +127,90 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
     [Fact]
     public async Task Probe_login_counter_key_across_the_loopback_bucket()
     {
-        await using var instance = await ServingSubprocess.StartReadyAsync(MakeStartInfo(), ReadyTimeout);
-        using var http = new HttpClient { BaseAddress = instance.BaseUrl, Timeout = TimeSpan.FromSeconds(30) };
-
-        var before = await ReadLoginKeysAsync();
-
-        var statuses = new List<HttpStatusCode>();
-        for (var i = 0; i < PermitLimit + 2; i++)
+        // A real serving child, started WITHOUT the readiness wait: readiness is
+        // /health/ready, which needs the database, while the limiter runs before
+        // the endpoint (RequireRateLimiting on /auth/login, UseRateLimiter ahead of
+        // routing). Polling the login route directly means the first increment is
+        // observed the moment the policy is live, instead of after a database the
+        // probe never uses has been declared healthy.
+        var child = ServingSubprocess.Start(MakeStartInfo(), ServingSubprocess.FreeTcpPort());
+        using var http = new HttpClient
         {
-            var response = await http.PostAsJsonAsync(
-                "/api/v1/auth/login",
-                new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = "WrongPassw0rd!" });
-            statuses.Add(response.StatusCode);
-        }
-
-        var after = await ReadLoginKeysAsync();
-
-        var report = new
-        {
-            test = nameof(Probe_login_counter_key_across_the_loopback_bucket),
-            permitLimit = PermitLimit,
-            windowSeconds = WindowSeconds,
-            observedStatuses = statuses.Select(s => (int)s).ToArray(),
-            keysBefore = before,
-            keysAfter = after,
-            // Spend on a key this probe did not create names a foreign spender;
-            // a full budget with a non-429 status names the fallback path
-            // (ResilientFixedWindowCounter caught a Redis error and counted
-            // locally instead).
-            spendBeforeThisTest = before.Sum(kv => kv.Value),
-            spendOnKeysThisTestDidNotCreate =
-                after.Where(kv => !before.ContainsKey(kv.Key)).Sum(kv => kv.Value),
+            BaseAddress = child.BaseUrl,
+            Timeout = TimeSpan.FromSeconds(10),
         };
 
-        Console.WriteLine("CLUCKWORK_840_PROBE " + JsonSerializer.Serialize(report));
+        async Task<HttpStatusCode> PostLoginAsync()
+        {
+            using var response = await http.PostAsJsonAsync(
+                "/api/v1/auth/login",
+                new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = "WrongPassw0rd!" });
+            return response.StatusCode;
+        }
 
-        Assert.Equal(PermitLimit + 2, statuses.Count);
+        try
+        {
+            // Wait for the policy, not for the database: 401 means the request reached
+            // the handler, 429 means it was refused by the budget — either way the
+            // counter is live.
+            var deadline = DateTime.UtcNow + ReadyTimeout;
+            while (true)
+            {
+                try
+                {
+                    if (await PostLoginAsync() is HttpStatusCode.Unauthorized or HttpStatusCode.TooManyRequests)
+                    {
+                        break;
+                    }
+                }
+                catch (HttpRequestException)
+                {
+                    // Still binding.
+                }
+                catch (TaskCanceledException)
+                {
+                    // Accepted but unanswered: the pipeline is up, keep polling.
+                }
+
+                Assert.True(DateTime.UtcNow < deadline, "the login policy never became live within the readiness timeout");
+                await Task.Delay(TimeSpan.FromMilliseconds(200));
+            }
+
+            var before = await ReadLoginKeysAsync();
+
+            var statuses = new List<HttpStatusCode> { await PostLoginAsync() };
+            for (var i = 1; i < PermitBurst; i++)
+            {
+                statuses.Add(await PostLoginAsync());
+            }
+
+            var after = await ReadLoginKeysAsync();
+
+            var report = new
+            {
+                test = nameof(Probe_login_counter_key_across_the_loopback_bucket),
+                permitBurst = PermitBurst,
+                observedStatuses = statuses.Select(s => (int)s).ToArray(),
+                keysBefore = before,
+                keysAfter = after,
+                // Spend on a key this probe did not create names a foreign spender.
+                spendBeforeThisProbe = before.Sum(kv => kv.Value),
+                spendOnKeysThisProbeDidNotCreate =
+                    after.Where(kv => !before.ContainsKey(kv.Key)).Sum(kv => kv.Value),
+            };
+
+            Console.WriteLine("CLUCKWORK_840_PROBE " + JsonSerializer.Serialize(report));
+
+            // The counter is what is under test, so it is what is asserted: every
+            // request through the login policy increments the loopback key, including
+            // the ones the budget refused.
+            Assert.Equal(PermitBurst, statuses.Count);
+            Assert.True(after.Sum(kv => kv.Value) - before.Sum(kv => kv.Value) >= PermitBurst,
+                $"the login policy did not increment the loopback counter {PermitBurst} times");
+        }
+        finally
+        {
+            await child.DisposeAsync();
+        }
     }
 }
