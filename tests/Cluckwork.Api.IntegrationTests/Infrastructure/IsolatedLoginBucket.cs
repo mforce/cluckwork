@@ -14,9 +14,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 // neighbours each draining the whole budget while the probe believed it was
 // spending its own.
 //
-// This gives a class its own bucket by declaring a trusted proxy for that host, so
+// This gives a caller its own bucket by declaring a trusted proxy for one host, so
 // the framework's ForwardedHeaders middleware honours X-Forwarded-For and the
-// limiter keys on the address the test names instead of on the socket peer.
+// limiter keys on the address the test names instead of on the socket peer. The
+// forwarded header is the only lever available, because the socket peer is loopback
+// for every host in the suite and cannot be varied.
 //
 // It goes through CONFIGURATION and not PostConfigure<ForwardedHeadersOptions> for a
 // reason worth keeping: Program.cs reads RateLimiting:TrustedProxies eagerly into a
@@ -26,31 +28,19 @@ using Microsoft.AspNetCore.Mvc.Testing;
 // does nothing at runtime.
 public static class IsolatedLoginBucket
 {
-    // The address a host reports as the client for traffic carrying no
-    // X-Forwarded-For of its own — which is every login issued through the
-    // factory's helpers, the ~477 call sites that never touch a rate-limit header
-    // and were the traffic quietly draining the loopback bucket.
-    //
-    // It is SYNTHESIZED, and that is both the whole mechanism and its whole limit.
-    // The real peer is loopback, so the only address the middleware can adopt is one
-    // the test writes into the header. Legitimate for a test's own bucket; in
-    // production, adopting an address no proxy attested to is exactly the spoof #143
-    // exists to prevent. Which is why the guard below refuses to do this for a host
-    // that declares its own proxies.
-    public const string DefaultClientIp = "198.51.100.2";
-
-    // The peer FakeRemoteIpStartupFilter hosts report. Loopback is the genuine peer
-    // everywhere else — TestServer reports it and Kestrel binds to it — so both are
-    // listed and one helper serves the in-process and real-socket shapes alike.
-    public const string SynthesizedProxy = "198.51.100.1";
-
-    // Opts this host's login traffic out of the shared loopback bucket.
+    // Opts a host's login traffic out of the shared loopback bucket by declaring a
+    // trusted proxy, so ForwardedHeadersMiddleware honours X-Forwarded-For and the
+    // limiter keys on the address the test names instead of on the socket peer.
     //
     // The trusted-proxy list is what makes the forwarded header honoured at all, so
     // it is the one thing this has to write. It refuses rather than merges: a host
     // that already configured its own proxies is exercising the trust decision
     // itself, and overwriting that list would delete the thing under test while
     // leaving the test green.
+    //
+    // Loopback is the genuine peer everywhere — TestServer reports it, Kestrel binds
+    // to it. A host whose fake peer comes from FakeRemoteIpStartupFilter reports
+    // whatever that filter synthesizes and must list that address as well.
     public static void ConfigureIsolatedLoginBucket(this IWebHostBuilder builder, string hostName)
     {
         if (builder.GetSetting("RateLimiting:TrustedProxies:0") is { } existing)
@@ -65,32 +55,12 @@ public static class IsolatedLoginBucket
         }
 
         builder.UseSetting("RateLimiting:TrustedProxies:0", "127.0.0.1/32");
-        builder.UseSetting("RateLimiting:TrustedProxies:1", $"{SynthesizedProxy}/32");
     }
 
-    // A client in this host's default bucket. The header has to ride on the request,
-    // so opting in is two steps: the host, then its clients. Building the client here
-    // rather than at each call site is what keeps TestHarness.LoginAsync's internally
-    // created clients in the same bucket as the test's own.
-    public static HttpClient CreateIsolatedClient(
-        this CluckworkWebApplicationFactory factory, string? clientIp = null)
-    {
-        // The parameterless CreateClient() is the only overload that rewrites the
-        // base address to the bound Kestrel port under UseKestrel(0), so an options
-        // object has to copy it — same reason as TestHarness.Cookieless.
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            HandleCookies = false,
-            BaseAddress = factory.ClientOptions.BaseAddress,
-        });
-        client.DefaultRequestHeaders.Add("X-Forwarded-For", clientIp ?? DefaultClientIp);
-        return client;
-    }
-
-    // A bucket of its own, for a test that needs several independent clients — the
-    // per-IP-partition assertions.
+    // The client address a named caller gets its own bucket under. The header has to
+    // ride on the request, so opting in is two steps: the host, then this on the client.
     //
-    // It is a TEST-NET-3 address, and that is load-bearing rather than tidiness.
+    // TEST-NET-3, and that is load-bearing rather than tidiness.
     // ForwardedHeadersMiddleware adopts a forwarded address only if it is a valid
     // literal; an invalid one is dropped and the peer's own address is kept. That
     // silently collapses every "independent" bucket back onto loopback, where the
@@ -115,10 +85,9 @@ public static class IsolatedLoginBucket
         }
 
         // TEST-NET-3 is a /24 and the limiter keys IPv4 by the whole address, so this
-        // has 253 usable slots (.0 network, .1 SynthesizedProxy, .2 DefaultClientIp).
-        // A collision is not assumed away: two classes sharing a slot share a bucket,
-        // which is the status quo this file exists to remove rather than a new failure
-        // mode. It is checked, not counted on — see the guard in this assembly.
+        // has 253 usable slots (.0 is the network, .1 and .2 are reserved). Two
+        // callers sharing a slot share a bucket — the status quo this file exists to
+        // remove, not a new failure mode.
         var slot = hash % 253u + 3u;
         return $"198.51.100.{slot}";
     }
