@@ -1,18 +1,19 @@
-// #873 — MUI's styles reach the screen under the real Production CSP.
+// #873 — the served document and its own Content-Security-Policy header carry
+// the SAME style nonce, online and after a service-worker offline reload.
 //
-// ================== WHY THIS SPEC EXISTS AT ALL ==================
+// ================== WHAT THIS SPEC DOES NOT COVER, AND WHY =================
 //
-// The defect it guards is invisible to every other instrument in this repo. The
-// page renders, the DOM is correct, React is happy, and the `<style>` element
-// Emotion injected is sitting in `<head>` — the browser simply refused to PARSE
-// it, so `sheet === null` and not one declaration applies. Measured in #871:
-// `html` computed `box-sizing: content-box`, `/daily-entry` laid out 419px wide
-// in a 390px frame, and the only complaint anywhere was one console line.
-//
-// So the assertion has to be on a COMPUTED STYLE in a real browser under the
-// real header. A unit test cannot see it (jsdom applies no policy), and an
-// integration test cannot either (it reads bytes, and the bytes were always
-// right).
+// #873 originally asserted a COMPUTED STYLE here too — the farm's brand colour
+// reaching an MUI component under the real Production CSP — through a hidden
+// probe Chip on the login screen that existed only to be measured. The owner's
+// #874 review decision (2026-09-14) removed that probe as production markup
+// that exists only for a test: Login.tsx renders no MUI component today, and a
+// hidden one is not a substitute for the real thing. That end-to-end assertion
+// — an MUI component's computed style applies under the real CSP, online and
+// offline — moves to the first screen slice that actually renders one; #864
+// tracks it. Until then this spec proves the narrower, still load-bearing
+// half: the nonce the document carries is the nonce its own header admits, and
+// nothing the browser loads is CSP-refused.
 //
 // ================== THE OFFLINE HALF, AND WHY IT IS NOT REDUNDANT =========
 //
@@ -29,8 +30,6 @@ import type { Page } from "@playwright/test";
 import { BASE_URL } from "../src/env";
 import { tEn } from "../src/i18n";
 
-const PROBE = '[data-testid="csp-style-probe"]';
-
 /** The nonce the response's own policy admits. */
 function headerNonce(csp: string | undefined): string {
   const match = /style-src 'self' 'nonce-([^']+)'/.exec(csp ?? "");
@@ -45,30 +44,6 @@ function documentNonce(page: Page): Promise<string | null> {
   );
 }
 
-/**
- * `--brand` as the engine resolves it, so the comparison below is colour to
- * colour rather than hex string to `rgb()`.
- *
- * Adds the rule through the CSSOM of a sheet the page already loaded, which is
- * the one styling instrument this policy permits — an injected `<style>` is the
- * very thing the policy blocks, and reaching for `addStyleTag` here would
- * measure nothing while looking like it worked (see src/mutants.ts, "THE THIRD
- * BOUNDARY").
- */
-function brandColour(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const sheet = [...document.styleSheets].find((s) => s.href?.endsWith(".css"));
-    if (!sheet) throw new Error("the SPA stylesheet has not loaded — nothing to read --brand from");
-    sheet.insertRule(".csp-brand-reference { background-color: var(--brand); }", sheet.cssRules.length);
-    const reference = document.createElement("div");
-    reference.className = "csp-brand-reference";
-    document.body.appendChild(reference);
-    const colour = getComputedStyle(reference).backgroundColor;
-    reference.remove();
-    return colour;
-  });
-}
-
 /** Records every CSP refusal the browser reports, for the whole test. */
 function cspViolations(page: Page): string[] {
   const seen: string[] = [];
@@ -79,7 +54,7 @@ function cspViolations(page: Page): string[] {
 }
 
 test.describe("CSP nonce (#873)", () => {
-  test("MUI's themed background applies, and the page's nonce is its own response's", async ({ page }) => {
+  test("the page's nonce is its own response's, and nothing is CSP-refused", async ({ page }) => {
     const violations = cspViolations(page);
 
     const response = await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
@@ -87,17 +62,6 @@ test.describe("CSP nonce (#873)", () => {
 
     // The document and the header that governs it were minted together.
     expect(await documentNonce(page)).toBe(headerNonce(response!.headers()["content-security-policy"]));
-
-    const probe = page.locator(PROBE);
-    await expect(probe, "the MUI probe is not on the login screen").toBeAttached();
-
-    // The measurement. Without the nonce this is `rgba(0, 0, 0, 0)`: Emotion's
-    // style element is present and refused, so the Chip has no background at
-    // all. With it, the farm's own brand colour reaches an MUI component.
-    const background = await probe.evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(background, "MUI's injected styles did not apply — the nonce is not reaching Emotion")
-      .not.toBe("rgba(0, 0, 0, 0)");
-    expect(background, "MUI applied a background, but not the farm's").toBe(await brandColour(page));
 
     expect(violations, "the browser refused something under the policy").toEqual([]);
   });
@@ -128,11 +92,6 @@ test.describe("CSP nonce (#873)", () => {
       // body carries.
       expect(await documentNonce(page))
         .toBe(headerNonce(response!.headers()["content-security-policy"]));
-
-      const background = await page.locator(PROBE)
-        .evaluate((el) => getComputedStyle(el).backgroundColor);
-      expect(background, "the cached shell lost its MUI styling offline")
-        .toBe(await brandColour(page));
 
       expect(violations, "the browser refused something under the cached policy").toEqual([]);
     } finally {

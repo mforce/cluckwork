@@ -222,3 +222,12 @@ caches one whole `Response`, so the header and the body it stores were minted to
 together. What survives is "the nonce is unguessable and specific to this client's cached shell",
 not "fresh on every navigation" — and the alternative, refusing to precache the shell, would
 retire the offline guarantee #142 exists for.
+
+**No MUI component renders in production today, and nothing here stands in for one.** An earlier
+draft of #873 had `web/src/routes/Login.tsx` render one hidden `Chip`, solely so the Playwright
+spec had a real Emotion-styled element to read a computed background from. The owner's #874 review
+(2026-09-14) removed it: production markup that exists only for a test is a cost this record does
+not accept paying. `csp-nonce.spec.ts` still proves the invariant above — the nonce the document
+carries matches its own response header, online and after an offline reload — but not that MUI's
+styles visibly apply anywhere; #864 tracks the first slice that renders a real component and picks
+that assertion back up there.
