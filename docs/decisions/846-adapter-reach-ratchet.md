@@ -12,7 +12,7 @@ No incident. This is epic #514, slice 4, Track B, stacked on #845's table-owner
 ledger. The module ledger treats Platform as a free hub, so it cannot detect an
 endpoint or infrastructure adapter acquiring another business module's port.
 
-The baseline walk finds **397 adapter declarations and 150 non-empty adapter
+The baseline walk finds **400 adapter declarations and 150 non-empty adapter
 rows**. Rows come from `AdapterReachScanner.RenderAdapters`, rather than a manual
 inventory. `ExpenseEndpoints.ListExpenses` reaches Farm, Finance,
 FlockManagement, and Insights. Its `IAuditEventRepository` belongs to Insights
@@ -27,16 +27,30 @@ Removing a crossing, deleting an adapter, or leaving an unused allowance stays
 green and appears in `Loosenable` for pruning. Platform owners do not count.
 Reject `AppDbContext`, `DbContext`, `DbSet`, and `IQueryable` in endpoint parameters
 or service resolutions regardless of declared reach. This persistence ban applies
-only under `Cluckwork.Api.Endpoints`. CLI verbs, jobs, and seeders legitimately
+under `Cluckwork.Api.Endpoints` and to direct route handlers selected by
+`topLevelPrograms`. CLI verbs, jobs, and seeders legitimately
 hold persistence types for migration, maintenance, and seeding; those types do
 not themselves count as module reach there and do not fail the guard.
 
 The ledger's `adapterRoots` declares three namespace subtrees and two exact
 seeder types. Its `persistenceForbiddenNamespaces` declares the endpoint-only
-ban. The scanner does not hardcode these roots. Every method, regardless of
+ban. `topLevelPrograms` lists `Cluckwork.Api`, identified by the first directory
+beneath `src/`, using the module scanner's project-root namespace convention.
+The scanner does not hardcode these roots. Every method, regardless of
 accessibility or static status, and every declared constructor counts. Primary
 constructors count too. A nested type under a namespace root is included;
 the two exact seeder roots select those types themselves.
+
+In a listed program's global statements, inline lambdas, anonymous methods,
+and local-function or method-group handlers passed to `MapGet`, `MapPost`,
+`MapPut`, `MapDelete`, `MapPatch`, `MapMethods`, `MapFallback`, or `Map` count as
+endpoint adapters. The key is `<RootNamespace>.Program.<route literal>`, using
+the first string literal argument, or the method-group name when there is no
+literal. Handler declarations supply their parameter types and service calls.
+Other startup composition is outside reach. The real `Program.cs` has three
+such adapters: `/error`, `/api/{**rest}`, and `/health/{**rest}`. None reaches a
+module, so regeneration leaves the 150 adapter rows unchanged. The total rises
+from 397 to 400 walked adapters.
 
 ## Why not the obvious alternative
 
@@ -50,10 +64,9 @@ The adapter definition deliberately over-approximates runtime entry points.
 Private endpoint helpers and request-record constructors count even when the
 HTTP router never invokes them directly. That can raise the recorded ceiling,
 but it avoids hiding dependencies behind a remembered list of routed handlers.
-Lambdas and local functions are not independent adapters. Typed lambda
-parameters, including inline route handlers, and service resolutions inside a
-method's lambdas or local functions are attributed to that method. Untyped
-lambda parameters cannot be resolved and are ignored. Review found that the
+Inside a type's adapter, lambdas, local functions, and anonymous methods are
+not independent adapters. Their typed parameters and service resolutions
+are attributed to the enclosing method. Untyped lambda parameters cannot be resolved and are ignored. Review found that the
 initial walk missed typed lambda parameters; adding them generated three new
 mapping-method rows for Products, Egg Grades, and Inventory, increasing the
 ledger from 147 to 150 rows without changing an existing row.
@@ -68,15 +81,26 @@ endpoint-only ban, with no source refactoring or persistence exceptions ledger.
 ## What this does NOT cover
 
 The walk is syntax-only and does not boot a host or bind a Roslyn compilation.
-It reads method and constructor parameter types, typed lambda parameters in
-their bodies, and each type's generic arguments. It reads generic type arguments
-and direct `typeof` arguments of `GetRequiredService`, `GetService`,
-`GetRequiredKeyedService`, and `GetKeyedService`, plus generic type arguments
-of `ActivatorUtilities.CreateInstance`. It does not follow return types,
+It reads method and constructor parameter types, typed parameters of lambdas,
+local functions and anonymous methods in their bodies, and each type's generic
+arguments. One `ResolverCalls` table defines generic and direct `typeof`
+resolution for `GetService`, `GetRequiredService`, `GetServices`,
+`GetKeyedService`, `GetRequiredKeyedService`, `GetKeyedServices`,
+`ActivatorUtilities.CreateInstance`, and
+`ActivatorUtilities.GetServiceOrCreateInstance`. It does not follow return types,
 fields, properties, arbitrary object creation, service types passed through
 variables instead of `typeof`, reflection, inferred types, dependency
 forwarding, or the transitive dependencies of an injected handler. Primary constructors
 contribute their parameter types, not field initializers.
+
+Top-level method-group resolution follows visible local functions, named
+source types, static imports, and same-file partial `Program` methods. All
+matching source overloads contribute to the route's reach. It cannot infer an
+instance receiver's type or bind an external assembly's handler. An unresolved
+named route handler fails the walk instead of silently losing its reach. An
+inline route handler without a string literal also fails because it has no
+stable route or method name for the ledger. Delegate factories and custom
+mapping extensions are outside this syntax selector.
 
 Owner resolution reuses the module ledger's longest namespace prefix. Exact
 namespace claims also cover referenced types beneath them. Fully qualified names,
@@ -91,7 +115,7 @@ compilation branches are outside this walk.
 
 A simple name without a matching import or local declaration is ignored and
 listed in `UnresolvedTypes`; it is never assigned to an arbitrary imported
-module. The baseline has 619 such references, covering these 37 external names,
+module. The baseline has 620 such references, covering these 37 external names,
 and **no unresolved Cluckwork type**:
 
 `Action`, `CancellationToken`, `ClaimsPrincipal`, `CookieOptions`, `DateOnly`,
@@ -135,7 +159,7 @@ dotnet test tests/Cluckwork.Application.Tests \
   --logger 'console;verbosity=detailed'
 ```
 
-Five real-tree mutations were run against the built syntax scanner with
+Six real-tree mutations were run against the built syntax scanner with
 `--no-build`, so compiler failures from intentionally incomplete edits could
 not substitute for guard failures. Each was reverted with `git checkout -- src`.
 The output files are local evidence under `/tmp/514/mutations-846/`:
@@ -147,3 +171,4 @@ The output files are local evidence under `/tmp/514/mutations-846/`:
 | Remove `IFlockRepository flocks` from `ListExpenses` | GREEN, `Loosenable` names `ListExpenses -> FlockManagement` | `3-remove-flock-parameter.txt` |
 | Resolve `CreateFlockHandler` in `MigrateCliCommand.RunAsync` | RED, `MigrateCliCommand.RunAsync -> FlockManagement` | `4-cli-flock-service.txt` |
 | Add `AppDbContext db` to the inline deactivate handler in `MapEggGradeEndpoints` | RED, forbidden persistence type at `EggGradeEndpoints.cs:37` | `5-lambda-dbcontext.txt` |
+| Add `app.MapGet("/probe", (AppDbContext db) => Results.Ok())` before `app.Run()` | RED, forbidden persistence type in `Cluckwork.Api.Program./probe` at `Program.cs:573` | `6-program-mapget-dbcontext.txt` |

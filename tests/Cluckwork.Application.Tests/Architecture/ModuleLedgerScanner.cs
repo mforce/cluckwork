@@ -564,7 +564,7 @@ public static class ModuleLedgerScanner
     private static int LineOf(SyntaxNode node) =>
         node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
 
-    private static string ProjectRootNamespace(string srcFull, string file)
+    internal static string ProjectRootNamespace(string srcFull, string file)
     {
         var relative = NormalizePath(Path.GetRelativePath(srcFull, file));
         var slash = relative.IndexOf('/', StringComparison.Ordinal);

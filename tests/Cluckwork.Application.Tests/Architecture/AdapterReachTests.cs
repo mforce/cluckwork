@@ -28,6 +28,7 @@ public sealed class AdapterReachTests : IDisposable
               "adapterRoots": {
                 "namespaces": ["Cluckwork.Temp.Endpoints", "Cluckwork.Temp.Cli", "Cluckwork.Temp.Jobs"],
                 "types": ["Cluckwork.Temp.Persistence.Seeder"],
+                "topLevelPrograms": ["Cluckwork.Temp.Api"],
                 "persistenceForbiddenNamespaces": ["Cluckwork.Temp.Endpoints"]
               },
               "adapters": [
@@ -175,6 +176,208 @@ public sealed class AdapterReachTests : IDisposable
         Assert.Contains("Cluckwork.Temp.Cli.Verb.Run -> FlockManagement", failure);
         Assert.Contains("Cluckwork.Temp.Flocks.Flock", failure);
         Assert.Contains("src/Cli.cs:2", failure);
+    }
+
+    [Theory]
+    [InlineData("GetServices<Cluckwork.Temp.Farm.Account>()")]
+    [InlineData("GetServices(typeof(Cluckwork.Temp.Farm.Account))")]
+    [InlineData("GetKeyedServices<Cluckwork.Temp.Farm.Account>(key)")]
+    [InlineData("GetKeyedServices(typeof(Cluckwork.Temp.Farm.Account), key)")]
+    public void CollectionResolver_RecordsReachAndEndpointPersistence(string call)
+    {
+        WriteSource("Endpoint.cs", $$"""
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { public void Run() {
+                services.{{call}};
+                services.{{call.Replace("Cluckwork.Temp.Farm.Account", "AppDbContext", StringComparison.Ordinal)}};
+            } }
+            """);
+        var report = Scan();
+        Assert.Equal("Farm", Assert.Single(report.LiveReach).Owner);
+        Assert.Contains("forbidden persistence type AppDbContext", Assert.Single(report.PersistenceViolations));
+        Assert.Equal(2, AdapterReachScanner.Evaluate(report).Count);
+    }
+
+    [Theory]
+    [InlineData("ActivatorUtilities.GetServiceOrCreateInstance<Cluckwork.Temp.Farm.Account>(sp)")]
+    [InlineData("ActivatorUtilities.GetServiceOrCreateInstance(sp, typeof(Cluckwork.Temp.Farm.Account))")]
+    [InlineData("Microsoft.Extensions.DependencyInjection.ActivatorUtilities.GetServiceOrCreateInstance(sp, typeof(Cluckwork.Temp.Farm.Account))")]
+    public void ActivatorResolver_RecordsReachAndEndpointPersistence(string call)
+    {
+        WriteSource("Endpoint.cs", $$"""
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { public void Run() {
+                {{call}};
+                {{call.Replace("Cluckwork.Temp.Farm.Account", "AppDbContext", StringComparison.Ordinal)}};
+            } }
+            """);
+        var report = Scan();
+        Assert.Equal("Farm", Assert.Single(report.LiveReach).Owner);
+        Assert.Contains("forbidden persistence type AppDbContext", Assert.Single(report.PersistenceViolations));
+    }
+
+    [Theory]
+    [InlineData("GetServiceOrCreateInstance<AppDbContext>(sp)")]
+    [InlineData("GetServiceOrCreateInstance(sp, typeof(AppDbContext))")]
+    public void StaticallyImportedActivatorResolver_RejectsEndpointPersistence(string call)
+    {
+        WriteSource("Endpoint.cs", $$"""
+            using static Microsoft.Extensions.DependencyInjection.ActivatorUtilities;
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { public void Run() { {{call}}; } }
+            """);
+        Assert.Contains("AppDbContext in " + Symbol, Assert.Single(Scan().PersistenceViolations));
+    }
+
+    [Theory]
+    [InlineData("void Handler(Cluckwork.Temp.Farm.Account account, AppDbContext db) { }")]
+    [InlineData("var handler = delegate(Cluckwork.Temp.Farm.Account account, AppDbContext db) { };")]
+    public void LocalFunctionAndAnonymousMethodParameters_BelongToEnclosingAdapter(string handler)
+    {
+        WriteSource("Endpoint.cs", $$"""
+            namespace Cluckwork.Temp.Endpoints;
+            public class Endpoint { public void Run() { {{handler}} } }
+            """);
+        var report = Scan();
+        Assert.Equal(1, report.WalkedAdapterCount);
+        Assert.Equal(Symbol, Assert.Single(report.LiveReach).Symbol);
+        Assert.Contains("AppDbContext in " + Symbol, Assert.Single(report.PersistenceViolations));
+    }
+
+    [Theory]
+    [InlineData("MapGet")]
+    [InlineData("MapPost")]
+    [InlineData("MapPut")]
+    [InlineData("MapDelete")]
+    [InlineData("MapPatch")]
+    [InlineData("MapMethods")]
+    [InlineData("MapFallback")]
+    [InlineData("Map")]
+    public void TopLevelRouteLambda_IsEndpointAdapterButCompositionIsNot(string map)
+    {
+        var methods = map == "MapMethods" ? "new[] { \"GET\" }, " : "";
+        WriteSource("Cluckwork.Temp.Api/Program.cs", $$"""
+            services.GetRequiredService<AppDbContext>();
+            services.GetRequiredService<Cluckwork.Temp.Flocks.Flock>();
+            app.{{map}}("/api/v1/x", {{methods}}(Cluckwork.Temp.Farm.Account account, AppDbContext db) => {
+                services.GetServices<Cluckwork.Temp.Farm.Account>();
+                return account;
+            });
+            """);
+        var report = Scan();
+        Assert.Equal(1, report.WalkedAdapterCount);
+        Assert.All(report.LiveReach, r => Assert.Equal("Cluckwork.Temp.Api.Program./api/v1/x", r.Symbol));
+        Assert.Equal(["Farm"], report.LiveReach.Select(r => r.Owner).Distinct());
+        var failure = Assert.Single(report.PersistenceViolations);
+        Assert.Contains("AppDbContext in Cluckwork.Temp.Api.Program./api/v1/x", failure);
+        Assert.Contains("src/Cluckwork.Temp.Api/Program.cs:3", failure);
+    }
+
+    [Theory]
+    [InlineData("app.MapGet(\"/x\", Handler);", "Cluckwork.Temp.Api.Program./x")]
+    [InlineData("app.MapFallback(Handler);", "Cluckwork.Temp.Api.Program.Handler")]
+    public void TopLevelLocalFunctionHandler_IsResolvedWithoutScanningOtherLocalFunctions(string mapping, string symbol)
+    {
+        WriteSource("Cluckwork.Temp.Api/Program.cs", $$"""
+            {{mapping}}
+            void Handler(Cluckwork.Temp.Farm.Account account, AppDbContext db) {
+                services.GetServices<Cluckwork.Temp.Farm.Account>();
+            }
+            void Configure(Cluckwork.Temp.Flocks.Flock flock, DbContext db) { }
+            """);
+        var report = Scan();
+        Assert.Equal(1, report.WalkedAdapterCount);
+        Assert.All(report.LiveReach, r => Assert.Equal(symbol, r.Symbol));
+        Assert.Equal(["Farm"], report.LiveReach.Select(r => r.Owner).Distinct());
+        Assert.Contains("AppDbContext in " + symbol, Assert.Single(report.PersistenceViolations));
+    }
+
+    [Fact]
+    public void TopLevelMethodGroup_ResolvesAHandlerInAnotherFile()
+    {
+        WriteSource("Cluckwork.Temp.Api/Program.cs", """
+            using Cluckwork.Temp.Handlers;
+            app.MapGet("/account", Handlers.Read);
+            """);
+        WriteSource("Cluckwork.Temp.Api/Handlers.cs", """
+            namespace Cluckwork.Temp.Handlers;
+            public static class Handlers {
+                public static void Read(Cluckwork.Temp.Farm.Account account, AppDbContext db) { }
+                public static void Configure(DbContext db) { }
+            }
+            """);
+        var report = Scan();
+        Assert.Equal(1, report.WalkedAdapterCount);
+        Assert.Equal("Cluckwork.Temp.Api.Program./account", Assert.Single(report.LiveReach).Symbol);
+        Assert.Contains("AppDbContext in Cluckwork.Temp.Api.Program./account", Assert.Single(report.PersistenceViolations));
+    }
+
+    [Fact]
+    public void TopLevelCompositionAndProgramsOutsideTheLedger_AreNotAdapters()
+    {
+        WriteSource("Cluckwork.Temp.Api/Program.cs", """
+            services.GetRequiredService<AppDbContext>();
+            app.MapGroup("/x");
+            void Configure(Cluckwork.Temp.Farm.Account account, DbContext db) { }
+            """);
+        WriteSource("Cluckwork.Temp.Other/Program.cs", "app.MapGet(\"/x\", (AppDbContext db) => db);");
+        var report = Scan();
+        Assert.Equal(0, report.WalkedAdapterCount);
+        Assert.Empty(AdapterReachScanner.Evaluate(report));
+    }
+
+    [Fact]
+    public void TopLevelPartialProgramMethodGroup_IsResolved()
+    {
+        WriteSource("Cluckwork.Temp.Api/Program.cs", """
+            app.MapGet("/x", Handler);
+            public partial class Program {
+                static void Handler(Cluckwork.Temp.Farm.Account account, AppDbContext db) { }
+            }
+            """);
+        var report = Scan();
+        Assert.Empty(report.RouteErrors);
+        Assert.Equal(1, report.TopLevelProgramAdapterCount);
+        Assert.Equal("Cluckwork.Temp.Api.Program./x", Assert.Single(report.LiveReach).Symbol);
+        Assert.Single(report.PersistenceViolations);
+    }
+
+    [Theory]
+    [InlineData("app.MapGet(\"/x\", MissingHandler);")]
+    [InlineData("app.MapGet(routeFromConfig, (AppDbContext db) => db);")]
+    public void UnresolvedTopLevelHandlerOrRoute_FailsTheWalk(string mapping)
+    {
+        WriteSource("Cluckwork.Temp.Api/Program.cs", mapping);
+        var report = Scan();
+        Assert.Single(report.RouteErrors);
+        Assert.Contains(AdapterReachScanner.Evaluate(report), failure => failure.Contains("the walk cannot be trusted", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TopLevelRouteWithNoReach_StillCountsAndNeedsNoRow()
+    {
+        WriteSource("Cluckwork.Temp.Api/Program.cs", "app.MapGet(\"/x\", context => context);");
+        var report = Scan();
+        Assert.Equal(1, report.WalkedAdapterCount);
+        Assert.Equal(1, report.TopLevelProgramAdapterCount);
+        Assert.Empty(report.LiveReach);
+        Assert.Empty(AdapterReachScanner.Evaluate(report));
+    }
+
+    [Theory]
+    [InlineData("(Func<AppDbContext, object>)((AppDbContext db) => db)", "")]
+    [InlineData("Handler<int>", "static object Handler<T>(AppDbContext db) => db;")]
+    public void TopLevelCastedLambdaAndGenericMethodGroup_AreAdapters(string handler, string declaration)
+    {
+        WriteSource("Cluckwork.Temp.Api/Program.cs", $$"""
+            app.MapGet("/x", {{handler}});
+            {{declaration}}
+            """);
+        var report = Scan();
+        Assert.Empty(report.ParseErrors);
+        Assert.Empty(report.RouteErrors);
+        Assert.Equal(1, report.TopLevelProgramAdapterCount);
+        Assert.Contains("AppDbContext in Cluckwork.Temp.Api.Program./x", Assert.Single(report.PersistenceViolations));
     }
 
     [Fact]

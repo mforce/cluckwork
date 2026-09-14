@@ -15,6 +15,7 @@ public sealed class AdapterReachRealTreeTests(ITestOutputHelper output)
     {
         var report = Scan();
         output.WriteLine($"Walked {report.WalkedAdapterCount} adapters; {report.LiveReach.Select(r => r.Symbol).Distinct().Count()} non-empty adapter rows.");
+        output.WriteLine($"Top-level Program adapters: {report.TopLevelProgramAdapterCount}.");
         output.WriteLine("Loosenable:\n" + DescribeLoosenable(report));
         var failures = AdapterReachScanner.Evaluate(report);
         Assert.True(failures.Count == 0, "adapter reach guard failed:\n" + string.Join("\n", failures));

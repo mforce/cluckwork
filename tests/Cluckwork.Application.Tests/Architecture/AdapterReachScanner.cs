@@ -17,11 +17,34 @@ public sealed record AdapterReachReport(
     IReadOnlyList<string> ParseErrors,
     IReadOnlyList<string> RegistryErrors,
     int WalkedAdapterCount,
-    int ExpectedAdapterCountFloor);
+    int ExpectedAdapterCountFloor)
+{
+    public int TopLevelProgramAdapterCount { get; init; }
+    public IReadOnlyList<string> RouteErrors { get; init; } = [];
+}
 
 public static class AdapterReachScanner
 {
     internal const int RealTreeAdapterFloor = 40;
+
+    private static readonly Dictionary<string, string?> ResolverCalls = new(StringComparer.Ordinal)
+    {
+        ["GetService"] = null,
+        ["GetRequiredService"] = null,
+        ["GetServices"] = null,
+        ["GetKeyedService"] = null,
+        ["GetRequiredKeyedService"] = null,
+        ["GetKeyedServices"] = null,
+        ["CreateInstance"] = "ActivatorUtilities",
+        ["GetServiceOrCreateInstance"] = "ActivatorUtilities",
+    };
+
+    private static readonly HashSet<string> RouteCalls = new(StringComparer.Ordinal)
+    {
+        "MapGet", "MapPost", "MapPut", "MapDelete", "MapPatch", "MapMethods", "MapFallback", "Map",
+    };
+
+    private sealed record ProgramRoute(string Name, IReadOnlyList<SyntaxNode> Handlers);
 
     public static AdapterReachReport Scan(string srcRoot, string ledgerPath)
     {
@@ -48,6 +71,8 @@ public static class AdapterReachScanner
         var persistence = new List<string>();
         var unresolved = new SortedSet<string>(StringComparer.Ordinal);
         var count = 0;
+        var programCount = 0;
+        var routeErrors = new List<string>();
 
         foreach (var root in roots)
         {
@@ -64,94 +89,96 @@ public static class AdapterReachScanner
                 var banPersistence = ledger.AdapterRoots.PersistenceForbiddenNamespaces.Any(prefix => Under(ns, prefix));
                 var adapters = type.Members.OfType<BaseMethodDeclarationSyntax>()
                     .Where(m => m is MethodDeclarationSyntax or ConstructorDeclarationSyntax)
-                    .Select(m => (Node: (SyntaxNode)m, Parameters: m.ParameterList,
+                    .Select(m => (Node: (SyntaxNode)m,
                         Name: m is MethodDeclarationSyntax method ? method.Identifier.ValueText : "ctor"))
                     .ToList();
-                if (type.ParameterList is { } primaryParameters)
+                if (type.ParameterList is not null)
                 {
-                    adapters.Add((type, primaryParameters, "ctor"));
+                    adapters.Add((type, "ctor"));
                 }
 
-                foreach (var (node, parameters, name) in adapters)
+                foreach (var (node, name) in adapters)
                 {
                     count++;
-                    var symbol = $"{TypeName(type, includeArity: true)}.{name}";
-                    var file = Relative(repoRoot, root.SyntaxTree.FilePath);
-                    var imports = root.DescendantNodes().OfType<UsingDirectiveSyntax>()
-                        .Where(u => u.Parent is CompilationUnitSyntax || node.AncestorsAndSelf().Contains(u.Parent))
-                        .ToList();
-                    var types = parameters.Parameters.Select(p => p.Type).OfType<TypeSyntax>().ToList();
-                    if (node is BaseMethodDeclarationSyntax method)
+                    ScanAdapter(node, ns, typeName, $"{TypeName(type, includeArity: true)}.{name}", banPersistence);
+                }
+            }
+
+            var projectNamespace = ModuleLedgerScanner.ProjectRootNamespace(srcFull, root.SyntaxTree.FilePath);
+            if (ledger.AdapterRoots.TopLevelPrograms.Contains(projectNamespace, StringComparer.Ordinal))
+            {
+                foreach (var route in ProgramRoutes(root, projectNamespace, roots, declaredTypes, claims, routeErrors))
+                {
+                    count++;
+                    programCount++;
+                    foreach (var handler in route.Handlers)
                     {
-                        // Inline handlers belong to the mapping adapter, not to separate ledger rows.
-                        var body = (SyntaxNode?)method.Body ?? method.ExpressionBody;
-                        if (body is not null)
+                        var enclosingType = handler.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault();
+                        ScanAdapter(handler, enclosingType is null ? projectNamespace : NamespaceOf(handler),
+                            enclosingType is null ? projectNamespace + ".Program" : TypeName(enclosingType),
+                            $"{projectNamespace}.Program.{route.Name}", banPersistence: true);
+                    }
+                }
+            }
+        }
+
+        void ScanAdapter(SyntaxNode node, string ns, string typeName, string symbol, bool banPersistence)
+        {
+            var file = Relative(repoRoot, node.SyntaxTree.FilePath);
+            var imports = ImportsOf(node);
+            foreach (var syntax in AdapterTypes(node))
+            {
+                foreach (var named in NamedTypes(syntax))
+                {
+                    Record(named, named, new HashSet<string>(StringComparer.Ordinal));
+                }
+            }
+
+            void Record(NameSyntax named, SyntaxNode location, HashSet<string> expandedAliases)
+            {
+                var dotted = ModuleLedgerScanner.DottedText(named)!;
+                var firstDot = dotted.IndexOf('.');
+                var aliasName = firstDot < 0 ? dotted : dotted[..firstDot];
+                var alias = imports.FirstOrDefault(u => u.Alias?.Name.Identifier.ValueText == aliasName);
+                if (alias?.Name is { } aliasedType && expandedAliases.Add(aliasName))
+                {
+                    if (firstDot >= 0)
+                    {
+                        Record(SyntaxFactory.ParseName(ModuleLedgerScanner.DottedText(aliasedType) + dotted[firstDot..]),
+                            location, expandedAliases);
+                    }
+                    else
+                    {
+                        foreach (var aliasedName in NamedTypes(aliasedType))
                         {
-                            types.AddRange(body.DescendantNodes().OfType<ParenthesizedLambdaExpressionSyntax>()
-                                .SelectMany(lambda => lambda.ParameterList.Parameters)
-                                .Select(parameter => parameter.Type).OfType<TypeSyntax>());
-                            types.AddRange(body.DescendantNodes().OfType<SimpleLambdaExpressionSyntax>()
-                                .Select(lambda => lambda.Parameter.Type).OfType<TypeSyntax>());
-                            types.AddRange(body.DescendantNodes().OfType<InvocationExpressionSyntax>()
-                                .SelectMany(ServiceTypes));
+                            Record(aliasedName, location, expandedAliases);
                         }
                     }
+                    return;
+                }
 
-                    foreach (var syntax in types)
+                var line = location.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                if (IsPersistence(dotted))
+                {
+                    if (banPersistence)
                     {
-                        foreach (var named in NamedTypes(syntax))
-                        {
-                            Record(named, named, new HashSet<string>(StringComparer.Ordinal));
-                        }
+                        persistence.Add($"forbidden persistence type {dotted} in {symbol} at {file}:{line}");
                     }
+                    return;
+                }
 
-                    void Record(NameSyntax named, SyntaxNode location, HashSet<string> expandedAliases)
-                    {
-                        var dotted = ModuleLedgerScanner.DottedText(named)!;
-                        var firstDot = dotted.IndexOf('.');
-                        var aliasName = firstDot < 0 ? dotted : dotted[..firstDot];
-                        var alias = imports.FirstOrDefault(u => u.Alias?.Name.Identifier.ValueText == aliasName);
-                        if (alias?.Name is { } aliasedType && expandedAliases.Add(aliasName))
-                        {
-                            if (firstDot >= 0)
-                            {
-                                Record(SyntaxFactory.ParseName(ModuleLedgerScanner.DottedText(aliasedType) + dotted[firstDot..]),
-                                    location, expandedAliases);
-                            }
-                            else
-                            {
-                                foreach (var aliasedName in NamedTypes(aliasedType))
-                                {
-                                    Record(aliasedName, location, expandedAliases);
-                                }
-                            }
-                            return;
-                        }
+                var resolved = ResolveType(dotted, ns, typeName, imports, declaredTypes, claims);
+                if (resolved is null)
+                {
+                    // No semantic model: an unmatched simple name is not assigned to an arbitrary import.
+                    unresolved.Add($"{symbol}: {dotted} at {file}:{line}");
+                    return;
+                }
 
-                        var line = location.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                        if (IsPersistence(dotted))
-                        {
-                            if (banPersistence)
-                            {
-                                persistence.Add($"forbidden persistence type {dotted} in {symbol} at {file}:{line}");
-                            }
-                            return;
-                        }
-
-                        var resolved = ResolveType(dotted, ns, typeName, imports, declaredTypes, claims);
-                        if (resolved is null)
-                        {
-                            // No semantic model: an unmatched simple name is not assigned to an arbitrary import.
-                            unresolved.Add($"{symbol}: {dotted} at {file}:{line}");
-                            return;
-                        }
-
-                        var owner = ModuleLedgerScanner.Resolve(claims, resolved, declared: false);
-                        if (owner is { } found && kinds[found.Owner] == ModuleLedger.ModuleKind)
-                        {
-                            live.Add(new AdapterReach(symbol, found.Owner, resolved, file, line));
-                        }
-                    }
+                var owner = ModuleLedgerScanner.Resolve(claims, resolved, declared: false);
+                if (owner is { } found && kinds[found.Owner] == ModuleLedger.ModuleKind)
+                {
+                    live.Add(new AdapterReach(symbol, found.Owner, resolved, file, line));
                 }
             }
         }
@@ -171,7 +198,11 @@ public static class AdapterReachScanner
         var floor = GuardScanner.FindRepoRoot(AppContext.BaseDirectory) is { } realRoot
             && srcFull == Path.Combine(realRoot, "src") ? RealTreeAdapterFloor : count;
         return new AdapterReachReport(ordered, undeclared, loosenable, persistence, unresolved.ToList(),
-            parseErrors, errors, count, floor);
+            parseErrors, errors, count, floor)
+        {
+            TopLevelProgramAdapterCount = programCount,
+            RouteErrors = routeErrors,
+        };
     }
 
     public static IReadOnlyList<string> Evaluate(AdapterReachReport report)
@@ -185,6 +216,7 @@ public static class AdapterReachScanner
         {
             failures.Add($"walked {report.WalkedAdapterCount} adapters, expected at least {report.ExpectedAdapterCountFloor}");
         }
+        failures.AddRange(report.RouteErrors);
         failures.AddRange(report.PersistenceViolations);
         foreach (var reach in report.Undeclared)
         {
@@ -206,9 +238,9 @@ public static class AdapterReachScanner
 
     private static void ValidateRegistry(ModuleLedger ledger, IReadOnlyDictionary<string, string> kinds, List<string> errors)
     {
-        if (ledger.AdapterRoots.Namespaces.Count + ledger.AdapterRoots.Types.Count == 0)
+        if (ledger.AdapterRoots.Namespaces.Count + ledger.AdapterRoots.Types.Count + ledger.AdapterRoots.TopLevelPrograms.Count == 0)
         {
-            errors.Add("adapterRoots declares no namespaces or types");
+            errors.Add("adapterRoots declares no namespaces, types or topLevelPrograms");
         }
         if (ledger.AdapterRoots.PersistenceForbiddenNamespaces.Count == 0)
         {
@@ -292,31 +324,134 @@ public static class AdapterReachScanner
         }
     }
 
+    private static IEnumerable<TypeSyntax> AdapterTypes(SyntaxNode node)
+    {
+        if (node is TypeDeclarationSyntax primary)
+        {
+            return primary.ParameterList!.Parameters.Select(p => p.Type).OfType<TypeSyntax>();
+        }
+
+        // Nested handler parameters belong to the enclosing adapter, including anonymous methods and local functions.
+        return node.DescendantNodesAndSelf().OfType<ParameterSyntax>().Select(p => p.Type).OfType<TypeSyntax>()
+            .Concat(node.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>().SelectMany(ServiceTypes));
+    }
+
+    private static SimpleNameSyntax? CalledName(InvocationExpressionSyntax call) => call.Expression switch
+    {
+        MemberAccessExpressionSyntax member => member.Name,
+        MemberBindingExpressionSyntax binding => binding.Name,
+        SimpleNameSyntax simple => simple,
+        _ => null,
+    };
+
     private static IEnumerable<TypeSyntax> ServiceTypes(InvocationExpressionSyntax call)
     {
-        var name = call.Expression switch
+        var name = CalledName(call);
+        if (name is null || !ResolverCalls.TryGetValue(name.Identifier.ValueText, out var requiredReceiver))
         {
-            MemberAccessExpressionSyntax member => member.Name,
-            MemberBindingExpressionSyntax binding => binding.Name,
-            SimpleNameSyntax simple => simple,
-            _ => null,
-        };
-        if (name?.Identifier.ValueText is "GetRequiredService" or "GetService"
-            or "GetKeyedService" or "GetRequiredKeyedService")
-        {
-            return name is GenericNameSyntax generic
-                ? generic.TypeArgumentList.Arguments
-                : call.ArgumentList.Arguments.Select(argument => argument.Expression)
-                    .OfType<TypeOfExpressionSyntax>().Select(typeOf => typeOf.Type);
+            return [];
         }
-        if (name is GenericNameSyntax { Identifier.ValueText: "CreateInstance" } create
-            && call.Expression is MemberAccessExpressionSyntax access
-            && ModuleLedgerScanner.DottedText(access.Expression) is { } receiver
-            && (receiver == "ActivatorUtilities" || receiver == "Microsoft.Extensions.DependencyInjection.ActivatorUtilities"))
+        if (requiredReceiver is not null)
         {
-            return create.TypeArgumentList.Arguments;
+            var qualifiedReceiver = "Microsoft.Extensions.DependencyInjection." + requiredReceiver;
+            var receiver = call.Expression is MemberAccessExpressionSyntax access
+                ? ModuleLedgerScanner.DottedText(access.Expression) : null;
+            var staticImport = call.Expression is SimpleNameSyntax && ImportsOf(call)
+                .Any(import => import.StaticKeyword != default
+                    && ModuleLedgerScanner.DottedText(import.Name) == qualifiedReceiver);
+            if (receiver != requiredReceiver && receiver != qualifiedReceiver && !staticImport)
+            {
+                return [];
+            }
         }
-        return [];
+        return name is GenericNameSyntax generic
+            ? generic.TypeArgumentList.Arguments
+            : call.ArgumentList.Arguments.Select(argument => argument.Expression)
+                .OfType<TypeOfExpressionSyntax>().Select(typeOf => typeOf.Type);
+    }
+
+    private static IReadOnlyList<UsingDirectiveSyntax> ImportsOf(SyntaxNode node) =>
+        node.SyntaxTree.GetCompilationUnitRoot().DescendantNodes().OfType<UsingDirectiveSyntax>()
+            .Where(u => u.Parent is CompilationUnitSyntax || node.AncestorsAndSelf().Contains(u.Parent)).ToList();
+
+    private static IEnumerable<ProgramRoute> ProgramRoutes(CompilationUnitSyntax root, string projectNamespace,
+        IReadOnlyList<CompilationUnitSyntax> roots, HashSet<string> declaredTypes,
+        IReadOnlyDictionary<string, ModuleLedgerScanner.Claim> claims, List<string> errors)
+    {
+        foreach (var call in root.Members.OfType<GlobalStatementSyntax>()
+            .SelectMany(statement => statement.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            .Where(call => CalledName(call) is { } name && RouteCalls.Contains(name.Identifier.ValueText)))
+        {
+            var route = call.ArgumentList.Arguments.Select(a => a.Expression).OfType<LiteralExpressionSyntax>()
+                .FirstOrDefault(literal => literal.IsKind(SyntaxKind.StringLiteralExpression))?.Token.ValueText;
+            foreach (var argument in call.ArgumentList.Arguments)
+            {
+                var expression = argument.Expression;
+                while (expression is ParenthesizedExpressionSyntax or CastExpressionSyntax)
+                {
+                    expression = expression is ParenthesizedExpressionSyntax parenthesized
+                        ? parenthesized.Expression : ((CastExpressionSyntax)expression).Expression;
+                }
+                IReadOnlyList<SyntaxNode> handlers;
+                string? methodName = null;
+                if (expression is AnonymousFunctionExpressionSyntax)
+                {
+                    handlers = [expression];
+                }
+                else if (argument == call.ArgumentList.Arguments.Last()
+                    && expression is SimpleNameSyntax or MemberAccessExpressionSyntax)
+                {
+                    methodName = expression is SimpleNameSyntax identifier ? identifier.Identifier.ValueText
+                        : ((MemberAccessExpressionSyntax)expression).Name.Identifier.ValueText;
+                    handlers = ResolveRouteHandlers(expression, methodName, call, projectNamespace, roots, declaredTypes, claims);
+                }
+                else
+                {
+                    continue;
+                }
+
+                if (handlers.Count == 0 || (route is null && methodName is null))
+                {
+                    errors.Add($"unresolved top-level route handler {expression} in {root.SyntaxTree.FilePath}:" +
+                        $"{expression.GetLocation().GetLineSpan().StartLinePosition.Line + 1}; " +
+                        "the walk cannot be trusted without a source handler declaration and a route literal or method name");
+                }
+                yield return new ProgramRoute(route ?? methodName ?? "<lambda>", handlers);
+            }
+        }
+    }
+
+    private static IReadOnlyList<SyntaxNode> ResolveRouteHandlers(ExpressionSyntax expression, string methodName,
+        InvocationExpressionSyntax call, string projectNamespace, IReadOnlyList<CompilationUnitSyntax> roots,
+        HashSet<string> declaredTypes, IReadOnlyDictionary<string, ModuleLedgerScanner.Claim> claims)
+    {
+        var root = call.SyntaxTree.GetCompilationUnitRoot();
+        if (expression is SimpleNameSyntax)
+        {
+            var locals = root.DescendantNodes().OfType<LocalFunctionStatementSyntax>()
+                .Where(local => local.Identifier.ValueText == methodName
+                    && (local.Parent is GlobalStatementSyntax || call.Ancestors().Contains(local.Parent)))
+                .Cast<SyntaxNode>().ToList();
+            if (locals.Count > 0)
+            {
+                return locals;
+            }
+        }
+
+        var imports = ImportsOf(call);
+        var typeNames = expression is MemberAccessExpressionSyntax member
+            ? new[] { ModuleLedgerScanner.DottedText(member.Expression) }.OfType<string>()
+            : imports.Where(u => u.StaticKeyword != default).Select(u => ModuleLedgerScanner.DottedText(u.Name))
+                .OfType<string>().Append(projectNamespace + ".Program");
+        var resolvedTypes = typeNames.Select(name => ResolveType(name, projectNamespace, projectNamespace + ".Program",
+            imports, declaredTypes, claims)).OfType<string>().ToHashSet(StringComparer.Ordinal);
+        return roots.SelectMany(unit => unit.DescendantNodes().OfType<MethodDeclarationSyntax>())
+            .Where(method => method.Identifier.ValueText == methodName
+                && method.Parent is TypeDeclarationSyntax type
+                && (resolvedTypes.Contains(TypeName(type))
+                    || (expression is SimpleNameSyntax && type.SyntaxTree == root.SyntaxTree
+                        && type.Identifier.ValueText == "Program" && NamespaceOf(type) == "<global>")))
+            .Cast<SyntaxNode>().ToList();
     }
 
     private static IEnumerable<NameSyntax> NamedTypes(TypeSyntax type) =>

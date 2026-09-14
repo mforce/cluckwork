@@ -20,6 +20,7 @@ public sealed record TableOwnerOverride(string Table, string Reason);
 
 public sealed record AdapterRoots(IReadOnlyList<string> Namespaces, IReadOnlyList<string> Types)
 {
+    public IReadOnlyList<string> TopLevelPrograms { get; init; } = [];
     public IReadOnlyList<string> PersistenceForbiddenNamespaces { get; init; } = [];
 }
 
@@ -139,6 +140,8 @@ public sealed record ModuleLedger(
                         ReadStringArray(roots, "namespaces", "adapterRoots", errors),
                         ReadStringArray(roots, "types", "adapterRoots", errors))
                     {
+                        TopLevelPrograms = roots.TryGetProperty("topLevelPrograms", out _)
+                            ? ReadStringArray(roots, "topLevelPrograms", "adapterRoots", errors) : [],
                         PersistenceForbiddenNamespaces = ReadStringArray(
                             roots, "persistenceForbiddenNamespaces", "adapterRoots", errors),
                     };

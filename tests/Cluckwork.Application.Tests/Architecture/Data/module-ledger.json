@@ -335,6 +335,7 @@
     }
   ],
   "adapterRoots": {
+    "topLevelPrograms": ["Cluckwork.Api"],
     "persistenceForbiddenNamespaces": ["Cluckwork.Api.Endpoints"],
     "namespaces": [
       "Cluckwork.Api.Endpoints",
