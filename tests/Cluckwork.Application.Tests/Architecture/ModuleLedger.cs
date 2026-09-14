@@ -12,11 +12,21 @@ public sealed record OwnerDefinition(
 
 public sealed record EdgeCell(string From, string To, string Kind, string Reason, IReadOnlyList<string> Symbols);
 
+public sealed record TableClaim(string Owner, string Table);
+
+public sealed record ForeignKeyCell(string Name, string From, string To, string Reason);
+
+public sealed record TableOwnerOverride(string Table, string Reason);
+
 public sealed record ModuleLedger(
     IReadOnlyList<OwnerDefinition> Owners,
     IReadOnlyList<EdgeCell> Edges,
     IReadOnlyList<string> RegistryErrors)
 {
+    public IReadOnlyList<TableClaim> Tables { get; init; } = [];
+    public IReadOnlyList<ForeignKeyCell> ForeignKeys { get; init; } = [];
+    public IReadOnlyList<TableOwnerOverride> TableOwnerOverrides { get; init; } = [];
+
     public const string ModuleKind = "module";
     public const string PlatformKind = "platform";
 
@@ -79,8 +89,66 @@ public sealed record ModuleLedger(
                 }
             }
 
-            return new ModuleLedger(owners, edges, errors);
+            var tables = new List<TableClaim>();
+            if (root.TryGetProperty("tables", out var tablesElement))
+            {
+                if (tablesElement.ValueKind != JsonValueKind.Object)
+                    errors.Add("ledger 'tables' must be an object");
+                else
+                    foreach (var owner in tablesElement.EnumerateObject())
+                    {
+                        if (!owners.Any(o => o.Name == owner.Name))
+                            errors.Add($"tables references unknown owner '{owner.Name}'");
+                        foreach (var table in ReadArray(owner.Value, owner.Name, "tables", errors))
+                            tables.Add(new TableClaim(owner.Name, table));
+                    }
+            }
+
+            var foreignKeys = ReadRows(root, "foreignKeys", errors, (row, label) =>
+                new ForeignKeyCell(RequiredString(row, "name", label, errors),
+                    RequiredString(row, "from", label, errors), RequiredString(row, "to", label, errors),
+                    RequiredString(row, "reason", label, errors)));
+            var overrides = ReadRows(root, "tableOwnerOverrides", errors, (row, label) =>
+                new TableOwnerOverride(RequiredString(row, "table", label, errors),
+                    RequiredString(row, "reason", label, errors)));
+
+            return new ModuleLedger(owners, edges, errors)
+            {
+                Tables = tables,
+                ForeignKeys = foreignKeys,
+                TableOwnerOverrides = overrides,
+            };
         }
+    }
+
+    private static IReadOnlyList<T> ReadRows<T>(JsonElement root, string name, List<string> errors,
+        Func<JsonElement, string, T> read)
+    {
+        if (!root.TryGetProperty(name, out var array))
+            return [];
+        if (array.ValueKind != JsonValueKind.Array)
+        {
+            errors.Add($"ledger '{name}' must be an array");
+            return [];
+        }
+
+        var rows = new List<T>();
+        foreach (var row in array.EnumerateArray())
+        {
+            var label = $"{name}[{rows.Count}]";
+            if (row.ValueKind != JsonValueKind.Object)
+                errors.Add($"{label} is not an object");
+            rows.Add(read(row, label));
+        }
+        return rows;
+    }
+
+    private static string RequiredString(JsonElement row, string name, string label, List<string> errors)
+    {
+        var value = row.ValueKind == JsonValueKind.Object ? ReadString(row, name) : null;
+        if (string.IsNullOrWhiteSpace(value))
+            errors.Add($"{label} has a blank or non-string '{name}'");
+        return value ?? string.Empty;
     }
 
     private static OwnerDefinition ReadOwner(JsonProperty property, List<string> errors)
@@ -159,7 +227,13 @@ public sealed record ModuleLedger(
     private static IReadOnlyList<string> ReadStringArray(
         JsonElement element, string name, string label, List<string> errors)
     {
-        if (!element.TryGetProperty(name, out var array) || array.ValueKind != JsonValueKind.Array)
+        return ReadArray(element.TryGetProperty(name, out var array) ? array : default, name, label, errors);
+    }
+
+    private static IReadOnlyList<string> ReadArray(
+        JsonElement array, string name, string label, List<string> errors)
+    {
+        if (array.ValueKind != JsonValueKind.Array)
         {
             errors.Add($"{label} has no '{name}' array");
             return [];
