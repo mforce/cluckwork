@@ -26,6 +26,7 @@ using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -218,7 +219,15 @@ if (spaShell is not null)
     app.UseSpaShell(spaShell);
 app.UseStaticFiles(new StaticFileOptions
 {
-    OnPrepareResponse = StaticAssetCaching.ApplyCacheHeaders
+    OnPrepareResponse = StaticAssetCaching.ApplyCacheHeaders,
+    // #874 review (local Codex pass) — null (the middleware's own default,
+    // env.WebRootFileProvider) when there is no built SPA to template in the
+    // first place; wrapped only when SpaShell owns index.html, so the raw file
+    // can never leak through an alternate path spelling UseSpaShell's exact
+    // compare misses (e.g. a raw "GET //index.html").
+    FileProvider = spaShell is not null
+        ? new IndexHtmlHidingFileProvider(app.Environment.WebRootFileProvider)
+        : null
 });
 
 // One structured completion line per request (#214): method, path, status,
@@ -573,7 +582,15 @@ app.Map("/health/{**rest}", () => Results.Problem(
 // no-cache: a new deploy propagates immediately even through a fronting CDN,
 // and a missing /assets/x can never be pinned immutable.
 if (spaShell is not null)
-    app.MapFallback(spaShell.WriteAsync);
+    // GET/HEAD only (#874 review, local Codex pass): the StaticFileMiddleware +
+    // MapFallbackToFile pair this replaced served only GET/HEAD (the former
+    // skips other methods outright, the latter carries its own GET/HEAD
+    // HttpMethodMetadata) — measured directly against that pre-#873 pipeline,
+    // which answers 405 with "Allow: GET, HEAD" for e.g. POST / or DELETE
+    // /index.html. Without this metadata spaShell.WriteAsync has no method
+    // restriction of its own and those same requests get a 200 HTML shell.
+    app.MapFallback(spaShell.WriteAsync)
+        .WithMetadata(new HttpMethodMetadata([HttpMethods.Get, HttpMethods.Head]));
 else
     app.MapFallbackToFile("index.html", new StaticFileOptions
     {

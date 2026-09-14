@@ -4,6 +4,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Security;
+using Microsoft.Extensions.FileProviders;
 
 // #873 — the SPA's index.html is served as a templated response so the document
 // and its own Content-Security-Policy header name the SAME style nonce. If they
@@ -119,6 +120,43 @@ public sealed class SpaShellTests(StaticCachingFactory factory)
     }
 
     [Fact]
+    public async Task Dot_segment_is_normalised_before_the_shell_ever_sees_it()
+    {
+        // #874 review (local Codex pass): "/./index.html" is a request Kestrel's
+        // OWN PathNormalizer collapses to "/index.html" ahead of the app — proven
+        // against a real loopback Kestrel listener, not just this in-memory
+        // TestServer, before this test was written. CreateRequest bypasses
+        // System.Uri's own resolution (which HttpClient.GetAsync would apply
+        // first and produce a different, misleading path), so this exercises the
+        // same normalisation a raw request line gets.
+        var res = await factory.Server.CreateRequest("/./index.html").GetAsync();
+
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var header = SecurityHeadersTests.StyleNonce(
+            res.Headers.GetValues("Content-Security-Policy").Single());
+        Assert.Equal(header, MetaNonce(await res.Content.ReadAsStringAsync()));
+    }
+
+    [Theory]
+    [InlineData("POST", "/")]
+    [InlineData("DELETE", "/index.html")]
+    public async Task Write_methods_cannot_get_a_successful_shell_response(string method, string path)
+    {
+        // #874 review (local Codex pass): the StaticFileMiddleware + MapFallbackToFile
+        // pair this replaced served only GET/HEAD; MapFallback(spaShell.WriteAsync)
+        // has no method restriction of its own, so before this fix POST / and
+        // DELETE /index.html both returned a 200 HTML shell — measured against
+        // the pre-#873 pipeline, which answers exactly this 405.
+        var res = await factory.CreateClient()
+            .SendAsync(new HttpRequestMessage(new HttpMethod(method), path));
+
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, res.StatusCode);
+        // Allow is a content header per the HttpClient model, not a response one.
+        Assert.Equal(new[] { "GET", "HEAD" }, res.Content.Headers.Allow.Order());
+        Assert.NotEqual("text/html", res.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
     public void A_document_with_no_head_is_refused_at_load()
     {
         // The boot-time half of the fail-closed posture. An index.html that
@@ -130,4 +168,40 @@ public sealed class SpaShellTests(StaticCachingFactory factory)
 
         Assert.Contains("<head>", thrown.Message, StringComparison.Ordinal);
     }
+}
+
+// #874 review (local Codex pass) — the wrapper directly, in isolation from the
+// HTTP pipeline: the file genuinely exists on disk (proven by
+// Unrelated_files_still_pass_through reading a sibling normally), yet no
+// spelling of a request for it resolves through this provider.
+public sealed class IndexHtmlHidingFileProviderTests : IDisposable
+{
+    private readonly string _root = Path.Combine(
+        Path.GetTempPath(), "cluckwork-hiding-" + Guid.NewGuid().ToString("N"));
+    private readonly IndexHtmlHidingFileProvider _provider;
+
+    public IndexHtmlHidingFileProviderTests()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "assets"));
+        File.WriteAllText(Path.Combine(_root, "index.html"), "<!doctype html>");
+        File.WriteAllText(Path.Combine(_root, "assets", "app.js"), "console.log(1)");
+        _provider = new IndexHtmlHidingFileProvider(new PhysicalFileProvider(_root));
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_root, recursive: true); } catch { /* best effort */ }
+    }
+
+    [Theory]
+    [InlineData("/index.html")]     // the normal request
+    [InlineData("//index.html")]    // the alternate spelling Kestrel does not collapse
+    [InlineData("index.html")]      // no leading slash at all
+    [InlineData("/INDEX.HTML")]     // case variance
+    public void Index_html_is_hidden_under_every_spelling(string subpath) =>
+        Assert.False(_provider.GetFileInfo(subpath).Exists);
+
+    [Fact]
+    public void Unrelated_files_still_pass_through() =>
+        Assert.True(_provider.GetFileInfo("/assets/app.js").Exists);
 }

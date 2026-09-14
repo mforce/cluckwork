@@ -2,6 +2,8 @@ namespace Cluckwork.Api.Hosting;
 
 using System.Text;
 using Cluckwork.Api.Security;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 
 // #873 — the built SPA's index.html, served as a TEMPLATED response rather than
@@ -114,7 +116,14 @@ public static class SpaShellExtensions
             // Linux: /INDEX.HTML 404s here exactly as it did when the static
             // middleware owned the path.
             var path = context.Request.Path.Value;
-            if (path == "/" || string.Equals(path, "/index.html", StringComparison.Ordinal))
+            var method = context.Request.Method;
+            // GET/HEAD only (#874 review, local Codex pass): the static-file
+            // middleware this replaced only ever served GET/HEAD, and falling
+            // through here (rather than answering 405 directly) lets the SAME
+            // 405 come from the MapFallback registration in Program.cs, whose
+            // HttpMethodMetadata is the one place that decision is made.
+            if ((path == "/" || string.Equals(path, "/index.html", StringComparison.Ordinal))
+                && (HttpMethods.IsGet(method) || HttpMethods.IsHead(method)))
             {
                 await shell.WriteAsync(context);
                 return;
@@ -122,4 +131,42 @@ public static class SpaShellExtensions
 
             await next();
         });
+}
+
+/// <summary>
+/// Hides the shell's own source document from static-file serving (#874 review,
+/// local Codex pass).
+/// </summary>
+/// <remarks>
+/// <see cref="SpaShellExtensions.UseSpaShell"/>'s exact-match check is a literal
+/// compare against <c>Request.Path.Value</c>. Kestrel does not collapse a raw
+/// "GET //index.html" request-target the way it collapses a "/./" segment (the
+/// latter is resolved before the app ever sees it; the former is not), so that
+/// request misses the exact match and falls through to <c>UseStaticFiles</c> —
+/// whose <c>PhysicalFileProvider</c> still resolves it to the same on-disk
+/// index.html, serving the untemplated build artifact with no nonce meta under a
+/// CSP header that now requires one. Wrapping the file provider makes the
+/// document unreachable through static serving no matter how many leading
+/// slashes or what case the request spells it with; the request then falls
+/// through further to <c>MapFallback</c>, which answers with the templated shell
+/// exactly as it already does for any other client-side route.
+/// </remarks>
+public sealed class IndexHtmlHidingFileProvider(IFileProvider inner) : IFileProvider
+{
+    public IDirectoryContents GetDirectoryContents(string subpath) => inner.GetDirectoryContents(subpath);
+
+    public IFileInfo GetFileInfo(string subpath)
+    {
+        // Split rather than compare the raw string: collapses any number of
+        // leading or doubled slashes away, so "//index.html" and "/index.html"
+        // resolve to the same single segment. Case-insensitive because the goal
+        // is "this file is never servable raw" — not a second copy of the
+        // case-sensitive Linux lookup UseSpaShell already relies on, so
+        // /INDEX.HTML still 404s either way, just earlier.
+        var segments = subpath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var isIndexHtml = segments is [var only] && string.Equals(only, "index.html", StringComparison.OrdinalIgnoreCase);
+        return isIndexHtml ? new NotFoundFileInfo(subpath) : inner.GetFileInfo(subpath);
+    }
+
+    public IChangeToken Watch(string filter) => inner.Watch(filter);
 }
