@@ -18,18 +18,18 @@ public static class AccountEndpoints
         // Open to every authenticated role on purpose: §4.5's display rule
         // makes locale, timezone and the currency fields a prerequisite for
         // rendering ANY money, date or number, so a read-only viewer needs them
-        // as much as an owner. The write below is the admin-gated half.
+        // as much as an owner. The settings screen below is Owner-only.
         group.MapGet("/", GetAccount)
             .WithName("GetAccount")
             .WithSummary("Current farm: name and the §4.5 localization settings clients need to format money, dates and numbers.");
 
         group.MapGet("/settings", GetSettings)
-            .RequireAuthorization(AuthPolicies.AdminOnly)
+            .RequireAuthorization(AuthPolicies.OwnerOnly)
             .WithName("GetFarmSettings")
             .WithSummary("Farm settings for the settings screen — the same fields plus whether the currency is still changeable (§4.6).");
 
         group.MapPut("/settings", UpdateSettings)
-            .RequireAuthorization(AuthPolicies.AdminOnly)
+            .RequireAuthorization(AuthPolicies.OwnerOnly)
             .WithName("UpdateFarmSettings")
             .WithSummary("Replace the farm settings (base version required; mismatch is a 409). Currency is locked once anything has recorded an amount in it (§4.6).");
 

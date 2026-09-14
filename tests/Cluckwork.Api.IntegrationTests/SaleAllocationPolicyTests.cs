@@ -174,9 +174,10 @@ public sealed class SaleAllocationPolicyTests(CluckworkWebApplicationFactory fac
         // Generic — no grade name, no quantity, no flock fact leaked.
         Assert.DoesNotContain("Large", problem.Detail);
         Assert.DoesNotContain("20", problem.Detail);
-        // #612 review fix — explicitly names the Owner/Manager opt-in and where
+        // #612/#729 — explicitly names the Owner-only opt-in and where
         // to find it, without naming what stock exists or where.
-        Assert.Contains("owner or manager", problem.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("owner", problem.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("manager", problem.Detail, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Farm settings", problem.Detail, StringComparison.OrdinalIgnoreCase);
 
         var after = await SnapshotAsync(accountId, lotA, lotB, orderId);

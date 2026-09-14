@@ -126,7 +126,7 @@ export const es = {
     "Me.Language.Format": "El idioma debe ser un código de 2 a 8 letras, por ejemplo 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":
       "Tus parvadas asignadas no tienen suficiente stock para esta venta. Un "
-      + "propietario o gerente puede habilitar la venta desde otras parvadas "
+      + "propietario puede habilitar la venta desde otras parvadas "
       + "en Configuración de la granja.",
     // #721
     "SalesOrder.DiscountReasonRequired":
@@ -138,8 +138,8 @@ export const es = {
     // #727
     "SalesOrder.DiscountCeilingExceeded":
       "Una línea de este pedido tiene más descuento del que permite esta granja. Un "
-      + "propietario o gerente puede confirmarlo, o cambiar Descuento máximo en "
-      + "Configuración de la granja.",
+      + "propietario o gerente puede confirmarlo. Solo un propietario puede cambiar "
+      + "Descuento máximo en Configuración de la granja.",
     "SalesOrder.DiscountNotMeasurable":
       "Una línea de este pedido tiene un descuento que no se puede comparar con el "
       + "máximo. Un propietario o gerente debe confirmarlo.",
@@ -1216,7 +1216,7 @@ export const es = {
     workerSaleAllocationPolicyHint:
       "Controla de qué lotes de huevo puede tomar stock la venta de un "
       + "Trabajador restringido. Solo parvadas asignadas es el valor "
-      + "predeterminado; los propietarios y gerentes pueden optar por todas "
+      + "predeterminado; los propietarios pueden optar por todas "
       + "las parvadas de la granja.",
     // #727
     maxDiscountPercentLabel: "Descuento máximo",
@@ -1274,9 +1274,9 @@ export const es = {
     roleDescription:
       "Los trabajadores registran el trabajo del día (opcionalmente "
       + "limitado a los lotes asignados). Los gerentes además corrigen, "
-      + "anulan y configuran. Ventas gestiona clientes, pedidos y pagos. "
+      + "anulan y administran los catálogos operativos. Ventas gestiona clientes, pedidos y pagos. "
       + "Solo lectura ve existencias, historial e informes. Administrador "
-      + "(propietario) hace todo, incluida la gestión de usuarios.",
+      + "(propietario) hace todo, incluida la Configuración de la granja, la identidad visual y los usuarios.",
 
     // Create-user dialog
     emailFieldLabel: "Correo electrónico *",
@@ -2103,8 +2103,8 @@ export const es = {
       + "asignación lo restringe a los indicados. Los trabajadores no pueden crear lotes — eso es "
       + "administración de Propietario/Gerente.",
     rolesManagers:
-      "Los <strong>Gerentes</strong> hacen todo lo que hacen los trabajadores, además de todo lo que "
-      + "<strong>deshace, corrige o configura</strong>: anulaciones, correcciones de existencias y agua, "
+      "Los <strong>Gerentes</strong> hacen todo lo que hacen los trabajadores, además del trabajo operativo "
+      + "que <strong>deshace o corrige</strong>: anulaciones, correcciones de existencias y agua, "
       + "creación de lotes y cambios de ciclo de vida de los lotes, sacrificios, los catálogos de "
       + "grados/productos/artículos, gastos, "
       + "informes de dinero, el registro de auditoría y las exportaciones.",
@@ -2114,7 +2114,8 @@ export const es = {
       + "ven existencias, historial e informes, y no pueden cambiar nada.",
     rolesAdmin:
       "<strong>Administrador (propietario)</strong> hace todo lo que hace un gerente y es el único rol que "
-      + "administra usuarios: crea inicios de sesión en la pantalla <strong>Usuarios</strong> (correo "
+      + "administra la Configuración de la granja, la identidad visual y los usuarios: crea inicios de "
+      + "sesión en la pantalla <strong>Usuarios</strong> (correo "
       + "electrónico, contraseña, un nombre opcional y rol) y asigna trabajadores a lotes. El nombre de un "
       + "usuario se puede cambiar más tarde desde la acción <strong>editar</strong> de la fila, y la acción "
       + "<strong>contraseña</strong> establece una contraseña olvidada sin necesitar la anterior. La acción "
@@ -2403,7 +2404,7 @@ export const es = {
       + "con <strong>Confirmar pedido</strong> desactivado hasta que se cambie el precio de la línea. El "
       + "pedido sigue siendo un borrador — no se pone en ninguna cola y no se avisa a nadie, así que "
       + "pídaselo a un propietario o gerente, que puede confirmarlo sin tocarlo. Los propietarios y "
-      + "gerentes nunca están limitados. El límite se fija en Configuración de la granja como "
+      + "gerentes nunca están limitados. Solo un propietario fija el límite en Configuración de la granja como "
       + "<strong>Descuento máximo</strong>.",
     salesConfirming:
       "<strong>Confirmar</strong> un pedido asigna existencias reales — los lotes más antiguos primero — y "
@@ -2561,9 +2562,10 @@ export const es = {
       "Las columnas de dinero contienen unidades menores (centavos) más la moneda — valores exactos, no "
       + "formato de presentación. Las fechas son ISO (AAAA-MM-DD), y las marcas de tiempo son UTC.",
 
-    farmSettingsHeading: "Configuración de la granja (admin)",
+    farmSettingsHeading: "Configuración de la granja (solo propietario)",
     farmSettingsIntro:
-      "<strong>Configuración → Configuración de la granja</strong> contiene el nombre de la granja y las "
+      "Solo un propietario puede abrir o cambiar <strong>Configuración → Configuración de la granja</strong>. "
+      + "Contiene el nombre de la granja y las "
       + "cuatro cosas que deciden cómo se lee todo: <strong>zona horaria</strong>, <strong>configuración "
       + "regional</strong>, <strong>moneda</strong> y <strong>sistema de unidades</strong>. El primer día de "
       + "la semana y los formatos de fecha y hora son opcionales — déjelos en blanco y la configuración "
@@ -2631,7 +2633,7 @@ export const es = {
 
     farmPaletteHeading: "Paleta de la granja",
     farmPaletteIntro:
-      "La configuración de la granja permite a un administrador elegir el color de acento usado en toda "
+      "La configuración de la granja permite a un propietario elegir el color de acento usado en toda "
       + "la aplicación para todos en la granja: Berenjena, Bosque, Pizarra o Terracota. La elección se "
       + "aplica al guardar, y todos la ven la próxima vez que carga su aplicación."
       + " Cada dispositivo también recuerda la paleta de cada granja, por lo que el color propio de una "
@@ -3002,8 +3004,8 @@ export const es = {
     glossaryDiscountCeilingTerm: "Tope de descuento",
     glossaryDiscountCeilingDef:
       "El mayor descuento que un usuario de Ventas o Trabajador puede poner en una línea de "
-      + "venta. Un propietario o gerente lo fija en Configuración de la granja como Descuento "
-      + "máximo, y solo ellos pueden confirmar un pedido que lo supere. Una línea por encima "
+      + "venta. Un propietario lo fija en Configuración de la granja como Descuento máximo. Un "
+      + "propietario o gerente puede confirmar un pedido que lo supere. Una línea por encima "
       + "del tope se marca como Sobre el máximo, y Confirmar pedido queda bloqueado hasta que "
       + "se cambie el precio de la línea o un propietario o gerente confirme el pedido sin "
       + "tocarlo. Una granja sin tope funciona exactamente como antes, y un tope de 0 no es lo "
@@ -3053,8 +3055,9 @@ export const es = {
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (propietario), Gerente, Trabajador, Ventas, Solo lectura — vea \"Quién puede hacer qué\". Los "
-      + "trabajadores registran; los gerentes también corrigen y configuran; ventas gestiona pedidos y "
-      + "pagos; solo lectura únicamente visualiza.",
+      + "trabajadores registran; los gerentes también corrigen y administran los catálogos operativos; los "
+      + "propietarios administran la Configuración de la granja, la identidad visual y los usuarios; ventas "
+      + "gestiona pedidos y pagos; solo lectura únicamente visualiza.",
 
     glossaryFlockScopingTerm: "Alcance por lote",
     glossaryFlockScopingDef:
@@ -3086,8 +3089,8 @@ export const es = {
       "El nombre de la granja, la zona horaria, la configuración regional, la moneda y el sistema de "
       + "unidades, además del primer día de la semana y los formatos de fecha/hora, opcionales — elegidos "
       + "de un menú de opciones predefinidas, o escritos como una cadena de formato .NET personalizada. "
-      + "Configuración → Configuración de la granja; propietarios y gerentes editan, todos pueden leer — "
-      + "dar formato a montos y fechas no es un permiso.",
+      + "Solo los propietarios abren y editan Configuración → Configuración de la granja. Todos los roles "
+      + "autenticados leen los valores de formato e identidad visual en la respuesta de la cuenta de la granja.",
 
     glossaryCurrencyLockTerm: "Bloqueo de moneda",
     glossaryCurrencyLockDef:
@@ -3112,7 +3115,7 @@ export const es = {
 
     glossaryFarmPaletteTerm: "Paleta de la granja",
     glossaryFarmPaletteDef:
-      "El color de acento de toda la granja, elegido por un admin en Configuración de la granja. "
+      "El color de acento de toda la granja, elegido por un propietario en Configuración de la granja. "
       + "Independiente de la configuración de modo claro/nocturno de cada persona."
       + " Se recuerda por granja en cada dispositivo, por lo que puede aparecer en la pantalla de inicio "
       + "de sesión antes de que alguien inicie sesión; un dispositivo que recuerda varias granjas muestra "

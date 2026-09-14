@@ -9,7 +9,7 @@ public enum WorkerSaleAllocationPolicy
     // draws only from lots the worker is assigned to.
     AssignedFlocksOnly,
 
-    // Explicit Owner/Manager opt-in: a restricted Worker's confirmation may
+    // Explicit Owner-only opt-in (#729): a restricted Worker's confirmation may
     // draw from any lot on the farm, same as every other role.
     AllFarmFlocks,
 }

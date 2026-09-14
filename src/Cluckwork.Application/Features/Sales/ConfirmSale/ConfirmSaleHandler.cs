@@ -247,7 +247,7 @@ public sealed class ConfirmSaleHandler(
                         failure = Result.Failure<ConfirmSaleResponse>(Error.Domain(
                             "EggLot.AssignedFlocksInsufficientStock",
                             "Your assigned flocks do not have enough stock for this sale. " +
-                            "An owner or manager can enable selling from other flocks in Farm settings."));
+                            "An owner can enable selling from other flocks in Farm settings."));
                         return false;
                     }
 

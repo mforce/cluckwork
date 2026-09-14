@@ -509,7 +509,7 @@ export interface Account {
   // Same contract as logoContentHash, for the post-login splash banner (#179):
   // null means no banner is set, so the splash is skipped entirely.
   bannerContentHash: string | null;
-  // The farm's accent palette (#149) — farm-wide and admin-chosen, unlike the
+  // The farm's accent palette (#149) — farm-wide and Owner-chosen, unlike the
   // light/night toggle, which stays a per-user device preference. The API is
   // the source of truth; localStorage only caches it for the pre-paint script.
   brand: string;
@@ -579,12 +579,12 @@ export interface FarmSettings {
   logoMaxUploadBytes: number;
   // Same contract, for the banner (#179) — a separate, larger cap.
   bannerMaxUploadBytes: number;
-  // #612 — the raw policy, admin-only (like canChangeCurrency above). Every
+  // #612/#729 — the raw policy, Owner-only (like canChangeCurrency above). Every
   // other role only ever sees the derived Account.showFarmWideSaleAllocationNotice.
   workerSaleAllocationPolicy: string;
-  // #727 — the farm's own ceiling, admin-only on the same terms. Every other
+  // #727/#729 — the farm's own ceiling, Owner-only on the same terms. Every other
   // role only ever sees the per-caller Account.yourMaxDiscountPercent, which is
-  // null for the Owners and Managers who edit this field.
+  // null for the Owners and Managers who may exceed it; only Owners edit it.
   maxDiscountPercent: number | null;
 }
 

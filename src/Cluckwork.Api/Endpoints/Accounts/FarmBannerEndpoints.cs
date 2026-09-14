@@ -27,14 +27,14 @@ public static class FarmBannerEndpoints
         group.MapPut("/banner", SetBanner)
             .WithMetadata(new ReadsRequestBodyAttribute())
             .WithMetadata(new FarmBannerUploadCapMetadata())
-            .RequireAuthorization(AuthPolicies.AdminOnly)
+            .RequireAuthorization(AuthPolicies.OwnerOnly)
             .WithName("SetFarmBanner")
             .WithSummary(
                 "Upload or replace the farm banner. Raw image body (PNG/JPEG/WebP), capped by the " +
                 "configured limit (5 MB by default).");
 
         group.MapDelete("/banner", RemoveBanner)
-            .RequireAuthorization(AuthPolicies.AdminOnly)
+            .RequireAuthorization(AuthPolicies.OwnerOnly)
             .WithName("RemoveFarmBanner")
             .WithSummary("Clear the farm banner.");
 

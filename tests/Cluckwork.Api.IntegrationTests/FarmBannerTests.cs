@@ -49,7 +49,7 @@ public sealed class FarmBannerTests(CluckworkWebApplicationFactory factory)
     [Fact]
     public async Task Admin_UploadsABanner_AndEveryoneCanFetchIt()
     {
-        var (client, _) = await AdminAsync();
+        var (client, accountId) = await AdminAsync();
 
         var upload = await PutAsync(client, BannerPath, TinyPng);
         Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
@@ -57,7 +57,12 @@ public sealed class FarmBannerTests(CluckworkWebApplicationFactory factory)
         var meta = (await upload.Content.ReadFromJsonAsync<BannerDto>())!;
         Assert.Equal("image/png", meta.ContentType);
 
-        var fetched = await client.GetAsync(BannerPath);
+        var viewerEmail = $"v-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, viewerEmail, Roles.ReadOnly);
+        var viewer = factory.CreateAuthedClient(
+            await factory.LoginForAccessTokenAsync(viewerEmail));
+
+        var fetched = await viewer.GetAsync(BannerPath);
         Assert.Equal(HttpStatusCode.OK, fetched.StatusCode);
         Assert.Equal(TinyPng, await fetched.Content.ReadAsByteArrayAsync());
     }
@@ -122,9 +127,10 @@ public sealed class FarmBannerTests(CluckworkWebApplicationFactory factory)
     }
 
     [Theory]
+    [InlineData(Roles.Manager)]
     [InlineData(Roles.ReadOnly)]
     [InlineData(Roles.Sales)]
-    public async Task NonAdmins_CannotChangeTheBanner(string role)
+    public async Task NonOwners_CannotChangeTheBanner(string role)
     {
         var (_, accountId) = await AdminAsync();
         var email = $"n-{Guid.NewGuid():N}@test.local";

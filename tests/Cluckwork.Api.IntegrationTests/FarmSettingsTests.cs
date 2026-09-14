@@ -8,10 +8,10 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-// #123 slice 1 — farm settings over the wire: the read every role needs for
-// §4.5 formatting, the admin-only write, §4.6's currency lock, and the two
-// guards that keep the settings themselves trustworthy (version token,
-// timezone validation).
+// #123 slice 1 — farm settings over the wire: the account read every role needs
+// for §4.5 formatting, the owner-only settings screen, §4.6's currency lock,
+// and the two guards that keep the settings themselves trustworthy (version
+// token, timezone validation).
 [Collection(IntegrationCollection.Name)]
 public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
 {
@@ -187,10 +187,10 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    // --- admin gate -------------------------------------------------------
+    // --- owner gate -------------------------------------------------------
 
     [Fact]
-    public async Task SettingsScreenAndWrite_AreAdminOnly()
+    public async Task SettingsScreenAndWrite_AreOwnerOnly()
     {
         var (admin, accountId, _) = await AdminAsync();
         var current = await GetAccountAsync(admin);
@@ -205,10 +205,8 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(current.Name, (await GetAccountAsync(admin)).Name);
     }
 
-    // Every role that is NOT the gate, not only the worker: AdminOnly admits
-    // Owner and Manager since #103, so Sales and ReadOnly need their own cases
-    // and Manager needs proof it is genuinely admitted, not just tolerated by a
-    // test that never tries (adversarial review of #159).
+    // Every role that is not the gate gets its own case. A broad "non-owner"
+    // assertion can miss a single role that remains admitted.
     [Theory]
     [InlineData(Cluckwork.Domain.Accounts.Roles.Sales)]
     [InlineData(Cluckwork.Domain.Accounts.Roles.ReadOnly)]
@@ -227,10 +225,8 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task Manager_CanEditSettings()
+    public async Task Manager_CannotReadOrEditSettings()
     {
-        // The whole point of AdminOnly post-#103: it is Owner + Manager, not
-        // Owner alone. Farm configuration is a Manager capability (§5.1).
         var (admin, accountId, _) = await AdminAsync();
         var current = await GetAccountAsync(admin);
 
@@ -238,11 +234,11 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
         await factory.SeedUserAsync(accountId, email, Cluckwork.Domain.Accounts.Roles.Manager);
         var manager = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
 
-        Assert.Equal(HttpStatusCode.OK, (await manager.GetAsync(SettingsPath)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await manager.GetAsync(SettingsPath)).StatusCode);
         var saved = await PutSettingsAsync(manager, Body(current, name: "Manager rename"));
 
-        Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
-        Assert.Equal("Manager rename", (await GetAccountAsync(admin)).Name);
+        Assert.Equal(HttpStatusCode.Forbidden, saved.StatusCode);
+        Assert.Equal(current.Name, (await GetAccountAsync(admin)).Name);
     }
 
     [Fact]
@@ -611,6 +607,25 @@ public sealed class FarmSettingsTests(CluckworkWebApplicationFactory factory)
 
         Assert.NotNull(account);
         Assert.Equal("aubergine", account.Brand);
+    }
+
+    [Fact]
+    public async Task Manager_LoadsTheFarmBrandFromTheRoleAgnosticAccountRead()
+    {
+        var (owner, accountId, _) = await AdminAsync();
+        var before = await GetAccountAsync(owner);
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (await PutSettingsAsync(owner, Body(before, brand: "forest"))).StatusCode);
+
+        var email = $"m-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(
+            accountId, email, Cluckwork.Domain.Accounts.Roles.Manager);
+        var manager = factory.CreateAuthedClient(
+            await factory.LoginForAccessTokenAsync(email));
+
+        var account = await GetAccountAsync(manager);
+        Assert.Equal("forest", account.Brand);
     }
 
     [Fact]

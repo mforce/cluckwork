@@ -56,14 +56,12 @@ describe("navGroups role gates", () => {
     expect(reachable("Admin", true).has("users")).toBe(true);
   });
 
-  it("offers Farm settings to the admin tier — Manager included, unlike Users (#123)", () => {
-    // The API gates /account/settings on AdminOnly (Owner OR Manager), so the
-    // nav must not be narrower than that or a Manager loses a screen they can
-    // actually use.
+  it("offers Farm settings only to the Owner (#729)", () => {
     expect(reachable("Admin", true).has("farmSettings")).toBe(true);
-    expect(reachable("Manager", true).has("farmSettings")).toBe(true);
-    for (const role of ["Worker", "Sales", "ReadOnly", "Denied"] as const)
+    expect(reachable("Manager", true).has("farmSettings")).toBe(false);
+    for (const role of ["Worker", "Sales", "ReadOnly", "Denied"] as const) {
       expect(reachable(role, false).has("farmSettings")).toBe(false);
+    }
   });
 });
 

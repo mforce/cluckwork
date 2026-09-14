@@ -309,7 +309,7 @@ farm_logos
 is TOAST-compressed: measuring it would fetch and decompress the megabyte, which
 is exactly what the metadata-only reads exist to avoid.
 
-Uploads are Owner/Manager only. SVG is refused outright — it is a document that
+Uploads are Owner-only. SVG is refused outright — it is a document that
 can carry script, and the app renders this image back to every user of the farm.
 What is stored is never the uploaded file: the container is walked and rewritten,
 which drops metadata blocks (EXIF on a phone photo carries GPS coordinates —
@@ -651,6 +651,9 @@ Unknown XYZ → symbol "XYZ", minor unit 2
 | Sales | Customers, sales, payments |
 | Vet/Consultant | Health, medication, vaccination, welfare notes |
 | Read-only | View dashboards/reports only |
+
+Farm configuration and farm identity are Owner-only. Managers cannot change
+the farm settings, logo, or banner.
 
 ## 5.2 Role assignments
 
@@ -2356,7 +2359,7 @@ egg revenue - allocated expenses
 
 ## UC-011 Configure farm localization
 
-**Actor:** Owner/Manager
+**Actor:** Owner
 **Goal:** Tie a farm to a currency, locale, and timezone.
 
 **Flow:**

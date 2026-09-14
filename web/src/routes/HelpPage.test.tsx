@@ -57,12 +57,28 @@ describe("HelpPage", () => {
     expect(linked).toEqual(sections);
   });
 
-  it("documents farm settings, the currency lock and the logo (#123)", () => {
+  it("documents Owner-only farm settings, the currency lock and the logo (#123/#729)", () => {
     render(<HelpPage />);
-    expect(screen.getByRole("heading", { name: "Farm settings (admin)", level: 3 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Farm settings (owner only)", level: 3 })).toBeInTheDocument();
     expect(screen.getByText("Farm settings", { selector: "dt a" })).toBeInTheDocument();
     expect(screen.getByText("Currency lock", { selector: "dt a" })).toBeInTheDocument();
     expect(screen.getByText("Farm logo", { selector: "dt a" })).toBeInTheDocument();
+
+    for (const [catalog, owner, manager] of [
+      [en, /owner/i, /manager/i],
+      [es, /propietario/i, /gerente/i],
+      [tl, /owner|may-ari/i, /manager/i],
+    ] as const) {
+      for (const text of [
+        catalog.help.farmSettingsIntro,
+        catalog.help.farmPaletteIntro,
+        catalog.help.glossaryFarmSettingsDef,
+        catalog.help.glossaryFarmPaletteDef,
+      ]) {
+        expect(text).toMatch(owner);
+        expect(text).not.toMatch(manager);
+      }
+    }
   });
 
   it("documents page loading in Getting around and the in-app glossary (#595)", () => {
@@ -1091,6 +1107,13 @@ describe("HelpPage visual pass (#657)", () => {
     expect(screen.getByRole("link", { name: "Open Daily entry" })).toHaveAttribute("href", "/daily-entry");
     expect(screen.queryByRole("link", { name: "Open Users" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Open Expenses" })).not.toBeInTheDocument(); // admin-only in nav.tsx
+  });
+
+  it("does not offer a Manager an Open link to Owner-only Farm settings (#729)", () => {
+    renderWithProviders(<HelpPage />, { token: { sub: "u2", role: "Manager" } });
+    expect(screen.getByRole("link", { name: "Open Audit" })).toHaveAttribute("href", "/audit");
+    expect(screen.queryByRole("link", { name: "Open Farm settings" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open Users" })).not.toBeInTheDocument();
   });
 
   it("offers no Open links outside a session (bare render)", () => {

@@ -192,10 +192,10 @@ export const en = {
     // #612 — the distinct 422 a restricted plain Worker gets when their
     // assigned flocks fall short but the farm's full stock would have
     // covered the sale. Generic on purpose: no grade, quantity, flock, or
-    // farm-wide stock fact — only that an Owner/Manager can opt the farm in.
+    // farm-wide stock fact — only that an Owner can opt the farm in.
     "EggLot.AssignedFlocksInsufficientStock":
       "Your assigned flocks do not have enough stock for this sale. An owner "
-      + "or manager can enable selling from other flocks in Farm settings.",
+      + "can enable selling from other flocks in Farm settings.",
     // #721 — the two discount-reason refusals a seller can actually reach.
     // Both are races: the dialog asked (or did not ask) against the lines as
     // they stood when the page last read them, and another user changed a
@@ -214,7 +214,7 @@ export const en = {
     // than repeat a figure the screen may have wrong.
     "SalesOrder.DiscountCeilingExceeded":
       "A line on this order is discounted more than this farm allows. An owner "
-      + "or manager can confirm it, or change Maximum discount in Farm settings.",
+      + "or manager can confirm it. Only an owner can change Maximum discount in Farm settings.",
     // Deliberately states no percent, and deliberately states no CAUSE. Two
     // different lines reach this: one predating recorded list prices, and one
     // with a recorded list price of zero sold below it, where the percent is a
@@ -1488,7 +1488,7 @@ export const en = {
     ledgerNoteHeader: "Note",
     loadMoreButton: "load more",
   },
-  // Farm settings — admin localization + logo (#123, #149) + the currency
+  // Farm settings — Owner-only localization + logo (#123, #149) + the currency
   // lock (§4.6) (Task 21, #182, batch B4). `settings` is in
   // TRANSLATED_NAMESPACES, same treatment as nav/numberField/errorBoundary/
   // themeToggle/useConfirm/pwa/dailyEntry/dashboard/water/grades/inventory/
@@ -1602,7 +1602,7 @@ export const en = {
     workerSaleAllocationPolicyLabel: "Worker sale allocation",
     workerSaleAllocationPolicyHint:
       "Controls which egg lots a restricted plain Worker's sale can draw "
-      + "from. Assigned flocks only is the default; owners and managers can "
+      + "from. Assigned flocks only is the default; owners can "
       + "opt a farm into all farm flocks.",
     // #727 — whole percents, because this is the only numeric input on this
     // screen and type="number" disagrees with itself across browsers about
@@ -1679,10 +1679,10 @@ export const en = {
     newUserButton: "New user", // reused verbatim as the create-dialog title
     roleDescription:
       "Workers record the day's work (optionally narrowed to assigned "
-      + "flocks). Managers additionally correct, void, and configure. Sales "
+      + "flocks). Managers additionally correct, void, and manage operational catalogs. Sales "
       + "handles customers, orders, and payments. Read-only sees stock, "
-      + "history, and reports. Admin (owner) does everything, including "
-      + "managing users.",
+      + "history, and reports. Admin (owner) does everything, including Farm settings, branding, "
+      + "and user management.",
 
     // Create-user dialog
     emailFieldLabel: "Email *",
@@ -2741,15 +2741,16 @@ export const en = {
       + "they can record for any flock; the first assignment restricts them to the listed ones. Workers "
       + "cannot create flocks — that is Owner/Manager administration.",
     rolesManagers:
-      "<strong>Managers</strong> do everything workers do, plus everything that <strong>undoes, corrects, or "
-      + "configures</strong>: voids, stock and water corrections, creating flocks and flock lifecycle changes, "
+      "<strong>Managers</strong> do everything workers do, plus operational work that <strong>undoes or "
+      + "corrects</strong>: voids, stock and water corrections, creating flocks and flock lifecycle changes, "
       + "culls, the grade/product/item catalogs, expenses, money reports, the audit log, and exports.",
     rolesSalesReadOnly:
       "<strong>Sales</strong> sign-ins handle customers, orders, and <strong>payments</strong> — but no "
       + "production capture and no expenses. <strong>Read-only</strong> sign-ins see stock, history, and "
       + "reports, and can change nothing.",
     rolesAdmin:
-      "<strong>Admin (owner)</strong> does everything a manager does and is the only role that manages users: "
+      "<strong>Admin (owner)</strong> does everything a manager does and is the only role that manages Farm "
+      + "settings, branding, and users: "
       + "creating sign-ins on the <strong>Users</strong> screen (email, password, an optional name, and role) "
       + "and assigning workers to flocks. A user's name can be changed later from the row's <strong>edit</strong> "
       + "action, and the <strong>password</strong> action sets a forgotten password without needing the old "
@@ -3027,7 +3028,7 @@ export const en = {
       + "and a line over the cap carries an <strong>Over maximum</strong> tag, with <strong>Confirm "
       + "order</strong> disabled until the line is repriced. The order stays a draft — nothing is "
       + "queued and nobody is notified, so ask an owner or manager, who can confirm it untouched. "
-      + "Owners and managers are never capped. The cap is set in Farm settings as "
+      + "Owners and managers are never capped. Only an owner sets the cap in Farm settings as "
       + "<strong>Maximum discount</strong>.",
     salesVoiding:
       "A mistaken confirm is undone with <strong>Void</strong> (admin-only, reason required): the eggs go "
@@ -3185,9 +3186,10 @@ export const en = {
       + "Dates are ISO (YYYY-MM-DD), and timestamps are UTC.",
 
     // Farm settings
-    farmSettingsHeading: "Farm settings (admin)",
+    farmSettingsHeading: "Farm settings (owner only)",
     farmSettingsIntro:
-      "<strong>Setup → Farm settings</strong> holds the farm's name and the four things that decide how "
+      "Only an owner can open or change <strong>Setup → Farm settings</strong>. It holds the farm's name "
+      + "and the four things that decide how "
       + "everything reads: <strong>timezone</strong>, <strong>locale</strong>, <strong>currency</strong> and "
       + "<strong>unit system</strong>. First day of week and the date and time formats are optional — leave "
       + "them blank and the locale decides. The timezone takes effect everywhere the moment it is saved; the "
@@ -3251,7 +3253,7 @@ export const en = {
     // Farm palette
     farmPaletteHeading: "Farm palette",
     farmPaletteIntro:
-      "Farm settings lets an admin pick the accent colour used across the app for everyone on the farm: "
+      "Farm settings lets an owner pick the accent colour used across the app for everyone on the farm: "
       + "Aubergine, Forest, Slate or Terracotta. The choice applies when you save, and everyone sees it the "
       + "next time their app loads."
       + " Each device also remembers the palette for each farm, so a farm's own colour can appear on the "
@@ -3595,9 +3597,9 @@ export const en = {
 
     glossaryDiscountCeilingTerm: "Discount ceiling",
     glossaryDiscountCeilingDef:
-      "The largest discount a Sales or Worker user may put on one sale line. An owner or "
-      + "manager sets it in Farm settings as Maximum discount, and only they can confirm an "
-      + "order that goes over it. A line over the ceiling is marked Over maximum, and Confirm "
+      "The largest discount a Sales or Worker user may put on one sale line. An owner sets it "
+      + "in Farm settings as Maximum discount. An owner or manager can confirm an order that "
+      + "goes over it. A line over the ceiling is marked Over maximum, and Confirm "
       + "order stays blocked until the line is repriced or an owner or manager confirms the "
       + "order untouched. A farm with no ceiling set behaves exactly as before, and a ceiling "
       + "of 0 is not the same as none — it means nothing may be given away at all.",
@@ -3640,7 +3642,8 @@ export const en = {
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "
-      + "managers also correct and configure; sales handles orders and payments; read-only just views.",
+      + "managers also correct and manage operational catalogs; owners manage Farm settings, branding, "
+      + "and users; sales handles orders and payments; read-only just views.",
 
     glossaryFlockScopingTerm: "Flock scoping",
     glossaryFlockScopingDef:
@@ -3668,8 +3671,8 @@ export const en = {
     glossaryFarmSettingsDef:
       "The farm's name, timezone, locale, currency and unit system, plus optional first day of week and "
       + "date/time formats — picked from a preset dropdown, or typed as a custom .NET format string. "
-      + "Setup → Farm settings; owners and managers edit, everyone reads — formatting money and dates is "
-      + "not a permission.",
+      + "Only owners open and edit Setup → Farm settings. Every authenticated role reads the formatting "
+      + "and branding values through the farm account response.",
 
     glossaryCurrencyLockTerm: "Currency lock",
     glossaryCurrencyLockDef:
@@ -3693,7 +3696,7 @@ export const en = {
 
     glossaryFarmPaletteTerm: "Farm palette",
     glossaryFarmPaletteDef:
-      "The farm-wide accent colour, chosen by an admin in Farm settings. Separate from each person's own "
+      "The farm-wide accent colour, chosen by an owner in Farm settings. Separate from each person's own "
       + "light/night mode setting."
       + " Remembered for each farm on each device, so it can appear on the sign-in screen before anyone "
       + "signs in; a device that remembers several farms shows the default until sign-in.",

@@ -478,20 +478,21 @@ test.describe("Manager", () => {
     ).toEqual([farmCount(eggs, farm.locale), farmCount(eggs - 2, farm.locale)]);
   });
 
-  test("can reach the admin destinations a Worker cannot", async ({ signIn, nav }) => {
-    // The mirror of the Worker spec's gate assertion. Manager is isAdmin, so the
-    // Setup group is present — EXCEPT Users, which nav.tsx narrows to role
-    // "Admin" alone. That one exclusion is the interesting part: it is the
-    // difference between "isAdmin" and "Admin", and it is easy to regress into
-    // showing a Manager the user-management screen.
+  test("keeps operational admin destinations but not Owner-only destinations", async ({ signIn, nav }) => {
+    // The visible links prove that the Setup group rendered. Farm settings and
+    // Users use the narrower Owner role, while the operational destinations
+    // retain the Owner and Manager gate.
     await signIn(castMember("Manager"));
     await expect(nav.link("nav:audit")).toBeVisible();
     await expect(nav.link("nav:export")).toBeVisible();
     await expect(nav.link("nav:expenses")).toBeVisible();
-    await expect(nav.link("nav:farmSettings")).toBeVisible();
+    await expect(
+      nav.link("nav:farmSettings"),
+      "the sidebar offered Owner-only Farm settings to a Manager",
+    ).toBeHidden();
     await expect(
       nav.link("nav:users"),
-      "the sidebar offered Users to a Manager — nav.tsx gates that on role === 'Admin'",
+      "the sidebar offered Owner-only Users to a Manager",
     ).toBeHidden();
   });
 });
