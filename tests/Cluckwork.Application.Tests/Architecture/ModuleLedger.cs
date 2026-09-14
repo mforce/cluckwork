@@ -62,6 +62,10 @@ public sealed record ModuleLedger(
                 return new ModuleLedger([], [], ["ledger root must be a JSON object with 'owners' and 'edges'"]);
             }
 
+            foreach (var duplicate in root.EnumerateObject().GroupBy(p => p.Name, StringComparer.Ordinal)
+                         .Where(g => g.Count() > 1))
+                errors.Add($"duplicate top-level section '{duplicate.Key}'");
+
             var owners = new List<OwnerDefinition>();
             if (!root.TryGetProperty("owners", out var ownersElement) || ownersElement.ValueKind != JsonValueKind.Object)
             {

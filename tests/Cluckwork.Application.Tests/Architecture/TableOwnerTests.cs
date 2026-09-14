@@ -1,6 +1,7 @@
 namespace Cluckwork.Application.Tests.Architecture
 {
     using Microsoft.EntityFrameworkCore;
+    using Microsoft.EntityFrameworkCore.Diagnostics;
     using Fixtures = TableOwnerFixtures;
 
     public sealed class TableOwnerTests
@@ -124,6 +125,28 @@ namespace Cluckwork.Application.Tests.Architecture
                 .SplitToTable("ParentDetails", t => t.Property(p => p.Name))),
                 f => f.StartsWith("table 'ParentDetails' ") && f.EndsWith("has no owner"));
 
+        [Theory]
+        [InlineData(null, "ChildDetails")]
+        [InlineData("farm", "farm.ChildDetails")]
+        public void SplitForeignKey_BelongsToItsPhysicalFragment(string? schema, string table)
+        {
+            void SplitChild(ModelBuilder m) => m.Entity<Fixtures.Blue.Models.Child>()
+                .SplitToTable("ChildDetails", schema, t => t.Property(c => c.ParentId));
+            var ledger = Ledger() with { Tables = [.. Ledger().Tables, new("Blue", table)] };
+            var report = Scan(ledger, SplitChild);
+
+            Assert.Equal(new CrossOwnerForeignKey(table, "FK_Children_Parents_ParentId", "Blue", "Red"),
+                Assert.Single(report.CrossOwnerForeignKeys));
+            var failures = TableOwnerScanner.Evaluate(report with { ExpectedTableCountFloor = 2 });
+            Assert.Contains("stale foreign-key row 'FK_Children_Parents_ParentId' on Children from Blue to Red", failures);
+            Assert.Contains(failures, f => f.StartsWith(
+                $"undeclared cross-owner foreign key FK_Children_Parents_ParentId on {table} from Blue to Red"));
+            Assert.Empty(Evaluate(ledger with
+            {
+                ForeignKeys = [new(table, "FK_Children_Parents_ParentId", "Blue", "Red", "fragment holds the parent reference")],
+            }, SplitChild));
+        }
+
         [Fact]
         public void ForeignKeysSharingAConstraintName_NeedOneRowEach()
         {
@@ -241,10 +264,33 @@ namespace Cluckwork.Application.Tests.Architecture
             finally { File.Delete(path); }
         }
 
+        [Theory]
+        [InlineData("owners", "{}")]
+        [InlineData("edges", "[]")]
+        [InlineData("tables", "{}")]
+        [InlineData("foreignKeys", "[]")]
+        [InlineData("tableOwnerOverrides", "[]")]
+        public void DuplicateTopLevelSection_IsRegistryError(string section, string value)
+        {
+            var path = Path.GetTempFileName();
+            try
+            {
+                var baseline = section == "owners" ? "\"edges\":[],"
+                    : section == "edges" ? "\"owners\":{}," : "\"owners\":{},\"edges\":[],";
+                File.WriteAllText(path, "{" + baseline + $"\"{section}\":{value},\"{section}\":{value}" + "}");
+                var ledger = ModuleLedger.Load(path);
+                Assert.Contains($"duplicate top-level section '{section}'", ledger.RegistryErrors);
+                Assert.Contains($"table-owner registry error: duplicate top-level section '{section}'", Evaluate(ledger));
+            }
+            finally { File.Delete(path); }
+        }
+
         private sealed class FixtureContext(Action<ModelBuilder>? configure) : DbContext
         {
             protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) => optionsBuilder
                 .UseNpgsql("Host=localhost;Database=unreachable;Username=unreachable;Password=unreachable")
+                // EF validates FKs against the primary table even when a fragment holds the columns.
+                .ConfigureWarnings(w => w.Log(RelationalEventId.ForeignKeyPropertiesMappedToUnrelatedTables))
                 .EnableServiceProviderCaching(false);
 
             protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -281,6 +327,7 @@ namespace Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Blue.Model
     {
         public int Id { get; set; }
         public int ParentId { get; set; }
+        public string Name { get; set; } = "";
     }
 
     public sealed class Other

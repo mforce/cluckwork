@@ -28,7 +28,7 @@ public static class TableOwnerScanner
                 .Order(StringComparer.Ordinal).ToArray(), StringComparer.Ordinal);
         // Every table an entity maps to: its primary table plus any SplitToTable fragment.
         var mapped = model.GetEntityTypes()
-            .SelectMany(e => TableNames(e).Select(t => (Table: t, Entity: e)))
+            .SelectMany(e => TableStoreObjects(e).Select(t => (Table: Qualify(t.Name, t.Schema), Entity: e)))
             .GroupBy(p => p.Table, StringComparer.Ordinal)
             .OrderBy(g => g.Key, StringComparer.Ordinal).ToList();
         var tableNames = mapped.Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
@@ -70,13 +70,20 @@ public static class TableOwnerScanner
         {
             foreach (var fk in entity.GetForeignKeys())
             {
-                var from = Owner(TableName(entity));
-                var to = Owner(TableName(fk.PrincipalEntityType));
-                var name = fk.GetConstraintName();
-                if (name is null || from is null || to is null || from == to
-                    || kinds[from] == ModuleLedger.PlatformKind || kinds[to] == ModuleLedger.PlatformKind)
-                    continue;
-                foreignKeys.Add(new CrossOwnerForeignKey(TableName(entity)!, name, from, to));
+                foreach (var dependent in TableStoreObjects(entity))
+                {
+                    foreach (var principal in TableStoreObjects(fk.PrincipalEntityType))
+                    {
+                        var table = Qualify(dependent.Name, dependent.Schema);
+                        var from = Owner(table);
+                        var to = Owner(Qualify(principal.Name, principal.Schema));
+                        var name = fk.GetConstraintName(dependent, principal);
+                        if (name is null || from is null || to is null || from == to
+                            || kinds[from] == ModuleLedger.PlatformKind || kinds[to] == ModuleLedger.PlatformKind)
+                            continue;
+                        foreignKeys.Add(new CrossOwnerForeignKey(table, name, from, to));
+                    }
+                }
             }
         }
         // Keyed by dependent table AND constraint name: PostgreSQL allows one
@@ -112,22 +119,14 @@ public static class TableOwnerScanner
         return failures;
     }
 
-    private static string? TableName(IEntityType entity) => entity.GetTableName() is { } table
-        ? Qualify(table, entity.GetSchema())
-        : null;
-
-    private static IEnumerable<string> TableNames(IEntityType entity)
+    private static IEnumerable<StoreObjectIdentifier> TableStoreObjects(IEntityType entity)
     {
-        if (TableName(entity) is { } primary)
-        {
-            yield return primary;
-        }
+        if (entity.GetTableName() is { } primary)
+            yield return StoreObjectIdentifier.Table(primary, entity.GetSchema());
 
         foreach (var fragment in entity.GetMappingFragments()
                      .Where(f => f.StoreObject.StoreObjectType == StoreObjectType.Table))
-        {
-            yield return Qualify(fragment.StoreObject.Name, fragment.StoreObject.Schema);
-        }
+            yield return fragment.StoreObject;
     }
 
     private static string Qualify(string table, string? schema) =>
