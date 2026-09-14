@@ -117,10 +117,16 @@ function selectorsCastingShadow(): string[] {
   return [...found].sort();
 }
 
+// #823 wrapped the bare-element rules in `:where()` to keep them below one
+// Emotion class. `input`'s radius is still declared by the same rule, so this
+// looks through the wrapper rather than losing the assertion to a rename.
+const unwrap = (selector: string) =>
+  selector.replace(/^:where\((.*)\)$/, "$1").split(",").map((s) => s.trim());
+
 function declarationsFor(selector: string): Map<string, string> {
   const decls = new Map<string, string>();
   root.walkRules((rule: Rule) => {
-    if (!rule.selectors.map(clean).includes(selector)) return;
+    if (!rule.selectors.map(clean).flatMap(unwrap).includes(selector)) return;
     rule.walkDecls((d) => { decls.set(d.prop, d.value); });
   });
   return decls;

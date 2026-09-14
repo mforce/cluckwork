@@ -296,25 +296,31 @@
     var(--canvas);
 }
 
-* {
-  box-sizing: border-box;
-}
+/* ------------------------------------------------------------------------
+   #823 — every rule whose selector names an element and carries no class of
+   its own is wrapped in `:where()`, which contributes no specificity. The
+   app's raw controls keep these values, because nothing else declares them;
+   MUI's DOM does not, because one Emotion class now outranks the set.
+   `web/src/styles.bare-elements.test.ts` walks the file and holds that.
 
-body {
-  margin: 0;
-  background: var(--canvas);
-  color: var(--ink);
-  -webkit-font-smoothing: antialiased;
-}
+   A theme override cannot do this job. To outrank
+   `button:hover:not(:disabled)` (0,2,1) it has to exceed
+   `.MuiButton-contained:hover` (0,2,0) as well, so it cannot hand the hover
+   colour back to MUI's variant — it has to decide it for every variant.
 
-h1, h2, h3, h4 {
+   `*` and `body` went to MUI's `CssBaseline`, which sets the same four
+   declarations from the same tokens. `h1`-`h4` did not: no screen renders
+   `Typography` yet, so deleting them would restyle every heading in the app.
+   They die with the last screen slice (#833).
+   ------------------------------------------------------------------------ */
+:where(h1, h2, h3, h4) {
   font-weight: 800;
   letter-spacing: -0.02em; /* DESIGN.md: negative tracking on display sizes */
   line-height: 1.15;
 }
 
 /* ---------------------------------------------------------------- Buttons */
-button {
+:where(button) {
   padding: 0.66rem 1.5rem;
   border: none;
   border-radius: var(--r-pill);
@@ -328,15 +334,15 @@ button {
   transition: background 0.12s ease, transform 0.05s ease;
 }
 
-button:hover:not(:disabled) {
+:where(button:hover:not(:disabled)) {
   background: var(--brand-press);
 }
 
-button:active:not(:disabled) {
+:where(button:active:not(:disabled)) {
   transform: translateY(1px);
 }
 
-button:disabled {
+:where(button:disabled) {
   opacity: 0.5;
   cursor: default;
 }
@@ -430,7 +436,7 @@ button.link:hover:not(:disabled) {
 }
 
 /* --------------------------------------------------------- Inputs & forms */
-label {
+:where(label) {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -439,7 +445,7 @@ label {
   color: var(--muted);
 }
 
-input, select, textarea {
+:where(input, select, textarea) {
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--hairline);
   border-radius: var(--r-input);
@@ -449,13 +455,13 @@ input, select, textarea {
   background: var(--surface);
 }
 
-input:focus, select:focus, textarea:focus {
+:where(input:focus, select:focus, textarea:focus) {
   outline: 2px solid var(--focus);
   outline-offset: 0;
   border-color: var(--focus);
 }
 
-input[type="checkbox"] {
+:where(input[type="checkbox"]) {
   accent-color: var(--brand);
   width: 1rem;
   height: 1rem;
@@ -3325,9 +3331,10 @@ input.locked {
 /* Without this, the global button:disabled { opacity: .5 } halves the whole
    busy subtree — spinner included — reproducing the exact dead-button look the
    busy state exists to replace. The rule being overridden is the base
-   `button:disabled` in the button styles near the top of this file; this
-   compound selector out-specifies it only while aria-busy is set. */
-button:disabled[aria-busy="true"] {
+   `button:disabled` in the button styles near the top of this file. Both are
+   `:where()`-demoted (#823), so this one wins on source order rather than on
+   specificity: keep it below that rule. */
+:where(button:disabled[aria-busy="true"]) {
   opacity: 1;
 }
 
