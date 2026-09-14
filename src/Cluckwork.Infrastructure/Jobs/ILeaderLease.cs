@@ -42,9 +42,7 @@ public sealed class AlwaysLeaderLease : ILeaderLease
         Task.FromResult(LeaseStatus.Leader);
 }
 
-// Hands the already-normalised, TLS-floor-validated connection string (registered
-// by AddCluckworkPersistence) to PostgresLeaderLease without a second configuration
-// lookup — the lease opens its own dedicated, non-pooled connection from this exact
-// string. A tiny typed wrapper so DI injects the right string rather than an ambient
-// one.
+// Hands the normalised, TLS-floor-validated connection string to PostgresLeaderLease.
+// Sourced from ConnectionStrings:LeaderLease when configured (#556), otherwise from
+// ConnectionStrings:Default. A typed wrapper so DI injects the right string.
 public sealed record LeaderLeaseConnectionString(string Value);

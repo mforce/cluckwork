@@ -56,10 +56,10 @@ using Npgsql;
 // single-leader; there is no cheap client-side fix (pinning the backend would mean
 // holding a transaction open for the process lifetime — an idle-in-transaction that
 // starves vacuum, which is worse). The lease REQUIRES a session-pinned endpoint (a
-// direct connection or a session-pooled proxy) for its single-leader guarantee. A
-// dedicated session-pinned lease endpoint that makes pooled deploys single-leader is
-// tracked as a follow-up (#556); on a session-pinned endpoint the affinity check is
-// exact and this whole caveat does not apply.
+// direct connection or a session-pooled proxy) for its single-leader guarantee.
+// ConnectionStrings:LeaderLease (#556) lets an operator point the lease at a
+// session-pinned endpoint; on such an endpoint the affinity check is exact and
+// this whole caveat does not apply.
 //
 // Single-caller: TryAcquireAsync is only ever called from the one worker loop,
 // sequentially, so no internal synchronisation is needed. DisposeAsync runs only
