@@ -261,14 +261,18 @@ declare -A FALSE_KILLS=(
 # deliberately absent: neither renders a wide data table, and both stayed at
 # exactly 390 under the mutant.
 #
-# `phone-action-label-wrapped` declares ONE line where that walk declares four,
-# and the difference is not laziness. The route walk's softness is its claim —
-# a regression hits some screens and not others, so requiring every route keeps
-# it honest. The two save buttons share a single flex track, so whatever
-# reshapes one reshapes the other; there is no per-control claim to pin. The
-# declared fragment carries no measurements on purpose: the observed line names
-# 170.6x217.2, and pinning that would turn a font-metric shift into a WRONG
-# ASSERTION against a mutant that worked.
+# `phone-action-label-wrapped` declares THREE lines since #823 re-targeted it,
+# one per claim rather than one per control. Two name the ROWS — the
+# daily-entry save bar and the Sales draft-order panel — because the walk gained
+# the second one with #740 and a mutant that only reddened the first would have
+# left the row the issue was actually filed against unproven. The third is the
+# original taller-than-wide assertion, which still fires (observed on `close` at
+# 54.0x65.2) and would otherwise be free to rot behind the newer width check.
+#
+# No fragment carries a measurement or a control LABEL. The observed lines name
+# percentages and English button text, and pinning either would turn a font
+# shift or a re-worded label into a WRONG ASSERTION against a mutant that
+# worked. Row names are this file's own prose and are safe to pin.
 declare -A EXPECT_MSG_FOR=(
   [audit-gate-removed]="/audit rendered no error for a ReadOnly user"
   [users-gate-removed]="/users rendered no error for a ReadOnly user"
@@ -301,7 +305,9 @@ SIDE 2 — role=alert no longer carries implicit assertive politeness"
   [phone-action-bar-under-tabbar]="the daily-entry action bar overlaps the tab bar — its Submit and Save buttons are under it"
   [phone-tabbar-removed]="there is no tab bar at phone width, so nothing can be navigated to"
   [phone-tabs-inert]="a tap at the centre of the Sales tab does not land on it"
-  [phone-action-label-wrapped]="at phone width — taller than it is wide, so its pill clamps into an ellipse and the label leaves its background"
+  [phone-action-label-wrapped]="in the daily-entry save bar spans
+in the Sales draft-order panel spans
+taller than it is wide, so its pill clamps into an ellipse"
   [phone-table-overflow-unclipped]="/sales scrolls sideways at phone width
 /customers scrolls sideways at phone width
 /flocks scrolls sideways at phone width

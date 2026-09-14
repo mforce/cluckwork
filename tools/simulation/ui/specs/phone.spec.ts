@@ -60,35 +60,46 @@ async function rectOf(locator: Locator, what: string) {
 }
 
 /**
- * Every `.actions` row that exists at phone width, with the container each
- * button has to fill.
+ * Every `.actions` row that exists at phone width, with the number of buttons
+ * it must hold and how to reach it.
  *
- * It navigates, because the Sales row only exists while a draft order is open
- * — which is why #740 reproduced on a screen the first version of this walk
- * could not reach.
+ * Each row opens itself, and that is not indirection for its own sake: they
+ * live on different routes, so a locator resolved before the walk moves on
+ * matches nothing by the time it is measured.
  */
-async function phoneActionRows(page: Page) {
-  await page.goto("/daily-entry");
-  const foot = page.locator(".entry-foot");
-  await expect(foot).toBeVisible();
-
-  await page.goto("/sales");
-  // The fixture seeds two draft orders and never confirms them
-  // (SimulationDataSeeder), so this opens existing state instead of minting an
-  // order and drawing stock out of the fixture on every phone run.
-  const draft = page.getByRole("row").filter({ hasText: tEn("enums:status.Draft") }).first();
-  await expect(draft, "the fixture has no draft order, so the #740 row cannot be measured")
-    .toBeVisible();
-  await draft.getByRole("button", { name: tEn("sales:open") }).click();
-
-  const panel = page.locator(".order-panel .actions");
-  await expect(panel).toBeVisible();
-
-  return [
-    { what: "the daily-entry save bar", row: foot.locator(".actions"), buttons: 2 },
-    { what: "the Sales draft-order panel", row: panel, buttons: 3 },
-  ];
-}
+const PHONE_ACTION_ROWS: ReadonlyArray<{
+  what: string;
+  buttons: number;
+  open: (page: Page) => Promise<Locator>;
+}> = [
+  {
+    what: "the daily-entry save bar",
+    buttons: 2,
+    open: async (page) => {
+      await page.goto("/daily-entry");
+      const foot = page.locator(".entry-foot");
+      await expect(foot).toBeVisible();
+      return foot.locator(".actions");
+    },
+  },
+  {
+    what: "the Sales draft-order panel",
+    buttons: 3,
+    open: async (page) => {
+      await page.goto("/sales");
+      // The fixture seeds two draft orders and never confirms them
+      // (SimulationDataSeeder), so this opens existing state instead of minting
+      // an order and drawing stock out of the fixture on every phone run.
+      const draft = page.getByRole("row").filter({ hasText: tEn("enums:status.Draft") }).first();
+      await expect(draft, "the fixture has no draft order, so the #740 row cannot be measured")
+        .toBeVisible();
+      await draft.getByRole("button", { name: tEn("sales:open") }).click();
+      const row = page.locator(".order-panel .actions");
+      await expect(row).toBeVisible();
+      return row;
+    },
+  },
+];
 
 test.describe("Phone shell", { tag: "@phone" }, () => {
   test.beforeEach(async ({ signIn }) => {
@@ -240,15 +251,23 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // because the ratio alone stays green for a button that stacked and then
     // collapsed to its intrinsic width — which is the same defect one step on.
     //
-    // MEASURED at 390 after #823 and recorded here, where this suite keeps its
-    // measurements. Under `phone-action-label-wrapped` each row returns to side
-    // by side and every button drops to a third or a half of its container.
+    // MEASURED at 390 after #823, recorded here where this suite keeps its
+    // measurements. Daily entry: both saves 353.2x46.2 in a 353.2 row. Sales
+    // draft: all three 295.2 wide, 46.2 and 44.2 tall, in a 295.2 row — against
+    // 91.5x103.2, 89.8x103.2 and 89.9x103.2 before, which is the #740 ellipse.
+    //
+    // Under `phone-action-label-wrapped` the rows go back to side by side and
+    // every button drops to a fraction of its container: 25% and 71% on daily
+    // entry, 51% and 22% on Sales, with `close` at 54.0x65.2 — taller than it
+    // is wide, so the ratio assertion below fires there too. Both assertions
+    // are therefore proved live rather than argued.
     //
     // BOTH ROWS ARE WALKED, and the Sales one is why the walk exists: the
     // daily-entry bar passed the ratio check before #823 and the Sales draft
     // panel did not, so a walk that stopped at the bar asserted the one row
     // that was never broken.
-    for (const { what, row, buttons } of await phoneActionRows(page)) {
+    for (const { what, buttons, open } of PHONE_ACTION_ROWS) {
+      const row = await open(page);
       // Non-vacuity: a walk over an empty set passes for free.
       await expect(row.getByRole("button"), `${what} renders no buttons`).toHaveCount(buttons);
 
