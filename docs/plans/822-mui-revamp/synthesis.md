@@ -54,7 +54,43 @@ alternative. Candidate 1's `title=` count. Candidate 2's "eleven postcss guards"
 
 None. All three candidates produced both files.
 
+## Grill (interrogate pass)
+
+Three adversarial reviewers (Claude Opus 5, Claude Fable 5.1, Claude Sonnet 5) read the merged doc
+against the code with the same prompt. Findings: A 3 critical / 10 warning / 4 nit, B 1 / 8 / 4,
+C 1 / 2 / 1. Every finding was re-verified against `styles.css`, the test files and
+`@mui/material@9.4.0` before it changed the doc.
+
+**Acted on (consensus, all three or two of three):** `MuiPaper.defaultProps.variant = "outlined"`
+would have stripped the shadow from every float, because `Paper` applies `theme.shadows` only under
+the elevation variant, and G2/M5 pinned the defect (A, B); `Autocomplete`'s listbox paper has no
+default elevation and needs an explicit index-8 override (A, B, C); D8's line-range deletions took
+`.card`, `.order-panel`, `.toolbar`, `table.data` and `.muted` away from screens that convert later,
+so deletions are now owned by a rule's last consumer (A, B); the `phone-action-label-wrapped` mutant
+cannot be killed once buttons are full width, so #823 re-targets it (A, B); `nav.test.ts` pins
+membership and the four-tab rule, not the counts D5 claimed, and #829 adds a renderer assertion
+(A, B, C); the D7.1 contrast column was computed against aubergine's `--surface-2` for every palette
+(A, B, C; conclusion unchanged, numbers corrected); G1 keyed on MUI imports and on string-literal
+`className` only, and now walks every file and every expression form (A, B).
+
+**Acted on (single reviewer, verified):** contained `Button` reads `shadows[2]/[4]/[8]/[6]` by index
+(A); compound bare-element selectors beat MUI's class, and `input[type="checkbox"]` would shrink
+MUI's hit target to 16px (A); the `CssBaseline` table omitted text-size-adjust, inherit box-sizing,
+`body1` letter-spacing and three smaller effects (A); the elevation test's `.toolbar` block goes red
+at the deletion and its no-shadow block goes vacuous (A); three route tests assert `div.toolbar` (A);
+the §2.7 command did not reproduce two columns (A); the 44px floor was phone-scoped in every source
+(A); Load more must stay outside `role="listbox"` (A); the More menu had no rendering between #827
+and #829 (B); `DialogTitle` defaults to `h2` where the app renders `h3` (B); `.content` prefixes six
+live selectors and stays until #833 (B); at #823 the #740 close is a CSS diff, and sticky-when-stacked
+is decided (B); the never-red `MuiChip`/`ListSubheader` G2 row is dropped (B); 1,600 KiB as an
+alternative was not decidable without a deletion estimate (A); citation slips (A, B, C).
+
+**Dismissed:** `aria-haspopup="dialog"` on the drawer trigger (B): MUI's temporary `Drawer` paper
+carries `role="dialog"` (`Drawer.js:273`). Candidate 3's "dies with its last consumer" principle,
+rejected in the synthesis above on a wrong premise, is now the rule in D8; A was right that the
+principle survived its premise.
+
 ## Verification
 
 Every count the doc states was either produced by a quoted command at `b0638e1` or spot-checked
-by the judge or the driving session. The interrogate pass and its outcome are recorded in the PR.
+by the judge, the grill, or the driving session.
