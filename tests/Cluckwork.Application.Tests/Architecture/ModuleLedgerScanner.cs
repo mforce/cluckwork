@@ -37,6 +37,10 @@ public static class ModuleLedgerScanner
     // Below the 466 files src/ held on 2026-09-14, so growth never reds the gate and a dropped subtree does.
     internal const int RealTreeFileFloor = 400;
 
+    internal static readonly CSharpParseOptions ParseOptions = CSharpParseOptions.Default.WithPreprocessorSymbols(
+        "DEBUG", "TRACE", "NET10_0", "NET10_0_OR_GREATER", "NET", "NETCOREAPP", "NET5_0_OR_GREATER",
+        "NET6_0_OR_GREATER", "NET7_0_OR_GREATER", "NET8_0_OR_GREATER", "NET9_0_OR_GREATER");
+
     private const string Prefix = "Cluckwork.";
 
     public static ModuleLedgerReport Scan(string srcRoot, string ledgerPath)
@@ -66,9 +70,7 @@ public static class ModuleLedgerScanner
         {
             var relative = Relative(repoRoot, file);
             var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file),
-                CSharpParseOptions.Default.WithPreprocessorSymbols(
-                    "DEBUG", "TRACE", "NET10_0", "NET10_0_OR_GREATER", "NET", "NETCOREAPP", "NET5_0_OR_GREATER",
-                    "NET6_0_OR_GREATER", "NET7_0_OR_GREATER", "NET8_0_OR_GREATER", "NET9_0_OR_GREATER"), file);
+                ParseOptions, file);
             var root = tree.GetCompilationUnitRoot();
 
             foreach (var diagnostic in tree.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error))
@@ -354,9 +356,9 @@ public static class ModuleLedgerScanner
             .ThenBy(e => e.Symbol, StringComparer.Ordinal)
             .ToList();
 
-    private sealed record Claim(string Owner, bool Subtree);
+    internal sealed record Claim(string Owner, bool Subtree);
 
-    private static Dictionary<string, Claim> BuildNamespaceIndex(ModuleLedger ledger, List<string> errors)
+    internal static Dictionary<string, Claim> BuildNamespaceIndex(ModuleLedger ledger, List<string> errors)
     {
         foreach (var duplicate in ledger.Owners.GroupBy(o => o.Name, StringComparer.Ordinal).Where(g => g.Count() > 1))
         {
@@ -425,7 +427,7 @@ public static class ModuleLedgerScanner
     private static bool IsPlatform(IReadOnlyDictionary<string, string> kinds, string owner) =>
         kinds.TryGetValue(owner, out var kind) && kind == ModuleLedger.PlatformKind;
 
-    private static (string Owner, string Namespace)? ResolveReferenced(
+    internal static (string Owner, string Namespace)? ResolveReferenced(
         IReadOnlyDictionary<string, Claim> index, string dotted, string fileNamespace)
     {
         if (dotted.StartsWith(Prefix, StringComparison.Ordinal))
@@ -453,7 +455,7 @@ public static class ModuleLedgerScanner
         }
     }
 
-    private static (string Owner, string Namespace)? Resolve(IReadOnlyDictionary<string, Claim> index, string dotted, bool declared)
+    internal static (string Owner, string Namespace)? Resolve(IReadOnlyDictionary<string, Claim> index, string dotted, bool declared)
     {
         var probe = dotted;
         while (true)
@@ -530,7 +532,7 @@ public static class ModuleLedgerScanner
         _ => false,
     };
 
-    private static string NamespaceOf(SyntaxNode node, string rootNamespace)
+    internal static string NamespaceOf(SyntaxNode node, string rootNamespace)
     {
         var parts = node.Ancestors().OfType<BaseNamespaceDeclarationSyntax>()
             .Select(n => n.Name.ToString())
@@ -546,7 +548,7 @@ public static class ModuleLedgerScanner
         _ => true,
     };
 
-    private static string? DottedText(SyntaxNode? node) => node switch
+    internal static string? DottedText(SyntaxNode? node) => node switch
     {
         GenericNameSyntax generic => generic.Identifier.ValueText,
         SimpleNameSyntax simple => simple.Identifier.ValueText,

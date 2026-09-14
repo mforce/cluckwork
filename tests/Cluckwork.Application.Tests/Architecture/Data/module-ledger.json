@@ -333,5 +333,939 @@
       "table": "UserRoleAssignments",
       "reason": "Design 3.3 assigns flock role assignments to Access; the CLR type remains in Cluckwork.Domain.Accounts, owned by Farm. No namespace move is authorized by this ledger."
     }
+  ],
+  "adapterRoots": {
+    "persistenceForbiddenNamespaces": ["Cluckwork.Api.Endpoints"],
+    "namespaces": [
+      "Cluckwork.Api.Endpoints",
+      "Cluckwork.Api.Cli",
+      "Cluckwork.Infrastructure.Jobs"
+    ],
+    "types": [
+      "Cluckwork.Infrastructure.Persistence.DemoDataSeeder",
+      "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder"
+    ]
+  },
+  "adapters": [
+    {
+      "symbol": "Cluckwork.Api.Cli.BootstrapAdminCliCommand.RunAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Cli.ProvisionAccountCliCommand.RunAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Cli.ReactivateAccountCliCommand.RunAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Cli.RecoverAdminCliCommand.RunAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Cli.RenameAccountCliCommand.RunAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Cli.SuspendAccountCliCommand.RunAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.AccountEndpoints.GetAccount",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.AccountEndpoints.GetSettings",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.AccountEndpoints.ShowFarmWideSaleAllocationNotice",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.AccountEndpoints.ToResponse",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.AccountEndpoints.UpdateSettings",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.AccountEndpoints.YourMaxDiscountPercent",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.FarmBannerEndpoints.GetBanner",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.FarmBannerEndpoints.RemoveBanner",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.FarmBannerEndpoints.SetBanner",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.FarmBannerEndpoints.ToResponse",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.FarmLogoEndpoints.GetLogo",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.FarmLogoEndpoints.RemoveLogo",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.FarmLogoEndpoints.SetLogo",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Accounts.FarmLogoEndpoints.ToResponse",
+      "reaches": [
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Audit.AuditEndpoints.ListAuditEvents",
+      "reaches": [
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Auth.AuthEndpoints.ChangePassword",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Auth.AuthEndpoints.Login",
+      "reaches": [
+        "Access",
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Auth.AuthEndpoints.Refresh",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Catalog.ProductEndpoints.CreateProduct",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Catalog.ProductEndpoints.ListConversions",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Catalog.ProductEndpoints.ListProducts",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Catalog.ProductEndpoints.SetActive",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Catalog.ProductEndpoints.ToResponse",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Catalog.ProductEndpoints.UpdateConversion",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Catalog.ProductEndpoints.UpdateProduct",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Customers.CustomerEndpoints.CreateCustomer",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Customers.CustomerEndpoints.GetCustomer",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Customers.CustomerEndpoints.ListCustomers",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Customers.CustomerEndpoints.ToResponse",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Customers.CustomerEndpoints.UpdateCustomer",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.AdjustDailyEntry",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.GetDailyEntry",
+      "reaches": [
+        "EggOperations",
+        "FlockManagement",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.ListDailyEntries",
+      "reaches": [
+        "EggOperations",
+        "FlockManagement",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.RecordDailyEntry",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.SubmitDailyEntry",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.ToResponse",
+      "reaches": [
+        "EggOperations",
+        "FlockManagement",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.DailyEntries.DailyEntryEndpoints.VoidDailyEntry",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.CreateEggGrade",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.GetEggGrade",
+      "reaches": [
+        "EggOperations",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.ListEggGrades",
+      "reaches": [
+        "EggOperations",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.SetActive",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.ToResponse",
+      "reaches": [
+        "EggOperations",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.EggGrades.EggGradeEndpoints.UpdateEggGrade",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.AdjustExpense",
+      "reaches": [
+        "Finance",
+        "FlockManagement",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.CreateCategory",
+      "reaches": [
+        "Finance"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.CreateExpense",
+      "reaches": [
+        "Finance"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.FlockNameAsync",
+      "reaches": [
+        "FlockManagement"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.GetExpense",
+      "reaches": [
+        "Finance",
+        "FlockManagement",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.ListCategories",
+      "reaches": [
+        "Finance"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.ListExpenses",
+      "reaches": [
+        "Farm",
+        "Finance",
+        "FlockManagement",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.ToResponse",
+      "reaches": [
+        "Finance",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Expenses.ExpenseEndpoints.UpdateCategory",
+      "reaches": [
+        "Finance"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Export.CsvExport.WriteAsync",
+      "reaches": [
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Export.ExportEndpoints.ExportAll",
+      "reaches": [
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Export.ExportEndpoints.ExportDataset",
+      "reaches": [
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Export.ExportEndpoints.WriteZipAsync",
+      "reaches": [
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.ArchiveFlock",
+      "reaches": [
+        "FlockManagement"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.CreateFlock",
+      "reaches": [
+        "FlockManagement"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.DepleteFlock",
+      "reaches": [
+        "FlockManagement"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.GetFlock",
+      "reaches": [
+        "FlockManagement",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.ListFlocks",
+      "reaches": [
+        "FlockManagement",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.ListMovements",
+      "reaches": [
+        "FlockManagement"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.ReactivateFlock",
+      "reaches": [
+        "FlockManagement"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.RecordMovement",
+      "reaches": [
+        "FlockManagement"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.ToResponse",
+      "reaches": [
+        "FlockManagement",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Flocks.FlockEndpoints.UpdateFlock",
+      "reaches": [
+        "FlockManagement"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.CreateItem",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.GetItem",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.ListFeedUsage",
+      "reaches": [
+        "FlockManagement",
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.ListItems",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.ListLots",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.ListMovements",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.RecordAdjustment",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.RecordFeedUsage",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.RecordPurchase",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.SetActive",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.ToResponse",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Inventory.InventoryEndpoints.UpdateItem",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Me.MeEndpoints.SetLanguage",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Me.MeEndpoints.SetStepperUnit",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Reports.ReportEndpoints.Expenses",
+      "reaches": [
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Reports.ReportEndpoints.Production",
+      "reaches": [
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Reports.ReportEndpoints.Profit",
+      "reaches": [
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Reports.ReportEndpoints.Sales",
+      "reaches": [
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.PaymentEndpoints.ListCustomerBalances",
+      "reaches": [
+        "Commerce",
+        "Farm"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.PaymentEndpoints.ListOrderPayments",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.PaymentEndpoints.RecordPayment",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.PaymentEndpoints.ToResponse",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.PaymentEndpoints.VoidPayment",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.SaleEndpoints.AddOrderItem",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.SaleEndpoints.CancelSalesOrder",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.SaleEndpoints.ConfirmSale",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.SaleEndpoints.CreateSalesOrder",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.SaleEndpoints.GetSalesOrder",
+      "reaches": [
+        "Commerce",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.SaleEndpoints.ListSalesOrders",
+      "reaches": [
+        "Commerce",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.SaleEndpoints.RemoveOrderItem",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.SaleEndpoints.ToResponse",
+      "reaches": [
+        "Commerce",
+        "Insights"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.SaleEndpoints.UpdateOrderItem",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Sales.SaleEndpoints.VoidSale",
+      "reaches": [
+        "Commerce"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Stock.StockEndpoints.GetStock",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Stock.StockEndpoints.ListLotMovements",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Stock.StockEndpoints.ListLots",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Stock.StockEndpoints.RecordLotMovement",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Users.UserEndpoints.AssignFlock",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Users.UserEndpoints.ChangeUserEmail",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Users.UserEndpoints.ChangeUserRole",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Users.UserEndpoints.CreateUser",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Users.UserEndpoints.DisableUser",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Users.UserEndpoints.EnableUser",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Users.UserEndpoints.ListAssignments",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Users.UserEndpoints.SetUserPassword",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Users.UserEndpoints.UnassignFlock",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Users.UserEndpoints.UpdateUser",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Water.WaterUsageEndpoints.ListWaterUsage",
+      "reaches": [
+        "FlockManagement",
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Water.WaterUsageEndpoints.RecordWaterUsage",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Api.Endpoints.Water.WaterUsageEndpoints.UpdateWaterUsage",
+      "reaches": [
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.Require",
+      "reaches": [
+        "EggOperations"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.DemoDataSeeder.ctor",
+      "reaches": [
+        "Access",
+        "Commerce",
+        "EggOperations",
+        "FlockManagement"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ComputeExpectedCounts",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.DrainLockSweepAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EffectiveHistoryDays",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.EmitManifestAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.FlockPlacementLookbackDays",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.InventoryOpeningLookbackDays",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.Require",
+      "reaches": [
+        "Commerce",
+        "EggOperations",
+        "GeneralInventory"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.RolesOfAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedCastAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedExpensesAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedExplicitBirdMovementsAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedFeedAdjustmentsAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedFlockCatalogAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedFlockTopologyAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedInventoryItemsAndOpeningPurchasesAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedInventoryOperationsAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedPrimaryTimeZoneAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedProductionHistoryAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedRecurringExpensesAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedRecurringOrdersAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.SeedSalesAsync",
+      "reaches": [
+        "Access"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.TransitionFlockAsync",
+      "reaches": [
+        "FlockManagement"
+      ]
+    },
+    {
+      "symbol": "Cluckwork.Infrastructure.Persistence.SimulationDataSeeder.ctor",
+      "reaches": [
+        "Access",
+        "Commerce",
+        "EggOperations",
+        "Farm",
+        "Finance",
+        "FlockManagement",
+        "GeneralInventory"
+      ]
+    }
   ]
 }
