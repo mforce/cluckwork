@@ -70,7 +70,10 @@ const SCREENS = [
         has: page.getByRole("columnheader", { name: tEn("stock:gradeHeader") }),
       }),
     rows: (ready: CanaryLocator) => ready.locator("tbody tr"),
-    emptyMessageKeys: ["stock:noStockMessage"],
+    // `noLotsMessage` covers the INTERACTION: expanding a grade whose lots come
+    // back empty renders the heading beside that message, which the grade table
+    // alone would not notice (#841).
+    emptyMessageKeys: ["stock:noStockMessage", "stock:noLotsMessage"],
     // Expanding a grade's lots fires a fetch and re-renders a table — the most
     // common thing anyone does on this screen.
     interact: async (page: CanaryPage) => {
@@ -94,6 +97,11 @@ const SCREENS = [
     interact: async (page: CanaryPage, timeZoneId: string) => {
       const today = farmToday(timeZoneId);
       const from = page.getByLabel(tEn("reports:fromLabel"), { exact: true });
+      // ReportsPage loads production first and the three money reports after it,
+      // so the table is on the glass while they are still in flight. Waiting for
+      // the last of them is what stops the post-interaction check passing just
+      // before a 500 lands (#841). Registered BEFORE the fill that triggers it.
+      const settled = page.waitForResponse((res) => res.url().includes("/api/v1/reports/profit"));
       // CLICK the field before filling it. `fill()` alone sets the value through
       // a synthetic path that produces NO Event Timing entry, so the interaction
       // metric would stay null while the spec looked like it interacted —
@@ -101,7 +109,19 @@ const SCREENS = [
       // click is also the faithful version of this interaction.
       await from.click();
       await from.fill(daysBefore(today, 30));
-      await expect(page.getByRole("alert")).toBeHidden();
+      await settled;
+      // A POSITIVE check, because the money section renders only once all three
+      // of its reads land. Asserting the ABSENCE of an error here would pass in
+      // the gap between a 500 arriving and React rendering it (#841).
+      await expect(page.getByText(tEn("reports:profitRowLabel"))).toBeVisible();
+      // The production table alone does not prove production: ReportQueries
+      // emits a row per calendar day in the range whether or not anything was
+      // recorded, so a report of nothing but zeroes satisfies a row count. The
+      // period total is the one figure that cannot be zero-filled (#841).
+      await expect(
+        page.locator("table.data tfoot th.num").first(),
+        "the widened report totals zero eggs — a range with production in it came back empty",
+      ).not.toHaveText(/^0$/);
     },
     // MEASURED, and it does not: a `<input type="date">` produces no Event
     // Timing entry for a programmatic click+fill, so this screen's interaction
