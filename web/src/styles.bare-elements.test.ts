@@ -38,8 +38,19 @@ import type { AtRule, Container, Document, Rule } from "postcss";
 // and passed clean. `:is(button)` was invisible for the opposite reason:
 // `tagOf` only looked at a compound's own leading characters, so a bare tag
 // nested inside `:is()` (unlike `:where()`, which this file already walked
-// into) was never seen at all. Both are mutation rows below and both go red
-// on the version before this comment.
+// into) was never seen at all.
+//
+// A third version fixed those two and still flattened every `:is()`/`:where()`
+// ALTERNATIVE into one shared list before asking "does anything here have
+// scope" — so `:is(button, .legacy)` let `.legacy`'s class vouch for the
+// unrelated `button` alternative, and it is the SAME rule that reaches every
+// raw `<button>` in the app either way. Nesting escaped for a different
+// reason: only one level of `:is()`/`:where()` was ever expanded, so
+// `:is(:is(button))` never surfaced `button` as a tag at all. Scope is now
+// judged PER ALTERNATIVE, recursively, and an alternative's own class no
+// longer reaches a sibling alternative it was never written on. All four
+// mutations are rows below and all four go red on the version before this
+// comment.
 
 const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
@@ -64,29 +75,16 @@ function compounds(selector: string): string[] {
 
 // `:is()` and `:where()` are both selector LISTS: each argument is an
 // alternative the compound can match through, so a bare tag inside either one
-// names an element exactly as if it sat outside the parens.
+// names an element exactly as if it sat outside the parens. They fan out
+// recursively — an alternative can itself contain another one.
 const SELECTOR_LIST = /:(?:is|where)\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g;
-
-/**
- * Every compound a selector can match on, `:is()`/`:where()` arguments
- * included.
- *
- * Reading the demoted form as "no longer names an element" would make this
- * guard blind to the very rules it exists to hold: `:where(button)` still
- * styles every raw `<button>` in the app, and `:is(button)` would too.
- */
-function allCompounds(selector: string): string[] {
-  const inner = [...selector.matchAll(SELECTOR_LIST)].flatMap((m) => m[1].split(",").map((s) => s.trim()));
-  const outer = selector.replace(SELECTOR_LIST, "");
-  return [outer, ...inner].filter(Boolean).flatMap(compounds);
-}
 
 const tagOf = (compound: string) => /^(\*|[a-zA-Z][a-zA-Z0-9-]*)/.exec(compound)?.[1] ?? null;
 
 // `:not()` is a NEGATION, not a selector list: `button:not(.legacy)` still
 // matches every `<button>` that lacks `.legacy`, so a class inside it grants
-// the compound nothing. Stripped before scope is judged, so the class token
-// it contains cannot be read as scope.
+// the compound nothing. Stripped before either a tag or scope is read, so the
+// class token it contains cannot be read as either.
 const NOT = /:not\([^()]*(?:\([^()]*\)[^()]*)*\)/g;
 const stripNot = (compound: string) => compound.replace(NOT, "");
 
@@ -99,16 +97,58 @@ const CLASS_OR_ID = /[.#][A-Za-z0-9_-]+/g;
 // after `Mui`) and `Mui-disabled` (global state, hyphen after `Mui`) — never a
 // lowercase letter, which this app's own class names would use.
 const MUI_OR_EMOTION_OWNED = /^[.#](Mui[A-Z-]|css-)/;
-const hasAppOwnedScope = (compound: string) =>
-  (stripNot(compound).match(CLASS_OR_ID) ?? []).some((token) => !MUI_OR_EMOTION_OWNED.test(token));
+
+/**
+ * Whether a compound has app-owned scope AT ITS OWN LEVEL — a class or id
+ * outside any `:not()`/`:is()`/`:where()` argument, so a token belonging to
+ * one `:is()` alternative is never read as scope for a sibling alternative,
+ * or for the compound's own tag.
+ */
+function ownPositiveScope(compound: string): boolean {
+  const ownLevel = stripNot(compound).replace(SELECTOR_LIST, "");
+  return (ownLevel.match(CLASS_OR_ID) ?? []).some((token) => !MUI_OR_EMOTION_OWNED.test(token));
+}
+
+interface Reading {
+  /** The element tag this specific alternative reaches, if any. */
+  tag: string | null;
+  /** Whether THIS alternative, alone, needs no app-owned scope to match it. */
+  scoped: boolean;
+}
+
+/**
+ * Every way a single compound (no combinator) can be read, one per
+ * `:is()`/`:where()` alternative, recursively — `:is(button, .legacy)`
+ * produces two INDEPENDENT readings rather than one compound where any class
+ * anywhere satisfies every alternative. A compound's own scope (outside any
+ * such argument) applies to every reading, because it is ANDed with whichever
+ * alternative is chosen; an alternative's own scope applies only to itself.
+ *
+ * This assumes each `:is()`/`:where()` alternative is itself one compound —
+ * true of every use in `styles.css` and of both review rounds' mutations. A
+ * combinator inside `:is()`/`:where()` (`:is(div button)`) is not modelled.
+ */
+function compoundReadings(compound: string): Reading[] {
+  const withoutNot = stripNot(compound);
+  const ownTag = tagOf(withoutNot);
+  const ownScope = ownPositiveScope(withoutNot);
+  const alternatives = [...withoutNot.matchAll(SELECTOR_LIST)]
+    .flatMap((m) => m[1].split(",").map((s) => s.trim()));
+  if (alternatives.length === 0) return [{ tag: ownTag, scoped: ownScope }];
+  return alternatives.flatMap((alt) => compoundReadings(alt).map((reading) => ({
+    tag: reading.tag ?? ownTag,
+    scoped: ownScope || reading.scoped,
+  })));
+}
 
 interface BareRule {
   selector: string;
   /**
-   * No POSITIVE app-owned class or id on the compound or an ancestor
-   * compound — so it can match MUI's DOM on any screen. A `:not(.x)` grants
-   * no scope, and a `.Mui*`/`.css-*` class is MUI's or Emotion's own naming,
-   * not this app's.
+   * Whether SOME reading of SOME compound names an element with no app-owned
+   * scope anywhere it needs one: neither on that reading itself nor on any
+   * OTHER compound in the chain (an ancestor still constrains which concrete
+   * elements this selector can reach, even when the tag-bearing compound
+   * itself is clean).
    */
   global: boolean;
   props: string;
@@ -135,11 +175,19 @@ function bareElementRules(source: string = css): BareRule[] {
   postcss.parse(source).walkRules((rule) => {
     if (inKeyframes(rule)) return;
     for (const selector of rule.selectors) {
-      const parts = allCompounds(selector);
-      if (!parts.some((part) => tagOf(part) !== null)) continue;
+      const chain = compounds(selector).map(compoundReadings);
+      const tagReadings = chain.flatMap((readings, index) =>
+        readings.filter((reading) => reading.tag !== null).map((reading) => ({ reading, index })));
+      if (tagReadings.length === 0) continue;
+
+      const compoundHasAnUnscopedReading = chain.map((readings) => readings.some((r) => !r.scoped));
+      const global = tagReadings.some(({ reading, index }) =>
+        !reading.scoped
+        && compoundHasAnUnscopedReading.every((unscopedOk, i) => i === index || unscopedOk));
+
       found.push({
         selector,
-        global: !parts.some(hasAppOwnedScope),
+        global,
         props: rule.nodes
           .filter((node) => node.type === "decl")
           .map((node) => node.prop)
@@ -225,7 +273,9 @@ describe("bare element selectors against MUI's DOM (#823)", () => {
     // its screen's slice rather than needing neutralising now. A new rule with
     // no such container lands in the pin above instead, and fails there.
     for (const rule of rules.filter((r) => !r.global)) {
-      expect(allCompounds(rule.selector).some(hasAppOwnedScope),
+      const hasAnyOwnedReading = compounds(rule.selector)
+        .some((compound) => compoundReadings(compound).some((reading) => reading.scoped));
+      expect(hasAnyOwnedReading,
         `${rule.selector} names an element and is scoped by nothing this app owns`).toBe(true);
     }
   });
@@ -259,6 +309,18 @@ describe("bare-element guard catches its own bypasses", () => {
   it("does not accept a MUI-owned class as this app's scope", () => {
     const mutated = bareElementRules(`${css}\n.MuiButton-root button { background: red; }`);
     expect(mutated.some((rule) => rule.selector === ".MuiButton-root button" && rule.global))
+      .toBe(true);
+  });
+
+  it("does not let one :is() alternative's class vouch for a sibling alternative", () => {
+    const mutated = bareElementRules(`${css}\n:is(button, .legacy) { background: red; }`);
+    expect(mutated.some((rule) => rule.selector === ":is(button, .legacy)" && rule.global))
+      .toBe(true);
+  });
+
+  it("catches a type selector nested two levels inside :is()", () => {
+    const mutated = bareElementRules(`${css}\n:is(:is(button)) { background: red; }`);
+    expect(mutated.some((rule) => rule.selector === ":is(:is(button))" && rule.global))
       .toBe(true);
   });
 });
