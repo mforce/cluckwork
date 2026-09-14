@@ -2,6 +2,7 @@ namespace Cluckwork.Api.IntegrationTests;
 
 using System.Collections.Generic;
 using System.Net;
+using System.Text.RegularExpressions;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Security;
 using Microsoft.AspNetCore.Builder;
@@ -18,6 +19,19 @@ using Microsoft.Extensions.DependencyInjection;
 [Collection(IntegrationCollection.Name)]
 public sealed class SecurityHeadersTests(CluckworkWebApplicationFactory factory)
 {
+    // #873 — the one token in the policy that changes per response. Pulled out
+    // by pattern rather than by offset so a directive added ahead of style-src
+    // cannot silently shift what this reads.
+    private static readonly Regex StyleNoncePattern =
+        new(@"style-src 'self' 'nonce-(?<nonce>[^']+)'", RegexOptions.Compiled);
+
+    internal static string StyleNonce(string csp)
+    {
+        var match = StyleNoncePattern.Match(csp);
+        Assert.True(match.Success, $"no style-src nonce in the policy: {csp}");
+        return match.Groups["nonce"].Value;
+    }
+
     [Theory]
     [InlineData("/health/live")]              // a normal 200
     [InlineData("/definitely-not-a-route")]   // a 404 — headers come from OnStarting, so still present
@@ -25,11 +39,59 @@ public sealed class SecurityHeadersTests(CluckworkWebApplicationFactory factory)
     {
         var res = await factory.CreateClient().GetAsync(path);
 
-        Assert.Equal(SecurityHeaders.ContentSecurityPolicy,
-            res.Headers.GetValues("Content-Security-Policy").Single());
+        // The WHOLE policy, not a set of Contains checks: rebuilt from the one
+        // value that is allowed to vary, so any other directive that changed —
+        // added, dropped, reordered, widened — fails here (#873).
+        var csp = res.Headers.GetValues("Content-Security-Policy").Single();
+        Assert.Equal(SecurityHeaders.BuildContentSecurityPolicy(StyleNonce(csp)), csp);
         Assert.Equal("nosniff", res.Headers.GetValues("X-Content-Type-Options").Single());
         Assert.Equal("no-referrer", res.Headers.GetValues("Referrer-Policy").Single());
         Assert.Equal("DENY", res.Headers.GetValues("X-Frame-Options").Single());
+    }
+
+    [Fact]
+    public async Task Style_src_keeps_self_and_adds_exactly_one_nonce()
+    {
+        var csp = (await factory.CreateClient().GetAsync("/health/live"))
+            .Headers.GetValues("Content-Security-Policy").Single();
+
+        // #873 — the COMPLETE token set. 'self' has to stay (styles.css and the
+        // Inter font CSS are same-origin links a nonce does not cover) and the
+        // nonce has to be there (MUI's Emotion styles are injected at runtime).
+        // A set assertion is what fails if a later change drops either, or
+        // reaches for 'unsafe-inline' to make a symptom go away.
+        var styleSrc = csp
+            .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Single(d => d.StartsWith("style-src ", StringComparison.Ordinal));
+        var tokens = styleSrc.Split(' ');
+        Assert.Equal(3, tokens.Length);
+        Assert.Equal("style-src", tokens[0]);
+        Assert.Equal("'self'", tokens[1]);
+        Assert.StartsWith("'nonce-", tokens[2], StringComparison.Ordinal);
+
+        // A cryptographic nonce, not a counter or a constant: exactly the
+        // 16 bytes SecurityHeaders says it mints, base64-encoded.
+        Assert.Equal(SecurityHeaders.NonceByteCount,
+            Convert.FromBase64String(StyleNonce(csp)).Length);
+
+        // Nowhere else. script-src taking a nonce would be a far larger
+        // concession than this change makes, and it must not ride along.
+        Assert.Equal(1, csp.Split("'nonce-").Length - 1);
+    }
+
+    [Fact]
+    public async Task Each_response_mints_a_fresh_nonce()
+    {
+        var client = factory.CreateClient();
+
+        var first = StyleNonce((await client.GetAsync("/health/live"))
+            .Headers.GetValues("Content-Security-Policy").Single());
+        var second = StyleNonce((await client.GetAsync("/health/live"))
+            .Headers.GetValues("Content-Security-Policy").Single());
+
+        // A nonce reused across responses is not a nonce: an attacker who reads
+        // one page's value could then author a <style> the next page admits.
+        Assert.NotEqual(first, second);
     }
 
     [Fact]
@@ -73,8 +135,11 @@ public sealed class SecurityHeadersTests(CluckworkWebApplicationFactory factory)
         // Nothing else was loosened alongside it.
         Assert.DoesNotContain("*", csp);
         Assert.DoesNotContain("data:", csp);
-        foreach (var directive in new[] { "default-src", "script-src", "style-src", "font-src", "connect-src" })
+        foreach (var directive in new[] { "default-src", "script-src", "font-src", "connect-src" })
             Assert.Contains($"{directive} 'self';", csp);
+        // style-src is the one that is not a bare 'self' any more (#873); its
+        // exact token set is asserted in Style_src_keeps_self_and_adds_exactly_one_nonce.
+        Assert.Contains("style-src 'self' 'nonce-", csp);
     }
 
     [Fact]
