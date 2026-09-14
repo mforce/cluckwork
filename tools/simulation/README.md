@@ -63,6 +63,36 @@ See `tools/simulation/ui/README.md`. Its canary writes
 "Browser experience" section — so the browser numbers and the server percentiles
 from the same window share one page.
 
+## Two farms on this stack
+
+`reset.sh` leaves **two** farms behind, and only the first one is the fixture
+everything here is about:
+
+| Farm code | Seeded by | Who uses it |
+| --- | --- | --- |
+| `default-farm` | `seed --profile simulation` | Every k6 persona, every Playwright spec but one, every number in a findings doc. |
+| `readme-farm` | `seed --profile demo --farm-code readme-farm` | The README's dashboard screenshot, and nothing else. |
+
+The second farm exists because the simulation fixture **cannot produce that
+screenshot**. It seeds ~100 catalog flocks for the picker (#627) which are
+placed, active and never file, so every day owes a count nobody filed, no day in
+the window is complete, the dashboard's 14-day strip has no peak to scale against
+and draws fourteen identical floor stubs. That is the product's rule working
+correctly, and the fixture's counts are pinned by the picker-paging specs, k6 and
+the e2e suite — so the fixture stays as it is and the capture moved to a farm
+shaped like a real small one. The demo profile is exactly that shape: two houses,
+~240 days of submitted history on one, and today deliberately unrecorded on the
+other, which is the "no entry" alarm state the README's caption describes.
+
+`reset.sh` provisions it with `provision-account`, rotates its Owner off the
+printed one-time password onto the stable one `bootstrap.sh` generated, and then
+demo-seeds it. Its credential is a top-level `readmeFarm` key in
+`.sim-cast.json` (`farmCode`, `email`, `password`, `role`) — deliberately outside
+the `cast` array, because every entry there signs into `default-farm` and a
+driver iterating the cast must not have to ask which farm each member belongs to.
+`verify-harness.sh` fails closed when that key is missing from a cast file that
+exists, which is the drift a git-ignored file outliving its generator produces.
+
 ## KEEPING THIS HARNESS ALIVE (read before changing a boot guard) — #370
 
 **Nothing automated runs this harness.** It is deliberately not in CI — it is
@@ -164,6 +194,7 @@ reading or changing it:
 | `Jwt__PublicKeyPem` / `Jwt__PrivateKeyPem` | Freshly generated 2048-bit RSA keypair, `\n`-escaped single-line PEM (same format as `deploy/.env.example`) | Never reuse the real deploy keypair in a throwaway stack. `PemKey.Normalize` accepts this format regardless of whether docker compose's env-file interpolation later expands the `\n` escapes to real newlines itself (`Replace("\\n","\n")` is a no-op once they're already real) — verified both ways. |
 | `SIM_ADMIN_EMAIL` / `SIM_ADMIN_PASSWORD` | `admin@sim.local` + a generated 20-char password (upper/lower/digit/symbol) | **Script-level only** (no `__`, so it never reaches the app as config — #283, no credential is boot-config-driven anymore). `reset.sh` reads these to call `bootstrap-admin --email "$SIM_ADMIN_EMAIL"`, then rotates the printed one-time password to `SIM_ADMIN_PASSWORD`; reused as the Owner by `SimulationDataSeeder` (`seed --profile simulation`) — it never creates a second Owner. |
 | `Simulation__CastPassword` | One generated 20-char password shared by the whole cast | Every `sim-*@sim.local` login in `.sim-cast.json` uses this. |
+| `README_FARM_CODE` / `README_FARM_NAME` / `README_OWNER_EMAIL` / `README_OWNER_PASSWORD` | `readme-farm` / `Meadowlark Farm` / `readme-owner@sim.local` + a generated 20-char password | **Script-level only**, same no-`__` reasoning as `SIM_ADMIN_*`. `reset.sh` reads these to `provision-account` the second farm, rotate its Owner onto the stable password, and `seed --profile demo --farm-code` it. Its timezone is not listed here on purpose — `reset.sh` passes `Simulation__TimeZoneId`, so the two farms cannot end up on different clocks. See "Two farms on this stack". |
 | `Simulation__Managers/Sales/Workers/ReadOnly` | `1/1/3/4` | Mirrors `SimulationOptions`' own C# defaults — written explicitly so `bootstrap.sh`'s `.sim-cast.json` can never silently drift from what the seeder actually creates. |
 | `Simulation__HistoryDays` | `90` | #243 Task 3d's chosen depth — enough for the production report and sales/expense/profit summaries to scan a meaningful volume. |
 | `Simulation__TimeZoneId` | `America/Chicago` | Non-UTC, so the primary account's timezone handling is actually exercised. |
@@ -425,9 +456,10 @@ throughput/latency figure as production capacity.
   - `.env.sim` — everything the `app` service in `docker-compose.sim.yml`
     needs, via `--env-file` interpolation.
   - `.sim-cast.json` — the k6/Playwright **login source**: the Owner plus
-    every deterministic cast member, with role and password. This is **not**
-    the same thing as `out/manifest.json` (the seeder's own row-count/
-    completion manifest, written by the app itself).
+    every deterministic cast member, with role and password, plus a top-level
+    `readmeFarm` entry carrying the README-capture farm's own `farmCode`.
+    This is **not** the same thing as `out/manifest.json` (the seeder's own
+    row-count/completion manifest, written by the app itself).
 - `docker-compose.sim.yml` — the self-contained sim stack (see above; also
   defines `otel-collector`).
 - `reset.sh` — `down -v` (guarded to the `cluckwork-sim` project) → `config
@@ -436,7 +468,9 @@ throughput/latency figure as production capacity.
   run --rm -e ASPNETCORE_ENVIRONMENT=Development app seed --profile
   simulation` (#279 — the serving `app` stays Production the whole time) →
   preflight (`out/manifest.json` is `complete` with the expected user
-  count).
+  count) → `provision-account` + `seed --profile demo --farm-code` for the
+  README-capture farm → preflight (that farm's Owner signs in and it holds the
+  demo fixture's three flocks).
 - `otel/collector.yaml` — the local OTLP collector's config (see
   "Monitoring").
 - `monitor/docker-stats-sampler.sh`, `monitor/pg-snapshot.sh` — the
