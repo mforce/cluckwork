@@ -189,6 +189,16 @@ namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.GenericConstrain
     }
 }
 
+namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.UnusedGenericConstraint
+{
+    using Cluckwork.Domain.Flocks;
+
+    public interface IUnusedGenericConstraintFixture
+    {
+        void Register<T>() where T : IQueryable<Flock>;
+    }
+}
+
 namespace Cluckwork.Application.Tests.Architecture.SeamFixtures.SelfExpandingGeneric
 {
     public sealed class Node<T>
@@ -276,6 +286,7 @@ namespace Cluckwork.Application.Tests.Architecture
     using InterfaceConstraintFixtures = SeamFixtures.InterfaceConstraint;
     using StaticAbstractOperatorFixtures = SeamFixtures.StaticAbstractOperator;
     using FunctionPointerFixtures = SeamFixtures.FunctionPointer;
+    using UnusedGenericConstraintFixtures = SeamFixtures.UnusedGenericConstraint;
 
     public sealed class SeamSurfaceTests
     {
@@ -457,6 +468,14 @@ namespace Cluckwork.Application.Tests.Architecture
         {
             var failure = Assert.Single(Evaluate<FunctionPointerFixtures.IFunctionPointerFixture>());
             Assert.Contains("IFunctionPointerFixture.Callback", failure);
+            Assert.Contains("IQueryable", failure);
+        }
+
+        [Fact]
+        public void ConstraintOnAnOtherwiseUnusedMethodTypeParameter_IsAViolation()
+        {
+            var failure = Assert.Single(Evaluate<UnusedGenericConstraintFixtures.IUnusedGenericConstraintFixture>());
+            Assert.Contains("IUnusedGenericConstraintFixture.Register", failure);
             Assert.Contains("IQueryable", failure);
         }
 

@@ -153,8 +153,19 @@ public static class SeamSurfaceScanner
 
     private static void CheckMethod(MethodInfo method, string interfaceName, List<SeamSurfaceViolation> violations)
     {
+        // One visited set per method, so a type parameter reached both as a
+        // return type and as a declared generic parameter reports once.
+        var visited = new HashSet<Type>();
         void Check(Type type) =>
-            Walk(type, [FormatShort(type)], new HashSet<Type>(), interfaceName, method.Name, violations);
+            Walk(type, [FormatShort(type)], visited, interfaceName, method.Name, violations);
+
+        if (method.IsGenericMethodDefinition)
+        {
+            foreach (var parameter in method.GetGenericArguments())
+            {
+                Check(parameter);
+            }
+        }
 
         foreach (var parameter in method.GetParameters())
         {
