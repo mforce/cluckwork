@@ -319,10 +319,14 @@ public sealed class RenameAccountDocsTests
 
     // Never `git rev-parse` here: the pre-commit hook exports GIT_DIR without
     // GIT_WORK_TREE, so git takes the test's bin directory as the top level.
-    private static string RepoRoot() =>
+    internal static string RepoRoot() =>
         GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
         ?? throw new InvalidOperationException("Cluckwork.sln not found above " + AppContext.BaseDirectory);
+}
 
+[Collection(EnvironmentMutatingCollection.Name)]
+public sealed class RenameAccountDocsRepoRootTests
+{
     [Fact]
     public void RepoRoot_IgnoresTheGitDirThePreCommitHookExports()
     {
@@ -330,12 +334,19 @@ public sealed class RenameAccountDocsTests
         Environment.SetEnvironmentVariable("GIT_DIR", Path.Combine(Path.GetTempPath(), "not-a-git-dir"));
         try
         {
-            Assert.True(File.Exists(Path.Combine(RepoRoot(), "docs/runbooks/provisioning-a-new-farm.md")));
+            Assert.True(File.Exists(Path.Combine(RenameAccountDocsTests.RepoRoot(), "docs/runbooks/provisioning-a-new-farm.md")));
         }
         finally
         {
             Environment.SetEnvironmentVariable("GIT_DIR", previous);
         }
     }
+}
 
+// Environment variables are process-global and xUnit runs classes in parallel, so a test
+// that sets one must not overlap a class that starts git with the inherited environment.
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class EnvironmentMutatingCollection
+{
+    public const string Name = "environment-mutating";
 }
