@@ -173,5 +173,165 @@
         "Cluckwork.Application.Features.Inventory.UpdateWaterUsage.UpdateWaterUsageHandler"
       ]
     }
+  ],
+  "tables": {
+    "Access": [
+      "AspNetRoleClaims",
+      "AspNetRoles",
+      "AspNetUserClaims",
+      "AspNetUserLogins",
+      "AspNetUserRoles",
+      "AspNetUserTokens",
+      "AspNetUsers",
+      "UserRoleAssignments",
+      "refresh_tokens"
+    ],
+    "Farm": [
+      "Accounts",
+      "FarmLogos"
+    ],
+    "FlockManagement": [
+      "BirdMovements",
+      "Flocks"
+    ],
+    "EggOperations": [
+      "DailyEntries",
+      "DailyEntryGrades",
+      "EggGrades",
+      "EggInventoryMovements",
+      "EggLots"
+    ],
+    "Commerce": [
+      "Customers",
+      "EggUnitConversions",
+      "Payments",
+      "ProductEggGradeMappings",
+      "Products",
+      "SalesOrderAllocations",
+      "SalesOrderItems",
+      "SalesOrders"
+    ],
+    "GeneralInventory": [
+      "FeedUsages",
+      "InventoryItems",
+      "InventoryLots",
+      "InventoryMovements",
+      "WaterUsages"
+    ],
+    "Finance": [
+      "ExpenseCategories",
+      "Expenses"
+    ],
+    "Platform": [
+      "AuditEvents",
+      "durable_jobs",
+      "idempotency_records",
+      "simulation_seed_state"
+    ]
+  },
+  "foreignKeys": [
+    {
+      "table": "AspNetUsers",
+      "name": "FK_AspNetUsers_Accounts_AccountId",
+      "from": "Access",
+      "to": "Farm",
+      "reason": "a user belongs to a farm; AccountProvisioner establishes the account membership (design 3.3)"
+    },
+    {
+      "table": "BirdMovements",
+      "name": "FK_BirdMovements_DailyEntries_DailyEntryId",
+      "from": "FlockManagement",
+      "to": "EggOperations",
+      "reason": "mortality movements retain daily-entry provenance; daily-entry handlers append through IBirdMovementRepository (design 3.3)"
+    },
+    {
+      "table": "Expenses",
+      "name": "FK_Expenses_Flocks_FlockId",
+      "from": "Finance",
+      "to": "FlockManagement",
+      "reason": "an expense may be attributed to a flock; validated through IFlockRepository (design 3.3)"
+    },
+    {
+      "table": "FeedUsages",
+      "name": "FK_FeedUsages_DailyEntries_DailyEntryId",
+      "from": "GeneralInventory",
+      "to": "EggOperations",
+      "reason": "feed usage retains daily-entry provenance; resolved through IDailyEntryRepository (design 3.3)"
+    },
+    {
+      "table": "FeedUsages",
+      "name": "FK_FeedUsages_Flocks_FlockId",
+      "from": "GeneralInventory",
+      "to": "FlockManagement",
+      "reason": "feed usage belongs to a flock; validated through IFlockRepository (design 3.3)"
+    },
+    {
+      "table": "InventoryMovements",
+      "name": "FK_InventoryMovements_Flocks_FlockId",
+      "from": "GeneralInventory",
+      "to": "FlockManagement",
+      "reason": "inventory movements may be attributed to a flock; the constraint preserves that reference (design 3.3)"
+    },
+    {
+      "table": "ProductEggGradeMappings",
+      "name": "FK_ProductEggGradeMappings_EggGrades_EggGradeId",
+      "from": "Commerce",
+      "to": "EggOperations",
+      "reason": "product grade mappings reference egg grades; catalog handlers validate through IEggGradeRepository (design 3.3)"
+    },
+    {
+      "table": "SalesOrderAllocations",
+      "name": "FK_SalesOrderAllocations_EggLots_EggLotId",
+      "from": "Commerce",
+      "to": "EggOperations",
+      "reason": "sale allocations reserve egg lots; ConfirmSaleHandler allocates through IEggLotRepository (design 3.3)"
+    },
+    {
+      "table": "SalesOrderItems",
+      "name": "FK_SalesOrderItems_EggGrades_EggGradeId",
+      "from": "Commerce",
+      "to": "EggOperations",
+      "reason": "sale items retain their egg grade; AddOrderItemHandler validates through IEggGradeRepository (design 3.3)"
+    },
+    {
+      "table": "WaterUsages",
+      "name": "FK_WaterUsages_DailyEntries_DailyEntryId",
+      "from": "GeneralInventory",
+      "to": "EggOperations",
+      "reason": "water usage retains daily-entry provenance; resolved through IDailyEntryRepository (design 3.3)"
+    },
+    {
+      "table": "WaterUsages",
+      "name": "FK_WaterUsages_Flocks_FlockId",
+      "from": "GeneralInventory",
+      "to": "FlockManagement",
+      "reason": "water usage belongs to a flock; validated through IFlockRepository (design 3.3)"
+    }
+  ],
+  "tableOwnerOverrides": [
+    {
+      "table": "AspNetRoleClaims",
+      "reason": "Design 3.3 assigns Identity claim, join and token tables to Access; this framework CLR namespace is outside the Cluckwork namespace owner map."
+    },
+    {
+      "table": "AspNetUserClaims",
+      "reason": "Design 3.3 assigns Identity claim, join and token tables to Access; this framework CLR namespace is outside the Cluckwork namespace owner map."
+    },
+    {
+      "table": "AspNetUserLogins",
+      "reason": "Design 3.3 assigns Identity claim, join and token tables to Access; this framework CLR namespace is outside the Cluckwork namespace owner map."
+    },
+    {
+      "table": "AspNetUserRoles",
+      "reason": "Design 3.3 assigns Identity claim, join and token tables to Access; this framework CLR namespace is outside the Cluckwork namespace owner map."
+    },
+    {
+      "table": "AspNetUserTokens",
+      "reason": "Design 3.3 assigns Identity claim, join and token tables to Access; this framework CLR namespace is outside the Cluckwork namespace owner map."
+    },
+    {
+      "table": "UserRoleAssignments",
+      "reason": "Design 3.3 assigns flock role assignments to Access; the CLR type remains in Cluckwork.Domain.Accounts, owned by Farm. No namespace move is authorized by this ledger."
+    }
   ]
 }
