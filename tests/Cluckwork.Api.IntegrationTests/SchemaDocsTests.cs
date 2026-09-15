@@ -268,9 +268,10 @@ public sealed class SchemaDocsTests
             @"(?<q>""{3,})(?<body>[\s\S]*?)\k<q>");
         var decodedImageShapePattern = new Regex(
             @"^(?:[a-z0-9.-]+(?::\d+)?/)*" + escapedRepository + @"(?::[^@\s""]+)?(?:@sha256:[0-9a-f]{64})?$");
-        // An interpolation hole right after the repository (or after its tag) supplies
-        // the rest of the reference at runtime, so no static text ever reads as an image
-        // and the value-based sweep below cannot see it; the SHAPE is refused instead.
+        // An interpolation hole after the repository (or after its tag) supplies the rest of
+        // the reference at runtime, so no static text ever reads as an image and the
+        // value-based sweep below cannot see it; the SHAPE is refused instead. Earlier holes
+        // are stood in by a registry-shaped placeholder so `{registry}/postgres:{tag}` counts.
         var interpolationHolePattern = new Regex(@"(?<!\{)\{(?!\{)[^{}]*\}");
         var interpolatedTagPattern = new Regex(
             @"(?:^|[^A-Za-z0-9._/-])(?:[a-z0-9.-]+(?::\d+)?/)*" + escapedRepository + @"(?::(?!//)[^\s""{}]*)?$");
@@ -509,7 +510,8 @@ public sealed class SchemaDocsTests
                     if (!m.Groups["pfx"].Value.Contains('$')) continue;
                     foreach (Match hole in interpolationHolePattern.Matches(value))
                     {
-                        if (!interpolatedTagPattern.IsMatch(value[..hole.Index])) continue;
+                        var staticPrefix = interpolationHolePattern.Replace(value[..hole.Index], "x");
+                        if (!interpolatedTagPattern.IsMatch(staticPrefix)) continue;
                         if (bareLiteralAllowList.TryGetValue(relative, out var allowedInterpolations)
                             && allowedInterpolations.Any(a => a.Value == body))
                         {
