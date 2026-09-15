@@ -26,6 +26,13 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
 {
     private static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(60);
 
+    private const string LoopbackKeyPattern = "*auth-login:127.0.0.1*";
+
+    // The burst's own bucket, so the counter it reads is the one its own requests
+    // wrote.
+    private static string BurstKeyPattern =>
+        $"*auth-login:{IsolatedLoginBucket.ClientIpFor(nameof(LoginCounterKeyProbeTests))}*";
+
     // Above the shipped login PermitLimit (10 per 900 s), so the burst always
     // crosses the budget and the report shows where the 429s start.
     private const int PermitBurst = 14;
@@ -57,7 +64,15 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
     // window), so a 900 s window turns over every fifteen minutes. Scanned rather
     // than read by name, so a drift in namespace, prefix, or hash-tag shape shows
     // up as "no keys" instead of a false zero.
-    private async Task<Dictionary<string, long>> ReadLoginKeysAsync()
+    //
+    // Two patterns, not one: the loopback bucket is the finding and the burst bucket
+    // is the measurement. A single pattern covering every auth-login key would fold
+    // the suite's traffic into the burst's own arithmetic.
+    private Task<Dictionary<string, long>> ReadLoopbackKeysAsync() => ReadKeysAsync(LoopbackKeyPattern);
+
+    private Task<Dictionary<string, long>> ReadBurstKeysAsync() => ReadKeysAsync(BurstKeyPattern);
+
+    private async Task<Dictionary<string, long>> ReadKeysAsync(string pattern)
     {
         var db = _mux.GetDatabase();
         var found = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -65,7 +80,7 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         foreach (var endpoint in _mux.GetEndPoints())
         {
             var server = _mux.GetServer(endpoint);
-            await foreach (var key in server.KeysAsync(pattern: "*auth-login:127.0.0.1*"))
+            await foreach (var key in server.KeysAsync(pattern: pattern))
             {
                 var value = await db.StringGetAsync(key);
                 if (!value.IsNullOrEmpty)
@@ -76,21 +91,6 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         }
 
         return found;
-    }
-
-    // The bucket id is floor(server-ms / window), so this deletes only the current
-    // wall-clock window. A concurrent class counting in the NEXT window is untouched.
-    private async Task ClearLoginKeysAsync()
-    {
-        var db = _mux.GetDatabase();
-        foreach (var endpoint in _mux.GetEndPoints())
-        {
-            var server = _mux.GetServer(endpoint);
-            await foreach (var key in server.KeysAsync(pattern: "*auth-login:127.0.0.1*"))
-            {
-                await db.KeyDeleteAsync(key);
-            }
-        }
     }
 
     private ProcessStartInfo MakeStartInfo()
@@ -116,6 +116,12 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         psi.Environment["Database__AllowInsecureConnection"] = "true";
         psi.Environment["Database__MigrateOnStartup"] = "false";
         psi.Environment["SharedState__Redis__ConnectionString"] = _redis.GetConnectionString();
+        // #840 — loopback is a trusted proxy here so the burst can be given its own
+        // client address, and the counter the probe reads is the one its own requests
+        // wrote rather than one shared with every other class on this machine. The
+        // foreign-spend reading is taken from the loopback bucket and deliberately
+        // NOT isolated: that reading is the finding.
+        psi.Environment["RateLimiting__TrustedProxies__0"] = "127.0.0.1/32";
         psi.Environment["Jwt__Issuer"] = "cluckwork-test";
         psi.Environment["Jwt__Audience"] = "cluckwork-api-test";
         psi.Environment["Jwt__PublicKeyPem"] = TestJwtKeys.PublicKeyPem;
@@ -132,13 +138,11 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         // /auth/login, UseRateLimiter ahead of routing), so polling the login route
         // sees the first increment the moment the policy is live.
         //
-        // The starting value is read BEFORE the child exists, so the "was someone
-        // else already in this bucket" reading cannot be contaminated by the child's
-        // own startup work. This is the probe's only finding; everything after it is
-        // measurement.
-        var before = await ReadLoginKeysAsync();
-
-        await ClearLoginKeysAsync();
+        // The finding, read before this class's child exists. Nothing clears the
+        // bucket first: this Redis container is private to the probe, so whatever is
+        // in the loopback bucket here was spent by this class's own fixture on boot.
+        // That IS the collision, and clearing it would delete the evidence.
+        var before = await ReadLoopbackKeysAsync();
 
         await using var child = ServingSubprocess.Start(MakeStartInfo(), ServingSubprocess.FreeTcpPort());
         using var http = new HttpClient
@@ -146,6 +150,9 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
             BaseAddress = child.BaseUrl,
             Timeout = TimeSpan.FromSeconds(10),
         };
+        // The burst's own bucket. The child trusts loopback as a proxy (see
+        // MakeStartInfo), so this header decides the key.
+        http.DefaultRequestHeaders.Add("X-Forwarded-For", IsolatedLoginBucket.ClientIpFor(nameof(LoginCounterKeyProbeTests)));
 
         async Task<HttpStatusCode> PostLoginAsync()
         {
@@ -202,39 +209,42 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
             statuses.Add(await PostLoginAsync());
         }
 
-        var after = await ReadLoginKeysAsync();
+        var after = await ReadBurstKeysAsync();
 
         var report = new
         {
             test = nameof(Probe_login_counter_key_across_the_loopback_bucket),
             permitBurst = PermitBurst,
             observedStatuses = statuses.Select(s => (int)s).ToArray(),
-            // Foreign spend, and the only reading of it this probe can trust: taken
-            // before the child existed and before its own burst. The bucket is shared
-            // with every other class on this address, so a concurrent login racing the
-            // clear or the burst adds spend the probe did not cause, and a delta
-            // measured after the fact cannot tell the two apart.
-            keysBefore = before,
-            spendBeforeThisProbe = before.Sum(kv => kv.Value),
-            keysAfter = after,
-            spendAfterThisProbe = after.Sum(kv => kv.Value),
+            // Foreign spend: read before this class's child existed, so nothing the
+            // probe itself does can be in it.
+            loopbackKeysBefore = before,
+            foreignSpendOnLoopback = before.Sum(kv => kv.Value),
+            burstKeysAfter = after,
+            spendOnBurstBucket = after.Sum(kv => kv.Value),
             // A bucket rollover mid-burst would account for a delta larger than the
             // burst with no foreign writer involved.
-            bucketCountAfter = after.Count,
+            burstBucketCount = after.Count,
         };
 
         Console.WriteLine("CLUCKWORK_840_PROBE " + JsonSerializer.Serialize(report));
 
-        // The counter is what is under test, so it is what is asserted. The probe
-        // cannot assert an exact number: the bucket is shared with every other class
-        // on this address, and a concurrent login racing the clear adds spend the
-        // probe did not cause. What it can prove is that the policy is the thing
-        // doing the counting — a fallback to an in-process counter, or a policy that
-        // never ran, leaves this Redis key alone.
+        // The counter is what is under test, so it is what is asserted: the shared
+        // Redis key moved by at least the burst, which an in-process fallback never
+        // writes and an uninvoked policy never touches.
+        //
+        // NOT asserted exact. The Redis container is private to this class, so the
+        // increments beyond the burst cannot have come from another class — they came
+        // from this class's own fixture, which builds its TestServer in the
+        // constructor before any test body runs. A fixture spending against the budget
+        // its own test then measures is #840's collision one level down, and it is why
+        // an exact assertion here would be red on a working mechanism.
         var spend = after.Sum(kv => kv.Value);
         Assert.Equal(PermitBurst, statuses.Count);
         Assert.True(spend >= PermitBurst,
-            $"fourteen requests through the login policy left only {spend} increments on the shared key");
+            $"{PermitBurst} requests through the login policy left only {spend} increments "
+            + "on the Redis key — the counter fell back to in-process, or the policy did not run");
+        Assert.Single(after);
         Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
     }
 }
