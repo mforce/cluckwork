@@ -43,19 +43,20 @@ public static class ModuleLedgerScanner
 
     private const string Prefix = "Cluckwork.";
 
-    // A project-defined constant guards an `#if` branch the fixed ParseOptions never parse (#843).
+    private static readonly string[] MsBuildFileSkipDirectories =
+        ["bin", "obj", "node_modules", ".git", "web"];
+
+    // A project-defined constant guards an `#if` branch the fixed ParseOptions never
+    // parse (#843). Round 2: this does not resolve MSBuild imports (no project graph
+    // exists to resolve against) — it walks every *.csproj/*.props/*.targets under the
+    // repo root and treats every <DefineConstants> element the same, `Condition`
+    // attribute or not, so a symbol defined anywhere is red even when nothing imports it.
     internal static IReadOnlyList<(string ProjectFile, string Symbol)> UndeclaredDefineConstants(string repoRoot)
     {
         var declared = new HashSet<string>(ParseOptions.PreprocessorSymbolNames, StringComparer.Ordinal);
-        var srcRoot = Path.Combine(repoRoot, "src");
-        var projectFiles = (Directory.Exists(srcRoot)
-                ? Directory.EnumerateFiles(srcRoot, "*.csproj", SearchOption.AllDirectories)
-                : [])
-            .Concat(new[] { Path.Combine(repoRoot, "Directory.Build.props") }.Where(File.Exists))
-            .OrderBy(f => f, StringComparer.Ordinal);
-
         var undeclared = new List<(string, string)>();
-        foreach (var file in projectFiles)
+
+        foreach (var file in EnumerateMsBuildFiles(repoRoot))
         {
             var document = System.Xml.Linq.XDocument.Load(file);
             foreach (var element in document.Descendants("DefineConstants"))
@@ -74,6 +75,31 @@ public static class ModuleLedgerScanner
         }
 
         return undeclared;
+    }
+
+    private static IReadOnlyList<string> EnumerateMsBuildFiles(string repoRoot)
+    {
+        var files = new List<string>();
+        void Walk(string dir)
+        {
+            foreach (var sub in Directory.GetDirectories(dir))
+            {
+                if (MsBuildFileSkipDirectories.Contains(Path.GetFileName(sub), StringComparer.Ordinal))
+                {
+                    continue;
+                }
+
+                Walk(sub);
+            }
+
+            foreach (var pattern in new[] { "*.csproj", "*.props", "*.targets" })
+            {
+                files.AddRange(Directory.EnumerateFiles(dir, pattern, SearchOption.TopDirectoryOnly));
+            }
+        }
+
+        Walk(repoRoot);
+        return files.OrderBy(f => f, StringComparer.Ordinal).ToList();
     }
 
     public static ModuleLedgerReport Scan(string srcRoot, string ledgerPath)

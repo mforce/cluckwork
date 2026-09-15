@@ -92,14 +92,19 @@ The walk still parses every file with one fixed preprocessor symbol list
 branch is never walked — an inactive branch is invisible to Roslyn's own
 parse, not merely to this scanner. Nothing here reads an inactive branch;
 instead, `ModuleLedgerScanner.UndeclaredDefineConstants` enumerates every
-`*.csproj` under `src/` plus the repo-root `Directory.Build.props`, collects
-each `<DefineConstants>` value, and fails the walk-trust check the moment any
-project defines a symbol the fixed list does not carry. That keeps the fixed
-list honest without walking inactive branches: the day a project needs `#if
-MCP`, adding `MCP` to `DefineConstants` reds this check first, which is the
-prompt to add `MCP` to `ParseOptions` too, before the guarded code can hide
-behind it. `$(DefineConstants)` (the MSBuild reference to the inherited
-value) is not itself a symbol and is skipped.
+`*.csproj`, `*.props` and `*.targets` under the repo root (skipping `bin/`,
+`obj/`, `node_modules/`, `.git/` and `web/`), collects each `<DefineConstants>`
+value, and fails the walk-trust check the moment any of them defines a symbol
+the fixed list does not carry. It does not resolve MSBuild imports — there is
+no project graph to resolve against — so it over-approximates instead: it
+reads every matching file textually, whatever file or `Condition` it sits in,
+so a constant defined ANYWHERE under the repo root is red even if no project
+actually imports that file. That keeps the fixed list honest without walking
+inactive branches or resolving imports: the day a project needs `#if MCP`,
+adding `MCP` to `DefineConstants` reds this check first, which is the prompt
+to add `MCP` to `ParseOptions` too, before the guarded code can hide behind
+it. `$(DefineConstants)` (the MSBuild reference to the inherited value) is
+not itself a symbol and is skipped.
 
 ## How it is enforced
 

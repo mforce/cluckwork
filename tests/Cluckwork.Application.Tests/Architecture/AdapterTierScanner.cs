@@ -127,7 +127,7 @@ public static class AdapterTierScanner
         foreach (var constant in report.UndeclaredDefineConstants)
         {
             failures.Add($"the walk cannot be trusted: project {constant.ProjectFile} defines " +
-                $"{constant.Symbol}, add it to ModuleLedgerScanner.ParseOptions");
+                $"{constant.Symbol} (a Condition attribute does not exempt it), add it to ModuleLedgerScanner.ParseOptions");
         }
         foreach (var type in report.ToolTypeOutsideTier)
         {

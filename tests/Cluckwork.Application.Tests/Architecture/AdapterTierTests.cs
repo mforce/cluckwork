@@ -48,6 +48,13 @@ public sealed class AdapterTierTests : IDisposable
             """);
     }
 
+    private void WriteFile(string relativePath, string content)
+    {
+        var full = Path.Combine(_tempRoot, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+        File.WriteAllText(full, content);
+    }
+
     [Fact]
     public void CsprojDefinesUndeclaredConstant_IsParseTrustFailure()
     {
@@ -62,6 +69,56 @@ public sealed class AdapterTierTests : IDisposable
     {
         WriteCsproj("Probe", "$(DefineConstants);TRACE");
         Assert.Empty(AdapterTierScanner.Evaluate(Scan()));
+    }
+
+    [Fact]
+    public void DirectoryBuildPropsUnderSrc_DefinesUndeclaredConstant_IsParseTrustFailure()
+    {
+        WriteFile("src/Directory.Build.props", """
+            <Project>
+              <PropertyGroup>
+                <DefineConstants>MCP</DefineConstants>
+              </PropertyGroup>
+            </Project>
+            """);
+        var failure = Assert.Single(AdapterTierScanner.Evaluate(Scan()));
+        Assert.Contains("the walk cannot be trusted", failure);
+        Assert.Contains("MCP", failure);
+    }
+
+    [Fact]
+    public void ImportedPropsFile_DefinesUndeclaredConstant_IsParseTrustFailure()
+    {
+        WriteFile("src/Shared/Shared.props", """
+            <Project>
+              <PropertyGroup>
+                <DefineConstants>MCP</DefineConstants>
+              </PropertyGroup>
+            </Project>
+            """);
+        WriteFile("src/Probe/Probe.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <Import Project="../Shared/Shared.props" />
+            </Project>
+            """);
+        var failure = Assert.Single(AdapterTierScanner.Evaluate(Scan()));
+        Assert.Contains("the walk cannot be trusted", failure);
+        Assert.Contains("MCP", failure);
+    }
+
+    [Fact]
+    public void ConditionedDefineConstants_IsParseTrustFailure()
+    {
+        WriteFile("src/Probe/Probe.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <DefineConstants Condition="'$(Configuration)'=='Debug'">MCP</DefineConstants>
+              </PropertyGroup>
+            </Project>
+            """);
+        var failure = Assert.Single(AdapterTierScanner.Evaluate(Scan()));
+        Assert.Contains("Condition", failure);
+        Assert.Contains("MCP", failure);
     }
 
     [Fact]
