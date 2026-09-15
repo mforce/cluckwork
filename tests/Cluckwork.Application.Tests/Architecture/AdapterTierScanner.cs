@@ -166,30 +166,53 @@ public static class AdapterTierScanner
         type.AttributeLists.SelectMany(list => list.Attributes)
             .Any(attr => IsToolAttributeName(LastIdentifier(attr.Name), type, localAliases, projectAliases));
 
+    // Round 2: `using ToolMarker = ActualMarker;` where ActualMarker is itself an
+    // alias was matched against ToolAttributes directly and never matched. Walk the
+    // chain to a fixed point instead, local aliases first then global ones at each
+    // hop, bounded by the alias count so `using A = B; using B = A;` terminates.
     private static bool IsToolAttributeName(
         string identifier,
         TypeDeclarationSyntax type,
         IReadOnlyList<AliasDirective> localAliases,
         IReadOnlyDictionary<string, string>? projectAliases)
     {
-        if (ToolAttributes.Contains(identifier))
+        var current = identifier;
+        var remainingHops = localAliases.Count + (projectAliases?.Count ?? 0) + 1;
+        for (var hop = 0; hop < remainingHops; hop++)
         {
-            return true;
-        }
-
-        foreach (var alias in localAliases)
-        {
-            if (alias.Alias == identifier
-                && (alias.Block is null || type.Ancestors().Contains(alias.Block))
-                && ToolAttributes.Contains(alias.Target))
+            if (ToolAttributes.Contains(current))
             {
                 return true;
             }
+
+            if (ResolveAliasOnce(current, type, localAliases, projectAliases) is not { } next)
+            {
+                return false;
+            }
+
+            current = next;
         }
 
-        return projectAliases is not null
-            && projectAliases.TryGetValue(identifier, out var globalTarget)
-            && ToolAttributes.Contains(globalTarget);
+        return false;
+    }
+
+    private static string? ResolveAliasOnce(
+        string identifier,
+        TypeDeclarationSyntax type,
+        IReadOnlyList<AliasDirective> localAliases,
+        IReadOnlyDictionary<string, string>? projectAliases)
+    {
+        foreach (var alias in localAliases)
+        {
+            if (alias.Alias == identifier && (alias.Block is null || type.Ancestors().Contains(alias.Block)))
+            {
+                return alias.Target;
+            }
+        }
+
+        return projectAliases is not null && projectAliases.TryGetValue(identifier, out var globalTarget)
+            ? globalTarget
+            : null;
     }
 
     private static IReadOnlyList<AliasDirective> LocalAliasDirectives(CompilationUnitSyntax root) =>

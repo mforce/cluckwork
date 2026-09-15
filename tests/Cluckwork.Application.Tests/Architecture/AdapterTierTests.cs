@@ -213,6 +213,52 @@ public sealed class AdapterTierTests : IDisposable
     }
 
     [Fact]
+    public void LocalAliasChainOfTwo_OutsideTier_IsReported()
+    {
+        WriteSource("Probe.cs", """
+            using ActualMarker = ModelContextProtocol.Server.McpServerToolTypeAttribute;
+            using ToolMarker = ActualMarker;
+            namespace Cluckwork.Temp.Endpoints;
+            [ToolMarker]
+            public sealed class Probe { }
+            """);
+        var failure = Assert.Single(AdapterTierScanner.Evaluate(Scan(Tier())));
+        Assert.Contains("Cluckwork.Temp.Endpoints.Probe", failure);
+        Assert.Contains("src/Probe.cs:4", failure);
+    }
+
+    [Fact]
+    public void GlobalThenLocalAliasChain_OutsideTier_IsReported()
+    {
+        WriteSource("ProjA/Aliases.cs", """
+            global using GlobalMarker = ModelContextProtocol.Server.McpServerToolTypeAttribute;
+            namespace Cluckwork.Temp.ProjA;
+            """);
+        WriteSource("ProjA/Probe.cs", """
+            using ToolMarker = GlobalMarker;
+            namespace Cluckwork.Temp.Endpoints;
+            [ToolMarker]
+            public sealed class Probe { }
+            """);
+        var failure = Assert.Single(AdapterTierScanner.Evaluate(Scan(Tier())));
+        Assert.Contains("Cluckwork.Temp.Endpoints.Probe", failure);
+        Assert.Contains("src/ProjA/Probe.cs:3", failure);
+    }
+
+    [Fact]
+    public void CyclicAlias_DoesNotHangAndMatchesNothing()
+    {
+        WriteSource("Probe.cs", """
+            using A = B;
+            using B = A;
+            namespace Cluckwork.Temp.Endpoints;
+            [A]
+            public sealed class Probe { }
+            """);
+        Assert.Empty(Scan(Tier()).ToolTypeOutsideTier);
+    }
+
+    [Fact]
     public void AliasToUnrelatedType_DoesNotMatch()
     {
         WriteSource("Probe.cs", """
