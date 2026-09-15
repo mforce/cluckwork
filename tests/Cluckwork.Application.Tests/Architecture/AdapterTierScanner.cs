@@ -148,8 +148,6 @@ public static class AdapterTierScanner
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    // Rendered only for a call site whose surface is already a known key (see the
-    // caller), so the lookup below the map's own value — never the separate constant.
     internal static string RenderRow(string surface) => JsonSerializer.Serialize(new
     {
         @namespace = "<the tool namespace>",
@@ -168,10 +166,7 @@ public static class AdapterTierScanner
         type.AttributeLists.SelectMany(list => list.Attributes)
             .Any(attr => IsToolAttributeName(LastIdentifier(attr.Name), type, localAliases, projectAliases));
 
-    // Round 2: `using ToolMarker = ActualMarker;` where ActualMarker is itself an
-    // alias was matched against ToolAttributes directly and never matched. Walk the
-    // chain to a fixed point instead, local aliases first then global ones at each
-    // hop, bounded by the alias count so `using A = B; using B = A;` terminates.
+    // Bounded by the alias count so `using A = B; using B = A;` terminates.
     private static bool IsToolAttributeName(
         string identifier,
         TypeDeclarationSyntax type,

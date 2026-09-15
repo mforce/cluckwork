@@ -240,9 +240,6 @@ public sealed record ModuleLedger(
         var reason = RequiredString(row, "reason", label, errors);
         var reviewBy = RequiredString(row, "reviewBy", label, errors);
 
-        // The closed set is the map's own values, not the separate constant, so a
-        // privilege introduced only in the constant (and never mapped from a surface)
-        // could never validate a row against it.
         var allowedPrivileges = AdapterTier.KnownSurfaces.Values.Distinct(StringComparer.Ordinal).ToList();
         if (!string.IsNullOrWhiteSpace(privilege) && !allowedPrivileges.Contains(privilege, StringComparer.Ordinal))
         {
@@ -257,9 +254,6 @@ public sealed record ModuleLedger(
                 "that AdapterTierScanner walks");
         }
 
-        // A row's privilege must be the value the map assigns to its own surface — the map is
-        // the registry, not the separate DirectRepositoryPrivilege constant, so a surface whose
-        // mapped value drifted from a stale row would otherwise pass silently.
         if (!string.IsNullOrWhiteSpace(privilege) && !string.IsNullOrWhiteSpace(surface)
             && AdapterTier.KnownSurfaces.TryGetValue(surface, out var expectedPrivilege)
             && privilege != expectedPrivilege)

@@ -46,11 +46,8 @@ public static class ModuleLedgerScanner
     private static readonly string[] MsBuildFileSkipDirectories =
         ["bin", "obj", "node_modules", ".git", "web"];
 
-    // A project-defined constant guards an `#if` branch the fixed ParseOptions never
-    // parse (#843). Round 2: this does not resolve MSBuild imports (no project graph
-    // exists to resolve against) — it walks every *.csproj/*.props/*.targets under the
-    // repo root and treats every <DefineConstants> element the same, `Condition`
-    // attribute or not, so a symbol defined anywhere is red even when nothing imports it.
+    // A constant guards an `#if` branch the fixed ParseOptions never parse (#843). No project
+    // graph exists here, so every MSBuild file is read textually, Condition or not.
     internal static IReadOnlyList<(string ProjectFile, string Symbol)> UndeclaredDefineConstants(string repoRoot)
     {
         var declared = new HashSet<string>(ParseOptions.PreprocessorSymbolNames, StringComparer.Ordinal);
