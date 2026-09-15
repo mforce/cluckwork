@@ -34,7 +34,12 @@ outside every declared tier namespace is red. A mapped surface with no tier row
 is red, and the failure prints the JSON row to add. A tier row whose surface is
 never invoked and whose namespace holds no type is `Dormant` — informational,
 never red, because the row is meant to be committed before the code exists.
-`privilege` is a closed set (`DirectRepository` today); `reviewBy` must match
+`privilege` and `surface` are each a closed set, both read from
+`AdapterTier.KnownSurfaces` beside `AdapterTier.DirectRepositoryPrivilege` — a
+map from each supported surface to the privilege it grants, today just
+`MapMcp` → `DirectRepository`. `AdapterTierScanner` walks invocations of the
+same map's keys, so a row naming a surface the scanner does not walk is a
+registry error rather than a silently inert exemption. `reviewBy` must match
 `^#[0-9]+$`, so an exemption with no end date is a registry error, alongside a
 blank or missing field and a duplicated `namespace` or `surface`.
 

@@ -30,6 +30,15 @@ public sealed record AdapterClaim(string Symbol, IReadOnlyList<string> Reaches);
 public sealed record AdapterTier(string Namespace, string Privilege, string Surface, string Reason, string ReviewBy)
 {
     public const string DirectRepositoryPrivilege = "DirectRepository";
+
+    // The closed set of surfaces a tier row may name, each mapped to the
+    // privilege it grants. AdapterTierScanner reads this same map, so a surface
+    // the scanner does not walk can never validate as a tier row's `surface`.
+    public static readonly IReadOnlyDictionary<string, string> KnownSurfaces =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["MapMcp"] = DirectRepositoryPrivilege,
+        };
 }
 
 public sealed record ModuleLedger(
@@ -235,6 +244,13 @@ public sealed record ModuleLedger(
         {
             errors.Add($"{label} has privilege '{privilege}', which is not in the closed set " +
                 $"{{'{AdapterTier.DirectRepositoryPrivilege}'}}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(surface) && !AdapterTier.KnownSurfaces.ContainsKey(surface))
+        {
+            errors.Add($"{label} has surface '{surface}', which is not in the closed set " +
+                $"{{{string.Join(", ", AdapterTier.KnownSurfaces.Keys.Select(s => $"'{s}'"))}}} " +
+                "that AdapterTierScanner walks");
         }
 
         if (!string.IsNullOrWhiteSpace(reviewBy) && !ReviewByPattern.IsMatch(reviewBy))

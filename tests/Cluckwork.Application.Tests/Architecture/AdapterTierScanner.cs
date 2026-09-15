@@ -29,11 +29,6 @@ public static class AdapterTierScanner
         "McpServerToolType", "McpServerToolTypeAttribute",
     };
 
-    private static readonly HashSet<string> SurfaceCalls = new(StringComparer.Ordinal)
-    {
-        "MapMcp",
-    };
-
     public static AdapterTierReport Scan(string srcRoot, string ledgerPath)
     {
         var srcFull = Path.GetFullPath(srcRoot);
@@ -76,7 +71,7 @@ public static class AdapterTierScanner
 
             foreach (var call in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
-                if (CalledName(call) is { } name && SurfaceCalls.Contains(name.Identifier.ValueText))
+                if (CalledName(call) is { } name && AdapterTier.KnownSurfaces.ContainsKey(name.Identifier.ValueText))
                 {
                     var line = call.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
                     surfaceCalls.Add(new SurfaceCallSite(name.Identifier.ValueText, relative, line));

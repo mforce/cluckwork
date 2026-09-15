@@ -136,6 +136,14 @@ public sealed class AdapterTierTests : IDisposable
     }
 
     [Fact]
+    public void UnknownSurface_IsRegistryError()
+    {
+        var row = Tier(surface: "MapMcpTypo");
+        Assert.Contains(Scan(row).RegistryErrors,
+            e => e.Contains("surface", StringComparison.Ordinal) && e.Contains("MapMcpTypo", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ReviewByNotMatchingPattern_IsRegistryError()
     {
         var row = Tier(reviewBy: "806");
