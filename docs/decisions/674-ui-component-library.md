@@ -165,3 +165,69 @@ and verifies in a real browser anything jsdom cannot see.
   audit gate.
 - `FarmThemeProvider` must not render MUI's `CssBaseline`: its global resets would fight
   `styles.css` across all 124 components. Adopting it is a whole-app visual decision.
+
+## Amendment (2026-09-14): CSP — MUI's styles need a nonce, and the policy stays strict
+
+**Issue:** #873 · **Found by:** #871, on the sim harness at 390px.
+
+### The finding
+
+This app ships `style-src 'self'` with no `'unsafe-inline'`. MUI styles through Emotion,
+which injects a `<style>` element at runtime, and the browser refuses to parse it under that
+policy. Nothing in the app reports it: the element sits in `<head>` with `sheet === null`,
+React is happy, and the only complaint is one console line. Measured in #871 — `html` computed
+`box-sizing: content-box` where `CssBaseline` sets `border-box`, and `/daily-entry` laid out
+419px wide in a 390px frame. Every `sx`, `styled()` and `styleOverrides` value travels that
+same path, so **no MUI styling reached the screen at all**. It stayed invisible until #871
+only because no MUI component had rendered yet.
+
+### The three options, and why the third won
+
+| Option | What it costs |
+| --- | --- |
+| `'unsafe-inline'` on `style-src` | Reopens CSS injection, attribute-selector exfiltration included. A security regression this record would then have to own, to spare a library from carrying a nonce. |
+| Build-time CSS extraction | Fights the decision above: the palette is read off the *document* at runtime so the four farm palettes (#149/#586) reach MUI with no per-palette configuration. Extraction wants the values at build time, which is the opposite. |
+| **A per-response nonce** | One RNG draw per response, one templated document, one `CacheProvider`. The policy stays exactly as strict as it was. |
+
+The owner chose the third (2026-09-14). `script-src` is untouched and must stay that way: the
+pre-paint theme script was externalised in #144 precisely so scripts need no nonce.
+
+### The invariant
+
+**Every Emotion cache in this app carries the page's nonce.** There is one today —
+`web/src/theme/FarmThemeProvider.tsx` builds it at module load from
+`<meta name="csp-nonce">` and hands it to `CacheProvider`. A second cache created anywhere,
+for any reason, is a second thing that must read the same meta; a cache without the nonce
+injects styles the browser silently discards, and the screen looks *almost* right, which is
+the worst way for this to fail.
+
+A missing meta yields `nonce: undefined`, deliberately. That is the Vite dev server's document,
+where no policy applies. In a production build it means the header's nonce reached nobody and
+the styles are blocked — the fail-closed outcome. Do not add a fallback that loosens it.
+
+### Two consequences worth knowing before you touch this
+
+**`index.html` is no longer a static file.** `SpaShell` (`src/Cluckwork.Api/Hosting/`) reads it
+once at boot, splits it at `<head>`, and writes the nonce meta into every response;
+`SecurityHeaders.GetOrCreateNonce` is what both the document and the header read, so they cannot
+disagree. It carries no `ETag` and no `Last-Modified` — a validator derived from the file would
+tell a client its cached copy is fresh while the live header no longer admits that copy's nonce.
+`#141`'s `no-cache` survives unchanged, and hashed `/assets/*` are untouched.
+
+**For a client running the service worker, the nonce is per precache entry, not per request.**
+`navigateFallback` (#142) answers navigations from the cached shell, online and offline alike, so
+that client keeps one nonce until the worker updates. That is safe for the reason the offline
+assertion in `tools/simulation/ui/specs/csp-nonce.spec.ts` checks rather than assumes: workbox
+caches one whole `Response`, so the header and the body it stores were minted together and stay
+together. What survives is "the nonce is unguessable and specific to this client's cached shell",
+not "fresh on every navigation" — and the alternative, refusing to precache the shell, would
+retire the offline guarantee #142 exists for.
+
+**No MUI component renders in production today, and nothing here stands in for one.** An earlier
+draft of #873 had `web/src/routes/Login.tsx` render one hidden `Chip`, solely so the Playwright
+spec had a real Emotion-styled element to read a computed background from. The owner's #874 review
+(2026-09-14) removed it: production markup that exists only for a test is a cost this record does
+not accept paying. `csp-nonce.spec.ts` still proves the invariant above — the nonce the document
+carries matches its own response header, online and after an offline reload — but not that MUI's
+styles visibly apply anywhere; #864 tracks the first slice that renders a real component and picks
+that assertion back up there.

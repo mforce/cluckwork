@@ -26,6 +26,7 @@ using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -208,10 +209,25 @@ app.UseHttpsRedirection();
 // public — mounted before auth. API routes and the SPA fallback are wired below.
 // #141 — hashed /assets/* are immutable-forever, index.html revalidates, so a
 // fronting CDN (and browsers) can cache aggressively without serving a stale app.
-app.UseDefaultFiles();
+//
+// #873 — index.html is NOT one of those static assets any more. It carries a
+// per-response CSP nonce, so it is read and split once here and written by
+// SpaShell below; `null` means there is no built SPA (Development, the test
+// host), and everything then behaves exactly as it did before.
+var spaShell = SpaShell.Load(app.Environment);
+if (spaShell is not null)
+    app.UseSpaShell(spaShell);
 app.UseStaticFiles(new StaticFileOptions
 {
-    OnPrepareResponse = StaticAssetCaching.ApplyCacheHeaders
+    OnPrepareResponse = StaticAssetCaching.ApplyCacheHeaders,
+    // #874 review (local Codex pass) — null (the middleware's own default,
+    // env.WebRootFileProvider) when there is no built SPA to template in the
+    // first place; wrapped only when SpaShell owns index.html, so the raw file
+    // can never leak through an alternate path spelling UseSpaShell's exact
+    // compare misses (e.g. a raw "GET //index.html").
+    FileProvider = spaShell is not null
+        ? new IndexHtmlHidingFileProvider(app.Environment.WebRootFileProvider)
+        : null
 });
 
 // One structured completion line per request (#214): method, path, status,
@@ -563,12 +579,23 @@ app.Map("/health/{**rest}", () => Results.Problem(
 // index.html. Lowest route priority, so the /api/v1 endpoints and /health above
 // always match first. No-op in dev (no wwwroot) — dev uses the Vite server.
 // #141 — the fallback ALWAYS serves index.html, so it unconditionally emits
-// no-cache (AlwaysRevalidateHeader): a new deploy propagates immediately even
-// through a fronting CDN, and a missing /assets/x can never be pinned immutable.
-app.MapFallbackToFile("index.html", new StaticFileOptions
-{
-    OnPrepareResponse = StaticAssetCaching.AlwaysRevalidateHeader
-});
+// no-cache: a new deploy propagates immediately even through a fronting CDN,
+// and a missing /assets/x can never be pinned immutable.
+if (spaShell is not null)
+    // GET/HEAD only (#874 review, local Codex pass): the StaticFileMiddleware +
+    // MapFallbackToFile pair this replaced served only GET/HEAD (the former
+    // skips other methods outright, the latter carries its own GET/HEAD
+    // HttpMethodMetadata) — measured directly against that pre-#873 pipeline,
+    // which answers 405 with "Allow: GET, HEAD" for e.g. POST / or DELETE
+    // /index.html. Without this metadata spaShell.WriteAsync has no method
+    // restriction of its own and those same requests get a 200 HTML shell.
+    app.MapFallback(spaShell.WriteAsync)
+        .WithMetadata(new HttpMethodMetadata([HttpMethods.Get, HttpMethods.Head]));
+else
+    app.MapFallbackToFile("index.html", new StaticFileOptions
+    {
+        OnPrepareResponse = StaticAssetCaching.AlwaysRevalidateHeader
+    });
 
 app.Run();
 return 0;
