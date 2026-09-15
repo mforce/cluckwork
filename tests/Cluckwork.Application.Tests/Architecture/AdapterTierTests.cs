@@ -35,6 +35,35 @@ public sealed class AdapterTierTests : IDisposable
         string surface = "MapMcp", string reason = "test reason", string reviewBy = "#1") =>
         $$"""{ "namespace": "{{ns}}", "privilege": "{{privilege}}", "surface": "{{surface}}", "reason": "{{reason}}", "reviewBy": "{{reviewBy}}" }""";
 
+    private void WriteCsproj(string projectName, string defineConstants)
+    {
+        var full = Path.Combine(_tempRoot, "src", projectName, $"{projectName}.csproj");
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+        File.WriteAllText(full, $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <DefineConstants>{defineConstants}</DefineConstants>
+              </PropertyGroup>
+            </Project>
+            """);
+    }
+
+    [Fact]
+    public void CsprojDefinesUndeclaredConstant_IsParseTrustFailure()
+    {
+        WriteCsproj("Probe", "MCP");
+        var failure = Assert.Single(AdapterTierScanner.Evaluate(Scan()));
+        Assert.Contains("the walk cannot be trusted", failure);
+        Assert.Contains("MCP", failure);
+    }
+
+    [Fact]
+    public void CsprojDefineConstantsPlaceholderPlusDeclaredSymbol_IsGreen()
+    {
+        WriteCsproj("Probe", "$(DefineConstants);TRACE");
+        Assert.Empty(AdapterTierScanner.Evaluate(Scan()));
+    }
+
     [Fact]
     public void ToolTypeOutsideAnyTierNamespace_IsToolTypeOutsideTier()
     {

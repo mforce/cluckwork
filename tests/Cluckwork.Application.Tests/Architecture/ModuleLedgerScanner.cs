@@ -43,6 +43,45 @@ public static class ModuleLedgerScanner
 
     private const string Prefix = "Cluckwork.";
 
+    // #843 review — a project-defined constant (e.g. `<DefineConstants>MCP</DefineConstants>`)
+    // guards a real `#if MCP` branch this scanner's fixed symbol list never parses, so a
+    // guard fed only ParseOptions.PreprocessorSymbolNames can stay green after that branch
+    // ships. This is the structural check that keeps the fixed list honest: it never adds a
+    // symbol to the parse, it only fails when the project tree defines one the parse does not
+    // carry. `$(DefineConstants)` is the MSBuild reference to the inherited value, not a new
+    // symbol, and is skipped.
+    internal static IReadOnlyList<(string ProjectFile, string Symbol)> UndeclaredDefineConstants(string repoRoot)
+    {
+        var declared = new HashSet<string>(ParseOptions.PreprocessorSymbolNames, StringComparer.Ordinal);
+        var srcRoot = Path.Combine(repoRoot, "src");
+        var projectFiles = (Directory.Exists(srcRoot)
+                ? Directory.EnumerateFiles(srcRoot, "*.csproj", SearchOption.AllDirectories)
+                : [])
+            .Concat(new[] { Path.Combine(repoRoot, "Directory.Build.props") }.Where(File.Exists))
+            .OrderBy(f => f, StringComparer.Ordinal);
+
+        var undeclared = new List<(string, string)>();
+        foreach (var file in projectFiles)
+        {
+            var document = System.Xml.Linq.XDocument.Load(file);
+            foreach (var element in document.Descendants("DefineConstants"))
+            {
+                foreach (var symbol in element.Value.Split(
+                    ';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (symbol.StartsWith("$(", StringComparison.Ordinal) || declared.Contains(symbol))
+                    {
+                        continue;
+                    }
+
+                    undeclared.Add((Relative(repoRoot, file), symbol));
+                }
+            }
+        }
+
+        return undeclared;
+    }
+
     public static ModuleLedgerReport Scan(string srcRoot, string ledgerPath)
     {
         var srcFull = Path.GetFullPath(srcRoot);

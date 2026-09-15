@@ -11,6 +11,8 @@ public sealed record ToolType(string Name, string File, int Line);
 
 public sealed record SurfaceCallSite(string Surface, string File, int Line);
 
+public sealed record UndeclaredDefineConstant(string ProjectFile, string Symbol);
+
 public sealed record AdapterTierReport(
     IReadOnlyList<ToolType> ToolTypeOutsideTier,
     IReadOnlyList<SurfaceCallSite> SurfaceWithoutTier,
@@ -18,7 +20,8 @@ public sealed record AdapterTierReport(
     IReadOnlyList<string> ParseErrors,
     IReadOnlyList<string> RegistryErrors,
     int ScannedFileCount,
-    int ExpectedFileCountFloor);
+    int ExpectedFileCountFloor,
+    IReadOnlyList<UndeclaredDefineConstant> UndeclaredDefineConstants);
 
 public static class AdapterTierScanner
 {
@@ -107,7 +110,11 @@ public static class AdapterTierScanner
                 && !toolTypes.Any(t => Under(t.Namespace, tier.Namespace)))
             .OrderBy(t => t.Namespace, StringComparer.Ordinal).ToList();
 
-        return new AdapterTierReport(outside, withoutTier, dormant, parseErrors, errors, files.Count, floor);
+        var undeclaredConstants = ModuleLedgerScanner.UndeclaredDefineConstants(repoRoot)
+            .Select(c => new UndeclaredDefineConstant(c.ProjectFile, c.Symbol)).ToList();
+
+        return new AdapterTierReport(
+            outside, withoutTier, dormant, parseErrors, errors, files.Count, floor, undeclaredConstants);
     }
 
     public static IReadOnlyList<string> Evaluate(AdapterTierReport report)
@@ -120,6 +127,11 @@ public static class AdapterTierScanner
         if (report.ScannedFileCount < report.ExpectedFileCountFloor)
         {
             failures.Add($"scanned {report.ScannedFileCount} files, expected at least {report.ExpectedFileCountFloor}");
+        }
+        foreach (var constant in report.UndeclaredDefineConstants)
+        {
+            failures.Add($"the walk cannot be trusted: project {constant.ProjectFile} defines " +
+                $"{constant.Symbol}, add it to ModuleLedgerScanner.ParseOptions");
         }
         foreach (var type in report.ToolTypeOutsideTier)
         {

@@ -76,15 +76,30 @@ The walk is syntax-only, exactly like #846's. It matches on the attribute's
 last identifier segment, so it cannot distinguish a real
 `ModelContextProtocol.Server.McpServerToolType` from an unrelated type of the
 same name; that is the same trade #846 makes for `AppDbContext`/`DbContext`.
-`SurfaceCalls` matches on the invoked method name only, receiver-independent —
-a call to an unrelated `MapMcp` method on a different type would also count.
-Today's tree has none, and the ledger's tier row is what a reviewer reads
-against the real one when #806 lands. The closed privilege set holds one value
-because MCP is the only tier this slice adds; growing it needs the value added
-to `AdapterTier.DirectRepositoryPrivilege`'s closed set and a stated reason,
-not a silent widening. This slice changes no `src/` code, CI workflow, or
-package dependency, and it does not ask #806–#809 to call contracts instead of
-repositories — that remains a Track C question this ledger absorbs for now.
+The surface walk (`AdapterTier.KnownSurfaces`) matches on the invoked method
+name only, receiver-independent — a call to an unrelated `MapMcp` method on a
+different type would also count. Today's tree has none, and the ledger's tier
+row is what a reviewer reads against the real one when #806 lands. The closed
+privilege and surface sets each hold one value because MCP is the only tier
+this slice adds; growing either needs the value added to
+`AdapterTier`'s closed set and a stated reason, not a silent widening. This
+slice changes no `src/` code, CI workflow, or package dependency, and it does
+not ask #806–#809 to call contracts instead of repositories — that remains a
+Track C question this ledger absorbs for now.
+
+The walk still parses every file with one fixed preprocessor symbol list
+(`ModuleLedgerScanner.ParseOptions`), so a project-defined constant's `#if`
+branch is never walked — an inactive branch is invisible to Roslyn's own
+parse, not merely to this scanner. Nothing here reads an inactive branch;
+instead, `ModuleLedgerScanner.UndeclaredDefineConstants` enumerates every
+`*.csproj` under `src/` plus the repo-root `Directory.Build.props`, collects
+each `<DefineConstants>` value, and fails the walk-trust check the moment any
+project defines a symbol the fixed list does not carry. That keeps the fixed
+list honest without walking inactive branches: the day a project needs `#if
+MCP`, adding `MCP` to `DefineConstants` reds this check first, which is the
+prompt to add `MCP` to `ParseOptions` too, before the guarded code can hide
+behind it. `$(DefineConstants)` (the MSBuild reference to the inherited
+value) is not itself a symbol and is skipped.
 
 ## How it is enforced
 
@@ -93,14 +108,16 @@ the scanner on temporary trees: one test per registry error, `ToolTypeOutsideTie
 `SurfaceWithoutTier`, a green `Dormant` row, a green in-tier type, both attribute
 spellings, a file-local alias and a same-project `global using` alias resolving
 to the tool attribute, an alias to an unrelated type not matching, a surface
-call inside a lambda or local function, and a parse error.
+call inside a lambda or local function, a parse error, a fixture `.csproj`
+defining an undeclared preprocessor symbol, and one defining only
+`$(DefineConstants);TRACE`.
 `AdapterTierRealTreeTests` gates the real `src/` tree, confirms the `MapMcp` row
 is declared, and pins it `Dormant` today — that last assertion is written to go
 stale, not to stay true forever. `AdapterReachTests` adds two integration
 cases: a tool class under a tier namespace with an undeclared repository
 parameter is red, and one with `AppDbContext` is a persistence violation.
 
-Six real-tree mutations were run against the built scanners and reverted with
+Seven real-tree mutations were run against the built scanners and reverted with
 `git checkout --` or by deleting the added file. Mutations touching only
 `src/` ran with `--no-build`; mutations 2 and 3 edit the ledger's JSON content
 file, which `--no-build` does not recopy into the test output directory, so
@@ -115,6 +132,7 @@ those two ran after a rebuild. Output files are local evidence under
 | `WaterTools(IWaterUsageRepository water)` under `Cluckwork.Api.Mcp` | RED, undeclared reach `WaterTools.ctor -> GeneralInventory` | `4-tier-namespace-undeclared-reach.txt` |
 | Same class taking `AppDbContext` | RED, forbidden persistence type at `WaterTools.cs:3` | `5-tier-namespace-appdbcontext.txt` |
 | codex-sol review of #880: a class outside `Cluckwork.Api.Mcp` carrying a locally-declared `McpServerToolTypeAttribute`, referenced only through a `using ToolMarker = ...;` alias | RED, `ToolTypeOutsideTier` at `AdapterTierAliasProbe.cs:7` | `6-alias-outside-tier.txt` |
+| codex-sol review of #880: `<DefineConstants>MCP</DefineConstants>` added to `src/Cluckwork.Api/Cluckwork.Api.csproj` | RED, "the walk cannot be trusted: project src/Cluckwork.Api/Cluckwork.Api.csproj defines MCP, add it to ModuleLedgerScanner.ParseOptions" | `7-csproj-defines-mcp.txt` |
 
 Run the gate with:
 
