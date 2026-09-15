@@ -96,6 +96,49 @@ public sealed class AdapterTierTests : IDisposable
     }
 
     [Fact]
+    public void FileLocalAliasToToolAttribute_OutsideTier_IsReported()
+    {
+        WriteSource("Probe.cs", """
+            using ToolMarker = ModelContextProtocol.Server.McpServerToolTypeAttribute;
+            namespace Cluckwork.Temp.Endpoints;
+            [ToolMarker]
+            public sealed class Probe { }
+            """);
+        var failure = Assert.Single(AdapterTierScanner.Evaluate(Scan(Tier())));
+        Assert.Contains("Cluckwork.Temp.Endpoints.Probe", failure);
+        Assert.Contains("src/Probe.cs:3", failure);
+    }
+
+    [Fact]
+    public void GlobalAliasFromAnotherFileInSameProject_IsDetected()
+    {
+        WriteSource("ProjA/Aliases.cs", """
+            global using ToolMarker = ModelContextProtocol.Server.McpServerToolTypeAttribute;
+            namespace Cluckwork.Temp.ProjA;
+            """);
+        WriteSource("ProjA/Probe.cs", """
+            namespace Cluckwork.Temp.Endpoints;
+            [ToolMarker]
+            public sealed class Probe { }
+            """);
+        var failure = Assert.Single(AdapterTierScanner.Evaluate(Scan(Tier())));
+        Assert.Contains("Cluckwork.Temp.Endpoints.Probe", failure);
+        Assert.Contains("src/ProjA/Probe.cs:2", failure);
+    }
+
+    [Fact]
+    public void AliasToUnrelatedType_DoesNotMatch()
+    {
+        WriteSource("Probe.cs", """
+            using NotATool = System.ObsoleteAttribute;
+            namespace Cluckwork.Temp.Endpoints;
+            [NotATool]
+            public sealed class Probe { }
+            """);
+        Assert.Empty(Scan(Tier()).ToolTypeOutsideTier);
+    }
+
+    [Fact]
     public void SurfaceCallInsideLambdaOrLocalFunction_IsDetected()
     {
         WriteSource("Program.cs", """

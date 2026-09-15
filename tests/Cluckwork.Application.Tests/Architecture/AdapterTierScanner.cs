@@ -44,6 +44,7 @@ public static class AdapterTierScanner
         var toolTypes = new List<(string Namespace, ToolType Type)>();
         var surfaceCalls = new List<SurfaceCallSite>();
 
+        var parsed = new List<(string Relative, CompilationUnitSyntax Root, string ProjectNamespace)>();
         foreach (var file in files)
         {
             var relative = Relative(repoRoot, file);
@@ -56,15 +57,28 @@ public static class AdapterTierScanner
                 parseErrors.Add($"{relative}:{line}: {diagnostic.Id} {diagnostic.GetMessage()}");
             }
 
-            var rootNamespace = ModuleLedgerScanner.ProjectRootNamespace(srcFull, file);
+            parsed.Add((relative, root, ModuleLedgerScanner.ProjectRootNamespace(srcFull, file)));
+        }
+
+        // A `global using X = ...;` in any file of a project aliases an
+        // attribute name for every other file in that project, so the alias
+        // table has to be built across the whole project before a single
+        // file's types can be checked against it.
+        var globalAliases = CollectGlobalAliases(parsed);
+
+        foreach (var (relative, root, projectNamespace) in parsed)
+        {
+            var localAliases = LocalAliasDirectives(root);
+            globalAliases.TryGetValue(projectNamespace, out var projectAliasMap);
+
             foreach (var type in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
             {
-                if (!HasToolAttribute(type))
+                if (!HasToolAttribute(type, localAliases, projectAliasMap))
                 {
                     continue;
                 }
 
-                var ns = ModuleLedgerScanner.NamespaceOf(type, rootNamespace);
+                var ns = ModuleLedgerScanner.NamespaceOf(type, projectNamespace);
                 var line = type.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
                 toolTypes.Add((ns, new ToolType(FullName(type, ns), relative, line)));
             }
@@ -135,8 +149,92 @@ public static class AdapterTierScanner
         reviewBy = "<#issue>",
     }, RowOptions);
 
-    private static bool HasToolAttribute(TypeDeclarationSyntax type) =>
-        type.AttributeLists.SelectMany(list => list.Attributes).Any(attr => ToolAttributes.Contains(LastIdentifier(attr.Name)));
+    private sealed record AliasDirective(string Alias, string Target, BaseNamespaceDeclarationSyntax? Block);
+
+    private static bool HasToolAttribute(
+        TypeDeclarationSyntax type,
+        IReadOnlyList<AliasDirective> localAliases,
+        IReadOnlyDictionary<string, string>? projectAliases) =>
+        type.AttributeLists.SelectMany(list => list.Attributes)
+            .Any(attr => IsToolAttributeName(LastIdentifier(attr.Name), type, localAliases, projectAliases));
+
+    private static bool IsToolAttributeName(
+        string identifier,
+        TypeDeclarationSyntax type,
+        IReadOnlyList<AliasDirective> localAliases,
+        IReadOnlyDictionary<string, string>? projectAliases)
+    {
+        if (ToolAttributes.Contains(identifier))
+        {
+            return true;
+        }
+
+        // A block-scoped alias only resolves for a type declared inside that
+        // namespace block; a compilation-unit-level alias (Block is null)
+        // resolves for every type in the file.
+        foreach (var alias in localAliases)
+        {
+            if (alias.Alias == identifier
+                && (alias.Block is null || type.Ancestors().Contains(alias.Block))
+                && ToolAttributes.Contains(alias.Target))
+            {
+                return true;
+            }
+        }
+
+        return projectAliases is not null
+            && projectAliases.TryGetValue(identifier, out var globalTarget)
+            && ToolAttributes.Contains(globalTarget);
+    }
+
+    // Non-global alias directives in one file, with the namespace block they
+    // are scoped to (null for a compilation-unit-level directive). Computed
+    // once per file rather than once per type, since a file rarely carries
+    // more than one or two.
+    private static IReadOnlyList<AliasDirective> LocalAliasDirectives(CompilationUnitSyntax root) =>
+        root.DescendantNodes().OfType<UsingDirectiveSyntax>()
+            .Where(d => d.Alias is not null && d.GlobalKeyword == default)
+            .Select(d => (Directive: d, Target: AliasTargetLastIdentifier(d.NamespaceOrType)))
+            .Where(d => d.Target is not null)
+            .Select(d => new AliasDirective(
+                d.Directive.Alias!.Name.Identifier.ValueText, d.Target!, d.Directive.Parent as BaseNamespaceDeclarationSyntax))
+            .ToList();
+
+    // `global using X = ...;` aliases, grouped by the project (root namespace
+    // folder under src/) that declared them — a global alias applies to every
+    // file in that project, wherever it is declared, but not across projects.
+    private static Dictionary<string, Dictionary<string, string>> CollectGlobalAliases(
+        IEnumerable<(string Relative, CompilationUnitSyntax Root, string ProjectNamespace)> parsed)
+    {
+        var byProject = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
+        foreach (var (_, root, project) in parsed)
+        {
+            foreach (var directive in root.DescendantNodes().OfType<UsingDirectiveSyntax>())
+            {
+                if (directive.GlobalKeyword == default || directive.Alias is null)
+                {
+                    continue;
+                }
+
+                if (AliasTargetLastIdentifier(directive.NamespaceOrType) is not { } target)
+                {
+                    continue;
+                }
+
+                if (!byProject.TryGetValue(project, out var aliases))
+                {
+                    byProject[project] = aliases = new Dictionary<string, string>(StringComparer.Ordinal);
+                }
+
+                aliases[directive.Alias.Name.Identifier.ValueText] = target;
+            }
+        }
+
+        return byProject;
+    }
+
+    private static string? AliasTargetLastIdentifier(TypeSyntax target) =>
+        target is NameSyntax name ? LastIdentifier(name) : null;
 
     private static string LastIdentifier(NameSyntax name) => name switch
     {

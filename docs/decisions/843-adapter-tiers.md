@@ -28,8 +28,10 @@ the exemption an end date. `adapterTiers` in
 array of `{ namespace, privilege, surface, reason, reviewBy }` rows; today it
 holds one, `Cluckwork.Api.Mcp` → `DirectRepository`, surfaced by `MapMcp`,
 reviewed by `#806`. `AdapterTierScanner` walks every `.cs` under `src/` for a
-type carrying `[McpServerToolType]` (simple, qualified, or `Attribute`-suffixed)
-and every invocation of a declared surface call (`MapMcp` today). A tool type
+type carrying `[McpServerToolType]` (simple, qualified, or `Attribute`-suffixed,
+or reached through a `using X = ...;` alias — a file-level or namespace-block
+alias in the same file, or a `global using` alias declared anywhere in the same
+project) and every invocation of a declared surface call (`MapMcp` today). A tool type
 outside every declared tier namespace is red. A mapped surface with no tier row
 is red, and the failure prints the JSON row to add. A tier row whose surface is
 never invoked and whose namespace holds no type is `Dormant` — informational,
@@ -89,14 +91,16 @@ repositories — that remains a Track C question this ledger absorbs for now.
 `tests/Cluckwork.Application.Tests/Architecture/AdapterTierTests.cs` exercises
 the scanner on temporary trees: one test per registry error, `ToolTypeOutsideTier`,
 `SurfaceWithoutTier`, a green `Dormant` row, a green in-tier type, both attribute
-spellings, a surface call inside a lambda or local function, and a parse error.
+spellings, a file-local alias and a same-project `global using` alias resolving
+to the tool attribute, an alias to an unrelated type not matching, a surface
+call inside a lambda or local function, and a parse error.
 `AdapterTierRealTreeTests` gates the real `src/` tree, confirms the `MapMcp` row
 is declared, and pins it `Dormant` today — that last assertion is written to go
 stale, not to stay true forever. `AdapterReachTests` adds two integration
 cases: a tool class under a tier namespace with an undeclared repository
 parameter is red, and one with `AppDbContext` is a persistence violation.
 
-Five real-tree mutations were run against the built scanners and reverted with
+Six real-tree mutations were run against the built scanners and reverted with
 `git checkout --` or by deleting the added file. Mutations touching only
 `src/` ran with `--no-build`; mutations 2 and 3 edit the ledger's JSON content
 file, which `--no-build` does not recopy into the test output directory, so
@@ -110,6 +114,7 @@ those two ran after a rebuild. Output files are local evidence under
 | Remove `reviewBy` from the MCP row | RED, registry error: blank `reviewBy` | `3-remove-reviewby.txt` |
 | `WaterTools(IWaterUsageRepository water)` under `Cluckwork.Api.Mcp` | RED, undeclared reach `WaterTools.ctor -> GeneralInventory` | `4-tier-namespace-undeclared-reach.txt` |
 | Same class taking `AppDbContext` | RED, forbidden persistence type at `WaterTools.cs:3` | `5-tier-namespace-appdbcontext.txt` |
+| codex-sol review of #880: a class outside `Cluckwork.Api.Mcp` carrying a locally-declared `McpServerToolTypeAttribute`, referenced only through a `using ToolMarker = ...;` alias | RED, `ToolTypeOutsideTier` at `AdapterTierAliasProbe.cs:7` | `6-alias-outside-tier.txt` |
 
 Run the gate with:
 
