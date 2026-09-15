@@ -1,0 +1,177 @@
+{
+  "owners": {
+    "Access":           { "kind": "module",   "namespaces": ["Cluckwork.Application.Features.Users", "Cluckwork.Infrastructure.Identity"] },
+    "Farm":             { "kind": "module",   "namespaces": ["Cluckwork.Domain.Accounts", "Cluckwork.Domain.Media", "Cluckwork.Application.Features.Accounts"] },
+    "FlockManagement":  { "kind": "module",   "namespaces": ["Cluckwork.Domain.Flocks", "Cluckwork.Application.Features.Flocks"] },
+    "EggOperations":    { "kind": "module",   "namespaces": ["Cluckwork.Domain.Eggs", "Cluckwork.Application.Features.DailyEntries", "Cluckwork.Application.Features.EggGrades", "Cluckwork.Application.Features.EggLots", "Cluckwork.Application.Features.Eggs"] },
+    "Commerce":         { "kind": "module",   "namespaces": ["Cluckwork.Domain.Catalog", "Cluckwork.Domain.Sales", "Cluckwork.Application.Features.Catalog", "Cluckwork.Application.Features.Customers", "Cluckwork.Application.Features.Sales"] },
+    "GeneralInventory": { "kind": "module",   "namespaces": ["Cluckwork.Domain.Inventory", "Cluckwork.Application.Features.Inventory"] },
+    "Finance":          { "kind": "module",   "namespaces": ["Cluckwork.Domain.Expenses", "Cluckwork.Application.Features.Expenses"] },
+    "Insights":         { "kind": "module",   "namespaces": ["Cluckwork.Application.Features.Audit", "Cluckwork.Application.Features.Reports", "Cluckwork.Application.Features.Export"] },
+    "Platform":         { "kind": "platform", "namespaces": ["Cluckwork.Domain.Common", "Cluckwork.Domain.Auditing", "Cluckwork.Application.Common", "Cluckwork.Infrastructure", "Cluckwork.Api", "Cluckwork.AppHost"], "exactNamespaces": ["Cluckwork.Domain", "Cluckwork.Application"] }
+  },
+  "edges": [
+    {
+      "from": "Access", "to": "Commerce", "kind": "W",
+      "reason": "W because AccountProvisioner inserts EggUnitConversion.Defaults for a new farm inside its provisioning transaction; the rest of the cell reads. Identity carries the per-user stepper-unit preference: ApplicationUser stores Domain.Catalog.EggUnit, IdentityProvider reads and writes it, SetStepperUnitHandler resolves it through Commerce's IEggUnitConversionRepository and rejects inactive conversions, and SetStepperUnitValidator validates only the enum name. Nothing prevents a stored preference from pointing at a conversion later deactivated through UpdateEggUnitConversionHandler. Design 3.4 shows Access -> Commerce as none; this is live coupling the target design has still to remove.",
+      "symbols": [
+        "Cluckwork.Application.Features.Users.SetStepperUnit.SetStepperUnitHandler",
+        "Cluckwork.Application.Features.Users.SetStepperUnit.SetStepperUnitValidator",
+        "Cluckwork.Infrastructure.Identity.AccountProvisionOutcome",
+        "Cluckwork.Infrastructure.Identity.AccountProvisioner",
+        "Cluckwork.Infrastructure.Identity.ApplicationUser",
+        "Cluckwork.Infrastructure.Identity.IdentityProvider"
+      ]
+    },
+    {
+      "from": "Access", "to": "EggOperations", "kind": "W",
+      "reason": "W because AccountProvisioner inserts a new farm's default grades, Domain.Eggs.EggGrade.Defaults(accountId, SeedDefaults.FarmId), inside its provisioning transaction, so farm provisioning writes Egg Operations' table and depends on its grade shape. Design 3.4 shows Access -> Egg Ops as none; this is live coupling the target design has still to remove.",
+      "symbols": [
+        "Cluckwork.Infrastructure.Identity.AccountProvisionOutcome",
+        "Cluckwork.Infrastructure.Identity.AccountProvisioner"
+      ]
+    },
+    {
+      "from": "Access", "to": "Farm", "kind": "W",
+      "reason": "W because AccountProvisioner inserts the new Account inside its provisioning transaction and AccountRenameService calls Account.Rename and saves; the rest of the cell reads. Identity is where a farm is created, renamed, suspended and recovered. AccountProvisioner, AccountRenameService, AccountSuspensionService, AdminRecoveryService, FirstRunAdminService and FirstRunStatusService load Domain.Accounts.Account or inject Farm's IAccountRepository, and IdentityProvider takes that repository by fully qualified name for the account-scoped login (#532). The user validators read Domain.Accounts.Roles for the assignable role set, and IUserRoleAssignmentRepository returns Domain.Accounts.UserRoleAssignment rows. Design 3.4 row Access -> Farm = R.",
+      "symbols": [
+        "Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler",
+        "Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler",
+        "Cluckwork.Application.Features.Users.ChangeUserRole.ChangeUserRoleValidator",
+        "Cluckwork.Application.Features.Users.CreateUser.CreateUserValidator",
+        "Cluckwork.Application.Features.Users.IUserRoleAssignmentRepository",
+        "Cluckwork.Application.Features.Users.UserFlockAssignment",
+        "Cluckwork.Infrastructure.Identity.AccountLifecycleOutcome",
+        "Cluckwork.Infrastructure.Identity.AccountProvisionOutcome",
+        "Cluckwork.Infrastructure.Identity.AccountProvisioner",
+        "Cluckwork.Infrastructure.Identity.AccountRenameOutcome",
+        "Cluckwork.Infrastructure.Identity.AccountRenameService",
+        "Cluckwork.Infrastructure.Identity.AccountSuspensionService",
+        "Cluckwork.Infrastructure.Identity.AdminRecoveryResult",
+        "Cluckwork.Infrastructure.Identity.AdminRecoveryService",
+        "Cluckwork.Infrastructure.Identity.FirstRunAdminOutcome",
+        "Cluckwork.Infrastructure.Identity.FirstRunAdminService",
+        "Cluckwork.Infrastructure.Identity.FirstRunProvisioningLatch",
+        "Cluckwork.Infrastructure.Identity.FirstRunStatusService",
+        "Cluckwork.Infrastructure.Identity.IdentityProvider"
+      ]
+    },
+    {
+      "from": "Access", "to": "FlockManagement", "kind": "R",
+      "reason": "AssignFlockHandler and UnassignFlockHandler inject Flock Management's IFlockRepository to prove the flock exists before narrowing a worker to it (#103, spec 5.2/5.3). Design 3.4 row Access -> Flock = R.",
+      "symbols": [
+        "Cluckwork.Application.Features.Users.AssignFlock.AssignFlockHandler",
+        "Cluckwork.Application.Features.Users.AssignFlock.UnassignFlockHandler"
+      ]
+    },
+    {
+      "from": "Commerce", "to": "Access", "kind": "R",
+      "reason": "ConfirmSaleHandler injects Access's IUserRoleAssignmentRepository and calls IIdentityProvider.GetEffectiveRoleAsync inside the confirm transaction, so a plain Worker's committed flock assignments and the discount ceiling bound to their effective role are read at the moment of confirmation rather than from a request-start snapshot (#727). Design 3.4 shows Commerce -> Access as none; this is live coupling the target design has still to remove.",
+      "symbols": [
+        "Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleHandler"
+      ]
+    },
+    {
+      "from": "Commerce", "to": "EggOperations", "kind": "W",
+      "reason": "FIFO egg stock. ConfirmSaleHandler and VoidSaleHandler draw from and return to Domain.Eggs.EggLot through Egg Operations' IEggLotRepository and IEggInventoryMovementRepository inside the confirm and void transactions, and SaleAllocationPlanner plans those draws over EggLot. Products and order lines map to grades through IEggGradeRepository in CreateProductHandler, UpdateProductHandler and AddOrderItemHandler. Design 3.4 row Commerce -> Egg Ops = W.",
+      "symbols": [
+        "Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductHandler",
+        "Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductHandler",
+        "Cluckwork.Application.Features.Sales.AddOrderItem.AddOrderItemHandler",
+        "Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleHandler",
+        "Cluckwork.Application.Features.Sales.ConfirmSale.PlannedEggLotDraw",
+        "Cluckwork.Application.Features.Sales.ConfirmSale.SaleAllocationPlan",
+        "Cluckwork.Application.Features.Sales.ConfirmSale.SaleAllocationPlanner",
+        "Cluckwork.Application.Features.Sales.VoidSale.VoidSaleHandler"
+      ]
+    },
+    {
+      "from": "Commerce", "to": "Farm", "kind": "R",
+      "reason": "Orders and products snapshot the farm's currency through Farm's IAccountRepository (CreateSalesOrderHandler, CreateProductHandler, UpdateProductHandler), with the sales-order path holding the FOR SHARE lock on the account row (#162) so an order cannot land in a denomination the farm is mid-flight out of; ConfirmSaleHandler also reads the farm's discount ceiling and worker sale-allocation policy off Account. Design 3.4 row Commerce -> Farm = R.",
+      "symbols": [
+        "Cluckwork.Application.Features.Catalog.CreateProduct.CreateProductHandler",
+        "Cluckwork.Application.Features.Catalog.UpdateProduct.UpdateProductHandler",
+        "Cluckwork.Application.Features.Sales.ConfirmSale.ConfirmSaleHandler",
+        "Cluckwork.Application.Features.Sales.CreateSalesOrder.CreateSalesOrderHandler"
+      ]
+    },
+    {
+      "from": "EggOperations", "to": "Farm", "kind": "R",
+      "reason": "CreateEggGradeHandler attaches a new grade to Domain.Accounts.SeedDefaults.FarmId, the single-farm stand-in for the farm the grade belongs to. Design 3.4 row Egg Ops -> Farm = R.",
+      "symbols": [
+        "Cluckwork.Application.Features.EggGrades.CreateEggGrade.CreateEggGradeHandler"
+      ]
+    },
+    {
+      "from": "EggOperations", "to": "FlockManagement", "kind": "W",
+      "reason": "Daily entry is the mortality writer: SubmitDailyEntryHandler, AdjustDailyEntryHandler and VoidDailyEntryHandler append Domain.Flocks bird-movement rows through Flock Management's IBirdMovementRepository in the same transaction as the entry itself (#54, #69), and every daily-entry handler loads the flock through IFlockRepository to check Flock.CanRecordProductionOn for the entry's date. Design 3.4 row Egg Ops -> Flock = W.",
+      "symbols": [
+        "Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry.AdjustDailyEntryHandler",
+        "Cluckwork.Application.Features.DailyEntries.AdjustDailyEntry.AdjustDailyEntryResponse",
+        "Cluckwork.Application.Features.DailyEntries.RecordDailyEntry.RecordDailyEntryHandler",
+        "Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry.SubmitDailyEntryHandler",
+        "Cluckwork.Application.Features.DailyEntries.SubmitDailyEntry.SubmitDailyEntryResponse",
+        "Cluckwork.Application.Features.DailyEntries.VoidDailyEntry.VoidDailyEntryHandler",
+        "Cluckwork.Application.Features.DailyEntries.VoidDailyEntry.VoidDailyEntryResponse"
+      ]
+    },
+    {
+      "from": "Farm", "to": "Commerce", "kind": "R",
+      "reason": "Farm settings own three Commerce-shaped values. Domain.Accounts.Account holds Domain.Catalog.EggUnit as the farm's default stepper unit and exposes Domain.Sales.DiscountCeiling, while UpdateFarmSettingsHandler resolves the stepper unit through Commerce's IEggUnitConversionRepository and UpdateFarmSettingsValidator parses the ceiling with DiscountCeiling.TryParsePercent (#727). Design 3.4 shows Farm -> Commerce as none; this is live coupling the target design has still to remove.",
+      "symbols": [
+        "Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsHandler",
+        "Cluckwork.Application.Features.Accounts.UpdateFarmSettings.UpdateFarmSettingsValidator",
+        "Cluckwork.Domain.Accounts.Account"
+      ]
+    },
+    {
+      "from": "Finance", "to": "Farm", "kind": "R",
+      "reason": "CreateExpenseHandler injects Farm's IAccountRepository for the lock-aware currency snapshot an expense binds to (#162, FOR SHARE on the account row), and it and CreateExpenseCategoryHandler attach their rows to Domain.Accounts.SeedDefaults.FarmId. Design 3.4 classes this cell W, but the code reads Farm state under a shared row lock and mutates nothing there, the same shape 3.4 classes R on Commerce -> Farm and Inventory -> Farm; the ledger records what the code does and notes the disagreement here so #848 regenerates the matrix from this reading.",
+      "symbols": [
+        "Cluckwork.Application.Features.Expenses.CreateExpense.CreateExpenseHandler",
+        "Cluckwork.Application.Features.Expenses.CreateExpenseCategory.CreateExpenseCategoryHandler"
+      ]
+    },
+    {
+      "from": "Finance", "to": "FlockManagement", "kind": "R",
+      "reason": "CreateExpenseHandler and AdjustExpenseHandler inject Flock Management's IFlockRepository to validate the optional flock an expense is attributed to. Design 3.4 row Finance -> Flock = R.",
+      "symbols": [
+        "Cluckwork.Application.Features.Expenses.AdjustExpense.AdjustExpenseHandler",
+        "Cluckwork.Application.Features.Expenses.CreateExpense.CreateExpenseHandler"
+      ]
+    },
+    {
+      "from": "FlockManagement", "to": "Farm", "kind": "R",
+      "reason": "CreateFlockHandler places a new flock on Domain.Accounts.SeedDefaults.FarmId and SeedDefaults.HouseId, the single-farm stand-ins. Design 3.4 row Flock -> Farm = R.",
+      "symbols": [
+        "Cluckwork.Application.Features.Flocks.CreateFlock.CreateFlockHandler"
+      ]
+    },
+    {
+      "from": "GeneralInventory", "to": "EggOperations", "kind": "R",
+      "reason": "RecordFeedUsageHandler and RecordWaterUsageHandler inject Egg Operations' IDailyEntryRepository by fully qualified name and call FindByNaturalKeyForFlockScopedWriteAsync, so a feed or water record carries the day's daily-entry provenance. Design 3.4 shows Inventory -> Egg Ops as none; this is live coupling the target design has still to remove.",
+      "symbols": [
+        "Cluckwork.Application.Features.Inventory.RecordFeedUsage.RecordFeedUsageHandler",
+        "Cluckwork.Application.Features.Inventory.RecordWaterUsage.RecordWaterUsageHandler"
+      ]
+    },
+    {
+      "from": "GeneralInventory", "to": "Farm", "kind": "R",
+      "reason": "CreateInventoryItemHandler, RecordPurchaseHandler and UpdateInventoryItemHandler inject Farm's IAccountRepository for the farm currency a priced item or a purchase snapshots, under the same FOR SHARE account-row lock as the sales path (#162), and CreateInventoryItemHandler attaches the item to Domain.Accounts.SeedDefaults.FarmId. Design 3.4 row Inventory -> Farm = R.",
+      "symbols": [
+        "Cluckwork.Application.Features.Inventory.CreateInventoryItem.CreateInventoryItemHandler",
+        "Cluckwork.Application.Features.Inventory.RecordPurchase.RecordPurchaseHandler",
+        "Cluckwork.Application.Features.Inventory.UpdateInventoryItem.UpdateInventoryItemHandler"
+      ]
+    },
+    {
+      "from": "GeneralInventory", "to": "FlockManagement", "kind": "R",
+      "reason": "RecordFeedUsageHandler, RecordWaterUsageHandler and UpdateWaterUsageHandler inject Flock Management's IFlockRepository to prove the flock being fed or watered exists and is eligible for the usage date. Design 3.4 row Inventory -> Flock = R.",
+      "symbols": [
+        "Cluckwork.Application.Features.Inventory.RecordFeedUsage.RecordFeedUsageHandler",
+        "Cluckwork.Application.Features.Inventory.RecordWaterUsage.RecordWaterUsageHandler",
+        "Cluckwork.Application.Features.Inventory.UpdateWaterUsage.UpdateWaterUsageHandler"
+      ]
+    }
+  ]
+}
