@@ -3,6 +3,7 @@ namespace Cluckwork.Application.Tests.Architecture;
 // #842 — the committed module ledger: owners by namespace, one cell per cross-owner dependency.
 
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 public sealed record OwnerDefinition(
     string Name,
@@ -26,6 +27,11 @@ public sealed record AdapterRoots(IReadOnlyList<string> Namespaces, IReadOnlyLis
 
 public sealed record AdapterClaim(string Symbol, IReadOnlyList<string> Reaches);
 
+public sealed record AdapterTier(string Namespace, string Privilege, string Surface, string Reason, string ReviewBy)
+{
+    public const string DirectRepositoryPrivilege = "DirectRepository";
+}
+
 public sealed record ModuleLedger(
     IReadOnlyList<OwnerDefinition> Owners,
     IReadOnlyList<EdgeCell> Edges,
@@ -37,6 +43,7 @@ public sealed record ModuleLedger(
 
     public AdapterRoots AdapterRoots { get; init; } = new([], []);
     public IReadOnlyList<AdapterClaim> Adapters { get; init; } = [];
+    public IReadOnlyList<AdapterTier> AdapterTiers { get; init; } = [];
 
     public const string ModuleKind = "module";
     public const string PlatformKind = "platform";
@@ -46,6 +53,8 @@ public sealed record ModuleLedger(
         CommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
     };
+
+    private static readonly Regex ReviewByPattern = new("^#[0-9]+$", RegexOptions.Compiled);
 
     public static ModuleLedger Load(string path)
     {
@@ -153,10 +162,24 @@ public sealed record ModuleLedger(
                     row.ValueKind == JsonValueKind.Object
                         ? ReadStringArray(row, "reaches", label, errors) : []));
 
+            var adapterTiers = ReadRows(root, "adapterTiers", errors,
+                (row, label) => ReadAdapterTier(row, label, errors));
+            foreach (var duplicate in adapterTiers.GroupBy(t => t.Namespace, StringComparer.Ordinal)
+                         .Where(g => g.Count() > 1 && !string.IsNullOrWhiteSpace(g.Key)))
+            {
+                errors.Add($"duplicate adapterTiers namespace '{duplicate.Key}'");
+            }
+            foreach (var duplicate in adapterTiers.GroupBy(t => t.Surface, StringComparer.Ordinal)
+                         .Where(g => g.Count() > 1 && !string.IsNullOrWhiteSpace(g.Key)))
+            {
+                errors.Add($"duplicate adapterTiers surface '{duplicate.Key}'");
+            }
+
             return new ModuleLedger(owners, edges, errors)
             {
                 AdapterRoots = adapterRoots,
                 Adapters = adapters,
+                AdapterTiers = adapterTiers,
                 Tables = tables,
                 ForeignKeys = foreignKeys,
                 TableOwnerOverrides = overrides,
@@ -192,6 +215,28 @@ public sealed record ModuleLedger(
         if (string.IsNullOrWhiteSpace(value))
             errors.Add($"{label} has a blank or non-string '{name}'");
         return value ?? string.Empty;
+    }
+
+    private static AdapterTier ReadAdapterTier(JsonElement row, string label, List<string> errors)
+    {
+        var ns = RequiredString(row, "namespace", label, errors);
+        var privilege = RequiredString(row, "privilege", label, errors);
+        var surface = RequiredString(row, "surface", label, errors);
+        var reason = RequiredString(row, "reason", label, errors);
+        var reviewBy = RequiredString(row, "reviewBy", label, errors);
+
+        if (!string.IsNullOrWhiteSpace(privilege) && privilege != AdapterTier.DirectRepositoryPrivilege)
+        {
+            errors.Add($"{label} has privilege '{privilege}', which is not in the closed set " +
+                $"{{'{AdapterTier.DirectRepositoryPrivilege}'}}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(reviewBy) && !ReviewByPattern.IsMatch(reviewBy))
+        {
+            errors.Add($"{label} has reviewBy '{reviewBy}', which must match ^#[0-9]+$ — an exemption needs an end date");
+        }
+
+        return new AdapterTier(ns, privilege, surface, reason, reviewBy);
     }
 
     private static OwnerDefinition ReadOwner(JsonProperty property, List<string> errors)

@@ -1,0 +1,173 @@
+namespace Cluckwork.Application.Tests.Architecture;
+
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using Cluckwork.Application.Tests.TenantBypass;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+public sealed record ToolType(string Name, string File, int Line);
+
+public sealed record SurfaceCallSite(string Surface, string File, int Line);
+
+public sealed record AdapterTierReport(
+    IReadOnlyList<ToolType> ToolTypeOutsideTier,
+    IReadOnlyList<SurfaceCallSite> SurfaceWithoutTier,
+    IReadOnlyList<AdapterTier> Dormant,
+    IReadOnlyList<string> ParseErrors,
+    IReadOnlyList<string> RegistryErrors,
+    int ScannedFileCount,
+    int ExpectedFileCountFloor);
+
+public static class AdapterTierScanner
+{
+    internal const int RealTreeFileFloor = 400;
+
+    private static readonly HashSet<string> ToolAttributes = new(StringComparer.Ordinal)
+    {
+        "McpServerToolType", "McpServerToolTypeAttribute",
+    };
+
+    private static readonly HashSet<string> SurfaceCalls = new(StringComparer.Ordinal)
+    {
+        "MapMcp",
+    };
+
+    public static AdapterTierReport Scan(string srcRoot, string ledgerPath)
+    {
+        var srcFull = Path.GetFullPath(srcRoot);
+        var repoRoot = Path.GetDirectoryName(srcFull)!;
+        var ledger = ModuleLedger.Load(ledgerPath);
+        var errors = new List<string>(ledger.RegistryErrors);
+
+        var files = GuardScanner.EnumerateSourceFiles(srcFull);
+        var floor = GuardScanner.FindRepoRoot(AppContext.BaseDirectory) is { } realRoot
+            && srcFull == Path.Combine(realRoot, "src") ? RealTreeFileFloor : files.Count;
+
+        var parseErrors = new List<string>();
+        var toolTypes = new List<(string Namespace, ToolType Type)>();
+        var surfaceCalls = new List<SurfaceCallSite>();
+
+        foreach (var file in files)
+        {
+            var relative = Relative(repoRoot, file);
+            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file), ModuleLedgerScanner.ParseOptions, file);
+            var root = tree.GetCompilationUnitRoot();
+
+            foreach (var diagnostic in tree.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error))
+            {
+                var line = diagnostic.Location.GetLineSpan().StartLinePosition.Line + 1;
+                parseErrors.Add($"{relative}:{line}: {diagnostic.Id} {diagnostic.GetMessage()}");
+            }
+
+            var rootNamespace = ModuleLedgerScanner.ProjectRootNamespace(srcFull, file);
+            foreach (var type in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+            {
+                if (!HasToolAttribute(type))
+                {
+                    continue;
+                }
+
+                var ns = ModuleLedgerScanner.NamespaceOf(type, rootNamespace);
+                var line = type.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                toolTypes.Add((ns, new ToolType(FullName(type, ns), relative, line)));
+            }
+
+            foreach (var call in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                if (CalledName(call) is { } name && SurfaceCalls.Contains(name.Identifier.ValueText))
+                {
+                    var line = call.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                    surfaceCalls.Add(new SurfaceCallSite(name.Identifier.ValueText, relative, line));
+                }
+            }
+        }
+
+        var outside = toolTypes
+            .Where(t => !ledger.AdapterTiers.Any(tier => Under(t.Namespace, tier.Namespace)))
+            .Select(t => t.Type)
+            .OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
+        var invokedSurfaces = surfaceCalls.Select(c => c.Surface).ToHashSet(StringComparer.Ordinal);
+        var tierSurfaces = ledger.AdapterTiers.Select(t => t.Surface).ToHashSet(StringComparer.Ordinal);
+        var withoutTier = surfaceCalls
+            .Where(c => !tierSurfaces.Contains(c.Surface))
+            .OrderBy(c => c.File, StringComparer.Ordinal).ThenBy(c => c.Line).ToList();
+        var dormant = ledger.AdapterTiers
+            .Where(tier => !invokedSurfaces.Contains(tier.Surface)
+                && !toolTypes.Any(t => Under(t.Namespace, tier.Namespace)))
+            .OrderBy(t => t.Namespace, StringComparer.Ordinal).ToList();
+
+        return new AdapterTierReport(outside, withoutTier, dormant, parseErrors, errors, files.Count, floor);
+    }
+
+    public static IReadOnlyList<string> Evaluate(AdapterTierReport report)
+    {
+        var failures = report.RegistryErrors.Select(e => $"adapter tier registry error: {e}").ToList();
+        if (report.ParseErrors.Count > 0)
+        {
+            failures.Add("the walk cannot be trusted:\n" + string.Join("\n", report.ParseErrors));
+        }
+        if (report.ScannedFileCount < report.ExpectedFileCountFloor)
+        {
+            failures.Add($"scanned {report.ScannedFileCount} files, expected at least {report.ExpectedFileCountFloor}");
+        }
+        foreach (var type in report.ToolTypeOutsideTier)
+        {
+            failures.Add($"tool type {type.Name} at {type.File}:{type.Line} is outside every adapterTiers " +
+                "namespace; add a tier row or move the type");
+        }
+        foreach (var call in report.SurfaceWithoutTier)
+        {
+            failures.Add($"mapped surface {call.Surface} at {call.File}:{call.Line} has no adapterTiers row; " +
+                "review and add the JSON row:\n" + RenderRow(call.Surface));
+        }
+        return failures;
+    }
+
+    private static readonly JsonSerializerOptions RowOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
+    internal static string RenderRow(string surface) => JsonSerializer.Serialize(new
+    {
+        @namespace = "<the tool namespace>",
+        privilege = AdapterTier.DirectRepositoryPrivilege,
+        surface,
+        reason = "<why this surface needs the privilege, with a citation>",
+        reviewBy = "<#issue>",
+    }, RowOptions);
+
+    private static bool HasToolAttribute(TypeDeclarationSyntax type) =>
+        type.AttributeLists.SelectMany(list => list.Attributes).Any(attr => ToolAttributes.Contains(LastIdentifier(attr.Name)));
+
+    private static string LastIdentifier(NameSyntax name) => name switch
+    {
+        QualifiedNameSyntax qualified => qualified.Right.Identifier.ValueText,
+        SimpleNameSyntax simple => simple.Identifier.ValueText,
+        AliasQualifiedNameSyntax alias => LastIdentifier(alias.Name),
+        _ => name.ToString(),
+    };
+
+    private static SimpleNameSyntax? CalledName(InvocationExpressionSyntax call) => call.Expression switch
+    {
+        MemberAccessExpressionSyntax member => member.Name,
+        MemberBindingExpressionSyntax binding => binding.Name,
+        SimpleNameSyntax simple => simple,
+        _ => null,
+    };
+
+    private static string FullName(TypeDeclarationSyntax type, string ns)
+    {
+        var typeNames = type.AncestorsAndSelf().OfType<TypeDeclarationSyntax>()
+            .Reverse().Select(t => t.Identifier.ValueText);
+        return ns + "." + string.Join(".", typeNames);
+    }
+
+    private static bool Under(string name, string prefix) =>
+        name == prefix || name.StartsWith(prefix + ".", StringComparison.Ordinal);
+
+    private static string Relative(string root, string file) => Path.GetRelativePath(root, file).Replace('\\', '/');
+}
