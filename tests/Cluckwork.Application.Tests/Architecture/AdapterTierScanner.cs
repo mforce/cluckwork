@@ -63,10 +63,6 @@ public static class AdapterTierScanner
             parsed.Add((relative, root, ModuleLedgerScanner.ProjectRootNamespace(srcFull, file)));
         }
 
-        // A `global using X = ...;` in any file of a project aliases an
-        // attribute name for every other file in that project, so the alias
-        // table has to be built across the whole project before a single
-        // file's types can be checked against it.
         var globalAliases = CollectGlobalAliases(parsed);
 
         foreach (var (relative, root, projectNamespace) in parsed)
@@ -181,9 +177,6 @@ public static class AdapterTierScanner
             return true;
         }
 
-        // A block-scoped alias only resolves for a type declared inside that
-        // namespace block; a compilation-unit-level alias (Block is null)
-        // resolves for every type in the file.
         foreach (var alias in localAliases)
         {
             if (alias.Alias == identifier
@@ -199,10 +192,6 @@ public static class AdapterTierScanner
             && ToolAttributes.Contains(globalTarget);
     }
 
-    // Non-global alias directives in one file, with the namespace block they
-    // are scoped to (null for a compilation-unit-level directive). Computed
-    // once per file rather than once per type, since a file rarely carries
-    // more than one or two.
     private static IReadOnlyList<AliasDirective> LocalAliasDirectives(CompilationUnitSyntax root) =>
         root.DescendantNodes().OfType<UsingDirectiveSyntax>()
             .Where(d => d.Alias is not null && d.GlobalKeyword == default)
@@ -212,9 +201,6 @@ public static class AdapterTierScanner
                 d.Directive.Alias!.Name.Identifier.ValueText, d.Target!, d.Directive.Parent as BaseNamespaceDeclarationSyntax))
             .ToList();
 
-    // `global using X = ...;` aliases, grouped by the project (root namespace
-    // folder under src/) that declared them — a global alias applies to every
-    // file in that project, wherever it is declared, but not across projects.
     private static Dictionary<string, Dictionary<string, string>> CollectGlobalAliases(
         IEnumerable<(string Relative, CompilationUnitSyntax Root, string ProjectNamespace)> parsed)
     {

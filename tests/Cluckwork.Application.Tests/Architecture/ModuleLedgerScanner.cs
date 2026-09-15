@@ -43,13 +43,7 @@ public static class ModuleLedgerScanner
 
     private const string Prefix = "Cluckwork.";
 
-    // #843 review — a project-defined constant (e.g. `<DefineConstants>MCP</DefineConstants>`)
-    // guards a real `#if MCP` branch this scanner's fixed symbol list never parses, so a
-    // guard fed only ParseOptions.PreprocessorSymbolNames can stay green after that branch
-    // ships. This is the structural check that keeps the fixed list honest: it never adds a
-    // symbol to the parse, it only fails when the project tree defines one the parse does not
-    // carry. `$(DefineConstants)` is the MSBuild reference to the inherited value, not a new
-    // symbol, and is skipped.
+    // A project-defined constant guards an `#if` branch the fixed ParseOptions never parse (#843).
     internal static IReadOnlyList<(string ProjectFile, string Symbol)> UndeclaredDefineConstants(string repoRoot)
     {
         var declared = new HashSet<string>(ParseOptions.PreprocessorSymbolNames, StringComparer.Ordinal);
