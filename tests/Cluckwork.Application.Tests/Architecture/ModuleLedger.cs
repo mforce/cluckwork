@@ -45,6 +45,12 @@ public sealed record ModuleLedger(
     public IReadOnlyList<AdapterClaim> Adapters { get; init; } = [];
     public IReadOnlyList<AdapterTier> AdapterTiers { get; init; } = [];
 
+    public IEnumerable<string> AdapterNamespaces =>
+        AdapterRoots.Namespaces.Concat(AdapterTiers.Select(t => t.Namespace));
+
+    public IEnumerable<string> PersistenceForbiddenNamespaces =>
+        AdapterRoots.PersistenceForbiddenNamespaces.Concat(AdapterTiers.Select(t => t.Namespace));
+
     public const string ModuleKind = "module";
     public const string PlatformKind = "platform";
 
