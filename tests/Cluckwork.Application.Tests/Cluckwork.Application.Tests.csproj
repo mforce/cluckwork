@@ -13,6 +13,7 @@
     <None Include="TenantBypass/Data/tenant-bypass-allowlist.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="TenantBypass/Data/filter-free-set-sites.tsv" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Architecture/Data/module-ledger.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Architecture/Data/coupling-matrix.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
