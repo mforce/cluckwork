@@ -139,7 +139,10 @@ public sealed class SchemaDocsTests
             // the seven are the resource name passed to GetResource by the
             // LocalPorts tests (#590), not image references.
             ["tests/Cluckwork.AppHost.Tests/AppHostModelTests.cs"] =
-                [(PgWord + GresWord, 7), ("library/" + PgWord + GresWord, 1)],
+                [(PgWord + GresWord, 7), ("library/" + PgWord + GresWord, 1),
+                    // The AppHost test composes the pin from ContainerImages' own tag and
+                    // digest constants to assert they agree with the full reference.
+                    (PgWord + GresWord + ":{ContainerImages.PostgresTag}@sha256:{ContainerImages.PostgresSha256}", 1)],
         };
 
         AssertImagePinIsOneIdenticalStringAcrossEveryTrackedFile(
@@ -160,7 +163,8 @@ public sealed class SchemaDocsTests
             // resource name passed to GetResource, and the endpoint's UriScheme
             // in an expectation record. Neither is an image reference.
             ["tests/Cluckwork.AppHost.Tests/AppHostModelTests.cs"] =
-                [(RedWord + IsWord, 9), ("library/" + RedWord + IsWord, 1)],
+                [(RedWord + IsWord, 9), ("library/" + RedWord + IsWord, 1),
+                    (RedWord + IsWord + ":{ContainerImages.RedisTag}@sha256:{ContainerImages.RedisSha256}", 1)],
         };
 
         var runtimeRedisEndpointAllowList = new Dictionary<string, (string Value, int Count)[]>
@@ -264,6 +268,12 @@ public sealed class SchemaDocsTests
             @"(?<q>""{3,})(?<body>[\s\S]*?)\k<q>");
         var decodedImageShapePattern = new Regex(
             @"^(?:[a-z0-9.-]+(?::\d+)?/)*" + escapedRepository + @"(?::[^@\s""]+)?(?:@sha256:[0-9a-f]{64})?$");
+        // An interpolation hole right after the repository (or after its tag) supplies
+        // the rest of the reference at runtime, so no static text ever reads as an image
+        // and the value-based sweep below cannot see it; the SHAPE is refused instead.
+        var interpolationHolePattern = new Regex(@"(?<!\{)\{(?!\{)[^{}]*\}");
+        var interpolatedTagPattern = new Regex(
+            @"(?:^|[^A-Za-z0-9._/-])(?:[a-z0-9.-]+(?::\d+)?/)*" + escapedRepository + @"(?::(?!//)[^\s""{}]*)?$");
         // A bare repository word can ALSO be a legitimate scheme name,
         // database name, or username. Each entry in the supplied allow-list
         // is a reviewed non-image use of a repository-shaped literal, pinned
@@ -496,6 +506,22 @@ public sealed class SchemaDocsTests
                     var body = m.Groups["body"].Value;
                     var value = escapesApply ? DecodeCSharpEscapes(body) : body;
                     tokens.Add((m.Index, m.Index + m.Length, value, escapesApply && body.Contains('\\')));
+                    if (!m.Groups["pfx"].Value.Contains('$')) continue;
+                    foreach (Match hole in interpolationHolePattern.Matches(value))
+                    {
+                        if (!interpolatedTagPattern.IsMatch(value[..hole.Index])) continue;
+                        if (bareLiteralAllowList.TryGetValue(relative, out var allowedInterpolations)
+                            && allowedInterpolations.Any(a => a.Value == body))
+                        {
+                            allowSeen[(relative, body)] = allowSeen.GetValueOrDefault((relative, body)) + 1;
+                            break;
+                        }
+                        var interpolatedMsg = $"\"{body}\" (interpolated {repository} reference whose tag is supplied at runtime — write the reference as one contiguous pinned literal)";
+                        if (!hits.TryGetValue(interpolatedMsg, out var interpolatedFiles))
+                            hits[interpolatedMsg] = interpolatedFiles = [];
+                        interpolatedFiles.Add(relative);
+                        break;
+                    }
                 }
                 foreach (Match m in csharpRawMultilinePattern.Matches(codeText))
                 {
