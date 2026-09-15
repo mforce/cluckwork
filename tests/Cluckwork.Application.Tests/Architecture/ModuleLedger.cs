@@ -18,6 +18,14 @@ public sealed record ForeignKeyCell(string Table, string Name, string From, stri
 
 public sealed record TableOwnerOverride(string Table, string Reason);
 
+public sealed record AdapterRoots(IReadOnlyList<string> Namespaces, IReadOnlyList<string> Types)
+{
+    public IReadOnlyList<string> TopLevelPrograms { get; init; } = [];
+    public IReadOnlyList<string> PersistenceForbiddenNamespaces { get; init; } = [];
+}
+
+public sealed record AdapterClaim(string Symbol, IReadOnlyList<string> Reaches);
+
 public sealed record ModuleLedger(
     IReadOnlyList<OwnerDefinition> Owners,
     IReadOnlyList<EdgeCell> Edges,
@@ -26,6 +34,9 @@ public sealed record ModuleLedger(
     public IReadOnlyList<TableClaim> Tables { get; init; } = [];
     public IReadOnlyList<ForeignKeyCell> ForeignKeys { get; init; } = [];
     public IReadOnlyList<TableOwnerOverride> TableOwnerOverrides { get; init; } = [];
+
+    public AdapterRoots AdapterRoots { get; init; } = new([], []);
+    public IReadOnlyList<AdapterClaim> Adapters { get; init; } = [];
 
     public const string ModuleKind = "module";
     public const string PlatformKind = "platform";
@@ -116,8 +127,36 @@ public sealed record ModuleLedger(
                 new TableOwnerOverride(RequiredString(row, "table", label, errors),
                     RequiredString(row, "reason", label, errors)));
 
+            var adapterRoots = new AdapterRoots([], []);
+            if (root.TryGetProperty("adapterRoots", out var roots))
+            {
+                if (roots.ValueKind != JsonValueKind.Object)
+                {
+                    errors.Add("ledger 'adapterRoots' must be an object");
+                }
+                else
+                {
+                    adapterRoots = new AdapterRoots(
+                        ReadStringArray(roots, "namespaces", "adapterRoots", errors),
+                        ReadStringArray(roots, "types", "adapterRoots", errors))
+                    {
+                        TopLevelPrograms = roots.TryGetProperty("topLevelPrograms", out _)
+                            ? ReadStringArray(roots, "topLevelPrograms", "adapterRoots", errors) : [],
+                        PersistenceForbiddenNamespaces = ReadStringArray(
+                            roots, "persistenceForbiddenNamespaces", "adapterRoots", errors),
+                    };
+                }
+            }
+
+            var adapters = ReadRows(root, "adapters", errors, (row, label) =>
+                new AdapterClaim(RequiredString(row, "symbol", label, errors),
+                    row.ValueKind == JsonValueKind.Object
+                        ? ReadStringArray(row, "reaches", label, errors) : []));
+
             return new ModuleLedger(owners, edges, errors)
             {
+                AdapterRoots = adapterRoots,
+                Adapters = adapters,
                 Tables = tables,
                 ForeignKeys = foreignKeys,
                 TableOwnerOverrides = overrides,

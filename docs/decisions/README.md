@@ -28,6 +28,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 
 | Decision | Rule lives in |
 |---|---|
+| [Adapter module reach may shrink without a ledger edit (#846)](846-adapter-reach-ratchet.md) | AGENTS · Application shape |
 | [Table-owner completeness from the EF model (#845)](845-table-owners.md) | AGENTS · Data and correctness |
 | [Credential epoch revocation (#364)](364-credential-epoch-revocation.md) | AGENTS · Conventions |
 | [Base reference data via guarded raw-SQL migrations (#283)](283-migrations-base-provisioning.md) | AGENTS · Conventions |
