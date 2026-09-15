@@ -240,10 +240,14 @@ public sealed record ModuleLedger(
         var reason = RequiredString(row, "reason", label, errors);
         var reviewBy = RequiredString(row, "reviewBy", label, errors);
 
-        if (!string.IsNullOrWhiteSpace(privilege) && privilege != AdapterTier.DirectRepositoryPrivilege)
+        // The closed set is the map's own values, not the separate constant, so a
+        // privilege introduced only in the constant (and never mapped from a surface)
+        // could never validate a row against it.
+        var allowedPrivileges = AdapterTier.KnownSurfaces.Values.Distinct(StringComparer.Ordinal).ToList();
+        if (!string.IsNullOrWhiteSpace(privilege) && !allowedPrivileges.Contains(privilege, StringComparer.Ordinal))
         {
             errors.Add($"{label} has privilege '{privilege}', which is not in the closed set " +
-                $"{{'{AdapterTier.DirectRepositoryPrivilege}'}}");
+                $"{{{string.Join(", ", allowedPrivileges.Select(p => $"'{p}'"))}}}");
         }
 
         if (!string.IsNullOrWhiteSpace(surface) && !AdapterTier.KnownSurfaces.ContainsKey(surface))
@@ -251,6 +255,17 @@ public sealed record ModuleLedger(
             errors.Add($"{label} has surface '{surface}', which is not in the closed set " +
                 $"{{{string.Join(", ", AdapterTier.KnownSurfaces.Keys.Select(s => $"'{s}'"))}}} " +
                 "that AdapterTierScanner walks");
+        }
+
+        // A row's privilege must be the value the map assigns to its own surface — the map is
+        // the registry, not the separate DirectRepositoryPrivilege constant, so a surface whose
+        // mapped value drifted from a stale row would otherwise pass silently.
+        if (!string.IsNullOrWhiteSpace(privilege) && !string.IsNullOrWhiteSpace(surface)
+            && AdapterTier.KnownSurfaces.TryGetValue(surface, out var expectedPrivilege)
+            && privilege != expectedPrivilege)
+        {
+            errors.Add($"{label} has privilege '{privilege}', but surface '{surface}' grants " +
+                $"'{expectedPrivilege}' — a row's privilege must equal AdapterTier.KnownSurfaces['{surface}']");
         }
 
         if (!string.IsNullOrWhiteSpace(reviewBy) && !ReviewByPattern.IsMatch(reviewBy))

@@ -311,6 +311,16 @@ public sealed class AdapterTierTests : IDisposable
     }
 
     [Fact]
+    public void PrivilegeDoesNotMatchSurfaceMapping_IsRegistryError()
+    {
+        var row = Tier(privilege: "ReadOnlyRepository");
+        Assert.Contains(Scan(row).RegistryErrors,
+            e => e.Contains("privilege", StringComparison.Ordinal)
+                && e.Contains("MapMcp", StringComparison.Ordinal)
+                && e.Contains("DirectRepository", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void UnknownSurface_IsRegistryError()
     {
         var row = Tier(surface: "MapMcpTypo");

@@ -148,10 +148,12 @@ public static class AdapterTierScanner
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
+    // Rendered only for a call site whose surface is already a known key (see the
+    // caller), so the lookup below the map's own value — never the separate constant.
     internal static string RenderRow(string surface) => JsonSerializer.Serialize(new
     {
         @namespace = "<the tool namespace>",
-        privilege = AdapterTier.DirectRepositoryPrivilege,
+        privilege = AdapterTier.KnownSurfaces[surface],
         surface,
         reason = "<why this surface needs the privilege, with a citation>",
         reviewBy = "<#issue>",
