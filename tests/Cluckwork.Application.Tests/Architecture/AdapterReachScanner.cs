@@ -80,13 +80,13 @@ public static class AdapterReachScanner
             {
                 var ns = NamespaceOf(type);
                 var typeName = TypeName(type);
-                if (!ledger.AdapterRoots.Namespaces.Any(prefix => Under(ns, prefix))
+                if (!ledger.AdapterNamespaces.Any(prefix => Under(ns, prefix))
                     && !ledger.AdapterRoots.Types.Contains(typeName, StringComparer.Ordinal))
                 {
                     continue;
                 }
 
-                var banPersistence = ledger.AdapterRoots.PersistenceForbiddenNamespaces.Any(prefix => Under(ns, prefix));
+                var banPersistence = ledger.PersistenceForbiddenNamespaces.Any(prefix => Under(ns, prefix));
                 var adapters = type.Members.OfType<BaseMethodDeclarationSyntax>()
                     .Where(m => m is MethodDeclarationSyntax or ConstructorDeclarationSyntax)
                     .Select(m => (Node: (SyntaxNode)m,

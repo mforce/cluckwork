@@ -43,6 +43,62 @@ public static class ModuleLedgerScanner
 
     private const string Prefix = "Cluckwork.";
 
+    private static readonly string[] MsBuildFileSkipDirectories =
+        ["bin", "obj", "node_modules", ".git", "web"];
+
+    // A constant guards an `#if` branch the fixed ParseOptions never parse (#843). No project
+    // graph exists here, so every MSBuild file is read textually, Condition or not.
+    internal static IReadOnlyList<(string ProjectFile, string Symbol)> UndeclaredDefineConstants(string repoRoot)
+    {
+        var declared = new HashSet<string>(ParseOptions.PreprocessorSymbolNames, StringComparer.Ordinal);
+        var undeclared = new List<(string, string)>();
+
+        foreach (var file in EnumerateMsBuildFiles(repoRoot))
+        {
+            var document = System.Xml.Linq.XDocument.Load(file);
+            foreach (var element in document.Descendants("DefineConstants"))
+            {
+                foreach (var symbol in element.Value.Split(
+                    ';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (symbol.StartsWith("$(", StringComparison.Ordinal) || declared.Contains(symbol))
+                    {
+                        continue;
+                    }
+
+                    undeclared.Add((Relative(repoRoot, file), symbol));
+                }
+            }
+        }
+
+        return undeclared;
+    }
+
+    private static IReadOnlyList<string> EnumerateMsBuildFiles(string repoRoot)
+    {
+        var files = new List<string>();
+        void Walk(string dir)
+        {
+            foreach (var sub in Directory.GetDirectories(dir))
+            {
+                if (MsBuildFileSkipDirectories.Contains(Path.GetFileName(sub), StringComparer.Ordinal))
+                {
+                    continue;
+                }
+
+                Walk(sub);
+            }
+
+            foreach (var pattern in new[] { "*.csproj", "*.props", "*.targets" })
+            {
+                files.AddRange(Directory.EnumerateFiles(dir, pattern, SearchOption.TopDirectoryOnly));
+            }
+        }
+
+        Walk(repoRoot);
+        return files.OrderBy(f => f, StringComparer.Ordinal).ToList();
+    }
+
     public static ModuleLedgerReport Scan(string srcRoot, string ledgerPath)
     {
         var srcFull = Path.GetFullPath(srcRoot);

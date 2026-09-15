@@ -1286,5 +1286,14 @@
         "GeneralInventory"
       ]
     }
+  ],
+  "adapterTiers": [
+    {
+      "namespace": "Cluckwork.Api.Mcp",
+      "privilege": "DirectRepository",
+      "surface": "MapMcp",
+      "reason": "MCP tool classes inject repositories by design (docs/plans/770-mcp-server/01-design.md:112); the contract-first shape is Track C (#514)",
+      "reviewBy": "#806"
+    }
   ]
 }
