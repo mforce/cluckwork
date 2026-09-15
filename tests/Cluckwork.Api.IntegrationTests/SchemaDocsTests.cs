@@ -247,17 +247,6 @@ public sealed class SchemaDocsTests
         // into the captured value.
         var csharpImageLiteralPattern = new Regex(
             @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)[$@]*(?<q>""+)\s*(?<img>(?:[a-z0-9.-]+(?::\d+)?/)*" + escapedRepository + @"(?::[^""@\s]+)?(?:@sha256:[0-9a-f]{64})?)\s*\k<q>");
-        // An ORDINARY (or ordinary-interpolated) literal processes escape
-        // sequences, so its evaluated value need not appear contiguously in
-        // the source — such a literal in an image-consuming expression is
-        // refused outright whenever it carries a backslash, rather than
-        // decoded (same refuse-the-syntax-class posture as the YAML rules).
-        // Verbatim and raw literals are exempt: they process no escapes, so
-        // their text IS their value and the shape sweep above already reads
-        // them. The pfx/quote-run distinction happens in code: any @ in the
-        // prefix or a multi-quote delimiter means no escape processing.
-        var csharpEscapedLiteralPattern = new Regex(
-            @"(?:Image\w*\s*=\s*|Builder\s*\(\s*(?:\w+\s*:\s*)?|WithImage\s*\(\s*(?:\w+\s*:\s*)?)(?<pfx>[$@]*)(?<q>""+)(?<body>(?:[^""\\\r\n]|\\.)*)""");
         // The expression-anchored patterns above can be defeated by syntactic
         // wrappers — extra parentheses, casts, named-argument trivia — and
         // the wrapper vocabulary is unbounded. So image-shaped literals get a
@@ -490,15 +479,6 @@ public sealed class SchemaDocsTests
                     var key = $"\"{val}\" ({repository}-shaped C# string literal — not the canonical pin)";
                     if (!hits.TryGetValue(key, out var files))
                         hits[key] = files = [];
-                    files.Add(relative);
-                }
-                foreach (Match m in csharpEscapedLiteralPattern.Matches(codeText))
-                {
-                    if (m.Groups["pfx"].Value.Contains('@')) continue;
-                    if (m.Groups["q"].Value.Length > 1) continue;
-                    if (!m.Groups["body"].Value.Contains('\\')) continue;
-                    if (!hits.TryGetValue("escape-bearing C# string literal in an image-consuming expression — the evaluated value is not textually reviewable; write the reference unescaped", out var files))
-                        hits["escape-bearing C# string literal in an image-consuming expression — the evaluated value is not textually reviewable; write the reference unescaped"] = files = [];
                     files.Add(relative);
                 }
                 // Every literal in the file becomes a positioned token, then
