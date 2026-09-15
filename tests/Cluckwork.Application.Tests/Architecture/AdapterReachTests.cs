@@ -14,7 +14,7 @@ public sealed class AdapterReachTests : IDisposable
         File.WriteAllText(full, content);
     }
 
-    private string WriteLedger(string adapters = "")
+    private string WriteLedger(string adapters = "", string adapterTiers = "")
     {
         var path = Path.Combine(_tempRoot, "module-ledger.json");
         File.WriteAllText(path, """
@@ -32,12 +32,15 @@ public sealed class AdapterReachTests : IDisposable
                 "persistenceForbiddenNamespaces": ["Cluckwork.Temp.Endpoints"]
               },
               "adapters": [
-            """ + adapters + "]\n}\n");
+            """ + adapters + "],\n\"adapterTiers\": [" + adapterTiers + "]\n}\n");
         return path;
     }
 
-    private AdapterReachReport Scan(string adapters = "") =>
-        AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), WriteLedger(adapters));
+    private AdapterReachReport Scan(string adapters = "", string adapterTiers = "") =>
+        AdapterReachScanner.Scan(Path.Combine(_tempRoot, "src"), WriteLedger(adapters, adapterTiers));
+
+    private static string Tier(string ns = "Cluckwork.Temp.Mcp") =>
+        $$"""{ "namespace": "{{ns}}", "privilege": "DirectRepository", "surface": "MapMcp", "reason": "test", "reviewBy": "#1" }""";
 
     private static string Row(string symbol = Symbol, string reaches = "\"Farm\"") =>
         $$"""{ "symbol": "{{symbol}}", "reaches": [{{reaches}}] }""";
@@ -674,5 +677,28 @@ public sealed class AdapterReachTests : IDisposable
         var reach = Assert.Single(Scan().LiveReach);
         Assert.Equal(owner, reach.Owner);
         Assert.Equal(Symbol, reach.Symbol);
+    }
+
+    [Fact]
+    public void AdapterTierNamespace_UndeclaredRepositoryReachIsReported()
+    {
+        WriteSource("Tools.cs", """
+            namespace Cluckwork.Temp.Mcp;
+            public class WaterTools { public void Run(Cluckwork.Temp.Farm.IAccountRepository accounts) { } }
+            """);
+        var failure = Assert.Single(AdapterReachScanner.Evaluate(Scan(adapterTiers: Tier())));
+        Assert.Contains("Cluckwork.Temp.Mcp.WaterTools.Run -> Farm", failure);
+        Assert.Contains("Cluckwork.Temp.Farm.IAccountRepository", failure);
+    }
+
+    [Fact]
+    public void AdapterTierNamespace_AppDbContextIsForbiddenPersistence()
+    {
+        WriteSource("Tools.cs", """
+            namespace Cluckwork.Temp.Mcp;
+            public class WaterTools { public void Run(AppDbContext db) { } }
+            """);
+        var report = Scan(adapterTiers: Tier());
+        Assert.Contains("forbidden persistence type AppDbContext", Assert.Single(report.PersistenceViolations));
     }
 }

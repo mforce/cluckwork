@@ -57,6 +57,14 @@ public static class AdapterReachScanner
             .ToDictionary(g => g.Key, g => g.First().Kind, StringComparer.Ordinal);
         ValidateRegistry(ledger, kinds, errors);
 
+        // A tier is an adapter root with a privilege (#843): its namespace is walked for
+        // reach like any other adapter root, and it is ALSO persistence-forbidden — the
+        // declared privilege is DirectRepository, not direct DbContext access.
+        var tierNamespaces = ledger.AdapterTiers.Select(t => t.Namespace).ToList();
+        var adapterNamespaces = ledger.AdapterRoots.Namespaces.Concat(tierNamespaces).ToList();
+        var persistenceForbiddenNamespaces = ledger.AdapterRoots.PersistenceForbiddenNamespaces
+            .Concat(tierNamespaces).ToList();
+
         var roots = GuardScanner.EnumerateSourceFiles(srcFull).Select(file =>
             CSharpSyntaxTree.ParseText(File.ReadAllText(file), ModuleLedgerScanner.ParseOptions, file)
                 .GetCompilationUnitRoot()).ToList();
@@ -80,13 +88,13 @@ public static class AdapterReachScanner
             {
                 var ns = NamespaceOf(type);
                 var typeName = TypeName(type);
-                if (!ledger.AdapterRoots.Namespaces.Any(prefix => Under(ns, prefix))
+                if (!adapterNamespaces.Any(prefix => Under(ns, prefix))
                     && !ledger.AdapterRoots.Types.Contains(typeName, StringComparer.Ordinal))
                 {
                     continue;
                 }
 
-                var banPersistence = ledger.AdapterRoots.PersistenceForbiddenNamespaces.Any(prefix => Under(ns, prefix));
+                var banPersistence = persistenceForbiddenNamespaces.Any(prefix => Under(ns, prefix));
                 var adapters = type.Members.OfType<BaseMethodDeclarationSyntax>()
                     .Where(m => m is MethodDeclarationSyntax or ConstructorDeclarationSyntax)
                     .Select(m => (Node: (SyntaxNode)m,
