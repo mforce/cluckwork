@@ -636,7 +636,7 @@ export const es = {
     salesPanelTitle: "Ventas recientes",
     noOrdersMessage: "Aún no hay pedidos.",
     rowCustomerUnavailable: "Este cliente ya no está disponible.",
-    salesRowConfirmAction: "Confirmar pedido",
+    salesRowConfirmAction: "Revisar para confirmar",
   },
 
   // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):

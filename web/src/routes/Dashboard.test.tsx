@@ -675,21 +675,30 @@ describe("Dashboard recent sales rows (#512)", () => {
 });
 
 // #883 round 2, finding 5 — DIRECTION.md line 9's row action: a draft order
-// gets the Sales page's own "Confirm order" control (named the same, no
-// per-order deep link yet); a non-draft row has none.
+// gets a row action; a non-draft row has none.
+//
+// Codex CLI review round 2 (finding 3): the label read "Confirm order" —
+// the Sales page's OWN control for the real, in-place confirm — while this
+// row's link only opens the customer's WHOLE filtered order list (there is
+// no per-order deep link yet), which can hold several draft/confirmed
+// orders for the same customer. That is a real behavior/label mismatch, not
+// just an extra click: the Today row's "Record"/"Continue" precedent still
+// lands on the ONE exact form for that flock+date, so the label there never
+// overclaims what one more step gets you. Reworded to "Review to confirm"
+// — honest about being a navigation, not a completed action.
 describe("Dashboard recent sales row action (#883 round 2, finding 5)", () => {
-  it("shows a Confirm order action on a draft row, linked through the customer filter", async () => {
+  it("shows a Review to confirm action on a draft row, linked through the customer filter", async () => {
     mockOrders.mockResolvedValue([order("o-1", "SO-3", "Filtered Farm")]); // status: "Draft"
     renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
     const row = await screen.findByRole("listitem", { name: /SO-3/ });
-    expect(within(row).getByRole("link", { name: "Confirm order" })).toHaveAttribute("href", "/sales?customerId=c1");
+    expect(within(row).getByRole("link", { name: "Review to confirm" })).toHaveAttribute("href", "/sales?customerId=c1");
   });
 
   it("shows no action on a non-draft row", async () => {
     mockOrders.mockResolvedValue([{ ...order("o-2", "SO-4", "Second Farm"), status: "Confirmed" }]);
     renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
     const row = await screen.findByRole("listitem", { name: /SO-4/ });
-    expect(within(row).queryByRole("link", { name: "Confirm order" })).not.toBeInTheDocument();
+    expect(within(row).queryByRole("link", { name: "Review to confirm" })).not.toBeInTheDocument();
   });
 });
 

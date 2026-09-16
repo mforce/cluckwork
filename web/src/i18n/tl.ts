@@ -671,7 +671,7 @@ export const tl = {
     salesPanelTitle: "Mga Kamakailang Benta",
     noOrdersMessage: "Wala pang order.",
     rowCustomerUnavailable: "Hindi na available ang customer na ito.",
-    salesRowConfirmAction: "Kumpirmahin ang order",
+    salesRowConfirmAction: "Suriin para kumpirmahin",
   },
 
   // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):

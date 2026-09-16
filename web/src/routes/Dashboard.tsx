@@ -344,12 +344,18 @@ export function Dashboard() {
                       </Box>
                       <Typography component="span" className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</Typography>
                       <StatusBadge status={o.status} label={statusLabel(o.status)} />
-                      {/* A draft order's row action, named the same as the
-                          Sales page's own confirm control (#883 round 2,
-                          finding 5). There is no per-order deep link into
-                          Sales yet, so it lands on the customer-filtered list
-                          the row's own name already links to — confirming
-                          itself still takes one more click there. */}
+                      {/* A draft order's row action (#883 round 2, finding
+                          5; wording tightened in round 2's own Codex re-
+                          review, finding 3). There is no per-order deep link
+                          into Sales yet, so this lands on the customer's
+                          WHOLE filtered order list, not the one order — that
+                          list can hold several drafts for the same customer,
+                          so the label says "review", never "confirm": this
+                          control does not confirm anything itself, and a
+                          word that claimed it did would be a real behavior
+                          mismatch, not just one extra expected click (unlike
+                          the Today row's Record/Continue, which land on the
+                          one exact form for that flock and date). */}
                       {o.status === "Draft" && (
                         <Typography component={Link} to={`/sales?customerId=${o.customerId}`} variant="body2" sx={{ flexShrink: 0 }}>
                           {t("salesRowConfirmAction")}

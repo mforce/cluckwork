@@ -880,9 +880,11 @@ export const en = {
     // raw id or a substituted catalog match.
     rowCustomerUnavailable: "This customer is no longer available.",
     // A draft order's row action (DIRECTION.md line 9, #883 round 2 finding
-    // 5) — the same wording sales.confirmOrderConfirmLabel uses for the
-    // matching control on the Sales page itself.
-    salesRowConfirmAction: "Confirm order",
+    // 5). NOT "Confirm order" — that is what this control does not do: it
+    // opens the customer's whole filtered order list, never the one order
+    // (no per-order deep link exists yet), so a "confirm" label would
+    // overclaim a completed action (Codex CLI review round 2, finding 3).
+    salesRowConfirmAction: "Review to confirm",
   },
   // Water usage capture + correction screen (Task 13, #182, batch B2).
   // `water` is in TRANSLATED_NAMESPACES, same treatment as
