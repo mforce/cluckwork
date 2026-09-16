@@ -529,6 +529,13 @@ export const tl = {
     stepOfTotal: "ng 2:",
     eggCountsHeading: "Bilang ng Itlog",
     gradingHeading: "Pag-grade",
+    gradedCountCaption: "Binilang {{graded}}",
+
+    attentionHeading_one: "{{count}} bagay.",
+    attentionHeading_other: "{{count}} bagay.",
+    attentionDraftItem: "Hindi pa naisumite ang draft",
+    attentionMortalityItem: "May {{count}} namatay na naitala, bababa ang bilang ng kawan sa {{flockCountAfter}} kapag isinumite",
+    gradeRowLabel: "Hanay ng {{grade}}",
 
     // Count field labels
     totalEggsLabel: "Kabuuang Itlog",
@@ -579,7 +586,7 @@ export const tl = {
     stepperUnitCaption: "Nagbibilang bawat {{unit}} — bawat tap ng − / + ay gumagalaw ng {{count}} itlog. Ang pag-type ay naglalagay pa rin ng eksaktong numero.",
     sellableWord: "nabebenta",
     saveDraftButton: "I-save ang draft",
-    submitButton: "I-save at isumite (gagawa ng lote ng itlog)",
+    submitButton: "Isumite ang araw",
 
     // Submit confirmation dialog (one-way action, #59)
     confirmSubmitTitle: "Isumite ang araw na ito?",

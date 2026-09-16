@@ -1,7 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
+import { Box, Button, Paper, Typography, useMediaQuery } from "@mui/material";
 import {
   createFlock, listDailyEntries, listEggGrades, listEggUnitConversions,
   listFeedUsage, listFlocks, listWaterUsage, recordDailyEntry, submitDailyEntry,
@@ -15,7 +16,7 @@ import { FlockPicker } from "../components/FlockPicker";
 import type { PickerSnapshot } from "../components/NamedEntityPicker";
 import { Dialog } from "../components/Dialog";
 import { DialogError } from "../components/DialogError";
-import { StatusBadge } from "../components/StatusBadge";
+import { FarmDate } from "../components/FarmDate";
 import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
 import { NumberField } from "../components/NumberField";
 import { useConfirm } from "../components/useConfirm";
@@ -24,10 +25,111 @@ import { useAuth } from "../auth/useAuth";
 import { useFarm, useFarmToday } from "../farm/useFarm";
 import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
+import { MD_UP_QUERY } from "../lib/breakpoints";
 import { resolveStepperUnit } from "../lib/stepperUnit";
 import { useMe } from "../session/SessionContext";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
+
+// #830 (owner's screenshot review of #888) — the stepper row's 48px squares
+// (mockup: docs/designs/864-visual-language/daily-entry.html) are an sx
+// override on NumberField's OWN classes (`.numfield-step`), never an edit to
+// NumberField.tsx or its base CSS block (styles.css L1030-1093, #828's):
+// those stay exactly as #828 will find them, and this override reaches only
+// rows rendered by THIS page. Every part NumberField renders is a FIXED size
+// at a given breakpoint — the two step buttons, and the input's own ch-width
+// — so `.numfield`'s overall footprint is constant across every row; that
+// constancy is what EntryRow's grid below leans on to line the minus/plus
+// buttons up without touching NumberField itself.
+const STEPPER_SX = {
+  "& .numfield": { width: "100%", justifyContent: "space-between" },
+  "& .numfield-step": {
+    width: { xs: 48, md: 36 }, height: { xs: 48, md: 36 },
+    borderRadius: "var(--r-input)",
+  },
+  "& .numfield input": {
+    // The row numeral size (FarmThemeProvider's `h2`/title scale, DIRECTION.md
+    // — 24/28 desktop, 28/32 phone), not a bespoke size: the readout is the
+    // biggest thing in the row and reads as one more title-weight figure
+    // beside the others this screen shows (the sellable value, the grading
+    // count), right-aligned and tabular so a column of them lines up by digit.
+    fontSize: { xs: "1.75rem", md: "1.5rem" },
+    lineHeight: { xs: "2rem", md: "1.75rem" },
+    fontWeight: 500, textAlign: "right",
+    // Wide enough for a 4-digit count (a flock's daily total can run into the
+    // low thousands) with room to spare — measured against "430" clipping to
+    // "43" at a tighter "4ch" on desktop (Playwright capture, #830).
+    width: { xs: "5.5ch", md: "6ch" },
+  },
+} as const;
+
+// #830 (owner's screenshot review of #888) — one ruled GRID row: label (+
+// optional caption, e.g. "deactivated") in a flexible truncating column,
+// stepper in a fixed-content column, per the mockup's `.row`. The row used to
+// be a flex `justify-content: space-between` pair, which reads as aligned
+// only until a label overflows: a flex item shrinks by default, so "Total
+// eggs" wrapping onto two lines squeezed the stepper beside it by a different
+// amount on every row — the owner's screenshot review of #888 caught this as
+// each row's minus button sitting at a different x. A grid's second column
+// sizes to its own max-content and does NOT shrink to make room for an
+// overflowing sibling; pairing that with `minmax(0, 1fr)` + an ellipsis on
+// the label (never wrap) is what makes the fix structural rather than a
+// pinned width. `groupLabel` names a grade row as an `aria-label`ed group
+// (mirrors Dashboard's TodayRow `role="group"` pattern) — the drop target the
+// test suite locates by name instead of a class, and `armed` draws the F134
+// "taking" outline the same rows carried before, now an inline sx state
+// instead of a shared `.taking` class.
+function EntryRow({
+  htmlFor, label, caption, groupLabel, armed = false, dropProps, children,
+}: {
+  htmlFor: string;
+  label: string;
+  caption?: string;
+  groupLabel?: string;
+  armed?: boolean;
+  dropProps?: ReturnType<typeof remainderDropProps>;
+  children: ReactNode;
+}) {
+  return (
+    <Box
+      role={groupLabel ? "group" : undefined}
+      aria-label={groupLabel}
+      {...dropProps}
+      sx={{
+        display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto",
+        alignItems: "center",
+        gap: 2, minHeight: { xs: 52, md: 44 }, py: 1,
+        borderBottom: "1px solid var(--rule)",
+        ...(armed ? {
+          outline: "1px dashed var(--stat-accent)", outlineOffset: "4px",
+          borderRadius: "var(--r-input)",
+        } : {}),
+        ...STEPPER_SX,
+      }}
+    >
+      <Box component="label" htmlFor={htmlFor}
+        sx={{ minWidth: 0, overflow: "hidden", cursor: "pointer" }}
+      >
+        <Typography component="span" sx={{
+          fontWeight: 500, display: "block",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}
+        >{label}</Typography>
+        {caption && (
+          <Typography component="span" variant="caption" className="muted" sx={{
+            display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}
+          >
+            {caption}
+          </Typography>
+        )}
+      </Box>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: "flex-end" }}>
+        {children}
+      </Box>
+    </Box>
+  );
+}
 
 
 // Capture targets active flocks plus depleted ones — a depleted flock still
@@ -49,7 +151,11 @@ const DIALOG_SCOPES = ["new-flock"] as const;
 // F1 (#21): record the day's production by grade, then submit — submitting
 // turns grade lines into egg lots (stock).
 export function DailyEntryPage() {
-  const { t } = useTranslation("dailyEntry");
+  // #830 — the state line reuses Dashboard's own "Draft, saved {{time}}" /
+  // "+{{count}} more" catalog entries (dashboard:entryStateDraftTime,
+  // dashboard:attentionMore) rather than a second copy of the same English
+  // and already-translated es/tl strings.
+  const { t } = useTranslation(["dailyEntry", "dashboard"]);
   const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
@@ -114,6 +220,12 @@ export function DailyEntryPage() {
   // so an untouched re-save must not wipe an existing entry's grading.
   const [gradesTouched, setGradesTouched] = useState(false);
   const [existingStatus, setExistingStatus] = useState<string | null>(null);
+  // #830 — the state line under the title ("Draft, saved 06:52"). Read-only
+  // display of what the prefill already fetched (RecordHistory's own
+  // timestamps), never a new write path: the last-changed time if the day was
+  // ever edited, else when it was first created. `null` (pre-#494 rows with
+  // no history, or no existing entry) degrades to the bare status word.
+  const [existingSavedAt, setExistingSavedAt] = useState<string | null>(null);
   // Prefill failure OR in-flight prefill blocks saving (silent-overwrite
   // guard, #59); failedTarget marks which flock+date the failure was for.
   const [prefillFailed, setPrefillFailed] = useState(false);
@@ -248,11 +360,13 @@ export function DailyEntryPage() {
           setGradeQty(Object.fromEntries(existing.grades.map((g) => [g.eggGradeId, g.quantity])));
           setGradesTouched(existing.grades.length > 0);
           setExistingStatus(existing.status);
+          setExistingSavedAt(existing.lastChangedAtUtc ?? existing.createdAtUtc);
         } else if (!isRetryRecovery) {
           setTotalEggs(0); setCracked(0); setDirty(0); setDiscarded(0); setMortality(0);
           setGradeQty({});
           setGradesTouched(false);
           setExistingStatus(null);
+          setExistingSavedAt(null);
         }
         failedTarget.current = null;
         setPrefillFailed(false);
@@ -345,6 +459,9 @@ export function DailyEntryPage() {
   // that fetch fails — so without this the badge claims "editing draft" for a
   // day it knows nothing about, and keeps claiming it (codex review).
   const editingDraft = existingStatus === "Draft" && !prefillPending && !prefillFailed;
+  // #830 — farm-local, formatted once; null when the prefetched record has
+  // neither `lastChangedAtUtc` nor `createdAtUtc` (pre-#494 rows only).
+  const savedTime = fmt.time(existingSavedAt);
   // Grading counts DOWN to zero (see lib/grading). "Graded 12 of 407" made the
   // user do the subtraction; the number they are working towards is what is
   // left. Derived once and rendered twice: in full beside the grades, and
@@ -359,6 +476,34 @@ export function DailyEntryPage() {
     says: t(state.saysKey),
     short: t(state.shortKey),
   };
+
+  // #830 — the attention line (mockup: daily-entry.html `.attn`). Same fold
+  // rule as Dashboard's (#883 round 2, finding 1): never wraps, two items fit
+  // at 1280 and one at 390, the same md (900px) boundary the sidebar/tab-bar
+  // switch uses.
+  const isDesktop = useMediaQuery(MD_UP_QUERY);
+  const attentionCap = isDesktop ? 2 : 1;
+  const attentionItems: string[] = [];
+  if (editingDraft) attentionItems.push(t("attentionDraftItem"));
+  // Read-only projection of what submitting would do to the flock's bird
+  // ledger — not a write, and not the write's own guard (FR-009 stays on the
+  // handler). Only while the mortality this DAY would still apply on submit.
+  //
+  // `!prefillPending && !prefillFailed` (CodeRabbit review of #888, ff274b0):
+  // `selectedFlock` is derived and updates the instant `flockId` changes, but
+  // `mortality` is state that only catches up once the prefill for the NEW
+  // flock+date resolves — so retargeting without this guard kept projecting
+  // the OLD target's mortality count against the NEW flock's `currentBirds`
+  // for the whole prefill window, not just its first render. `canAssign` and
+  // `editingDraft` above already carry this same guard for the same reason.
+  if (!entryLocked && mortality > 0 && selectedFlock && !prefillPending && !prefillFailed) {
+    attentionItems.push(t("attentionMortalityItem", {
+      count: mortality,
+      flockCountAfter: fmt.count(Math.max(0, selectedFlock.currentBirds - mortality)),
+    }));
+  }
+  const attentionShown = attentionItems.slice(0, attentionCap);
+  const attentionMoreCount = attentionItems.length - attentionShown.length;
 
   // Not while the prefill is unsettled: the remainder is computed from counts
   // that are about to be replaced, and handing those to a grade would assign
@@ -579,52 +724,122 @@ export function DailyEntryPage() {
   if (loadError) return <section><h2>{t("title")}</h2><p className="error">{loadError}</p></section>;
 
   return (
-    <section>
-      <div className="page-head">
-        <h2>{t("title")}</h2>
+    <Box sx={{ maxWidth: 1120 }}>
+      {/* #830 — phone-only top bar (mockup: daily-entry.html `.topbar`), farm
+          name left, today's date right. No shared shell equivalent exists yet
+          — AppLayout/BottomNav render no such bar for any screen — so this
+          stays page-local rather than assuming shell support that has not
+          shipped; a later slice can promote it once a second screen wants it. */}
+      <Box sx={{
+        display: { xs: "flex", md: "none" }, alignItems: "center",
+        justifyContent: "space-between", color: "var(--stat-accent)",
+        fontWeight: 600, mb: 2,
+      }}
+      >
+        <Typography component="span" sx={{ fontWeight: 600 }}>{farm?.name ?? "Cluckwork"}</Typography>
+        <Typography component="span" variant="caption" sx={{ fontWeight: 400 }}><FarmDate iso={today} /></Typography>
+      </Box>
+
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+        <Typography variant="h2">{t("title")}</Typography>
         {/* Always rendered so it is a live region BEFORE the prefill fills it;
             a status container that appears at the same moment as its content is
-            unreliably announced. */}
-        <span role="status">
-          {editingDraft && <StatusBadge status="Draft" label={t("editingDraftBadge")} />}
-        </span>
-      </div>
+            unreliably announced. #830 — "Draft, saved 06:52" when the prefill's
+            own RecordHistory timestamp is available (every real record has
+            one; #819), else the bare "Editing draft" fallback a pre-#494 row
+            with no history still gets. */}
+        <Typography component="span" role="status" className="muted">
+          {editingDraft && (
+            savedTime !== null
+              ? t("dashboard:entryStateDraftTime", { time: savedTime })
+              : t("editingDraftBadge")
+          )}
+        </Typography>
+      </Box>
+
+      {/* #830 — the attention line (mockup: daily-entry.html `.attn`), the
+          same ruled-separator/fold-to-"+N more" treatment Dashboard's #829/
+          #864 attention line already carries — see Dashboard.tsx for the
+          precedent this mirrors. */}
+      {attentionShown.length > 0 && (
+        <Box sx={{
+          display: "flex", alignItems: "center", gap: 1.5, mt: 1.5,
+          minHeight: 24, overflow: "hidden", whiteSpace: "nowrap",
+        }}
+        >
+          <Box component="span" aria-hidden sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "var(--warn)", flexShrink: 0 }} />
+          <Typography component="span" sx={{ fontWeight: 600 }}>
+            {t("attentionHeading", { count: attentionItems.length })}
+          </Typography>
+          {attentionShown.map((item, i) => (
+            <Box key={i} sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <Box component="span" aria-hidden sx={{ width: "1px", height: 12, bgcolor: "var(--rule-strong)" }} />
+              <Typography component="span" variant="body1">{item}</Typography>
+            </Box>
+          ))}
+          {attentionMoreCount > 0 && (
+            <Typography component="span" variant="body1">
+              {t("dashboard:attentionMore", { count: attentionMoreCount })}
+            </Typography>
+          )}
+        </Box>
+      )}
 
       {/* Context, not a step: choosing a flock and a date says WHICH day is
           being recorded, it is not part of recording it. The two steps below
-          are the work, and they reconcile against each other. */}
-      <div className="form-grid entry-context">
-        <FlockPicker
-          label={t("flockLabel")}
-          eligibility="active-and-depleted"
-          required
-          open={flockPickerOpen}
-          controlledCommitted={pickerFlock}
-          controlledGeneration={pickerFlockGen}
-          requestedId={pickerFlock ? null : flockId || null}
-          onSnapshot={handleFlockSnapshot}
-          onCommit={(f) => retarget(() => {
-            setFlockId(f.id);
-            setPickerFlock(f);
-            setPickerFlockGen((g) => g + 1);
-          })}
-          onEscape={() => setFlockPickerOpen(false)}
-          onOutsideClick={() => setFlockPickerOpen(false)}
-          trigger={
-            <button
-              type="button"
-              className="named-picker-trigger"
-              onClick={() => setFlockPickerOpen(true)}
-            >
-              {pickerFlock
-                ? `${pickerFlock.name} (${pickerFlock.breed})${pickerFlock.status === "Depleted" ? t("depletedFlockSuffix") : ""}`
-                : flocks.length === 0
-                  ? t("noFlocksYetOption")
-                  : t("selectFlockOption")}
-            </button>
-          }
-        />
-        <label>{t("dateLabel")}
+          are the work, and they reconcile against each other. #830 restyles
+          this row to the mockup's underlined selects — the FlockPicker
+          trigger and the date input, via a scoped sx override, never a
+          FlockPicker.tsx edit (out of scope; #512 owns that component). */}
+      <Box sx={{
+        display: "flex", gap: { xs: 2, md: 5 }, mt: 3, pb: 2, alignItems: "flex-end",
+        borderBottom: "1px solid var(--rule-strong)",
+        "& .named-picker-trigger": {
+          font: "inherit", fontWeight: 500, color: "var(--ink)", background: "transparent",
+          border: 0, borderBottom: "1px solid var(--rule-strong)", borderRadius: 0,
+          textAlign: "left", width: "100%", minHeight: 44, padding: "4px 0",
+        },
+        "& > label input[type='date']": {
+          font: "inherit", fontWeight: 500, color: "var(--ink)", background: "transparent",
+          border: 0, borderBottom: "1px solid var(--rule-strong)", borderRadius: 0,
+          width: "100%", minHeight: 44, padding: "4px 0",
+        },
+      }}
+      >
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <FlockPicker
+            label={t("flockLabel")}
+            eligibility="active-and-depleted"
+            required
+            open={flockPickerOpen}
+            controlledCommitted={pickerFlock}
+            controlledGeneration={pickerFlockGen}
+            requestedId={pickerFlock ? null : flockId || null}
+            onSnapshot={handleFlockSnapshot}
+            onCommit={(f) => retarget(() => {
+              setFlockId(f.id);
+              setPickerFlock(f);
+              setPickerFlockGen((g) => g + 1);
+            })}
+            onEscape={() => setFlockPickerOpen(false)}
+            onOutsideClick={() => setFlockPickerOpen(false)}
+            trigger={
+              <button
+                type="button"
+                className="named-picker-trigger"
+                onClick={() => setFlockPickerOpen(true)}
+              >
+                {pickerFlock
+                  ? `${pickerFlock.name} (${pickerFlock.breed})${pickerFlock.status === "Depleted" ? t("depletedFlockSuffix") : ""}`
+                  : flocks.length === 0
+                    ? t("noFlocksYetOption")
+                    : t("selectFlockOption")}
+              </button>
+            }
+          />
+        </Box>
+        <label style={{ flex: 1, minWidth: 0, display: "block" }}>
+          <Typography component="span" variant="caption" className="muted" sx={{ display: "block" }}>{t("dateLabel")}</Typography>
           <input type="date" value={date} max={today}
             onChange={(e) => retarget(() => setDate(e.target.value))} />
         </label>
@@ -633,7 +848,7 @@ export function DailyEntryPage() {
             {t("newFlockButton")}
           </button>
         )}
-      </div>
+      </Box>
 
       {/* F131: creating a flock is catalog work, not capture — it belongs in a
           dialog like every other create, instead of shoving the entry grid
@@ -740,150 +955,228 @@ export function DailyEntryPage() {
 
       {/* Side by side, because the two panes reconcile: the sellable figure the
           left one produces is the target the right one has to hit. Reading one
-          while the other was a screen away was the whole problem. */}
-      <div className="entry-cols">
-        <section className="entry-step">
-          {/* The word boundaries live in the h3's own text nodes (ignored by the
-              flex layout), not at the edges of the sr-only span: accessible-name
-              computation trims each nested element's contribution, so edge
-              whitespace inside the span is silently dropped. */}
-          <h3><span className="step-n">{t("stepLabel", { n: 1 })}</span> <span className="sr-only">{t("stepOfTotal")}</span> {t("eggCountsHeading")}</h3>
-          <div className="entry-pane">
-            <div className="entry-rows">
-              <div className="entry-row">
-                <label htmlFor={idFor("total")}>{t("totalEggsLabel")}</label>
-                <NumberField id={idFor("total")} label={t("totalEggsLabel").toLowerCase()}
-                  value={totalEggs} onChange={setTotalEggs} step={stepSize} disabled={entryLocked} />
-              </div>
-              <div className="entry-row">
-                <label htmlFor={idFor("cracked")}>{t("crackedLabel")}</label>
-                <NumberField id={idFor("cracked")} label={t("crackedLabel").toLowerCase()}
-                  value={cracked} onChange={setCracked} step={stepSize} disabled={entryLocked} />
-              </div>
-              <div className="entry-row">
-                <label htmlFor={idFor("dirty")}>{t("dirtyLabel")}</label>
-                <NumberField id={idFor("dirty")} label={t("dirtyLabel").toLowerCase()}
-                  value={dirty} onChange={setDirty} step={stepSize} disabled={entryLocked} />
-              </div>
-              <div className="entry-row">
-                <label htmlFor={idFor("discarded")}>{t("discardedLabel")}</label>
-                <NumberField id={idFor("discarded")} label={t("discardedLabel").toLowerCase()}
-                  value={discarded} onChange={setDiscarded} step={stepSize} disabled={entryLocked} />
-              </div>
-              <div className="entry-row">
-                <label htmlFor={idFor("mortality")}>{t("mortalityLabel")}</label>
-                {/* NO step: the pack unit counts EGGS. One tap here records a
-                    dead BIRD, and submitting writes the bird-ledger movement —
-                    a Tray farm must never log 30 deaths per tap (codex P1
-                    review of #451). */}
-                <NumberField id={idFor("mortality")} label={t("mortalityLabel").toLowerCase()}
-                  value={mortality} onChange={setMortality} disabled={entryLocked} />
-              </div>
-            </div>
+          while the other was a screen away was the whole problem. #830: one
+          full-width column at phone width (D3.3 amended below), a 2-up Grid
+          from md up. */}
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 3.5, md: 4 }, mt: { xs: 3.5, md: 4 } }}>
+        <Box component="section">
+          {/* The visible heading is just "Egg counts" (mockup: no numbered
+              step badge); "Step 1 of 2:" stays exactly as spoken before, fully
+              sr-only now instead of half-visible via `.step-n` — the
+              accessible NAME string is unchanged (accessible-name computation
+              does not care whether a contributing span is clipped or not), so
+              `getByRole("heading", { name: "Step 1 of 2: Egg counts" })` still
+              matches. `.step-n`'s own CSS stays: HistoryPage's adjust dialog
+              still renders the visible pill on its mirror of this heading. */}
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", pb: 1, borderBottom: "1px solid var(--rule-strong)" }}>
+            <Typography variant="h3" component="h3">
+              <span className="sr-only">{t("stepLabel", { n: 1 })} {t("stepOfTotal")}</span> {t("eggCountsHeading")}
+            </Typography>
+          </Box>
 
-            {lossesExceedTotal ? (
-              <p className="entry-readout error">
-                {t("countsExceedTotalMessage", { losses, total: totalEggs })}
-              </p>
-            ) : (
-              /* Shown as a value, not buried in a sentence — it is the target
-                 the grading pane has to hit. */
-              <p className="entry-readout">
-                <span className="k">{t("sellableLabel")}<br />{t("sellableFormula", { total: totalEggs, cracked, dirty, discarded })}</span>
-                <span className="v">{sellable}</span>
-              </p>
-            )}
-          </div>
-        </section>
+          <EntryRow htmlFor={idFor("total")} label={t("totalEggsLabel")}>
+            <NumberField id={idFor("total")} label={t("totalEggsLabel").toLowerCase()}
+              value={totalEggs} onChange={setTotalEggs} step={stepSize} disabled={entryLocked} />
+          </EntryRow>
+          <EntryRow htmlFor={idFor("cracked")} label={t("crackedLabel")}>
+            <NumberField id={idFor("cracked")} label={t("crackedLabel").toLowerCase()}
+              value={cracked} onChange={setCracked} step={stepSize} disabled={entryLocked} />
+          </EntryRow>
+          <EntryRow htmlFor={idFor("dirty")} label={t("dirtyLabel")}>
+            <NumberField id={idFor("dirty")} label={t("dirtyLabel").toLowerCase()}
+              value={dirty} onChange={setDirty} step={stepSize} disabled={entryLocked} />
+          </EntryRow>
+          <EntryRow htmlFor={idFor("discarded")} label={t("discardedLabel")}>
+            <NumberField id={idFor("discarded")} label={t("discardedLabel").toLowerCase()}
+              value={discarded} onChange={setDiscarded} step={stepSize} disabled={entryLocked} />
+          </EntryRow>
+          {/* NO step: the pack unit counts EGGS. One tap here records a dead
+              BIRD, and submitting writes the bird-ledger movement — a Tray
+              farm must never log 30 deaths per tap (codex P1 review of #451). */}
+          <EntryRow htmlFor={idFor("mortality")} label={t("mortalityLabel")}>
+            <NumberField id={idFor("mortality")} label={t("mortalityLabel").toLowerCase()}
+              value={mortality} onChange={setMortality} disabled={entryLocked} />
+          </EntryRow>
 
-        <section className="entry-step">
-          <h3><span className="step-n">{t("stepLabel", { n: 2 })}</span> <span className="sr-only">{t("stepOfTotal")}</span> {t("gradingHeading")}</h3>
-          <div className="entry-pane">
-            <div className="entry-rows">
-              {visibleGrades.map((g) => (
-                <div
-                  className={`entry-row${armed ? " taking" : ""}`}
-                  key={g.id}
-                  {...remainderDropProps(armed, () => assignRest(g.id))}
-                >
-                  <label htmlFor={idFor(g.id)}>{g.name}{g.active ? "" : t("deactivatedGradeSuffix")}</label>
-                  {/* #443 — no max=: the old ceiling refused to let a grade
-                      run ahead of step 1's total, forcing the total to be
-                      known before grading could finish. setGrade now raises
-                      the total to fit instead. */}
-                  <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
-                    value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)}
-                    step={stepSize} disabled={entryLocked} />
-                  {armed && (
-                    <TakeRemainderButton remaining={remaining} grade={g.name}
-                      onTake={() => assignRest(g.id)} />
-                  )}
-                </div>
-              ))}
-            </div>
+          {lossesExceedTotal ? (
+            <Typography role="alert" sx={{ mt: 2, color: "var(--error)" }}>
+              {t("countsExceedTotalMessage", { losses, total: totalEggs })}
+            </Typography>
+          ) : (
+            /* Shown as a value, not buried in a sentence — it is the target
+               the grading pane has to hit. */
+            <Typography component="p" role="status" sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 2, mt: 2, pt: 1.5, borderTop: "1px dashed var(--hairline)" }}>
+              <span className="muted">{t("sellableLabel")}<br />{t("sellableFormula", { total: totalEggs, cracked, dirty, discarded })}</span>
+              <Box component="span" sx={{ fontSize: "1.5rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{sellable}</Box>
+            </Typography>
+          )}
+        </Box>
 
-            {/* The count changes as they type, and it is the only feedback that
-                the day adds up — see GradingChip for its live-region shape. */}
+        <Box component="section">
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", pb: 1, borderBottom: "1px solid var(--rule-strong)" }}>
+            <Typography variant="h3" component="h3">
+              <span className="sr-only">{t("stepLabel", { n: 2 })} {t("stepOfTotal")}</span> {t("gradingHeading")}
+            </Typography>
+            {/* Mockup: "Counted 298" — the same sum GradingChip counts DOWN
+                from, read the other way. */}
+            <Typography component="span" variant="caption" className="muted">
+              {t("gradedCountCaption", { graded: fmt.count(gradesSum) })}
+            </Typography>
+          </Box>
+
+          {visibleGrades.map((g) => (
+            <EntryRow key={g.id} htmlFor={idFor(g.id)}
+              label={g.name} caption={g.active ? undefined : t("deactivatedGradeSuffix")}
+              groupLabel={t("gradeRowLabel", { grade: g.name })} armed={armed}
+              dropProps={remainderDropProps(armed, () => assignRest(g.id))}
+            >
+              {/* #443 — no max=: the old ceiling refused to let a grade run
+                  ahead of step 1's total, forcing the total to be known
+                  before grading could finish. setGrade now raises the total
+                  to fit instead. */}
+              <NumberField id={idFor(g.id)} label={g.name.toLowerCase()}
+                value={gradeQty[g.id] ?? 0} onChange={setGrade(g.id)}
+                step={stepSize} disabled={entryLocked} />
+              {armed && (
+                <TakeRemainderButton remaining={remaining} grade={g.name}
+                  onTake={() => assignRest(g.id)} />
+              )}
+            </EntryRow>
+          ))}
+
+          {/* The count changes as they type, and it is the only feedback that
+              the day adds up — see GradingChip for its live-region shape.
+              #830 (owner's screenshot review of #888) — GradingChip.tsx is
+              untouched (shared with HistoryPage's adjust dialog, which mirrors
+              this layout and keeps its own pill); these descendant selectors
+              restyle only THIS page's chip into the mockup's `.row.total` —
+              a ruled row, no fill (DIRECTION.md forbids a badge fill for
+              status), the count right-aligned and the "says" wording left
+              beside a status dot. `.entry-chip-text`'s DOM order stays
+              count-then-says (`toHaveTextContent("90 graded — the day adds
+              up")` reads left-to-right in DOM order, not screen order), so
+              the swap is `row-reverse` + `space-between`, never a JSX
+              reorder — that would read the text back to front. The dot is a
+              generated `::before` on the "says" span, contributing nothing
+              to its text content.
+
+              `!important` on `background`/`border-radius`/`padding`:
+              FarmThemeProvider.tsx `prepend`s Emotion's `<style>` tags AHEAD
+              of styles.css in `<head>`, so at EQUAL selector specificity
+              styles.css wins the cascade — this sx block's generated class
+              plus `.entry-chip`/`.entry-chip.done`/`.entry-chip.over` are all
+              two simple selectors, a tie append order alone settles in
+              styles.css's favour. Measured: without `!important` the fill
+              stayed (Playwright capture, #830). */}
+          <Box sx={{
+            mt: 2,
+            "& .entry-chip": {
+              display: "flex", width: "100%", alignItems: "baseline",
+              justifyContent: "space-between", gap: 1.5,
+              background: "none !important", borderRadius: "0 !important", padding: "0 !important",
+              borderTop: "1px solid var(--rule-strong)", paddingTop: "0.75rem",
+            },
+            "& .entry-chip-text": {
+              display: "flex", flexDirection: "row-reverse",
+              justifyContent: "space-between", alignItems: "baseline",
+              gap: "0.4rem", flex: "1 1 auto", minWidth: 0,
+            },
+            "& .entry-chip-text > span::before": {
+              content: '""', display: "inline-block",
+              width: 8, height: 8, borderRadius: "50%", marginRight: "6px",
+              verticalAlign: "middle", background: "var(--warn)",
+            },
+            "& .entry-chip.done .entry-chip-text > span::before": { background: "var(--success)" },
+          }}
+          >
             <GradingChip tone={grading.tone} count={grading.count} says={grading.says}
               canAssign={canAssign} remaining={remaining}
               assigning={armed} onAssigningChange={setAssigning} />
-          </div>
-        </section>
-      </div>
+          </Box>
+        </Box>
+      </Box>
 
       {/* Save feedback lives with the saves: anything below a pinned bar
-          scrolls underneath it and is never read. */}
-      <div className="entry-foot">
+          scrolls underneath it and is never read. #830 — Paper elevation 4
+          resolves to --shadow-bar via the theme's own shadow-index map (G2,
+          #823: AppBar/Snackbar defaults 4/6 -> --shadow-bar), so this needs no
+          new styles.css rule and no new G2 row; `.entry-foot`'s own box-shadow
+          declaration is deleted below instead of replaced.
+          Side by side (#823's `.entry-foot .actions` exception, #740): the
+          confirmed mockup keeps Save draft and Submit day side by side at
+          390, not stacked like every other `.actions` row — see the PR body's
+          D3.3/D8 amendment. */}
+      <Paper component="footer" elevation={4} square sx={{
+        position: "sticky", bottom: "var(--tabbar-h)", zIndex: 10,
+        mt: 4, mx: { xs: -2, md: 0 }, px: { xs: 2, md: 0 },
+        pt: 1.5, pb: "calc(12px + env(safe-area-inset-bottom))",
+        borderTop: "1px solid var(--hairline)",
+      }}
+      >
         {/* #479 — unconditional: the new-flock dialog's own failures live in
             their own slot now (see DialogError above), so there is nothing
             here for a dialog message to double up on. */}
-        {errors.page && <p className="error">{errors.page}</p>}
-        {message && <p className="success">{message}</p>}
-        <div className="entry-foot-row">
-          {/* Phones only (see styles.css): the two panes stack there, so the
-              figures that say whether the day adds up scroll away while the
-              counts are being typed. On desktop both are already on screen and
-              repeating them here would just be noise. */}
-          <p className={`entry-foot-sum ${grading.tone}`} role="status">
-            {/* `sellable` goes NEGATIVE once the losses pass the total, and this
-                copy is phone-only — so the barn was the one place that got
-                "-1 sellable" (review of PR #137). Pane 1 already branches to the
-                explanation; say the same thing here rather than a broken sum. */}
-            {lossesExceedTotal ? t("countsExceedFooterMessage") : (
-              <>
-                <b>{sellable}</b> {t("sellableWord")}
-                {grading.count !== null && <> · <b>{grading.count}</b> {grading.short}</>}
-              </>
-            )}
-          </p>
-          <div className="actions">
-            {/* Sibling triggers: each spins only for its own scope, while the
-                shared `busy` in disabled keeps the other one inert.
-                `grading.tone === "over"` (not the narrower `lossesExceedTotal`)
-                because #443 made an over-graded draft reachable a second way:
-                setGrade only ever RAISES the total to fit a grade, so the one
-                path still left to "over" is trimming the total on step 1
-                below a sum already graded — that must still block the save
-                the lenient backend rule would reject anyway (#394), rather
-                than round-trip to find out. `tone === "over"` already covers
-                the lossesExceedTotal case too (see lib/grading). */}
-            <BusyButton busy={isPending("save")}
-              disabled={busy || !flockId || !flockSnapshot.canSubmit || grading.tone === "over" || entryLocked || prefillFailed || prefillPending}
-              onClick={() => onSave(false)}>{t("saveDraftButton")}</BusyButton>
-            {/* #394: submit requires grading to reconcile EXACTLY — the same
-                "done" state the chip and footer already show, so the gate can
-                never say one thing and disable another. A draft may stay
-                partially (or entirely un-)graded; only submit is gated. */}
-            <BusyButton busy={isPending("submit")}
-              disabled={busy || !flockId || !flockSnapshot.canSubmit || grading.tone !== "done" || entryLocked || prefillFailed || prefillPending}
-              onClick={() => onSave(true)}>
-              {t("submitButton")}
-            </BusyButton>
-          </div>
-        </div>
-      </div>
+        {errors.page && <Typography role="alert" className="error">{errors.page}</Typography>}
+        {message && <Typography role="status" className="success">{message}</Typography>}
+        {/* `entry-actions` carries no styles.css rule — sx owns every visual
+            here — it exists only so phone.spec.ts can measure this row
+            without measuring the footer's own outer padding (was
+            `.entry-foot .actions`, a real styled class; #830 kept the hook,
+            dropped the styling it used to carry). */}
+        <Box className="entry-actions" sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+          {/* Sibling triggers: each spins only for its own scope, while the
+              shared `busy` in disabled keeps the other one inert.
+              `grading.tone === "over"` (not the narrower `lossesExceedTotal`)
+              because #443 made an over-graded draft reachable a second way:
+              setGrade only ever RAISES the total to fit a grade, so the one
+              path still left to "over" is trimming the total on step 1 below
+              a sum already graded — that must still block the save the
+              lenient backend rule would reject anyway (#394), rather than
+              round-trip to find out. `tone === "over"` already covers the
+              lossesExceedTotal case too (see lib/grading). */}
+          {/* #830 (owner's screenshot review of #888) — the confirmed mockup's
+              footer is two 48px rectangular buttons, outlined "Save draft" /
+              contained "Submit day", never the stylesheet's pill `<button>`
+              (which clamped "Save & submit (creates egg lots)" into a
+              three-line ellipse at 390, the #740 shape). `component={Button}`
+              routes BusyButton through MUI's own root instead of the plain
+              `<button>` every other call site still gets — see BusyButton.tsx.
+              `whiteSpace: "nowrap"` is the other half: MUI's default button
+              text wraps, and a wrapped label inside a fixed-height control
+              clips instead of growing the ellipse this control no longer has.
+              `color`/`borderColor` are explicit: MUI's outlined default reads
+              `palette.primary.main` (`--brand`), which dark mode never
+              redefines (DIRECTION.md reserves brand for the farm name, the
+              active nav item, the PRIMARY button and the focus ring — never a
+              secondary outline) — a dark-aubergine border/text on the near-
+              black dark canvas measured as low-contrast (Playwright capture,
+              #830). `var(--ink)`/`var(--rule-strong)` match the mockup's
+              `.btn.secondary` instead, and both tokens ARE redefined for dark
+              mode. */}
+          <BusyButton component={Button} variant="outlined"
+            busy={isPending("save")}
+            sx={{
+              minHeight: 48, whiteSpace: "nowrap",
+              color: "var(--ink)", borderColor: "var(--rule-strong)",
+              "&:hover": { borderColor: "var(--ink)" },
+            }}
+            disabled={busy || !flockId || !flockSnapshot.canSubmit || grading.tone === "over" || entryLocked || prefillFailed || prefillPending}
+            onClick={() => onSave(false)}>{t("saveDraftButton")}</BusyButton>
+          {/* #394: submit requires grading to reconcile EXACTLY — the same
+              "done" state the chip already shows, so the gate can never say
+              one thing and disable another. A draft may stay partially (or
+              entirely un-)graded; only submit is gated. */}
+          <BusyButton component={Button} variant="contained"
+            busy={isPending("submit")}
+            sx={{ minHeight: 48, whiteSpace: "nowrap" }}
+            disabled={busy || !flockId || !flockSnapshot.canSubmit || grading.tone !== "done" || entryLocked || prefillFailed || prefillPending}
+            onClick={() => onSave(true)}>
+            {t("submitButton")}
+          </BusyButton>
+        </Box>
+      </Paper>
 
       {confirmDialog}
-    </section>
+    </Box>
   );
 }

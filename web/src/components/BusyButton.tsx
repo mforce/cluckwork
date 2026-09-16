@@ -1,7 +1,20 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-type Props = ButtonHTMLAttributes<HTMLButtonElement> & { busy?: boolean };
+type Props<C extends ElementType> = {
+  busy?: boolean;
+  /**
+   * #830 — the underlying element BusyButton renders. Defaults to a plain
+   * `<button>` (the other 40-odd call sites, byte-identical to before this
+   * prop existed); a caller that wants MUI's own root, variant class and sx
+   * — the daily-entry footer's `Button` — passes it here instead of this
+   * file growing a second component.
+   */
+  component?: C;
+  children?: ReactNode;
+} & Omit<ComponentPropsWithoutRef<C>, "component" | "children" | "disabled"> & {
+  disabled?: boolean;
+};
 
 // #236 — the busy trigger. Children pass through untouched (dynamic labels
 // like Login's "Signing in…" swap stay the caller's); the wrapper's inline-flex
@@ -19,16 +32,19 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & { busy?: boolean };
 // Settings logo status). It is .sr-only (absolute-positioned), so the
 // fragment adds no layout. The spinner is aria-hidden so the accessible name
 // stays exactly the children text — screen tests assert names verbatim.
-export function BusyButton({ busy = false, disabled, children, ...rest }: Props) {
+export function BusyButton<C extends ElementType = "button">({
+  busy = false, disabled, children, component, ...rest
+}: Props<C>) {
   const { t } = useTranslation("common");
+  const Component = (component ?? "button") as ElementType;
   return (
     <>
-      <button {...rest} disabled={disabled || busy} aria-busy={busy || undefined}>
+      <Component {...rest} disabled={disabled || busy} aria-busy={busy || undefined}>
         <span className="busy-label">
           {busy && <span className="spinner" aria-hidden="true" />}
           {children}
         </span>
-      </button>
+      </Component>
       <span role="status" className="sr-only">
         {busy ? t("working") : ""}
       </span>

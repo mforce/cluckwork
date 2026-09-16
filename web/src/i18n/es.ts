@@ -508,6 +508,13 @@ export const es = {
     stepOfTotal: "de 2:",
     eggCountsHeading: "Conteo de huevos",
     gradingHeading: "Clasificación",
+    gradedCountCaption: "Contados {{graded}}",
+
+    attentionHeading_one: "{{count}} cosa.",
+    attentionHeading_other: "{{count}} cosas.",
+    attentionDraftItem: "Borrador no enviado",
+    attentionMortalityItem: "Mortalidad {{count}} registrada, el conteo de la parvada bajará a {{flockCountAfter}} al enviar",
+    gradeRowLabel: "Fila de {{grade}}",
 
     // Count field labels
     totalEggsLabel: "Total de huevos",
@@ -556,7 +563,7 @@ export const es = {
     stepperUnitCaption: "Contando por {{unit}} — cada toque de − / + mueve {{count}} huevos. Escribir sigue ingresando números exactos.",
     sellableWord: "vendible",
     saveDraftButton: "Guardar borrador",
-    submitButton: "Guardar y enviar (crea lotes de huevos)",
+    submitButton: "Enviar día",
 
     // Submit confirmation dialog (one-way action, #59)
     confirmSubmitTitle: "¿Enviar este día?",
