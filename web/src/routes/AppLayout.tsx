@@ -83,6 +83,11 @@ export function AppLayout() {
 
       <Drawer
         variant="permanent"
+        // `<aside>` (the `complementary` landmark, ax.ts / the e2e `nav`
+        // fixture): the pre-#829 `<aside className="sidebar">` carried it
+        // implicitly; `Drawer`'s Paper renders a plain `<div>` by default, so
+        // the landmark has to be asked for explicitly or it is silently lost.
+        slotProps={{ paper: { component: "aside" } }}
         sx={{
           display: { xs: "none", md: "block" },
           width: "var(--sidebar-w)",

@@ -311,7 +311,7 @@ export function Dashboard() {
               {orders === null ? panelError : orders.length === 0 ? (
                 <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")} />
               ) : (
-                <Box component="ul" role="list" sx={{ listStyle: "none", m: 0, p: 0 }}>
+                <Box component="ul" role="list" aria-label={t("salesPanelTitle")} className="dash-sales-list" sx={{ listStyle: "none", m: 0, p: 0 }}>
                   {orders.map((o) => (
                     <Box component="li" key={o.id} aria-label={o.referenceNumber} sx={{
                       display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.5,
@@ -447,15 +447,33 @@ function TodayRow({ tile, today, fmt, t }: {
   const missing = entry === null;
   const draft = entry !== null && entry.status === "Draft";
 
+  // A CSS grid, not a flex row: the DIRECTION.md phone layout reflows the
+  // SAME four pieces (name, state, action, count) into three lines instead
+  // of shrinking them onto one — a flex row with fixed minWidths overflowed
+  // a 390px viewport (measured: 475px, phone.spec.ts's viewport-overflow
+  // walk). `gridTemplateAreas` names the reflow directly rather than
+  // reordering flex children with `order`.
   return (
     <Box role="group" aria-label={flock.name} sx={{
-      display: "flex", alignItems: "center", gap: 1.5, minHeight: 36, py: 0.5,
+      display: "grid",
+      // The action column is a FIXED 200px, not `auto`: the fixture's longest
+      // names ("E2E Flock 1789547475507…") made an `auto` track grow to fit
+      // the widest "Record …" label, ballooning the button across most of the
+      // row. #864's owner note calls this out directly: "a fixed 200px action
+      // column that wraps cleanly is the least the slice should do" — the
+      // button wraps onto two lines under a long label instead.
+      gridTemplateColumns: { xs: "1fr auto", md: "9rem 1fr 200px 3rem" },
+      gridTemplateAreas: { xs: '"name num" "meta meta" "act act"', md: '"name meta act num"' },
+      columnGap: 1.5, rowGap: { xs: 0.25, md: 0 },
+      alignItems: "center",
+      minHeight: { xs: 52, md: 36 }, py: { xs: 1, md: 0.5 },
       borderBottom: "1px solid var(--rule)",
       borderLeft: missing ? "3px solid var(--warn)" : "3px solid transparent",
       pl: missing ? 1 : 0,
+      bgcolor: missing ? { xs: "var(--tint-warn)", md: "transparent" } : "transparent",
     }}
     >
-      <Typography component={Link} to={href} sx={{ fontWeight: 500, minWidth: "9rem" }}
+      <Typography component={Link} to={href} sx={{ gridArea: "name", fontWeight: 500 }}
         aria-label={missing
           ? t("tileLinkLabelMissing", { flock: flock.name })
           : t("tileLinkLabel", { flock: flock.name })}
@@ -463,24 +481,32 @@ function TodayRow({ tile, today, fmt, t }: {
       >
         {flock.name}
       </Typography>
-      <Box sx={{ flexGrow: 1 }}>
+      <Box sx={{ gridArea: "meta" }}>
         {missing
           ? <span className="badge badge-warn">{t("noEntryBadge")}</span>
           : <StatusBadge status={entry.status} label={statusLabel(entry.status)} />}
       </Box>
-      <Box sx={{ minWidth: "8rem", textAlign: "right" }}>
-        {missing && (
-          <Button component={Link} to={href} variant="contained" size="small">
-            {t("recordHouseAction", { flock: flock.name })}
-          </Button>
-        )}
-        {draft && (
-          <Button component={Link} to={href} variant="text" size="small">
-            {t("continueHouseAction", { flock: flock.name })}
-          </Button>
-        )}
-      </Box>
-      <Typography component="span" className="num" sx={{ minWidth: "3rem", textAlign: "right" }}>
+      {(missing || draft) && (
+        <Box sx={{ gridArea: "act", textAlign: { xs: "stretch", md: "right" } }}>
+          {missing && (
+            // The single filled button on the page at 1280 (owner amendment,
+            // #864) and the 48px full-width phone action (DIRECTION.md).
+            <Button component={Link} to={href} variant="contained" size="small"
+              sx={{ width: { xs: "100%", md: "auto" }, minHeight: { xs: 48, md: "auto" } }}
+            >
+              {t("recordHouseAction", { flock: flock.name })}
+            </Button>
+          )}
+          {draft && (
+            <Button component={Link} to={href} variant="text" size="small"
+              sx={{ width: { xs: "100%", md: "auto" }, justifyContent: { xs: "flex-start", md: "flex-end" } }}
+            >
+              {t("continueHouseAction", { flock: flock.name })}
+            </Button>
+          )}
+        </Box>
+      )}
+      <Typography component="span" className="num" sx={{ gridArea: "num", textAlign: "right" }}>
         {entry ? fmt.count(entry.totalEggs) : "—"}
       </Typography>
     </Box>

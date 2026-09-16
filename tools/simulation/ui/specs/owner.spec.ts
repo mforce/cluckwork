@@ -31,11 +31,12 @@ test.describe("Owner", () => {
     await expect(page.getByText(tEn("dashboard:loadFailed"))).toHaveCount(0);
     await expect(page.getByText(tEn("dashboard:panelLoadError"))).toHaveCount(0);
 
-    // Capture status: at least one tile (the seeder's flock count is
-    // configurable, so ">= 1", never an exact count), and the empty state hidden.
-    // `.capture-tile` is a class locator, not English — the tile's accessible
-    // name interpolates the flock's name, which this spec does not know.
-    await expect(page.locator(".capture-tile").first()).toBeVisible();
+    // Capture status: at least one Today row (the seeder's flock count is
+    // configurable, so ">= 1", never an exact count), and the empty state
+    // hidden. #829 — the row is `role="group"`, not a `.capture-tile` class
+    // locator; nothing else on the Dashboard renders that role, so this
+    // stays a stable, English-independent hook the same way the class was.
+    await expect(page.getByRole("group").first()).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noFlocksMessage"))).toBeHidden();
 
     // Stock: the stacked bar has at least one segment (a grade with available
@@ -45,8 +46,12 @@ test.describe("Owner", () => {
 
     // The test's name promises sales data, so it has to actually look at it.
     // Without this, deleting the Sales panel outright left the spec green — it
-    // asserted production and stock and called that "and sales" (PR #390 review).
-    await expect(page.locator(".dash-list li").first()).toBeVisible();
+    // asserted production and stock and called that "and sales" (PR #390
+    // review). #829 — the list carries its own accessible name now (the
+    // stock ledger renders `role="list"` too, on the same page), so this
+    // scopes to the named one rather than a `.dash-list` class locator.
+    const salesList = page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
+    await expect(salesList.getByRole("listitem").first()).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noOrdersMessage"))).toBeHidden();
   });
 
