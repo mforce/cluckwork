@@ -29,6 +29,10 @@
   --surface-2: #f6f1f8; /* subtle inset (toolbars, meter tracks) */
   --lavender: #f9f0ff;
   --hairline: #e6e6e6;
+  /* Ruled lists (#864 direction): --rule between rows, --rule-strong (28% ink)
+     under headers, above totals and under fields. */
+  --rule: var(--hairline);
+  --rule-strong: rgba(29, 29, 29, 0.28);
   --row-hover: #faf5fc;
   --scroll-cue: rgba(29, 21, 33, 0.22); /* edge fade for horizontally-scrolling tables (#150) */
 
@@ -204,6 +208,8 @@
   --surface-2: #2b2231;
   --lavender: #241c2a;
   --hairline: #3a2f40;
+  --rule: var(--hairline);
+  --rule-strong: rgba(242, 236, 244, 0.28);
   --row-hover: #2b2231;
   --scroll-cue: rgba(255, 255, 255, 0.16); /* edge cue for scrolling tables (#150) — a light glow, since a dark shadow vanishes on the dark surface */
 
@@ -3123,7 +3129,7 @@ input.locked {
 }
 
 .named-picker-trigger:focus-visible {
-  outline: 2px solid var(--accent, #4a90d9);
+  outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
 
