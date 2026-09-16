@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import createCache from "@emotion/cache";
+import { CacheProvider } from "@emotion/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import type { Shadows, Theme } from "@mui/material/styles";
 import {
@@ -32,6 +34,38 @@ function elevationScale(tokens: TokenValues): Shadows {
   // MUI types the array as a 25-tuple; the construction above is that length.
   return scale as Shadows;
 }
+
+/**
+ * The page's CSP style nonce, or `undefined` when the document does not carry
+ * one (#873).
+ *
+ * Read ONCE, at module load. The server writes this meta into the same response
+ * whose `Content-Security-Policy` header names the nonce, so the value cannot
+ * change while the document lives and re-reading it would only invite a caller
+ * to believe it can.
+ *
+ * `undefined` is the correct answer, not a degraded one. Vite's dev server
+ * serves index.html untouched and applies no policy, so there is nothing to
+ * satisfy. In a production build a missing meta means the header's nonce
+ * reached nobody, and Emotion's styles are then blocked — which is the
+ * fail-closed outcome #873 chose. Do not add a fallback that loosens it.
+ */
+const cspNonce = document
+  .querySelector<HTMLMetaElement>('meta[name="csp-nonce"]')
+  ?.content || undefined;
+
+/**
+ * One Emotion cache for the whole app, carrying that nonce.
+ *
+ * MUI styles through Emotion, which injects a `<style>` element at runtime; under
+ * `style-src 'self'` with no nonce the browser drops it and no MUI styling
+ * reaches the screen at all (#873, measured on the sim harness in #871).
+ *
+ * `prepend` puts those tags ahead of `styles.css` in `<head>`, so at equal
+ * specificity this app's own stylesheet still wins — which is what keeps
+ * `styles.css` the source of truth the #674 record says it is.
+ */
+const emotionCache = createCache({ key: "mui", nonce: cspNonce, prepend: true });
 
 /**
  * Build MUI's theme from one already-resolved set of this app's tokens.
@@ -239,5 +273,9 @@ export function FarmThemeProvider({ children }: { children: ReactNode }) {
     [signal],
   );
 
-  return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
+  return (
+    <CacheProvider value={emotionCache}>
+      <ThemeProvider theme={theme}>{children}</ThemeProvider>
+    </CacheProvider>
+  );
 }

@@ -16,11 +16,25 @@ public sealed class StaticCachingFactory : CluckworkWebApplicationFactory
 
     public const string HashedAsset = "/assets/app-deadbeef.js";
 
+    public const string IndexHtml =
+        """
+        <!doctype html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <title>cluckwork</title>
+          </head>
+          <body><div id="root"></div></body>
+        </html>
+        """;
+
     public StaticCachingFactory()
     {
         Directory.CreateDirectory(Path.Combine(_webRoot, "assets"));
-        File.WriteAllText(Path.Combine(_webRoot, "index.html"),
-            "<!doctype html><title>cluckwork</title>");
+        // Shaped like the file Vite actually emits, because #873 templates it:
+        // SpaShell splits on <head>, so a fixture without one would exercise a
+        // document the build can never produce.
+        File.WriteAllText(Path.Combine(_webRoot, "index.html"), IndexHtml);
         File.WriteAllText(Path.Combine(_webRoot, "assets", "app-deadbeef.js"),
             "console.log('hashed bundle');");
         File.WriteAllText(Path.Combine(_webRoot, "favicon.ico"), "icon-bytes");
