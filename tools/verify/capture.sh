@@ -14,7 +14,7 @@ prefix="${4:-after}"
 # The four arguments are interpolated into a generated spec and a /tmp path, so
 # each is held to a literal alphabet: no quotes, no braces, no path separators
 # in the names, and the route is an absolute app path with a query at most.
-name_re='^[A-Za-z0-9._-]+$'
+name_re='^[A-Za-z0-9][A-Za-z0-9._-]*$'   # must start alphanumeric: rules out . and ..
 route_re='^/[A-Za-z0-9._/?=&-]*$'
 [[ "$slug" =~ $name_re ]] || { echo "slug must match $name_re" >&2; exit 2; }
 [[ "$prefix" =~ $name_re ]] || { echo "prefix must match $name_re" >&2; exit 2; }
@@ -69,5 +69,12 @@ test.describe("verify capture $slug", () => {
 });
 EOF
 
-(cd "$ui" && npx playwright test --config playwright.screenshots.config.ts --grep "verify-capture" --project=chromium 2>&1 | grep -E "passed|failed|console errors" || true)
+set +e
+(cd "$ui" && npx playwright test --config playwright.screenshots.config.ts --grep "verify-capture" --project=chromium 2>&1 | grep -E "passed|failed|console errors|Error")
+status=${PIPESTATUS[0]}
+set -e
+for f in "$out/$prefix-1280-light.png" "$out/$prefix-1280-dark.png" "$out/$prefix-390-light.png" "$out/$prefix-390-dark.png"; do
+  [ -s "$f" ] || { echo "missing evidence: $f" >&2; exit 1; }
+done
+[ "$status" -eq 0 ] || { echo "playwright exited $status" >&2; exit "$status"; }
 ls -1 "$out"
