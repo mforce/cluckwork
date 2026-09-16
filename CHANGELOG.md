@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.1.2](https://github.com/mforce/cluckwork/compare/v0.1.1...v0.1.2) (2026-09-16)
+
+
+### Features
+
+* **data:** standardize business record chronology ([#820](https://github.com/mforce/cluckwork/issues/820)) ([6231b31](https://github.com/mforce/cluckwork/commit/6231b316ec6d3af4d5aa9ae61ad5072ae3a011bd))
+* **infra:** optional leader-lease endpoint for pooled deploys ([#869](https://github.com/mforce/cluckwork/issues/869)) ([e9bc6a7](https://github.com/mforce/cluckwork/commit/e9bc6a783138236e2d16e5065cda169a5b5e94c0))
+* **sim:** seed a second farm for the README dashboard capture ([#867](https://github.com/mforce/cluckwork/issues/867)) ([de407c6](https://github.com/mforce/cluckwork/commit/de407c623601d8419e6b0152f77c539e0a63ad40))
+* **web:** adopt MUI, themed from the farm palette tokens ([#674](https://github.com/mforce/cluckwork/issues/674)) ([#860](https://github.com/mforce/cluckwork/issues/860)) ([6c83c5c](https://github.com/mforce/cluckwork/commit/6c83c5cbff8bc49942965beb9dca8fae2bb0507f))
+* **web:** convert Daily entry to MUI, field-first on the phone ([#888](https://github.com/mforce/cluckwork/issues/888)) ([b66f8b8](https://github.com/mforce/cluckwork/commit/b66f8b8602b122dec3dc11244660fd648653241b))
+* **web:** convert the Dashboard and app shell to MUI ([#829](https://github.com/mforce/cluckwork/issues/829)) ([#883](https://github.com/mforce/cluckwork/issues/883)) ([2e94277](https://github.com/mforce/cluckwork/commit/2e94277bb29b3d120c806d0bdd0eb4cc4a8c5114))
+* **web:** retire the Slack-blue link colour for ink + a rule underline ([#884](https://github.com/mforce/cluckwork/issues/884)) ([c08f9d8](https://github.com/mforce/cluckwork/commit/c08f9d86d33b8f72002da3f17332f28b2546501b))
+* **web:** serve a per-request CSP nonce so Emotion's styles apply under style-src 'self' ([#874](https://github.com/mforce/cluckwork/issues/874)) ([ba4e6f3](https://github.com/mforce/cluckwork/commit/ba4e6f3c0274bff53beea5658290bab21999dc8f))
+* **web:** visual language theme overrides for the MUI revamp ([#864](https://github.com/mforce/cluckwork/issues/864)) ([#882](https://github.com/mforce/cluckwork/issues/882)) ([0bb6b73](https://github.com/mforce/cluckwork/commit/0bb6b735e6016ed96c476eabda25d4c9d0296eb5))
+* **web:** whole-app MUI baseline, theme policy guard and the [#740](https://github.com/mforce/cluckwork/issues/740) phone action rule ([#823](https://github.com/mforce/cluckwork/issues/823)) ([#871](https://github.com/mforce/cluckwork/issues/871)) ([af565e4](https://github.com/mforce/cluckwork/commit/af565e4709a5584e247225c29921ff54b40f3612))
+
+
+### Bug fixes
+
+* **auth:** fail closed on unresolved flock-scope actors ([#787](https://github.com/mforce/cluckwork/issues/787)) ([#868](https://github.com/mforce/cluckwork/issues/868)) ([16d0350](https://github.com/mforce/cluckwork/commit/16d03505c3be7109f5a9927c40fa6aedb47c8339))
+* **auth:** make farm configuration owner-only ([#870](https://github.com/mforce/cluckwork/issues/870)) ([42f9036](https://github.com/mforce/cluckwork/commit/42f903695a65421137b0443a9a93dbc087ea8fde))
+* **e2e:** repoint the canary at the markup two PRs replaced ([#844](https://github.com/mforce/cluckwork/issues/844)) ([18b45dc](https://github.com/mforce/cluckwork/commit/18b45dc0a708ac95fb8a597984908e584c0cff65))
+* **i18n:** tl glossary uses the standard passive of ilagay ([#813](https://github.com/mforce/cluckwork/issues/813)) ([20dec10](https://github.com/mforce/cluckwork/commit/20dec10049cf59ae4e1413ba557d022b5ff4a270)), closes [#738](https://github.com/mforce/cluckwork/issues/738)
+* **sim:** stop the k6-baseline EXIT trap masking a clean run as failed ([#838](https://github.com/mforce/cluckwork/issues/838)) ([f5ec96f](https://github.com/mforce/cluckwork/commit/f5ec96f4f9a31bb22c87c661a2c44182a6c2cbf6))
+* **web:** declare the rule tokens the Dashboard reads, and guard undeclared custom properties ([#885](https://github.com/mforce/cluckwork/issues/885)) ([5bead1f](https://github.com/mforce/cluckwork/commit/5bead1fc505a6749509fd8ff60f785e44d5612a6))
+
+
+### Performance
+
+* **ci:** start the serialized integration collection first ([#861](https://github.com/mforce/cluckwork/issues/861)) ([1dcc7f6](https://github.com/mforce/cluckwork/commit/1dcc7f60d1ed14b313f82beafcb60b1da6527b4e)), closes [#839](https://github.com/mforce/cluckwork/issues/839)
+
+
+### Documentation
+
+* **auth:** record the OAuth 2.1 decision for MCP authentication ([#801](https://github.com/mforce/cluckwork/issues/801)) ([0510854](https://github.com/mforce/cluckwork/commit/0510854397745568201512920e1cbd9ac56ca057))
+* **designs:** MUI revamp design doc, component map, layout system, IA ([#862](https://github.com/mforce/cluckwork/issues/862)) ([da49481](https://github.com/mforce/cluckwork/commit/da49481c3684a785e995fb01f30073123bbab348))
+* **readme:** recapture the daily entry, reports and sales screenshots ([#865](https://github.com/mforce/cluckwork/issues/865)) ([f18e336](https://github.com/mforce/cluckwork/commit/f18e336d34d6ce6caf5f58efcf9dd586605c0469))
+* **specs:** correct the sales_order_items column list in §10.5 ([#812](https://github.com/mforce/cluckwork/issues/812)) ([afe4a02](https://github.com/mforce/cluckwork/commit/afe4a02d36280692d3d3a3e98280a0c354ff92c3)), closes [#737](https://github.com/mforce/cluckwork/issues/737)
+
 ## [0.1.1](https://github.com/mforce/cluckwork/compare/v0.1.0...v0.1.1) (2026-09-12)
 
 
