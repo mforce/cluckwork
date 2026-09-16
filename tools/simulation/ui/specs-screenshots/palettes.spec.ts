@@ -82,7 +82,7 @@ test.describe("palette x theme visual matrix (#664)", () => {
         await signIn(castMember("Manager"));
 
         await page.goto("/");
-        await expect(page.locator(".capture-tile").first()).toBeVisible();
+        await expect(page.getByRole("group").first()).toBeVisible();
         await setPalette(page, brand, theme);
         await capture(page, `dashboard-${brand}-${theme}.png`);
 

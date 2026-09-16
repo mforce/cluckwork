@@ -105,7 +105,7 @@ test.describe("README screenshots", () => {
 
     // Tiles: at least one rendered. Class locator — the tile's accessible
     // name interpolates a flock name this spec does not know.
-    await expect(page.locator(".capture-tile").first()).toBeVisible();
+    await expect(page.getByRole("group").first()).toBeVisible();
 
     // Trend: the day strip is there AND not flat. Fourteen slots are drawn
     // whatever the figures (#777), so counting slots would pass on a missing

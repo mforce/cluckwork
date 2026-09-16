@@ -48,10 +48,11 @@ const SCREENS = [
   {
     name: "dashboard",
     path: "/",
-    ready: (page: CanaryPage) => page.locator(".capture-grid"),
-    // The dashboard carries no table at all since #654 — its per-flock capture
-    // tiles are the rows, and they are what a lost `/api/v1/flocks` empties.
-    rows: (ready: CanaryLocator) => ready.locator(".capture-tile"),
+    ready: (page: CanaryPage) => page.getByRole("heading", { name: tEn("dashboard:title") }),
+    // The dashboard carries no table: since #829 its Today list is one
+    // `role="group"` per flock (named by the flock), and those rows are what a
+    // lost `/api/v1/flocks` empties.
+    rows: (ready: CanaryLocator) => ready.page().getByRole("group"),
     // All three data panels, not just the flock one. A tile renders for a flock
     // that filed nothing today, so the tiles alone cannot tell a working stock
     // or sales read from a failed one.
