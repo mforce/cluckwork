@@ -1,9 +1,9 @@
 namespace Cluckwork.Application.Tests.Documentation;
 
-using System.Diagnostics;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Tests.TenantBypass;
 
 // #732 — the rename's prose is not enforced by anything else, and review round 2 found
 // five separate places where it said something the shipped code does not do. Each
@@ -317,21 +317,36 @@ public sealed class RenameAccountDocsTests
         return heading + (end >= 0 ? body[..end] : body);
     }
 
-    private static string RepoRoot() => Git("rev-parse --show-toplevel", AppContext.BaseDirectory).Trim();
+    // Never `git rev-parse` here: the pre-commit hook exports GIT_DIR without
+    // GIT_WORK_TREE, so git takes the test's bin directory as the top level.
+    internal static string RepoRoot() =>
+        GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
+        ?? throw new InvalidOperationException("Cluckwork.sln not found above " + AppContext.BaseDirectory);
+}
 
-    private static string Git(string arguments, string workingDirectory)
+[Collection(EnvironmentMutatingCollection.Name)]
+public sealed class RenameAccountDocsRepoRootTests
+{
+    [Fact]
+    public void RepoRoot_IgnoresTheGitDirThePreCommitHookExports()
     {
-        var psi = new ProcessStartInfo("git", arguments)
+        var previous = Environment.GetEnvironmentVariable("GIT_DIR");
+        Environment.SetEnvironmentVariable("GIT_DIR", Path.Combine(Path.GetTempPath(), "not-a-git-dir"));
+        try
         {
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            UseShellExecute = false,
-        };
-        using var p = Process.Start(psi);
-        Assert.NotNull(p);
-        var output = p!.StandardOutput.ReadToEnd();
-        p.WaitForExit();
-        Assert.Equal(0, p.ExitCode);
-        return output;
+            Assert.True(File.Exists(Path.Combine(RenameAccountDocsTests.RepoRoot(), "docs/runbooks/provisioning-a-new-farm.md")));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GIT_DIR", previous);
+        }
     }
+}
+
+// Environment variables are process-global and xUnit runs classes in parallel, so a test
+// that sets one must not overlap a class that starts git with the inherited environment.
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class EnvironmentMutatingCollection
+{
+    public const string Name = "environment-mutating";
 }
