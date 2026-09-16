@@ -338,6 +338,91 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     }
   });
 
+  // #830 (owner's screenshot review of #888), fix 1. The ratio check above
+  // (no control taller than it is wide) already passed on this row before
+  // this fix — a wrapped label inside a fixed-height MUI button still isn't
+  // TALLER than it is WIDE at this row's width, so it could not have caught
+  // the #740 shape the owner actually saw: "Save & submit (creates egg lots)"
+  // wrapped to three lines inside the pill. This asserts the more direct
+  // thing — the label fits on one line — by comparing the rendered height
+  // against the font's own line-height, which a wrap doubles and a fixed
+  // min-height with padding does not.
+  test("the daily-entry footer buttons render their label on one line", async ({ page }) => {
+    await page.goto("/daily-entry");
+    const foot = page.locator("footer");
+    await expect(foot).toBeVisible();
+    const buttons = foot.locator(".entry-actions button");
+    await expect(buttons, "the daily-entry footer rendered no buttons to measure").toHaveCount(2);
+
+    const measured = await buttons.evaluateAll((els) => els.map((el) => {
+      const style = getComputedStyle(el);
+      const parsedLineHeight = parseFloat(style.lineHeight);
+      // `line-height: normal` computes as the string "normal", not a px
+      // value — fall back to the CSS-typical 1.2x font-size multiplier.
+      const lineHeight = Number.isNaN(parsedLineHeight)
+        ? parseFloat(style.fontSize) * 1.2
+        : parsedLineHeight;
+      return { name: (el.textContent ?? "").trim(), height: el.getBoundingClientRect().height, lineHeight };
+    }));
+
+    for (const b of measured) {
+      // At least 44px (WCAG 2.2 AAA 2.5.5), matching MIN_TARGET_PX above.
+      expect.soft(
+        b.height,
+        `"${b.name}" in the daily-entry footer is ${b.height.toFixed(1)}px tall — under the 44px touch-target floor`,
+      ).toBeGreaterThanOrEqual(44);
+      // At most one line taller than the font's own line-height: a single
+      // line plus the control's padding fits well under this; a wrapped
+      // label (two text lines) does not.
+      expect.soft(
+        b.height,
+        `"${b.name}" in the daily-entry footer is ${b.height.toFixed(1)}px tall against a `
+          + `${b.lineHeight.toFixed(1)}px line-height — its label wrapped onto a second line`,
+      ).toBeLessThanOrEqual(b.lineHeight * 2);
+    }
+  });
+
+  // #830 (owner's screenshot review of #888), fix 2. Before this fix each row
+  // was a flex `justify-content: space-between` pair, so a label wide enough
+  // to overflow squeezed the stepper beside it by a different amount per
+  // row — the owner saw this as each row's minus button sitting at a
+  // different x. `.numfield > button:first-child` / `:last-child` are the
+  // minus/plus buttons structurally (NumberField.tsx), not by their
+  // (translated) aria-label, per this suite's own no-hardcoded-English rule.
+  // At 390 both panes stack into one column (DailyEntryPage.tsx's `gridTemplateColumns`
+  // switches from `repeat(2, ...)` to `1fr` below `md`), so every row in the
+  // walk shares one container width and a real fix lines every button in
+  // BOTH panes up to a single x, not just within one pane.
+  test("the daily-entry stepper rows line their minus and plus buttons up in one column", async ({ page }) => {
+    await page.goto("/daily-entry");
+    const minusButtons = page.locator(".numfield > button:first-child");
+    const plusButtons = page.locator(".numfield > button:last-child");
+    // `.count()` does not auto-wait like an assertion does — it reads
+    // whatever is in the DOM the instant it runs, and the flocks/grades
+    // fetch that gates this form (DailyEntryPage's `loading` state) has not
+    // always settled by then. Wait for the first row before counting.
+    await expect(minusButtons.first(), "the daily-entry screen rendered no stepper rows to measure")
+      .toBeVisible();
+    const rowCount = await minusButtons.count();
+    expect(rowCount, "the daily-entry screen rendered only one stepper row to measure").toBeGreaterThan(1);
+
+    const roundedXs = async (locator: Locator) =>
+      new Set((await locator.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().x)))
+        .map((x) => Math.round(x)));
+
+    const minusXs = await roundedXs(minusButtons);
+    const plusXs = await roundedXs(plusButtons);
+
+    expect(
+      minusXs.size,
+      `minus buttons sit at ${[...minusXs].join(", ")}px — not one shared x across the ${rowCount} rows`,
+    ).toBe(1);
+    expect(
+      plusXs.size,
+      `plus buttons sit at ${[...plusXs].join(", ")}px — not one shared x across the ${rowCount} rows`,
+    ).toBe(1);
+  });
+
   test("no walked screen overflows the viewport horizontally", async ({ page }) => {
     const viewport = page.viewportSize();
     if (viewport === null) throw new Error("this project runs with a fixed viewport; none was set.");

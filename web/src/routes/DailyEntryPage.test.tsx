@@ -118,7 +118,7 @@ function saveDraftBtn() {
   return screen.getByRole("button", { name: /Save draft/ });
 }
 function submitBtn() {
-  return screen.getByRole("button", { name: /Save & submit/ });
+  return screen.getByRole("button", { name: /Submit day/ });
 }
 // F134 Option A: the reconciliation is two readouts that sit with the fields
 // they describe — sellable at the foot of the counts pane, and a chip counting
@@ -545,8 +545,11 @@ describe("DailyEntryPage submit confirmation", () => {
     await readyWithCounts();
 
     await act(async () => { fireEvent.click(submitBtn()); });
+    // Scoped to the dialog: the footer's own Submit day button (#830) now
+    // shares the confirm button's exact name, and both sit in the tree at
+    // once — an unscoped query is ambiguous where it used to be unique.
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Submit day" }));
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Submit day" }));
     });
 
     expect(vi.mocked(recordDailyEntry)).toHaveBeenCalled();
@@ -612,7 +615,26 @@ describe("DailyEntryPage structure", () => {
 
     const foot = saveDraftBtn().closest("footer") as HTMLElement;
     expect(within(foot).getByRole("button", { name: /Save draft/ })).toBeInTheDocument();
-    expect(within(foot).getByRole("button", { name: /Save & submit/ })).toBeInTheDocument();
+    expect(within(foot).getByRole("button", { name: /Submit day/ })).toBeInTheDocument();
+  });
+
+  // #830 (owner's screenshot review of #888) — the footer was still the
+  // stylesheet's pill `<button>` via BusyButton, and at 390 the old
+  // "Save & submit (creates egg lots)" label wrapped to three lines inside
+  // an ellipse (the #740 shape). The confirmed mockup's footer is two 48px
+  // rectangular MUI buttons, outlined "Save draft" / contained "Submit day".
+  it("renders the two footer actions as MUI buttons — outlined Save draft, contained Submit day", async () => {
+    await renderReady();
+
+    const draft = saveDraftBtn();
+    const submit = submitBtn();
+    expect(draft).toHaveClass("MuiButton-outlined");
+    expect(submit).toHaveClass("MuiButton-contained");
+    // Renamed by the confirmed mockup (D8 amendment): the "creates egg lots"
+    // detail moved to the submit confirmation dialog's body, which already
+    // carried it (confirmSubmitBody) — the footer label is now just the verb.
+    expect(submit).toHaveAccessibleName("Submit day");
+    expect(draft).toHaveAccessibleName("Save draft");
   });
 });
 
@@ -797,6 +819,32 @@ describe("DailyEntryPage attention line", () => {
     render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
     await screen.findByText(/already submitted/);
     expect(screen.queryByText(/flock count will drop to/)).toBeNull();
+  });
+
+  // CodeRabbit review of #888 (ff274b0): `canAssign` and `editingDraft` both
+  // gate on `!prefillPending && !prefillFailed` — computed values are stale
+  // for the WHOLE window a prefill is in flight, not just its first render,
+  // because `mortality` only catches up once the fetch resolves. This
+  // condition carried no such guard: retargeting to a new date keeps typing
+  // the OLD date's mortality count into the NEW date's projection until the
+  // prefill settles.
+  it("hides the mortality projection while a new day's prefill is in flight, instead of showing the old day's stale count", async () => {
+    await renderReady();
+    setNum("Mortality", 2);
+    expect(await screen.findByText(/Mortality 2 recorded, flock count will drop to 96/)).toBeInTheDocument();
+
+    // Freeze the next prefill so its pending window is observable.
+    let resolvePrefill: ((entries: DailyEntry[]) => void) | undefined;
+    mockListDailyEntries.mockImplementation(
+      () => new Promise<DailyEntry[]>((resolve) => { resolvePrefill = resolve; }),
+    );
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-01-02" } });
+
+    await waitFor(() => expect(mockListDailyEntries).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText(/flock count will drop to/)).toBeNull();
+
+    resolvePrefill?.([]);
+    await waitFor(() => expect(screen.queryByText(/Mortality 2 recorded/)).toBeNull());
   });
 });
 

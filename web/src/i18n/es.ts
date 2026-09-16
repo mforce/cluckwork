@@ -563,7 +563,7 @@ export const es = {
     stepperUnitCaption: "Contando por {{unit}} — cada toque de − / + mueve {{count}} huevos. Escribir sigue ingresando números exactos.",
     sellableWord: "vendible",
     saveDraftButton: "Guardar borrador",
-    submitButton: "Guardar y enviar (crea lotes de huevos)",
+    submitButton: "Enviar día",
 
     // Submit confirmation dialog (one-way action, #59)
     confirmSubmitTitle: "¿Enviar este día?",

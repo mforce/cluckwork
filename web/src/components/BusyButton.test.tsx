@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { Button } from "@mui/material";
 import i18n from "../i18n";
 import { BusyButton } from "./BusyButton";
 
@@ -103,5 +104,43 @@ describe("BusyButton", () => {
     const button = screen.getByRole("button", { name: "Void" });
     expect(button).toHaveAttribute("type", "submit");
     expect(button).toHaveClass("btn-danger");
+  });
+
+  // #830 — the daily-entry footer renders as MUI `Button`, but every other
+  // call site (40-odd) still wants the plain `<button>` this component always
+  // rendered. `component` defaults to "button" so those stay byte-identical;
+  // only a caller that opts in reaches MUI's own root, variant class, and sx.
+  describe("component prop (#830)", () => {
+    it("defaults to a plain <button> when component is omitted", () => {
+      render(<BusyButton onClick={() => {}}>Save</BusyButton>);
+      const button = screen.getByRole("button", { name: "Save" });
+      expect(button.tagName).toBe("BUTTON");
+      expect(button.className).not.toMatch(/MuiButton/);
+    });
+
+    it("renders through MUI Button when component is passed, keeping its variant", () => {
+      render(
+        <BusyButton component={Button} variant="contained" onClick={() => {}}>
+          Submit day
+        </BusyButton>,
+      );
+      const button = screen.getByRole("button", { name: "Submit day" });
+      expect(button).toHaveClass("MuiButton-contained");
+    });
+
+    it("keeps #236's busy semantics through a swapped-in component: aria-busy, disabled, sibling live region", () => {
+      render(
+        <BusyButton component={Button} variant="outlined" busy>
+          Save draft
+        </BusyButton>,
+      );
+      const button = screen.getByRole("button");
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("aria-busy", "true");
+      expect(button).toHaveAccessibleName("Save draft");
+      const status = screen.getByRole("status");
+      expect(status).toHaveTextContent("Working…");
+      expect(button).not.toContainElement(status);
+    });
   });
 });

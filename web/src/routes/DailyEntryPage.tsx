@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Box, Paper, Typography, useMediaQuery } from "@mui/material";
+import { Box, Button, Paper, Typography, useMediaQuery } from "@mui/material";
 import {
   createFlock, listDailyEntries, listEggGrades, listEggUnitConversions,
   listFeedUsage, listFlocks, listWaterUsage, recordDailyEntry, submitDailyEntry,
@@ -31,11 +31,16 @@ import { useMe } from "../session/SessionContext";
 import i18n from "../i18n";
 import { statusLabel } from "../i18n/enums";
 
-// #830 — the stepper row's 48px squares (mockup: docs/designs/864-visual-
-// language/daily-entry.html) are an sx override on NumberField's OWN classes
-// (`.numfield-step`), never an edit to NumberField.tsx or its base CSS block
-// (styles.css L1030-1093, #828's): those stay exactly as #828 will find them,
-// and this override reaches only rows rendered by THIS page.
+// #830 (owner's screenshot review of #888) — the stepper row's 48px squares
+// (mockup: docs/designs/864-visual-language/daily-entry.html) are an sx
+// override on NumberField's OWN classes (`.numfield-step`), never an edit to
+// NumberField.tsx or its base CSS block (styles.css L1030-1093, #828's):
+// those stay exactly as #828 will find them, and this override reaches only
+// rows rendered by THIS page. Every part NumberField renders is a FIXED size
+// at a given breakpoint — the two step buttons, and the input's own ch-width
+// — so `.numfield`'s overall footprint is constant across every row; that
+// constancy is what EntryRow's grid below leans on to line the minus/plus
+// buttons up without touching NumberField itself.
 const STEPPER_SX = {
   "& .numfield": { width: "100%", justifyContent: "space-between" },
   "& .numfield-step": {
@@ -43,7 +48,14 @@ const STEPPER_SX = {
     borderRadius: "var(--r-input)",
   },
   "& .numfield input": {
-    fontSize: { xs: "1.75rem", md: "1.25rem" }, fontWeight: 500,
+    // The row numeral size (FarmThemeProvider's `h2`/title scale, DIRECTION.md
+    // — 24/28 desktop, 28/32 phone), not a bespoke size: the readout is the
+    // biggest thing in the row and reads as one more title-weight figure
+    // beside the others this screen shows (the sellable value, the grading
+    // count), right-aligned and tabular so a column of them lines up by digit.
+    fontSize: { xs: "1.75rem", md: "1.5rem" },
+    lineHeight: { xs: "2rem", md: "1.75rem" },
+    fontWeight: 500, textAlign: "right",
     // Wide enough for a 4-digit count (a flock's daily total can run into the
     // low thousands) with room to spare — measured against "430" clipping to
     // "43" at a tighter "4ch" on desktop (Playwright capture, #830).
@@ -51,12 +63,22 @@ const STEPPER_SX = {
   },
 } as const;
 
-// #830 — one ruled row: label (+ optional caption, e.g. "deactivated") left,
-// stepper right, per the mockup's `.row`. `groupLabel` names a grade row as
-// an `aria-label`ed group (mirrors Dashboard's TodayRow `role="group"`
-// pattern) — the drop target the test suite locates by name instead of a
-// class, and `armed` draws the F134 "taking" outline the same rows carried
-// before, now an inline sx state instead of a shared `.taking` class.
+// #830 (owner's screenshot review of #888) — one ruled GRID row: label (+
+// optional caption, e.g. "deactivated") in a flexible truncating column,
+// stepper in a fixed-content column, per the mockup's `.row`. The row used to
+// be a flex `justify-content: space-between` pair, which reads as aligned
+// only until a label overflows: a flex item shrinks by default, so "Total
+// eggs" wrapping onto two lines squeezed the stepper beside it by a different
+// amount on every row — the owner's screenshot review of #888 caught this as
+// each row's minus button sitting at a different x. A grid's second column
+// sizes to its own max-content and does NOT shrink to make room for an
+// overflowing sibling; pairing that with `minmax(0, 1fr)` + an ellipsis on
+// the label (never wrap) is what makes the fix structural rather than a
+// pinned width. `groupLabel` names a grade row as an `aria-label`ed group
+// (mirrors Dashboard's TodayRow `role="group"` pattern) — the drop target the
+// test suite locates by name instead of a class, and `armed` draws the F134
+// "taking" outline the same rows carried before, now an inline sx state
+// instead of a shared `.taking` class.
 function EntryRow({
   htmlFor, label, caption, groupLabel, armed = false, dropProps, children,
 }: {
@@ -74,7 +96,8 @@ function EntryRow({
       aria-label={groupLabel}
       {...dropProps}
       sx={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
+        display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto",
+        alignItems: "center",
         gap: 2, minHeight: { xs: 52, md: 44 }, py: 1,
         borderBottom: "1px solid var(--rule)",
         ...(armed ? {
@@ -84,15 +107,26 @@ function EntryRow({
         ...STEPPER_SX,
       }}
     >
-      <Box component="label" htmlFor={htmlFor} sx={{ minWidth: 0, cursor: "pointer" }}>
-        <Typography component="span" sx={{ fontWeight: 500, display: "block" }}>{label}</Typography>
+      <Box component="label" htmlFor={htmlFor}
+        sx={{ minWidth: 0, overflow: "hidden", cursor: "pointer" }}
+      >
+        <Typography component="span" sx={{
+          fontWeight: 500, display: "block",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}
+        >{label}</Typography>
         {caption && (
-          <Typography component="span" variant="caption" className="muted" sx={{ display: "block" }}>
+          <Typography component="span" variant="caption" className="muted" sx={{
+            display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}
+          >
             {caption}
           </Typography>
         )}
       </Box>
-      {children}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: "flex-end" }}>
+        {children}
+      </Box>
     </Box>
   );
 }
@@ -454,7 +488,15 @@ export function DailyEntryPage() {
   // Read-only projection of what submitting would do to the flock's bird
   // ledger — not a write, and not the write's own guard (FR-009 stays on the
   // handler). Only while the mortality this DAY would still apply on submit.
-  if (!entryLocked && mortality > 0 && selectedFlock) {
+  //
+  // `!prefillPending && !prefillFailed` (CodeRabbit review of #888, ff274b0):
+  // `selectedFlock` is derived and updates the instant `flockId` changes, but
+  // `mortality` is state that only catches up once the prefill for the NEW
+  // flock+date resolves — so retargeting without this guard kept projecting
+  // the OLD target's mortality count against the NEW flock's `currentBirds`
+  // for the whole prefill window, not just its first render. `canAssign` and
+  // `editingDraft` above already carry this same guard for the same reason.
+  if (!entryLocked && mortality > 0 && selectedFlock && !prefillPending && !prefillFailed) {
     attentionItems.push(t("attentionMortalityItem", {
       count: mortality,
       flockCountAfter: fmt.count(Math.max(0, selectedFlock.currentBirds - mortality)),
@@ -1003,8 +1045,50 @@ export function DailyEntryPage() {
           ))}
 
           {/* The count changes as they type, and it is the only feedback that
-              the day adds up — see GradingChip for its live-region shape. */}
-          <Box sx={{ mt: 2 }}>
+              the day adds up — see GradingChip for its live-region shape.
+              #830 (owner's screenshot review of #888) — GradingChip.tsx is
+              untouched (shared with HistoryPage's adjust dialog, which mirrors
+              this layout and keeps its own pill); these descendant selectors
+              restyle only THIS page's chip into the mockup's `.row.total` —
+              a ruled row, no fill (DIRECTION.md forbids a badge fill for
+              status), the count right-aligned and the "says" wording left
+              beside a status dot. `.entry-chip-text`'s DOM order stays
+              count-then-says (`toHaveTextContent("90 graded — the day adds
+              up")` reads left-to-right in DOM order, not screen order), so
+              the swap is `row-reverse` + `space-between`, never a JSX
+              reorder — that would read the text back to front. The dot is a
+              generated `::before` on the "says" span, contributing nothing
+              to its text content.
+
+              `!important` on `background`/`border-radius`/`padding`:
+              FarmThemeProvider.tsx `prepend`s Emotion's `<style>` tags AHEAD
+              of styles.css in `<head>`, so at EQUAL selector specificity
+              styles.css wins the cascade — this sx block's generated class
+              plus `.entry-chip`/`.entry-chip.done`/`.entry-chip.over` are all
+              two simple selectors, a tie append order alone settles in
+              styles.css's favour. Measured: without `!important` the fill
+              stayed (Playwright capture, #830). */}
+          <Box sx={{
+            mt: 2,
+            "& .entry-chip": {
+              display: "flex", width: "100%", alignItems: "baseline",
+              justifyContent: "space-between", gap: 1.5,
+              background: "none !important", borderRadius: "0 !important", padding: "0 !important",
+              borderTop: "1px solid var(--rule-strong)", paddingTop: "0.75rem",
+            },
+            "& .entry-chip-text": {
+              display: "flex", flexDirection: "row-reverse",
+              justifyContent: "space-between", alignItems: "baseline",
+              gap: "0.4rem", flex: "1 1 auto", minWidth: 0,
+            },
+            "& .entry-chip-text > span::before": {
+              content: '""', display: "inline-block",
+              width: 8, height: 8, borderRadius: "50%", marginRight: "6px",
+              verticalAlign: "middle", background: "var(--warn)",
+            },
+            "& .entry-chip.done .entry-chip-text > span::before": { background: "var(--success)" },
+          }}
+          >
             <GradingChip tone={grading.tone} count={grading.count} says={grading.says}
               canAssign={canAssign} remaining={remaining}
               assigning={armed} onAssigningChange={setAssigning} />
@@ -1050,16 +1134,41 @@ export function DailyEntryPage() {
               lenient backend rule would reject anyway (#394), rather than
               round-trip to find out. `tone === "over"` already covers the
               lossesExceedTotal case too (see lib/grading). */}
-          <BusyButton busy={isPending("save")}
-            style={{ minHeight: 48 }}
+          {/* #830 (owner's screenshot review of #888) — the confirmed mockup's
+              footer is two 48px rectangular buttons, outlined "Save draft" /
+              contained "Submit day", never the stylesheet's pill `<button>`
+              (which clamped "Save & submit (creates egg lots)" into a
+              three-line ellipse at 390, the #740 shape). `component={Button}`
+              routes BusyButton through MUI's own root instead of the plain
+              `<button>` every other call site still gets — see BusyButton.tsx.
+              `whiteSpace: "nowrap"` is the other half: MUI's default button
+              text wraps, and a wrapped label inside a fixed-height control
+              clips instead of growing the ellipse this control no longer has.
+              `color`/`borderColor` are explicit: MUI's outlined default reads
+              `palette.primary.main` (`--brand`), which dark mode never
+              redefines (DIRECTION.md reserves brand for the farm name, the
+              active nav item, the PRIMARY button and the focus ring — never a
+              secondary outline) — a dark-aubergine border/text on the near-
+              black dark canvas measured as low-contrast (Playwright capture,
+              #830). `var(--ink)`/`var(--rule-strong)` match the mockup's
+              `.btn.secondary` instead, and both tokens ARE redefined for dark
+              mode. */}
+          <BusyButton component={Button} variant="outlined"
+            busy={isPending("save")}
+            sx={{
+              minHeight: 48, whiteSpace: "nowrap",
+              color: "var(--ink)", borderColor: "var(--rule-strong)",
+              "&:hover": { borderColor: "var(--ink)" },
+            }}
             disabled={busy || !flockId || !flockSnapshot.canSubmit || grading.tone === "over" || entryLocked || prefillFailed || prefillPending}
             onClick={() => onSave(false)}>{t("saveDraftButton")}</BusyButton>
           {/* #394: submit requires grading to reconcile EXACTLY — the same
               "done" state the chip already shows, so the gate can never say
               one thing and disable another. A draft may stay partially (or
               entirely un-)graded; only submit is gated. */}
-          <BusyButton busy={isPending("submit")}
-            style={{ minHeight: 48 }}
+          <BusyButton component={Button} variant="contained"
+            busy={isPending("submit")}
+            sx={{ minHeight: 48, whiteSpace: "nowrap" }}
             disabled={busy || !flockId || !flockSnapshot.canSubmit || grading.tone !== "done" || entryLocked || prefillFailed || prefillPending}
             onClick={() => onSave(true)}>
             {t("submitButton")}

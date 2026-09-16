@@ -739,7 +739,12 @@ export const en = {
     stepperUnitCaption: "Counting by {{unit}} — each tap of − / + moves {{count}} eggs. Typing still enters exact numbers.",
     sellableWord: "sellable",
     saveDraftButton: "Save draft",
-    submitButton: "Save & submit (creates egg lots)",
+    // #830 (owner's screenshot review) — renamed from "Save & submit (creates
+    // egg lots)" per the confirmed mockup; the parenthetical wrapped to three
+    // lines inside the pill at 390 (the #740 shape). The "creates egg lots"
+    // detail lives in confirmSubmitBody below, which the user still meets
+    // before the write lands.
+    submitButton: "Submit day",
 
     // Submit confirmation dialog (one-way action, #59)
     confirmSubmitTitle: "Submit this day?",
