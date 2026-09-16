@@ -11,7 +11,7 @@ import {
 import type { Flock, EggGrade, DailyEntry } from "../api/cluckwork";
 import { todayIso } from "../lib/dates";
 import { FarmContext } from "../farm/FarmContext";
-import { account, farmState, NO_RECORD_HISTORY } from "../test/fixtures";
+import { account, farmState, NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
 import { bindAccount, clearBoundAccount } from "../auth/tokenStore";
 import i18n from "../i18n";
 
@@ -122,10 +122,20 @@ function submitBtn() {
 }
 // F134 Option A: the reconciliation is two readouts that sit with the fields
 // they describe — sellable at the foot of the counts pane, and a chip counting
-// DOWN to zero at the foot of the grading pane. Both are class-selected the way
-// the footer already is; neither has a single unambiguous role or text.
+// DOWN to zero at the foot of the grading pane. #830 converted the counts
+// pane's chrome to MUI and dropped its `.entry-readout` class (the CSS rule
+// itself stays — HistoryPage's adjust dialog still renders it), so this is
+// now role-scoped to the Egg counts section instead: `role="status"` in the
+// normal case, `role="alert"` once losses exceed the total (`countsSection`
+// below picks whichever is mounted). `.entry-chip` is GradingChip's OWN class
+// (component untouched by #830, still shared with HistoryPage) and needs no
+// change at all.
+function countsSection() {
+  return screen.getByRole("heading", { name: /Egg counts/ }).closest("section") as HTMLElement;
+}
 function sellableReadout() {
-  return document.querySelector(".entry-readout") as HTMLElement;
+  const section = countsSection();
+  return within(section).queryByRole("alert") ?? within(section).getByRole("status");
 }
 function remainingChip() {
   return document.querySelector(".entry-chip") as HTMLElement;
@@ -251,17 +261,20 @@ describe("DailyEntryPage accuracy gating", () => {
     setNum("Dirty", 3);
     setNum("Discarded", 6); // losses 11 > 10
 
-    // The phone-only footer summary must not print a negative sum: `sellable`
-    // is total - losses, so it goes below zero exactly here.
-    const footSum = document.querySelector(".entry-foot-sum") as HTMLElement;
-    expect(footSum).toHaveTextContent("Losses exceed the total — fix the counts");
-    expect(footSum.textContent).not.toMatch(/-\d/);
-
+    // `sellable` is total - losses, so it goes negative exactly here. #830
+    // retired the redundant phone-only footer summary that used to duplicate
+    // this guard (the confirmed mockup's sticky footer carries only the two
+    // save buttons, no summary line) — the no-negative-figure guarantee now
+    // rests entirely on the counts-pane message below never interpolating
+    // `sellable` at all, and on the chip's own "Fix the counts first" wording.
+    //
     // In the counts pane, replacing the sellable figure — it is a counts
-    // problem, so it belongs beside the counts and not under the grades.
-    const msg = sellableReadout();
+    // problem, so it belongs beside the counts and not under the grades. The
+    // error message is announced via `role="alert"` (was `.entry-readout
+    // error`, a class HistoryPage's own mirror of this pane still owns).
+    const msg = within(countsSection()).getByRole("alert");
     expect(msg).toHaveTextContent("Cracked + dirty + discarded (11) exceed total eggs (10)");
-    expect(msg).toHaveClass("error");
+    expect(msg.textContent).not.toMatch(/-\d/);
     expect(remainingChip()).toHaveTextContent("Fix the counts first");
     expect(submitBtn()).toBeDisabled();
     expect(saveDraftBtn()).toBeDisabled();
@@ -574,9 +587,12 @@ describe("DailyEntryPage structure", () => {
     await renderReady();
 
     // Two steps, not three: choosing a flock and a date says WHICH day is being
-    // recorded, it is not part of recording it. The drawn numeral is
-    // aria-hidden and an off-screen "Step n of 2" carries the ordering, because
-    // "of 2" is information document order cannot give.
+    // recorded, it is not part of recording it. #830 dropped the visible
+    // "Step n" pill from this page's own headings (the mockup shows a plain
+    // "Egg counts"/"Grading" heading; `.step-n`'s CSS and its visible pill
+    // stay for HistoryPage's mirror of this layout) — "Step n of 2" is now
+    // entirely sr-only, but accessible-name computation does not care whether
+    // a contributing span is visually clipped, so the full name is unchanged.
     expect(screen.getByRole("heading", { name: "Step 1 of 2: Egg counts" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Step 2 of 2: Grading" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Flock/ })).toBeNull();
@@ -584,15 +600,17 @@ describe("DailyEntryPage structure", () => {
 
   it("puts each readout with the fields it describes, and the saves in the footer", async () => {
     await renderReady();
-    const panes = document.querySelectorAll(".entry-pane");
-    const foot = document.querySelector(".entry-foot") as HTMLElement;
 
     // Sellable belongs to the counts that produce it; the remainder belongs to
     // the grades that consume it. Reading one while the other was a screen away
-    // was the whole complaint.
-    expect(panes[0].querySelector(".entry-readout")).not.toBeNull();
-    expect(panes[1].querySelector(".entry-chip")).not.toBeNull();
+    // was the whole complaint. #830: pane-scoped by heading instead of
+    // `.entry-pane` (the class stays for HistoryPage, but #830's own markup no
+    // longer carries it).
+    const gradingSection = screen.getByRole("heading", { name: /Grading/ }).closest("section") as HTMLElement;
+    expect(within(countsSection()).getByRole("status")).toBeInTheDocument();
+    expect(gradingSection.querySelector(".entry-chip")).not.toBeNull();
 
+    const foot = saveDraftBtn().closest("footer") as HTMLElement;
     expect(within(foot).getByRole("button", { name: /Save draft/ })).toBeInTheDocument();
     expect(within(foot).getByRole("button", { name: /Save & submit/ })).toBeInTheDocument();
   });
@@ -701,6 +719,84 @@ describe("DailyEntryPage draft badge", () => {
     for (const label of ["Total eggs", "Cracked", "Dirty", "Discarded", "Mortality", "Grade A"]) {
       expect(screen.getByLabelText(label)).toBeDisabled();
     }
+  });
+
+  // #830 — the mockup's "Draft, saved 06:52" state line, reusing Dashboard's
+  // own entryStateDraftTime wording. UTC farm timezone so the rendered clock
+  // reads deterministically; the exact minute is asserted by pattern, not a
+  // pinned literal, since a wall-clock-dependent literal is exactly the
+  // portability trap AGENTS.md's guard-writing rules warn about.
+  it("shows the last-saved time once the prefill's own history carries one", async () => {
+    mockListDailyEntries.mockResolvedValue([
+      { ...draftFor(todayIso()), createdAtUtc: RECORD_HISTORY.createdAtUtc, lastChangedAtUtc: RECORD_HISTORY.lastChangedAtUtc },
+    ]);
+    render(
+      <MemoryRouter>
+        <FarmContext.Provider value={farmState({ farm: account({ timeZoneId: "UTC" }) })}>
+          <DailyEntryPage />
+        </FarmContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(/^Draft, saved \d{1,2}:\d{2}/)).toBeInTheDocument();
+    expect(screen.queryByText("Editing draft")).toBeNull();
+  });
+});
+
+// #830 — the attention line under the title (mockup: daily-entry.html
+// `.attn`): a dot mark, "N things.", each item ruled-separated, folding past
+// the cap into "+N more" — Dashboard's own #829/#864 treatment, applied here.
+describe("DailyEntryPage attention line", () => {
+  const draftFor = (date: string) => ({
+    ...NO_RECORD_HISTORY,
+    id: "de1", farmId: "farm1", houseId: "h1", flockId: "f1", date, status: "Draft",
+    totalEggs: 40, crackedEggs: 1, dirtyEggs: 0, discardedEggs: 0, mortalityCount: 0, crackedGradeId: null, dirtyGradeId: null,
+    grades: [], version: 1, adjustReason: null, voidReason: null,
+    lockedAtUtc: null, adjustedFrom: null,
+  } as DailyEntry);
+
+  it("stays absent with nothing to say", async () => {
+    await renderReady();
+    expect(screen.queryByText(/thing/)).toBeNull();
+  });
+
+  it("names an unsubmitted draft", async () => {
+    mockListDailyEntries.mockResolvedValue([draftFor(todayIso())]);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
+    expect(await screen.findByText("1 thing.")).toBeInTheDocument();
+    expect(screen.getByText("Draft not submitted")).toBeInTheDocument();
+  });
+
+  // FLOCK.currentBirds is 98; one mortality tap projects 97, read-only — the
+  // write itself still goes through the day's own save/submit handlers,
+  // untouched by this line.
+  it("projects the flock count after a recorded mortality, without writing anything", async () => {
+    await renderReady();
+    setNum("Mortality", 1);
+    expect(await screen.findByText(/Mortality 1 recorded, flock count will drop to 97 on submit/)).toBeInTheDocument();
+  });
+
+  it("folds past the cap into a link naming how many more", async () => {
+    mockListDailyEntries.mockResolvedValue([draftFor(todayIso())]);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
+    await screen.findByText("Draft not submitted");
+    setNum("Mortality", 1);
+
+    // jsdom's default viewport has no matchMedia match for the md breakpoint,
+    // so useMediaQuery(MD_UP_QUERY) reads false here — the phone cap (1) applies.
+    expect(await screen.findByText("2 things.")).toBeInTheDocument();
+    expect(screen.getByText("Draft not submitted")).toBeInTheDocument();
+    expect(screen.queryByText(/Mortality 1 recorded/)).toBeNull();
+    expect(screen.getByText("+1 more")).toBeInTheDocument();
+  });
+
+  it("does not project a mortality count once the day is locked", async () => {
+    mockListDailyEntries.mockResolvedValue([
+      { ...draftFor(todayIso()), status: "Submitted", mortalityCount: 3 },
+    ]);
+    render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
+    await screen.findByText(/already submitted/);
+    expect(screen.queryByText(/flock count will drop to/)).toBeNull();
   });
 });
 
@@ -825,7 +921,9 @@ describe("DailyEntryPage assign the remainder", () => {
     await readyWithRemainder();
     fireEvent.dragStart(arm(), { dataTransfer: dt([OURS]) });
 
-    const rowB = screen.getByLabelText("Grade B").closest(".entry-row")!;
+    // #830: the row is now a named `role="group"` (the F134 drop target),
+    // distinct from the field's own "Grade B" label — see gradeRowLabel.
+    const rowB = screen.getByRole("group", { name: "Grade B row" });
     fireEvent.dragOver(rowB, { dataTransfer: dt([OURS]) });
     fireEvent.drop(rowB, { dataTransfer: dt([OURS]) });
 
@@ -838,7 +936,9 @@ describe("DailyEntryPage assign the remainder", () => {
 
     // A file, a link, a selection from another window — the row used to accept
     // any of these and assign the whole remainder (codex review of PR #137).
-    const rowB = screen.getByLabelText("Grade B").closest(".entry-row")!;
+    // #830: the row is now a named `role="group"` (the F134 drop target),
+    // distinct from the field's own "Grade B" label — see gradeRowLabel.
+    const rowB = screen.getByRole("group", { name: "Grade B row" });
     fireEvent.drop(rowB, { dataTransfer: dt(["Files", "text/plain"]) });
 
     expect(screen.getByLabelText("Grade B")).toHaveValue(0);
@@ -894,8 +994,11 @@ describe("DailyEntryPage assign the remainder", () => {
     setValue.call(input, "60"); // 30 + 60 === sellable 90
     input.dispatchEvent(new Event("input", { bubbles: true }));
 
+    // #830: the row no longer carries a shared `.taking` class (an inline sx
+    // state instead, scoped to #830's own markup) — the SAME `armed` boolean
+    // drives both the outline and the button, so the button-absence check
+    // above already covers this row-state guarantee.
     expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
-    expect(document.querySelector(".entry-row.taking")).toBeNull();
   });
 
   // Same frame, different trigger, and the one the effect cannot cover at all:
@@ -913,8 +1016,11 @@ describe("DailyEntryPage assign the remainder", () => {
     picker.dispatchEvent(new Event("input", { bubbles: true }));
 
     // No row may still offer the PREVIOUS day's remainder over the new one.
+    // #830: the row no longer carries a shared `.taking` class (an inline sx
+    // state instead, scoped to #830's own markup) — the SAME `armed` boolean
+    // drives both the outline and the button, so the button-absence check
+    // above already covers this row-state guarantee.
     expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
-    expect(document.querySelector(".entry-row.taking")).toBeNull();
   });
 
   // The flock picker's own frame, not just the date's. Without it the flock
@@ -943,8 +1049,11 @@ describe("DailyEntryPage assign the remainder", () => {
     const option = await screen.findByRole("option", { name: /Second Coop/ });
     fireEvent.click(option);
 
+    // #830: the row no longer carries a shared `.taking` class (an inline sx
+    // state instead, scoped to #830's own markup) — the SAME `armed` boolean
+    // drives both the outline and the button, so the button-absence check
+    // above already covers this row-state guarantee.
     expect(screen.queryAllByRole("button", { name: /Put all \d+ remaining in/ })).toHaveLength(0);
-    expect(document.querySelector(".entry-row.taking")).toBeNull();
   });
 
   // The same switch reached through the other door. Creating a flock changes

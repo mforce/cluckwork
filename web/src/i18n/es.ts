@@ -508,6 +508,13 @@ export const es = {
     stepOfTotal: "de 2:",
     eggCountsHeading: "Conteo de huevos",
     gradingHeading: "Clasificación",
+    gradedCountCaption: "Contados {{graded}}",
+
+    attentionHeading_one: "{{count}} cosa.",
+    attentionHeading_other: "{{count}} cosas.",
+    attentionDraftItem: "Borrador no enviado",
+    attentionMortalityItem: "Mortalidad {{count}} registrada, el conteo de la parvada bajará a {{flockCountAfter}} al enviar",
+    gradeRowLabel: "Fila de {{grade}}",
 
     // Count field labels
     totalEggsLabel: "Total de huevos",

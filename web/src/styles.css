@@ -884,11 +884,6 @@ input.cell {
   letter-spacing: 0;
 }
 
-/* Flock + date sit above the two panes as context, not as a step. */
-.entry-context {
-  margin-bottom: 1.75rem;
-}
-
 /* The panes reconcile against each other — the sellable figure the left one
    produces is the target the right one has to hit — so they sit side by side
    and the whole day is one glance. minmax(0,1fr): a bare 1fr floors at the
@@ -1134,63 +1129,6 @@ input.cell {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-/* Pinned while the form scrolls underneath. The reconciliation line and the two
-   saves are the only things needed at every point in the flow, and on a phone
-   the grade grid used to push them off-screen entirely. Save feedback lives in
-   here too: anything below a sticky bar scrolls under it and is never seen. */
-.entry-foot {
-  position: sticky;
-  /* Sits above the mobile tab bar (var is 0 on desktop, where there is none). */
-  bottom: var(--tabbar-h);
-  /* Above the page, below the dialog backdrop (50) — a confirmation must cover
-     the bar that opened it. */
-  z-index: 10;
-  background: var(--surface);
-  border-top: 1px solid var(--hairline);
-  box-shadow: var(--shadow-bar);
-  margin-top: 2rem;
-  padding: 0.9rem 0 calc(0.9rem + env(safe-area-inset-bottom));
-  /* Cancels .content's trailing padding so the bar lands flush at the end of
-     the page instead of lifting off the bottom edge for the last scroll step.
-     Coupled to .content by value — keep the two in step. */
-  margin-bottom: -4rem;
-}
-
-.entry-foot-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem 1.5rem;
-}
-
-.entry-foot p {
-  margin: 0;
-}
-
-/* Only where the panes have stacked out of view — see the mobile block. */
-.entry-foot-sum {
-  display: none;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-.entry-foot-sum b {
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
-
-.entry-foot-sum.done b { color: var(--success); }
-.entry-foot-sum.over b { color: var(--error); }
-
-/* The phone block gives .actions its own padding and top margin; inside the
-   bar those double the bar's own. Specificity beats the media-query rule,
-   which adds none. */
-.entry-foot .actions {
-  margin: 0;
-  padding: 0;
 }
 
 /* -------------------------------------------- Toolbar (inset filter bar) */
@@ -2715,44 +2653,14 @@ dl.glossary {
      reshaping the control.
 
      NOT sticky, which it was until #823: three stacked buttons parked above
-     the tab bar is ~170px of chrome on an 844px viewport. `.entry-foot` is
-     still sticky and still the field-first capture bar. */
+     the tab bar is ~170px of chrome on an 844px viewport. Daily entry's own
+     sticky footer (a MUI `Paper`, #830 — was `.entry-foot`) is unaffected and
+     still the field-first capture bar; its side-by-side buttons are its own
+     sx, not this rule. */
   .actions {
     flex-direction: column;
     padding: 0.75rem 0;
     margin-top: 0.75rem;
-  }
-
-  /* The one exemption, and F134 is only half the reason. The other half is that
-     the #864 mockup the owner confirmed keeps these two side by side at 390
-     (docs/designs/864-visual-language/daily-entry.html, `grid-template-columns:
-     1fr 1fr`), so the mockup decides and this rule follows it. The negative
-     margins below buy back the 2.3rem of width that makes the pair fit a thumb.
-
-     It is safe here and nowhere else: this row holds exactly two controls with
-     short labels, where the Sales draft panel holds three and is where #740
-     actually reproduced. Every other `.actions` and every dialog foot stacks. */
-  .entry-foot .actions {
-    flex-direction: row;
-  }
-
-  .entry-foot .actions button {
-    flex: 1;
-  }
-
-  /* Daily entry (F134). The bar runs edge to edge on a phone — inset by the
-     content gutter it would read as a floating card rather than a fixed rail,
-     and the negative margins buy back 2.3rem of width for two buttons that
-     have to sit side by side in a thumb's reach. */
-  .entry-foot {
-    margin-left: -1.15rem;
-    margin-right: -1.15rem;
-    padding-left: 1.15rem;
-    padding-right: 1.15rem;
-    /* Cancel the content's whole bottom padding so the footer's flow rest lands
-       exactly on its stuck line (bottom: var(--tabbar-h)) — flush above the tab
-       bar, no gap and no overlap. */
-    margin-bottom: calc(-1 * var(--tabbar-h));
   }
 
   /* One pane above the other: side by side on a phone would put four-digit
@@ -2769,25 +2677,12 @@ dl.glossary {
   .entry-row input,
   .entry-row .numfield-step,
   .entry-row .entry-take,
-  .entry-chip-grab,
-  .entry-context input,
-  .entry-context select {
+  .entry-chip-grab {
     min-height: 2.75rem;
   }
 
   .entry-row .numfield-step {
     width: 2.75rem;
-  }
-
-  .entry-foot-sum {
-    display: block;
-  }
-
-  /* Summary above, buttons below — side by side would squeeze both. */
-  .entry-foot-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.6rem;
   }
 
   /* On a phone the dialog becomes a bottom sheet — thumb-reachable, and it
@@ -3201,8 +3096,11 @@ input.locked {
    position: relative and the input is its only in-flow child, so the
    control's height IS the input's height and `top: 50%` is the field's
    vertical centre whatever the input's padding, line-height or the phone
-   breakpoint's `min-height: 2.75rem` on `.entry-context input` make it —
-   a fixed rem offset drifted ~4px there (codex review of #736, round 2).
+   breakpoint's own min-height overrides on a page's input make it — a fixed
+   rem offset drifted ~4px on one such override (codex review of #736, round
+   2; the daily-entry context row that reproduced it converted to MUI in
+   #830 and no longer carries one, but the underlying `top: 50%` fix and the
+   class of bug it guards against are unrelated to that page).
    The input is not positioned, so these paint above it; pointer-events:
    none keeps the click landing in the field. Lens: 0.6rem + 2×2px border,
    so its radius is 0.3rem + 2px — kept as that sum, not folded into rem,

@@ -665,6 +665,28 @@ export const en = {
     stepOfTotal: "of 2:",
     eggCountsHeading: "Egg counts",
     gradingHeading: "Grading",
+    // #830 — the "Counted N" section-head caption (mockup: daily-entry.html),
+    // the grading pane's gradesSum read the other way from GradingChip's own
+    // count-DOWN wording.
+    gradedCountCaption: "Counted {{graded}}",
+
+    // #830 — the attention line under the title (mockup: daily-entry.html
+    // `.attn`). i18next selects the plural form on {{count}} (same pattern
+    // Dashboard's `todayInCount` uses, PR #883 round 1).
+    attentionHeading_one: "{{count}} thing.",
+    attentionHeading_other: "{{count}} things.",
+    attentionDraftItem: "Draft not submitted",
+    // Read-only projection of the flock's bird ledger after today's mortality
+    // count applies on submit — not a write, and not the write's own guard.
+    // {{count}} drives no plural form here (i18next reserves it for that,
+    // typed `number`); {{flockCountAfter}} is the farm-locale-formatted figure.
+    attentionMortalityItem: "Mortality {{count}} recorded, flock count will drop to {{flockCountAfter}} on submit",
+
+    // #830 — the grade row's own group name (the F134 drag/drop target,
+    // `role="group"`), distinct from the field's own "Grade A" label: an
+    // identical name on both would read as two controls sharing one label to
+    // a screen-reader user navigating by name.
+    gradeRowLabel: "{{grade}} row",
 
     // Count field labels — reused lowercased (see g.name.toLowerCase() for
     // grades, same pattern) as NumberField's aria-label `label` prop, so there
