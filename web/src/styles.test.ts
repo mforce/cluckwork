@@ -144,6 +144,11 @@ describe.each(BRANDS)("palette: %s", (brand) => {
   it.each(MODES)("%s: link text clears WCAG AA (4.5:1) on --surface and --surface-2", (mode) => {
     const t = resolveTokens(attrFor(brand), mode);
     const at = (k: string) => t.get(k)!;
+    // Contrast alone would also pass a different, still-sufficiently-dark
+    // blue (Codex review of #884, round 3) — the actual retirement claim is
+    // that --link IS --ink now, not merely that whatever it is clears AA.
+    expect(at("--link"), `${brand}/${mode} --link must equal --ink, not a separate colour`)
+      .toBe(at("--ink"));
     for (const bg of ["--surface", "--surface-2"])
       expect(contrast(at("--link"), at(bg)), `${brand}/${mode} --link vs ${bg}`)
         .toBeGreaterThanOrEqual(4.5);
@@ -164,6 +169,12 @@ describe.each(BRANDS)("palette: %s", (brand) => {
   it.each(MODES)("%s: the 28% ink rule stays visibly above its surface (not a 3:1 pass — see comment)", (mode) => {
     const t = resolveTokens(attrFor(brand), mode);
     const at = (k: string) => t.get(k)!;
+    // The contrast floor alone would also pass an unrelated colour above
+    // 1.5:1 (Codex review of #884, round 3) — pin the actual flattened-28%-
+    // ink value this decision computed, not just a property it happens to
+    // have. --link-rule is theme-scoped only, same as --link/--ink.
+    expect(at("--link-rule"), `${brand}/${mode} --link-rule value`)
+      .toBe(mode === "light" ? "#c0c0c0" : "#5c5560");
     for (const bg of ["--surface", "--surface-2"])
       expect(contrast(at("--link-rule"), at(bg)), `${brand}/${mode} --link-rule vs ${bg}`)
         .toBeGreaterThanOrEqual(1.5);
