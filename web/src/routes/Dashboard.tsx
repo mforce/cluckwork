@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Bird, Egg, ShoppingCart } from "lucide-react";
 import {
-  Alert, Box, Button, Container, Stack, Typography,
+  Alert, Box, Button, Container, Stack, Typography, useMediaQuery,
 } from "@mui/material";
 import {
   getProductionReport, getStock, listDailyEntries, listFlocks, listOrders,
@@ -20,6 +20,7 @@ import { StockBar } from "../components/StockBar";
 import { useAuth } from "../auth/useAuth";
 import { useFarmToday } from "../farm/useFarm";
 import { daysBefore } from "../lib/dates";
+import { MD_UP_QUERY } from "../lib/breakpoints";
 import {
   captureTiles, dayStrip, henDayTrend, stockBar, todaysEggs, visibleTiles,
 } from "../lib/dashboard";
@@ -32,11 +33,6 @@ const RECENT_ORDERS = 5;
 // past 500 flocks the tail silently drops — revisit with real paging if that
 // day comes.
 const MAX_PAGE = 500;
-// The attention line never wraps: two items fit at 1280 before folding into
-// "+N more" (DIRECTION.md, amended on #864: ruled separators, not a middle
-// dot). Phone gets the same cap here — see the note by ATTENTION_SHOWN below
-// for why the direction's "one item at 390" is not implemented this slice.
-const ATTENTION_SHOWN = 2;
 
 // F5 (#41) → #654 → #829: the landing page answers the 6 am question — which
 // houses have no entry yet, and is lay rate normal? A ruled Today list, the
@@ -77,6 +73,14 @@ export function Dashboard() {
   const { role } = useAuth();
   const canSeeSales = role !== "ReadOnly" && role !== "Denied";
   // END PROTECTED
+
+  // The attention line never wraps: DIRECTION.md's fold point is two items at
+  // 1280 and ONE at 390 — the same md (900px) boundary the sidebar/tab-bar
+  // switch uses, not a flat cap at every width (#883 round 2, finding 1: the
+  // desktop count was overcounting on a phone, wrapping or truncating a line
+  // that must stay one line).
+  const isDesktop = useMediaQuery(MD_UP_QUERY);
+  const attentionCap = isDesktop ? 2 : 1;
 
   useEffect(() => {
     Promise.allSettled([
@@ -221,7 +225,7 @@ export function Dashboard() {
   // proposed on #864 and the owner did not take it, so this line has exactly
   // one source. Nothing renders when every house is in.
   const missingHouses = allTiles === null ? [] : allTiles.filter((c) => c.entry === null).map((c) => c.flock);
-  const attentionShown = missingHouses.slice(0, ATTENTION_SHOWN);
+  const attentionShown = missingHouses.slice(0, attentionCap);
   const attentionMore = missingHouses.length - attentionShown.length;
 
   return (
@@ -317,6 +321,15 @@ export function Dashboard() {
                 <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")} />
               ) : (
                 <Box component="ul" role="list" aria-label={t("salesPanelTitle")} className="dash-sales-list" sx={{ listStyle: "none", m: 0, p: 0 }}>
+                  {/* DIRECTION.md line 9's row is customer/order number, eggs
+                      and grade, amount, status, action. The eggs-and-grade
+                      column is still not rendered here: `listOrders`'s
+                      `OrderItem`s DO carry a line's `quantity`, but only an
+                      `eggGradeId`, never a grade NAME — resolving one needs a
+                      `listEggGrades()` fetch this screen does not otherwise
+                      make (recorded on the PR and on #829; not built in this
+                      round). The rest of the row now matches: amount, status,
+                      then the Draft row's own action. */}
                   {orders.map((o) => (
                     <Box component="li" key={o.id} aria-label={o.referenceNumber} sx={{
                       display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.5,
@@ -329,8 +342,19 @@ export function Dashboard() {
                         </Typography>
                         <Typography variant="caption" className="muted">{o.referenceNumber}</Typography>
                       </Box>
-                      <StatusBadge status={o.status} label={statusLabel(o.status)} />
                       <Typography component="span" className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</Typography>
+                      <StatusBadge status={o.status} label={statusLabel(o.status)} />
+                      {/* A draft order's row action, named the same as the
+                          Sales page's own confirm control (#883 round 2,
+                          finding 5). There is no per-order deep link into
+                          Sales yet, so it lands on the customer-filtered list
+                          the row's own name already links to — confirming
+                          itself still takes one more click there. */}
+                      {o.status === "Draft" && (
+                        <Typography component={Link} to={`/sales?customerId=${o.customerId}`} variant="body2" sx={{ flexShrink: 0 }}>
+                          {t("salesRowConfirmAction")}
+                        </Typography>
+                      )}
                     </Box>
                   ))}
                 </Box>
@@ -452,6 +476,21 @@ function TodayRow({ tile, today, fmt, t }: {
   const missing = entry === null;
   const draft = entry !== null && entry.status === "Draft";
 
+  // DIRECTION.md line 6 — the entry state with its time ("Recorded 06:40",
+  // "Draft, saved 06:52"), farm-local (#883 round 2, finding 4). A Draft's
+  // time is the last save (lastChangedAtUtc, falling back to createdAtUtc for
+  // a Draft that has never been edited since); a submitted/locked/adjusted
+  // entry's time is when it became official — madeOfficialAtUtc, sent only
+  // for a record that has actually reached that step. A record with neither
+  // timestamp (data predating #494, or a fixture that doesn't care) falls
+  // back to the bare status word, exactly as before this slice.
+  const stateTime = missing
+    ? null
+    : fmt.time(draft ? (entry.lastChangedAtUtc ?? entry.createdAtUtc) : (entry.madeOfficialAtUtc ?? null));
+  const stateLabel = missing || stateTime === null
+    ? (missing ? undefined : statusLabel(entry.status))
+    : t(draft ? "entryStateDraftTime" : "entryStateRecordedTime", { time: stateTime });
+
   // A CSS grid, not a flex row: the DIRECTION.md phone layout reflows the
   // SAME four pieces (name, state, action, count) into three lines instead
   // of shrinking them onto one — a flex row with fixed minWidths overflowed
@@ -489,7 +528,7 @@ function TodayRow({ tile, today, fmt, t }: {
       <Box sx={{ gridArea: "meta" }}>
         {missing
           ? <span className="badge badge-warn">{t("noEntryBadge")}</span>
-          : <StatusBadge status={entry.status} label={statusLabel(entry.status)} />}
+          : <StatusBadge status={entry.status} label={stateLabel} />}
       </Box>
       {(missing || draft) && (
         <Box sx={{ gridArea: "act", textAlign: { xs: "stretch", md: "right" } }}>

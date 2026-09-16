@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { act, render, screen, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import i18n from "../i18n";
 import { navGroups, tabEntries } from "../routes/nav";
+import { stubMatchMedia } from "../test/matchMedia";
 import { BottomNav } from "./BottomNav";
 
 // BottomNav is rendered from the SAME nav model AppLayout uses (nav.tsx), so
@@ -79,6 +80,59 @@ describe("BottomNav", () => {
   it("does not mark More current when a tab owns the screen", () => {
     renderBottomNav("/stock");
     expect(tabbar().getByRole("button", { name: "More" })).not.toHaveAttribute("aria-current");
+  });
+
+  // #883 round 2, finding 2: the resize listener used to read 901px against
+  // the 900px `md` breakpoint the sidebar/tab-bar switch itself uses — at
+  // exactly 900px the CSS already hides the tab bar under the now-visible
+  // sidebar while the listener's own ">900" check stayed false, leaving the
+  // sheet open with its trigger hidden underneath. Both now read MD_UP_QUERY.
+  it("closes an open More sheet when the width crosses exactly the md breakpoint (900px)", () => {
+    const media = stubMatchMedia(false); // starts below md
+    renderBottomNav();
+    // Pins the actual boundary asked for — a fixed `matches` stub alone
+    // cannot tell a 901px listener from a 900px one, since either gets the
+    // same answer here; only the query string itself proves which was used.
+    expect(media.matchMedia).toHaveBeenCalledWith("(min-width: 900px)");
+    fireEvent.click(tabbar().getByRole("button", { name: "More" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    act(() => media.triggerChange(true)); // crosses to >= 900px
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("leaves an open More sheet open on a resize that stays below the md breakpoint", () => {
+    const media = stubMatchMedia(false);
+    renderBottomNav();
+    fireEvent.click(tabbar().getByRole("button", { name: "More" }));
+
+    act(() => media.triggerChange(false)); // still < 900px
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // #883 round 2, finding 3: the tab bar used to take the WHOLE --tabbar-h
+  // value (3.6rem content + the safe-area inset) as its own height, centring
+  // the actions inside the inset and sitting the labels under a notched
+  // phone's home indicator. Content now gets exactly 3.6rem; the inset is its
+  // own bottom padding underneath.
+  it("gives the bar a 3.6rem content height with the safe-area inset as its own bottom padding", () => {
+    renderBottomNav();
+    const bar = document.querySelector(".MuiBottomNavigation-root") as HTMLElement;
+    expect(bar).toBeTruthy();
+    // jsdom resolves a simple rem declaration against its default 16px root
+    // font size rather than echoing the unit back.
+    expect(getComputedStyle(bar).height).toBe("57.6px"); // 3.6rem
+    // jsdom's CSS parser does not understand `env(...)` (it silently drops the
+    // declaration from computed style, reading back "0"), so the padding half
+    // of the split is read from the real emotion stylesheet instead — the
+    // same workaround FarmThemeProvider.render.test.tsx uses for a value
+    // jsdom's limited CSSOM cannot resolve.
+    const emotionClass = Array.from(bar.classList).find((c) => c.startsWith("css-"));
+    expect(emotionClass).toBeTruthy();
+    const css = Array.from(document.querySelectorAll("style[data-emotion]"))
+      .map((tag) => tag.textContent ?? "").join("\n");
+    const rule = css.split("}").find((block) => block.includes(`.${emotionClass}`));
+    expect(rule).toContain("padding-bottom:env(safe-area-inset-bottom)");
   });
 
   describe("i18n wiring (#182, Task 7)", () => {

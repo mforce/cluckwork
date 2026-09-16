@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Box, BottomNavigation, BottomNavigationAction } from "@mui/material";
 import { Dialog } from "./Dialog";
 import { ThemeToggle } from "./ThemeToggle";
+import { MD_UP_QUERY } from "../lib/breakpoints";
 import type { NavEntry, NavGroup } from "../routes/nav";
 
 const ICON = 24;
@@ -55,7 +56,12 @@ export function BottomNav({
   // which does not implement it (see lib/theme.ts).
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
-    const desktop = window.matchMedia("(min-width: 901px)");
+    // MD_UP_QUERY (900px) is the exact boundary the sidebar/tab-bar switch
+    // uses (AppLayout.tsx/BottomNav.tsx `sx={{ display: { xs, md } }}`) — a
+    // mismatched listener boundary left a sheet opened at exactly 900px open
+    // over the now-visible sidebar, its trigger hidden underneath it (#883
+    // round 2, finding 2).
+    const desktop = window.matchMedia(MD_UP_QUERY);
     const closeOnDesktop = () => { if (desktop.matches) setMoreOpen(false); };
     desktop.addEventListener("change", closeOnDesktop);
     return () => desktop.removeEventListener("change", closeOnDesktop);
@@ -72,7 +78,15 @@ export function BottomNav({
           zIndex: 20, // over the page + the entry footer (10), under the dialog (50)
         }}
       >
-        <BottomNavigation value={activeValue} showLabels sx={{ height: "var(--tabbar-h)" }}>
+        {/* --tabbar-h (styles.css) is the bar's whole box — 3.6rem of content
+            plus the safe-area inset — and every OTHER sticky footer reads it
+            as that combined offset unchanged. The bar itself must not take
+            that whole value as its content height, or the actions centre
+            inside the inset and the labels sit under a notched phone's home
+            indicator: content gets exactly 3.6rem, and the inset becomes its
+            own bottom padding underneath (#883 round 2, finding 3). */}
+        <BottomNavigation value={activeValue} showLabels
+          sx={{ height: "3.6rem", paddingBottom: "env(safe-area-inset-bottom)" }}>
           {tabs.map((e) => (
             <BottomNavigationAction
               key={e.to}

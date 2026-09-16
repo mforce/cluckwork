@@ -781,8 +781,15 @@ export const en = {
     // entry states that carry a row action; a submitted/locked/voided entry
     // has none, only its name links through.
     continueHouseAction: "Continue {{flock}}",
+    // The entry state with its time (DIRECTION.md line 6, #883 round 2
+    // finding 4) — {{time}} is fmt.time()'s farm-local HH:mm, never the
+    // browser's. Falls back to the bare status word when the record carries
+    // neither timestamp (data predating #494).
+    entryStateRecordedTime: "Recorded {{time}}",
+    entryStateDraftTime: "Draft, saved {{time}}",
     // The attention line (#829/#864): one line, missing houses only, folding
-    // into a count past ATTENTION_SHOWN. {{flock}} is the house's own name.
+    // into a count past the attention cap (two at 1280, one at 390 — #883
+    // round 2 finding 1). {{flock}} is the house's own name.
     attentionHouseNotRecorded: "{{flock}} not recorded",
     attentionMore_one: "+{{count}} more",
     attentionMore_other: "+{{count}} more",
@@ -872,6 +879,10 @@ export const en = {
     // (the customer left the caller's tenant scope between reads). Never a
     // raw id or a substituted catalog match.
     rowCustomerUnavailable: "This customer is no longer available.",
+    // A draft order's row action (DIRECTION.md line 9, #883 round 2 finding
+    // 5) — the same wording sales.confirmOrderConfirmLabel uses for the
+    // matching control on the Sales page itself.
+    salesRowConfirmAction: "Confirm order",
   },
   // Water usage capture + correction screen (Task 13, #182, batch B2).
   // `water` is in TRANSLATED_NAMESPACES, same treatment as

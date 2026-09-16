@@ -592,6 +592,8 @@ export const es = {
     yesterdayByClose: "Ayer al cierre: {{total}}",
     recordHouseAction: "Registrar {{flock}}",
     continueHouseAction: "Continuar {{flock}}",
+    entryStateRecordedTime: "Registrado {{time}}",
+    entryStateDraftTime: "Borrador, guardado {{time}}",
     attentionHouseNotRecorded: "{{flock}} sin registrar",
     attentionMore_one: "+{{count}} más",
     attentionMore_other: "+{{count}} más",
@@ -634,6 +636,7 @@ export const es = {
     salesPanelTitle: "Ventas recientes",
     noOrdersMessage: "Aún no hay pedidos.",
     rowCustomerUnavailable: "Este cliente ya no está disponible.",
+    salesRowConfirmAction: "Confirmar pedido",
   },
 
   // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):

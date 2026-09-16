@@ -10,6 +10,7 @@ import type { DailyEntry, Flock, ProductionDay, ProductionReport, SalesOrder, St
 import { daysBefore, todayIso } from "../lib/dates";
 import i18n from "../i18n";
 import { NO_RECORD_HISTORY, account } from "../test/fixtures";
+import { stubMatchMedia } from "../test/matchMedia";
 
 // Keep the real formatters; stub the six read endpoints the dashboard fans out.
 vi.mock("../api/cluckwork", async (importOriginal) => {
@@ -203,11 +204,44 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
   });
 });
 
+// #883 round 2, finding 4 — DIRECTION.md line 6: the entry state WITH its
+// time ("Recorded 06:40", "Draft, saved 06:52"), farm-local. A house with no
+// entry yet carries no time at all — there is nothing to have recorded.
+describe("Dashboard Today row entry state time (#883 round 2, finding 4)", () => {
+  const farm = account({ timeZoneId: "UTC" });
+
+  it("shows a recorded entry's own time, and a draft's own save time, both farm-local", async () => {
+    mockEntries.mockResolvedValue([
+      { ...entry("f1", "Submitted", 178), madeOfficialAtUtc: "2026-07-21T06:40:00Z" },
+      { ...entry("f2", "Draft", 40), createdAtUtc: "2026-07-21T05:00:00Z", lastChangedAtUtc: "2026-07-21T06:52:00Z" },
+    ]);
+    renderWithProviders(<Dashboard />, { farm });
+    await screen.findByRole("link", { name: "Flock f1: open today's entry" });
+    expect(within(todayRow("Flock f1")).getByText("Recorded 06:40")).toBeInTheDocument();
+    expect(within(todayRow("Flock f2")).getByText("Draft, saved 06:52")).toBeInTheDocument();
+  });
+
+  it("shows no time on a house with no entry yet", async () => {
+    renderWithProviders(<Dashboard />, { farm });
+    await screen.findByRole("link", { name: "Flock f2: no entry yet, open today's entry" });
+    expect(within(todayRow("Flock f2")).queryByText(/^Recorded|^Draft,/)).not.toBeInTheDocument();
+    expect(within(todayRow("Flock f3")).queryByText(/^Recorded|^Draft,/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the bare status word when the record has no timestamp to show", async () => {
+    // The default `entry()` fixture (NO_RECORD_HISTORY, no madeOfficialAtUtc)
+    // — data predating #494, or a fixture that doesn't care.
+    renderWithProviders(<Dashboard />, { farm });
+    await screen.findByRole("link", { name: "Flock f1: open today's entry" });
+    expect(within(todayRow("Flock f1")).getByText("Submitted")).toBeInTheDocument();
+  });
+});
+
 // #829/#864 — the attention line: one line, missing houses only, folding
-// past ATTENTION_SHOWN into a count. The desktop-only "Needs attention" list
-// combining a second data source (stock floors) was proposed on #864 and not
-// taken — this line has exactly one source, so it renders nothing when every
-// house is in.
+// past the attention cap into a count. The desktop-only "Needs attention"
+// list combining a second data source (stock floors) was proposed on #864
+// and not taken — this line has exactly one source, so it renders nothing
+// when every house is in.
 describe("Dashboard attention line (#829, #864)", () => {
   it("renders nothing when every house has an entry", async () => {
     mockEntries.mockResolvedValue([entry("f1", "Submitted", 178), entry("f2", "Submitted", 1), entry("f3", "Submitted", 1)]);
@@ -224,7 +258,8 @@ describe("Dashboard attention line (#829, #864)", () => {
     expect(screen.queryByText(/\+\d+ more/)).not.toBeInTheDocument();
   });
 
-  it("shows two missing houses ruled apart, and folds the rest into a count", async () => {
+  it("shows two missing houses ruled apart at desktop width (md and up), and folds the rest into a count", async () => {
+    stubMatchMedia(true); // >= 900px, the md breakpoint AppLayout/BottomNav switch on
     mockFlocks.mockResolvedValue(Array.from({ length: 4 }, (_, i) => flock(`f${i}`, "Active")));
     mockEntries.mockResolvedValue([]); // every one of the four is missing
     renderWithProviders(<Dashboard />);
@@ -234,6 +269,21 @@ describe("Dashboard attention line (#829, #864)", () => {
     expect(screen.getByRole("link", { name: "+2 more" })).toHaveAttribute("href", "/daily-entry");
   });
 
+  // #883 round 2, finding 1: DIRECTION.md's fold point is two items at 1280
+  // and ONE at 390 — a flat cap of 2 overcounted on a phone. Below md (900px)
+  // MUI's `useMediaQuery` resolves to its `defaultMatches` (false) when
+  // `matchMedia` is left unstubbed, so this is also what a test gets by doing
+  // nothing — asserted explicitly here rather than left implicit.
+  it("shows exactly one missing house below the md breakpoint, and folds the rest into a count", async () => {
+    stubMatchMedia(false); // < 900px
+    mockFlocks.mockResolvedValue(Array.from({ length: 4 }, (_, i) => flock(`f${i}`, "Active")));
+    mockEntries.mockResolvedValue([]);
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("Flock f0 not recorded")).toBeInTheDocument();
+    expect(screen.queryByText("Flock f1 not recorded")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "+3 more" })).toHaveAttribute("href", "/daily-entry");
+  });
+
   // CodeRabbit, PR #883 round 1: missingHouses and the "N of M houses in"
   // caption were both derived from `tiles.shown`, the list `visibleTiles`
   // caps at 12 — so a farm with more than 12 missing houses undercounted
@@ -241,6 +291,7 @@ describe("Dashboard attention line (#829, #864)", () => {
   // ordering) and nothing past the cap was ever counted. They now come from
   // the FULL, uncapped capture-status list.
   it("counts every missing house, not only the 12 visibleTiles caps the row list at", async () => {
+    stubMatchMedia(true); // desktop cap (2 shown) — this test is about the COUNT, not the width
     mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
     mockEntries.mockResolvedValue([]); // all 15 missing
     renderWithProviders(<Dashboard />);
@@ -620,6 +671,25 @@ describe("Dashboard recent sales rows (#512)", () => {
     const row = await screen.findByRole("listitem", { name: /SO-1/ });
     expect(within(row).getByText(i18n.t("dashboard:rowCustomerUnavailable"))).toBeInTheDocument();
     expect(within(row).queryByText("c1")).not.toBeInTheDocument();
+  });
+});
+
+// #883 round 2, finding 5 — DIRECTION.md line 9's row action: a draft order
+// gets the Sales page's own "Confirm order" control (named the same, no
+// per-order deep link yet); a non-draft row has none.
+describe("Dashboard recent sales row action (#883 round 2, finding 5)", () => {
+  it("shows a Confirm order action on a draft row, linked through the customer filter", async () => {
+    mockOrders.mockResolvedValue([order("o-1", "SO-3", "Filtered Farm")]); // status: "Draft"
+    renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
+    const row = await screen.findByRole("listitem", { name: /SO-3/ });
+    expect(within(row).getByRole("link", { name: "Confirm order" })).toHaveAttribute("href", "/sales?customerId=c1");
+  });
+
+  it("shows no action on a non-draft row", async () => {
+    mockOrders.mockResolvedValue([{ ...order("o-2", "SO-4", "Second Farm"), status: "Confirmed" }]);
+    renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
+    const row = await screen.findByRole("listitem", { name: /SO-4/ });
+    expect(within(row).queryByRole("link", { name: "Confirm order" })).not.toBeInTheDocument();
   });
 });
 

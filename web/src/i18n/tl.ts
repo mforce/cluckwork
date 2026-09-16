@@ -619,6 +619,8 @@ export const tl = {
     yesterdayByClose: "Kahapon sa pagsara: {{total}}",
     recordHouseAction: "Itala ang {{flock}}",
     continueHouseAction: "Ituloy ang {{flock}}",
+    entryStateRecordedTime: "Naitala {{time}}",
+    entryStateDraftTime: "Draft, na-save {{time}}",
     attentionHouseNotRecorded: "Hindi pa naitala ang {{flock}}",
     attentionMore_one: "+{{count}} pa",
     attentionMore_other: "+{{count}} pa",
@@ -669,6 +671,7 @@ export const tl = {
     salesPanelTitle: "Mga Kamakailang Benta",
     noOrdersMessage: "Wala pang order.",
     rowCustomerUnavailable: "Hindi na available ang customer na ito.",
+    salesRowConfirmAction: "Kumpirmahin ang order",
   },
 
   // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
