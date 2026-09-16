@@ -35,7 +35,7 @@
 // report that only ever ran the injected version overstates what was verified,
 // and that overstatement is exactly the kind this repo has been bitten by.
 
-import { expect, test } from "../src/fixtures";
+import { expect, test, type Page } from "../src/fixtures";
 import { owner } from "../src/cast";
 import {
   findRefreshCookie,
@@ -44,8 +44,31 @@ import {
 } from "../src/env";
 import { tEn } from "../src/i18n";
 
-/** Measured from a real login against the sim stack, not assumed. */
-const ACCESS_TOKEN_LIFETIME_MS = 15 * 60 * 1000;
+/**
+ * The access-token lifetime, measured from the login this spec performs rather
+ * than assumed: `exp - nbf` on the token the login response carries. Production
+ * boots with 15 minutes; the CI e2e job boots its stack with 2
+ * (`Jwt__AccessTokenMinutes`, tools/simulation/docker-compose.sim.yml), and the
+ * slow spec below waits whichever it was handed.
+ */
+async function lifetimeFromLogin(page: Page, signIn: () => Promise<void>): Promise<number> {
+  const login = page.waitForResponse(
+    (r) => r.url().includes("/api/v1/auth/login") && r.request().method() === "POST" && r.ok(),
+  );
+  await signIn();
+  const body = await (await login).text();
+  const payload = body.match(/eyJ[\w-]+\.([\w-]+)\.[\w-]+/)?.[1];
+  if (!payload) throw new Error("the login response carried no JWT to measure the lifetime from");
+  const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { exp?: number; nbf?: number };
+  if (typeof claims.exp !== "number" || typeof claims.nbf !== "number") {
+    throw new Error(`the access token carries no exp/nbf pair to measure: ${JSON.stringify(claims)}`);
+  }
+  const lifetimeMs = (claims.exp - claims.nbf) * 1000;
+  if (lifetimeMs < 60_000 || lifetimeMs > 60 * 60 * 1000) {
+    throw new Error(`measured an access-token lifetime of ${lifetimeMs}ms; the stack is misconfigured`);
+  }
+  return lifetimeMs;
+}
 
 test.describe("Session", () => {
   test("the access token is never written to browser storage (#145)", async ({ page, signIn }) => {
@@ -139,20 +162,22 @@ test.describe("Session", () => {
     expect(injected, "the 401 was never injected — this spec proved nothing").toBe(true);
   });
 
-  test("survives the real 15-minute boundary", async ({ page, signIn, nav }) => {
+  test("survives the real token-lifetime boundary", async ({ page, signIn, nav }) => {
     test.skip(
       !RUN_SLOW_SPECS,
-      "real-clock spec: set CLUCKWORK_E2E_SLOW=1 to wait out the true 15-minute token lifetime",
+      "real-clock spec: set CLUCKWORK_E2E_SLOW=1 to wait out the true token lifetime",
     );
-    // 15 minutes of waiting, plus slack for the navigation and refresh after it.
-    test.setTimeout(ACCESS_TOKEN_LIFETIME_MS + 5 * 60 * 1000);
+    // The lifetime is not known until the login answers, and the test timeout
+    // must be set before the wait: budget the Production 15 minutes plus slack,
+    // then wait only as long as the token this stack issued actually lives.
+    test.setTimeout(20 * 60 * 1000);
 
-    await signIn(owner());
+    const lifetimeMs = await lifetimeFromLogin(page, () => signIn(owner()));
 
     // Idle past expiry. Nothing should happen during this window — there is no
     // proactive refresh — so the page simply sits there holding a token that
     // quietly goes stale, exactly as a barn phone left on a counter would.
-    await page.waitForTimeout(ACCESS_TOKEN_LIFETIME_MS + 30_000);
+    await page.waitForTimeout(lifetimeMs + 30_000);
 
     const refreshed = page.waitForResponse(
       (r) => r.url().includes("/api/v1/auth/refresh") && r.request().method() === "POST",
