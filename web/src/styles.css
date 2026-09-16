@@ -296,6 +296,29 @@
     var(--canvas);
 }
 
+/* ------------------------------------------------------------------------
+   #823 — every rule whose selector names an element and carries no class of
+   its own is wrapped in `:where()`, which contributes no specificity. The
+   app's raw controls keep these values, because nothing else declares them;
+   MUI's DOM does not, because one Emotion class outranks the whole set.
+   `web/src/styles.bare-elements.test.ts` walks the file and holds that.
+
+   A theme override cannot do this job. To outrank
+   `button:hover:not(:disabled)` (0,2,1) it has to exceed
+   `.MuiButton-contained:hover` (0,2,0) as well, so it cannot hand the hover
+   colour back to MUI's variant — it has to decide it for every variant.
+
+   The two rules below are the exception and stay global on purpose. They are
+   the app's baseline, and they are what MUI's own `CssBaseline` would set from
+   these same tokens — which #823 tried to adopt and could not: the production
+   CSP is `style-src 'self'` (src/Cluckwork.Api/Security/SecurityHeaders.cs),
+   so Emotion's injected stylesheet is refused and no MUI style reaches the
+   screen at all. Until that is settled this file IS the baseline.
+
+   `h1`-`h4` is demoted rather than deleted for a different reason: no screen
+   renders `Typography` yet, so deleting it would restyle every heading in the
+   app. It dies with the last screen slice (#833).
+   ------------------------------------------------------------------------ */
 * {
   box-sizing: border-box;
 }
@@ -307,14 +330,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, h4 {
+:where(h1, h2, h3, h4) {
   font-weight: 800;
   letter-spacing: -0.02em; /* DESIGN.md: negative tracking on display sizes */
   line-height: 1.15;
 }
 
 /* ---------------------------------------------------------------- Buttons */
-button {
+:where(button) {
   padding: 0.66rem 1.5rem;
   border: none;
   border-radius: var(--r-pill);
@@ -328,15 +351,15 @@ button {
   transition: background 0.12s ease, transform 0.05s ease;
 }
 
-button:hover:not(:disabled) {
+:where(button:hover:not(:disabled)) {
   background: var(--brand-press);
 }
 
-button:active:not(:disabled) {
+:where(button:active:not(:disabled)) {
   transform: translateY(1px);
 }
 
-button:disabled {
+:where(button:disabled) {
   opacity: 0.5;
   cursor: default;
 }
@@ -430,7 +453,7 @@ button.link:hover:not(:disabled) {
 }
 
 /* --------------------------------------------------------- Inputs & forms */
-label {
+:where(label) {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -439,7 +462,7 @@ label {
   color: var(--muted);
 }
 
-input, select, textarea {
+:where(input, select, textarea) {
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--hairline);
   border-radius: var(--r-input);
@@ -449,13 +472,13 @@ input, select, textarea {
   background: var(--surface);
 }
 
-input:focus, select:focus, textarea:focus {
+:where(input:focus, select:focus, textarea:focus) {
   outline: 2px solid var(--focus);
   outline-offset: 0;
   border-color: var(--focus);
 }
 
-input[type="checkbox"] {
+:where(input[type="checkbox"]) {
   accent-color: var(--brand);
   width: 1rem;
   height: 1rem;
@@ -1140,11 +1163,10 @@ input.cell {
 .entry-foot-sum.done b { color: var(--success); }
 .entry-foot-sum.over b { color: var(--error); }
 
-/* The responsive pass (#49) makes any .actions sticky on a phone. Inside the
-   bar that would be a sticky within a sticky — the bar is the sticky thing
-   now. Specificity beats the media-query rule, which adds none. */
+/* The phone block gives .actions its own padding and top margin; inside the
+   bar those double the bar's own. Specificity beats the media-query rule,
+   which adds none. */
 .entry-foot .actions {
-  position: static;
   margin: 0;
   padding: 0;
 }
@@ -2982,12 +3004,35 @@ dl.glossary {
     flex: 1 1 100%;
   }
 
+  /* #740 — one action per line, each the full width of its container. A
+     999px radius never clamps into an ellipse once the button is wider than
+     it is tall, so the longest tl label costs a line of height instead of
+     reshaping the control.
+
+     NOT sticky, which it was until #823: three stacked buttons parked above
+     the tab bar is ~170px of chrome on an 844px viewport. `.entry-foot` is
+     still sticky and still the field-first capture bar. */
   .actions {
-    position: sticky;
-    bottom: var(--tabbar-h); /* clear the tab bar */
-    background: var(--canvas);
+    flex-direction: column;
     padding: 0.75rem 0;
     margin-top: 0.75rem;
+  }
+
+  /* The one exemption, and F134 is only half the reason. The other half is that
+     the #864 mockup the owner confirmed keeps these two side by side at 390
+     (docs/designs/864-visual-language/daily-entry.html, `grid-template-columns:
+     1fr 1fr`), so the mockup decides and this rule follows it. The negative
+     margins below buy back the 2.3rem of width that makes the pair fit a thumb.
+
+     It is safe here and nowhere else: this row holds exactly two controls with
+     short labels, where the Sales draft panel holds three and is where #740
+     actually reproduced. Every other `.actions` and every dialog foot stacks. */
+  .entry-foot .actions {
+    flex-direction: row;
+  }
+
+  .entry-foot .actions button {
+    flex: 1;
   }
 
   /* Daily entry (F134). The bar runs edge to edge on a phone — inset by the
@@ -3069,13 +3114,18 @@ dl.glossary {
     to { transform: none; }
   }
 
-  .dialog .dialog-foot button {
-    flex: 1;
-    padding: 0.85rem 0.5rem;
+  /* `justify-content: flex-end` still applies down the block axis, so the
+     buttons need `align-items` to fill the row rather than sit at their
+     intrinsic width. `.actions` stretches by default and needs neither. */
+  .dialog .dialog-foot {
+    flex-direction: column;
+    align-items: stretch;
   }
 
+  /* The padding, not the retired `flex: 1`, is what holds these to a 44px
+     touch target: the base button padding lands at about 39px. */
+  .dialog .dialog-foot button,
   .actions button {
-    flex: 1;
     padding: 0.85rem 0.5rem;
   }
 }
@@ -3325,9 +3375,10 @@ input.locked {
 /* Without this, the global button:disabled { opacity: .5 } halves the whole
    busy subtree — spinner included — reproducing the exact dead-button look the
    busy state exists to replace. The rule being overridden is the base
-   `button:disabled` in the button styles near the top of this file; this
-   compound selector out-specifies it only while aria-busy is set. */
-button:disabled[aria-busy="true"] {
+   `button:disabled` in the button styles near the top of this file. Both are
+   `:where()`-demoted (#823), so this one wins on source order rather than on
+   specificity: keep it below that rule. */
+:where(button:disabled[aria-busy="true"]) {
   opacity: 1;
 }
 

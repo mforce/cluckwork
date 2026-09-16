@@ -21,7 +21,7 @@
 // holds the most and whose tables are the widest — the hardest case for all
 // four assertions rather than a representative one.
 
-import { expect, test, type Locator } from "../src/fixtures";
+import { expect, test, type Locator, type Page } from "../src/fixtures";
 import { owner } from "../src/cast";
 import { tEn } from "../src/i18n";
 
@@ -58,6 +58,57 @@ async function rectOf(locator: Locator, what: string) {
   }
   return box;
 }
+
+/**
+ * Every `.actions` row that exists at phone width, with the number of buttons
+ * it must hold, the layout it must have, and how to reach it.
+ *
+ * Each row opens itself, and that is not indirection for its own sake: they
+ * live on different routes, so a locator resolved before the walk moves on
+ * matches nothing by the time it is measured.
+ *
+ * `layout` is what makes this a table rather than a loop over two selectors.
+ * #823 stacks action rows below 900px, and the daily-entry bar is exempt: the
+ * #864 mockup the owner confirmed keeps its two saves side by side (F134), so
+ * a walk that demanded full width everywhere would fail on the one row the
+ * design says must not be full width.
+ */
+const PHONE_ACTION_ROWS: ReadonlyArray<{
+  what: string;
+  buttons: number;
+  layout: "stacked" | "side by side";
+  open: (page: Page) => Promise<Locator>;
+}> = [
+  {
+    what: "the daily-entry save bar",
+    buttons: 2,
+    layout: "side by side",
+    open: async (page) => {
+      await page.goto("/daily-entry");
+      const foot = page.locator(".entry-foot");
+      await expect(foot).toBeVisible();
+      return foot.locator(".actions");
+    },
+  },
+  {
+    what: "the Sales draft-order panel",
+    buttons: 3,
+    layout: "stacked",
+    open: async (page) => {
+      await page.goto("/sales");
+      // The fixture seeds two draft orders and never confirms them
+      // (SimulationDataSeeder), so this opens existing state instead of minting
+      // an order and drawing stock out of the fixture on every phone run.
+      const draft = page.getByRole("row").filter({ hasText: tEn("enums:status.Draft") }).first();
+      await expect(draft, "the fixture has no draft order, so the #740 row cannot be measured")
+        .toBeVisible();
+      await draft.getByRole("button", { name: tEn("sales:open") }).click();
+      const row = page.locator(".order-panel .actions");
+      await expect(row).toBeVisible();
+      return row;
+    },
+  },
+];
 
 test.describe("Phone shell", { tag: "@phone" }, () => {
   test.beforeEach(async ({ signIn }) => {
@@ -203,48 +254,77 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // the one geometry a 1280 run can never reach — at desktop these rows are
     // ~974px and every label stays on one line.
     //
-    // MEASURED at 390: both buttons are 170.6 x 65.2, a ratio of 2.62, so this
-    // has 1.62 of margin and is not a pin on today's rendering. Under
-    // `phone-action-label-wrapped` they become 170.6 x 217.2, a ratio of 0.79.
-    // That mutant applies identically at 1280 and leaves the whole desktop
-    // suite green — checked by `MUST_STAY_GREEN_ON`, not asserted here —
-    // because the row is ~974px there, so a longer label grows SIDEWAYS.
-    await page.goto("/daily-entry");
-    const foot = page.locator(".entry-foot");
-    await expect(foot).toBeVisible();
+    // #823 closed it by stacking: below 900px `.actions` and
+    // `.dialog .dialog-foot` lay out in a column and every button fills the
+    // row, so no label can reshape the control. BOTH halves are asserted,
+    // because the ratio alone stays green for a button that stacked and then
+    // collapsed to its intrinsic width — which is the same defect one step on.
+    //
+    // MEASURED at 390 after #823, recorded here where this suite keeps its
+    // measurements. Sales draft: all three 295.2 wide, 46.2 and 44.2 tall, 100%
+    // of a 295.2 row — against 91.5x103.2, 89.8x103.2 and 89.9x103.2 before,
+    // which is the #740 ellipse. Daily entry: both saves 170.6x65.2, 48% each
+    // of a 353.2 row, unchanged from before #823 because that row is exempt.
+    //
+    // Under `phone-action-label-wrapped` the Sales row goes back to side by
+    // side and every button drops to a fraction of its container: 51% and 22%,
+    // with `close` at 54.0x65.2 — taller than it is wide, so the ratio
+    // assertion fires there too. The daily-entry row is untouched by that
+    // mutant and is not evidence for it.
+    //
+    // BOTH ROWS ARE WALKED, and the Sales one is why the walk exists: the
+    // daily-entry bar passed the ratio check before #823 and the Sales draft
+    // panel did not, so a walk that stopped at the bar asserted the one row
+    // that was never broken.
+    for (const { what, buttons, layout, open } of PHONE_ACTION_ROWS) {
+      const row = await open(page);
+      // Non-vacuity: a walk over an empty set passes for free.
+      await expect(row.getByRole("button"), `${what} renders no buttons`).toHaveCount(buttons);
 
-    const buttons = foot.getByRole("button");
-    // Non-vacuity: a walk over an empty set passes for free, and this bar is the
-    // only thing being walked. Two saves, always.
-    await expect(buttons).toHaveCount(2);
-
-    const measured = await buttons.evaluateAll((els) =>
-      els.map((el) => {
-        const r = el.getBoundingClientRect();
-        return { name: (el.textContent ?? "").trim(), width: r.width, height: r.height };
+      const measured = await row.evaluate((el) => ({
+        container: el.getBoundingClientRect().width,
+        buttons: Array.from(el.querySelectorAll("button")).map((b) => {
+          const r = b.getBoundingClientRect();
+          return { name: (b.textContent ?? "").trim(), width: r.width, height: r.height };
+        }),
       }));
 
-    for (const b of measured) {
-      // Soft, so one run names both buttons rather than stopping at the first —
-      // they share a flex row, so whatever reshapes one reshapes the other.
-      expect.soft(
-        b.width,
-        `"${b.name}" is ${b.width.toFixed(1)}x${b.height.toFixed(1)} at phone width — `
-          + "taller than it is wide, so its pill clamps into an ellipse and the label leaves its background",
-      ).toBeGreaterThanOrEqual(b.height);
+      for (const b of measured.buttons) {
+        const share = b.width / measured.container;
+        // Soft, so one run names every button in the row rather than stopping
+        // at the first — they share one flex container, so whatever reshapes
+        // one reshapes them all.
+        expect.soft(
+          b.width,
+          `"${b.name}" in ${what} is ${b.width.toFixed(1)}x${b.height.toFixed(1)} at phone width `
+            + "— taller than it is wide, so its pill clamps into an ellipse and the label leaves "
+            + "its own background",
+        ).toBeGreaterThanOrEqual(b.height);
+
+        // The width share is asserted in BOTH directions, one per layout, so
+        // neither can drift into the other unnoticed.
+        //
+        // 90% and 60% rather than 100% and 50%: a row carries its own padding
+        // and gap, and a floor that pinned the exact width would go red on a
+        // gutter change that reshapes nothing. Measured, a stacked button is
+        // 100% and a side-by-side pair is ~47% each, so both bounds sit far
+        // from what they separate.
+        if (layout === "stacked") {
+          expect.soft(
+            share,
+            `"${b.name}" in ${what} spans ${(100 * share).toFixed(0)}% of its row — the action row `
+              + "is side by side again, which is what #740 was",
+          ).toBeGreaterThanOrEqual(0.9);
+        } else {
+          expect.soft(
+            share,
+            `"${b.name}" in ${what} spans ${(100 * share).toFixed(0)}% of its row — that row is `
+              + "meant to stay side by side (F134, and the confirmed #864 mockup), and it stacked",
+          ).toBeLessThan(0.6);
+        }
+      }
     }
   });
-
-  // NOT WALKED HERE, and not because it is clean: the Sales draft-order panel
-  // fails this today. Measured at 390 in ENGLISH, on a draft order —
-  //     Confirm order (allocates stock)   91.5 x 103.2   ratio 0.89   radius 999px
-  //     Cancel draft                      89.8 x 103.2   ratio 0.87
-  //     Close                             89.9 x 103.2   ratio 0.87
-  // — against 285.7 x 40.1 for the first of those at 1280. That is #740, which
-  // is filed as an es/tl defect and reproduces in en at this width; #674 owns
-  // the remedy because it is a decision about how action buttons lay out on a
-  // phone, not a fix this gate should make. Extend the walk to `/sales` when
-  // #740 lands, and delete this comment with it.
 
   test("no walked screen overflows the viewport horizontally", async ({ page }) => {
     const viewport = page.viewportSize();

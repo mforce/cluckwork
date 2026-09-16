@@ -12,19 +12,18 @@ const MODES: Mode[] = ["light", "dark"];
 const attrFor = (brand: string) => (brand === DEFAULT_BRAND ? null : brand);
 
 /** Resolve the real stylesheet for one palette × mode into the bridge's shape. */
-function tokensFor(brand: string, mode: Mode): TokenValues {
+export function tokensFor(brand: string, mode: Mode): TokenValues {
   const resolved = resolveTokens(attrFor(brand), mode);
-  const out: Record<ThemeToken, string> = {
-    "--brand": "", "--brand-press": "", "--on-brand": "",
-    "--ink": "", "--muted": "", "--canvas": "", "--surface": "", "--hairline": "",
-    "--error": "", "--success": "", "--warn": "", "--danger": "", "--on-danger": "",
-    "--link": "", "--focus": "", "--r-card": "", "--font": "",
-  };
-  for (const token of THEME_TOKENS) {
-    const value = resolved.get(token);
-    expect(value, `${token} must resolve for ${brand}/${mode}`).toBeDefined();
-    if (value !== undefined) out[token] = value;
-  }
+  // Seeded from the token list itself rather than from a second literal: the
+  // list grows every time a slice bridges another token, and a hand-kept copy
+  // here would be a second source of truth for what the bridge carries.
+  const out = Object.fromEntries(
+    THEME_TOKENS.map((token) => {
+      const value = resolved.get(token);
+      expect(value, `${token} must resolve for ${brand}/${mode}`).toBeDefined();
+      return [token, value ?? ""];
+    }),
+  ) as Record<ThemeToken, string>;
   return out;
 }
 
