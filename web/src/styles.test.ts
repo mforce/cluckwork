@@ -300,6 +300,14 @@ it("pins every brand-scoped token a palette block can declare", () => {
 // about which SELECTOR carries the declaration, not what the declaration
 // resolves to — `resolveTokens` only sees `:root` blocks and cannot tell a
 // `:hover`-only rule from a `:hover, :focus-visible` one.
+//
+// Scope, stated so this doesn't overclaim: this covers the three selectors
+// that are ALWAYS underlined (rest + hover + focus) — the genuine text
+// links. `.glossary-entry dt a:hover` is deliberately excluded: its rest
+// state carries no underline at all by design (predates #834 — see its own
+// comment), so it was never in this "always underlined, hover/focus go full
+// ink" family to begin with; a keyboard visitor still gets the global
+// `:focus-visible` outline ring there, just not an underline change.
 describe("the full-ink underline applies to keyboard focus, not only mouse hover (#834)", () => {
   const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
@@ -315,6 +323,19 @@ describe("the full-ink underline applies to keyboard focus, not only mouse hover
     const match = pattern.exec(css);
     expect(match, "no combined :hover, :focus-visible rule found").not.toBeNull();
     expect(match![0], "combined rule must set full ink").toContain("text-decoration-color: var(--ink)");
+  });
+
+  // Codex CLI review of #884, round 4: no page currently combines the
+  // `named-picker-trigger` and `link` classes on one element (grepped —
+  // only a test fixture does), but `button.link`'s new rest-state underline
+  // would bleed through the SAME equal-specificity, later-wins mechanism the
+  // trigger's own comment already defends padding/font-size against, the
+  // moment a page ever does. `button.named-picker-trigger` — a form control,
+  // not a link — resets it explicitly.
+  it("button.named-picker-trigger defends against button.link's underline bleeding through", () => {
+    const rule = /button\.named-picker-trigger\s*\{[^}]*\}/.exec(css);
+    expect(rule, "button.named-picker-trigger rest-state rule not found").not.toBeNull();
+    expect(rule![0], "must reset text-decoration").toContain("text-decoration: none");
   });
 });
 
