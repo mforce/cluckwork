@@ -405,6 +405,8 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       .toBeVisible();
     const rowCount = await minusButtons.count();
     expect(rowCount, "the daily-entry screen rendered only one stepper row to measure").toBeGreaterThan(1);
+    expect(await plusButtons.count(), `${rowCount} minus buttons but a different number of plus buttons: a row is missing one`)
+      .toBe(rowCount);
 
     const roundedXs = async (locator: Locator) =>
       new Set((await locator.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().x)))
