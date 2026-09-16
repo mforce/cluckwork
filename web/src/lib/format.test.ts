@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_LOCALE, formatCount, formatDate, formatMoney } from "./format";
+import {
+  DEFAULT_LOCALE, formatCount, formatDate, formatMoney, formatTime,
+} from "./format";
 
 // §4.5 display rule: money, counts and calendar dates render through the
 // FARM's locale + currency + date-format override (#650). The UI language is
@@ -62,6 +64,22 @@ describe("formatCount", () => {
     expect(formatCount(7, "en-US", 1)).toBe("7.0");
     expect(formatCount(101.34, "en-US", 1)).toBe("101.3");
     expect(formatCount(1234.5, "de-DE", 1)).toBe("1.234,5");
+  });
+});
+
+describe("formatTime", () => {
+  it("formats a UTC instant on the given timezone's 24-hour clock", () => {
+    expect(formatTime("2026-07-21T06:40:00Z", "en-US", "UTC")).toBe("06:40");
+    // hourCycle is forced to h23 regardless of locale — the Today row this
+    // feeds ("Recorded 06:40") never switches to a locale's AM/PM default.
+    expect(formatTime("2026-07-21T18:05:00Z", "es-ES", "UTC")).toBe("18:05");
+  });
+
+  // web/src/lib/** is pinned at 100% branch coverage (vite.config.ts): the
+  // `Number.isNaN` guard is the one branch a happy-path-only suite misses.
+  it("returns an unparseable instant unchanged rather than inventing a time", () => {
+    expect(formatTime("not a time", "en-US", "UTC")).toBe("not a time");
+    expect(formatTime("", "en-US", "UTC")).toBe("");
   });
 });
 

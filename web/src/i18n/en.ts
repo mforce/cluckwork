@@ -766,8 +766,11 @@ export const en = {
     todayInCount_other: "{{in}} of {{count}} houses in",
     noFlocksMessage: "No flocks yet — create one on the Daily entry page.",
     noEntryBadge: "No entry",
-    // {{total}} is the farm-locale formatted figure (#650).
-    todayEggsTotal: "{{total}} eggs today",
+    // Fixed text beside the numeral, not a sentence the total is
+    // interpolated into (owner's read of the #883 screenshots, 2026-09-16,
+    // amending D3.3's "{{total}} eggs today"). The figure renders separately,
+    // in its own numeral element.
+    todaySoFarLabel: "Today so far",
     // Owner amendment on #864 (2026-09-16): a reference under the running
     // total, sourced from the 14-day strip's own last (yesterday) slot —
     // never a second fetch, and only rendered when that day is complete.

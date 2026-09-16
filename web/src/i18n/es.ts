@@ -588,7 +588,7 @@ export const es = {
     todayInCount_other: "{{in}} de {{count}} casetas registradas",
     noFlocksMessage: "Aún no hay lotes — cree uno en la página de Registro diario.",
     noEntryBadge: "Sin registro",
-    todayEggsTotal: "{{total}} huevos hoy",
+    todaySoFarLabel: "Hoy hasta ahora",
     yesterdayByClose: "Ayer al cierre: {{total}}",
     recordHouseAction: "Registrar {{flock}}",
     continueHouseAction: "Continuar {{flock}}",

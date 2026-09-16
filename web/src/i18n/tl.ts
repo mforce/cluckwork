@@ -615,7 +615,7 @@ export const tl = {
     todayInCount_other: "{{in}} sa {{count}} bahay-manukan ang naitala",
     noFlocksMessage: "Wala pang kawan — gumawa ng isa sa page na Araw-araw na Tala.",
     noEntryBadge: "Walang tala",
-    todayEggsTotal: "{{total}} itlog ngayon",
+    todaySoFarLabel: "Ngayon, hanggang ngayon",
     yesterdayByClose: "Kahapon sa pagsara: {{total}}",
     recordHouseAction: "Itala ang {{flock}}",
     continueHouseAction: "Ituloy ang {{flock}}",

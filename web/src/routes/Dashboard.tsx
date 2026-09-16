@@ -14,7 +14,6 @@ import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
 import { EmptyState } from "../components/EmptyState";
-import { StatusBadge } from "../components/StatusBadge";
 import { DayStrip } from "../components/DayStrip";
 import { StockBar } from "../components/StockBar";
 import { useAuth } from "../auth/useAuth";
@@ -289,7 +288,7 @@ export function Dashboard() {
                     borderTop: "3px double var(--rule-strong)", pt: 1.25, fontWeight: 600,
                   }}
                   >
-                    <Typography component="span" sx={{ fontWeight: 600 }}>{t("todayEggsTotal", { total: fmt.count(todaysEggs(entries)) })}</Typography>
+                    <Typography component="span" sx={{ fontWeight: 600 }}>{t("todaySoFarLabel")}</Typography>
                     <Typography component="span" className="num" sx={{ fontWeight: 600, fontSize: "1.25rem" }}>{fmt.count(todaysEggs(entries))}</Typography>
                   </Box>
                   {yesterdayByClose !== null && (
@@ -343,7 +342,7 @@ export function Dashboard() {
                         <Typography variant="caption" className="muted">{o.referenceNumber}</Typography>
                       </Box>
                       <Typography component="span" className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</Typography>
-                      <StatusBadge status={o.status} label={statusLabel(o.status)} />
+                      <StatusDot status={o.status} label={statusLabel(o.status)} />
                       {/* A draft order's row action (#883 round 2, finding
                           5; wording tightened in round 2's own Codex re-
                           review, finding 3). There is no per-order deep link
@@ -533,8 +532,8 @@ function TodayRow({ tile, today, fmt, t }: {
       </Typography>
       <Box sx={{ gridArea: "meta" }}>
         {missing
-          ? <span className="badge badge-warn">{t("noEntryBadge")}</span>
-          : <StatusBadge status={entry.status} label={stateLabel} />}
+          ? <StatusDot label={t("noEntryBadge")} forceColor="var(--warn)" />
+          : <StatusDot status={entry.status} label={stateLabel} />}
       </Box>
       {(missing || draft) && (
         <Box sx={{ gridArea: "act", textAlign: { xs: "stretch", md: "right" } }}>
@@ -559,6 +558,34 @@ function TodayRow({ tile, today, fmt, t }: {
       <Typography component="span" className="num" sx={{ gridArea: "num", textAlign: "right" }}>
         {entry ? fmt.count(entry.totalEggs) : "—"}
       </Typography>
+    </Box>
+  );
+}
+
+// DIRECTION.md line 15: status is a word with an 8px dot, never a filled
+// badge — success (recorded, paid), --stat-accent (allocated), a hollow ring
+// (draft and anything else with no mapped colour), --warn (not recorded,
+// low). Dashboard-local: `StatusBadge` (../components/StatusBadge) stays
+// untouched for the other screens, its own conversion is #831's, so this
+// duplicates StatusBadge's small VARIANT table rather than exporting it —
+// the two are expected to diverge until #831 unifies them.
+const STATUS_DOT_COLOR: Record<string, string> = {
+  active: "var(--success)", submitted: "var(--success)", confirmed: "var(--success)",
+  saleable: "var(--success)", paid: "var(--success)",
+  locked: "var(--stat-accent)",
+  manageradjusted: "var(--warn)", adjusted: "var(--warn)", partial: "var(--warn)",
+  voided: "var(--error)", cancelled: "var(--error)", inactive: "var(--error)", denied: "var(--error)",
+};
+
+function StatusDot({ status, label, forceColor }: { status?: string; label?: string; forceColor?: string }) {
+  const color = forceColor ?? (status ? STATUS_DOT_COLOR[status.toLowerCase()] : undefined);
+  return (
+    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}>
+      <Box component="span" aria-hidden sx={color
+        ? { width: 8, height: 8, borderRadius: "50%", bgcolor: color, flexShrink: 0 }
+        : { width: 8, height: 8, borderRadius: "50%", border: "1.5px solid var(--muted)", boxSizing: "border-box", flexShrink: 0 }}
+      />
+      <Typography component="span" variant="body1">{label ?? status}</Typography>
     </Box>
   );
 }

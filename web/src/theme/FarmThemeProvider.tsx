@@ -109,6 +109,7 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
   const cardRadius = radius("--r-card", 12);
   const panelRadius = radius("--r-panel", 8);
   const pillRadius = radius("--r-pill", 999);
+  const controlRadius = radius("--r-input", 4);
 
   const base = createTheme({
     palette: {
@@ -222,7 +223,7 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         styleOverrides: { root: { borderRadius: panelRadius } },
       },
       MuiDialog: { styleOverrides: { paper: { borderRadius: cardRadius } } },
-      MuiOutlinedInput: { styleOverrides: { root: { borderRadius: radius("--r-input", 4) } } },
+      MuiOutlinedInput: { styleOverrides: { root: { borderRadius: controlRadius } } },
       // `Autocomplete` sets no elevation on its listbox paper, so it falls to
       // `Paper`'s default of 1 — which this scale flattens. The picker popover is
       // one of #651's floats, so it takes the dialog shadow explicitly.
@@ -235,7 +236,10 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         defaultProps: { disableElevation: true },
         styleOverrides: {
           root: {
-            borderRadius: pillRadius,
+            // DIRECTION.md line 17 (#864): controls take the 4px control
+            // radius, not the pill — the mockup's buttons are 4px rectangles.
+            // MuiChip alone keeps the pill.
+            borderRadius: controlRadius,
             // Phone-scoped, because `Button variant="text"` is where the app's
             // inline row actions land: an unconditional floor would add ~20px to
             // every row of 22 ledger tables at 1280.

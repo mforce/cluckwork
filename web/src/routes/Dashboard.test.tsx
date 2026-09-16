@@ -107,6 +107,18 @@ const panel = async (title: string) =>
 // it) can be queried together without depending on layout classNames.
 const todayRow = (flockName: string) => screen.getByRole("group", { name: flockName });
 
+// The total row's label ("Today so far") and its numeral are separate
+// elements (#883 round 4, finding D — the mockup pairs a fixed label with a
+// numeral beside it, never a sentence built by interpolating the figure into
+// the label). A bare numeral like "178" also appears on individual Today
+// rows, so this scopes the read to the label's own sibling rather than an
+// unscoped `getByText`, which would be ambiguous whenever a row's count
+// happens to match the total.
+const todayTotal = async () => {
+  const label = await screen.findByText("Today so far");
+  return label.parentElement?.querySelector(".num")?.textContent;
+};
+
 function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
   const original = i18n.getResource("en", ns, key) as string;
   i18n.addResource("en", ns, key, value);
@@ -185,7 +197,7 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
 
   it("sums today's eggs excluding the Voided entry — 178, never 1,177", async () => {
     renderWithProviders(<Dashboard />);
-    expect(await screen.findByText("178 eggs today")).toBeInTheDocument();
+    expect(await todayTotal()).toBe("178");
     expect(screen.queryByText(/1,177/)).not.toBeInTheDocument();
   });
 
@@ -246,7 +258,7 @@ describe("Dashboard attention line (#829, #864)", () => {
   it("renders nothing when every house has an entry", async () => {
     mockEntries.mockResolvedValue([entry("f1", "Submitted", 178), entry("f2", "Submitted", 1), entry("f3", "Submitted", 1)]);
     renderWithProviders(<Dashboard />);
-    await screen.findByText("180 eggs today");
+    expect(await todayTotal()).toBe("180");
     expect(screen.queryByText(/not recorded/)).not.toBeInTheDocument();
   });
 
@@ -330,7 +342,7 @@ describe("Dashboard 'Yesterday by close' caption (#864)", () => {
         ? { ...r, days: r.days.map((d, i) => (i === 6 ? { ...d, recordedFlocks: 0, missingFlocks: d.expectedFlocks, totalEggs: 0 } : d)) }
         : r)));
     renderWithProviders(<Dashboard />);
-    await screen.findByText("178 eggs today");
+    await todayTotal();
     expect(screen.queryByText(/Yesterday by close/)).not.toBeInTheDocument();
   });
 });
@@ -338,7 +350,7 @@ describe("Dashboard 'Yesterday by close' caption (#864)", () => {
 describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("asks the production report for exactly the two 7-day windows ending yesterday", async () => {
     renderWithProviders(<Dashboard />);
-    await screen.findByText("178 eggs today");
+    await todayTotal();
     expect(mockReport).toHaveBeenCalledTimes(2);
     expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 7), daysBefore(today, 1));
     expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8));
@@ -554,7 +566,7 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
   const boom = () => Promise.reject(new Error("down"));
   const asSales = { token: { sub: "u1", role: "Sales" } };
   const expectOthersIntact = async (except: "today" | "trend" | "stock" | "sales") => {
-    if (except !== "today") expect(await screen.findByText("178 eggs today")).toBeInTheDocument();
+    if (except !== "today") expect(await todayTotal()).toBe("178");
     if (except !== "trend") expect(await screen.findByText("87.4%")).toBeInTheDocument();
     if (except !== "stock") expect(await screen.findByText("1,560")).toBeInTheDocument();
     if (except !== "sales") expect(await screen.findByText("No orders yet.")).toBeInTheDocument();
@@ -564,14 +576,14 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     mockFlocks.mockImplementation(boom);
     renderWithProviders(<Dashboard />, asSales);
     expect(within(await panel("Today")).getByText("Could not load.")).toBeInTheDocument();
-    expect(screen.queryByText(/eggs today/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Today so far")).not.toBeInTheDocument();
     await expectOthersIntact("today");
   });
   it("entries failed → Today panel errors, others intact", async () => {
     mockEntries.mockImplementation(boom);
     renderWithProviders(<Dashboard />, asSales);
     expect(within(await panel("Today")).getByText("Could not load.")).toBeInTheDocument();
-    expect(screen.queryByText("0 eggs today")).not.toBeInTheDocument();
+    expect(screen.queryByText("Today so far")).not.toBeInTheDocument();
     await expectOthersIntact("today");
   });
   it("current-week report failed → trend panel errors, others intact", async () => {
@@ -624,13 +636,13 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
 describe("Dashboard sales panel role gate (#127)", () => {
   it("neither fetches nor shows sales for a ReadOnly user", async () => {
     renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "ReadOnly" } });
-    expect(await screen.findByText("178 eggs today")).toBeInTheDocument();
+    expect(await todayTotal()).toBe("178");
     expect(screen.queryByText("Recent sales")).not.toBeInTheDocument();
     expect(mockOrders).not.toHaveBeenCalled();
   });
   it("neither fetches nor shows sales for a Denied user", async () => {
     renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Denied" } });
-    expect(await screen.findByText("178 eggs today")).toBeInTheDocument();
+    expect(await todayTotal()).toBe("178");
     expect(screen.queryByText("Recent sales")).not.toBeInTheDocument();
     expect(mockOrders).not.toHaveBeenCalled();
   });
@@ -747,9 +759,34 @@ describe("Dashboard i18n wiring (#654)", () => {
       renderWithProviders(<Dashboard />);
       expect(await screen.findByText("TREND-MARKER")).toBeInTheDocument();
     });
-    await withOverride("dashboard", "todayEggsTotal", "TOTAL-MARKER {{total}}", async () => {
+    await withOverride("dashboard", "todaySoFarLabel", "TOTAL-MARKER", async () => {
       renderWithProviders(<Dashboard />);
-      expect(await screen.findByText("TOTAL-MARKER 178")).toBeInTheDocument();
+      expect(await screen.findByText("TOTAL-MARKER")).toBeInTheDocument();
     });
+  });
+});
+
+// #883 round 4, finding C — DIRECTION.md's status vocabulary is a dot plus a
+// word, never a filled badge. StatusBadge itself stays untouched (its
+// conversion is #831); the Dashboard renders its own dot locally.
+describe("Dashboard status rendering (#864, dot not badge)", () => {
+  it("renders Today and Recent sales status as a colour dot beside the word, not a filled badge", async () => {
+    mockOrders.mockResolvedValue([order("o1", "SO-1", "Ramos Grocery")]); // status: "Draft"
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Today so far");
+
+    // No filled badge survives on this screen once the conversion lands.
+    expect(document.querySelectorAll(".badge").length).toBe(0);
+
+    const recordedDot = within(todayRow("Flock f1")).getByText("Submitted").previousElementSibling;
+    expect(recordedDot).toHaveAttribute("aria-hidden", "true");
+    expect(recordedDot?.className).not.toMatch(/badge/);
+
+    // f3 has no entry in the default fixture — the missing-house state.
+    const missingDot = within(todayRow("Flock f3")).getByText("No entry").previousElementSibling;
+    expect(missingDot).toHaveAttribute("aria-hidden", "true");
+
+    const salesStatus = await screen.findByText("Draft");
+    expect(salesStatus.previousElementSibling).toHaveAttribute("aria-hidden", "true");
   });
 });

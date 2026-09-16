@@ -55,6 +55,31 @@ test.describe("Owner", () => {
     await expect(page.getByText(tEn("dashboard:noOrdersMessage"))).toBeHidden();
   });
 
+  // #883 round 4, finding B. `.content a` in styles.css (un-`:where()`'d)
+  // outranked MUI's own generated class regardless of Emotion's injection
+  // order, so the contained Record button — an `<a>` under `.content` via
+  // `component={Link}` — rendered its label in `--link` blue instead of the
+  // theme's `--on-brand` white contrastText. jsdom cannot see styles.css at
+  // all (Dashboard.test.tsx never renders real CSS), so this can only be
+  // proven against a real browser over the built stylesheet. The seeder's
+  // catalog flocks guarantee at least one missing house every day, so a
+  // "Record <flock>" link is always on screen for the Owner's own farm —
+  // no need for a second farm just to reach this assertion.
+  test("the filled Record button's label is on-brand, not link-blue (#883 finding B)", async ({ page }) => {
+    const recordButton = page.getByRole("link", { name: /^Record / }).first();
+    await expect(recordButton).toBeVisible();
+
+    const [buttonColor, onBrandColor] = await recordButton.evaluate((el) => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--on-brand)";
+      document.body.appendChild(probe);
+      const resolved = getComputedStyle(probe).color;
+      probe.remove();
+      return [getComputedStyle(el).color, resolved];
+    });
+    expect(buttonColor).toBe(onBrandColor);
+  });
+
   test("reports renders the default 7-day window with the admin-only money section", async ({
     page,
     nav,

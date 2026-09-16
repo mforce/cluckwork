@@ -1492,12 +1492,26 @@ tr.discounted .badge-warn {
   letter-spacing: -0.01em;
 }
 
-.content a {
+/* #883 round 4, finding B — wrapped in `:where()` so this contributes ZERO
+   specificity, the same device the #823 bare-element sweep uses above (L340
+   onward), extended to a scoped-but-still-outranking selector that sweep did
+   not catch (it only walked selectors with no class of their own). At its
+   un-where'd specificity (0,1,1), `.content a` beat MUI's own single
+   generated class (0,1,0) regardless of Emotion's `prepend: true` injection
+   order — so a contained `Button` rendered as `component={Link}` (an `<a>`
+   under `.content`, e.g. Dashboard's Record button) had its `contrastText`
+   label repainted `--link` blue instead of `--on-brand` white. Zeroing this
+   selector leaves it applying only where nothing else sets `color` on the
+   element — every plain `Typography`-as-link and hand-rolled `<a>` in the
+   app, none of which carry an explicit MUI `color` — while any MUI component
+   that does set one (a contained, outlined or text Button; a Chip) wins on
+   its own single class. */
+:where(.content a) {
   color: var(--link);
   text-decoration: none;
 }
 
-.content a:hover {
+:where(.content a):hover {
   color: var(--link-hover);
   text-decoration: underline;
 }

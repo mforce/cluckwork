@@ -119,10 +119,14 @@ describe("farm theme policy (#823 G2)", () => {
     }
   });
 
-  it("puts the 44px touch floor on phones only, and the pill on every button", () => {
-    for (const { label, theme, pill } of themes) {
+  it("puts the 44px touch floor on phones only, and the control radius on every button (#864 amendment)", () => {
+    for (const { label, theme, input } of themes) {
       const root = slot(theme.components?.MuiButton?.styleOverrides?.root, `${label} MuiButton root`);
-      expect(root.borderRadius, `${label} MuiButton radius`).toBe(pill);
+      // DIRECTION.md line 17: controls take the 4px control radius (--r-input),
+      // not the pill. The mockup's buttons render as 4px rectangles, and
+      // #883's after-screenshots caught this still reading the pill radius
+      // MuiChip alone keeps. MuiChip is unchanged.
+      expect(root.borderRadius, `${label} MuiButton radius`).toBe(input);
       expect(root, `${label} MuiButton minHeight at every width`).not.toHaveProperty("minHeight");
 
       const phone = theme.breakpoints.down("md");
