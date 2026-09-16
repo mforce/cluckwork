@@ -126,7 +126,7 @@ test.describe("README screenshots", () => {
     // Sales: the Owner sees the panel and the demo fixture has one confirmed
     // order and one draft — scoped to the sales list, never the shell's own
     // list items.
-    await expect(page.locator(".dash-list li").first()).toBeVisible();
+    await expect(page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") }).getByRole("listitem").first()).toBeVisible();
 
     // CAPTURED BEFORE THE INTERACTION BELOW, and that ordering is the whole
     // reason the #780 block moved down here. Focusing a day leaves the strip
