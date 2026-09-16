@@ -299,7 +299,7 @@ declare -A EXPECT_MSG_FOR=(
   [named-entity-picker-paging-broken]="the flock page-two sentinel never appeared after keyboard-paging to the loaded end"
   [a11y-inert-sweep-removed]="main.content > p.sr-only[aria-live=\"assertive\"] is still exposed to assistive technology with a dialog open
 #root > p.sr-only[aria-live=\"polite\"] is still exposed to assistive technology with a dialog open
-the injected probe is a body child but the modal sweep did not inert it"
+the injected probe is a body child but the modal sweep did not aria-hide it"
   [a11y-inert-never-lifted]="main.content > p.sr-only[aria-live=\"assertive\"] never returned to the accessibility tree
 #root > p.sr-only[aria-live=\"polite\"] never returned to the accessibility tree"
   [a11y-announcer-duplicates-banner]="duplicated a warning the visible banner already made"

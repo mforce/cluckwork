@@ -585,26 +585,51 @@ export const MUTANTS: Record<string, Mutant> = {
       // assertion whose mutant died somewhere else, which is why the harness
       // now checks EXPECT_MSG_FOR).
       //
-      // Re-adding on removal, rather than blocking the removal, keeps the
-      // settling signal intact: MUI's own `ModalManager.remove()` restores
-      // `document.body.style.overflow` before it un-hides the siblings (the
-      // same ordering `popModal` used to guarantee by hand, pre-#827), so
-      // `waitForModalEffect(false)` still resolves and the test proceeds to
-      // the assertion this is aimed at.
+      // #827 — react-and-re-add (the pre-#827 `inert` version's approach,
+      // which relied on MutationObserver) turned out to be racy against
+      // `aria-hidden` specifically, and this mutant SURVIVED with it: it
+      // observed the removal and re-added the attribute, but only from a
+      // MutationObserver callback, which fires asynchronously. Chromium's
+      // accessibility-tree computation for `aria-hidden` runs on its own
+      // schedule (unlike `inert`, which forces a style/layout pass that made
+      // the old approach's timing incidentally reliable), and it read the
+      // node as exposed during the real-but-brief window before the re-add
+      // landed. Fixed by intercepting SYNCHRONOUSLY instead: once armed, this
+      // makes `#root`'s own `removeAttribute("aria-hidden")` calls a no-op,
+      // so — from the DOM's and Chromium's point of view — the attribute
+      // never goes away even momentarily, which is a more faithful
+      // simulation of "the un-marking is broken" than react-after-the-fact
+      // ever was.
       await page.addInitScript(() => {
-        let sawHidden = false;
+        let armed = false;
+        const root = () => document.getElementById("root");
         new MutationObserver(() => {
-          const root = document.getElementById("root");
-          if (root === null) return;
-          if (root.hasAttribute("aria-hidden")) { sawHidden = true; return; }
-          // Only once a dialog has genuinely hidden it — otherwise this would
-          // hide the page at load and break every test for the wrong reason.
-          if (sawHidden) root.setAttribute("aria-hidden", "true");
+          if (root()?.hasAttribute("aria-hidden")) armed = true;
         }).observe(document, {
           attributes: true,
           subtree: true,
           attributeFilter: ["aria-hidden"],
         });
+        const originalRemoveAttribute = Element.prototype.removeAttribute;
+        Element.prototype.removeAttribute = function removeAttribute(name) {
+          if (armed && name === "aria-hidden" && this === root()) return;
+          originalRemoveAttribute.call(this, name);
+        };
+        // Chromium refuses to actually hide an element from the accessibility
+        // tree while one of its descendants holds focus ("Blocked aria-hidden
+        // on an element because its descendant retained focus" — its own
+        // DevTools warning), and un-hides the WHOLE subtree once focus lands
+        // back inside it, not just the focused element's own path. The
+        // trigger this test's own focus-restore correctly returns focus to
+        // lives inside `#root`, so that restore alone would silently defeat
+        // this mutant regardless of the interception above. Block focus from
+        // landing inside `#root` too, once armed, so nothing this mutant
+        // marks hidden can trigger Chromium's own auto-recovery.
+        const originalFocus = HTMLElement.prototype.focus;
+        HTMLElement.prototype.focus = function focus(...focusArgs) {
+          if (armed && root()?.contains(this)) return;
+          originalFocus.apply(this, focusArgs);
+        };
       });
     },
   },
