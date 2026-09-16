@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { contrast, declaredKeys, literalColourIn, luminance, resolveTokens, type Mode } from "./test/cssTokens";
 import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
 
@@ -277,6 +279,32 @@ it("pins every brand-scoped token a palette block can declare", () => {
   for (const token of [...DARK_REQUIRED, ...LIGHT_REQUIRED])
     if (token !== "--auth-bg" && token !== "--auth-card-shadow")
       expect(pinned).toContain(token);
+});
+
+// #834 (CodeRabbit round 1) — DIRECTION.md says full ink on hover AND focus;
+// the global `:focus-visible` rule only adds an outline, so a rule that
+// switches `text-decoration-color` on `:hover` alone leaves a keyboard-only
+// visitor seeing the faint 28% rule instead of full ink. Checked against the
+// raw stylesheet text rather than resolved tokens, because the defect is
+// about which SELECTOR carries the declaration, not what the declaration
+// resolves to — `resolveTokens` only sees `:root` blocks and cannot tell a
+// `:hover`-only rule from a `:hover, :focus-visible` one.
+describe("the full-ink underline applies to keyboard focus, not only mouse hover (#834)", () => {
+  const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+
+  // Tolerant of whitespace/line-wrapping so a reformat doesn't break it, but
+  // it still ties the SELECTOR to the DECLARATION rather than checking either
+  // in isolation — a `:focus-visible` selector that forgot the declaration
+  // (or a declaration on a rule missing `:focus-visible`) both fail this.
+  it.each([
+    ["button.link", /button\.link:hover:not\(:disabled\)\s*,\s*button\.link:focus-visible\s*\{[^}]*\}/],
+    [":where(.content a)", /:where\(\.content a\):hover\s*,\s*:where\(\.content a\):focus-visible\s*\{[^}]*\}/],
+    [".named-picker-loadmore", /\.named-picker-loadmore:hover:not\(:disabled\)\s*,\s*\.named-picker-loadmore:focus-visible\s*\{[^}]*\}/],
+  ] as const)("%s: :hover and :focus-visible share the full-ink rule", (_name, pattern) => {
+    const match = pattern.exec(css);
+    expect(match, "no combined :hover, :focus-visible rule found").not.toBeNull();
+    expect(match![0], "combined rule must set full ink").toContain("text-decoration-color: var(--ink)");
+  });
 });
 
 // #654 — the dashboard's surfaces carry no shadow, no caps, no motion and no

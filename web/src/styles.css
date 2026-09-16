@@ -390,7 +390,9 @@ button.btn-danger:hover:not(:disabled) {
 }
 
 /* Inline action / navigation buttons — text, not pills. Ink, like links
-   (#834): underlined at rest in the 28% ink rule, full ink on hover. */
+   (#834): underlined at rest in the 28% ink rule, full ink on hover and
+   keyboard focus (DIRECTION.md), the latter alongside the global
+   `:focus-visible` outline below, not instead of it. */
 button.link {
   background: none;
   color: var(--link);
@@ -404,7 +406,8 @@ button.link {
   text-underline-offset: 2px;
 }
 
-button.link:hover:not(:disabled) {
+button.link:hover:not(:disabled),
+button.link:focus-visible {
   background: none;
   text-decoration: underline;
   text-decoration-color: var(--ink);
@@ -1524,7 +1527,8 @@ tr.discounted .badge-warn {
   text-underline-offset: 2px;
 }
 
-:where(.content a):hover {
+:where(.content a):hover,
+:where(.content a):focus-visible {
   text-decoration: underline;
   text-decoration-color: var(--ink);
   text-underline-offset: 2px;
@@ -3335,7 +3339,8 @@ input.locked {
   text-underline-offset: 2px;
 }
 
-.named-picker-loadmore:hover:not(:disabled) {
+.named-picker-loadmore:hover:not(:disabled),
+.named-picker-loadmore:focus-visible {
   text-decoration: underline;
   text-decoration-color: var(--ink);
   text-underline-offset: 2px;
