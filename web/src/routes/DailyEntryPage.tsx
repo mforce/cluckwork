@@ -44,7 +44,10 @@ const STEPPER_SX = {
   },
   "& .numfield input": {
     fontSize: { xs: "1.75rem", md: "1.25rem" }, fontWeight: 500,
-    width: { xs: "4.5ch", md: "4ch" },
+    // Wide enough for a 4-digit count (a flock's daily total can run into the
+    // low thousands) with room to spare — measured against "430" clipping to
+    // "43" at a tighter "4ch" on desktop (Playwright capture, #830).
+    width: { xs: "5.5ch", md: "6ch" },
   },
 } as const;
 
@@ -1031,7 +1034,12 @@ export function DailyEntryPage() {
             here for a dialog message to double up on. */}
         {errors.page && <Typography role="alert" className="error">{errors.page}</Typography>}
         {message && <Typography role="status" className="success">{message}</Typography>}
-        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+        {/* `entry-actions` carries no styles.css rule — sx owns every visual
+            here — it exists only so phone.spec.ts can measure this row
+            without measuring the footer's own outer padding (was
+            `.entry-foot .actions`, a real styled class; #830 kept the hook,
+            dropped the styling it used to carry). */}
+        <Box className="entry-actions" sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
           {/* Sibling triggers: each spins only for its own scope, while the
               shared `busy` in disabled keeps the other one inert.
               `grading.tone === "over"` (not the narrower `lossesExceedTotal`)

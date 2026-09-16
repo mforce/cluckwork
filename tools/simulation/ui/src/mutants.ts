@@ -880,9 +880,9 @@ export const MUTANTS: Record<string, Mutant> = {
   // spec and prove nothing about phone width.
   "phone-action-bar-under-tabbar": {
     breaks:
-      "the clearance between the daily-entry action bar and the tab bar — `.entry-foot` parks at "
-      + "`bottom: 0` instead of `bottom: var(--tabbar-h)`, the state the sticky footer was in "
-      + "before the tab bar existed, which puts Submit and Save underneath it",
+      "the clearance between the daily-entry action bar and the tab bar — the sticky footer parks "
+      + "at `bottom: 0` instead of `bottom: var(--tabbar-h)`, the state it was in before the tab "
+      + "bar existed, which puts Submit and Save underneath it",
     caughtBy: "phone.spec.ts — the daily-entry action bar stays clear of the tab bar",
     apply: (page) =>
       // Measured: the action bar's bottom edge moves from 786.40625 to 844, so
@@ -892,10 +892,18 @@ export const MUTANTS: Record<string, Mutant> = {
       // THIS IS THE STRONGEST OF THE THREE, because its desktop-green comes
       // from CSS construction rather than from which tests happen to look.
       // Doubly so: at 1280 the media query does not match at all, AND
-      // `--tabbar-h` is `0px` there, so `bottom: 0` is what `.entry-foot`
-      // already resolves to. The rule cannot change a desktop pixel even if a
-      // desktop spec did assert on that footer.
-      insertCssRule(page, "@media (max-width: 900px) { .entry-foot { bottom: 0px } }"),
+      // `--tabbar-h` is `0px` there, so `bottom: 0` is what the footer already
+      // resolves to. The rule cannot change a desktop pixel even if a desktop
+      // spec did assert on that footer.
+      //
+      // #830 — the bar is a MUI `Paper component="footer"` now, styled by
+      // `sx` (an Emotion class). `insertCssRule` can only reach styles.css's
+      // OWN stylesheet (it filters on `href.endsWith(".css")`), which sits
+      // earlier in the cascade than Emotion's runtime-injected `<style>` tag,
+      // so an equal-specificity override here loses without `!important` —
+      // unlike `.entry-foot`, a hand-authored class this rule used to beat by
+      // append order within the SAME stylesheet.
+      insertCssRule(page, "@media (max-width: 900px) { footer { bottom: 0px !important } }"),
   },
 
   "phone-tabbar-removed": {
@@ -977,12 +985,14 @@ export const MUTANTS: Record<string, Mutant> = {
       + "whole control on an 844px viewport",
     caughtBy: "phone.spec.ts — no action control is taller than it is wide",
     apply: (page) =>
-      // Equal specificity to the rule it reverts (`.entry-foot .actions`), so it
-      // wins on order — `insertCssRule` appends. Scoped inside the same media
-      // query, so it is inert at 1280, which `MUST_STAY_GREEN_ON` checks.
+      // #830 — the row is a bare `sx`-styled `Box className="entry-actions"`
+      // now (was `.entry-foot .actions`); the same Emotion-vs-stylesheet
+      // cascade order problem as `phone-action-bar-under-tabbar` above
+      // applies, so this needs `!important` too, overriding `grid-template-
+      // columns: 1fr 1fr` back to a single stacked column.
       insertCssRule(
         page,
-        "@media (max-width: 900px) { .entry-foot .actions { flex-direction: column } }",
+        "@media (max-width: 900px) { .entry-actions { grid-template-columns: 1fr !important } }",
       ),
   },
 

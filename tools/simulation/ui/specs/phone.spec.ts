@@ -89,9 +89,13 @@ const PHONE_ACTION_ROWS: ReadonlyArray<{
     layout: "side by side",
     open: async (page) => {
       await page.goto("/daily-entry");
-      const foot = page.locator(".entry-foot");
+      // #830 — the bar converted to a MUI `Paper component="footer"`, the
+      // only `<footer>` in the app; `.entry-actions` is a bare hook class
+      // with no styles.css rule (sx owns the visuals), kept so this walk
+      // measures the button row and not the footer's own outer padding.
+      const foot = page.locator("footer");
       await expect(foot).toBeVisible();
-      return foot.locator(".actions");
+      return foot.locator(".entry-actions");
     },
   },
   {
@@ -227,23 +231,27 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
   test("the daily-entry action bar stays clear of the tab bar", async ({ page, phone }) => {
     await page.goto("/daily-entry");
 
-    const foot = page.locator(".entry-foot");
+    // #830 — the bar is now a MUI `Paper component="footer"`, the only
+    // `<footer>` in the app; measuring it directly is the same "outer sticky
+    // element, not the inner button row" distinction the old `.entry-foot`
+    // (not `.entry-foot .actions`) comment made.
+    const foot = page.locator("footer");
     await expect(foot).toBeVisible();
 
-    // `.entry-foot` is the sticky element, NOT `.entry-foot .actions` — that
-    // inner row is deliberately `position: static` (web/src/styles.css), so
-    // measuring it would measure something the CSS never parks anywhere.
     const footBox = await rectOf(foot, "the daily-entry action bar");
     const barBox = await rectOf(phone.tabbar, "the tab bar");
 
-    // MEASURED MARGIN, and it is 2.2px: the action bar's bottom edge sits at
-    // 786.40625 and the tab bar's top edge at 788.609375. So this assertion is
-    // tight by construction rather than by choice — there is no slack to pick.
-    // That is the whole point of the rule it guards: `.entry-foot` parks at
-    // `bottom: var(--tabbar-h)` and `.content` reserves exactly the same token
-    // as bottom padding, so the two are designed to meet, not to overlap. Any
-    // change that drops either half puts the Submit button under the tab bar,
-    // where a thumb hits Sections instead.
+    // MEASURED MARGIN before #830, and it was 2.2px: the action bar's bottom
+    // edge sat at 786.40625 and the tab bar's top edge at 788.609375 — tight
+    // by construction, because `.entry-foot` parked at `bottom:
+    // var(--tabbar-h)` and `.content` reserved exactly the same token as
+    // bottom padding, so the two were designed to meet, not to overlap. #830
+    // drops the matching negative-margin cancel the old rule carried (its
+    // `Paper` sits in normal flow with #830's own spacing instead), so this
+    // is re-measured against the CURRENT stack rather than assumed unchanged
+    // — see this test's own failure message if the margin re-opens or closes
+    // to zero. Any change that drops either half puts the Submit button
+    // under the tab bar, where a thumb hits Sections instead.
     expect(
       footBox.y + footBox.height,
       "the daily-entry action bar overlaps the tab bar — its Submit and Save buttons are under it",
@@ -381,7 +389,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // app — a money string in a `max-content` track beside a name.
       { path: "/", content: "ul.dash-sales-list", what: "the recent-sales list" },
       { path: "/sales", content: "table.data", what: "the orders table" },
-      { path: "/daily-entry", content: ".entry-foot", what: "the entry form's sticky foot" },
+      { path: "/daily-entry", content: "footer", what: "the entry form's sticky foot" },
       { path: "/customers", content: "table.data", what: "the customer book" },
       { path: "/flocks", content: "table.data", what: "the flock table" },
       { path: "/stock", content: "table.data", what: "the stock table" },
