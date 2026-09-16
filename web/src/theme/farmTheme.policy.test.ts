@@ -173,4 +173,119 @@ describe("farm theme policy (#823 G2)", () => {
       expect(panel, `${label} panel < card`).toBeLessThan(card);
     }
   });
+
+  // #864 — the visual language borrow-list (issue comments, 2026-09-16).
+
+  const EASE = "cubic-bezier(.32,.72,0,1)";
+
+  it("uses one easing curve everywhere and reuses MUI's own colour-duration key", () => {
+    for (const { label, theme } of themes) {
+      expect(theme.transitions.easing.easeInOut, `${label} easeInOut`).toBe(EASE);
+      expect(theme.transitions.easing.easeOut, `${label} easeOut`).toBe(EASE);
+      expect(theme.transitions.easing.easeIn, `${label} easeIn`).toBe(EASE);
+      expect(theme.transitions.easing.sharp, `${label} sharp`).toBe(EASE);
+      // `Button` and `BottomNavigationAction` both read `duration.short` for
+      // their own colour transitions (`@mui/material@9.4.0`), so this is
+      // where "colour transitions 160ms" has to land to reach them for free.
+      expect(theme.transitions.duration.short, `${label} colour duration`).toBe(160);
+    }
+  });
+
+  it("wraps MUI's own transitions in a system prefers-reduced-motion query", () => {
+    for (const { label, theme } of themes) {
+      expect(theme.motion.reducedMotion, `${label} motion.reducedMotion`).toBe("system");
+    }
+  });
+
+  it("disables the ripple on every ButtonBase descendant", () => {
+    for (const { label, theme } of themes) {
+      expect(theme.components?.MuiButtonBase?.defaultProps?.disableRipple, `${label}`).toBe(true);
+    }
+  });
+
+  it("scopes press feedback to contained/outlined buttons, with its own reduced-motion guard", () => {
+    for (const { label, theme } of themes) {
+      const root = slot(theme.components?.MuiButtonBase?.styleOverrides?.root, `${label} MuiButtonBase root`);
+      const pressed = slot(root["&.MuiButton-contained, &.MuiButton-outlined"], `${label} press-feedback scope`);
+      expect(pressed.transition, `${label} press transition`).toBe("transform 240ms cubic-bezier(.32,.72,0,1)");
+      const active = slot(pressed["&:active"], `${label} press active state`);
+      expect(active.transform, `${label} press scale`).toBe("scale(0.98)");
+      // This is a plain style object, not one MUI builds through
+      // `getTransitionStyles()`, so `motion.reducedMotion` above does not
+      // reach it automatically — it needs its own media query.
+      const reduced = slot(pressed["@media (prefers-reduced-motion: reduce)"], `${label} press reduced-motion`);
+      expect(reduced.transition, `${label} press reduced-motion transition`).toBe("none");
+      // Never on a bare `ButtonBase` (an `IconButton`) or `MuiButton-text` —
+      // the owner's desktop render showed the tint reading as a smudge behind
+      // underlined ruled-text actions.
+      expect(root, `${label} no unscoped transform`).not.toHaveProperty("transition");
+      expect(Object.keys(root).some((key) => key.includes("MuiButton-text")),
+        `${label} text buttons excluded`).toBe(false);
+    }
+  });
+
+  it("gives the tab bar no shadow and a hairline top rule instead (variant B)", () => {
+    for (const { label, theme } of themes) {
+      const root = slot(theme.components?.MuiBottomNavigation?.styleOverrides?.root,
+        `${label} MuiBottomNavigation root`);
+      expect(root.boxShadow, `${label} tab bar shadow`).toBe("none");
+      expect(root.borderTop, `${label} tab bar hairline`).toMatch(/^1px solid /);
+    }
+  });
+
+  it("marks the selected tab with a 2px rule, sizes its icon, and holds one label size", () => {
+    for (const { label, theme } of themes) {
+      const root = slot(theme.components?.MuiBottomNavigationAction?.styleOverrides?.root,
+        `${label} MuiBottomNavigationAction root`);
+      expect(root.minHeight, `${label} tab min height`).toBe(44);
+      const icon = slot(root["& > svg"], `${label} tab icon sizing`);
+      expect(icon.width, `${label} tab icon width`).toBe(24);
+      expect(icon.height, `${label} tab icon height`).toBe(24);
+      const selected = slot(root["&.Mui-selected"], `${label} tab selected rule`);
+      expect(selected.boxShadow, `${label} tab selected rule value`).toMatch(/^inset 0 2px 0 0 /);
+
+      const labelStyle = slot(theme.components?.MuiBottomNavigationAction?.styleOverrides?.label,
+        `${label} MuiBottomNavigationAction label`);
+      expect(labelStyle.fontSize, `${label} tab label size`).toBe(11);
+      expect(labelStyle.fontWeight, `${label} tab label weight`).toBe(500);
+      // MUI's own `&.selected` rule bumps 12px to 14px; this direction wants
+      // one size whether selected or not.
+      const selectedLabel = slot(labelStyle["&.Mui-selected"], `${label} tab selected label`);
+      expect(selectedLabel.fontSize, `${label} tab selected label size`).toBe(11);
+    }
+  });
+
+  it("sets desktop/phone ledger row heights", () => {
+    for (const { label, theme } of themes) {
+      const root = slot(theme.components?.MuiTableRow?.styleOverrides?.root, `${label} MuiTableRow root`);
+      expect(root.height, `${label} desktop row height`).toBe(36);
+      const phone = theme.breakpoints.down("md");
+      const narrow = slot(root[phone], `${label} MuiTableRow phone`);
+      expect(narrow.height, `${label} phone row height`).toBe(52);
+    }
+  });
+
+  it("sets the direction's type scale (display/title/section/rows/caption)", () => {
+    for (const { label, theme } of themes) {
+      const phone = theme.breakpoints.down("md");
+
+      expect(theme.typography.h1.fontSize, `${label} display size`).toBe("2.5rem");
+      expect(theme.typography.h1.fontWeight, `${label} display weight`).toBe(600);
+
+      expect(theme.typography.h2.fontSize, `${label} title size`).toBe("1.5rem");
+      expect(theme.typography.h2.fontWeight, `${label} title weight`).toBe(600);
+      const h2Phone = slot((theme.typography.h2 as Record<string, unknown>)[phone], `${label} title phone`);
+      expect(h2Phone.fontSize, `${label} title phone size`).toBe("1.75rem");
+
+      expect(theme.typography.h3.fontSize, `${label} section size`).toBe("0.8125rem");
+      expect(theme.typography.h3.fontWeight, `${label} section weight`).toBe(600);
+
+      expect(theme.typography.body1.fontSize, `${label} row size`).toBe("0.875rem");
+      expect(theme.typography.body1.fontVariantNumeric, `${label} row tabular numerals`).toBe("tabular-nums");
+      const body1Phone = slot((theme.typography.body1 as Record<string, unknown>)[phone], `${label} row phone`);
+      expect(body1Phone.fontSize, `${label} row phone size`).toBe("1rem");
+
+      expect(theme.typography.caption.fontSize, `${label} caption size`).toBe("0.75rem");
+    }
+  });
 });

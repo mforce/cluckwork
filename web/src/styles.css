@@ -100,8 +100,13 @@
 
   --font: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --scrim: rgba(29, 21, 33, 0.42);
-  --shadow-dialog: 0 24px 64px rgba(29, 21, 33, 0.24);
-  --shadow-bar: 0 -8px 24px rgba(29, 21, 33, 0.08);
+  /* #864 — three-layer diffused shadows, borrowed from the high-end-visual-
+     design skill's proposal and confirmed on the issue (2026-09-16). Replaces
+     the single 24px/64px blob with a hairline, a mid spread and a soft far
+     glow, visible on the phone tab bar and the dialog/drawer/menu floats
+     `elevationScale()` in FarmThemeProvider.tsx maps onto these same tokens. */
+  --shadow-dialog: 0 1px 2px rgba(29, 21, 33, 0.06), 0 12px 32px rgba(29, 21, 33, 0.10), 0 40px 96px rgba(29, 21, 33, 0.12);
+  --shadow-bar: 0 -1px 0 rgba(29, 21, 33, 0.05), 0 -16px 40px rgba(29, 21, 33, 0.07);
 
   font-family: var(--font);
   color: var(--ink);
@@ -235,8 +240,10 @@
     radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
     var(--canvas);
   --scrim: rgba(0, 0, 0, 0.62);
-  --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
-  --shadow-bar: 0 -8px 24px rgba(0, 0, 0, 0.45);
+  /* #864 — the dark twin of the light block above; same three layers, tuned
+     for a dark surface (opaque black layers rather than tinted ink). */
+  --shadow-dialog: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.4), 0 40px 96px rgba(0, 0, 0, 0.45);
+  --shadow-bar: 0 -1px 0 rgba(0, 0, 0, 0.35), 0 -16px 40px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
 }
 
