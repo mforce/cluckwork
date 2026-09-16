@@ -359,8 +359,9 @@ describe("dashboard surfaces (#654, INV-8)", () => {
     expect(bodyOf(".day > i")).toMatch(/min-height:\s*[3-9]px/);
   });
 
-  it("keeps the tile on the card radius and the production bar on the accent token", () => {
-    expect(bodyOf(".capture-tile")).toMatch(/border-radius:\s*var\(--r-card\)/);
+  it("keeps the tile on the panel radius and the production bar on the accent token", () => {
+    // #864 narrows --r-card to dialogs/sheets; a card-like tile reads --r-panel.
+    expect(bodyOf(".capture-tile")).toMatch(/border-radius:\s*var\(--r-panel\)/);
     expect(bodyOf(".capture-tile")).toMatch(/border:\s*1px solid var\(--hairline\)/);
     // Eggs per day is the farm's own measure, so the bar carries the brand
     // accent. Grade bands deliberately do NOT (see the --grade-N tokens):

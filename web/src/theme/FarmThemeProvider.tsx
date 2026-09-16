@@ -106,7 +106,8 @@ const emotionCache = createCache({ key: "mui", nonce: cspNonce, prepend: true })
  */
 export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
   const radius = (token: ThemeToken, fallback: number) => pixelsFrom(tokens[token], fallback);
-  const cardRadius = radius("--r-card", 16);
+  const cardRadius = radius("--r-card", 12);
+  const panelRadius = radius("--r-panel", 8);
   const pillRadius = radius("--r-pill", 999);
 
   const base = createTheme({
@@ -130,10 +131,13 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       divider: tokens["--hairline"],
     },
     spacing: 8,
-    // `--r-panel`, not `--r-card`: #651 D2 made 6 / 10 / 16 a nesting hierarchy,
-    // and the default has to be the middle of it. Cards, dialogs and inputs take
-    // their own radius through the component overrides below.
-    shape: { borderRadius: radius("--r-panel", 10) },
+    // `--r-panel`, not `--r-card`: the #864 direction makes 4 / 8 / 12 a
+    // nesting hierarchy (controls / cards & panels / dialogs), and the
+    // default has to be the middle step. Dialogs and inputs take their own
+    // radius through the component overrides below; `MuiCard` also reads
+    // `--r-panel` directly since a card is a panel-family surface, not a
+    // dialog.
+    shape: { borderRadius: radius("--r-panel", 8) },
     shadows: elevationScale(tokens),
     // #864 — MUI's own reduced-motion mechanism (`@mui/material@9.4.0`'s
     // `theme.motion`, consumed by `getTransitionStyles()`/`TouchRipple`):
@@ -215,10 +219,10 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       MuiPaper: { defaultProps: { elevation: 0 } },
       MuiCard: {
         defaultProps: { variant: "outlined" },
-        styleOverrides: { root: { borderRadius: cardRadius } },
+        styleOverrides: { root: { borderRadius: panelRadius } },
       },
       MuiDialog: { styleOverrides: { paper: { borderRadius: cardRadius } } },
-      MuiOutlinedInput: { styleOverrides: { root: { borderRadius: radius("--r-input", 6) } } },
+      MuiOutlinedInput: { styleOverrides: { root: { borderRadius: radius("--r-input", 4) } } },
       // `Autocomplete` sets no elevation on its listbox paper, so it falls to
       // `Paper`'s default of 1 — which this scale flattens. The picker popover is
       // one of #651's floats, so it takes the dialog shadow explicitly.

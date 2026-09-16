@@ -161,8 +161,10 @@ describe("farm theme policy (#823 G2)", () => {
       expect(theme.shape.borderRadius, `${label} default radius`).toBe(panel);
       expect(slot(theme.components?.MuiOutlinedInput?.styleOverrides?.root, `${label} input`)
         .borderRadius, `${label} input radius`).toBe(input);
+      // A card is a panel-family surface, not a dialog: #864 repoints MuiCard
+      // at --r-panel and reserves --r-card for dialogs and sheets only.
       expect(slot(theme.components?.MuiCard?.styleOverrides?.root, `${label} card`)
-        .borderRadius, `${label} card radius`).toBe(card);
+        .borderRadius, `${label} card radius`).toBe(panel);
       expect(slot(theme.components?.MuiDialog?.styleOverrides?.paper, `${label} dialog`)
         .borderRadius, `${label} dialog radius`).toBe(card);
       // Three distinct steps, increasing. One number cannot carry a hierarchy,

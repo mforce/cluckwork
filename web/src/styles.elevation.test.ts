@@ -176,9 +176,11 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
     declarationsFor(":root").get(name);
 
   it("declares three distinct steps in increasing order", () => {
-    expect(tokenValue("--r-input")).toBe("6px");
-    expect(tokenValue("--r-panel")).toBe("10px");
-    expect(tokenValue("--r-card")).toBe("16px");
+    // #864 (owner decision, 2026-09-16): controls 4px, cards/panels 8px,
+    // dialogs 12px. D6's "the scale does not move" is superseded.
+    expect(tokenValue("--r-input")).toBe("4px");
+    expect(tokenValue("--r-panel")).toBe("8px");
+    expect(tokenValue("--r-card")).toBe("12px");
   });
 
   // Every surface this slice owns, INCLUDING two --r-input consumers. Without
@@ -196,5 +198,23 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   ])("%s resolves its radius through a token, not a literal", (selector) => {
     const radius = declarationsFor(selector).get("border-radius");
     expect(radius).toMatch(/^var\(--r-[a-z]+\)$/);
+  });
+
+  // #864 narrows the meaning of --r-card to dialogs and sheets only: every
+  // card-like surface reads --r-panel instead. A generic "some r-* token"
+  // pattern match (above) would stay green if one of these silently reverted
+  // to --r-card, so this pins the SPECIFIC token per surface.
+  it.each([
+    ".card", ".panel", ".order-panel", ".entry-pane", ".capture-tile",
+    ".help-hero", ".logo-preview", ".banner-preview", ".farm-warning",
+    ".palette-picker",
+  ])("%s reads --r-panel, not the dialog radius", (selector) => {
+    expect(declarationsFor(selector).get("border-radius")).toBe("var(--r-panel)");
+  });
+
+  // The dialog family is the one place --r-card still belongs: a modal and
+  // its phone-sheet variant.
+  it("the dialog and its phone sheet keep --r-card", () => {
+    expect(declarationsFor(".dialog").get("border-radius")).toMatch(/var\(--r-card\)/);
   });
 });
