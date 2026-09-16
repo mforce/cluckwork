@@ -609,7 +609,10 @@ export const tl = {
 
     // Katayuan ng pagtatala (#654)
     todayPanelTitle: "Ngayon",
-    todayInCount: "{{in}} sa {{total}} bahay-manukan ang naitala",
+    // Tagalog nouns do not inflect for number, so both plural forms carry
+    // the same text — same treatment as moreFlocks_one/_other below.
+    todayInCount_one: "{{in}} sa {{count}} bahay-manukan ang naitala",
+    todayInCount_other: "{{in}} sa {{count}} bahay-manukan ang naitala",
     noFlocksMessage: "Wala pang kawan — gumawa ng isa sa page na Araw-araw na Tala.",
     noEntryBadge: "Walang tala",
     todayEggsTotal: "{{total}} itlog ngayon",

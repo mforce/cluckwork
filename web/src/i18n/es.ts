@@ -584,7 +584,8 @@ export const es = {
 
     // Estado de captura (#654)
     todayPanelTitle: "Hoy",
-    todayInCount: "{{in}} de {{total}} casetas registradas",
+    todayInCount_one: "{{in}} de {{count}} caseta registrada",
+    todayInCount_other: "{{in}} de {{count}} casetas registradas",
     noFlocksMessage: "Aún no hay lotes — cree uno en la página de Registro diario.",
     noEntryBadge: "Sin registro",
     todayEggsTotal: "{{total}} huevos hoy",

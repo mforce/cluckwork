@@ -233,6 +233,33 @@ describe("Dashboard attention line (#829, #864)", () => {
     expect(screen.queryByText("Flock f2 not recorded")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "+2 more" })).toHaveAttribute("href", "/daily-entry");
   });
+
+  // CodeRabbit, PR #883 round 1: missingHouses and the "N of M houses in"
+  // caption were both derived from `tiles.shown`, the list `visibleTiles`
+  // caps at 12 — so a farm with more than 12 missing houses undercounted
+  // both, since every one of the 12 shown was itself missing (missing-first
+  // ordering) and nothing past the cap was ever counted. They now come from
+  // the FULL, uncapped capture-status list.
+  it("counts every missing house, not only the 12 visibleTiles caps the row list at", async () => {
+    mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
+    mockEntries.mockResolvedValue([]); // all 15 missing
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Flock f0 not recorded");
+    // 15 missing, 2 shown ruled apart, so the fold count is 13 — not 10,
+    // which is what `tiles.shown.length` (capped at 12) minus 2 would give.
+    expect(screen.getByRole("link", { name: "+13 more" })).toBeInTheDocument();
+    expect(screen.getByText("0 of 15 houses in")).toBeInTheDocument();
+  });
+
+  // CodeRabbit, PR #883 round 1: a single-key catalog string could only ever
+  // render "houses" — i18next selects the plural on `{{count}}`, and the
+  // caption now carries `_one`/`_other` forms.
+  it("says 'house', singular, when the farm has exactly one", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active")]);
+    mockEntries.mockResolvedValue([entry("f1", "Submitted", 1)]);
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("1 of 1 house in")).toBeInTheDocument();
+  });
 });
 
 // #864 owner amendment (2026-09-16) — a reference under the running total,

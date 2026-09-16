@@ -129,7 +129,12 @@ export function Dashboard() {
   }
 
   const panelError = <Alert severity="error" className="error">{t("panelLoadError")}</Alert>;
-  const tiles = flocks !== null && entries !== null ? visibleTiles(captureTiles(flocks, entries)) : null;
+  // The FULL capture-status list, uncapped — the attention line and the "N of
+  // M houses in" caption must count every active flock, not only the 12
+  // `visibleTiles` caps the RENDERED row list at. A farm with more than 12
+  // missing houses undercounted both on the capped list (CodeRabbit, #883).
+  const allTiles = flocks !== null && entries !== null ? captureTiles(flocks, entries) : null;
+  const tiles = allTiles === null ? null : visibleTiles(allTiles);
   const trendData = trend === null ? null : {
     line: dayStrip({
       days: [...trend.previous.days, ...trend.current.days],
@@ -215,7 +220,7 @@ export function Dashboard() {
   // "Needs attention" list combining a second data source (stock floors) was
   // proposed on #864 and the owner did not take it, so this line has exactly
   // one source. Nothing renders when every house is in.
-  const missingHouses = tiles === null ? [] : tiles.shown.filter((c) => c.entry === null).map((c) => c.flock);
+  const missingHouses = allTiles === null ? [] : allTiles.filter((c) => c.entry === null).map((c) => c.flock);
   const attentionShown = missingHouses.slice(0, ATTENTION_SHOWN);
   const attentionMore = missingHouses.length - attentionShown.length;
 
@@ -263,9 +268,9 @@ export function Dashboard() {
             }}
             >
               <Typography variant="h3"><Link to="/daily-entry">{t("todayPanelTitle")}</Link></Typography>
-              {tiles !== null && entries !== null && (
+              {allTiles !== null && entries !== null && (
                 <Typography variant="caption" className="muted">
-                  {t("todayInCount", { in: tiles.shown.length - missingHouses.length, total: tiles.shown.length })}
+                  {t("todayInCount", { in: allTiles.length - missingHouses.length, count: allTiles.length })}
                 </Typography>
               )}
             </Box>

@@ -758,7 +758,12 @@ export const en = {
     // screen and links straight to Daily entry for that flock and day.
     todayPanelTitle: "Today",
     // "3 of 4 houses in" — the section-head caption (DIRECTION.md, #829).
-    todayInCount: "{{in}} of {{total}} houses in",
+    // i18next selects the plural form on {{count}} (CodeRabbit, PR #883
+    // round 1: the single-key version rendered "1 of 1 houses in"); the same
+    // value renders in the string, so `count` is both the selector and the
+    // figure.
+    todayInCount_one: "{{in}} of {{count}} house in",
+    todayInCount_other: "{{in}} of {{count}} houses in",
     noFlocksMessage: "No flocks yet — create one on the Daily entry page.",
     noEntryBadge: "No entry",
     // {{total}} is the farm-locale formatted figure (#650).
