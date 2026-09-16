@@ -167,12 +167,12 @@ test.describe("Session", () => {
       !RUN_SLOW_SPECS,
       "real-clock spec: set CLUCKWORK_E2E_SLOW=1 to wait out the true token lifetime",
     );
-    // The lifetime is not known until the login answers, and the test timeout
-    // must be set before the wait: budget the Production 15 minutes plus slack,
-    // then wait only as long as the token this stack issued actually lives.
-    test.setTimeout(20 * 60 * 1000);
-
     const lifetimeMs = await lifetimeFromLogin(page, () => signIn(owner()));
+    // Sized from the measurement, so every lifetime the harness self-check
+    // admits (1 to 60 minutes) fits: the wait below plus slack for the
+    // navigation and refresh after it. Playwright lets a running test reset
+    // its own timeout, and the login that just completed took seconds.
+    test.setTimeout(lifetimeMs + 5 * 60 * 1000);
 
     // Idle past expiry. Nothing should happen during this window — there is no
     // proactive refresh — so the page simply sits there holding a token that
