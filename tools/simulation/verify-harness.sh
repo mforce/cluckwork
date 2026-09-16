@@ -376,6 +376,10 @@ else:
 # "this is a real key rather than a placeholder": armor present, and a body that
 # is substantial base64. Chasing app parity in a checker is how a checker drifts
 # from the thing it mirrors.
+raw = env.get("Jwt__AccessTokenMinutes")
+if raw is not None and not (str(raw).strip().isdigit() and 1 <= int(str(raw).strip()) <= 60):
+    fail.append(f"Jwt__AccessTokenMinutes is {raw!r}; the knob takes a whole number of minutes "
+                "from 1 to 60 (15 is Production's default, the CI e2e job uses 2)")
 for key in ("Jwt__PublicKeyPem", "Jwt__PrivateKeyPem"):
     raw = env.get(key)
     if raw is None or not str(raw).strip():

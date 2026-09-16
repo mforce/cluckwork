@@ -247,6 +247,17 @@ Every consumer of this harness's output (k6 results, findings docs, #277's
 Playwright suite) must carry this list forward rather than presenting
 sim-stack numbers as production-equivalent.
 
+### The access-token lifetime knob
+
+`Jwt__AccessTokenMinutes` is passed through to the app service with Production's
+default of 15. The CI e2e job boots its stack with `2`, so the real-expiry spec in
+`ui/specs/session-refresh.spec.ts` waits under three minutes instead of sixteen and a
+full dispatch run halves. The spec measures the lifetime from the login it performs
+(`exp - nbf` on the token), so it follows whatever value booted the stack. Local
+`reset.sh` and the k6 baseline keep 15: the k6 auth helper refreshes off the token's
+own expiry, so it would work at 2, but the recorded findings were taken at 15 and stay
+comparable. `verify-harness.sh` rejects anything outside 1 to 60.
+
 ## Why `seed --profile simulation` needs a non-Production environment
 
 `SimulationDataSeeder` is registered in DI only when

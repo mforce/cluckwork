@@ -151,6 +151,12 @@ jobs:
       - name: Reset and seed the simulation stack
         env:
           CLUCKWORK_SIM_REUSE_IMAGE: "1"
+          # Two-minute access tokens for this stack only: the real-expiry spec
+          # (session-refresh.spec.ts, behind the `slow` input) measures the
+          # lifetime from its own login and waits it out, so this is what turns
+          # a sixteen-minute wait into under three. The compose default and
+          # local reset.sh stay at Production's 15.
+          Jwt__AccessTokenMinutes: "2"
         run: bash tools/simulation/reset.sh
 
       - name: Install suite dependencies

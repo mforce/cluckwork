@@ -103,6 +103,13 @@ services:
       Jwt__Audience: ${Jwt__Audience}
       Jwt__PublicKeyPem: ${Jwt__PublicKeyPem}
       Jwt__PrivateKeyPem: ${Jwt__PrivateKeyPem}
+      # Access-token lifetime in minutes. The default is Production's (15);
+      # the CI e2e job sets 2 in its environment so the real-expiry spec waits
+      # under three minutes instead of sixteen. Local reset.sh and the k6
+      # baseline keep 15 so recorded findings stay comparable; the k6 auth
+      # helper and the SPA both read the expiry from the token, so neither
+      # cares which value booted the stack.
+      Jwt__AccessTokenMinutes: ${Jwt__AccessTokenMinutes:-15}
       # #283 — no Seed__* vars: the default account/roles/egg grades ship in
       # the EF migrations (this service's normal migrate-on-startup boot
       # provisions them), and the Owner is provisioned separately by
