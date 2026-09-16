@@ -13,6 +13,8 @@
 
 import { expect, test } from "../src/fixtures";
 import { owner } from "../src/cast";
+import { commitNamedPicker } from "../src/dom";
+import { farmToday } from "../src/farm";
 import { tEn } from "../src/i18n";
 
 test.describe("Owner", () => {
@@ -78,6 +80,100 @@ test.describe("Owner", () => {
       return [getComputedStyle(el).color, resolved];
     });
     expect(buttonColor).toBe(onBrandColor);
+  });
+
+  // #883 round 5 — the owner's read of the PR's screenshots: a Draft row's
+  // status cell ("Draft, saved 05:26") wrapped onto a second line at 1280
+  // because the action column was a fixed 200px, squeezing the status track.
+  // Dashboard.tsx now gives the row the mockup's own column model (name
+  // 150px, status 1fr, action auto, count 110px) plus an explicit
+  // `white-space: nowrap` on the status cell — this proves it holds by
+  // reading the CELL'S OWN computed line-height and asserting its rendered
+  // height matches it, rather than pinning a pixel figure that would drift
+  // with the type scale.
+  //
+  // SimulationDataSeeder only backfills PAST days (DraftWindowDays covers
+  // yesterday and the day before, never today), so there is no seeded Draft
+  // row on the live TODAY panel to read. This creates its own flock and
+  // saves — never submits — a draft, the same re-runnable shape
+  // manager.spec.ts uses for its own Draft entry: a fresh, timestamp-named
+  // flock every run, so this never collides with another spec or a
+  // previous run.
+  test("a Draft row's status cell never wraps at 1280 (#883 round 5)", async ({ page, farm }) => {
+    const today = farmToday(farm.timeZoneId);
+    const flockName = `E2E Wrap Flock ${Date.now()}`;
+
+    await page.goto("/flocks");
+    await page.getByRole("button", { name: tEn("flocks:newFlockButton") }).click();
+    const newFlock = page.getByRole("dialog", { name: tEn("flocks:newFlockDialogTitle") });
+    await newFlock.getByLabel(tEn("flocks:nameLabel")).fill(flockName);
+    await newFlock.getByLabel(tEn("flocks:breedLabel")).fill("E2E Leghorn");
+    await newFlock.getByLabel(tEn("flocks:placedLabel")).fill(today);
+    await newFlock.getByLabel(tEn("flocks:birdsLabel"), { exact: true }).fill("50");
+    const created = page.waitForResponse((r) =>
+      r.url().includes("/api/v1/flocks") && r.request().method() === "POST" && r.ok());
+    await newFlock.getByRole("button", { name: tEn("flocks:addFlockButton") }).click();
+    const flockId = ((await (await created).json()) as { id: string }).id;
+    await expect(newFlock).toBeHidden();
+
+    // Prefill-settle synchronization (manager.spec.ts's openDailyEntryAwaitingPrefill):
+    // the page resets every count when its prefill fetch settles, so the fill
+    // below must not race it.
+    const prefill = page.waitForResponse((r) =>
+      r.url().includes("/daily-entries") && r.url().includes(flockId) && r.ok());
+    await page.goto("/daily-entry");
+    await page.getByLabel(tEn("dailyEntry:dateLabel")).fill(today);
+    const committedId = await commitNamedPicker(page, tEn("dailyEntry:flockLabel"), flockName);
+    expect(committedId, "commitNamedPicker resolved a different flock id than the one this test created")
+      .toBe(flockId);
+    await prefill;
+
+    // A draft may stay unreconciled — only Submit is graded — so this stops
+    // at Save draft with no grading at all.
+    await page.getByLabel(tEn("dailyEntry:totalEggsLabel"), { exact: true }).fill("40");
+    await page.getByRole("button", { name: tEn("dailyEntry:saveDraftButton") }).click();
+    await expect(page.getByText(tEn("dailyEntry:draftSavedMessage"))).toBeVisible();
+
+    await page.goto("/");
+    const row = page.getByRole("group", { name: flockName });
+    await expect(row).toBeVisible();
+    const status = row.getByText(/^Draft, saved/);
+    await expect(status).toBeVisible();
+
+    const [box, lineHeight] = await Promise.all([
+      status.boundingBox(),
+      status.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight)),
+    ]);
+    if (box === null) throw new Error("the status cell has no bounding box, so it is not rendered");
+    expect(
+      box.height,
+      `the status cell rendered ${box.height}px tall against a ${lineHeight}px line height — it wrapped `
+        + "onto more than one line",
+    ).toBeCloseTo(lineHeight, 0);
+  });
+
+  // #883 round 5 — the owner's read of the PR's screenshots: recent-sales
+  // amounts sat at a different x position on every row because each `<li>`
+  // was a flex row, so a cell's width followed its OWN content rather than a
+  // shared column. Dashboard.tsx now puts the list itself in `display: grid`
+  // and each row in `subgrid`, so every row's amount column shares the same
+  // track — proven here by reading every amount's right edge and asserting
+  // they are the same pixel, not by eyeballing a screenshot.
+  test("recent sales amounts share one right edge at 1280 (#883 round 5)", async ({ page }) => {
+    const salesList = page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
+    const amounts = salesList.locator(".num");
+    const count = await amounts.count();
+    expect(count, "the sales list rendered no numeral cells to measure alignment against")
+      .toBeGreaterThan(1);
+
+    const edges = await amounts.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().right));
+    const first = edges[0]!;
+    for (const [i, edge] of edges.entries()) {
+      expect(
+        edge,
+        `sales row ${i}'s amount right edge is ${edge}, row 0's is ${first} — the amounts do not align`,
+      ).toBeCloseTo(first, 0);
+    }
   });
 
   test("reports renders the default 7-day window with the admin-only money section", async ({

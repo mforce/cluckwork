@@ -319,30 +319,77 @@ export function Dashboard() {
               {orders === null ? panelError : orders.length === 0 ? (
                 <EmptyState icon={ShoppingCart} message={t("noOrdersMessage")} />
               ) : (
-                <Box component="ul" role="list" aria-label={t("salesPanelTitle")} className="dash-sales-list" sx={{ listStyle: "none", m: 0, p: 0 }}>
-                  {/* DIRECTION.md line 9's row is customer/order number, eggs
-                      and grade, amount, status, action. The eggs-and-grade
-                      column is still not rendered here: `listOrders`'s
-                      `OrderItem`s DO carry a line's `quantity`, but only an
-                      `eggGradeId`, never a grade NAME — resolving one needs a
-                      `listEggGrades()` fetch this screen does not otherwise
-                      make (recorded on the PR and on #829; not built in this
-                      round). The rest of the row now matches: amount, status,
-                      then the Draft row's own action. */}
+                // #883 round 5 (owner's read of the #883 screenshots): a
+                // shared grid, not a flex row per `<li>` — a flex row lets
+                // each row's cells take whatever width their own content
+                // needs, so the amount sat at a different x position on every
+                // row. `display: grid` on the LIST plus `subgrid` on each row
+                // (mockup: `.rows.sales`/`.sale`) makes every row share the
+                // same column tracks, so amounts align down the page the same
+                // way the mockup's table does. DIRECTION.md line 9's row is
+                // customer/order number, eggs and grade, amount, status,
+                // action — the eggs-and-grade column is still not rendered:
+                // `listOrders`'s `OrderItem`s carry a line's `quantity` but
+                // only an `eggGradeId`, never a grade NAME, and resolving one
+                // needs a `listEggGrades()` fetch this screen does not
+                // otherwise make (recorded on the PR and on #829; not built
+                // in this round), so the grid below has one fewer column than
+                // the mockup's until that lands.
+                <Box component="ul" role="list" aria-label={t("salesPanelTitle")} className="dash-sales-list" sx={{
+                  listStyle: "none", m: 0, p: 0,
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr auto", md: "minmax(0,1fr) auto auto minmax(150px,auto)" },
+                  columnGap: 1.5,
+                }}
+                >
                   {orders.map((o) => (
                     <Box component="li" key={o.id} aria-label={o.referenceNumber} sx={{
-                      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.5,
+                      display: "grid",
+                      gridColumn: "1 / -1",
+                      gridTemplateColumns: "subgrid",
+                      // At 390 there is no shared subgrid (the list itself
+                      // reverts to a plain 2-column track above), so this
+                      // stacks: customer + amount on one line, status +
+                      // action on the next — the phone shape DIRECTION.md's
+                      // mockup draws for `.sale`, minus the qty row this
+                      // screen does not render yet.
+                      gridTemplateAreas: { xs: '"who amt" "state act"', md: '"who amt state act"' },
+                      columnGap: 1.5, rowGap: { xs: 0.25, md: 0 },
+                      alignItems: "center",
                       py: 1, borderBottom: "1px solid var(--rule)",
                     }}
                     >
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography component={Link} className="link cust" to={`/sales?customerId=${o.customerId}`} sx={{ display: "block", fontWeight: 500 }}>
+                      <Box sx={{ gridArea: "who", minWidth: 0 }}>
+                        {/* Not `.cust` (styles.css: `overflow:hidden;
+                            white-space:nowrap;text-overflow:ellipsis`) — that
+                            truncated a real customer name to "KC…" once four
+                            cells were forced onto one 390px line (#883 round
+                            5 finding). The row now stacks at 390, so the name
+                            gets its own full-width line and truncation is no
+                            longer needed there; kept nowrap+ellipsis at
+                            desktop, where the column is genuinely narrow. */}
+                        <Typography component={Link} className="link" to={`/sales?customerId=${o.customerId}`} sx={{
+                          display: "block", fontWeight: 500,
+                          whiteSpace: { xs: "normal", md: "nowrap" },
+                          overflow: { xs: "visible", md: "hidden" },
+                          textOverflow: { xs: "clip", md: "ellipsis" },
+                        }}
+                        >
                           {rowCustomerName(o)}
                         </Typography>
                         <Typography variant="caption" className="muted">{o.referenceNumber}</Typography>
                       </Box>
-                      <Typography component="span" className="num">{fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}</Typography>
-                      <StatusDot status={o.status} label={statusLabel(o.status)} />
+                      {/* Right-aligned with tabular numerals so every row's
+                          amount lines up on its ones digit — `.num` itself
+                          stays un-right-aligned (styles.css, #829: scoped
+                          narrow on purpose), so the alignment is this cell's
+                          own, not a widened class. */}
+                      <Typography component="span" className="num" sx={{ gridArea: "amt", textAlign: "right" }}>
+                        {fmt.money(o.totalMinorUnits, o.currencyCode, o.currencyMinorUnit)}
+                      </Typography>
+                      <Box sx={{ gridArea: "state" }}>
+                        <StatusDot status={o.status} label={statusLabel(o.status)} />
+                      </Box>
                       {/* A draft order's row action (#883 round 2, finding
                           5; wording tightened in round 2's own Codex re-
                           review, finding 3). There is no per-order deep link
@@ -356,7 +403,7 @@ export function Dashboard() {
                           the Today row's Record/Continue, which land on the
                           one exact form for that flock and date). */}
                       {o.status === "Draft" && (
-                        <Typography component={Link} to={`/sales?customerId=${o.customerId}`} variant="body2" sx={{ flexShrink: 0 }}>
+                        <Typography component={Link} to={`/sales?customerId=${o.customerId}`} variant="body2" sx={{ gridArea: "act", justifySelf: { md: "end" } }}>
                           {t("salesRowConfirmAction")}
                         </Typography>
                       )}
@@ -505,13 +552,17 @@ function TodayRow({ tile, today, fmt, t }: {
   return (
     <Box role="group" aria-label={flock.name} sx={{
       display: "grid",
-      // The action column is a FIXED 200px, not `auto`: the fixture's longest
-      // names ("E2E Flock 1789547475507…") made an `auto` track grow to fit
-      // the widest "Record …" label, ballooning the button across most of the
-      // row. #864's owner note calls this out directly: "a fixed 200px action
-      // column that wraps cleanly is the least the slice should do" — the
-      // button wraps onto two lines under a long label instead.
-      gridTemplateColumns: { xs: "1fr auto", md: "9rem 1fr 200px 3rem" },
+      // The mockup's own model (dashboard.html `.house`): name 150px, status
+      // 1fr, action auto, count 110px. #883 round 5's owner read: a fixed
+      // 200px action column (this row's previous shape) squeezed the status
+      // column so "Draft, saved 05:26" wrapped onto two lines. `auto` is safe
+      // here because the two actions that can render are no longer
+      // budget-hungry: Record only ever renders for the seeder's never-filing
+      // catalog flocks, whose names are short and fixed, and Continue is now
+      // ruled text with no button chrome to balloon (see below) — an
+      // arbitrarily long flock name racing a real action is a residual risk
+      // this model accepts, same as the mockup does.
+      gridTemplateColumns: { xs: "1fr auto", md: "150px 1fr auto 110px" },
       gridTemplateAreas: { xs: '"name num" "meta meta" "act act"', md: '"name meta act num"' },
       columnGap: 1.5, rowGap: { xs: 0.25, md: 0 },
       alignItems: "center",
@@ -530,7 +581,10 @@ function TodayRow({ tile, today, fmt, t }: {
       >
         {flock.name}
       </Typography>
-      <Box sx={{ gridArea: "meta" }}>
+      {/* `white-space: nowrap` (#883 round 5): the status cell is the one
+          piece of this row that must never wrap — "Draft, saved 05:26" onto a
+          second line is the defect this fix pins. */}
+      <Box sx={{ gridArea: "meta", whiteSpace: "nowrap" }}>
         {missing
           ? <StatusDot label={t("noEntryBadge")} forceColor="var(--warn)" />
           : <StatusDot status={entry.status} label={stateLabel} />}
@@ -547,11 +601,16 @@ function TodayRow({ tile, today, fmt, t }: {
             </Button>
           )}
           {draft && (
-            <Button component={Link} to={href} variant="text" size="small"
-              sx={{ width: { xs: "100%", md: "auto" }, justifyContent: { xs: "flex-start", md: "flex-end" } }}
+            // Ruled text (DIRECTION.md line 7), not a filled/text Button:
+            // `Button variant="text"` rendered bold and brand-coloured, the
+            // #883 round 5 owner finding — the same ruled-text Typography+Link
+            // pattern the sales row's "Review to confirm" action already
+            // uses below, so this row and that one share one convention.
+            <Typography component={Link} to={href} variant="body2"
+              sx={{ display: { xs: "inline-block", md: "inline" } }}
             >
               {t("continueHouseAction", { flock: flock.name })}
-            </Button>
+            </Typography>
           )}
         </Box>
       )}

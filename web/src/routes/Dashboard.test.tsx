@@ -195,6 +195,22 @@ describe("Dashboard capture status (#654, #829 ruled list)", () => {
     expect(within(todayRow("Flock f1")).queryByRole("link", { name: /^Continue|^Record/ })).not.toBeInTheDocument();
   });
 
+  // #883 round 5 — the owner's read of the PR's screenshots found the
+  // Continue action rendering as bold, brand-coloured text on both widths:
+  // `Button variant="text"` reads MUI's default text-button styling (bold,
+  // primary colour), not the ruled-text row action DIRECTION.md line 7 calls
+  // for. The fix drops the Button and reuses the same Typography+Link pattern
+  // the sales row's "Review to confirm" action already renders with (below),
+  // so this asserts against THAT class rather than inventing a new one: a
+  // `MuiTypography-body2` element, never a `MuiButtonBase`/`MuiButton` one.
+  it("renders Continue as MUI Typography ruled text, not a MuiButton (#883 round 5)", async () => {
+    mockEntries.mockResolvedValue([entry("f2", "Draft", 40)]);
+    renderWithProviders(<Dashboard />);
+    const action = await screen.findByRole("link", { name: "Continue Flock f2" });
+    expect(action.className, "Continue should render as ruled Typography text").toMatch(/\bMuiTypography-body2\b/);
+    expect(action.className, "Continue should carry no Button chrome").not.toMatch(/MuiButton/);
+  });
+
   it("sums today's eggs excluding the Voided entry — 178, never 1,177", async () => {
     renderWithProviders(<Dashboard />);
     expect(await todayTotal()).toBe("178");

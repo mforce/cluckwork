@@ -459,4 +459,30 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // and re-measuring, not re-adding the line.
     }
   });
+
+  // #883 round 5 — the owner's read of the PR's screenshots: at 390 the
+  // dashboard's recent-sales row used to force customer name, order number,
+  // amount and status onto one line, and `.cust` (styles.css:
+  // `overflow:hidden;white-space:nowrap;text-overflow:ellipsis`) clipped the
+  // name to "KC…". Dashboard.tsx now stacks the row at this width — name and
+  // amount on one line, status and action on the next — and drops `.cust`'s
+  // clipping there, so the name gets the row's full width instead of a
+  // shrunk share of four cells. `scrollWidth === clientWidth` is the direct
+  // test of "not clipped": an ellipsis-truncated element's content
+  // (`scrollWidth`) is wider than its box (`clientWidth`) by construction,
+  // and an untruncated one never is.
+  test("the recent-sales customer name is not truncated at phone width", async ({ page }) => {
+    await page.goto("/");
+    const salesList = page.locator("ul.dash-sales-list");
+    const firstRow = salesList.locator("li").first();
+    await expect(firstRow, "the dashboard rendered no recent-sales rows to measure").toBeVisible();
+
+    const customerName = firstRow.getByRole("link").first();
+    const [scrollWidth, clientWidth] = await customerName.evaluate((el) => [el.scrollWidth, el.clientWidth]);
+    expect(
+      scrollWidth,
+      `the customer name's scrollWidth (${scrollWidth}) exceeds its clientWidth (${clientWidth}) — `
+        + "it is clipped by ellipsis truncation",
+    ).toBe(clientWidth);
+  });
 });
