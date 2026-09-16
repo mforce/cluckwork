@@ -71,6 +71,22 @@ const TOKEN = /yyyy|yy|MMMM|MMM|MM|M|dddd|ddd|dd|d|'[^']*'|"[^"]*"|\\.|./g;
 // Both silently normalise an impossible day (2026-02-30 → March 2), so the
 // components are read back and compared — a date that does not survive the
 // round trip is shown as it arrived rather than as a day the farm never had.
+// A clock reading (HH:mm) for a UTC instant, on the farm's OWN calendar/clock
+// (`Account.timeZoneId`), never the browser's — the same rule #650 states for
+// every other figure on the page. `hourCycle: "h23"` is forced rather than
+// left to the locale: the Today row this feeds ("Recorded 06:40") reads a
+// 24-hour clock in every locale, matching the tabular-numeral convention the
+// rest of the row uses, rather than switching to a locale's AM/PM default.
+// `timeFormatOverride` (the Settings field beside `dateFormatOverride`) is
+// deliberately NOT read here — nothing in the SPA renders a time through it
+// yet, same as `formatDate`'s comment above notes for dates; wiring it is a
+// separate decision.
+export function formatTime(iso: string, locale: string, timeZone: string | undefined): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return dateFormat(locale, { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
+}
+
 export function formatDate(isoDate: string, locale: string, override: string | null): string {
   const m = ISO_DATE.exec(isoDate);
   if (!m) return isoDate;

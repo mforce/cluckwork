@@ -609,9 +609,21 @@ export const tl = {
 
     // Katayuan ng pagtatala (#654)
     todayPanelTitle: "Ngayon",
+    // Tagalog nouns do not inflect for number, so both plural forms carry
+    // the same text — same treatment as moreFlocks_one/_other below.
+    todayInCount_one: "{{in}} sa {{count}} bahay-manukan ang naitala",
+    todayInCount_other: "{{in}} sa {{count}} bahay-manukan ang naitala",
     noFlocksMessage: "Wala pang kawan — gumawa ng isa sa page na Araw-araw na Tala.",
     noEntryBadge: "Walang tala",
-    todayEggsTotal: "{{total}} itlog ngayon",
+    todaySoFarLabel: "Ngayon, hanggang ngayon",
+    yesterdayByClose: "Kahapon sa pagsara: {{total}}",
+    recordHouseAction: "Itala ang {{flock}}",
+    continueHouseAction: "Ituloy ang {{flock}}",
+    entryStateRecordedTime: "Naitala {{time}}",
+    entryStateDraftTime: "Draft, na-save {{time}}",
+    attentionHouseNotRecorded: "Hindi pa naitala ang {{flock}}",
+    attentionMore_one: "+{{count}} pa",
+    attentionMore_other: "+{{count}} pa",
     tileLinkLabel: "{{flock}}: buksan ang tala ngayong araw",
     tileLinkLabelMissing: "{{flock}}: wala pang tala, buksan ang tala ngayong araw",
     recordTodayHint: "Itala ngayon",
@@ -659,6 +671,7 @@ export const tl = {
     salesPanelTitle: "Mga Kamakailang Benta",
     noOrdersMessage: "Wala pang order.",
     rowCustomerUnavailable: "Hindi na available ang customer na ito.",
+    salesRowConfirmAction: "Suriin para kumpirmahin",
   },
 
   // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):

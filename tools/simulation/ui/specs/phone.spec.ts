@@ -35,12 +35,16 @@ const OWNER_TABS = ["nav:dailyEntry", "nav:stock", "nav:sales", "nav:history"];
  * criterion: 2.5.8 Target Size (Minimum) asks for 24px, with exceptions, and an
  * earlier version of this comment cited it for 44 — attributing the app's own,
  * stricter choice to a standard that does not require it. The floor is the
- * app's: `.tab` carries `min-height: 3.4rem` "clears the 44px touch target the
- * rest of the app now holds to" (web/src/styles.css).
+ * app's: #829 moved the tab bar onto MUI `BottomNavigation`, and
+ * `MuiBottomNavigationAction`'s theme override (FarmThemeProvider.tsx) sets
+ * `minHeight: 44` explicitly — the same number the CSS `.tab` rule it
+ * replaced used to reach via `min-height: 3.4rem` (54.4px, itself over the
+ * 44px floor "the rest of the app now holds to").
  *
- * Not a pin on today's geometry: the measured tabs are 78 x 54.4, so this has
- * ~34px of margin on the long axis and ~10px on the short one. A change that
- * trips it has shrunk the bar by a third, which is the change worth failing on.
+ * Not a pin on today's geometry: this is a floor, not a fixed size, so the
+ * bar can render taller than 44px (icon + label + padding) without moving
+ * this number. A change that trips it has shrunk the bar's actual target
+ * below the floor the theme sets, which is the change worth failing on.
  */
 const MIN_TARGET_PX = 44;
 
@@ -350,15 +354,17 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // `/` IS WALKED, and the story of why it briefly was not is worth keeping.
     //
     // It measured 443/390 during this PR's first probe — a `<span class="num">`
-    // holding `$9,999,999.99` inside `ul.dash-list > li`, pushed 53px off
+    // holding `$9,999,999.99` inside the recent-sales list, pushed 53px off
     // screen. That was real, and it was STALE BYTES: the sim stack had been up
     // 28 hours, so it was serving an image built before #781
     // (`7193ebe fix(dashboard): give recent sales real columns…`, 2026-09-12),
     // which is the commit that gave this list its container-query narrow
     // layout and is seven commits behind this branch's base. Rebuilding the
-    // stack made the dashboard measure 390/390 with those same rows present,
-    // the list resolving to `grid-template-columns: 179.219px 112px` and the
-    // widest amount sitting at x=346.6 inside a 353px panel.
+    // stack made the dashboard measure 390/390 with those same rows present.
+    // #829 replaced that container-query grid with an `sx`-laid-out flex row
+    // (`ul.dash-list` is gone), so this walk now measures the row's own
+    // flex-wrapped content instead — still against `ul.dash-sales-list`, the
+    // stable, unstyled locator hook Dashboard.tsx carries for exactly this.
     //
     // AGENTS.md says this in as many words — a long-running sim stack serves
     // the bytes it was built from, not the branch under review — and it is the
@@ -373,7 +379,7 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // The dashboard is first because it is the screen the phone context is
       // FOR, and its recent-sales list is the widest intrinsic content in the
       // app — a money string in a `max-content` track beside a name.
-      { path: "/", content: "ul.dash-list", what: "the recent-sales list" },
+      { path: "/", content: "ul.dash-sales-list", what: "the recent-sales list" },
       { path: "/sales", content: "table.data", what: "the orders table" },
       { path: "/daily-entry", content: ".entry-foot", what: "the entry form's sticky foot" },
       { path: "/customers", content: "table.data", what: "the customer book" },
@@ -452,5 +458,31 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       // the device half is not covered. Restoring it means enabling `isMobile`
       // and re-measuring, not re-adding the line.
     }
+  });
+
+  // #883 round 5 — the owner's read of the PR's screenshots: at 390 the
+  // dashboard's recent-sales row used to force customer name, order number,
+  // amount and status onto one line, and `.cust` (styles.css:
+  // `overflow:hidden;white-space:nowrap;text-overflow:ellipsis`) clipped the
+  // name to "KC…". Dashboard.tsx now stacks the row at this width — name and
+  // amount on one line, status and action on the next — and drops `.cust`'s
+  // clipping there, so the name gets the row's full width instead of a
+  // shrunk share of four cells. `scrollWidth === clientWidth` is the direct
+  // test of "not clipped": an ellipsis-truncated element's content
+  // (`scrollWidth`) is wider than its box (`clientWidth`) by construction,
+  // and an untruncated one never is.
+  test("the recent-sales customer name is not truncated at phone width", async ({ page }) => {
+    await page.goto("/");
+    const salesList = page.locator("ul.dash-sales-list");
+    const firstRow = salesList.locator("li").first();
+    await expect(firstRow, "the dashboard rendered no recent-sales rows to measure").toBeVisible();
+
+    const customerName = firstRow.getByRole("link").first();
+    const [scrollWidth, clientWidth] = await customerName.evaluate((el) => [el.scrollWidth, el.clientWidth]);
+    expect(
+      scrollWidth,
+      `the customer name's scrollWidth (${scrollWidth}) exceeds its clientWidth (${clientWidth}) — `
+        + "it is clipped by ellipsis truncation",
+    ).toBe(clientWidth);
   });
 });

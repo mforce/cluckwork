@@ -108,9 +108,12 @@ describe.each(MODES)("grade hues: %s", (mode) => {
 });
 
 describe("grade hues: the classes that consume them", () => {
+  // #829 — `.swatch` is unscoped now (`.stock-ledger` is gone: the grade
+  // ledger renders through `sx`, not a CSS-driven list), so the selector
+  // this pins dropped that ancestor.
   it("styles every index stockBar can emit, on both the band and the swatch", () => {
     for (let i = 1; i <= GRADE_COLOURS; i++) {
-      expect(css, `grade-${i}`).toContain(`.meter-stack > span.grade-${i}, .stock-ledger .swatch.grade-${i} { background: var(--grade-${i}); }`);
+      expect(css, `grade-${i}`).toContain(`.meter-stack > span.grade-${i}, .swatch.grade-${i} { background: var(--grade-${i}); }`);
     }
   });
 
@@ -132,7 +135,7 @@ describe("grade hues: the classes that consume them", () => {
       // The track itself legitimately paints `--surface-2`; only rules reaching
       // a band inside it are in scope.
       if (!/\.meter-stack\s*[>\s]/.test(rule.selector)) return;
-      if (/^\.meter-stack > span\.grade-\d, \.stock-ledger \.swatch\.grade-\d$/.test(rule.selector)) return;
+      if (/^\.meter-stack > span\.grade-\d, \.swatch\.grade-\d$/.test(rule.selector)) return;
       rule.walkDecls(/^background(-color|-image)?$/, (d) => { offenders.push(`${rule.selector} { ${d.prop}: ${d.value} }`); });
     });
     expect(offenders).toEqual([]);

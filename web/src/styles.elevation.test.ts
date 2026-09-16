@@ -164,14 +164,21 @@ function declarationsForAt(selector: string, mediaParams: string | undefined): M
   return decls;
 }
 
-// Everything allowed to cast a shadow, and why. Six floats plus one ring.
+// Everything allowed to cast a shadow, and why. Five floats plus one ring.
+//
+// `.tabbar` retired here in #829: the mobile tab bar is now MUI
+// `BottomNavigation`, themed with `boxShadow: "none"` (variant B, "ruled" —
+// a hairline top rule instead of a shadow, owner pick 2026-09-16). Its
+// successor assertion, "gives the tab bar no shadow and a hairline top rule
+// instead (variant B)" in `web/src/theme/farmTheme.policy.test.ts`, already
+// landed with #864's theme overrides — #829 needs no new row, only this
+// retirement.
 const SHADOW_ALLOWED = [
   ".auth .card",            // the sign-in card, floating on the auth gradient
   ".dialog",                // a modal, over its backdrop
   ".entry-foot",            // the Daily entry sticky action bar
   ".glossary-entry:target", // not elevation: a spread-only deep-link halo
   ".named-picker-listbox",  // the picker popover, over the form beneath it
-  ".tabbar",                // the mobile tab bar
   ".update-banner",         // the service-worker update prompt
 ].sort();
 
@@ -180,8 +187,16 @@ describe("#651 elevation: only a float casts a shadow", () => {
     expect(selectorsCastingShadow()).toEqual(SHADOW_ALLOWED);
   });
 
-  it("a panel, a card and an order panel carry a border and nothing else", () => {
-    for (const selector of [".card", ".panel", ".order-panel"])
+  // #829 — `.panel` retired from this list: the selector no longer exists
+  // (the Dashboard's cards are gone, not migrated onto `MuiCard`), and
+  // `declarationsFor` on a selector nothing declares returns an empty map,
+  // so keeping it here would pass vacuously — exactly the trap 822's D4
+  // named for this rule ("passes vacuously once those selectors are gone").
+  // No MuiCard successor exists for `.panel` specifically because nothing
+  // replaced it with a card; `.card`/`.order-panel` below still do, and
+  // `farmTheme.policy.test.ts`'s "makes a Card a hairline box" is their G2.
+  it("a card and an order panel carry a border and nothing else", () => {
+    for (const selector of [".card", ".order-panel"])
       expect(declarationsFor(selector).get("box-shadow")).toBeUndefined();
   });
 
@@ -218,13 +233,18 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // Every surface this slice owns, INCLUDING two --r-input consumers. Without
   // those the scale guard would assert nothing about the one token whose value
   // actually changes, and would read as safety it does not provide.
+  //
+  // #829 retires `.panel` and `.capture-tile` from both lists below: the
+  // Dashboard no longer renders either selector (it is `sx`-laid-out MUI),
+  // so a radius token on a selector nothing renders would be a guard reading
+  // as safety it does not provide (AGENTS.md, "writing a guard"). `.card`
+  // and `.order-panel` stay — other screens still convert their own cards
+  // in #831 to #833.
   it.each([
     ".toolbar",
     ".card",
-    ".panel",
     ".order-panel",
     ".entry-pane",
-    ".capture-tile",
     "input",
     ".named-picker-trigger",
   ])("%s resolves its radius through a token, not a literal", (selector) => {
@@ -237,7 +257,7 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // pattern match (above) would stay green if one of these silently reverted
   // to --r-card, so this pins the SPECIFIC token per surface.
   it.each([
-    ".card", ".panel", ".order-panel", ".entry-pane", ".capture-tile",
+    ".card", ".order-panel", ".entry-pane",
     ".help-hero", ".logo-preview", ".banner-preview", ".farm-warning",
     ".palette-picker",
   ])("%s reads --r-panel, not the dialog radius", (selector) => {

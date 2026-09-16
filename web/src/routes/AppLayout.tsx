@@ -1,7 +1,10 @@
-import { Suspense, useEffect } from "react";
+import { Fragment, Suspense, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { LogOut } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import {
+  Alert, Box, Button, Drawer, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, Typography,
+} from "@mui/material";
 import { useAuth } from "../auth/useAuth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { BottomNav } from "../components/BottomNav";
@@ -10,6 +13,7 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { FarmBrand } from "../components/FarmBrand";
 import { useFarm } from "../farm/useFarm";
 import { navGroups, tabEntries } from "./nav";
+import type { NavEntry } from "./nav";
 
 const ICON = 17;
 
@@ -17,14 +21,25 @@ const ICON = 17;
 // relies on for crash reports; read once at module scope rather than per render.
 const APP_VERSION = import.meta.env.VITE_APP_VERSION as string | undefined;
 
-// Authenticated shell (#52 redesign): an aubergine sidebar — the brand's
-// navigation spine — with the 15+ destinations grouped by job, each with a
+// A route matches an entry the same way everywhere in the shell: exact for an
+// `end` entry (only the Dashboard today), a prefix match otherwise. BottomNav
+// needs the identical test for its own current-tab check, so this is the one
+// place both renderers would otherwise duplicate it from.
+function matches(pathname: string, entry: NavEntry): boolean {
+  return entry.end ? pathname === entry.to : pathname.startsWith(entry.to);
+}
+
+// Authenticated shell (#52 redesign, #829 MUI conversion): a permanent
+// `Drawer` — the brand's navigation spine, tinted `--lavender` paper per the
+// confirmed direction (DIRECTION.md), not the aubergine `--brand` slab this
+// screen painted before — with the destinations grouped by job, each with a
 // lucide glyph. Role-tiered (#103): links and whole groups hide per role; the
 // API enforces the policy on every gated endpoint regardless.
 //
-// Below 900px the sidebar gives way to a bottom tab bar + More sheet (BottomNav)
-// — the wrapping top bar it used to become ate a third of a phone screen. Both
-// navs render from the same nav model, so the role gates live in one place.
+// Below 900px the sidebar gives way to a bottom tab bar + More sheet
+// (BottomNav) — the wrapping top bar it used to become ate a third of a
+// phone screen. Both navs render from the same nav model (nav.tsx, D5), so
+// the role gates live in one place.
 export function AppLayout() {
   const { t } = useTranslation("nav");
   const { t: tc } = useTranslation("common");
@@ -51,9 +66,7 @@ export function AppLayout() {
   // `nav` is English-only, but the entry is matched the same way BottomNav
   // marks a tab current (`end` -> exact match, else a prefix match).
   useEffect(() => {
-    const active = groups
-      .flatMap((g) => g.entries)
-      .find((e) => (e.end ? location.pathname === e.to : location.pathname.startsWith(e.to)));
+    const active = groups.flatMap((g) => g.entries).find((e) => matches(location.pathname, e));
     document.title = active ? `${t(active.labelKey)}${t("titleSuffix")}` : "Cluckwork";
   }, [groups, location.pathname, t]);
 
@@ -63,39 +76,71 @@ export function AppLayout() {
   }
 
   return (
-    <div className="shell">
+    <Box sx={{ display: "flex", minHeight: "100dvh" }}>
       {/* First focusable element: lets a keyboard/screen-reader user jump past
-          the 15+ nav links straight to the screen content (#182, Task 7). */}
+          the nav links straight to the screen content (#182, Task 7). */}
       <a href="#main-content" className="skip-link">{t("skipToContent")}</a>
 
-      <aside className="sidebar">
-        <FarmBrand />
-        <nav aria-label={t("primaryNavAriaLabel")}>
-          {groups.map((g) => (
-            <div className="nav-group" key={g.labelKey}>
-              <p className="nav-group-label">{t(g.labelKey)}</p>
-              {g.entries.map((e) => (
-                <NavLink key={e.to} to={e.to} end={e.end}>
-                  <e.Icon size={ICON} strokeWidth={1.5} aria-hidden /><span>{t(e.labelKey)}</span>
-                </NavLink>
-              ))}
-            </div>
-          ))}
-        </nav>
+      <Drawer
+        variant="permanent"
+        // `<aside>` (the `complementary` landmark, ax.ts / the e2e `nav`
+        // fixture): the pre-#829 `<aside className="sidebar">` carried it
+        // implicitly; `Drawer`'s Paper renders a plain `<div>` by default, so
+        // the landmark has to be asked for explicitly or it is silently lost.
+        slotProps={{ paper: { component: "aside" } }}
+        sx={{
+          display: { xs: "none", md: "block" },
+          width: "var(--sidebar-w)",
+          flexShrink: 0,
+          "& .MuiDrawer-paper": {
+            width: "var(--sidebar-w)", boxSizing: "border-box", position: "sticky", top: 0, height: "100dvh",
+            display: "flex", flexDirection: "column",
+          },
+        }}
+      >
+        <Box sx={{ py: 3 }}>
+          <FarmBrand />
+        </Box>
 
-        <div className="sidebar-foot">
+        <List component="nav" aria-label={t("primaryNavAriaLabel")} sx={{ flexGrow: 1, overflowY: "auto", py: 0 }}>
+          {groups.map((g) => (
+            <Fragment key={g.labelKey}>
+              <ListSubheader className="nav-group-label" component="p">{t(g.labelKey)}</ListSubheader>
+              {g.entries.map((e) => (
+                <ListItemButton
+                  key={e.to}
+                  component={NavLink}
+                  to={e.to}
+                  selected={matches(location.pathname, e)}
+                >
+                  <ListItemIcon sx={{ minWidth: 32 }}>
+                    <e.Icon size={ICON} strokeWidth={1.5} aria-hidden />
+                  </ListItemIcon>
+                  <ListItemText primary={t(e.labelKey)} />
+                </ListItemButton>
+              ))}
+            </Fragment>
+          ))}
+        </List>
+
+        <Box sx={{ mt: "auto", px: 1, py: 1.5, borderTop: "1px solid var(--hairline)" }}>
           <ThemeToggle iconSize={ICON} />
-          <button className="link" onClick={onLogout}>
-            <LogOut size={ICON} strokeWidth={1.5} aria-hidden /><span>{t("signOut")}</span>
-          </button>
+          <Button variant="text" color="inherit" onClick={onLogout} startIcon={<LogOut size={ICON} strokeWidth={1.5} aria-hidden />}
+            sx={{ justifyContent: "flex-start", width: "100%" }}>
+            {t("signOut")}
+          </Button>
           {/* #458 — set at build time (VITE_APP_VERSION, release-please-owned
               via web/.env.production); absent in dev builds, so this line
               simply doesn't render rather than showing "vundefined". */}
-          {APP_VERSION && <p className="sidebar-version">{t("versionLabel", { version: APP_VERSION })}</p>}
-        </div>
-      </aside>
+          {APP_VERSION && (
+            <Typography variant="caption" sx={{ display: "block", px: 1, pt: 0.5, color: "text.secondary" }}>
+              {t("versionLabel", { version: APP_VERSION })}
+            </Typography>
+          )}
+        </Box>
+      </Drawer>
 
-      <main className="content" id="main-content" tabIndex={-1}>
+      <Box component="main" className="content" id="main-content" tabIndex={-1} sx={{ flexGrow: 1, minWidth: 0 }}>
         {/* Carries the warning the banner below could not announce because a
             dialog had it inert (#485), and stays empty otherwise so the two
             never say the same thing twice.
@@ -121,12 +166,10 @@ export function AppLayout() {
             to replace, so a new timezone silently does not apply (round 2:
             codex + pi). */}
         {farmWarning !== null && (
-          <p className="warn farm-warning" role="alert">
-            {farmWarning}{" "}
-            <button type="button" className="link" onClick={() => void refresh()}>
-              {t("tryAgain")}
-            </button>
-          </p>
+          <Alert severity="warning" className="farm-warning"
+            action={<Button color="inherit" size="small" onClick={() => void refresh()}>{t("tryAgain")}</Button>}>
+            {farmWarning}
+          </Alert>
         )}
 
         {/* Contain a routed screen's render throw to this pane — the sidebar and
@@ -141,9 +184,9 @@ export function AppLayout() {
             <Outlet />
           </Suspense>
         </ErrorBoundary>
-      </main>
+      </Box>
 
       <BottomNav groups={groups} tabs={tabs} onLogout={onLogout} />
-    </div>
+    </Box>
   );
 }

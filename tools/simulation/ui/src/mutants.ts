@@ -438,6 +438,14 @@ export const MUTANTS: Record<string, Mutant> = {
     },
   },
 
+  // #829 — the farm-warning banner is `<div role="alert" className="farm-
+  // warning">` now (MUI `Alert`, D2 pair 17), not the plain `<p>` it used to
+  // be. The four `document.querySelector(".farm-warning")` calls below
+  // dropped the `p` tag qualifier for that reason; a tag-specific selector
+  // would have made every one of them a silent no-op (the querySelector
+  // finds nothing, the `if (banner && ...)` guard skips, and the mutant
+  // reports as a survivor for a reason that has nothing to do with the
+  // guarantee it names).
   "a11y-announcer-duplicates-banner": {
     breaks:
       "#499's rule that the offscreen announcer speaks ONLY for a message the visible banner "
@@ -448,7 +456,7 @@ export const MUTANTS: Record<string, Mutant> = {
     apply: async (page) => {
       await page.addInitScript(() => {
         const mirror = () => {
-          const banner = document.querySelector("p.farm-warning");
+          const banner = document.querySelector(".farm-warning");
           const region = document.querySelector('main.content > p.sr-only[aria-live="assertive"]');
           if (banner && region && region.textContent !== banner.textContent) {
             region.textContent = banner.textContent;
@@ -481,7 +489,7 @@ export const MUTANTS: Record<string, Mutant> = {
         let wasInert = false;
         const check = () => {
           const root = document.getElementById("root");
-          const banner = document.querySelector("p.farm-warning");
+          const banner = document.querySelector(".farm-warning");
           const region = document.querySelector('main.content > p.sr-only[aria-live="assertive"]');
           const nowInert = root?.hasAttribute("inert") ?? false;
           if (wasInert && !nowInert && banner && region) region.textContent = banner.textContent;
@@ -516,7 +524,7 @@ export const MUTANTS: Record<string, Mutant> = {
         let wasInert = false;
         const check = () => {
           const root = document.getElementById("root");
-          const banner = document.querySelector("p.farm-warning");
+          const banner = document.querySelector(".farm-warning");
           const region = document.querySelector('main.content > p.sr-only[aria-live="assertive"]');
           const nowInert = root?.hasAttribute("inert") ?? false;
           if (wasInert && !nowInert && banner && region) {
@@ -734,7 +742,7 @@ export const MUTANTS: Record<string, Mutant> = {
         let closes = 0;
         const check = () => {
           const root = document.getElementById("root");
-          const banner = document.querySelector("p.farm-warning");
+          const banner = document.querySelector(".farm-warning");
           const region = document.querySelector('main.content > p.sr-only[aria-live="assertive"]');
           const nowInert = root?.hasAttribute("inert") ?? false;
           if (wasInert && !nowInert && banner && region && ++closes === 2) {
@@ -901,8 +909,16 @@ export const MUTANTS: Record<string, Mutant> = {
         // `document`, NOT `document.documentElement` — see the header. The root
         // element does not exist yet when an init script runs, and observing it
         // throws into `pageerror` while the mutant reports as a survivor.
+        //
+        // #829 — the tab bar is MUI `BottomNavigation` now, wrapped in a plain
+        // `<nav aria-label>` (D2 pair 13). `.MuiBottomNavigation-root` is the
+        // locale-independent selector (an MUI-generated class, never
+        // translated), unlike an `aria-label` match, which would only find
+        // the bar under the `en` catalog. Removing the component removes the
+        // wrapping `<nav>`'s only child, which is the same "no navigation at
+        // all" outcome the old `nav.tabbar` removal produced.
         const strip = () => {
-          for (const bar of Array.from(document.querySelectorAll("nav.tabbar"))) bar.remove();
+          for (const bar of Array.from(document.querySelectorAll(".MuiBottomNavigation-root"))) bar.remove();
         };
         // Terminates: removing a node produces one childList record, the next
         // pass finds nothing left to remove, and no further record is minted.
@@ -910,10 +926,12 @@ export const MUTANTS: Record<string, Mutant> = {
         strip();
       });
 
-      // Green at desktop by scope rather than by luck: `.tabbar` is
-      // `display: none` above 900px and no desktop spec locates it, so removing
-      // an element nothing can see and nothing asks for changes no verdict
-      // there. `MUST_STAY_GREEN_ON` is what actually checks that claim.
+      // Green at desktop by scope rather than by luck: the wrapping `<nav>`'s
+      // `sx={{ display: { xs: "block", md: "none" } }}` (BottomNav.tsx)
+      // already hides the whole bar above 900px and no desktop spec locates
+      // it, so removing an element nothing can see and nothing asks for
+      // changes no verdict there. `MUST_STAY_GREEN_ON` is what actually
+      // checks that claim.
     },
   },
 
@@ -983,12 +1001,16 @@ export const MUTANTS: Record<string, Mutant> = {
       // navigation dead. The test now clicks a tab, and this is what keeps
       // that click honest.
       //
-      // Scoped to the anchors, so `More` (a <button>) still opens the sheet —
-      // deliberately, because a mutant that also broke the sheet would be
-      // killed by the OTHER phone test and would not prove anything about the
-      // tabs. Green at desktop by media scope: `.tabbar` is `display: none`
-      // above 900px and no desktop spec locates it.
-      insertCssRule(page, "@media (max-width: 900px) { .tabbar a { pointer-events: none } }"),
+      // Scoped to the anchors, so `More` (a <button>, no `component={NavLink}`
+      // override) still opens the sheet — deliberately, because a mutant that
+      // also broke the sheet would be killed by the OTHER phone test and
+      // would not prove anything about the tabs. #829 — `.MuiBottomNavigation
+      // -root a` replaces `.tabbar a`: an MUI-generated class, so it is
+      // locale-independent the same way the old plain class was, unlike an
+      // `aria-label` match. Green at desktop by media scope: the wrapping
+      // `<nav>`'s `sx={{ display: { xs: "block", md: "none" } }}` hides the
+      // whole bar above 900px and no desktop spec locates it.
+      insertCssRule(page, "@media (max-width: 900px) { .MuiBottomNavigation-root a { pointer-events: none } }"),
   },
 
   "phone-table-overflow-unclipped": {

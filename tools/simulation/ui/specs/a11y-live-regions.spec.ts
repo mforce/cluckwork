@@ -293,9 +293,12 @@ test.describe("live regions under a modal", () => {
     // THE ORDINARY PATH: the VISIBLE banner carries the text and keeps its
     // `role="alert"`, which is both how it announces itself and how it stays
     // in the app-wide alert vocabulary the rest of this suite reads.
-    const banner = page.locator("p.farm-warning");
+    // #829 — the banner is an MUI `Alert` now (`<div role="alert">`, D2 pair
+    // 17), not the plain `<p role="alert">` it was; the class-only locator
+    // stays tag-agnostic across that conversion.
+    const banner = page.locator(".farm-warning");
     await expect(banner).toContainText(tEn("nav:farmLoadFailedNeverLoaded"));
-    const bannerAx = await ax.node("p.farm-warning");
+    const bannerAx = await ax.node(".farm-warning");
     expect(bannerAx.exposed, "the visible banner is not exposed to assistive technology").toBe(true);
     expect(bannerAx.role, "the visible banner dropped out of the alert vocabulary").toBe("alert");
 

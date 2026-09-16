@@ -757,10 +757,45 @@ export const en = {
     // bespoke warn badge, not a StatusBadge — is the loudest thing on the
     // screen and links straight to Daily entry for that flock and day.
     todayPanelTitle: "Today",
+    // "3 of 4 houses in" — the section-head caption (DIRECTION.md, #829).
+    // i18next selects the plural form on {{count}} (CodeRabbit, PR #883
+    // round 1: the single-key version rendered "1 of 1 houses in"); the same
+    // value renders in the string, so `count` is both the selector and the
+    // figure.
+    todayInCount_one: "{{in}} of {{count}} house in",
+    todayInCount_other: "{{in}} of {{count}} houses in",
     noFlocksMessage: "No flocks yet — create one on the Daily entry page.",
     noEntryBadge: "No entry",
-    // {{total}} is the farm-locale formatted figure (#650).
-    todayEggsTotal: "{{total}} eggs today",
+    // Fixed text beside the numeral, not a sentence the total is
+    // interpolated into (owner's read of the #883 screenshots, 2026-09-16,
+    // amending D3.3's "{{total}} eggs today"). The figure renders separately,
+    // in its own numeral element.
+    todaySoFarLabel: "Today so far",
+    // Owner amendment on #864 (2026-09-16): a reference under the running
+    // total, sourced from the 14-day strip's own last (yesterday) slot —
+    // never a second fetch, and only rendered when that day is complete.
+    yesterdayByClose: "Yesterday by close: {{total}}",
+    // The single filled button on the desktop screen (#829, amending
+    // DIRECTION.md's "ruled text at 1280" for exactly this one row) and the
+    // 48px full-width phone action for the missing house.
+    recordHouseAction: "Record {{flock}}",
+    // Ruled-text row action for a Draft entry — one already started, not
+    // finished. Missing (`recordHouseAction`) and Draft are the only two
+    // entry states that carry a row action; a submitted/locked/voided entry
+    // has none, only its name links through.
+    continueHouseAction: "Continue {{flock}}",
+    // The entry state with its time (DIRECTION.md line 6, #883 round 2
+    // finding 4) — {{time}} is fmt.time()'s farm-local HH:mm, never the
+    // browser's. Falls back to the bare status word when the record carries
+    // neither timestamp (data predating #494).
+    entryStateRecordedTime: "Recorded {{time}}",
+    entryStateDraftTime: "Draft, saved {{time}}",
+    // The attention line (#829/#864): one line, missing houses only, folding
+    // into a count past the attention cap (two at 1280, one at 390 — #883
+    // round 2 finding 1). {{flock}} is the house's own name.
+    attentionHouseNotRecorded: "{{flock}} not recorded",
+    attentionMore_one: "+{{count}} more",
+    attentionMore_other: "+{{count}} more",
     // aria-label of a tile link; the visible tile shows name, eggs and status.
     tileLinkLabel: "{{flock}}: open today's entry",
     // The missing state has to be IN the accessible name: `aria-label` replaces
@@ -847,6 +882,12 @@ export const en = {
     // (the customer left the caller's tenant scope between reads). Never a
     // raw id or a substituted catalog match.
     rowCustomerUnavailable: "This customer is no longer available.",
+    // A draft order's row action (DIRECTION.md line 9, #883 round 2 finding
+    // 5). NOT "Confirm order" — that is what this control does not do: it
+    // opens the customer's whole filtered order list, never the one order
+    // (no per-order deep link exists yet), so a "confirm" label would
+    // overclaim a completed action (Codex CLI review round 2, finding 3).
+    salesRowConfirmAction: "Review to confirm",
   },
   // Water usage capture + correction screen (Task 13, #182, batch B2).
   // `water` is in TRANSLATED_NAMESPACES, same treatment as

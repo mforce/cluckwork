@@ -12,7 +12,7 @@
 // #243's fixture rather than standing up an empty app.
 
 import { expect, test } from "../src/fixtures";
-import { owner } from "../src/cast";
+import { owner, readmeFarmOwner } from "../src/cast";
 import { tEn } from "../src/i18n";
 
 test.describe("Owner", () => {
@@ -31,11 +31,12 @@ test.describe("Owner", () => {
     await expect(page.getByText(tEn("dashboard:loadFailed"))).toHaveCount(0);
     await expect(page.getByText(tEn("dashboard:panelLoadError"))).toHaveCount(0);
 
-    // Capture status: at least one tile (the seeder's flock count is
-    // configurable, so ">= 1", never an exact count), and the empty state hidden.
-    // `.capture-tile` is a class locator, not English — the tile's accessible
-    // name interpolates the flock's name, which this spec does not know.
-    await expect(page.locator(".capture-tile").first()).toBeVisible();
+    // Capture status: at least one Today row (the seeder's flock count is
+    // configurable, so ">= 1", never an exact count), and the empty state
+    // hidden. #829 — the row is `role="group"`, not a `.capture-tile` class
+    // locator; nothing else on the Dashboard renders that role, so this
+    // stays a stable, English-independent hook the same way the class was.
+    await expect(page.getByRole("group").first()).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noFlocksMessage"))).toBeHidden();
 
     // Stock: the stacked bar has at least one segment (a grade with available
@@ -45,9 +46,96 @@ test.describe("Owner", () => {
 
     // The test's name promises sales data, so it has to actually look at it.
     // Without this, deleting the Sales panel outright left the spec green — it
-    // asserted production and stock and called that "and sales" (PR #390 review).
-    await expect(page.locator(".dash-list li").first()).toBeVisible();
+    // asserted production and stock and called that "and sales" (PR #390
+    // review). #829 — the list carries its own accessible name now (the
+    // stock ledger renders `role="list"` too, on the same page), so this
+    // scopes to the named one rather than a `.dash-list` class locator.
+    const salesList = page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
+    await expect(salesList.getByRole("listitem").first()).toBeVisible();
     await expect(page.getByText(tEn("dashboard:noOrdersMessage"))).toBeHidden();
+  });
+
+  // #883 round 4, finding B. `.content a` in styles.css (un-`:where()`'d)
+  // outranked MUI's own generated class regardless of Emotion's injection
+  // order, so the contained Record button — an `<a>` under `.content` via
+  // `component={Link}` — rendered its label in `--link` blue instead of the
+  // theme's `--on-brand` white contrastText. jsdom cannot see styles.css at
+  // all (Dashboard.test.tsx never renders real CSS), so this can only be
+  // proven against a real browser over the built stylesheet. The seeder's
+  // catalog flocks guarantee at least one missing house every day, so a
+  // "Record <flock>" link is always on screen for the Owner's own farm —
+  // no need for a second farm just to reach this assertion.
+  test("the filled Record button's label is on-brand, not link-blue (#883 finding B)", async ({ page }) => {
+    const recordButton = page.getByRole("link", { name: /^Record / }).first();
+    await expect(recordButton).toBeVisible();
+
+    const [buttonColor, onBrandColor] = await recordButton.evaluate((el) => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--on-brand)";
+      document.body.appendChild(probe);
+      const resolved = getComputedStyle(probe).color;
+      probe.remove();
+      return [getComputedStyle(el).color, resolved];
+    });
+    expect(buttonColor).toBe(onBrandColor);
+  });
+
+  // #883 round 5 — the owner's read of the PR's screenshots: a Draft row's
+  // status cell ("Draft, saved 05:26") wrapped onto a second line at 1280
+  // because the action column was a fixed 200px, squeezing the status track.
+  // Dashboard.tsx now gives the row the mockup's own column model (name
+  // 150px, status 1fr, action auto, count 110px) plus an explicit
+  // `white-space: nowrap` on the status cell — this proves it holds by
+  // reading the CELL'S OWN computed line-height and asserting its rendered
+  // height matches it, rather than pinning a pixel figure that would drift
+  // with the type scale.
+  //
+  // SimulationDataSeeder only backfills PAST days (DraftWindowDays covers
+  // yesterday and the day before, never today), so there is no seeded Draft
+  // row on the live TODAY panel to read. This creates its own flock and
+  // saves — never submits — a draft, the same re-runnable shape
+  // manager.spec.ts uses for its own Draft entry: a fresh, timestamp-named
+  // flock every run, so this never collides with another spec or a
+  // previous run.
+  test("a Draft row's status cell never wraps at 1280 (#883 round 5)", async ({ page, signIn }) => {
+    // The simulation farm caps Today at twelve rows and every one of its
+    // 101 houses is unrecorded, so a draft created here never reaches the
+    // list. The demo farm (readme-farm) seeds House 1 as a draft for today,
+    // which is the row whose "Draft, saved HH:MM" text is the wrap risk.
+    await page.context().clearCookies();
+    await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+    await signIn(readmeFarmOwner());
+    await page.goto("/");
+    const status = page.getByRole("group").getByText(/^Draft, saved/).first();
+    await expect(status, "the demo farm seeds one draft entry for today, and none rendered").toBeVisible();
+    const [box, lineHeight] = await Promise.all([
+      status.boundingBox(),
+      status.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight)),
+    ]);
+    if (box === null) throw new Error("the status cell has no bounding box, so it is not rendered");
+    expect(
+      box.height,
+      `the status cell rendered ${box.height}px tall against a ${lineHeight}px line height — it wrapped `
+        + "onto more than one line",
+    ).toBeCloseTo(lineHeight, 0);
+  });
+
+  test("recent sales amounts share one right edge at 1280 (#883 round 5)", async ({ page }) => {
+    const salesList = page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") });
+    await expect(salesList.getByRole("listitem").first()).toBeVisible();
+    const amounts = salesList.locator(".num");
+    const count = await amounts.count();
+    expect(count, "the sales list rendered no numeral cells to measure alignment against")
+      .toBeGreaterThan(1);
+
+    const edges = await amounts.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().right));
+    const first = edges[0]!;
+    for (const [i, edge] of edges.entries()) {
+      expect(
+        edge,
+        `sales row ${i}'s amount right edge is ${edge}, row 0's is ${first} — the amounts do not align`,
+      ).toBeCloseTo(first, 0);
+    }
   });
 
   test("reports renders the default 7-day window with the admin-only money section", async ({

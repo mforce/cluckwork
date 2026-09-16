@@ -10,6 +10,7 @@ import type { DailyEntry, Flock, ProductionDay, ProductionReport, SalesOrder, St
 import { daysBefore, todayIso } from "../lib/dates";
 import i18n from "../i18n";
 import { NO_RECORD_HISTORY, account } from "../test/fixtures";
+import { stubMatchMedia } from "../test/matchMedia";
 
 // Keep the real formatters; stub the six read endpoints the dashboard fans out.
 vi.mock("../api/cluckwork", async (importOriginal) => {
@@ -94,9 +95,29 @@ beforeEach(() => {
   mockReport.mockImplementation(reportByWindow(today));
 });
 
-// The page renders "Loading…" until every read settles, so a panel is found, never got.
+// The page renders "Loading…" until every read settles, so a panel is found,
+// never got. #829 — sections are no longer `.panel` cards, just a `<section>`
+// under a ruled `h3` (MUI `Typography variant="h3"`, which the theme maps to
+// a real `<h3>` element).
 const panel = async (title: string) =>
-  (await screen.findByRole("heading", { name: title, level: 3 })).closest(".panel") as HTMLElement;
+  (await screen.findByRole("heading", { name: title, level: 3 })).closest("section") as HTMLElement;
+
+// A Today row's accessible group — `role="group"` named after the flock, so
+// a row's status/action/count (siblings of the name link, not nested inside
+// it) can be queried together without depending on layout classNames.
+const todayRow = (flockName: string) => screen.getByRole("group", { name: flockName });
+
+// The total row's label ("Today so far") and its numeral are separate
+// elements (#883 round 4, finding D — the mockup pairs a fixed label with a
+// numeral beside it, never a sentence built by interpolating the figure into
+// the label). A bare numeral like "178" also appears on individual Today
+// rows, so this scopes the read to the label's own sibling rather than an
+// unscoped `getByText`, which would be ambiguous whenever a row's count
+// happens to match the total.
+const todayTotal = async () => {
+  const label = await screen.findByText("Today so far");
+  return label.parentElement?.querySelector(".num")?.textContent;
+};
 
 function withOverride(ns: string, key: string, value: string, run: () => Promise<void> | void) {
   const original = i18n.getResource("en", ns, key) as string;
@@ -104,31 +125,35 @@ function withOverride(ns: string, key: string, value: string, run: () => Promise
   return Promise.resolve(run()).finally(() => { i18n.addResource("en", ns, key, original); });
 }
 
-describe("Dashboard capture status (#654)", () => {
-  it("renders one tile per active flock, no-entry tiles first, each linking to that flock's entry for today", async () => {
+describe("Dashboard capture status (#654, #829 ruled list)", () => {
+  it("renders one row per active flock, no-entry rows first, each linking to that flock's entry for today", async () => {
     renderWithProviders(<Dashboard />);
-    const f1 = await screen.findByRole("link", { name: "Flock f1: open today's entry" });
-    expect(f1).toHaveAttribute("href", `/daily-entry?flockId=f1&date=${today}`);
-    expect(within(f1).getByText("178")).toBeInTheDocument();
-    expect(within(f1).getByText("Submitted")).toBeInTheDocument();
+    const f1link = await screen.findByRole("link", { name: "Flock f1: open today's entry" });
+    expect(f1link).toHaveAttribute("href", `/daily-entry?flockId=f1&date=${today}`);
+    const f1row = todayRow("Flock f1");
+    expect(within(f1row).getByText("178")).toBeInTheDocument();
+    expect(within(f1row).getByText("Submitted")).toBeInTheDocument();
     const names = screen.getAllByRole("link", { name: /open today's entry/ }).map((a) => a.getAttribute("aria-label"));
     expect(names).toEqual(["Flock f2: no entry yet, open today's entry", "Flock f3: no entry yet, open today's entry", "Flock f1: open today's entry"]);
   });
 
   it("marks a flock with no entry — and one whose only entry is Voided — as missing (#82)", async () => {
     renderWithProviders(<Dashboard />);
-    const f2 = await screen.findByRole("link", { name: "Flock f2: no entry yet, open today's entry" });
-    const f3 = screen.getByRole("link", { name: "Flock f3: no entry yet, open today's entry" });
-    for (const tile of [f2, f3]) {
-      expect(tile).toHaveClass("is-missing");
-      expect(within(tile).getByText("No entry")).toBeInTheDocument();
-      expect(within(tile).getByText("—")).toBeInTheDocument();
-      expect(within(tile).queryByText("999")).not.toBeInTheDocument();
+    await screen.findByRole("link", { name: "Flock f2: no entry yet, open today's entry" });
+    for (const id of ["f2", "f3"]) {
+      const row = todayRow(`Flock ${id}`);
+      // The single filled button on the page (#829/#864 owner amendment) —
+      // its presence in the row IS the missing marker; there is no longer a
+      // classList to assert on.
+      expect(within(row).getByRole("link", { name: `Record Flock ${id}` })).toBeInTheDocument();
+      expect(within(row).getByText("No entry")).toBeInTheDocument();
+      expect(within(row).getByText("—")).toBeInTheDocument();
+      expect(within(row).queryByText("999")).not.toBeInTheDocument();
     }
-    expect(screen.getByRole("link", { name: "Flock f1: open today's entry" })).not.toHaveClass("is-missing");
+    expect(within(todayRow("Flock f1")).queryByRole("link", { name: /^Record/ })).not.toBeInTheDocument();
   });
 
-  it("offers 'Record today' on hover for a tile with no entry, and not on one that has an entry", async () => {
+  it("offers 'Record today' on hover for a row with no entry, and not on one that has an entry", async () => {
     renderWithProviders(<Dashboard />);
     const missing = await screen.findByRole("link", { name: "Flock f3: no entry yet, open today's entry" });
     expect(missing).toHaveAttribute("title", "Record today");
@@ -136,7 +161,7 @@ describe("Dashboard capture status (#654)", () => {
     expect(screen.getByRole("link", { name: "Flock f1: open today's entry" })).not.toHaveAttribute("title");
   });
 
-  it("announces the missing state in the tile's accessible name, not only in its colour and badge", async () => {
+  it("announces the missing state in the row's accessible name, not only in its colour and badge", async () => {
     renderWithProviders(<Dashboard />);
     // `aria-label` overrides the link's inner content, so the visible "no entry"
     // badge is NOT part of the accessible name — the name has to carry it.
@@ -154,30 +179,194 @@ describe("Dashboard capture status (#654)", () => {
     });
   });
 
+  it("reads the Record action's label from the catalog, not a hardcoded literal", async () => {
+    await withOverride("dashboard", "recordHouseAction", "RECORD-ACTION {{flock}}", async () => {
+      renderWithProviders(<Dashboard />);
+      await screen.findByRole("link", { name: "Flock f2: no entry yet, open today's entry" });
+      expect(within(todayRow("Flock f2")).getByRole("link", { name: "RECORD-ACTION Flock f2" })).toBeInTheDocument();
+    });
+  });
+
+  it("gives a Draft entry a ruled-text Continue action; a Submitted one none", async () => {
+    mockEntries.mockResolvedValue([entry("f1", "Submitted", 178), entry("f2", "Draft", 40)]);
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole("link", { name: "Flock f1: open today's entry" });
+    expect(within(todayRow("Flock f2")).getByRole("link", { name: "Continue Flock f2" })).toBeInTheDocument();
+    expect(within(todayRow("Flock f1")).queryByRole("link", { name: /^Continue|^Record/ })).not.toBeInTheDocument();
+  });
+
+  // #883 round 5 — the owner's read of the PR's screenshots found the
+  // Continue action rendering as bold, brand-coloured text on both widths:
+  // `Button variant="text"` reads MUI's default text-button styling (bold,
+  // primary colour), not the ruled-text row action DIRECTION.md line 7 calls
+  // for. The fix drops the Button and reuses the same Typography+Link pattern
+  // the sales row's "Review to confirm" action already renders with (below),
+  // so this asserts against THAT class rather than inventing a new one: a
+  // `MuiTypography-body2` element, never a `MuiButtonBase`/`MuiButton` one.
+  it("renders Continue as MUI Typography ruled text, not a MuiButton (#883 round 5)", async () => {
+    mockEntries.mockResolvedValue([entry("f2", "Draft", 40)]);
+    renderWithProviders(<Dashboard />);
+    const action = await screen.findByRole("link", { name: "Continue Flock f2" });
+    expect(action.className, "Continue should render as ruled Typography text").toMatch(/\bMuiTypography-body2\b/);
+    expect(action.className, "Continue should carry no Button chrome").not.toMatch(/MuiButton/);
+  });
+
   it("sums today's eggs excluding the Voided entry — 178, never 1,177", async () => {
     renderWithProviders(<Dashboard />);
-    expect(await screen.findByText("178 eggs today")).toBeInTheDocument();
+    expect(await todayTotal()).toBe("178");
     expect(screen.queryByText(/1,177/)).not.toBeInTheDocument();
   });
 
-  it("caps the grid at 12 tiles, the missing ones first, and links the rest (INV-9)", async () => {
+  it("caps the list at 12 rows, the missing ones first, and links the rest (INV-9)", async () => {
     mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
     mockEntries.mockResolvedValue(Array.from({ length: 12 }, (_, i) => entry(`f${i}`, "Submitted", 1))); // f12..f14 missing
     renderWithProviders(<Dashboard />);
     const more = await screen.findByRole("link", { name: "3 more flocks" });
     expect(more).toHaveAttribute("href", "/daily-entry");
-    const tiles = screen.getAllByRole("link", { name: /open today's entry/ });
-    expect(tiles).toHaveLength(12);
-    expect(tiles.slice(0, 3).map((t) => t.getAttribute("aria-label")))
-      .toEqual(["Flock f12: no entry yet, open today's entry", "Flock f13: no entry yet, open today's entry", "Flock f14: no entry yet, open today's entry"]);
-    expect(tiles.slice(0, 3).every((t) => t.classList.contains("is-missing"))).toBe(true);
+    const rowLinks = screen.getAllByRole("link", { name: /open today's entry/ });
+    expect(rowLinks).toHaveLength(12);
+    const missingNames = rowLinks.slice(0, 3).map((t) => t.getAttribute("aria-label"));
+    expect(missingNames).toEqual(["Flock f12: no entry yet, open today's entry", "Flock f13: no entry yet, open today's entry", "Flock f14: no entry yet, open today's entry"]);
+    expect(["f12", "f13", "f14"].every((id) =>
+      within(todayRow(`Flock ${id}`)).queryByRole("link", { name: `Record Flock ${id}` }) !== null)).toBe(true);
+  });
+});
+
+// #883 round 2, finding 4 — DIRECTION.md line 6: the entry state WITH its
+// time ("Recorded 06:40", "Draft, saved 06:52"), farm-local. A house with no
+// entry yet carries no time at all — there is nothing to have recorded.
+describe("Dashboard Today row entry state time (#883 round 2, finding 4)", () => {
+  const farm = account({ timeZoneId: "UTC" });
+
+  it("shows a recorded entry's own time, and a draft's own save time, both farm-local", async () => {
+    mockEntries.mockResolvedValue([
+      { ...entry("f1", "Submitted", 178), madeOfficialAtUtc: "2026-07-21T06:40:00Z" },
+      { ...entry("f2", "Draft", 40), createdAtUtc: "2026-07-21T05:00:00Z", lastChangedAtUtc: "2026-07-21T06:52:00Z" },
+    ]);
+    renderWithProviders(<Dashboard />, { farm });
+    await screen.findByRole("link", { name: "Flock f1: open today's entry" });
+    expect(within(todayRow("Flock f1")).getByText("Recorded 06:40")).toBeInTheDocument();
+    expect(within(todayRow("Flock f2")).getByText("Draft, saved 06:52")).toBeInTheDocument();
+  });
+
+  it("shows no time on a house with no entry yet", async () => {
+    renderWithProviders(<Dashboard />, { farm });
+    await screen.findByRole("link", { name: "Flock f2: no entry yet, open today's entry" });
+    expect(within(todayRow("Flock f2")).queryByText(/^Recorded|^Draft,/)).not.toBeInTheDocument();
+    expect(within(todayRow("Flock f3")).queryByText(/^Recorded|^Draft,/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the bare status word when the record has no timestamp to show", async () => {
+    // The default `entry()` fixture (NO_RECORD_HISTORY, no madeOfficialAtUtc)
+    // — data predating #494, or a fixture that doesn't care.
+    renderWithProviders(<Dashboard />, { farm });
+    await screen.findByRole("link", { name: "Flock f1: open today's entry" });
+    expect(within(todayRow("Flock f1")).getByText("Submitted")).toBeInTheDocument();
+  });
+});
+
+// #829/#864 — the attention line: one line, missing houses only, folding
+// past the attention cap into a count. The desktop-only "Needs attention"
+// list combining a second data source (stock floors) was proposed on #864
+// and not taken — this line has exactly one source, so it renders nothing
+// when every house is in.
+describe("Dashboard attention line (#829, #864)", () => {
+  it("renders nothing when every house has an entry", async () => {
+    mockEntries.mockResolvedValue([entry("f1", "Submitted", 178), entry("f2", "Submitted", 1), entry("f3", "Submitted", 1)]);
+    renderWithProviders(<Dashboard />);
+    expect(await todayTotal()).toBe("180");
+    expect(screen.queryByText(/not recorded/)).not.toBeInTheDocument();
+  });
+
+  it("names a single missing house with no fold", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active"), flock("f2", "Active")]);
+    mockEntries.mockResolvedValue([entry("f1", "Submitted", 178)]); // f2 missing
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("Flock f2 not recorded")).toBeInTheDocument();
+    expect(screen.queryByText(/\+\d+ more/)).not.toBeInTheDocument();
+  });
+
+  it("shows two missing houses ruled apart at desktop width (md and up), and folds the rest into a count", async () => {
+    stubMatchMedia(true); // >= 900px, the md breakpoint AppLayout/BottomNav switch on
+    mockFlocks.mockResolvedValue(Array.from({ length: 4 }, (_, i) => flock(`f${i}`, "Active")));
+    mockEntries.mockResolvedValue([]); // every one of the four is missing
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("Flock f0 not recorded")).toBeInTheDocument();
+    expect(screen.getByText("Flock f1 not recorded")).toBeInTheDocument();
+    expect(screen.queryByText("Flock f2 not recorded")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "+2 more" })).toHaveAttribute("href", "/daily-entry");
+  });
+
+  // #883 round 2, finding 1: DIRECTION.md's fold point is two items at 1280
+  // and ONE at 390 — a flat cap of 2 overcounted on a phone. Below md (900px)
+  // MUI's `useMediaQuery` resolves to its `defaultMatches` (false) when
+  // `matchMedia` is left unstubbed, so this is also what a test gets by doing
+  // nothing — asserted explicitly here rather than left implicit.
+  it("shows exactly one missing house below the md breakpoint, and folds the rest into a count", async () => {
+    stubMatchMedia(false); // < 900px
+    mockFlocks.mockResolvedValue(Array.from({ length: 4 }, (_, i) => flock(`f${i}`, "Active")));
+    mockEntries.mockResolvedValue([]);
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("Flock f0 not recorded")).toBeInTheDocument();
+    expect(screen.queryByText("Flock f1 not recorded")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "+3 more" })).toHaveAttribute("href", "/daily-entry");
+  });
+
+  // CodeRabbit, PR #883 round 1: missingHouses and the "N of M houses in"
+  // caption were both derived from `tiles.shown`, the list `visibleTiles`
+  // caps at 12 — so a farm with more than 12 missing houses undercounted
+  // both, since every one of the 12 shown was itself missing (missing-first
+  // ordering) and nothing past the cap was ever counted. They now come from
+  // the FULL, uncapped capture-status list.
+  it("counts every missing house, not only the 12 visibleTiles caps the row list at", async () => {
+    stubMatchMedia(true); // desktop cap (2 shown) — this test is about the COUNT, not the width
+    mockFlocks.mockResolvedValue(Array.from({ length: 15 }, (_, i) => flock(`f${i}`, "Active")));
+    mockEntries.mockResolvedValue([]); // all 15 missing
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Flock f0 not recorded");
+    // 15 missing, 2 shown ruled apart, so the fold count is 13 — not 10,
+    // which is what `tiles.shown.length` (capped at 12) minus 2 would give.
+    expect(screen.getByRole("link", { name: "+13 more" })).toBeInTheDocument();
+    expect(screen.getByText("0 of 15 houses in")).toBeInTheDocument();
+  });
+
+  // CodeRabbit, PR #883 round 1: a single-key catalog string could only ever
+  // render "houses" — i18next selects the plural on `{{count}}`, and the
+  // caption now carries `_one`/`_other` forms.
+  it("says 'house', singular, when the farm has exactly one", async () => {
+    mockFlocks.mockResolvedValue([flock("f1", "Active")]);
+    mockEntries.mockResolvedValue([entry("f1", "Submitted", 1)]);
+    renderWithProviders(<Dashboard />);
+    expect(await screen.findByText("1 of 1 house in")).toBeInTheDocument();
+  });
+});
+
+// #864 owner amendment (2026-09-16) — a reference under the running total,
+// read from the 14-day strip's own last (yesterday) slot: no second fetch,
+// and no figure at all when yesterday was not a complete day.
+describe("Dashboard 'Yesterday by close' caption (#864)", () => {
+  it("shows yesterday's total when the strip's last day is complete", async () => {
+    renderWithProviders(<Dashboard />);
+    // currentFor maps n=7..1 to daysBefore(today,n) with value 320+n, so the
+    // window's last day — daysBefore(today,1), yesterday — is 320+1 = 321.
+    expect(await screen.findByText("Yesterday by close: 321")).toBeInTheDocument();
+  });
+
+  it("shows no caption when yesterday was not fully recorded", async () => {
+    mockReport.mockImplementation((from, to) =>
+      reportByWindow(today)(from, to).then((r) => (to === daysBefore(today, 1)
+        ? { ...r, days: r.days.map((d, i) => (i === 6 ? { ...d, recordedFlocks: 0, missingFlocks: d.expectedFlocks, totalEggs: 0 } : d)) }
+        : r)));
+    renderWithProviders(<Dashboard />);
+    await todayTotal();
+    expect(screen.queryByText(/Yesterday by close/)).not.toBeInTheDocument();
   });
 });
 
 describe("Dashboard last 14 days (#654, INV-5)", () => {
   it("asks the production report for exactly the two 7-day windows ending yesterday", async () => {
     renderWithProviders(<Dashboard />);
-    await screen.findByText("178 eggs today");
+    await todayTotal();
     expect(mockReport).toHaveBeenCalledTimes(2);
     expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 7), daysBefore(today, 1));
     expect(mockReport).toHaveBeenCalledWith(daysBefore(today, 14), daysBefore(today, 8));
@@ -354,7 +543,8 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     const spans = Array.from(stock.querySelectorAll(".meter-stack > span")) as HTMLElement[];
     expect(spans.map((s) => [s.style.width, s.className])).toEqual([["79.5%", "grade-1"], ["20.5%", "grade-2"]]);
     // The ledger, not the band, is what names a grade and carries its share.
-    const rows = Array.from(stock.querySelectorAll(".stock-ledger li"))
+    // #829 — a plain `role="list"`, not a `.stock-ledger` class hook.
+    const rows = within(stock).getAllByRole("listitem")
       .map((li) => Array.from(li.querySelectorAll("span")).slice(1).map((s) => s.textContent));
     expect(rows).toEqual([["Grade A", "1,240", "79.5%"], ["Grade B", "320", "20.5%"]]);
     expect(within(stock).queryByText(/restricted/)).not.toBeInTheDocument();
@@ -380,7 +570,7 @@ describe("Dashboard stock bar (#654, INV-4)", () => {
     expect(await within(stock).findByText("4 restricted")).toBeInTheDocument();
     expect(stock.querySelector(".stock-total")?.textContent).toBe("0 eggs available");
     expect(stock.querySelectorAll(".meter-stack > span")).toHaveLength(0);
-    expect(stock.querySelectorAll(".stock-ledger")).toHaveLength(0);
+    expect(within(stock).queryAllByRole("listitem")).toHaveLength(0);
     expect(within(stock).queryByText("No stock yet — record and submit a daily entry.")).not.toBeInTheDocument();
   });
 });
@@ -392,7 +582,7 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
   const boom = () => Promise.reject(new Error("down"));
   const asSales = { token: { sub: "u1", role: "Sales" } };
   const expectOthersIntact = async (except: "today" | "trend" | "stock" | "sales") => {
-    if (except !== "today") expect(await screen.findByText("178 eggs today")).toBeInTheDocument();
+    if (except !== "today") expect(await todayTotal()).toBe("178");
     if (except !== "trend") expect(await screen.findByText("87.4%")).toBeInTheDocument();
     if (except !== "stock") expect(await screen.findByText("1,560")).toBeInTheDocument();
     if (except !== "sales") expect(await screen.findByText("No orders yet.")).toBeInTheDocument();
@@ -402,14 +592,14 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     mockFlocks.mockImplementation(boom);
     renderWithProviders(<Dashboard />, asSales);
     expect(within(await panel("Today")).getByText("Could not load.")).toBeInTheDocument();
-    expect(screen.queryByText(/eggs today/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Today so far")).not.toBeInTheDocument();
     await expectOthersIntact("today");
   });
   it("entries failed → Today panel errors, others intact", async () => {
     mockEntries.mockImplementation(boom);
     renderWithProviders(<Dashboard />, asSales);
     expect(within(await panel("Today")).getByText("Could not load.")).toBeInTheDocument();
-    expect(screen.queryByText("0 eggs today")).not.toBeInTheDocument();
+    expect(screen.queryByText("Today so far")).not.toBeInTheDocument();
     await expectOthersIntact("today");
   });
   it("current-week report failed → trend panel errors, others intact", async () => {
@@ -462,13 +652,13 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
 describe("Dashboard sales panel role gate (#127)", () => {
   it("neither fetches nor shows sales for a ReadOnly user", async () => {
     renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "ReadOnly" } });
-    expect(await screen.findByText("178 eggs today")).toBeInTheDocument();
+    expect(await todayTotal()).toBe("178");
     expect(screen.queryByText("Recent sales")).not.toBeInTheDocument();
     expect(mockOrders).not.toHaveBeenCalled();
   });
   it("neither fetches nor shows sales for a Denied user", async () => {
     renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Denied" } });
-    expect(await screen.findByText("178 eggs today")).toBeInTheDocument();
+    expect(await todayTotal()).toBe("178");
     expect(screen.queryByText("Recent sales")).not.toBeInTheDocument();
     expect(mockOrders).not.toHaveBeenCalled();
   });
@@ -509,6 +699,34 @@ describe("Dashboard recent sales rows (#512)", () => {
     const row = await screen.findByRole("listitem", { name: /SO-1/ });
     expect(within(row).getByText(i18n.t("dashboard:rowCustomerUnavailable"))).toBeInTheDocument();
     expect(within(row).queryByText("c1")).not.toBeInTheDocument();
+  });
+});
+
+// #883 round 2, finding 5 — DIRECTION.md line 9's row action: a draft order
+// gets a row action; a non-draft row has none.
+//
+// Codex CLI review round 2 (finding 3): the label read "Confirm order" —
+// the Sales page's OWN control for the real, in-place confirm — while this
+// row's link only opens the customer's WHOLE filtered order list (there is
+// no per-order deep link yet), which can hold several draft/confirmed
+// orders for the same customer. That is a real behavior/label mismatch, not
+// just an extra click: the Today row's "Record"/"Continue" precedent still
+// lands on the ONE exact form for that flock+date, so the label there never
+// overclaims what one more step gets you. Reworded to "Review to confirm"
+// — honest about being a navigation, not a completed action.
+describe("Dashboard recent sales row action (#883 round 2, finding 5)", () => {
+  it("shows a Review to confirm action on a draft row, linked through the customer filter", async () => {
+    mockOrders.mockResolvedValue([order("o-1", "SO-3", "Filtered Farm")]); // status: "Draft"
+    renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
+    const row = await screen.findByRole("listitem", { name: /SO-3/ });
+    expect(within(row).getByRole("link", { name: "Review to confirm" })).toHaveAttribute("href", "/sales?customerId=c1");
+  });
+
+  it("shows no action on a non-draft row", async () => {
+    mockOrders.mockResolvedValue([{ ...order("o-2", "SO-4", "Second Farm"), status: "Confirmed" }]);
+    renderWithProviders(<Dashboard />, { token: { sub: "u1", role: "Sales" } });
+    const row = await screen.findByRole("listitem", { name: /SO-4/ });
+    expect(within(row).queryByRole("link", { name: "Review to confirm" })).not.toBeInTheDocument();
   });
 });
 
@@ -557,9 +775,34 @@ describe("Dashboard i18n wiring (#654)", () => {
       renderWithProviders(<Dashboard />);
       expect(await screen.findByText("TREND-MARKER")).toBeInTheDocument();
     });
-    await withOverride("dashboard", "todayEggsTotal", "TOTAL-MARKER {{total}}", async () => {
+    await withOverride("dashboard", "todaySoFarLabel", "TOTAL-MARKER", async () => {
       renderWithProviders(<Dashboard />);
-      expect(await screen.findByText("TOTAL-MARKER 178")).toBeInTheDocument();
+      expect(await screen.findByText("TOTAL-MARKER")).toBeInTheDocument();
     });
+  });
+});
+
+// #883 round 4, finding C — DIRECTION.md's status vocabulary is a dot plus a
+// word, never a filled badge. StatusBadge itself stays untouched (its
+// conversion is #831); the Dashboard renders its own dot locally.
+describe("Dashboard status rendering (#864, dot not badge)", () => {
+  it("renders Today and Recent sales status as a colour dot beside the word, not a filled badge", async () => {
+    mockOrders.mockResolvedValue([order("o1", "SO-1", "Ramos Grocery")]); // status: "Draft"
+    renderWithProviders(<Dashboard />);
+    await screen.findByText("Today so far");
+
+    // No filled badge survives on this screen once the conversion lands.
+    expect(document.querySelectorAll(".badge").length).toBe(0);
+
+    const recordedDot = within(todayRow("Flock f1")).getByText("Submitted").previousElementSibling;
+    expect(recordedDot).toHaveAttribute("aria-hidden", "true");
+    expect(recordedDot?.className).not.toMatch(/badge/);
+
+    // f3 has no entry in the default fixture — the missing-house state.
+    const missingDot = within(todayRow("Flock f3")).getByText("No entry").previousElementSibling;
+    expect(missingDot).toHaveAttribute("aria-hidden", "true");
+
+    const salesStatus = await screen.findByText("Draft");
+    expect(salesStatus.previousElementSibling).toHaveAttribute("aria-hidden", "true");
   });
 });

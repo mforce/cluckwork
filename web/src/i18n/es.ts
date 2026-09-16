@@ -584,9 +584,19 @@ export const es = {
 
     // Estado de captura (#654)
     todayPanelTitle: "Hoy",
+    todayInCount_one: "{{in}} de {{count}} caseta registrada",
+    todayInCount_other: "{{in}} de {{count}} casetas registradas",
     noFlocksMessage: "Aún no hay lotes — cree uno en la página de Registro diario.",
     noEntryBadge: "Sin registro",
-    todayEggsTotal: "{{total}} huevos hoy",
+    todaySoFarLabel: "Hoy hasta ahora",
+    yesterdayByClose: "Ayer al cierre: {{total}}",
+    recordHouseAction: "Registrar {{flock}}",
+    continueHouseAction: "Continuar {{flock}}",
+    entryStateRecordedTime: "Registrado {{time}}",
+    entryStateDraftTime: "Borrador, guardado {{time}}",
+    attentionHouseNotRecorded: "{{flock}} sin registrar",
+    attentionMore_one: "+{{count}} más",
+    attentionMore_other: "+{{count}} más",
     tileLinkLabel: "{{flock}}: abrir el registro de hoy",
     tileLinkLabelMissing: "{{flock}}: sin registro todavía, abrir el registro de hoy",
     recordTodayHint: "Registrar hoy",
@@ -626,6 +636,7 @@ export const es = {
     salesPanelTitle: "Ventas recientes",
     noOrdersMessage: "Aún no hay pedidos.",
     rowCustomerUnavailable: "Este cliente ya no está disponible.",
+    salesRowConfirmAction: "Revisar para confirmar",
   },
 
   // machine-drafted (#182) — pending native review. Task CT2 (B2 catch-up):
