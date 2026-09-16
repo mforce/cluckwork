@@ -105,7 +105,7 @@ test.describe("README screenshots", () => {
 
     // Tiles: at least one rendered. Class locator — the tile's accessible
     // name interpolates a flock name this spec does not know.
-    await expect(page.locator(".capture-tile").first()).toBeVisible();
+    await expect(page.locator("section").filter({ has: page.getByRole("heading", { name: tEn("dashboard:todayPanelTitle") }) }).getByRole("group").first()).toBeVisible();
 
     // Trend: the day strip is there AND not flat. Fourteen slots are drawn
     // whatever the figures (#777), so counting slots would pass on a missing
@@ -126,7 +126,7 @@ test.describe("README screenshots", () => {
     // Sales: the Owner sees the panel and the demo fixture has one confirmed
     // order and one draft — scoped to the sales list, never the shell's own
     // list items.
-    await expect(page.locator(".dash-list li").first()).toBeVisible();
+    await expect(page.getByRole("list", { name: tEn("dashboard:salesPanelTitle") }).getByRole("listitem").first()).toBeVisible();
 
     // CAPTURED BEFORE THE INTERACTION BELOW, and that ordering is the whole
     // reason the #780 block moved down here. Focusing a day leaves the strip

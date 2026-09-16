@@ -48,10 +48,16 @@ const SCREENS = [
   {
     name: "dashboard",
     path: "/",
-    ready: (page: CanaryPage) => page.locator(".capture-grid"),
-    // The dashboard carries no table at all since #654 — its per-flock capture
-    // tiles are the rows, and they are what a lost `/api/v1/flocks` empties.
-    rows: (ready: CanaryLocator) => ready.locator(".capture-tile"),
+    // The Today section, found by its own heading: since #829 the dashboard
+    // carries no table, its Today list is one `role="group"` per flock (named
+    // by the flock), and those rows are what a lost `/api/v1/flocks` empties.
+    // Scoped to the section because the DayStrip is a `role="group"` too, so an
+    // unscoped query would count it as a row and pass with no flocks at all.
+    ready: (page: CanaryPage) =>
+      page.locator("section").filter({
+        has: page.getByRole("heading", { name: tEn("dashboard:todayPanelTitle") }),
+      }),
+    rows: (ready: CanaryLocator) => ready.getByRole("group"),
     // All three data panels, not just the flock one. A tile renders for a flock
     // that filed nothing today, so the tiles alone cannot tell a working stock
     // or sales read from a failed one.
