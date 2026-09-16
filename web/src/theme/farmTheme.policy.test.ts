@@ -310,4 +310,27 @@ describe("farm theme policy (#823 G2)", () => {
       expect(theme.typography.caption.fontSize, `${label} caption size`).toBe("0.75rem");
     }
   });
+
+  // #834 — DIRECTION.md's link language, on the one MUI component nothing
+  // renders yet: a real `Link` is ink, underlined in the 28% ink rule at
+  // rest, full ink on hover and focus. Pinned here (not just in
+  // styles.test.ts) because `--link`/`--link-rule` reaching `styles.css` says
+  // nothing about whether MUI's own `Link` picks them up — that only happens
+  // through this override.
+  it("colours a real MUI Link ink, underlined in the rule colour, full ink on hover and focus", () => {
+    for (const brand of BRANDS) {
+      for (const mode of MODES) {
+        const tokens = tokensFor(brand, mode);
+        const theme = createFarmTheme(tokens, mode);
+        const label = `${brand}/${mode}`;
+        expect(theme.components?.MuiLink?.defaultProps?.underline, `${label} MuiLink underline`).toBe("always");
+        const root = slot(theme.components?.MuiLink?.styleOverrides?.root, `${label} MuiLink root`);
+        expect(root.color, `${label} MuiLink rest colour`).toBe(tokens["--ink"]);
+        expect(root.textDecorationColor, `${label} MuiLink rest underline colour`).toBe(tokens["--link-rule"]);
+        expect(root.textUnderlineOffset, `${label} MuiLink underline offset`).toBe("2px");
+        const interactive = slot(root["&:hover, &:focus-visible"], `${label} MuiLink hover/focus`);
+        expect(interactive.textDecorationColor, `${label} MuiLink hover/focus underline colour`).toBe(tokens["--ink"]);
+      }
+    }
+  });
 });

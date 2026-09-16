@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { contrast, declaredKeys, literalColourIn, luminance, resolveTokens, type Mode } from "./test/cssTokens";
 import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
 
@@ -132,6 +134,52 @@ describe.each(BRANDS)("palette: %s", (brand) => {
       expect(contrast(at("--focus"), at(bg))).toBeGreaterThanOrEqual(4.5);
   });
 
+  // #834 — the Slack-blue link retirement (DIRECTION.md, owner decision
+  // 2026-09-16): a link is --ink text underlined in a --link-rule (28% ink)
+  // rule. Checked against every background a link can render on, not just
+  // --surface: --surface-2 differs per palette (a toolbar or a help panel),
+  // and --link/--link-rule themselves do not (--ink is theme-scoped only),
+  // so this is the check that would catch a palette whose --surface-2 got
+  // too close to ink.
+  it.each(MODES)("%s: link text clears WCAG AA (4.5:1) on --surface and --surface-2", (mode) => {
+    const t = resolveTokens(attrFor(brand), mode);
+    const at = (k: string) => t.get(k)!;
+    // Contrast alone would also pass a different, still-sufficiently-dark
+    // blue (Codex review of #884, round 3) — the actual retirement claim is
+    // that --link IS --ink now, not merely that whatever it is clears AA.
+    expect(at("--link"), `${brand}/${mode} --link must equal --ink, not a separate colour`)
+      .toBe(at("--ink"));
+    for (const bg of ["--surface", "--surface-2"])
+      expect(contrast(at("--link"), at(bg)), `${brand}/${mode} --link vs ${bg}`)
+        .toBeGreaterThanOrEqual(4.5);
+  });
+
+  // The 28% ink rule is a decorative reinforcement under text that already
+  // clears 4.5:1 above, not the sole means of identifying the link — WCAG
+  // 1.4.11 (Non-text Contrast) targets UI-component boundaries and states
+  // that ARE the only cue, and DIRECTION.md's own interactive state ("full
+  // ink on hover and focus") already carries that job. So 3:1 is not applied
+  // here: flattened over the surfaces it actually sits on, a literal 28%
+  // ink cannot clear 3:1 against a near-white or near-black surface — the
+  // measured worst case across all four palettes is ~1.6:1 light / ~2.1:1
+  // dark, and reaching 3:1 would need roughly 48% (light) / 38% (dark) ink,
+  // a materially bolder rule than DIRECTION.md specified. The floor below is
+  // the honest measured minimum, not an invented pass, so a future change
+  // that makes the rule fainter still gets caught.
+  it.each(MODES)("%s: the 28% ink rule stays visibly above its surface (not a 3:1 pass — see comment)", (mode) => {
+    const t = resolveTokens(attrFor(brand), mode);
+    const at = (k: string) => t.get(k)!;
+    // The contrast floor alone would also pass an unrelated colour above
+    // 1.5:1 (Codex review of #884, round 3) — pin the actual flattened-28%-
+    // ink value this decision computed, not just a property it happens to
+    // have. --link-rule is theme-scoped only, same as --link/--ink.
+    expect(at("--link-rule"), `${brand}/${mode} --link-rule value`)
+      .toBe(mode === "light" ? "#c0c0c0" : "#5c5560");
+    for (const bg of ["--surface", "--surface-2"])
+      expect(contrast(at("--link-rule"), at(bg)), `${brand}/${mode} --link-rule vs ${bg}`)
+        .toBeGreaterThanOrEqual(1.5);
+  });
+
   it.each(MODES)("%s: the login Forget glyph clears WCAG AA on its rest fill", (mode) => {
     // #587 — .auth-forget-farm draws its × over --surface-2 at rest. The
     // destructive FILL token (--danger) does not clear 4.5:1 for that glyph in
@@ -242,6 +290,71 @@ it("pins every brand-scoped token a palette block can declare", () => {
   for (const token of [...DARK_REQUIRED, ...LIGHT_REQUIRED])
     if (token !== "--auth-bg" && token !== "--auth-card-shadow")
       expect(pinned).toContain(token);
+});
+
+// #834 (CodeRabbit round 1) — DIRECTION.md says full ink on hover AND focus;
+// the global `:focus-visible` rule only adds an outline, so a rule that
+// switches `text-decoration-color` on `:hover` alone leaves a keyboard-only
+// visitor seeing the faint 28% rule instead of full ink. Checked against the
+// raw stylesheet text rather than resolved tokens, because the defect is
+// about which SELECTOR carries the declaration, not what the declaration
+// resolves to — `resolveTokens` only sees `:root` blocks and cannot tell a
+// `:hover`-only rule from a `:hover, :focus-visible` one.
+//
+// Scope, stated so this doesn't overclaim: this covers the three selectors
+// that are ALWAYS underlined (rest + hover + focus) — the genuine text
+// links. `.glossary-entry dt a:hover` is deliberately excluded: its rest
+// state carries no underline at all by design (predates #834 — see its own
+// comment), so it was never in this "always underlined, hover/focus go full
+// ink" family to begin with; a keyboard visitor still gets the global
+// `:focus-visible` outline ring there, just not an underline change.
+describe("the full-ink underline applies to keyboard focus, not only mouse hover (#834)", () => {
+  const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+
+  // Tolerant of whitespace/line-wrapping so a reformat doesn't break it, but
+  // it still ties the SELECTOR to the DECLARATION rather than checking either
+  // in isolation — a `:focus-visible` selector that forgot the declaration
+  // (or a declaration on a rule missing `:focus-visible`) both fail this.
+  it.each([
+    ["button.link", /button\.link:hover:not\(:disabled\)\s*,\s*button\.link:focus-visible\s*\{[^}]*\}/],
+    [":where(.content a)", /:where\(\.content a\):hover\s*,\s*:where\(\.content a\):focus-visible\s*\{[^}]*\}/],
+    [".named-picker-loadmore", /\.named-picker-loadmore:hover:not\(:disabled\)\s*,\s*\.named-picker-loadmore:focus-visible\s*\{[^}]*\}/],
+  ] as const)("%s: :hover and :focus-visible share the full-ink rule", (_name, pattern) => {
+    const match = pattern.exec(css);
+    expect(match, "no combined :hover, :focus-visible rule found").not.toBeNull();
+    expect(match![0], "combined rule must set full ink").toContain("text-decoration-color: var(--ink)");
+  });
+
+  // Codex CLI review of #884, round 5: the test above only pins the
+  // :hover/:focus-visible rule — it would stay green even if the REST state
+  // lost its underline entirely, which is not "always underlined" at all.
+  // Anchored to the start of a line (`(?:^|\n)`) so this cannot match a
+  // different compound selector that happens to contain the same text
+  // (`.farm-warning button.link { ... }` sits later in the file and would
+  // otherwise be found first if the file were reordered).
+  it.each([
+    ["button.link", /(?:^|\n)button\.link\s*\{[^}]*\}/],
+    [":where(.content a)", /(?:^|\n):where\(\.content a\)\s*\{[^}]*\}/],
+    [".named-picker-loadmore", /(?:^|\n)\.named-picker-loadmore\s*\{[^}]*\}/],
+  ] as const)("%s: rest state itself carries the 28%% ink rule underline", (_name, pattern) => {
+    const match = pattern.exec(css);
+    expect(match, "rest-state rule not found").not.toBeNull();
+    expect(match![0], "rest state must be underlined").toContain("text-decoration: underline");
+    expect(match![0], "rest state must use the 28% ink rule").toContain("text-decoration-color: var(--link-rule)");
+  });
+
+  // Codex CLI review of #884, round 4: no page currently combines the
+  // `named-picker-trigger` and `link` classes on one element (grepped —
+  // only a test fixture does), but `button.link`'s new rest-state underline
+  // would bleed through the SAME equal-specificity, later-wins mechanism the
+  // trigger's own comment already defends padding/font-size against, the
+  // moment a page ever does. `button.named-picker-trigger` — a form control,
+  // not a link — resets it explicitly.
+  it("button.named-picker-trigger defends against button.link's underline bleeding through", () => {
+    const rule = /button\.named-picker-trigger\s*\{[^}]*\}/.exec(css);
+    expect(rule, "button.named-picker-trigger rest-state rule not found").not.toBeNull();
+    expect(rule![0], "must reset text-decoration").toContain("text-decoration: none");
+  });
 });
 
 // #654 — the dashboard's surfaces carry no shadow, no caps, no motion and no

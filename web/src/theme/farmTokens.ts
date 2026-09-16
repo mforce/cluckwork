@@ -30,7 +30,7 @@ export const THEME_TOKENS = [
   "--error", "--success", "--warn", "--danger", "--on-danger",
   "--tint-ok", "--tint-warn", "--tint-danger", "--tint-accent", "--tint-muted",
   "--stat-accent", "--lavender",
-  "--link", "--focus", "--font",
+  "--link", "--link-rule", "--focus", "--font",
   "--r-input", "--r-panel", "--r-card", "--r-pill",
   "--shadow-bar", "--shadow-dialog",
 ] as const;
@@ -59,7 +59,7 @@ const JSDOM_FALLBACK = {
   "--tint-ok": "#e2f2ec", "--tint-warn": "#f7ecd9", "--tint-danger": "#f9e5df",
   "--tint-accent": "#f3e9f5", "--tint-muted": "#eeeaf0",
   "--stat-accent": "#4a154b", "--lavender": "#f9f0ff",
-  "--link": "#1264a3", "--focus": "#4a154b",
+  "--link": "#1d1d1d", "--link-rule": "#c0c0c0", "--focus": "#4a154b",
   "--font": "system-ui, sans-serif",
   "--r-input": "4px", "--r-panel": "8px", "--r-card": "12px", "--r-pill": "999px",
   "--shadow-bar": "0 -1px 0 rgba(29, 21, 33, 0.05), 0 -16px 40px rgba(29, 21, 33, 0.07)",
