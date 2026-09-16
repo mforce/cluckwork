@@ -132,6 +132,38 @@ function declarationsFor(selector: string): Map<string, string> {
   return decls;
 }
 
+// The nearest enclosing `@media` rule's `params`, or `undefined` at the top
+// level. Same shape as `insideKeyframes` above: walk the parent chain rather
+// than assume one nesting depth.
+function enclosingMediaParams(node: Node | undefined): string | undefined {
+  let current: Node | undefined = node;
+  while (current !== undefined) {
+    if (current.type === "atrule" && (current as AtRule).name === "media") {
+      return (current as AtRule).params;
+    }
+    current = current.parent as Node | undefined;
+  }
+  return undefined;
+}
+
+// `declarationsFor` MERGES every matching rule into one map in document
+// order, so a selector declared once at the top level and again inside a
+// LATER `@media` block silently loses the top-level value to the media one —
+// found by a Codex review of #882 (2026-09-16) against the ".dialog" case
+// below: a mutation of the unconditional `.dialog` radius (styles.css:634)
+// passed the old assertion because it read back the phone media query's
+// value instead. This reads only rules whose nearest `@media` matches
+// `mediaParams` exactly (`undefined` for "not inside any @media").
+function declarationsForAt(selector: string, mediaParams: string | undefined): Map<string, string> {
+  const decls = new Map<string, string>();
+  root.walkRules((rule: Rule) => {
+    if (!rule.selectors.map(clean).flatMap(unwrap).includes(selector)) return;
+    if (enclosingMediaParams(rule) !== mediaParams) return;
+    rule.walkDecls((d) => { decls.set(d.prop, d.value); });
+  });
+  return decls;
+}
+
 // Everything allowed to cast a shadow, and why. Six floats plus one ring.
 const SHADOW_ALLOWED = [
   ".auth .card",            // the sign-in card, floating on the auth gradient
@@ -176,9 +208,11 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
     declarationsFor(":root").get(name);
 
   it("declares three distinct steps in increasing order", () => {
-    expect(tokenValue("--r-input")).toBe("6px");
-    expect(tokenValue("--r-panel")).toBe("10px");
-    expect(tokenValue("--r-card")).toBe("16px");
+    // #864 (owner decision, 2026-09-16): controls 4px, cards/panels 8px,
+    // dialogs 12px. D6's "the scale does not move" is superseded.
+    expect(tokenValue("--r-input")).toBe("4px");
+    expect(tokenValue("--r-panel")).toBe("8px");
+    expect(tokenValue("--r-card")).toBe("12px");
   });
 
   // Every surface this slice owns, INCLUDING two --r-input consumers. Without
@@ -196,5 +230,31 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   ])("%s resolves its radius through a token, not a literal", (selector) => {
     const radius = declarationsFor(selector).get("border-radius");
     expect(radius).toMatch(/^var\(--r-[a-z]+\)$/);
+  });
+
+  // #864 narrows the meaning of --r-card to dialogs and sheets only: every
+  // card-like surface reads --r-panel instead. A generic "some r-* token"
+  // pattern match (above) would stay green if one of these silently reverted
+  // to --r-card, so this pins the SPECIFIC token per surface.
+  it.each([
+    ".card", ".panel", ".order-panel", ".entry-pane", ".capture-tile",
+    ".help-hero", ".logo-preview", ".banner-preview", ".farm-warning",
+    ".palette-picker",
+  ])("%s reads --r-panel, not the dialog radius", (selector) => {
+    expect(declarationsFor(selector).get("border-radius")).toBe("var(--r-panel)");
+  });
+
+  // The dialog family is the one place --r-card still belongs: a modal and
+  // its phone-sheet variant. Checked as two SEPARATE declarations, not one
+  // merged lookup — declarationsFor(".dialog") would report only the phone
+  // media query's value here, because it is declared later in the file and
+  // overwrites the unconditional one in the merged map.
+  it("the unconditional dialog radius keeps --r-card", () => {
+    expect(declarationsForAt(".dialog", undefined).get("border-radius")).toBe("var(--r-card)");
+  });
+
+  it("the phone dialog-sheet radius keeps --r-card", () => {
+    expect(declarationsForAt(".dialog", "(max-width: 900px)").get("border-radius"))
+      .toBe("var(--r-card) var(--r-card) 0 0");
   });
 });

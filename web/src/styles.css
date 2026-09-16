@@ -88,9 +88,9 @@
     radial-gradient(50% 50% at 18% 90%, #f7e4ff 0%, transparent 60%),
     var(--lavender);
 
-  --r-input: 6px;
-  --r-panel: 10px;
-  --r-card: 16px;
+  --r-input: 4px;
+  --r-panel: 8px;
+  --r-card: 12px;
   --r-pill: 999px;
   --sidebar-w: 244px;
   /* Height reserved for the mobile tab bar. Zero on desktop, where the bar is
@@ -100,8 +100,13 @@
 
   --font: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --scrim: rgba(29, 21, 33, 0.42);
-  --shadow-dialog: 0 24px 64px rgba(29, 21, 33, 0.24);
-  --shadow-bar: 0 -8px 24px rgba(29, 21, 33, 0.08);
+  /* #864 — three-layer diffused shadows, borrowed from the high-end-visual-
+     design skill's proposal and confirmed on the issue (2026-09-16). Replaces
+     the single 24px/64px blob with a hairline, a mid spread and a soft far
+     glow, visible on the phone tab bar and the dialog/drawer/menu floats
+     `elevationScale()` in FarmThemeProvider.tsx maps onto these same tokens. */
+  --shadow-dialog: 0 1px 2px rgba(29, 21, 33, 0.06), 0 12px 32px rgba(29, 21, 33, 0.10), 0 40px 96px rgba(29, 21, 33, 0.12);
+  --shadow-bar: 0 -1px 0 rgba(29, 21, 33, 0.05), 0 -16px 40px rgba(29, 21, 33, 0.07);
 
   font-family: var(--font);
   color: var(--ink);
@@ -235,8 +240,10 @@
     radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
     var(--canvas);
   --scrim: rgba(0, 0, 0, 0.62);
-  --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
-  --shadow-bar: 0 -8px 24px rgba(0, 0, 0, 0.45);
+  /* #864 — the dark twin of the light block above; same three layers, tuned
+     for a dark surface (opaque black layers rather than tinted ink). */
+  --shadow-dialog: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.4), 0 40px 96px rgba(0, 0, 0, 0.45);
+  --shadow-bar: 0 -1px 0 rgba(0, 0, 0, 0.35), 0 -16px 40px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
 }
 
@@ -881,7 +888,7 @@ input.cell {
 .entry-pane {
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   padding: 1.35rem 1.5rem;
 }
 
@@ -1721,7 +1728,7 @@ label.check {
 .order-panel {
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
 }
 
 .panel {
@@ -1779,7 +1786,7 @@ label.check {
   text-decoration: none;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   padding: 0.9rem 1rem;
 }
 
@@ -2461,7 +2468,7 @@ label.check {
    so the page opens on the thing a reader came to do. */
 .help-hero {
   background: var(--surface-2);
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   padding: 1.75rem 2rem 1.25rem;
   margin: 0 0 2rem;
 }
@@ -3158,7 +3165,7 @@ dl.glossary {
   object-fit: contain;
   background: #fff;
   border: 1px solid var(--hairline);
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   padding: 0.5rem;
 }
 
@@ -3171,7 +3178,7 @@ dl.glossary {
   object-fit: contain;
   background: #fff;
   border: 1px solid var(--hairline);
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   padding: 0.5rem;
 }
 
@@ -3230,7 +3237,7 @@ dl.glossary {
 .farm-warning {
   margin: 0 0 1rem;
   padding: 0.6rem 0.85rem;
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   background: var(--tint-warn);
   font-size: 0.9rem;
 }
@@ -3279,7 +3286,7 @@ input.locked {
    currently applied, so the values are literal here by necessity. */
 .palette-picker {
   border: 1px solid var(--hairline);
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   padding: 1rem;
   margin: 0;
 }

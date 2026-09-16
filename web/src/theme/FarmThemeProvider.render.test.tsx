@@ -9,6 +9,9 @@ import type { FormControlLabelProps } from "@mui/material/FormControlLabel";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
+import BottomNavigation from "@mui/material/BottomNavigation";
+import BottomNavigationAction from "@mui/material/BottomNavigationAction";
+import { Egg } from "lucide-react";
 import { DEFAULT_BRAND } from "../lib/brand";
 import { createFarmTheme } from "./FarmThemeProvider";
 import { tokensFor } from "./farmTokens.test";
@@ -106,6 +109,16 @@ describe("FarmThemeProvider against the real DOM (#871 local review)", () => {
 
   it("resets DialogActions' sibling spacing and adds a vertical gap at phone width", () => {
     const theme = createFarmTheme(tokensFor(DEFAULT_BRAND, "light"), "light");
+    // Emotion's injected `<style>` tags are not React-managed DOM, so the
+    // `afterEach(cleanup)` in `test/setup.ts` unmounts trees but never removes
+    // them — they accumulate across every test in this file. #864 gave
+    // `body1` its own phone-scoped rule, and `FormControlLabel`'s string
+    // `label` renders as a `Typography variant="body1"`, so the placement
+    // tests above now ALSO emit an `@media (max-width:899.95px)` block before
+    // this test runs. Snapshotting the length before rendering and slicing
+    // off everything already present keeps this test looking only at CSS
+    // ITS OWN render produced, regardless of what ran earlier in the file.
+    const alreadyInjected = emotionCssText().length;
     render(
       <ThemeProvider theme={theme}>
         <Dialog open>
@@ -118,7 +131,7 @@ describe("FarmThemeProvider against the real DOM (#871 local review)", () => {
     );
 
     const phoneQuery = theme.breakpoints.down("md");
-    const css = emotionCssText();
+    const css = emotionCssText().slice(alreadyInjected);
     const queryStart = css.indexOf(phoneQuery);
     expect(queryStart, `${phoneQuery} block in the generated CSS`).toBeGreaterThanOrEqual(0);
     // The query's declaration block: from its own `{` to the matching `}` one
@@ -142,5 +155,70 @@ describe("FarmThemeProvider against the real DOM (#871 local review)", () => {
       .toMatch(/>\s*:not\(style\)\s*~\s*:not\(style\)\s*\{\s*margin-left:\s*0;?\s*\}/);
     expect(phoneBlock, "phone block adds no vertical gap between stacked buttons")
       .toMatch(/\bgap:\s*8px/);
+  });
+
+  // #864 — `BottomNavigationAction`'s OWN `&.selected` rule bumps a label
+  // from 12px to 14px (`BottomNavigationAction.js`), a real rule with real
+  // specificity, not a zero-specificity leak like the `FormControlLabel` case
+  // above — so an object read of `farmTheme.policy.test.ts` proves the theme
+  // DECLARES 11px on both states but cannot prove which one the cascade
+  // actually renders. Same for the icon: the `icon` prop has no wrapper
+  // class, so sizing it depends on a descendant-combinator selector
+  // (`& > svg`) actually reaching a real SVG the caller sized differently.
+  it("holds the tab bar's icon size and one label size against MUI's own rules", () => {
+    const theme = createFarmTheme(tokensFor(DEFAULT_BRAND, "light"), "light");
+    const { container } = render(
+      <ThemeProvider theme={theme}>
+        <BottomNavigation value={0} showLabels>
+          {/* `size={20}`, not 24 — proving the theme's `& > svg` override
+              wins regardless of what the caller passes, the same way
+              `MuiButton`'s pill radius ignores what rendered it. */}
+          <BottomNavigationAction label="Dashboard" icon={<Egg size={20} />} />
+          <BottomNavigationAction label="Sales" icon={<Egg size={20} />} />
+        </BottomNavigation>
+      </ThemeProvider>,
+    );
+
+    const labels = container.querySelectorAll(".MuiBottomNavigationAction-label");
+    const selectedLabel = container.querySelector(".MuiBottomNavigationAction-label.Mui-selected");
+    expect(selectedLabel, "a selected label exists").not.toBeNull();
+    expect(getComputedStyle(selectedLabel!).fontSize, "selected label size").toBe("11px");
+    expect(getComputedStyle(labels[1]!).fontSize, "unselected label size").toBe("11px");
+
+    const icon = container.querySelector("svg");
+    expect(icon, "the tab icon renders").not.toBeNull();
+    expect(getComputedStyle(icon!).width, "tab icon width").toBe("24px");
+    expect(getComputedStyle(icon!).height, "tab icon height").toBe("24px");
+
+    const selectedRoot = container.querySelector(".MuiBottomNavigationAction-root.Mui-selected");
+    // jsdom passes `box-shadow` through unnormalized (no browser-style
+    // `px`/`rgb()` canonicalization), unlike a real engine — so this compares
+    // against the literal the theme declares, not a browser-computed form.
+    expect(getComputedStyle(selectedRoot!).boxShadow, "selected tab rule")
+      .toBe("inset 0 2px 0 0 #4a154b");
+  });
+
+  // Found by a Codex review of #882 (2026-09-16): `transition` is a
+  // shorthand, so the press-feedback override's `&.MuiButton-contained,
+  // &.MuiButton-outlined` rule REPLACED `Button.js`'s own background-color/
+  // box-shadow/border-color/color transition rather than adding a transform
+  // transition alongside it — an object read of the theme (`farmTheme.
+  // policy.test.ts`) can prove the override is declared but not that it
+  // still carries MUI's own properties once the cascade actually resolves.
+  it("keeps MUI's own colour transition on a contained button, not just the added transform", () => {
+    const theme = createFarmTheme(tokensFor(DEFAULT_BRAND, "light"), "light");
+    const { container } = render(
+      <ThemeProvider theme={theme}>
+        <Button variant="contained">Save</Button>
+      </ThemeProvider>,
+    );
+    const button = container.querySelector(".MuiButton-contained");
+    expect(button, "a contained button renders").not.toBeNull();
+    const transition = getComputedStyle(button!).transition;
+    expect(transition, "keeps the added press transform").toContain("transform 240ms");
+    expect(transition, "keeps MUI's own background-color transition").toContain("background-color 160ms");
+    expect(transition, "keeps MUI's own border-color transition").toContain("border-color 160ms");
+    expect(transition, "keeps MUI's own color transition")
+      .toMatch(/(?:^|,\s*)color 160ms/);
   });
 });

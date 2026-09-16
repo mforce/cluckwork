@@ -76,7 +76,7 @@ export function AppLayout() {
               <p className="nav-group-label">{t(g.labelKey)}</p>
               {g.entries.map((e) => (
                 <NavLink key={e.to} to={e.to} end={e.end}>
-                  <e.Icon size={ICON} aria-hidden /><span>{t(e.labelKey)}</span>
+                  <e.Icon size={ICON} strokeWidth={1.5} aria-hidden /><span>{t(e.labelKey)}</span>
                 </NavLink>
               ))}
             </div>
@@ -86,7 +86,7 @@ export function AppLayout() {
         <div className="sidebar-foot">
           <ThemeToggle iconSize={ICON} />
           <button className="link" onClick={onLogout}>
-            <LogOut size={ICON} aria-hidden /><span>{t("signOut")}</span>
+            <LogOut size={ICON} strokeWidth={1.5} aria-hidden /><span>{t("signOut")}</span>
           </button>
           {/* #458 — set at build time (VITE_APP_VERSION, release-please-owned
               via web/.env.production); absent in dev builds, so this line

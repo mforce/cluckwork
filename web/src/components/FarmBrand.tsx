@@ -13,7 +13,7 @@ export function FarmBrand() {
   return (
     <span className="brand">
       {url === null ? (
-        <Egg size={20} aria-hidden className="brand-mark" />
+        <Egg size={20} strokeWidth={1.5} aria-hidden className="brand-mark" />
       ) : (
         // Empty alt on purpose: the farm name sits right beside it, so the
         // image is decoration and a screen reader should not read the farm

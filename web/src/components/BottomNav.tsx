@@ -48,7 +48,7 @@ export function BottomNav({
       <nav className="tabbar" aria-label={t("tabBarAriaLabel")}>
         {tabs.map((e) => (
           <NavLink key={e.to} to={e.to} end={e.end} className="tab">
-            <e.Icon size={ICON} aria-hidden />
+            <e.Icon size={ICON} strokeWidth={1.5} aria-hidden />
             <span>{t(e.labelKey)}</span>
           </NavLink>
         ))}
@@ -60,7 +60,7 @@ export function BottomNav({
           aria-current={onATab ? undefined : "page"}
           onClick={() => setMoreOpen(true)}
         >
-          <Menu size={ICON} aria-hidden />
+          <Menu size={ICON} strokeWidth={1.5} aria-hidden />
           <span>{t("moreButton")}</span>
         </button>
       </nav>
@@ -76,7 +76,7 @@ export function BottomNav({
               {g.entries.map((e) => (
                 <NavLink key={e.to} to={e.to} end={e.end}
                   onClick={() => setMoreOpen(false)}>
-                  <e.Icon size={ICON} aria-hidden />
+                  <e.Icon size={ICON} strokeWidth={1.5} aria-hidden />
                   <span>{t(e.labelKey)}</span>
                 </NavLink>
               ))}
@@ -86,7 +86,7 @@ export function BottomNav({
         <div className="more-foot">
           <ThemeToggle iconSize={ICON} />
           <button className="link" onClick={() => { setMoreOpen(false); onLogout(); }}>
-            <LogOut size={ICON} aria-hidden /><span>{t("signOut")}</span>
+            <LogOut size={ICON} strokeWidth={1.5} aria-hidden /><span>{t("signOut")}</span>
           </button>
         </div>
       </Dialog>

@@ -61,9 +61,9 @@ const JSDOM_FALLBACK = {
   "--stat-accent": "#4a154b",
   "--link": "#1264a3", "--focus": "#4a154b",
   "--font": "system-ui, sans-serif",
-  "--r-input": "6px", "--r-panel": "10px", "--r-card": "12px", "--r-pill": "999px",
-  "--shadow-bar": "0 -8px 24px rgba(29, 21, 33, 0.08)",
-  "--shadow-dialog": "0 24px 64px rgba(29, 21, 33, 0.24)",
+  "--r-input": "4px", "--r-panel": "8px", "--r-card": "12px", "--r-pill": "999px",
+  "--shadow-bar": "0 -1px 0 rgba(29, 21, 33, 0.05), 0 -16px 40px rgba(29, 21, 33, 0.07)",
+  "--shadow-dialog": "0 1px 2px rgba(29, 21, 33, 0.06), 0 12px 32px rgba(29, 21, 33, 0.10), 0 40px 96px rgba(29, 21, 33, 0.12)",
 } as const satisfies TokenValues;
 
 /**

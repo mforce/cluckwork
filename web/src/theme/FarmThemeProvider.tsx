@@ -25,6 +25,35 @@ const PHONE_TOUCH_TARGET_PX = 44;
 const BAR_ELEVATIONS = [4, 6];
 const DIALOG_ELEVATIONS = [8, 16, 24];
 
+/**
+ * The one motion curve for the whole app (#864). Borrowed from the
+ * high-end-visual-design skill's easing proposal — the only one of that
+ * skill's ideas compatible with the confirmed ruled-ledger direction — and
+ * confirmed on the issue (2026-09-16). Every component that asks
+ * `theme.transitions` for an easing gets this curve rather than MUI's
+ * Material default (`cubic-bezier(0.4, 0, 0.2, 1)` and its three siblings).
+ */
+const EASE = "cubic-bezier(.32,.72,0,1)";
+
+/**
+ * Colour transitions: 160ms. This reuses `theme.transitions.duration.short`
+ * rather than a new key: `Button` and `BottomNavigationAction` already read
+ * `duration.short` for their own background-color/color/padding transitions
+ * (`@mui/material@9.4.0`'s `Button.js` and `BottomNavigationAction.js`), so
+ * overriding the one key they already consume gets the direction's number
+ * onto every current and future MUI colour transition for free — the same
+ * "read what MUI already defaults to" move `elevationScale` makes for shadows.
+ */
+const COLOR_TRANSITION_MS = 160;
+
+/**
+ * Transform transitions (the press-feedback scale): 240ms. MUI has no
+ * built-in consumer of a "transform" duration key, so this is a literal used
+ * directly in the `MuiButtonBase` override below instead of a `duration.*`
+ * key nothing else would ever read.
+ */
+const TRANSFORM_TRANSITION_MS = 240;
+
 function elevationScale(tokens: TokenValues): Shadows {
   const scale = Array.from({ length: 25 }, (_, index) => {
     if (BAR_ELEVATIONS.includes(index)) return tokens["--shadow-bar"];
@@ -77,7 +106,8 @@ const emotionCache = createCache({ key: "mui", nonce: cspNonce, prepend: true })
  */
 export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
   const radius = (token: ThemeToken, fallback: number) => pixelsFrom(tokens[token], fallback);
-  const cardRadius = radius("--r-card", 16);
+  const cardRadius = radius("--r-card", 12);
+  const panelRadius = radius("--r-panel", 8);
   const pillRadius = radius("--r-pill", 999);
 
   const base = createTheme({
@@ -101,25 +131,54 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       divider: tokens["--hairline"],
     },
     spacing: 8,
-    // `--r-panel`, not `--r-card`: #651 D2 made 6 / 10 / 16 a nesting hierarchy,
-    // and the default has to be the middle of it. Cards, dialogs and inputs take
-    // their own radius through the component overrides below.
-    shape: { borderRadius: radius("--r-panel", 10) },
+    // `--r-panel`, not `--r-card`: the #864 direction makes 4 / 8 / 12 a
+    // nesting hierarchy (controls / cards & panels / dialogs), and the
+    // default has to be the middle step. Dialogs and inputs take their own
+    // radius through the component overrides below; `MuiCard` also reads
+    // `--r-panel` directly since a card is a panel-family surface, not a
+    // dialog.
+    shape: { borderRadius: radius("--r-panel", 8) },
     shadows: elevationScale(tokens),
+    // #864 — MUI's own reduced-motion mechanism (`@mui/material@9.4.0`'s
+    // `theme.motion`, consumed by `getTransitionStyles()`/`TouchRipple`):
+    // "system" wraps every transition MUI itself builds through that helper
+    // in `@media (prefers-reduced-motion: reduce) { transition: none }`. That
+    // covers `BottomNavigationAction`'s built-in colour fade and the ripple
+    // (disabled below anyway) with no JS matchMedia listener — a pure CSS
+    // media query, mirroring the `no-preference` block `styles.css` already
+    // gates its own hand-rolled animation behind (~L583). The ONE transition
+    // this app adds by hand (`MuiButtonBase`'s press-feedback scale, below)
+    // is a plain style object rather than something built through that
+    // helper, so it repeats the same media query itself.
+    motion: { reducedMotion: "system" },
+    transitions: {
+      easing: {
+        easeInOut: EASE, easeOut: EASE, easeIn: EASE, sharp: EASE,
+      },
+      duration: { short: COLOR_TRANSITION_MS },
+    },
     typography: {
       fontFamily: tokens["--font"],
-      // Sizes copied from what the stylesheet already renders, not a new scale.
-      // `body1` is what `CssBaseline` applies to `<body>`, so its letterSpacing
-      // is reset from MUI's 0.00938em now rather than on the day the baseline
-      // lands, when it would silently re-track every paragraph in the app.
-      body1: { fontSize: "1rem", lineHeight: 1.5, letterSpacing: 0 },
+      // #864 — the confirmed ruled-ledger direction's scale (DIRECTION.md),
+      // not a port of today's sizes. Weight 800 and negative tracking are
+      // retired; numbers are display 40/44, title 24/28 (phone 28/32),
+      // section 13/16, rows 14/20 desktop / 16/24 phone, caption 12/16.
+      // `body1` is what `CssBaseline` would apply to `<body>`; its
+      // letterSpacing stays reset from MUI's 0.00938em regardless.
+      body1: {
+        fontSize: "0.875rem", lineHeight: 20 / 14, letterSpacing: 0,
+        // Rows carry tabular numerals so a column of counts aligns by digit
+        // (DIRECTION.md); harmless on non-numeral text, which this property
+        // does not affect.
+        fontVariantNumeric: "tabular-nums",
+      },
       body2: { fontSize: "0.95rem" },
-      h1: { fontSize: "2rem", fontWeight: 800 },
-      h2: { fontSize: "1.9rem", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.15 },
-      h3: { fontSize: "1.15rem", fontWeight: 700, letterSpacing: "-0.01em" },
+      h1: { fontSize: "2.5rem", lineHeight: 44 / 40, fontWeight: 600 },
+      h2: { fontSize: "1.5rem", lineHeight: 28 / 24, fontWeight: 600 },
+      h3: { fontSize: "0.8125rem", lineHeight: 16 / 13, fontWeight: 600 },
       h4: { fontSize: "1.05rem", fontWeight: 700 },
       subtitle2: { fontSize: "0.85rem", fontWeight: 500, color: tokens["--muted"] },
-      caption: { fontSize: "0.78rem", fontWeight: 700, letterSpacing: 0 },
+      caption: { fontSize: "0.75rem", lineHeight: 16 / 12, fontWeight: 400, letterSpacing: 0 },
       button: {
         fontSize: "0.95rem", fontWeight: 700, letterSpacing: "0.01em", textTransform: "none",
       },
@@ -130,6 +189,15 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
   const phone = base.breakpoints.down("md");
 
   return createTheme(base, {
+    // Phone-scoped type sizes (title 28/32, rows 16/24). `[phone]` needs
+    // `base.breakpoints`, which does not exist until `base` is built, so
+    // these live here rather than in the `typography` block above — this
+    // second `createTheme` call deep-merges into `base.typography.h2`/
+    // `body1` rather than replacing them.
+    typography: {
+      h2: { [phone]: { fontSize: "1.75rem", lineHeight: 32 / 28 } },
+      body1: { [phone]: { fontSize: "1rem", lineHeight: 24 / 16 } },
+    },
     components: {
       MuiTypography: {
         defaultProps: {
@@ -151,10 +219,10 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       MuiPaper: { defaultProps: { elevation: 0 } },
       MuiCard: {
         defaultProps: { variant: "outlined" },
-        styleOverrides: { root: { borderRadius: cardRadius } },
+        styleOverrides: { root: { borderRadius: panelRadius } },
       },
       MuiDialog: { styleOverrides: { paper: { borderRadius: cardRadius } } },
-      MuiOutlinedInput: { styleOverrides: { root: { borderRadius: radius("--r-input", 6) } } },
+      MuiOutlinedInput: { styleOverrides: { root: { borderRadius: radius("--r-input", 4) } } },
       // `Autocomplete` sets no elevation on its listbox paper, so it falls to
       // `Paper`'s default of 1 — which this scale flattens. The picker popover is
       // one of #651's floats, so it takes the dialog shadow explicitly.
@@ -222,6 +290,119 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         styleOverrides: {
           root: { gap: 0 },
           labelPlacementEnd: { flexDirection: "row" },
+        },
+      },
+      // #864 — no ripple by default anywhere: motion here is this direction's
+      // own choice, not Material's canned ink-spread. `MuiButtonBase` is the
+      // base every `Button`, `IconButton`, `Tab`, `Chip` and
+      // `BottomNavigationAction` extends, so setting it once here reaches all
+      // of them without a per-component default.
+      MuiButtonBase: {
+        defaultProps: { disableRipple: true },
+        styleOverrides: {
+          root: {
+            // Press feedback (#864 borrow-list item 3): a tap reads as a
+            // press. Scoped to the sibling `MuiButton-contained`/`-outlined`
+            // classes MUI composes onto this SAME node, never the bare
+            // `MuiButtonBase` root or a `MuiButton-text` sibling — the
+            // owner's desktop render showed a filled-button tint behind
+            // underlined ruled-text actions read as a smudge, so a ruled-text
+            // row action (and any other bare `ButtonBase`, e.g. an
+            // `IconButton`) gets no transform at all.
+            "&.MuiButton-contained, &.MuiButton-outlined": {
+              // `transition` is a shorthand for every property in one
+              // declaration: naming only `transform` here does not ADD a
+              // press transition alongside `Button.js`'s own
+              // `background-color`/`box-shadow`/`border-color`/`color` list
+              // (`duration.short`, i.e. `COLOR_TRANSITION_MS`) — it REPLACES
+              // that whole declaration, because this compound-class selector
+              // has higher specificity than `Button.js`'s own single-class
+              // rule and both target the same `transition` property. Found by
+              // a Codex review of #882 (2026-09-16): a rendered contained
+              // button computed `transition: transform 240ms ...` with no
+              // colour transition at all, silently dropping the "colour
+              // transitions reuse duration.short at 160ms" policy for every
+              // contained/outlined button.
+              transition: [
+                `transform ${TRANSFORM_TRANSITION_MS}ms ${EASE}`,
+                `background-color ${COLOR_TRANSITION_MS}ms ${EASE}`,
+                `box-shadow ${COLOR_TRANSITION_MS}ms ${EASE}`,
+                `border-color ${COLOR_TRANSITION_MS}ms ${EASE}`,
+                `color ${COLOR_TRANSITION_MS}ms ${EASE}`,
+              ].join(", "),
+              "&:active": { transform: "scale(0.98)" },
+              // `theme.motion.reducedMotion: "system"` above covers every
+              // transition MUI itself builds through `getTransitionStyles()`;
+              // this one is a plain style object, not built through that
+              // helper, so it repeats the same media query by hand.
+              "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+            },
+          },
+        },
+      },
+      // Tab bar variant B ("ruled"), owner pick (2026-09-16): no bar shadow,
+      // a hairline top rule instead. #829 mounts the component; this is its
+      // theme, so the conversion inherits the pick rather than deciding it.
+      MuiBottomNavigation: {
+        styleOverrides: {
+          root: {
+            boxShadow: "none",
+            borderTop: `1px solid ${tokens["--hairline"]}`,
+            backgroundColor: tokens["--surface"],
+          },
+        },
+      },
+      MuiBottomNavigationAction: {
+        styleOverrides: {
+          root: {
+            minHeight: PHONE_TOUCH_TARGET_PX,
+            // The `icon` prop renders as a direct child with no wrapper class
+            // (`bottomNavigationActionClasses` names only `root`, `iconOnly`,
+            // `selected`, `label` — no `icon` slot), so sizing it has to reach
+            // through to whatever SVG the caller passes, the same way
+            // `MuiButton`'s pill radius above reaches every button regardless
+            // of what rendered it.
+            "& > svg": { width: 24, height: 24 },
+            // The 2px `--stat-accent` rule above the active tab (variant B) —
+            // the same device the sidebar's active-item rule uses (`.sidebar
+            // nav a.active`, `styles.css`), so the two shells say "active"
+            // the same way.
+            "&.Mui-selected": {
+              boxShadow: `inset 0 2px 0 0 ${tokens["--stat-accent"]}`,
+            },
+          },
+          label: {
+            // One label size at every state. MUI's own default bumps a
+            // selected label from 12px to 14px
+            // (`BottomNavigationAction.js`'s `&.selected` rule), which this
+            // direction does not want: labels are 500-weight 11px whether
+            // selected or not, and only the colour (MUI's own
+            // `palette.primary.main` on `.Mui-selected`) and the rule above
+            // the icon carry "active".
+            fontSize: 11,
+            fontWeight: 500,
+            "&.Mui-selected": { fontSize: 11 },
+          },
+        },
+      },
+      // Ledger row heights (DIRECTION.md): 36px desktop, 52px phone.
+      //
+      // KNOWN GAP, flagged by a Codex review of #882 (2026-09-16) and left
+      // open rather than fixed here: `height` on a `table-row` is a floor,
+      // not a ceiling, so a row still grows past it when its cells' content
+      // does not fit. `TableCell` spreads `theme.typography.body2` — 0.95rem
+      // at MUI's default 1.43 line-height (~21.7px), never this theme's
+      // row scale (14/20 desktop, 16/24 phone) — plus MUI's own default 16px
+      // vertical padding and a 1px border, ~54.7px total, comfortably over
+      // both targets. Closing this needs an explicit `MuiTableCell` density
+      // (variant, padding, and whether it should track the row scale at all)
+      // that nothing has reviewed yet, and this slice mounts no real
+      // `Table` on any screen (by design — no screen conversion), so nothing
+      // renders wrong today. Left for whichever slice first puts a ledger on
+      // MUI's `Table`.
+      MuiTableRow: {
+        styleOverrides: {
+          root: { height: 36, [phone]: { height: 52 } },
         },
       },
     },
