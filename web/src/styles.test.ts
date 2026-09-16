@@ -325,6 +325,24 @@ describe("the full-ink underline applies to keyboard focus, not only mouse hover
     expect(match![0], "combined rule must set full ink").toContain("text-decoration-color: var(--ink)");
   });
 
+  // Codex CLI review of #884, round 5: the test above only pins the
+  // :hover/:focus-visible rule — it would stay green even if the REST state
+  // lost its underline entirely, which is not "always underlined" at all.
+  // Anchored to the start of a line (`(?:^|\n)`) so this cannot match a
+  // different compound selector that happens to contain the same text
+  // (`.farm-warning button.link { ... }` sits later in the file and would
+  // otherwise be found first if the file were reordered).
+  it.each([
+    ["button.link", /(?:^|\n)button\.link\s*\{[^}]*\}/],
+    [":where(.content a)", /(?:^|\n):where\(\.content a\)\s*\{[^}]*\}/],
+    [".named-picker-loadmore", /(?:^|\n)\.named-picker-loadmore\s*\{[^}]*\}/],
+  ] as const)("%s: rest state itself carries the 28%% ink rule underline", (_name, pattern) => {
+    const match = pattern.exec(css);
+    expect(match, "rest-state rule not found").not.toBeNull();
+    expect(match![0], "rest state must be underlined").toContain("text-decoration: underline");
+    expect(match![0], "rest state must use the 28% ink rule").toContain("text-decoration-color: var(--link-rule)");
+  });
+
   // Codex CLI review of #884, round 4: no page currently combines the
   // `named-picker-trigger` and `link` classes on one element (grepped —
   // only a test fixture does), but `button.link`'s new rest-state underline
