@@ -262,6 +262,9 @@ describe("farm theme policy (#823 G2)", () => {
       expect(icon.height, `${label} tab icon height`).toBe(24);
       const selected = slot(root["&.Mui-selected"], `${label} tab selected rule`);
       expect(selected.boxShadow, `${label} tab selected rule value`).toMatch(/^inset 0 2px 0 0 /);
+      // The selected label and icon take the same accent as the rule above them:
+      // MUI's default is palette.primary (the brand), which vanishes on the dark bar.
+      expect(selected.boxShadow, `${label} tab selected colour matches its rule`).toBe(`inset 0 2px 0 0 ${selected.color}`);
 
       const labelStyle = slot(theme.components?.MuiBottomNavigationAction?.styleOverrides?.label,
         `${label} MuiBottomNavigationAction label`);

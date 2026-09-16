@@ -372,6 +372,7 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
             // nav a.active`, `styles.css`), so the two shells say "active"
             // the same way.
             "&.Mui-selected": {
+              color: tokens["--stat-accent"],
               boxShadow: `inset 0 2px 0 0 ${tokens["--stat-accent"]}`,
             },
           },
