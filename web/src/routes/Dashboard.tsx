@@ -116,7 +116,7 @@ export function Dashboard() {
 
   if (loading) {
     return (
-      <Container maxWidth={false} sx={{ maxWidth: 1120 }}>
+      <Container maxWidth={false} disableGutters sx={{ maxWidth: 1120 }}>
         <Typography variant="h2">{t("title")}</Typography>
         <Typography className="muted">{tc("loading")}</Typography>
       </Container>
@@ -124,7 +124,7 @@ export function Dashboard() {
   }
   if (error) {
     return (
-      <Container maxWidth={false} sx={{ maxWidth: 1120 }}>
+      <Container maxWidth={false} disableGutters sx={{ maxWidth: 1120 }}>
         <Typography variant="h2">{t("title")}</Typography>
         <Alert severity="error" className="error">{error}</Alert>
       </Container>

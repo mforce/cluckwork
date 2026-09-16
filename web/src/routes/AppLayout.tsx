@@ -125,7 +125,7 @@ export function AppLayout() {
 
         <Box sx={{ mt: "auto", px: 1, py: 1.5, borderTop: "1px solid var(--hairline)" }}>
           <ThemeToggle iconSize={ICON} />
-          <Button variant="text" onClick={onLogout} startIcon={<LogOut size={ICON} strokeWidth={1.5} aria-hidden />}
+          <Button variant="text" color="inherit" onClick={onLogout} startIcon={<LogOut size={ICON} strokeWidth={1.5} aria-hidden />}
             sx={{ justifyContent: "flex-start", width: "100%" }}>
             {t("signOut")}
           </Button>

@@ -45,6 +45,7 @@ export function ThemeToggle({
     <Button
       className={className}
       variant="text"
+      color="inherit"
       onClick={toggle}
       aria-label={label}
       startIcon={icon}
