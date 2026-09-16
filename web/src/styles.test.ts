@@ -132,6 +132,41 @@ describe.each(BRANDS)("palette: %s", (brand) => {
       expect(contrast(at("--focus"), at(bg))).toBeGreaterThanOrEqual(4.5);
   });
 
+  // #834 — the Slack-blue link retirement (DIRECTION.md, owner decision
+  // 2026-09-16): a link is --ink text underlined in a --link-rule (28% ink)
+  // rule. Checked against every background a link can render on, not just
+  // --surface: --surface-2 differs per palette (a toolbar or a help panel),
+  // and --link/--link-rule themselves do not (--ink is theme-scoped only),
+  // so this is the check that would catch a palette whose --surface-2 got
+  // too close to ink.
+  it.each(MODES)("%s: link text clears WCAG AA (4.5:1) on --surface and --surface-2", (mode) => {
+    const t = resolveTokens(attrFor(brand), mode);
+    const at = (k: string) => t.get(k)!;
+    for (const bg of ["--surface", "--surface-2"])
+      expect(contrast(at("--link"), at(bg)), `${brand}/${mode} --link vs ${bg}`)
+        .toBeGreaterThanOrEqual(4.5);
+  });
+
+  // The 28% ink rule is a decorative reinforcement under text that already
+  // clears 4.5:1 above, not the sole means of identifying the link — WCAG
+  // 1.4.11 (Non-text Contrast) targets UI-component boundaries and states
+  // that ARE the only cue, and DIRECTION.md's own interactive state ("full
+  // ink on hover and focus") already carries that job. So 3:1 is not applied
+  // here: flattened over the surfaces it actually sits on, a literal 28%
+  // ink cannot clear 3:1 against a near-white or near-black surface — the
+  // measured worst case across all four palettes is ~1.6:1 light / ~2.1:1
+  // dark, and reaching 3:1 would need roughly 48% (light) / 38% (dark) ink,
+  // a materially bolder rule than DIRECTION.md specified. The floor below is
+  // the honest measured minimum, not an invented pass, so a future change
+  // that makes the rule fainter still gets caught.
+  it.each(MODES)("%s: the 28% ink rule stays visibly above its surface (not a 3:1 pass — see comment)", (mode) => {
+    const t = resolveTokens(attrFor(brand), mode);
+    const at = (k: string) => t.get(k)!;
+    for (const bg of ["--surface", "--surface-2"])
+      expect(contrast(at("--link-rule"), at(bg)), `${brand}/${mode} --link-rule vs ${bg}`)
+        .toBeGreaterThanOrEqual(1.5);
+  });
+
   it.each(MODES)("%s: the login Forget glyph clears WCAG AA on its rest fill", (mode) => {
     // #587 — .auth-forget-farm draws its × over --surface-2 at rest. The
     // destructive FILL token (--danger) does not clear 4.5:1 for that glyph in

@@ -17,11 +17,17 @@
   --on-brand: #ffffff;
   --on-brand-mute: #d9bdde;
 
-  /* Ink & links (blue is the only chromatic departure from aubergine) */
+  /* Ink & links (#834 retires the Slack-blue departure — DIRECTION.md, owner
+     decision 2026-09-16, supersedes D7.1's brand-derived `--link: var(--brand)`
+     proposal: a link is ink, underlined in a 28% ink rule, full ink on hover
+     and focus. --link stays its own name rather than folding into --ink at
+     every call site — it names what the colour is FOR, and it is the smaller
+     diff over rewriting six consumers. --link-hover is retired: "full ink on
+     hover" is already --ink, so no separate hover shade is needed. */
   --ink: #1d1d1d;
   --muted: #696969;
-  --link: #1264a3;
-  --link-hover: #3860be;
+  --link: var(--ink);
+  --link-rule: #c0c0c0; /* 28% --ink flattened over --surface (#ffffff) */
 
   /* Surfaces */
   --canvas: #faf7fc; /* app background — a whisper of lavender */
@@ -197,8 +203,8 @@
 :root[data-theme="dark"] {
   --ink: #f2ecf4;
   --muted: #b3a8b8;
-  --link: #7fb4e6;
-  --link-hover: #a9cef0;
+  --link: var(--ink);
+  --link-rule: #5c5560; /* 28% --ink flattened over --surface (dark) */
   --canvas: #17121a;
   --surface: #221a26;
   --surface-2: #2b2231;
@@ -383,7 +389,8 @@ button.btn-danger:hover:not(:disabled) {
   background: var(--danger-press);
 }
 
-/* Inline action / navigation buttons — text, not pills. Blue, like links. */
+/* Inline action / navigation buttons — text, not pills. Ink, like links
+   (#834): underlined at rest in the 28% ink rule, full ink on hover. */
 button.link {
   background: none;
   color: var(--link);
@@ -392,12 +399,16 @@ button.link {
   letter-spacing: 0;
   padding: 0.3rem 0.4rem;
   border-radius: var(--r-input);
+  text-decoration: underline;
+  text-decoration-color: var(--link-rule);
+  text-underline-offset: 2px;
 }
 
 button.link:hover:not(:disabled) {
   background: none;
-  color: var(--link-hover);
   text-decoration: underline;
+  text-decoration-color: var(--ink);
+  text-underline-offset: 2px;
 }
 
 :focus-visible {
@@ -1508,12 +1519,15 @@ tr.discounted .badge-warn {
    its own single class. */
 :where(.content a) {
   color: var(--link);
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-color: var(--link-rule);
+  text-underline-offset: 2px;
 }
 
 :where(.content a):hover {
-  color: var(--link-hover);
   text-decoration: underline;
+  text-decoration-color: var(--ink);
+  text-underline-offset: 2px;
 }
 
 /* ---------------------------------------------------------------- Tables */
@@ -2256,8 +2270,11 @@ label.check {
   text-decoration: none;
 }
 
+/* #834 — this ring is a hover highlight, not a link underline: --stat-accent
+   is this stylesheet's existing "interactive edge" colour (.palette-option's
+   checked border), not a repurposed --link. */
 .help-open:hover {
-  border-color: var(--link);
+  border-color: var(--stat-accent);
   text-decoration: none;
 }
 
@@ -2366,6 +2383,10 @@ dl.glossary {
   text-decoration: none;
 }
 
+/* #834 — color: var(--link) already equals --ink via the alias, so this
+   headword keeps its rest-state colour on hover by design (only the
+   underline reveals the link); no rule-underline is added, since the rest
+   state's own "no underline until hover" is the intended affordance here. */
 .glossary-entry dt a:hover {
   color: var(--link);
   text-decoration: underline;
@@ -2395,9 +2416,12 @@ dl.glossary {
   vertical-align: middle;
 }
 
+/* #834 — a small ring badge (a "?" glyph), not underlined text: the text
+   colour still follows --link (now ink), but the ring is a hover highlight,
+   not a link underline, so its edge takes --stat-accent like .help-open's. */
 .help-link:hover {
   color: var(--link);
-  border-color: var(--link);
+  border-color: var(--stat-accent);
   text-decoration: none;
 }
 
@@ -3306,11 +3330,15 @@ input.locked {
   font-size: 0.85rem;
   color: var(--link);
   padding: 0.15rem 0.4rem;
+  text-decoration: underline;
+  text-decoration-color: var(--link-rule);
+  text-underline-offset: 2px;
 }
 
 .named-picker-loadmore:hover:not(:disabled) {
-  color: var(--link-hover);
   text-decoration: underline;
+  text-decoration-color: var(--ink);
+  text-underline-offset: 2px;
 }
 
 /* Trigger button: the page-owned button that opens the picker. Uses the same
@@ -3335,10 +3363,12 @@ button.named-picker-trigger {
   letter-spacing: 0;
 }
 
+/* #834 — a form control's hover edge, not a link: --stat-accent for the
+   same reason as .help-open/.help-link's hover rings above. */
 button.named-picker-trigger:hover:not(:disabled) {
   background: var(--surface);
   color: var(--ink);
-  border-color: var(--link);
+  border-color: var(--stat-accent);
   text-decoration: none;
 }
 

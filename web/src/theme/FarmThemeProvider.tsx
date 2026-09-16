@@ -126,7 +126,12 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       error: { main: tokens["--danger"], contrastText: tokens["--on-danger"] },
       success: { main: tokens["--success"] },
       warning: { main: tokens["--warn"] },
-      info: { main: tokens["--link"] },
+      // #834 — `--link` is now `--ink` (the Slack-blue retirement), and ink is
+      // not a colour `Alert severity="info"` can render as. `--stat-accent`
+      // is this app's other palette-derived accent (the sidebar's active-item
+      // rule, the selected radio edge), so info reads as brand-adjacent
+      // rather than as plain body text.
+      info: { main: tokens["--stat-accent"] },
       background: { default: tokens["--canvas"], paper: tokens["--surface"] },
       text: { primary: tokens["--ink"], secondary: tokens["--muted"] },
       divider: tokens["--hairline"],
@@ -450,6 +455,26 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
               fontWeight: 600,
             },
             "&:hover": { backgroundColor: tokens["--surface-2"] },
+          },
+        },
+      },
+      // #834 — DIRECTION.md's link language for a real MUI `Link`: ink text,
+      // underlined in the 28% ink rule at rest, full ink on hover and focus.
+      // No screen renders `@mui/material`'s `Link` today (they render
+      // `Typography component={Link}` from react-router, styled by
+      // `:where(.content a)` in styles.css instead), so this is groundwork —
+      // it has to exist before a screen can adopt the real component, and
+      // `farmTheme.policy.test.ts` is where it is pinned.
+      MuiLink: {
+        defaultProps: { underline: "always" },
+        styleOverrides: {
+          root: {
+            color: tokens["--ink"],
+            textDecorationColor: tokens["--link-rule"],
+            textUnderlineOffset: "2px",
+            "&:hover, &:focus-visible": {
+              textDecorationColor: tokens["--ink"],
+            },
           },
         },
       },
