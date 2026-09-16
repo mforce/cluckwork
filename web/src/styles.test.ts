@@ -101,9 +101,13 @@ describe.each(BRANDS)("palette: %s", (brand) => {
     for (const token of DARK_REQUIRED) expect(declared).toContain(token);
   });
 
-  it.each(MODES)("%s: brand fill stays dark enough for the sidebar overlay", (mode) => {
-    // .sidebar nav a layers white at 7-11% over the brand fill (a deliberate
-    // hardcode, not a token). Too light a fill and hover/active stop reading.
+  it.each(MODES)("%s: brand fill stays dark enough for on-brand text", (mode) => {
+    // #829 — the aubergine nav-rail overlay this test named (`.sidebar nav a`
+    // layering white at 7-11% over the brand fill) is gone: the rail is now
+    // `--lavender` tinted paper, and `--brand` is left carrying the primary
+    // button's fill and `--on-brand` its contrast text (checked directly
+    // below). A dark ceiling on the fill is still the margin that keeps that
+    // pairing — and any future light-overlay-on-brand surface — legible.
     const tokens = resolveTokens(attrFor(brand), mode);
     expect(luminance(tokens.get("--brand")!)).toBeLessThanOrEqual(0.18);
   });

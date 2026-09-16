@@ -405,6 +405,49 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
           root: { height: 36, [phone]: { height: 52 } },
         },
       },
+      // Sidebar shell (D2 pair 12, #829). `Drawer`'s paper defaults to
+      // `background.paper`; DIRECTION.md's confirmed nav rail is `--lavender`
+      // tinted paper with `--stat-accent` text, not the aubergine `--brand`
+      // slab `.sidebar` painted before this slice — brand appears in exactly
+      // four places now (farm name, active nav item, primary button, focus
+      // ring), and this is the rail's share of that.
+      MuiDrawer: {
+        styleOverrides: {
+          paper: {
+            backgroundColor: tokens["--lavender"],
+            borderRight: `1px solid ${tokens["--hairline"]}`,
+          },
+        },
+      },
+      // The group heading keeps its own CSS class (`.nav-group-label` /
+      // `.more-group-label`, styles.css — D4/#824's guard keys on those two
+      // selectors for the caps casing), so this only neutralises MUI's own
+      // subheader chrome (its sticky positioning and background) rather than
+      // fighting the class for size and colour.
+      MuiListSubheader: {
+        styleOverrides: {
+          root: {
+            position: "static",
+            backgroundColor: "transparent",
+            lineHeight: "inherit",
+          },
+        },
+      },
+      MuiListItemButton: {
+        styleOverrides: {
+          root: {
+            borderLeft: "3px solid transparent",
+            gap: 8,
+            "&.Mui-selected, &.Mui-selected:hover": {
+              backgroundColor: "transparent",
+              borderLeftColor: tokens["--stat-accent"],
+              color: tokens["--stat-accent"],
+              fontWeight: 600,
+            },
+            "&:hover": { backgroundColor: tokens["--surface-2"] },
+          },
+        },
+      },
     },
   });
 }

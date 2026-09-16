@@ -91,6 +91,25 @@ describe("AppLayout sidebar", () => {
     expect(sidebar().getByRole("link", { name: "Daily entry" })).toBeInTheDocument();
   });
 
+  // #829 (D5) — nav.test.ts pins navGroups()/tabEntries() as pure functions,
+  // but it cannot see the RENDERER: a Drawer+List that dropped a group or
+  // rendered only tabEntries would leave that model-level suite green. This
+  // is the counter-check on the rendered DOM, one per role that changes the
+  // count (Admin has the most groups/links; ReadOnly the fewest).
+  it("renders every group and link the nav model builds for Admin — 7 groups, 20 links", () => {
+    renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    expect(nav.querySelectorAll(".nav-group-label")).toHaveLength(7);
+    expect(within(nav).getAllByRole("link")).toHaveLength(20);
+  });
+
+  it("renders every group and link the nav model builds for ReadOnly — 5 groups, 6 links", () => {
+    renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "ReadOnly" } });
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    expect(nav.querySelectorAll(".nav-group-label")).toHaveLength(5);
+    expect(within(nav).getAllByRole("link")).toHaveLength(6);
+  });
+
   it("hides production + admin destinations from a ReadOnly role", () => {
     renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "ReadOnly" } });
     expect(sidebar().getByRole("link", { name: "Stock" })).toBeInTheDocument();

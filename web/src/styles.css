@@ -405,11 +405,6 @@ button.link:hover:not(:disabled) {
   outline-offset: 2px;
 }
 
-/* An aubergine ring is invisible on the aubergine sidebar — use a light one. */
-.sidebar :focus-visible {
-  outline-color: var(--on-brand);
-}
-
 /* Error-boundary fallback (#140). Reads like a page, in both themes: the
    screen-scope version sits inside the content pane with the shell around it;
    the app-scope version is the whole page, so it carries its own gutters. */
@@ -1341,42 +1336,27 @@ tr.discounted .badge-warn {
 
 .meter.is-warn > span { background: var(--warn); }
 
-/* ------------------------------------------------------- Sidebar shell */
-.shell {
-  display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
-  min-height: 100dvh;
-}
-
-.sidebar {
-  background: var(--brand);
-  color: var(--on-brand);
-  display: flex;
-  flex-direction: column;
-  padding: 1.5rem 0 1rem;
-  position: sticky;
-  top: 0;
-  height: 100dvh;
-  overflow-y: auto;
-}
-
+/* --------------------------------------------------- Shell branding (#829)
+   The sidebar and bottom-nav rule families that used to live here (`.shell`,
+   `.sidebar`, `.tabbar`, `.tab`) are gone: the sidebar is a permanent MUI
+   `Drawer` and the tab bar a `BottomNavigation`, both themed in
+   FarmThemeProvider.tsx (MuiDrawer/MuiListItemButton/MuiBottomNavigation*).
+   What survives is `FarmBrand` (kept as a component, D2 pair 21-adjacent —
+   it is not one of the 21 rows but the same "no MUI equivalent, stays as
+   is" reasoning applies) and the two group-label classes the caps guard
+   (`styles.caps.test.ts`) keys on. */
 .brand {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--on-brand);
-  padding: 0 1.5rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--stat-accent);
+  padding: 0 1.5rem;
 }
 
-.brand-mark {
-  color: var(--on-brand-mute);
-}
-
-/* The farm's own logo in the branding slot (#123). On a white plate because
-   the sidebar is aubergine and a dark logo would otherwise disappear into it.
+/* The farm's own logo in the branding slot (#123). On a white plate so a
+   dark logo stays legible on any farm palette, light or lavender-tinted.
    `contain` stops a non-square logo being CROPPED — but on the fixed 26x26
    square this used to be, contain is what collapsed a wide wordmark into a
    sliver: it kept the aspect ratio and gave up the height (#179).
@@ -1404,140 +1384,14 @@ tr.discounted .badge-warn {
   white-space: nowrap;
 }
 
-.nav-group {
-  padding: 0.35rem 0;
-}
-
 .nav-group-label {
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.11em;
   text-transform: uppercase;
-  color: var(--on-brand-mute);
+  color: var(--muted);
   padding: 0 1.5rem;
   margin: 0.6rem 0 0.3rem;
-}
-
-.sidebar nav {
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar nav a {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  color: var(--on-brand-mute);
-  text-decoration: none;
-  padding: 0.5rem 1.5rem;
-  font-size: 0.94rem;
-  font-weight: 500;
-  border-left: 3px solid transparent;
-  transition: background 0.12s ease, color 0.12s ease;
-}
-
-.sidebar nav a svg {
-  flex: 0 0 auto;
-  opacity: 0.8;
-}
-
-.sidebar nav a:hover {
-  color: var(--on-brand);
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.sidebar nav a:hover svg { opacity: 1; }
-
-.sidebar nav a.active {
-  color: var(--on-brand);
-  background: rgba(255, 255, 255, 0.11);
-  border-left-color: var(--on-brand-mute);
-  font-weight: 600;
-}
-
-.sidebar nav a.active svg { opacity: 1; }
-
-.sidebar-foot {
-  margin-top: auto;
-  padding: 0.75rem 1.25rem 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Foot buttons sit on aubergine — override the blue .link treatment */
-.sidebar button.link {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  color: var(--on-brand-mute);
-  padding: 0.5rem 0.25rem;
-  font-size: 0.9rem;
-}
-
-.sidebar button.link:hover:not(:disabled) {
-  color: var(--on-brand);
-  text-decoration: none;
-}
-
-.sidebar-version {
-  margin: 0.35rem 0 0.6rem;
-  padding: 0 0.25rem;
-  font-size: 0.75rem;
-  color: var(--on-brand-mute);
-  opacity: 0.7;
-}
-
-/* -------------------------------------------- Bottom nav (mobile) */
-
-/* The tab bar and its More sheet own navigation below 900px; the sidebar owns
-   it above. Hidden here so both can live in the DOM at once — CSS, not JS,
-   decides which is active, so there is no flash and no media-query listener. */
-.tabbar {
-  display: none;
-}
-
-@media (max-width: 900px) {
-  .tabbar {
-    display: grid;
-    grid-auto-columns: 1fr;
-    grid-auto-flow: column;
-    position: fixed;
-    inset: auto 0 0 0;
-    z-index: 20; /* over the page + the entry footer (10), under the dialog (50) */
-    background: var(--surface);
-    border-top: 1px solid var(--hairline);
-    box-shadow: var(--shadow-bar);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  .tab {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.15rem;
-    /* Clears the 44px touch target the rest of the app now holds to. */
-    min-height: 3.4rem;
-    padding: 0.4rem 0.25rem;
-    background: none;
-    border: none;
-    border-radius: 0;
-    color: var(--muted);
-    font-size: 0.66rem;
-    font-weight: 600;
-    letter-spacing: 0;
-    text-decoration: none;
-  }
-
-  .tab svg { opacity: 0.85; }
-
-  .tab.active {
-    color: var(--stat-accent);
-  }
-
-  .tab.active svg { opacity: 1; }
 }
 
 /* The More sheet reuses the Dialog shell, so these only style its contents. */
@@ -2825,14 +2679,6 @@ dl.glossary {
 
 /* ------------------------------------------------ Responsive (#49 kept) */
 @media (max-width: 900px) {
-  /* minmax(0, …), not plain 1fr: a bare `1fr` track floors at the item's
-     min-content, and the wrapping nav bar's is wider than a phone — the whole
-     page rendered ~510px wide on a 390px screen, pushing each screen's
-     "New …" button under the nav where it could not be tapped. */
-  .shell {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   /* Reserve the real bar height so the sticky footers clear it and the page can
      scroll its last row out from under it. Must sit on a selector, not bare in
      the @media — a loose custom-property declaration is invalid and the parser
@@ -2844,11 +2690,9 @@ dl.glossary {
     --tabbar-h: calc(3.6rem + env(safe-area-inset-bottom));
   }
 
-  /* The sidebar gives way to the bottom tab bar (BottomNav). It used to become
-     a wrapping top bar that cost ~298px — a third of the screen. */
-  .sidebar {
-    display: none;
-  }
+  /* The Drawer (sidebar) and BottomNavigation (tab bar) are hidden/shown by
+     the theme's own `md` breakpoint (`sx={{ display: { xs: …, md: … } }}` in
+     AppLayout.tsx/BottomNav.tsx) — no CSS rule needed here for either. */
 
   .content {
     /* Exactly the tab bar below the content (the token already carries the
@@ -2910,10 +2754,11 @@ dl.glossary {
   }
 
   .help-layout {
-    /* minmax(0, …), not bare 1fr — same #441 grid-blowout shape as .shell's
-       own fix above: a bare 1fr track floors at .help-toc's wrapping nav's
-       min-content, not 0, and that nav's own flex-wrap row is wide enough
-       (many TOC entries) to blow the whole page out past the viewport. */
+    /* minmax(0, …), not bare 1fr — same #441 grid-blowout shape the old
+       `.shell` fix guarded against: a bare 1fr track floors at .help-toc's
+       wrapping nav's min-content, not 0, and that nav's own flex-wrap row is
+       wide enough (many TOC entries) to blow the whole page out past the
+       viewport. */
     grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
   }

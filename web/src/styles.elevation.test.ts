@@ -164,14 +164,21 @@ function declarationsForAt(selector: string, mediaParams: string | undefined): M
   return decls;
 }
 
-// Everything allowed to cast a shadow, and why. Six floats plus one ring.
+// Everything allowed to cast a shadow, and why. Five floats plus one ring.
+//
+// `.tabbar` retired here in #829: the mobile tab bar is now MUI
+// `BottomNavigation`, themed with `boxShadow: "none"` (variant B, "ruled" —
+// a hairline top rule instead of a shadow, owner pick 2026-09-16). Its
+// successor assertion, "gives the tab bar no shadow and a hairline top rule
+// instead (variant B)" in `web/src/theme/farmTheme.policy.test.ts`, already
+// landed with #864's theme overrides — #829 needs no new row, only this
+// retirement.
 const SHADOW_ALLOWED = [
   ".auth .card",            // the sign-in card, floating on the auth gradient
   ".dialog",                // a modal, over its backdrop
   ".entry-foot",            // the Daily entry sticky action bar
   ".glossary-entry:target", // not elevation: a spread-only deep-link halo
   ".named-picker-listbox",  // the picker popover, over the form beneath it
-  ".tabbar",                // the mobile tab bar
   ".update-banner",         // the service-worker update prompt
 ].sort();
 
