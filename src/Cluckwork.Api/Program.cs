@@ -582,6 +582,7 @@ app.Map("/health/{**rest}", () => Results.Problem(
 // no-cache: a new deploy propagates immediately even through a fronting CDN,
 // and a missing /assets/x can never be pinned immutable.
 if (spaShell is not null)
+{
     // GET/HEAD only (#874 review, local Codex pass): the StaticFileMiddleware +
     // MapFallbackToFile pair this replaced served only GET/HEAD (the former
     // skips other methods outright, the latter carries its own GET/HEAD
@@ -589,8 +590,13 @@ if (spaShell is not null)
     // which answers 405 with "Allow: GET, HEAD" for e.g. POST / or DELETE
     // /index.html. Without this metadata spaShell.WriteAsync has no method
     // restriction of its own and those same requests get a 200 HTML shell.
-    app.MapFallback(spaShell.WriteAsync)
+    // A named local function rather than the method group: the #872 adapter-reach
+    // walk resolves a handler through its declaring type, and a method group on
+    // a local variable has none it can see.
+    Task WriteSpaShell(HttpContext context) => spaShell.WriteAsync(context);
+    app.MapFallback(WriteSpaShell)
         .WithMetadata(new HttpMethodMetadata([HttpMethods.Get, HttpMethods.Head]));
+}
 else
     app.MapFallbackToFile("index.html", new StaticFileOptions
     {
