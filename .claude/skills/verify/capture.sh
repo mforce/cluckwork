@@ -14,9 +14,11 @@ prefix="${4:-after}"
 # The four arguments are interpolated into a generated spec and a /tmp path, so
 # each is held to a literal alphabet: no quotes, no braces, no path separators
 # in the names, and the route is an absolute app path with a query at most.
-[[ "$slug" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "slug must match [A-Za-z0-9._-]+" >&2; exit 2; }
-[[ "$prefix" =~ ^[A-Za-z0-9_-]+$ ]] || { echo "prefix must match [A-Za-z0-9_-]+" >&2; exit 2; }
-[[ "$route" =~ ^/[A-Za-z0-9._/?=&-]*$ ]] || { echo "route must be an absolute app path like /daily-entry" >&2; exit 2; }
+name_re='^[A-Za-z0-9._-]+$'
+route_re='^/[A-Za-z0-9._/?=&-]*$'
+[[ "$slug" =~ $name_re ]] || { echo "slug must match $name_re" >&2; exit 2; }
+[[ "$prefix" =~ $name_re ]] || { echo "prefix must match $name_re" >&2; exit 2; }
+[[ "$route" =~ $route_re ]] || { echo "route must be an absolute app path like /daily-entry" >&2; exit 2; }
 
 root="$(git rev-parse --show-toplevel)"
 ui="$root/tools/simulation/ui"
