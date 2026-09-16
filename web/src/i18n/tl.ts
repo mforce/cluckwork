@@ -609,9 +609,16 @@ export const tl = {
 
     // Katayuan ng pagtatala (#654)
     todayPanelTitle: "Ngayon",
+    todayInCount: "{{in}} sa {{total}} bahay-manukan ang naitala",
     noFlocksMessage: "Wala pang kawan — gumawa ng isa sa page na Araw-araw na Tala.",
     noEntryBadge: "Walang tala",
     todayEggsTotal: "{{total}} itlog ngayon",
+    yesterdayByClose: "Kahapon sa pagsara: {{total}}",
+    recordHouseAction: "Itala ang {{flock}}",
+    continueHouseAction: "Ituloy ang {{flock}}",
+    attentionHouseNotRecorded: "Hindi pa naitala ang {{flock}}",
+    attentionMore_one: "+{{count}} pa",
+    attentionMore_other: "+{{count}} pa",
     tileLinkLabel: "{{flock}}: buksan ang tala ngayong araw",
     tileLinkLabelMissing: "{{flock}}: wala pang tala, buksan ang tala ngayong araw",
     recordTodayHint: "Itala ngayon",

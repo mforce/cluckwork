@@ -584,9 +584,16 @@ export const es = {
 
     // Estado de captura (#654)
     todayPanelTitle: "Hoy",
+    todayInCount: "{{in}} de {{total}} casetas registradas",
     noFlocksMessage: "Aún no hay lotes — cree uno en la página de Registro diario.",
     noEntryBadge: "Sin registro",
     todayEggsTotal: "{{total}} huevos hoy",
+    yesterdayByClose: "Ayer al cierre: {{total}}",
+    recordHouseAction: "Registrar {{flock}}",
+    continueHouseAction: "Continuar {{flock}}",
+    attentionHouseNotRecorded: "{{flock}} sin registrar",
+    attentionMore_one: "+{{count}} más",
+    attentionMore_other: "+{{count}} más",
     tileLinkLabel: "{{flock}}: abrir el registro de hoy",
     tileLinkLabelMissing: "{{flock}}: sin registro todavía, abrir el registro de hoy",
     recordTodayHint: "Registrar hoy",

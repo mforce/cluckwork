@@ -1577,111 +1577,21 @@ label.check {
 }
 
 /* ------------------------------------------------------ Cards & panels */
+/* #829 — `.panel`, `.dash-grid`, `.panel-wide` and the Dashboard's own
+   capture-status tile grid (`.capture-*`) are gone with the Dashboard.tsx
+   rewrite: the ruled Today list is `sx`-laid-out MUI, not a card grid.
+   `.card` and `.order-panel` stay — Login and the drill-down panels (#831 to
+   #833) still convert to MUI later. */
 .card,
-.panel,
 .order-panel {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r-panel);
-}
-
-.panel {
-  padding: 1.5rem;
-  flex: 1 1 18rem;
-}
-
-.panel h3 {
-  margin: 0 0 0.5rem;
-}
-
-.panel h3 a {
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.panel h3 a:hover {
-  color: var(--stat-accent);
-  text-decoration: none;
-}
-
-.panel table.data {
-  min-width: 0;
 }
 
 .order-panel {
   padding: 1.5rem 1.75rem;
   margin: 1.25rem 0;
-}
-
-.dash-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.25rem;
-  align-items: flex-start;
-}
-
-.panel-wide {
-  flex-basis: 100%;
-}
-
-/* ------------------------------------------ Capture status (#654) */
-/* One tile per active flock, missing first, at most 12; a tile is a link to
-   that flock's day. Border only, no shadow (#651's direction), no caps
-   (#652's), no motion. */
-.capture-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: 0.75rem;
-}
-
-.capture-tile {
-  display: block;
-  color: inherit;
-  text-decoration: none;
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-panel);
-  padding: 0.9rem 1rem;
-}
-
-.capture-tile:hover {
-  border-color: var(--stat-accent);
-}
-
-/* The alarm state — a house with no entry yet is the loudest thing on the screen. */
-.capture-tile.is-missing {
-  background: var(--tint-warn);
-  border-color: var(--warn);
-}
-
-.capture-tile-name {
-  font-weight: 600;
-}
-
-.capture-tile-eggs {
-  margin: 0.35rem 0 0.5rem;
-  font-size: 1.9rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  color: var(--stat-accent);
-}
-
-/* A house with no entry has no figure to show. The dash marks the slot without
-   competing with the real counts on the tiles beside it — at the full figure
-   size it reads as a loading skeleton rather than as an absence. */
-.capture-tile.is-missing .capture-tile-eggs {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-/* Past the cap: "N more flocks", a quiet link under the grid. */
-.capture-more {
-  display: inline-block;
-  margin-top: 0.6rem;
-  color: var(--muted);
 }
 
 /* ------------------------------------- Last 14 days (#654, #777) */
@@ -2005,144 +1915,44 @@ label.check {
    The wheel opens blue, violet, green on purpose — brick, ochre, green at the
    first three positions made a farm's Small, Medium, Large read as a
    red/amber/green ramp, the interface saying Small is bad. */
-.meter-stack > span.grade-1, .stock-ledger .swatch.grade-1 { background: var(--grade-1); }
-.meter-stack > span.grade-2, .stock-ledger .swatch.grade-2 { background: var(--grade-2); }
-.meter-stack > span.grade-3, .stock-ledger .swatch.grade-3 { background: var(--grade-3); }
-.meter-stack > span.grade-4, .stock-ledger .swatch.grade-4 { background: var(--grade-4); }
-.meter-stack > span.grade-5, .stock-ledger .swatch.grade-5 { background: var(--grade-5); }
-.meter-stack > span.grade-6, .stock-ledger .swatch.grade-6 { background: var(--grade-6); }
-.meter-stack > span.grade-7, .stock-ledger .swatch.grade-7 { background: var(--grade-7); }
-.meter-stack > span.grade-8, .stock-ledger .swatch.grade-8 { background: var(--grade-8); }
+.meter-stack > span.grade-1, .swatch.grade-1 { background: var(--grade-1); }
+.meter-stack > span.grade-2, .swatch.grade-2 { background: var(--grade-2); }
+.meter-stack > span.grade-3, .swatch.grade-3 { background: var(--grade-3); }
+.meter-stack > span.grade-4, .swatch.grade-4 { background: var(--grade-4); }
+.meter-stack > span.grade-5, .swatch.grade-5 { background: var(--grade-5); }
+.meter-stack > span.grade-6, .swatch.grade-6 { background: var(--grade-6); }
+.meter-stack > span.grade-7, .swatch.grade-7 { background: var(--grade-7); }
+.meter-stack > span.grade-8, .swatch.grade-8 { background: var(--grade-8); }
 
-/* The bar's text of record: swatch, name, count and share per grade. Wraps
-   into as many columns as the panel affords. No row rules — the four columns
-   align on their own, and ruling them broke into a ragged line at the gap. */
-.stock-ledger {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: 0.05rem 1.25rem;
-  font-size: 0.8125rem;
-}
-
-.stock-ledger li {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) max-content max-content;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.22rem 0;
-}
-
-.stock-ledger .swatch {
+/* #829 — the grade swatch's own size; it used to be scoped under the
+   `.stock-ledger` list, which is gone (the ledger is now `sx`-laid-out). */
+.swatch {
+  display: inline-block;
   width: 0.6rem;
   height: 0.6rem;
   border-radius: 2px;
 }
 
-.stock-ledger .name {
+/* #829 — `.num`'s tabular figures and `.cust`'s truncation, unscoped: both
+   used to be `.dash-list`-prefixed and the list itself is gone (Recent
+   sales is now an `sx`-laid-out row, D2 pair 14). Deliberately narrow —
+   only what the removed rules carried, not `table.data td.num`'s
+   right-alignment, which stays scoped to real tables (#831 to #833). */
+.num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cust {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.stock-ledger .count {
-  font-variant-numeric: tabular-nums;
-}
-
-.stock-ledger .share {
-  min-width: 2.6rem;
-  text-align: right;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ---------------------------------- Recent sales list (#654, #777) */
-/* Four real columns, aligned DOWN the list rather than per row: the tracks are
-   sized on the <ul> and each <li> is a subgrid of it. Before #777 the row was
-   a plain flex line with `margin-left: auto` on the amount, so the amount was
-   the only thing that formed a column.
-   No track is sized in pixels or from an English string — the badge and amount
-   tracks are `max-content`, so they measure whatever the farm's locale renders
-   (#688: `tl` runs about 30% longer than `en` here). */
-.dash-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  /* The reference track is `minmax(0, max-content)` rather than bare
-     `max-content` so it can yield; the name gets a real floor rather than
-     `minmax(0, 1fr)`, which let the three intrinsic tracks squeeze it to zero
-     width and render a link with nothing visible in it. */
-  grid-template-columns: minmax(0, max-content) minmax(7rem, 1fr) max-content max-content;
-  column-gap: 0.75rem;
-}
-
-.dash-list li {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-  align-items: center;
-  padding: 0.45rem 0;
-  border-top: 1px solid var(--hairline);
-}
-
-/* A reference number is one identifier. Breaking it after the hyphen makes it
-   harder to match against the Sales page and makes the row two lines tall.
-   It still needs the same clip the name has: with nowrap alone a long reference
-   beside a seven-figure total overran the amount at a 280px panel. */
-.dash-list .ref {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Truncated, not wrapped: rows stay one line so the four columns scan, and the
-   clip is visual only — the link's accessible name is still the whole name,
-   and following it lands on Sales filtered to that customer. */
-.dash-list .cust {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dash-list .num {
-  text-align: right;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-/* The PANEL's width decides, not the viewport's. A viewport query was the
-   first answer and it was wrong: a narrow panel on a wide screen still got
-   four tracks and the name column collapsed to nothing. Scoped with :has() so
-   no other panel becomes a container. */
-.panel:has(.dash-list) {
-  container-type: inline-size;
-  container-name: dashpanel;
-}
-
-/* Too narrow for four columns: reference and amount, then customer and status.
-   32rem, not the 26rem this first shipped with: the three intrinsic tracks plus
-   the gaps need about 356px, so at a 418px panel the name was measured at 62px
-   in `en` and 45px in `tl` — about six characters of a customer name, which is
-   the collapse the rule above exists to prevent. `tl` is worse precisely
-   because the badge track is `max-content` and its labels run longer, so the
-   threshold is set for the widest locale rather than the one on screen. */
-@container dashpanel (max-width: 32rem) {
-  .dash-list {
-    grid-template-columns: minmax(0, 1fr) max-content;
-  }
-
-  .dash-list li {
-    row-gap: 0.15rem;
-  }
-
-  .dash-list .ref { grid-column: 1; grid-row: 1; }
-  .dash-list .num { grid-column: 2; grid-row: 1; }
-  .dash-list .cust { grid-column: 1; grid-row: 2; }
-  .dash-list .badge { grid-column: 2; grid-row: 2; justify-self: end; }
-}
+/* #829 — the grade ledger (`.stock-ledger`) and the recent-sales list
+   (`.dash-list`), including the panel-width container query the latter
+   used, are gone: both are `sx`-laid-out MUI rows now (D2 pairs 14/21-
+   adjacent), and `.swatch`/`.num`/`.cust` above carry what they still need. */
 
 /* --------------------------------------------- Login — the hero moment */
 .auth {
@@ -2831,11 +2641,6 @@ dl.glossary {
 
   .glossary-entry {
     scroll-margin-top: 6.5rem; /* rail + heading */
-  }
-
-  .panel {
-    min-width: 0;
-    flex: 1 1 100%;
   }
 
   .form-grid label {

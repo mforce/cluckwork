@@ -757,10 +757,30 @@ export const en = {
     // bespoke warn badge, not a StatusBadge — is the loudest thing on the
     // screen and links straight to Daily entry for that flock and day.
     todayPanelTitle: "Today",
+    // "3 of 4 houses in" — the section-head caption (DIRECTION.md, #829).
+    todayInCount: "{{in}} of {{total}} houses in",
     noFlocksMessage: "No flocks yet — create one on the Daily entry page.",
     noEntryBadge: "No entry",
     // {{total}} is the farm-locale formatted figure (#650).
     todayEggsTotal: "{{total}} eggs today",
+    // Owner amendment on #864 (2026-09-16): a reference under the running
+    // total, sourced from the 14-day strip's own last (yesterday) slot —
+    // never a second fetch, and only rendered when that day is complete.
+    yesterdayByClose: "Yesterday by close: {{total}}",
+    // The single filled button on the desktop screen (#829, amending
+    // DIRECTION.md's "ruled text at 1280" for exactly this one row) and the
+    // 48px full-width phone action for the missing house.
+    recordHouseAction: "Record {{flock}}",
+    // Ruled-text row action for a Draft entry — one already started, not
+    // finished. Missing (`recordHouseAction`) and Draft are the only two
+    // entry states that carry a row action; a submitted/locked/voided entry
+    // has none, only its name links through.
+    continueHouseAction: "Continue {{flock}}",
+    // The attention line (#829/#864): one line, missing houses only, folding
+    // into a count past ATTENTION_SHOWN. {{flock}} is the house's own name.
+    attentionHouseNotRecorded: "{{flock}} not recorded",
+    attentionMore_one: "+{{count}} more",
+    attentionMore_other: "+{{count}} more",
     // aria-label of a tile link; the visible tile shows name, eggs and status.
     tileLinkLabel: "{{flock}}: open today's entry",
     // The missing state has to be IN the accessible name: `aria-label` replaces
