@@ -121,11 +121,11 @@ Proof standards, in order of how often they are skipped:
 `capture.sh` does 4 and writes the files for 5:
 
 ```sh
-.claude/skills/verify/capture.sh <slug> [route] [farm] [prefix]
+tools/verify/capture.sh <slug> [route] [farm] [prefix]
 # examples
-.claude/skills/verify/capture.sh 883-after /            readme          # Dashboard, four frames
-.claude/skills/verify/capture.sh 888-after /daily-entry readme
-.claude/skills/verify/capture.sh 888      /daily-entry readme before   # on a stack built from main
+tools/verify/capture.sh 883-after /            readme          # Dashboard, four frames
+tools/verify/capture.sh 888-after /daily-entry readme
+tools/verify/capture.sh 888      /daily-entry readme before   # on a stack built from main
 ```
 
 It signs in as the named farm's owner, sets the theme through `data-theme`, captures the

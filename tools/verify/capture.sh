@@ -3,7 +3,7 @@
 # 1280x800 and 390x844, light and dark, into /tmp/<slug>/after-<w>-<theme>.png.
 # Reads the stack; never resets it. Signs in as the farm's owner from .sim-cast.json.
 #
-#   .claude/skills/verify/capture.sh <slug> [route=/] [farm=readme|default] [prefix=after]
+#   tools/verify/capture.sh <slug> [route=/] [farm=readme|default] [prefix=after]
 set -euo pipefail
 
 slug="${1:?slug, e.g. 883-after}"
