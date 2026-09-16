@@ -1,14 +1,19 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
+import {
+  Dialog as MuiDialog, DialogTitle, DialogContent, IconButton, useMediaQuery,
+} from "@mui/material";
+import { MD_UP_QUERY } from "../lib/breakpoints";
 
 // Everything the browser lets you tab to, minus the things that only LOOK
 // focusable: hidden inputs, [hidden]/aria-hidden nodes, and anything parked at
-// tabindex="-1". Including those would break the trap at both ends — a hidden
-// first field swallows the initial focus, and a hidden last field stops being
-// the boundary, letting Tab escape to the page behind.
+// tabindex="-1". MUI's own FocusTrap lands initial focus on the PANEL (it
+// looks for an element it marked itself via its own focusable-target
+// attribute, which is the Paper, never the first field), so this list is
+// still what decides the ONE thing MUI does not: which control the dialog
+// exists to be filled in gets the cursor first.
 //
 // Visibility is deliberately NOT probed via offsetParent/getClientRects: jsdom
 // reports every element as unrendered, which would empty the trap in tests.
@@ -48,13 +53,23 @@ interface DialogProps {
    * completion is discarded by the (correctly) bumped generation, leaving the
    * reopened dialog showing stale data no amount of retrying fixes until it
    * is closed and reopened again post-settle (#609 review).
+   *
+   * MUI 9.4.0 ships no `disableEscapeKeyDown` (removed from `Modal` — checked
+   * directly against the installed package: zero matches for the prop name
+   * anywhere under `node_modules/@mui/material`, in both the implementation
+   * and its `.d.ts`). `onClose` below is what closes that gap instead: Modal
+   * calls it with `reason: "escapeKeyDown"` for the topmost dialog exactly
+   * like it does for a backdrop click, so gating there suppresses both paths
+   * with the one handler, and #609 rests on that plus the disabled button.
    */
   closeDisabled?: boolean;
   /**
    * Identifies WHAT the dialog is editing. When it changes while the dialog
    * stays open — a 409 rebind swaps in the server's newer record — focus moves
    * back to the first field, because the form under the user's cursor is not
-   * the one they were filling in any more.
+   * the one they were filling in any more. MUI's own auto-focus only runs on
+   * the dialog's OWN open transition, never on a later prop change, so this
+   * stays a explicit effect.
    */
   focusKey?: unknown;
   /**
@@ -68,47 +83,25 @@ interface DialogProps {
    * Widens the panel past the default single-column form width. For a dialog
    * whose content is itself a two-pane layout — History's adjust form mirrors
    * Daily entry's side-by-side steps — the narrow panel would fold the two
-   * panes into one column on a desktop that has room for both. Undone at
-   * ≤900px, where the panel is a full-width sheet: by an explicit
-   * `.dialog.wide` rule inside that media query, NOT by the sheet's own
-   * `.dialog` reset, which this modifier outranks.
+   * panes into one column on a desktop that has room for both.
+   *
+   * Applied as an explicit `sx` cap (30rem / 52rem, this app's existing
+   * numbers) rather than MUI's own `maxWidth` breakpoint enum: `sm` (600px)
+   * and `md` (900px) are not close enough to the shipped 480px/832px to
+   * reuse without a visual regression nobody asked for, and no design record
+   * names new numbers. Suppressed at phone width in favour of `fullScreen`
+   * below, which needs the full 100% MUI's own fullScreen variant sets.
    */
   wide?: boolean;
+  /**
+   * Whether this dialog goes `fullScreen` below 900px (D2 pair 2, D3.3): true
+   * for every form dialog, false for a confirmation, which stays a centred
+   * dialog at any width. `useConfirm.tsx` is the only caller that passes
+   * `false`; the phone More menu (`BottomNav.tsx`) takes the default, same as
+   * every route's form dialog.
+   */
+  fullScreenOnPhone?: boolean;
   children: ReactNode;
-}
-
-// #482 — the page has one scrollbar and one accessibility tree, so the state
-// that belongs to the PAGE lives here, once, not once per instance. Every
-// instance used to snapshot and restore `body.style.overflow` on its own:
-// closing two dialogs in first-opened-first order unlocked the page while one
-// was still up, then re-locked it permanently — a page that never scrolls
-// again with nothing open, reachable by a single Escape (which every instance
-// answered). The stack is in open order, so the last entry is the topmost.
-const openStack: HTMLElement[] = [];
-let overflowBeforeAnyDialog: string | null = null;
-
-// Everything except the topmost dialog is inert: the page behind it, and any
-// dialog underneath it. `aria-modal` is a hint some ATs honour, not
-// containment — without this, every control behind the backdrop stays
-// focusable and activatable by a virtual cursor, which is how a second dialog
-// came to be open at all (#480).
-function syncModalBackground() {
-  const top = openStack[openStack.length - 1] ?? null;
-  for (const child of Array.from(document.body.children)) {
-    if (!(child instanceof HTMLElement)) continue;
-    if (top !== null && child !== top) child.setAttribute("inert", "");
-    else child.removeAttribute("inert");
-  }
-}
-
-function pushModal(backdrop: HTMLElement) {
-  // Snapshotted once, by the first dialog to open, and restored by the last to
-  // close — never per instance.
-  if (openStack.length === 0) overflowBeforeAnyDialog = document.body.style.overflow;
-  openStack.push(backdrop);
-  document.body.style.overflow = "hidden";
-  syncModalBackground();
-  scheduleModalStateNotify();
 }
 
 // #485 — everything outside the topmost dialog is inert, so it is out of the
@@ -117,11 +110,22 @@ function pushModal(backdrop: HTMLElement) {
 // to be told when the page belongs to it again. Subscribers are handed "is
 // any dialog open", not "a dialog just closed": the settled state is the
 // useful signal, and it is the one that survives the sequences below.
+//
+// #480 (background out of the accessibility tree) and #482 (scroll lock
+// across stacked dialogs, one Escape closes one) are now MUI's own job —
+// `Modal`'s `ModalManager` tracks a real stack of open instances, marks every
+// sibling but the topmost `aria-hidden`, and locks/restores
+// `document.body.style.overflow` once per stack rather than once per
+// instance, which is exactly the #482 defect this file used to hand-roll a
+// fix for. So the open STACK this file used to keep (an ordered array of
+// backdrop elements) is gone; what is left is a plain counter, fed by the two
+// transition callbacks `Modal` already exposes for exactly this.
+let openCount = 0;
 const modalStateListeners = new Set<(anyDialogOpen: boolean) => void>();
 let notifyScheduled = false;
 
 export function anyDialogOpen(): boolean {
-  return openStack.length > 0;
+  return openCount > 0;
 }
 
 export function onModalStateChange(
@@ -131,20 +135,21 @@ export function onModalStateChange(
   return () => modalStateListeners.delete(listener);
 }
 
-// Deferred on purpose, rather than fired inline from push/popModal, for one
-// reason that is load-bearing and one that is housekeeping.
+// Deferred on purpose, rather than fired inline from the transition
+// callbacks, for one reason that is load-bearing and one that is
+// housekeeping.
 //
-// Load-bearing: push/popModal run from Dialog's own effect, and a subscriber
-// mounted BELOW the dialog in the tree has not run its own effect yet at that
-// point — an inline call would reach nobody, and the subscriber would keep an
-// initial value it read before the dialog existed. A microtask runs once every
-// effect in the commit has, so whoever is listening by then hears the truth.
+// Load-bearing: a subscriber mounted BELOW the dialog in the tree has not run
+// its own effect yet at the point `onTransitionEnter`/`onTransitionExited`
+// fire — an inline call would reach nobody, and the subscriber would keep an
+// initial value it read before the dialog existed. A microtask runs once
+// every effect in the commit has, so whoever is listening by then hears the
+// truth.
 //
 // Housekeeping: a commit that swaps dialog A for dialog B pops to empty and
-// pushes straight back, and StrictMode's dev-mode replay does setup ->
-// cleanup -> setup on every first open. Coalescing collapses each of those
-// into the single question worth asking — what is true now? Subscribers are
-// expected to be idempotent regardless, so this is cheapness, not correctness.
+// pushes straight back. Coalescing collapses each of those into the single
+// question worth asking — what is true now? Subscribers are expected to be
+// idempotent regardless, so this is cheapness, not correctness.
 function scheduleModalStateNotify() {
   if (notifyScheduled) return;
   notifyScheduled = true;
@@ -155,184 +160,246 @@ function scheduleModalStateNotify() {
   });
 }
 
-function popModal(backdrop: HTMLElement) {
-  const at = openStack.indexOf(backdrop);
-  if (at !== -1) openStack.splice(at, 1);
-  if (openStack.length === 0 && overflowBeforeAnyDialog !== null) {
-    document.body.style.overflow = overflowBeforeAnyDialog;
-    overflowBeforeAnyDialog = null;
-  }
-  syncModalBackground();
+function bumpOpenCount(delta: 1 | -1) {
+  openCount += delta;
   scheduleModalStateNotify();
 }
 
-// F131: the shared modal shell. Add/edit forms used to sit inline above (or
-// inside) the list they mutate, shoving the data around on every open. They now
-// live in here: the list stays put and the form gets full attention.
+// #483 — focus restoration, kept as this file's own bookkeeping rather than
+// handed to MUI. `FocusTrap` (Unstable_TrapFocus/FocusTrap.js) DOES restore
+// focus to the previously active element on close, but two things it does not
+// do broke this guarantee when tried against the rewritten test suite:
 //
-// Portalled to <body> so the backdrop covers the whole viewport regardless of
-// where it is mounted in the shell grid.
+// - It tries exactly once (`nodeToRestore.current.focus()`, no retry), so the
+//   busy-trigger case — the row's own trigger is still `disabled` for one more
+//   render when the dialog closes — silently strands focus on <body>, which
+//   is the regression #483's own review found the first time.
+// - It restores to ITS OWN prior-active-element, with no notion of a dialog
+//   stacked underneath. Closing dialog B when A is still open needs focus to
+//   land in A, not on B's own (now `aria-hidden`, and in jsdom still
+//   `.focus()`-able, which is exactly the gap #483's review closed) trigger.
+//
+// So this stays a real ordered stack of open instances — not the counter
+// above, which only ever needs to answer "is anything open" for #485 — plus a
+// captured "what had focus before this dialog opened" per instance. `panel`
+// (the whole `role="dialog"` element, head included) is what a containment
+// check ("is focus already somewhere in the dialog that stays open") has to
+// test against; `content` (the `DialogContent` node alone) is what the
+// fallback focus SEARCH has to be scoped to — searching the whole panel would
+// find the close button before anything in the form, because it sits first
+// in DOM order inside the heading.
+interface OpenPanel { panel: HTMLElement; content: HTMLElement | null }
+const openPanels: OpenPanel[] = [];
+
+// #609 review — the trigger can be gone if the save re-rendered the row that
+// owned it, and focus() is a no-op on a disabled control with no error, so a
+// naive restore silently drops focus to <body> for a row that is disabled for
+// exactly one more render after a save closes its dialog.
+function restoreFocusOnClose(
+  closed: OpenPanel | null,
+  returnFocusTo: Element | null,
+) {
+  if (closed !== null) {
+    const at = openPanels.indexOf(closed);
+    if (at !== -1) openPanels.splice(at, 1);
+  }
+
+  // If another dialog is still open, IT is what the page now shows. Check
+  // where focus actually IS, not this dialog's own (possibly irrelevant)
+  // trigger: a lower dialog can close programmatically — an unrelated effect,
+  // not the user's own click — while focus is already correctly inside the
+  // dialog on top, mid-typing (codex review of #483). Moving it from there
+  // based on THIS dialog's stale trigger would yank the cursor out from under
+  // the user. Only redirect when focus is genuinely NOT already inside the
+  // dialog that remains open.
+  const remaining = openPanels[openPanels.length - 1] ?? null;
+  if (remaining !== null) {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || !remaining.panel.contains(active)) {
+      if (!focusFirstThatTakes(focusableIn(remaining.content))) remaining.panel.focus();
+    }
+    return;
+  }
+
+  if (!(returnFocusTo instanceof HTMLElement)) return;
+  const restore = () => document.body.contains(returnFocusTo) && focusFirstThatTakes([returnFocusTo]);
+  // MUI's own FocusTrap already tried this restore once, synchronously, as
+  // part of the same close. If it landed, `document.activeElement` is
+  // already the trigger and this is a harmless no-op.
+  //
+  // If the trigger was disabled, the retry is guarded on "focus is still
+  // where this closing dialog left it" — NOT on `document.activeElement ===
+  // document.body`, which is what a pre-MUI, synchronous-close version would
+  // check and is no longer the right test: MUI's exit runs on a real
+  // transition (`closeAfterTransition`), so the closing panel stays mounted,
+  // and a failed `.focus()` leaves the OLD focus (something inside that
+  // still-mounted, about-to-vanish panel) in place rather than dropping to
+  // <body> the way an immediate unmount used to. Retrying while focus is
+  // either on <body> or still inside the panel that is closing covers both;
+  // retrying unconditionally would risk yanking focus the user has since
+  // deliberately moved elsewhere.
+  if (!restore()) {
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      const stillInClosingPanel =
+        closed !== null && active instanceof Node && closed.panel.contains(active);
+      if (active === document.body || stillInClosingPanel) restore();
+    });
+  }
+}
+
+// F131: the shared modal shell. Add/edit forms used to sit inline above (or
+// inside) the list they mutate, shoving the data around on every open. They
+// live in here so the list stays put and the form gets full attention — MUI
+// `Dialog` now supplies the portal, the backdrop, the focus trap and its
+// restore-on-close, and the background/scroll-lock stacking (#480/#482); this
+// wrapper keeps this app's own props (`closeDisabled`, `focusKey`,
+// `describedBy`, `wide`, `fullScreenOnPhone`) and the `anyDialogOpen`/
+// `onModalStateChange` pair #485 depends on.
 export function Dialog({
-  open, title, onClose, focusKey, describedBy, wide, closeDisabled, children,
+  open, title, onClose, focusKey, describedBy, wide, closeDisabled,
+  fullScreenOnPhone = true, children,
 }: DialogProps) {
   const { t } = useTranslation("common");
-  const panelRef = useRef<HTMLDivElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const returnFocusTo = useRef<Element | null>(null);
+  const isPhone = !useMediaQuery(MD_UP_QUERY);
+  const fullScreen = fullScreenOnPhone && isPhone;
 
-  // Escape/backdrop handlers read the LATEST onClose (and closeDisabled)
-  // through a ref, so the keydown listener is bound once per open instead of
-  // being torn down and re-added on every parent render (callers pass inline
-  // lambdas, and the screens re-render on every keystroke).
+  // #485 — `openCount` above is fed by `onTransitionEnter`/`onTransitionExited`,
+  // which only fire either side of a COMPLETED exit transition. An unmount
+  // that skips that transition entirely — a route change while the dialog is
+  // still open is the real one; the rewritten test suite found it by
+  // unmounting mid-test the same way — never calls `onTransitionExited`, so
+  // the increment from opening would never be paid back and `anyDialogOpen()`
+  // would read `true` for the rest of the session. `entered` tracks whether
+  // THIS instance is the one currently owed a decrement, and the unmount
+  // effect below pays it if `onTransitionExited` never got the chance to.
+  const entered = useRef(false);
+
+  // onClose (and closeDisabled) read through a ref so the handler identity
+  // handed to MUI stays stable across re-renders — callers pass inline
+  // lambdas, and the screens re-render on every keystroke.
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; });
   const closeDisabledRef = useRef(closeDisabled);
   useEffect(() => { closeDisabledRef.current = closeDisabled; });
 
-  // Remember where focus came from, and hand this dialog to the page-level
-  // bookkeeping above (scroll lock + inertness). Keyed on `open` alone: a
-  // rebind must not re-capture the trigger.
+  // Unconditional cleanup, mount-once: pays back `openCount` on unmount if
+  // this instance is still owed a decrement (see `entered` above).
+  useEffect(() => () => {
+    if (entered.current) {
+      entered.current = false;
+      bumpOpenCount(-1);
+    }
+  }, []);
+
+  // #609 — the one gate every dismissal path funnels through. MUI calls this
+  // for BOTH Escape (reason "escapeKeyDown", already scoped to the topmost
+  // dialog by Modal itself) and a backdrop click (reason "backdropClick"), so
+  // checking closeDisabled once here suppresses both; the close button below
+  // is disabled separately, because `onClose` is never invoked for a click on
+  // a disabled button in the first place.
+  const handleClose = () => {
+    if (closeDisabledRef.current) return;
+    onCloseRef.current();
+  };
+
+  // Land on the first field rather than the close button — the dialog exists
+  // to be filled in, and the heading is announced by aria-labelledby anyway.
+  // Re-run when focusKey changes so a swapped-in record gets the cursor back.
+  // MUI's own FocusTrap lands initial focus on the panel first (it is mounted
+  // deeper in the tree, so its own effect fires before this one), which this
+  // effect then overrides — except on the dialog's OWN opening render, the
+  // content this effect looks for is not reliably in the DOM yet: measured
+  // directly, `bodyRef.current` is still null on the first synchronous run of
+  // this exact effect, on this exact transition. One frame later it is
+  // populated, so the retry follows the same "try again next frame" shape the
+  // busy-trigger restore below already uses, for the same reason — a target
+  // that is not there yet is not a failure to fall back from, it is a target
+  // to wait one frame for.
+  useEffect(() => {
+    if (!open) return;
+    if (focusFirstThatTakes(focusableIn(bodyRef.current))) return;
+    const raf = requestAnimationFrame(() => {
+      focusFirstThatTakes(focusableIn(bodyRef.current));
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [open, focusKey]);
+
+  // #483 — register with the stack above and remember where focus came from,
+  // so `restoreFocusOnClose` can redirect a stacked close correctly instead
+  // of trusting MUI's own (stacking-unaware, single-attempt) restore. Keyed
+  // on `open` alone: a rebind must not re-capture the trigger.
+  //
+  // `pushed` tracks exactly what got onto `openPanels`, read fresh rather
+  // than closed over once: `panelRef.current` is not reliably populated on
+  // the SAME synchronous pass this effect runs on (the same one-frame gap
+  // `bodyRef` above works around), so the push retries next frame — and
+  // cleanup must remove the SAME reference it pushed, not re-read
+  // `panelRef.current` at close time, which could by then point at nothing
+  // (the panel is already unmounting).
   useEffect(() => {
     if (!open) return;
     returnFocusTo.current = document.activeElement;
-
-    const backdrop = backdropRef.current;
-    if (backdrop !== null) pushModal(backdrop);
-
+    let pushed: OpenPanel | null = null;
+    const push = () => {
+      if (pushed !== null) return;
+      const panel = panelRef.current;
+      if (panel === null) return;
+      pushed = { panel, content: bodyRef.current };
+      openPanels.push(pushed);
+    };
+    push();
+    const raf = pushed === null ? requestAnimationFrame(push) : null;
     return () => {
-      if (backdrop !== null) popModal(backdrop);
-      const trigger = returnFocusTo.current;
-      // If another dialog is still open, IT is what the page now shows. Check
-      // where focus actually IS, not this dialog's own (possibly irrelevant)
-      // trigger: a lower dialog can close programmatically — an unrelated
-      // effect, not the user's own click — while focus is already correctly
-      // inside the dialog on top, mid-typing (codex review of #483). Moving
-      // it from there based on THIS dialog's stale trigger would yank the
-      // cursor out from under the user. Only redirect when focus is genuinely
-      // NOT already inside the dialog that remains open — because it's on
-      // this closing dialog's own (about-to-vanish) content, or on a page
-      // element the remaining dialog has made inert, reachable the same way
-      // a screen reader's virtual cursor reached this dialog's own opener in
-      // the first place (#480).
-      const remainingTop = openStack[openStack.length - 1] ?? null;
-      if (remainingTop !== null) {
-        const active = document.activeElement;
-        if (!(active instanceof HTMLElement) || !remainingTop.contains(active)) {
-          // The BODY, not the whole panel — same reasoning as the initial-
-          // focus effect below: the panel's own DOM order puts the close
-          // button before the form fields, so querying the panel would land
-          // there instead of on the content the dialog exists to show.
-          const body = remainingTop.querySelector<HTMLElement>(".dialog-body");
-          if (!focusFirstThatTakes(focusableIn(body))) {
-            remainingTop.querySelector<HTMLElement>('[role="dialog"]')?.focus();
-          }
-        }
-        return;
-      }
-
-      // The trigger can be gone if the save re-rendered the row that owned it.
-      if (!(trigger instanceof HTMLElement)) return;
-
-      const restore = () =>
-        document.body.contains(trigger) && focusFirstThatTakes([trigger]);
-
-      // A save that closes the dialog while still `busy` leaves its row trigger
-      // disabled for one more render, and focus() does nothing to a disabled
-      // control — focus would silently land on <body>. Try again next frame,
-      // by which point the write has settled and the button is live again.
-      // Guarded on <body> so a retry can never steal focus the user has since
-      // moved somewhere else.
-      if (!restore()) {
-        requestAnimationFrame(() => {
-          if (document.activeElement === document.body) restore();
-        });
-      }
+      if (raf !== null) cancelAnimationFrame(raf);
+      restoreFocusOnClose(pushed, returnFocusTo.current);
     };
   }, [open]);
 
-  // Land on the first field rather than the close button — the dialog exists to
-  // be filled in, and the heading is announced by aria-labelledby anyway. Re-run
-  // when focusKey changes so a swapped-in record gets the cursor back.
-  useEffect(() => {
-    if (!open) return;
-    if (!focusFirstThatTakes(focusableIn(bodyRef.current))) panelRef.current?.focus();
-  }, [open, focusKey]);
-
-  // Escape closes; Tab cycles inside the panel instead of escaping to the page.
-  useEffect(() => {
-    if (!open) return;
-
-    function onKeyDown(e: KeyboardEvent) {
-      // Every open instance listens on `document`, so without this one Escape
-      // ran every handler and closed every dialog — discarding a lower form's
-      // input on a keystroke meant for the top one. The same check keeps the
-      // Tab traps from fighting: only the topmost pulls focus back (#482).
-      const backdrop = backdropRef.current;
-      if (backdrop !== null && openStack[openStack.length - 1] !== backdrop) return;
-
-      if (e.key === "Escape") {
-        if (!closeDisabledRef.current) onCloseRef.current();
-        return;
-      }
-      if (e.key !== "Tab") return;
-
-      const panel = panelRef.current;
-      if (!panel) return;
-      const items = focusableIn(panel);
-      if (items.length === 0) {
-        e.preventDefault();
-        return;
-      }
-
-      const first = items[0];
-      const last = items[items.length - 1];
-      const active = document.activeElement;
-      const outside = !panel.contains(active);
-
-      if (e.shiftKey && (active === first || outside)) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (active === last || outside)) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
-
-  const titleId = useId();
-  if (!open) return null;
-
-  return createPortal(
-    <div
-      className="dialog-backdrop"
-      ref={backdropRef}
-      // Only a click on the backdrop itself dismisses — a click that lands on
-      // the panel bubbles up here too.
-      onClick={(e) => { if (e.target === e.currentTarget && !closeDisabled) onClose(); }}
+  return (
+    <MuiDialog
+      open={open}
+      onClose={handleClose}
+      onTransitionEnter={() => { entered.current = true; bumpOpenCount(1); }}
+      onTransitionExited={() => { entered.current = false; bumpOpenCount(-1); }}
+      // `restoreFocusOnClose` above is a full replacement for MUI's own
+      // restore, not a supplement — measured directly against the rewritten
+      // stacked-dialog tests, running BOTH produced a real conflict: closing
+      // dialog A while B stays open (with focus deliberately left mid-typing
+      // in B) let MUI's OWN focus-trap `contain()` listener for B (every
+      // FocusTrap listens for `focusin` on the whole document) react to
+      // whatever transient blur A's close caused and yank focus to B's PANEL
+      // ROOT instead of leaving it on the field the user was in — exactly the
+      // guarantee #483's own adversarial review is named for. Disabling MUI's
+      // restore removes the second, uncoordinated actor; this file's own
+      // stacking-aware logic is the only one left.
+      disableRestoreFocus
+      fullScreen={fullScreen}
+      maxWidth={false}
+      aria-describedby={describedBy}
+      slotProps={{
+        paper: {
+          ref: panelRef,
+          className: "dialog",
+          sx: fullScreen ? undefined : { maxWidth: wide ? "52rem" : "30rem" },
+        },
+        backdrop: { className: "dialog-backdrop" },
+      }}
     >
-      <div
-        className={wide ? "dialog wide" : "dialog"}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={describedBy}
-        ref={panelRef}
-        tabIndex={-1}
+      <DialogTitle
+        component="h3"
+        variant="h4"
+        sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}
       >
-        <div className="dialog-head">
-          <h3 id={titleId}>{title}</h3>
-          <button type="button" className="link dialog-close" aria-label={t("close")}
-            disabled={closeDisabled} onClick={onClose}>
-            <X size={18} aria-hidden />
-          </button>
-        </div>
-        <div className="dialog-body" ref={bodyRef}>{children}</div>
-      </div>
-    </div>,
-    document.body,
+        {title}
+        <IconButton aria-label={t("close")} disabled={closeDisabled} onClick={onClose} size="small">
+          <X size={18} aria-hidden />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent ref={bodyRef}>{children}</DialogContent>
+    </MuiDialog>
   );
 }

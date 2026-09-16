@@ -115,11 +115,14 @@ async function renderReady(token: Record<string, unknown>) {
 
 // Open an item's panel (async loadLedger) and wait for the panel heading.
 async function openItem(item: InventoryItem) {
-  const row = screen.getByRole("row", { name: new RegExp(item.name) });
+  // hidden: true on both queries — a caller may leave another dialog open
+  // (deliberately, to prove displacement/rebind behaviour), which puts this
+  // row and its "open" button behind MUI's real aria-hidden sweep (#480).
+  const row = screen.getByRole("row", { name: new RegExp(item.name), hidden: true });
   await act(async () => {
-    fireEvent.click(within(row).getByRole("button", { name: "open" }));
+    fireEvent.click(within(row).getByRole("button", { name: "open", hidden: true }));
   });
-  await screen.findByRole("heading", { name: new RegExp(item.name) });
+  await screen.findByRole("heading", { name: new RegExp(item.name), hidden: true });
 }
 
 // F131: every capture form on this screen lives in a dialog now. Open the one
@@ -210,7 +213,7 @@ describe("InventoryPage create item", () => {
       name: "Bulk Grain", category: "Supplement", unit: "kg", defaultUnitCostMinorUnits: 5,
     });
     expect(mockCreate.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument()); // success dismisses it
     expect(screen.getByText("Item created.")).toBeInTheDocument();
     expect(within(openDialog("New item")).getByLabelText("Item name *")).toHaveValue(""); // reset on success
   });
@@ -450,8 +453,8 @@ describe("InventoryPage pending states (#236)", () => {
     // drop the spinner — so it locks with the flight (#242 review).
     expect(within(dialog()).getByLabelText(/Lot/)).toBeDisabled();
     // Behind the dialog, the row verbs are inert but not spinning.
-    const row = screen.getByRole("row", { name: /Egg Cartons/ });
-    const deactivate = within(row).getByRole("button", { name: "deactivate" });
+    const row = screen.getByRole("row", { name: /Egg Cartons/, hidden: true });
+    const deactivate = within(row).getByRole("button", { name: "deactivate", hidden: true });
     expect(deactivate).toBeDisabled();
     expect(deactivate).not.toHaveAttribute("aria-busy");
 
@@ -485,6 +488,7 @@ describe("InventoryPage idempotency & lifecycle", () => {
     fireEvent.change(name(), { target: { value: "One" } }); // retry after failure
     await submit();
 
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     openDialog("New item"); // success closed it
     fireEvent.change(name(), { target: { value: "Two" } }); // next write after success
     await submit();
@@ -521,7 +525,7 @@ describe("InventoryPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
@@ -531,7 +535,7 @@ describe("InventoryPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
@@ -542,7 +546,7 @@ describe("InventoryPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockPurchase).not.toHaveBeenCalled();
   });
 
@@ -554,7 +558,7 @@ describe("InventoryPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockAdjust).not.toHaveBeenCalled();
   });
 });
@@ -638,7 +642,7 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     await renderReady(ADMIN);
     fireEvent.click(screen.getByRole("button", { name: "New item" })); // left open
     await openItem(PACKAGING);
-    fireEvent.click(screen.getByRole("button", { name: "Record purchase" }));
+    fireEvent.click(screen.getByRole("button", { name: "Record purchase", hidden: true }));
     const purchaseDialog = screen.getByRole("dialog", { name: /Record purchase/ });
 
     fireEvent.change(within(purchaseDialog).getByLabelText(/Quantity/), { target: { value: "-1" } });
@@ -666,12 +670,13 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     expect(within(dialog()).getByText("edit boom")).toBeInTheDocument();
 
     // Switch straight to Egg Cartons' edit — no Cancel in between.
-    fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "edit" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/, hidden: true })).getByRole("button", { name: "edit", hidden: true }));
     expect(within(dialog()).getByLabelText(/Item name/)).toHaveValue("Egg Cartons");
     expect(screen.queryByText("edit boom")).not.toBeInTheDocument();
 
     // Cancel, then reopen Layer Feed: a new session, no stale verdict.
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     fireEvent.click(within(screen.getByRole("row", { name: /Layer Feed/ })).getByRole("button", { name: "edit" }));
     expect(within(dialog()).getByLabelText(/Item name/)).toHaveValue("Layer Feed");
     expect(screen.queryByText("edit boom")).not.toBeInTheDocument();
@@ -697,7 +702,7 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     expect(within(dialog()).getByText("purchase boom")).toBeInTheDocument();
 
     await openItem(FEED);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.queryByText("purchase boom")).not.toBeInTheDocument();
   });
 
@@ -713,7 +718,7 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     // Not openItem(PACKAGING): its heading wait would collide with the still-
     // open dialog's own title naming the same item.
     await act(async () => {
-      fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/ })).getByRole("button", { name: "open" }));
+      fireEvent.click(within(screen.getByRole("row", { name: /Egg Cartons/, hidden: true })).getByRole("button", { name: "open", hidden: true }));
     });
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(within(dialog()).getByLabelText(/Quantity/)).toHaveValue(3);
@@ -733,8 +738,8 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     // dialog's own "X" (accessible name "Close"), which already runs
     // `closePurchase` via `onClose` and would pass this test regardless of
     // the guard under test.
-    fireEvent.click(screen.getByRole("button", { name: "close" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "close", hidden: true }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await openItem(FEED);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -744,9 +749,9 @@ describe("InventoryPage errors scoped per dialog (#479)", () => {
     mockListMovements.mockRejectedValueOnce(new ApiError(500, "Server error", "ledger down"));
     await renderReady(ADMIN);
     const createDialogEl = openDialog("New item");
-    const row = screen.getByRole("row", { name: /Layer Feed/ });
+    const row = screen.getByRole("row", { name: /Layer Feed/, hidden: true });
     await act(async () => {
-      fireEvent.click(within(row).getByRole("button", { name: "open" }));
+      fireEvent.click(within(row).getByRole("button", { name: "open", hidden: true }));
     });
 
     expect(await screen.findByText("Could not load the movement ledger.")).toBeInTheDocument();
@@ -1283,7 +1288,7 @@ describe("InventoryPage — the panel belongs to the user, not to the write (#63
       fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "close" }));
+    fireEvent.click(screen.getByRole("button", { name: "close", hidden: true }));
     expect(screen.queryByRole("heading", { name: /Layer Feed/ })).not.toBeInTheDocument();
 
     await act(async () => {
@@ -1389,6 +1394,7 @@ describe("InventoryPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(openDialog("New item")).getByLabelText("Item name *"), { target: { value: "First" } });
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     fireEvent.change(within(openDialog("New item")).getByLabelText("Item name *"), { target: { value: "Second" } }); // the replacement session
     await act(async () => { gate.resolve({ id: "new" }); });
 
@@ -1408,6 +1414,7 @@ describe("InventoryPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(openDialog("New item")).getByLabelText("Item name *"), { target: { value: "One" } });
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await act(async () => { gate.resolve({ id: "new" }); });
 
     expect(within(openDialog("New item")).getByLabelText("Item name *")).toHaveValue("One");
@@ -1422,6 +1429,7 @@ describe("InventoryPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(openDialog("New item")).getByLabelText("Item name *"), { target: { value: "One" } });
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await act(async () => { gate.resolve({ id: "new" }); });
     expect(mockListItems).toHaveBeenCalledTimes(2); // mount + the refresh
 
@@ -1450,7 +1458,7 @@ describe("InventoryPage abandoned-attempt success (#703)", () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockListItems).toHaveBeenCalledTimes(2); // mount + the post-edit refresh
   });
 
@@ -1485,6 +1493,7 @@ describe("InventoryPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(form).getByLabelText(/Reason/), { target: { value: "first" } });
     fireEvent.click(within(dialog()).getByRole("button", { name: "Record correction" }));
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     fireEvent.change(within(openDialog("Correct stock")).getByLabelText(/Reason/), { target: { value: "second" } }); // the replacement session
     await act(async () => { gate.resolve({ movementId: "adj1" }); });
 
@@ -1524,6 +1533,7 @@ describe("InventoryPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(form).getByLabelText(/Reason/), { target: { value: "first" } });
     fireEvent.click(within(dialog()).getByRole("button", { name: "Record correction" }));
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     const reopened = openDialog("Correct stock");
     fireEvent.change(within(reopened).getByLabelText(/Quantity/), { target: { value: "4" } });
     fireEvent.change(within(reopened).getByLabelText(/Reason/), { target: { value: "second" } });

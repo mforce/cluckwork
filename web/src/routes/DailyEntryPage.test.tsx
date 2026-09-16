@@ -386,7 +386,7 @@ describe("DailyEntryPage new-flock dialog", () => {
       placementDate: "2026-05-10", initialCount: 250,
     });
     expect(mockCreateFlock.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument()); // success dismisses it
     // the freshly created flock becomes the capture target — the trigger
     // shows the EXACT created entity's name (T036 created-ID retention).
     // #512 — the picker's closed-state trigger is a button, not a select, so
@@ -416,7 +416,7 @@ describe("DailyEntryPage new-flock dialog", () => {
 
     await act(async () => resolveCreate({ id: "f2" }));
     expect(mockCreateFlock).toHaveBeenCalledTimes(1); // still exactly one after settle
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // the one create succeeded
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument()); // the one create succeeded
   });
 
   // #512 (T036) — the POST already returns the full typed entity. A failure
@@ -445,7 +445,7 @@ describe("DailyEntryPage new-flock dialog", () => {
     });
 
     expect(mockCreateFlock).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument()); // success dismisses it
     expect(vi.mocked(getFlock)).toHaveBeenCalledWith("f2"); // real exact GET, id-only response can't fabricate the entity
 
     // Open the picker: the failed GET left it unavailable, with the
@@ -477,7 +477,7 @@ describe("DailyEntryPage new-flock dialog", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockCreateFlock).not.toHaveBeenCalled();
   });
 });
@@ -513,7 +513,7 @@ describe("DailyEntryPage new-flock admin gating (#388)", () => {
     auth.isAdmin = false;
     view.rerender(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });
 
@@ -564,7 +564,7 @@ describe("DailyEntryPage submit confirmation", () => {
       fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     });
 
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(vi.mocked(recordDailyEntry)).not.toHaveBeenCalled();
     // The form is still live afterwards — dismissing is not a dead end.
     expect(submitBtn()).toBeEnabled();
@@ -1693,6 +1693,7 @@ describe("DailyEntryPage new-flock abandoned-attempt success (#703)", () => {
     fill("First");
     submitFlock();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     openNewFlock();
     fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Second" } });
     await act(async () => { gate.resolve({ id: "f2" }); });
@@ -1709,6 +1710,7 @@ describe("DailyEntryPage new-flock abandoned-attempt success (#703)", () => {
     fill("One");
     submitFlock();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await act(async () => { gate.resolve({ id: "f2" }); });
     openNewFlock();
 
@@ -1725,6 +1727,7 @@ describe("DailyEntryPage new-flock abandoned-attempt success (#703)", () => {
     fill("One");
     submitFlock();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await act(async () => { gate.resolve({ id: "f2" }); });
 
     // The flock exists but the page did NOT retarget to it: no exact-GET
@@ -1743,6 +1746,7 @@ describe("DailyEntryPage new-flock abandoned-attempt success (#703)", () => {
     fill("One");
     submitFlock();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await act(async () => { gate.resolve({ id: "f2" }); });
 
     mockCreateFlock.mockResolvedValueOnce({ id: "f3" });

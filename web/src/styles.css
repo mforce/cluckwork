@@ -578,13 +578,18 @@ input.cell {
 }
 
 /* ---------------------------------------- Post-login brand splash (#179) */
-/* Above .dialog-backdrop (50): the splash renders before any screen exists
-   to open its own dialog, so it never has to coexist with one, but sits
-   highest on principle — it is the very first thing the authenticated shell
-   shows. Known gap, not solved here: UpdatePrompt (pwa/UpdatePrompt.tsx)
-   mounts outside SessionProvider entirely, so this overlay's `inert` sibling
-   wrapper cannot reach it — the same class of edge case #485 already raised
-   for Dialog, not re-litigated here. */
+/* The splash renders before any screen exists to open its own dialog, so it
+   never has to coexist with one, but sits highest on principle — it is the
+   very first thing the authenticated shell shows. #827 moved every dialog
+   onto MUI, whose `Modal` stacks at `theme.zIndex.modal` (1300 by default) —
+   an entirely different numeric scale from this file's own z-indices, so
+   there is no longer a single number this comment could cite as "above the
+   dialog"; the "never coexists" claim above is what actually keeps this
+   correct, not the relative z-index value. Known gap, not solved here:
+   UpdatePrompt (pwa/UpdatePrompt.tsx) mounts outside SessionProvider
+   entirely, so this overlay's `inert` sibling wrapper cannot reach it — the
+   same class of edge case #485 already raised for Dialog, not re-litigated
+   here. */
 .brand-splash-backdrop {
   position: fixed;
   inset: 0;
@@ -628,73 +633,19 @@ input.cell {
 }
 
 /* ------------------------------------------------------ Modal dialogs (F131) */
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  background: var(--scrim);
-}
-
-.dialog {
-  width: 100%;
-  max-width: 30rem;
-  max-height: calc(100vh - 3rem);
-  overflow-y: auto;
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-card);
-  box-shadow: var(--shadow-dialog);
-  animation: dialog-rise 0.16s ease-out;
-}
-
-/* A dialog whose body is a two-pane layout (History's adjust form mirrors Daily
-   entry's side-by-side steps). At 30rem the two panes fold into one column even
-   on a desktop with room for both, which is the whole thing the layout exists
-   to avoid. It is NOT self-limiting to desktop: a media query adds no
-   specificity, so this two-class selector outranks the ≤900px `.dialog` sheet
-   reset and the modifier must be undone explicitly down there (it is). */
-.dialog.wide {
-  max-width: 52rem;
-}
-
-@keyframes dialog-rise {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
-}
-
-.dialog-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.15rem 1.5rem;
-  border-bottom: 1px solid var(--hairline);
-}
-
-.dialog-head h3 {
-  margin: 0;
-  font-size: 1.05rem;
-}
-
-.dialog-close {
-  display: flex;
-  align-items: center;
-  color: var(--muted);
-  padding: 0.25rem;
-}
-
-.dialog-close:hover:not(:disabled) {
-  color: var(--stat-accent);
-  text-decoration: none;
-}
-
-.dialog-body {
-  padding: 1.35rem 1.5rem 1.5rem;
-}
+/* #827 — `.dialog-backdrop`, `.dialog` (its own chrome: width/background/
+   border/radius/shadow/rise animation), `.dialog.wide`, `.dialog-head`,
+   `.dialog-head h3`, `.dialog-close` and `.dialog-body` are retired: MUI
+   `Dialog` now owns the backdrop, panel chrome, header and content wrapper,
+   and its own `MuiDialog`/`MuiDialogTitle` theme overrides
+   (FarmThemeProvider.tsx) carry the radius/shadow/border this app wants.
+   Width moved from these two classes to an explicit `sx` on the component,
+   keyed off the same `wide` prop (Dialog.test.tsx's "Dialog wide" describe
+   block is where that is pinned now — this file no longer needs to be).
+   `.dialog-backdrop` and `.dialog` survive purely as class NAMES applied to
+   MUI's own backdrop/paper (`Dialog.tsx`'s `slotProps`), so every descendant
+   selector below — still reached by unconverted callers' own raw markup
+   inside the dialog's content — keeps matching unchanged. */
 
 /* A confirmation is prose, not fields — the consequence is the whole point, so
    it gets reading leading rather than the tight rhythm a form wants (F135). */
@@ -765,39 +716,11 @@ input.cell {
   gap: 1rem;
 }
 
-/* #721 — the discount-reason picklist. A fieldset because the options are one
-   question, not five independent controls; borderless because the dialog is
-   already the frame and a second box inside it reads as a nested form. */
-.dialog .choice-set {
-  border: 0;
-  padding: 0;
-  margin: 0 0 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
-.dialog .choice-set legend {
-  padding: 0;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
-}
-
-/* Row, not the column .dialog label defaults to: the radio belongs beside its
-   text, and the whole row is the hit target. */
-.dialog label.choice {
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.55rem;
-  cursor: pointer;
-}
-
-.dialog label.choice input[type="radio"] {
-  width: 1rem;
-  flex: none;
-  margin: 0;
-}
+/* #827 — `.choice-set`/`label.choice` (the discount-reason picklist, #721)
+   retired: useConfirm.tsx's `askChoice` now renders MUI `FormControl`/
+   `RadioGroup`/`FormControlLabel`/`Radio`, styled by the theme, and
+   `useConfirm.tsx` was their only caller (verified: `git grep -n
+   "choice-set\|label\.choice"` across the whole repo before deleting). */
 
 .dialog .dialog-foot {
   display: flex;
@@ -2685,34 +2608,15 @@ dl.glossary {
     width: 2.75rem;
   }
 
-  /* On a phone the dialog becomes a bottom sheet — thumb-reachable, and it
-     stops a tall form from being centred with dead space above and below. */
-  .dialog-backdrop {
-    align-items: flex-end;
-    padding: 0;
-  }
-
-  .dialog {
-    max-width: none;
-    max-height: 88vh;
-    border-radius: var(--r-card) var(--r-card) 0 0;
-    border-bottom: none;
-    animation-name: dialog-sheet;
-  }
-
-  /* The sheet is full-width for the wide variant too. Its own rule is
-     `.dialog.wide` (0,2,0) and the reset above is `.dialog` (0,1,0) — a media
-     query contributes nothing to specificity, so without this the 52rem cap
-     survives here and a landscape phone between 832px and 900px gets
-     bottom-sheet chrome with backdrop showing down one side. */
-  .dialog.wide {
-    max-width: none;
-  }
-
-  @keyframes dialog-sheet {
-    from { transform: translateY(16px); }
-    to { transform: none; }
-  }
+  /* #827 — the phone bottom-sheet variant (`.dialog-backdrop`'s
+     `align-items: flex-end`, `.dialog`'s sheet chrome, `.dialog.wide`'s reset
+     and `@keyframes dialog-sheet`) is retired in favour of MUI `Dialog`'s own
+     `fullScreen` prop below 900px (D2 pair 2, D3.3): every form dialog now
+     takes the full phone screen rather than a bottom sheet, and a
+     confirmation stays a centred `Dialog` at every width. The dialog-foot
+     stacking rule below is unrelated to that chrome and stays — unconverted
+     callers still render a raw `.dialog-foot` footer inside the dialog's
+     content. */
 
   /* `justify-content: flex-end` still applies down the block axis, so the
      buttons need `align-items` to fill the row rather than sit at their

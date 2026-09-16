@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act, render } from "@testing-library/react";
+import { screen, within, fireEvent, act, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { UsersPage } from "./UsersPage";
@@ -228,7 +228,7 @@ describe("UsersPage load", () => {
 });
 
 // F131: create moved into a dialog — open it, then assert the same behaviour.
-const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New user" }));
+const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New user", hidden: true }));
 const dialog = () => screen.getByRole("dialog");
 
 describe("UsersPage create", () => {
@@ -266,7 +266,7 @@ describe("UsersPage create", () => {
     // Success surfaces a confirmation on the page, dismisses the dialog, and
     // resets the form behind it.
     expect(await screen.findByText(/Manager account created for New@Farm\.test/)).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     openCreate();
     expect(within(dialog()).getByLabelText("Email *")).toHaveValue("");
   });
@@ -351,7 +351,7 @@ describe("UsersPage create", () => {
 
 describe("UsersPage edit name (#163)", () => {
   const editRow = (rowName: RegExp) =>
-    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "edit" }));
+    fireEvent.click(within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "edit", hidden: true }));
 
   it("edits a user's name via the row 'edit' action, sending id + name + a key, then refreshes", async () => {
     mockUpdateUser.mockResolvedValue(undefined);
@@ -367,7 +367,7 @@ describe("UsersPage edit name (#163)", () => {
     expect(mockUpdateUser).toHaveBeenCalledWith("u-a", { name: "Grace Hopper" }, expect.any(String));
     expect(mockListUsers).toHaveBeenCalledTimes(2); // initial load + post-update refresh
     expect(await screen.findByText(/Updated boss@farm\.test/)).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("clears a name by saving the edit dialog blank (sends name: null)", async () => {
@@ -422,7 +422,7 @@ describe("UsersPage edit name (#163)", () => {
 
 describe("UsersPage set password (#165)", () => {
   const openPw = (rowName: RegExp) =>
-    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "password" }));
+    fireEvent.click(within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "password", hidden: true }));
 
   // Runtime-generated so no literal secret lands in source (GitGuardian).
   const freshPassword = () => `Aa1!${crypto.randomUUID()}`;
@@ -445,7 +445,7 @@ describe("UsersPage set password (#165)", () => {
     expect(mockSetUserPassword).toHaveBeenCalledWith(
       "u-w", { newPassword: password }, expect.any(String), "grant-default");
     // Success closes the dialog and says the target was signed out.
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(await screen.findByText(/signed out everywhere/i)).toBeInTheDocument();
   });
 
@@ -487,7 +487,7 @@ describe("UsersPage set password (#165)", () => {
 
 describe("UsersPage change role (#355)", () => {
   const openRole = (rowName: RegExp) =>
-    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "role" }));
+    fireEvent.click(within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "role", hidden: true }));
 
   it("opens the dialog seeded with the target's current role", async () => {
     await renderReady(ADMIN);
@@ -512,7 +512,7 @@ describe("UsersPage change role (#355)", () => {
     expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
     expect(mockChangeUserRole).toHaveBeenCalledWith(
       "u-w", { role: "Manager" }, expect.any(String), "grant-default");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(await screen.findByText(/worker@farm\.test is now Manager/)).toBeInTheDocument();
     expect(mockListUsers).toHaveBeenCalledTimes(2); // initial load + post-change refresh
   });
@@ -541,7 +541,7 @@ describe("UsersPage change role (#355)", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockChangeUserRole).not.toHaveBeenCalled();
 
     openRole(/boss@farm.test/);
@@ -602,8 +602,8 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
     mockSetUserPassword.mockResolvedValue(undefined);
     await renderReady(ADMIN);
 
-    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
-      .getByRole("button", { name: "password" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+      .getByRole("button", { name: "password", hidden: true }));
     const newPassword = crypto.randomUUID();
     fireEvent.change(within(dialog()).getByLabelText(/New password/), {
       target: { value: newPassword },
@@ -619,8 +619,8 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
     });
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
-    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
-      .getByRole("button", { name: "password" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+      .getByRole("button", { name: "password", hidden: true }));
     const reopenedPassword = crypto.randomUUID();
     const reopenedProof = crypto.randomUUID();
     fireEvent.change(within(dialog()).getByLabelText(/New password/), {
@@ -649,8 +649,8 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
     mockChangeUserRole.mockResolvedValue(undefined);
     await renderReady(ADMIN);
 
-    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
-      .getByRole("button", { name: "role" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+      .getByRole("button", { name: "role", hidden: true }));
     fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Manager" } });
     fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
       target: { value: OWNER_STEP_UP_PASSWORD },
@@ -660,8 +660,8 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
     });
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
-    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
-      .getByRole("button", { name: "role" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+      .getByRole("button", { name: "role", hidden: true }));
     const reopenedProof = crypto.randomUUID();
     fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "ReadOnly" } });
     fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
@@ -737,8 +737,8 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
     await renderReady(ADMIN);
 
     const openPassword = () => fireEvent.click(
-      within(screen.getByRole("row", { name: /worker@farm.test/ }))
-        .getByRole("button", { name: "password" }),
+      within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+        .getByRole("button", { name: "password", hidden: true }),
     );
     openPassword();
     const pendingPassword = crypto.randomUUID();
@@ -786,8 +786,8 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
     await renderReady(ADMIN);
 
     const openRole = () => fireEvent.click(
-      within(screen.getByRole("row", { name: /worker@farm.test/ }))
-        .getByRole("button", { name: "role" }),
+      within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+        .getByRole("button", { name: "role", hidden: true }),
     );
     openRole();
     fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Manager" } });
@@ -819,8 +819,8 @@ describe("UsersPage dismissed step-up continuations (#360)", () => {
 
 describe("UsersPage change email (#357)", () => {
   const openEmail = (rowName: RegExp) =>
-    fireEvent.click(within(screen.getByRole("row", { name: rowName }))
-      .getByRole("button", { name: /change email/i }));
+    fireEvent.click(within(screen.getByRole("row", { name: rowName, hidden: true }))
+      .getByRole("button", { name: /change email/i, hidden: true }));
   const emailInput = () => within(dialog()).getByLabelText("Login email");
   const passwordInput = () => within(dialog()).getByLabelText(/Your current password/);
   const submit = () => within(dialog()).getByRole("button", { name: "Change email" });
@@ -1077,7 +1077,7 @@ describe("UsersPage change email (#357)", () => {
     await act(async () => { fireEvent.click(submit()); });
 
     expect(await screen.findByText(i18n.t("auth:credentialsSuperseded"))).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockListUsers).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(getAccessToken()).toBeNull();
@@ -1112,7 +1112,7 @@ describe("UsersPage change email (#357)", () => {
 
 describe("UsersPage change-role step-up (#308, #355)", () => {
   const openRole = (rowName: RegExp) =>
-    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "role" }));
+    fireEvent.click(within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "role", hidden: true }));
   const ownerPasswordInput = () => within(dialog()).getByLabelText(/Your current password/);
   const selectAdminRole = () =>
     fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Admin" } });
@@ -1225,9 +1225,9 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
 // step-up proof, matching the other durable user-access mutations.
 describe("UsersPage disable/enable (#356)", () => {
   const disableRow = (rowName: RegExp) =>
-    within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "disable" });
+    within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "disable", hidden: true });
   const enableRow = (rowName: RegExp) =>
-    within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "enable" });
+    within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "enable", hidden: true });
 
   // Same idiom as the #236 pending-states block below (client.test.ts style):
   // a promise this test controls, so it can assert what the component does
@@ -1308,7 +1308,7 @@ describe("UsersPage disable/enable (#356)", () => {
     const dialog = await screen.findByRole("dialog", { name: /Disable — worker@farm\.test/ });
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockStepUp).not.toHaveBeenCalled();
     expect(mockDisableUser).not.toHaveBeenCalled();
   });
@@ -1333,7 +1333,7 @@ describe("UsersPage disable/enable (#356)", () => {
     expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
     expect(mockDisableUser).toHaveBeenCalledWith(
       "u-w", { reason: null }, expect.any(String), "grant-d1");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(await screen.findByText(/worker@farm\.test has been disabled/)).toBeInTheDocument();
     expect(mockListUsers).toHaveBeenCalledTimes(2); // initial load + post-disable refresh
   });
@@ -1378,7 +1378,7 @@ describe("UsersPage disable/enable (#356)", () => {
 
     expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
     expect(mockEnableUser).toHaveBeenCalledWith("u-d", expect.any(String), "grant-e1");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(await screen.findByText(/disabled@farm\.test has been re-enabled/)).toBeInTheDocument();
   });
 
@@ -1438,21 +1438,21 @@ describe("UsersPage disable/enable (#356)", () => {
       { ...WORKER_USER, disabledAt: "2026-08-09T12:00:00Z" }, ADMIN_USER,
     ]);
     mockUpdateUser.mockResolvedValue(undefined);
-    fireEvent.click(within(screen.getByRole("row", { name: /boss@farm.test/ }))
-      .getByRole("button", { name: /edit/i }));
+    fireEvent.click(within(screen.getByRole("row", { name: /boss@farm.test/, hidden: true }))
+      .getByRole("button", { name: /edit/i, hidden: true }));
     const editDialog = await screen.findByRole("dialog", { name: /boss@farm\.test/ });
     await act(async () => {
       fireEvent.click(within(editDialog).getByRole("button", { name: "Save" }));
     });
-    expect(await within(screen.getByRole("row", { name: /worker@farm.test/ }))
-      .findByRole("button", { name: /enable/i })).toBeInTheDocument();
+    expect(await within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+      .findByRole("button", { name: /enable/i, hidden: true })).toBeInTheDocument();
 
     // The still-open dialog is still titled Disable, still showing the old
     // error — reopening it is a fresh user action, not automatic.
-    expect(screen.getByRole("dialog", { name: /Disable — worker@farm\.test/ })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /Disable — worker@farm\.test/, hidden: true })).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/ }))
-      .getByRole("button", { name: /enable/i }));
+    fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+      .getByRole("button", { name: /enable/i, hidden: true }));
     const enableDialog = await screen.findByRole("dialog", { name: /Enable — worker@farm\.test/ });
     expect(within(enableDialog).queryByText(/sole remaining owner/)).not.toBeInTheDocument();
   });
@@ -1551,7 +1551,7 @@ describe("UsersPage disable/enable (#356)", () => {
       target: { value: OWNER_STEP_UP_PASSWORD },
     });
     await act(async () => { fireEvent.click(submit()); });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(await screen.findByText(/worker@farm\.test has been disabled/)).toBeInTheDocument();
 
     const k1 = mockDisableUser.mock.calls[0][2];
@@ -1613,7 +1613,7 @@ describe("UsersPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockCreateUser).not.toHaveBeenCalled();
   });
 
@@ -1670,7 +1670,11 @@ describe("UsersPage dialog dismissal", () => {
     openCreate();
     typeCreatePassword();
 
-    fireEvent.keyDown(document, { key: "Escape" });
+    // MUI's Modal answers Escape via its own onKeyDown, which only sees an
+    // event that bubbles up through the dialog subtree — a keydown dispatched
+    // straight at `document` (the old inert-based Dialog's own listener
+    // target) never reaches it.
+    fireEvent.keyDown(dialog(), { key: "Escape" });
 
     openCreate();
     expect(passwordInput()).toHaveValue("");
@@ -1722,7 +1726,7 @@ describe("UsersPage dialog dismissal", () => {
     openCreate();
     typeCreatePassword();
 
-    fireEvent.click(screen.getByRole("button", { name: "toggle users page" })); // unmount
+    fireEvent.click(screen.getByRole("button", { name: "toggle users page", hidden: true })); // unmount
     fireEvent.click(screen.getByRole("button", { name: "toggle users page" })); // remount
     await screen.findByText("worker@farm.test");
 
@@ -1950,7 +1954,7 @@ describe("UsersPage flock scoping", () => {
     // Reopen — the picker is back to BLANK, not the stale fl2, so a
     // distracted admin cannot assign the previous worker's pick by accident.
     await act(async () => {
-      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+      fireEvent.click(within(workerRow).getByRole("button", { name: "flocks", hidden: true }));
     });
     await screen.findByRole("dialog", { name: /Flock access/ });
     expect(assignTrigger()).toHaveAccessibleName("Flock Select a flock");
@@ -1967,7 +1971,7 @@ describe("UsersPage flock scoping", () => {
     const panel = await screen.findByRole("dialog", { name: /Flock access/ });
 
     fireEvent.click(within(panel).getByRole("button", { name: "Done" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("discards a stale refresh from a worker whose dialog was closed and reopened for another", async () => {
@@ -2000,9 +2004,9 @@ describe("UsersPage flock scoping", () => {
 
     // Close A and open worker B while A's refresh is still in flight.
     fireEvent.click(within(panelA).getByRole("button", { name: "Done" }));
-    const rowB = screen.getByRole("row", { name: /worker2@farm\.test/ });
+    const rowB = screen.getByRole("row", { name: /worker2@farm\.test/, hidden: true });
     await act(async () => {
-      fireEvent.click(within(rowB).getByRole("button", { name: "flocks" }));
+      fireEvent.click(within(rowB).getByRole("button", { name: "flocks", hidden: true }));
     });
     const panelB = await screen.findByRole("dialog", { name: /Flock access — worker2@farm\.test/ });
     expect(within(panelB).getByText(/No assignments — account-wide access/)).toBeInTheDocument();
@@ -2105,7 +2109,7 @@ describe("UsersPage flock scoping", () => {
     setAssignmentsFor("u-w", []);
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-    const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks", hidden: true }));
 
     await act(async () => { open(); });
     await screen.findByText(/account-wide access/);
@@ -2141,7 +2145,7 @@ describe("UsersPage flock scoping", () => {
     mockUnassignFlock.mockResolvedValue(undefined);
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-    const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks", hidden: true }));
 
     await act(async () => { open(); });
     const item = await screen.findByRole("listitem");
@@ -2201,14 +2205,17 @@ describe("UsersPage flock scoping", () => {
     fireEvent.click(document.querySelector(".dialog-backdrop")!);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
-    fireEvent.keyDown(document, { key: "Escape" });
+    // Dispatched on the dialog itself so it bubbles through MUI's Modal root,
+    // the same adjustment Dialog.test.tsx's closeDisabled test needed —
+    // `document` is not an ancestor of the dialog subtree.
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     await act(async () => { write.resolve({ id: "as-new" }); });
 
     expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("blocks every dismissal path while an unassign write is in flight, and allows closing once it settles", async () => {
@@ -2233,14 +2240,17 @@ describe("UsersPage flock scoping", () => {
     fireEvent.click(document.querySelector(".dialog-backdrop")!);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
-    fireEvent.keyDown(document, { key: "Escape" });
+    // Dispatched on the dialog itself so it bubbles through MUI's Modal root,
+    // the same adjustment Dialog.test.tsx's closeDisabled test needed —
+    // `document` is not an ancestor of the dialog subtree.
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     await act(async () => { write.resolve(); });
 
     expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("does not let a stale open-load failure surface a page error into a reopened SAME worker's dialog", async () => {
@@ -2250,7 +2260,7 @@ describe("UsersPage flock scoping", () => {
       .mockResolvedValueOnce([]);
     await renderReady(ADMIN);
     const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
-    const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" }));
+    const open = () => fireEvent.click(within(workerRow).getByRole("button", { name: "flocks", hidden: true }));
 
     // First open's load hangs — no dialog yet, so there's nothing to close;
     // a second click on the SAME row's button re-invokes openAssignments and
@@ -2312,8 +2322,8 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
     expect(assignTrigger()).toHaveAccessibleName("Flock Coop B");
     // …and the dialog is closed and reopened for worker B.
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    const rowB = screen.getByRole("row", { name: /worker2@farm\.test/ });
-    await act(async () => { fireEvent.click(within(rowB).getByRole("button", { name: "flocks" })); });
+    const rowB = screen.getByRole("row", { name: /worker2@farm\.test/, hidden: true });
+    await act(async () => { fireEvent.click(within(rowB).getByRole("button", { name: "flocks", hidden: true })); });
     const panelB = await screen.findByRole("dialog", { name: /Flock access — worker2@farm.test/ });
     // #646 — B's fresh generation is back on the BLANK default; A's pick
     // never leaks into B's dialog. The leak is what this test guards, and it
@@ -2338,7 +2348,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
 
     // Reopen: the fresh generation restores the committed default's label —
     // the abandoned query text is gone, not retained.
-    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks" })); });
+    await act(async () => { fireEvent.click(within(workerRow).getByRole("button", { name: "flocks", hidden: true })); });
     await screen.findByRole("dialog", { name: /Flock access/ });
     expect(assignTrigger()).toHaveAccessibleName("Flock Select a flock");
     fireEvent.click(assignTrigger());
@@ -2475,7 +2485,7 @@ describe("UsersPage pending states (#236)", () => {
     expect(submit).toBeDisabled();
 
     await act(async () => { gate.resolve({ id: "u-new" }); });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
     expect(await screen.findByText(/account created for held@farm\.test/)).toBeInTheDocument();
   });
@@ -2812,7 +2822,7 @@ describe("UsersPage step-up authentication (#308)", () => {
 
     expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
     expect(mockCreateUser.mock.calls[0][2]).toBe("grant-123"); // the grant, as the 3rd arg
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(await screen.findByText(/account created for boss@farm\.test/i)).toBeInTheDocument();
   });
 
@@ -2991,9 +3001,9 @@ describe("UsersPage step-up authentication (#308)", () => {
 // rendered `{error && …}` unconditionally, so whichever failure happened last
 // appeared inside every form on screen at once.
 describe("UsersPage error placement (#479)", () => {
-  const rowFor = (email: string) => screen.getByRole("row", { name: new RegExp(email) });
+  const rowFor = (email: string) => screen.getByRole("row", { name: new RegExp(email), hidden: true });
   const openRowDialog = (email: string, action: string) =>
-    fireEvent.click(within(rowFor(email)).getByRole("button", { name: action }));
+    fireEvent.click(within(rowFor(email)).getByRole("button", { name: action, hidden: true }));
 
   it("shows a failed create inside the create dialog only", async () => {
     mockCreateUser.mockRejectedValue(new ApiError(409, "Conflict", "That email is already registered."));
@@ -3234,7 +3244,7 @@ describe("UsersPage error placement (#479)", () => {
 
     openRowDialog("worker@farm.test", "password");
 
-    const dialogs = screen.getAllByRole("dialog");
+    const dialogs = screen.getAllByRole("dialog", { hidden: true });
     const password = dialogs.find((d) => within(d).queryByRole("button", { name: "Set password" }))!;
     expect(within(password).queryByText("That name is too long.")).not.toBeInTheDocument();
     expect(screen.getAllByText("That name is too long.")).toHaveLength(1);
@@ -3285,7 +3295,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     return { promise, resolve };
   }
   const rowButton = (rowName: RegExp, label: string | RegExp) =>
-    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: label }));
+    fireEvent.click(within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: label, hidden: true }));
   const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
   const fillProof = (value = OWNER_STEP_UP_PASSWORD) =>
     fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value } });
@@ -3314,7 +3324,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
 
     expect(mockListUsers).toHaveBeenCalledTimes(2); // mount + the refresh: the user exists whoever is watching
     expect(screen.queryByText(/account created for late@farm\.test/)).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("supersedes the create on re-entry alone: New user pressed again ends the session the held write belongs to", async () => {
@@ -3354,7 +3364,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     await act(async () => { write.resolve(); });
 
     expect(screen.queryByText(/signed out everywhere/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("supersedes the password reset on re-entry alone: the row's password button pressed again ends the session the held write belongs to", async () => {
@@ -3395,7 +3405,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
 
     expect(mockListUsers).toHaveBeenCalledTimes(2);
     expect(screen.queryByText(/worker@farm\.test is now Manager/)).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("supersedes the role change on re-entry alone: the row's role button pressed again ends the session the held write belongs to", async () => {
@@ -3434,7 +3444,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     await act(async () => { write.resolve(); });
 
     expect(screen.queryByText(/Login email changed to renamed@farm\.test/)).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("supersedes the email change on re-entry alone: the row's change-email button pressed again ends the session the held write belongs to", async () => {
@@ -3546,7 +3556,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     expect(mockChangeUserEmail).toHaveBeenCalledTimes(1);
 
     view.rerender(tree(false)); // simulated logout
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await act(async () => { write.resolve(); });
     expect(screen.queryByText(/Login email changed to renamed@farm\.test/)).not.toBeInTheDocument();
@@ -3672,7 +3682,7 @@ describe("UsersPage abandoned edit's success (#703 PR 4)", () => {
     return { promise, resolve };
   }
   const editRow = (rowName: RegExp) =>
-    fireEvent.click(within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "edit" }));
+    fireEvent.click(within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "edit", hidden: true }));
   const nameBox = () => within(dialog()).getByLabelText("Name");
   const typeName = (value: string) => fireEvent.change(nameBox(), { target: { value } });
   const save = () => act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); });
@@ -3726,7 +3736,7 @@ describe("UsersPage abandoned edit's success (#703 PR 4)", () => {
     await act(async () => { write.resolve(); });
 
     expect(screen.queryByText(/Updated boss@farm\.test/)).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("still rotates the update key and refreshes the list when an abandoned edit succeeds", async () => {
@@ -3764,7 +3774,7 @@ describe("UsersPage abandoned disable's success (#703 PR 4)", () => {
     return { promise, resolve };
   }
   const disableRow = (rowName: RegExp) =>
-    within(screen.getByRole("row", { name: rowName })).getByRole("button", { name: "disable" });
+    within(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "disable", hidden: true });
   const fillProof = (target: HTMLElement) =>
     fireEvent.change(within(target).getByLabelText(/Your current password/), { target: { value: OWNER_STEP_UP_PASSWORD } });
 
@@ -3778,7 +3788,7 @@ describe("UsersPage abandoned disable's success (#703 PR 4)", () => {
     await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Disable" })); });
 
     expect(mockDisableUser).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByText(/worker@farm\.test has been disabled/)).toBeInTheDocument();
     expect(mockListUsers).toHaveBeenCalledTimes(2);
   });
@@ -3798,7 +3808,7 @@ describe("UsersPage abandoned disable's success (#703 PR 4)", () => {
     await act(async () => { write.resolve(); });
 
     expect(screen.queryByText(/worker@farm\.test has been disabled/)).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockListUsers).toHaveBeenCalledTimes(2); // the refresh ran: the user is disabled whoever is watching
 
     // The mocked refresh still lists the worker as enabled, so Disable is
@@ -3832,7 +3842,7 @@ describe("UsersPage abandoned disable's success (#703 PR 4)", () => {
     await act(async () => { fireEvent.click(within(dlg).getByRole("button", { name: "Disable" })); });
 
     fireEvent.click(within(dlg).getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(disableRow(/worker@farm.test/)).toBeDisabled();
     expect(within(screen.getByRole("row", { name: /disabled@farm.test/ })).getByRole("button", { name: "enable" })).toBeDisabled();
 

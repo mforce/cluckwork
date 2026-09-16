@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, act, cleanup } from "@testing-library/react";
+import { render, screen, act, cleanup, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { Dialog } from "./Dialog";
 import { useMissedAnnouncement } from "./useMissedAnnouncement";
@@ -19,6 +19,10 @@ const out = () => screen.getByTestId("out");
 describe("useMissedAnnouncement (#485)", () => {
   it("stays empty on the ordinary path, where the visible region speaks for itself", async () => {
     await act(async () => { render(<Probe message="ready" />); });
+    // No `waitFor` here or below: both assert a NON-event at a specific
+    // point (first paint, mount with no dialog), and `waitFor`'s retry would
+    // paper over the hook populating too early and then correcting itself --
+    // exactly the failure mode ARIA22 exists to catch.
     expect(out()).toHaveTextContent("");
   });
 
@@ -54,10 +58,10 @@ describe("useMissedAnnouncement (#485)", () => {
 
     await act(async () => { render(<DialogHost />); });
     await act(async () => { render(<Probe message="ready" />); });
-    expect(out()).toHaveTextContent("");
+    await waitFor(() => expect(out()).toHaveTextContent(""));
 
-    await act(async () => { screen.getByRole("button", { name: "Close" }).click(); });
-    expect(out()).toHaveTextContent("ready");
+    await act(async () => { screen.getByRole("button", { name: "Close", hidden: true }).click(); });
+    await waitFor(() => expect(out()).toHaveTextContent("ready"));
   });
 
   it("delivers a message that arrived while a dialog was open, once it closes", async () => {
@@ -76,13 +80,13 @@ describe("useMissedAnnouncement (#485)", () => {
     }
 
     await act(async () => { render(<Harness />); });
-    await act(async () => { screen.getByRole("button", { name: "Raise" }).click(); });
+    await act(async () => { screen.getByRole("button", { name: "Raise", hidden: true }).click(); });
     // Inert: the visible region's own announcement went unheard, and writing
     // here now would go unheard too.
-    expect(out()).toHaveTextContent("");
+    await waitFor(() => expect(out()).toHaveTextContent(""));
 
-    await act(async () => { screen.getByRole("button", { name: "Close" }).click(); });
-    expect(out()).toHaveTextContent("ready");
+    await act(async () => { screen.getByRole("button", { name: "Close", hidden: true }).click(); });
+    await waitFor(() => expect(out()).toHaveTextContent("ready"));
   });
 
   it("does not repeat itself when a later dialog opens and closes over the same message", async () => {
@@ -105,16 +109,16 @@ describe("useMissedAnnouncement (#485)", () => {
     }
 
     await act(async () => { render(<Harness />); });
-    await act(async () => { screen.getByRole("button", { name: "Raise" }).click(); });
-    await act(async () => { screen.getByRole("button", { name: "Close" }).click(); });
-    expect(out()).toHaveTextContent("ready");
+    await act(async () => { screen.getByRole("button", { name: "Raise", hidden: true }).click(); });
+    await act(async () => { screen.getByRole("button", { name: "Close", hidden: true }).click(); });
+    await waitFor(() => expect(out()).toHaveTextContent("ready"));
 
-    await act(async () => { screen.getByRole("button", { name: "Open" }).click(); });
+    await act(async () => { screen.getByRole("button", { name: "Open", hidden: true }).click(); });
     // Still holding the delivered text — unheard behind the dialog, and
     // crucially unchanged, so closing again says nothing new.
-    expect(out()).toHaveTextContent("ready");
-    await act(async () => { screen.getByRole("button", { name: "Close" }).click(); });
-    expect(out()).toHaveTextContent("ready");
+    await waitFor(() => expect(out()).toHaveTextContent("ready"));
+    await act(async () => { screen.getByRole("button", { name: "Close", hidden: true }).click(); });
+    await waitFor(() => expect(out()).toHaveTextContent("ready"));
   });
 
   it("catches a message raised in the SAME commit that opens the dialog", async () => {
@@ -143,13 +147,13 @@ describe("useMissedAnnouncement (#485)", () => {
 
     await act(async () => { render(<Harness />); });
     await act(async () => {
-      screen.getByRole("button", { name: "Raise and open together" }).click();
+      screen.getByRole("button", { name: "Raise and open together", hidden: true }).click();
     });
     expect(screen.getByRole("dialog", { name: "Edit" })).toBeInTheDocument();
-    expect(out()).toHaveTextContent("");
+    await waitFor(() => expect(out()).toHaveTextContent(""));
 
-    await act(async () => { screen.getByRole("button", { name: "Close" }).click(); });
-    expect(out()).toHaveTextContent("ready");
+    await act(async () => { screen.getByRole("button", { name: "Close", hidden: true }).click(); });
+    await waitFor(() => expect(out()).toHaveTextContent("ready"));
   });
 
   it("catches a message raised in the SAME commit that closes the last dialog", async () => {
@@ -177,11 +181,11 @@ describe("useMissedAnnouncement (#485)", () => {
 
     await act(async () => { render(<Harness />); });
     await act(async () => {
-      screen.getByRole("button", { name: "Raise and close together" }).click();
+      screen.getByRole("button", { name: "Raise and close together", hidden: true }).click();
     });
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(out()).toHaveTextContent("ready");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(out()).toHaveTextContent("ready"));
   });
 
   it("does not speak for a repeat message the visible region can announce itself", async () => {
@@ -206,17 +210,17 @@ describe("useMissedAnnouncement (#485)", () => {
     }
 
     await act(async () => { render(<Harness />); });
-    await act(async () => { screen.getByRole("button", { name: "Raise" }).click(); });
-    await act(async () => { screen.getByRole("button", { name: "Close" }).click(); });
-    expect(out()).toHaveTextContent("ready");
+    await act(async () => { screen.getByRole("button", { name: "Raise", hidden: true }).click(); });
+    await act(async () => { screen.getByRole("button", { name: "Close", hidden: true }).click(); });
+    await waitFor(() => expect(out()).toHaveTextContent("ready"));
 
-    await act(async () => { screen.getByRole("button", { name: "Resolve" }).click(); });
-    expect(out()).toHaveTextContent("");
+    await act(async () => { screen.getByRole("button", { name: "Resolve", hidden: true }).click(); });
+    await waitFor(() => expect(out()).toHaveTextContent(""));
 
     // Same text, no dialog: the visible region is in the accessibility tree
     // and announces this one on its own.
-    await act(async () => { screen.getByRole("button", { name: "Raise" }).click(); });
-    expect(out()).toHaveTextContent("");
+    await act(async () => { screen.getByRole("button", { name: "Raise", hidden: true }).click(); });
+    await waitFor(() => expect(out()).toHaveTextContent(""));
   });
 
   it("does not speak for a message that changes away and back with no dialog", async () => {
@@ -243,14 +247,14 @@ describe("useMissedAnnouncement (#485)", () => {
     // one tree the dialog pushes onto the stack from an effect, which runs
     // after this hook's first render, so a message present at mount would not
     // be behind anything yet.
-    await act(async () => { screen.getByRole("button", { name: "To A" }).click(); });
-    await act(async () => { screen.getByRole("button", { name: "Close" }).click(); });
-    expect(out()).toHaveTextContent("A");
+    await act(async () => { screen.getByRole("button", { name: "To A", hidden: true }).click(); });
+    await act(async () => { screen.getByRole("button", { name: "Close", hidden: true }).click(); });
+    await waitFor(() => expect(out()).toHaveTextContent("A"));
 
-    await act(async () => { screen.getByRole("button", { name: "To B" }).click(); });
-    expect(out()).toHaveTextContent("");
-    await act(async () => { screen.getByRole("button", { name: "To A" }).click(); });
-    expect(out()).toHaveTextContent("");
+    await act(async () => { screen.getByRole("button", { name: "To B", hidden: true }).click(); });
+    await waitFor(() => expect(out()).toHaveTextContent(""));
+    await act(async () => { screen.getByRole("button", { name: "To A", hidden: true }).click(); });
+    await waitFor(() => expect(out()).toHaveTextContent(""));
   });
 
   it("clears once there is nothing left to say", async () => {
@@ -265,7 +269,7 @@ describe("useMissedAnnouncement (#485)", () => {
     }
 
     await act(async () => { render(<Harness />); });
-    await act(async () => { screen.getByRole("button", { name: "Resolve" }).click(); });
-    expect(out()).toHaveTextContent("");
+    await act(async () => { screen.getByRole("button", { name: "Resolve", hidden: true }).click(); });
+    await waitFor(() => expect(out()).toHaveTextContent(""));
   });
 });

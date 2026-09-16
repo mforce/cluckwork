@@ -512,7 +512,7 @@ describe("ExpensesPage categories", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "manage categories" }));
     // F131: the category form is a dialog opened from the panel.
-    const openNewCategory = () => fireEvent.click(screen.getByRole("button", { name: "New category" }));
+    const openNewCategory = () => fireEvent.click(screen.getByRole("button", { name: "New category", hidden: true }));
     const dialog = () => screen.getByRole("dialog");
     openNewCategory();
     fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Utilities" } });
@@ -523,7 +523,7 @@ describe("ExpensesPage categories", () => {
     const [body, key] = mockCreateCategory.mock.calls[0];
     expect(body).toEqual({ name: "Utilities" });
     expect(key).toBeTruthy();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument()); // success dismisses it
     openNewCategory();
     expect(within(dialog()).getByLabelText("Category name")).toHaveValue(""); // reset on success
     expect(mockListCategories).toHaveBeenCalledTimes(2); // mount load + post-create refresh
@@ -567,7 +567,7 @@ describe("ExpensesPage pending states (#236)", () => {
     await renderReady();
 
     fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
-    fireEvent.click(screen.getByRole("button", { name: "New category" }));
+    fireEvent.click(screen.getByRole("button", { name: "New category", hidden: true }));
     const dialog = () => screen.getByRole("dialog");
     fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Fuel" } });
     await act(async () => {
@@ -601,7 +601,7 @@ describe("ExpensesPage dialog dismissal", () => {
 
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockAdjustExpense).not.toHaveBeenCalled();
   });
 });
@@ -615,7 +615,7 @@ describe("ExpensesPage error placement (#479)", () => {
     renderWithProviders(<ExpensesPage />, { token: ADMIN });
 
     fireEvent.click(await screen.findByRole("button", { name: "manage categories" }));
-    fireEvent.click(screen.getByRole("button", { name: "New category" }));
+    fireEvent.click(screen.getByRole("button", { name: "New category", hidden: true }));
     const dlg = screen.getByRole("dialog");
     fireEvent.change(within(dlg).getByLabelText("Category name"), { target: { value: "Feed" } });
     await act(async () => {
@@ -654,7 +654,7 @@ describe("ExpensesPage error placement (#479)", () => {
     await screen.findByRole("heading", { name: "Expenses" });
 
     fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
-    fireEvent.click(screen.getByRole("button", { name: "New category" }));
+    fireEvent.click(screen.getByRole("button", { name: "New category", hidden: true }));
     const dlg = screen.getByRole("dialog");
 
     await act(async () => {
@@ -1080,8 +1080,10 @@ describe("ExpensesPage conflict reload is issued once (#469)", () => {
 
     expect(mockListExpenses).toHaveBeenCalledTimes(2);
     expect(await screen.findByRole("alert")).toHaveTextContent(/changed by someone else/);
-    // The window runWrite restored is still on screen.
-    expect(screen.getByRole("row", { name: /Generator diesel/ })).toBeInTheDocument();
+    // The window runWrite restored is still on screen. The correction dialog
+    // is still open (the 409 keeps it up), so the row lives outside it and
+    // stays under MUI's aria-hidden sweep.
+    expect(screen.getByRole("row", { name: /Generator diesel/, hidden: true })).toBeInTheDocument();
   });
 });
 
@@ -1257,13 +1259,13 @@ describe("ExpensesPage messages that had nowhere to land (#491)", () => {
     mockListCategories.mockRejectedValueOnce(new ApiError(500, "Server error", "Could not reload categories."));
 
     fireEvent.click(screen.getByRole("button", { name: "manage categories" }));
-    fireEvent.click(screen.getByRole("button", { name: "New category" }));
+    fireEvent.click(screen.getByRole("button", { name: "New category", hidden: true }));
     fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Category name"), { target: { value: "Bedding" } });
     await act(async () => {
       fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add category" }));
     });
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByText("Could not reload categories.")).toBeInTheDocument();
   });
 });
@@ -1419,7 +1421,9 @@ describe("ExpensesPage flock picker (T028/T038)", () => {
     fireEvent.click(within(flockRow).getByRole("button", { name: "correct" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Save correction" })).toBeDisabled());
 
-    fireEvent.click(within(farmRow).getByRole("button", { name: "correct" }));
+    // farmRow lives outside the flock row's still-open correction dialog, so
+    // it stays under MUI's aria-hidden sweep until that dialog is displaced.
+    fireEvent.click(within(farmRow).getByRole("button", { name: "correct", hidden: true }));
     const save = screen.getByRole("button", { name: "Save correction" });
     await waitFor(() => expect(save).toBeEnabled());
     await act(async () => { fireEvent.click(save); });
@@ -1446,7 +1450,7 @@ describe("ExpensesPage flock picker (T028/T038)", () => {
 // dialogs, plus the key policy and the session edges the migration must keep.
 describe("ExpensesPage abandoned-attempt success (#703)", () => {
   const dialog = () => screen.getByRole("dialog");
-  const openNewCategory = () => fireEvent.click(screen.getByRole("button", { name: "New category" }));
+  const openNewCategory = () => fireEvent.click(screen.getByRole("button", { name: "New category", hidden: true }));
   const submitCategory = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Add category" }));
   const cancel = () => fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
@@ -1525,7 +1529,7 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
       fireEvent.click(screen.getByRole("button", { name: "Save correction" }));
     });
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByText(i18n.t("expenses:expenseCorrectedMessage"))).toBeInTheDocument();
     expect(mockListExpenses).toHaveBeenCalledTimes(2); // mount + the post-write refresh
   });
@@ -1588,7 +1592,7 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
     await screen.findByLabelText("Amount (BHD)");
     fireEvent.click(screen.getByRole("button", { name: "Save correction" })); // left pending
     fireEvent.keyDown(dialog(), { key: "Escape" });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await act(async () => { gate.resolve({ ...EXP_OLD, version: 8 }); });
 
     expect(mockListExpenses).toHaveBeenCalledTimes(2); // the correction landed: the list re-read
@@ -1607,8 +1611,10 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
     });
     expect(within(dialog()).getByText("Correction failed.")).toBeInTheDocument();
 
-    // Straight to the other row's correct — no Cancel in between (#480).
-    fireEvent.click(within(screen.getByRole("row", { name: /Layer feed/ })).getByRole("button", { name: "correct" }));
+    // Straight to the other row's correct — no Cancel in between (#480). The
+    // row lives outside the still-open first dialog, so aria-hidden covers it.
+    fireEvent.click(within(screen.getByRole("row", { name: /Layer feed/, hidden: true }))
+      .getByRole("button", { name: "correct", hidden: true }));
     expect(dialog()).toHaveAccessibleName(/Layer feed/);
     expect(screen.queryByText("Correction failed.")).not.toBeInTheDocument();
   });
@@ -1627,7 +1633,7 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
 
     // Cancel is busy-gated; Escape is not, and onClose runs the same dismiss.
     fireEvent.keyDown(dialog(), { key: "Escape" });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await act(async () => { rejectFirst(new ApiError(500, "Server error", "late correction failure")); });
 
     expect(screen.queryByText("late correction failure")).not.toBeInTheDocument();

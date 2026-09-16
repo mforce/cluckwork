@@ -443,11 +443,20 @@ test.describe("live regions under a modal", () => {
         + "design in #501 rests on it doing so",
     ).toBeNull();
 
-    // FACT 2 — would exempting one subtree from the inert sweep put it back in
+    // FACT 2 — would exempting one subtree from the modal sweep put it back in
     // the accessibility tree while a dialog is open? The `data-modal-exempt`
     // design rests on yes. #485 rejected that attribute for FOCUSABLE content
     // (a reachable control outside the modal defeats containment); a region
     // with no controls is a different case, which is why it is still open.
+    //
+    // #827 — the sweep's mechanism changed. `Dialog.tsx` no longer hand-rolls
+    // it (no more `child.setAttribute("inert", "")` over `document.body`'s
+    // children); MUI's own `Modal`/`ModalManager` does it instead, via real
+    // `aria-hidden` on every sibling but the topmost modal
+    // (node_modules/@mui/material/Modal/ModalManager.js's `ariaHidden`/
+    // `ariaHiddenSiblings`), not the `inert` attribute. The fact under test —
+    // "does un-marking a subtree put it back in the tree" — is unchanged; only
+    // which attribute carries the marking is, so this probes `aria-hidden`.
     await page.getByRole("button", { name: tEn("customers:newCustomerButton") }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     // Same passive-effect race the first test settles: dialog visibility is
@@ -461,16 +470,16 @@ test.describe("live regions under a modal", () => {
     // scope, and the fact below would be measuring nothing.
     expect(
       (await ax.node("#probe-exempt")).exposed,
-      "the injected probe is a body child but the modal sweep did not inert it — the sweep's "
-        + "scope changed, so the exemption fact below is not being measured",
+      "the injected probe is a body child but the modal sweep did not aria-hide it — the "
+        + "sweep's scope changed, so the exemption fact below is not being measured",
     ).toBe(false);
 
-    await page.evaluate(() => document.getElementById("ax-probe")?.removeAttribute("inert"));
+    await page.evaluate(() => document.getElementById("ax-probe")?.removeAttribute("aria-hidden"));
 
     expect(
       (await ax.node("#probe-exempt")).exposed,
-      "un-inerting one subtree while a dialog is open did NOT return it to the accessibility "
-        + "tree — the inert-exemption design in #501 would not work",
+      "un-hiding one subtree while a dialog is open did NOT return it to the accessibility "
+        + "tree — the exemption design in #501 would not work",
     ).toBe(true);
   });
 });

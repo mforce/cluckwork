@@ -1,6 +1,6 @@
 import { lazy, type ReactElement } from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { act, render, screen, fireEvent, within } from "@testing-library/react";
+import { act, render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { AuthProvider } from "../auth/AuthContext";
@@ -245,12 +245,15 @@ describe("AppLayout bottom tabs", () => {
     expect(sheet.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
   });
 
-  it("closes the More sheet when a destination is chosen", () => {
+  it("closes the More sheet when a destination is chosen", async () => {
     renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
     fireEvent.click(tabbar().getByRole("button", { name: "More" }));
 
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("link", { name: "Grades" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    // MUI's Dialog defers the actual unmount to its exit transition
+    // (closeAfterTransition), so the dialog stays in the DOM for a moment
+    // after the close action fires.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("marks More as current when the screen is not one of the tabs", () => {

@@ -604,8 +604,8 @@ describe("StockPage error placement (#479)", () => {
     fillAndSubmit();
     await screen.findByText("network down");
 
-    const lotRow2 = screen.getByRole("row", { name: /07\/02\/2026/ });
-    fireEvent.click(within(lotRow2).getByRole("button", { name: "write off" }));
+    const lotRow2 = screen.getByRole("row", { name: /07\/02\/2026/, hidden: true });
+    fireEvent.click(within(lotRow2).getByRole("button", { name: "write off", hidden: true }));
     // The dialog really swapped lots — its title names the new lot's date.
     expect(screen.getByRole("dialog")).toHaveAccessibleName(/07\/02\/2026/); // farm-formatted (#650)
     expect(screen.queryByText("network down")).not.toBeInTheDocument();
@@ -630,8 +630,8 @@ describe("StockPage error placement (#479)", () => {
     fireEvent.click(within(lotRow1).getByRole("button", { name: "write off" }));
     fillAndSubmit(); // lot A's submit is left pending
 
-    const lotRow2 = screen.getByRole("row", { name: /07\/02\/2026/ });
-    fireEvent.click(within(lotRow2).getByRole("button", { name: "write off" }));
+    const lotRow2 = screen.getByRole("row", { name: /07\/02\/2026/, hidden: true });
+    fireEvent.click(within(lotRow2).getByRole("button", { name: "write off", hidden: true }));
     expect(screen.getByRole("dialog")).toHaveAccessibleName(/07\/02\/2026/); // farm-formatted (#650)
 
     await act(async () => {
@@ -655,7 +655,7 @@ describe("StockPage error placement (#479)", () => {
     const dlg = screen.getByRole("dialog");
 
     await act(async () => {
-      fireEvent.click(within(lotRow).getByRole("button", { name: "history" }));
+      fireEvent.click(within(lotRow).getByRole("button", { name: "history", hidden: true }));
     });
 
     const message = i18n.t("stock:loadMovementsFailed");
@@ -891,8 +891,8 @@ describe("StockPage lot paging + date filter (#465)", { timeout: 15_000 }, () =>
     fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
 
     // Refresh hangs on getStock; the user switches the ledger to lot B.
-    const rowB = screen.getByRole("row", { name: /06\/15\/2026/ });
-    fireEvent.click(within(rowB).getByRole("button", { name: "history" }));
+    const rowB = screen.getByRole("row", { name: /06\/15\/2026/, hidden: true });
+    fireEvent.click(within(rowB).getByRole("button", { name: "history", hidden: true }));
     await screen.findByText("marker-lot2");
 
     await act(async () => {
@@ -938,8 +938,8 @@ describe("StockPage lot paging + date filter (#465)", { timeout: 15_000 }, () =>
     // The refresh's ledger fetch (call 2) hangs; the user opens lot B's
     // History, which lands successfully...
     await waitFor(() => expect(call).toBe(2));
-    fireEvent.click(within(screen.getByRole("row", { name: /06\/15\/2026/ }))
-      .getByRole("button", { name: "history" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /06\/15\/2026/, hidden: true }))
+      .getByRole("button", { name: "history", hidden: true }));
     await screen.findByText("marker-lot2");
 
     // ...and only then does the superseded fetch reject.
@@ -1317,7 +1317,7 @@ describe("StockPage lot paging + date filter (#465)", { timeout: 15_000 }, () =>
     fireEvent.click(within(dialog).getByRole("button", { name: /Record/ }));
 
     // While the refresh's getStock() hangs, the user switches to Grade B.
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/ })).getByRole("button", { name: "lots" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade B\b/, hidden: true })).getByRole("button", { name: "lots", hidden: true }));
     await screen.findByText("03/03/2026");
 
     await act(async () => {
@@ -1600,7 +1600,7 @@ describe("StockPage abandoned-attempt success (#703)", () => {
     const lotRow = await openLotRow();
     fireEvent.click(within(lotRow).getByRole("button", { name: "write off" }));
     fillAndSubmit(); // left pending
-    fireEvent.click(within(lotRow).getByRole("button", { name: "write off" })); // reseed, same lot
+    fireEvent.click(within(lotRow).getByRole("button", { name: "write off", hidden: true })); // reseed, same lot
     await act(async () => { resolveFirst(RESULT); });
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

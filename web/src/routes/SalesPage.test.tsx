@@ -207,6 +207,9 @@ async function createDraft(order: SalesOrder) {
     fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
   });
   await screen.findByText(new RegExp(order.referenceNumber)); // panel header
+  // MUI defers the dialog's DOM removal to its exit transition — wait for it
+  // to actually leave before the caller starts querying the page behind it.
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 }
 
 async function openOrder(order: SalesOrder, rowName: RegExp) {
@@ -1670,7 +1673,7 @@ describe("SalesPage payment dialog", () => {
       note: "part payment",
     });
     expect(mockRecordPayment.mock.calls[0][2]).toEqual(expect.any(String)); // idempotency key
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument()); // success dismisses it
   });
 
   it("nulls the blank optional fields", async () => {
@@ -1693,7 +1696,7 @@ describe("SalesPage payment dialog", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockRecordPayment).not.toHaveBeenCalled();
   });
 });
@@ -1763,7 +1766,7 @@ describe("SalesPage payment writes refresh the Orders list (#769)", () => {
     });
     vi.mocked(voidPayment).mockResolvedValue(undefined as never);
     mockListOrders.mockResolvedValue([OWES]);
-    fireEvent.change(within(dialog()).getByLabelText("Reason *"),
+    fireEvent.change(within(dialog()).getByRole("textbox", { name: "Reason *" }),
       { target: { value: "posted to the wrong order" } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Void payment" }));
@@ -1923,7 +1926,7 @@ describe("SalesPage one-way actions", () => {
 
       fireEvent.click(reason("Other"));
       fireEvent.change(
-        within(dialog()).getByLabelText(i18n.t("sales:discountReasonNoteLabel")),
+        within(dialog()).getByRole("textbox", { name: i18n.t("sales:discountReasonNoteLabel") }),
         { target: { value: "  agreed with the buyer  " } });
       await act(async () => { fireEvent.click(accept()); });
 
@@ -2025,7 +2028,7 @@ describe("SalesPage one-way actions", () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
     });
 
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(vi.mocked(cancelOrder)).not.toHaveBeenCalled();
     // The draft is still open and still workable — dismissing is not a dead end.
     expect(screen.getByRole("button", { name: "Cancel draft" })).toBeEnabled();
@@ -2045,7 +2048,7 @@ describe("SalesPage one-way actions", () => {
 
     vi.mocked(voidOrder).mockResolvedValue(undefined as never);
     mockGetOrder.mockResolvedValue({ ...CONFIRMED, status: "Voided", voidReason: "double sold" });
-    fireEvent.change(within(dialog()).getByLabelText("Reason *"),
+    fireEvent.change(within(dialog()).getByRole("textbox", { name: "Reason *" }),
       { target: { value: "  double sold  " } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Void order" }));
@@ -2072,7 +2075,7 @@ describe("SalesPage one-way actions", () => {
     expect(dialog()).toHaveAccessibleName("Void this payment?");
 
     vi.mocked(voidPayment).mockResolvedValue(undefined as never);
-    fireEvent.change(within(dialog()).getByLabelText("Reason *"),
+    fireEvent.change(within(dialog()).getByRole("textbox", { name: "Reason *" }),
       { target: { value: "posted to the wrong order" } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Void payment" }));
@@ -2120,27 +2123,31 @@ describe("SalesPage pending states (#236)", () => {
     await act(async () => {
       fireEvent.click(within(screen.getByRole("row", { name: /R1/ })).getByRole("button", { name: "void" }));
     });
-    fireEvent.change(within(dialog()).getByLabelText("Reason *"), { target: { value: "wrong order" } });
+    fireEvent.change(within(dialog()).getByRole("textbox", { name: "Reason *" }), { target: { value: "wrong order" } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Void payment" }));
     });
 
-    // The clicked verb is the ONE pending indicator…
-    const voidR1 = within(screen.getByRole("row", { name: /R1/ })).getByRole("button", { name: "void" });
+    // The clicked verb is the ONE pending indicator… (the askReason dialog is
+    // still finishing its exit transition, so the page behind it is
+    // aria-hidden — every page-level query below needs `hidden: true`.)
+    const voidR1 = within(screen.getByRole("row", { name: /R1/, hidden: true }))
+      .getByRole("button", { name: "void", hidden: true });
     expect(voidR1).toHaveAttribute("aria-busy", "true");
     expect(voidR1).toBeDisabled();
     // …while the sibling row's same verb, and the order's own void, merely
     // disable — a second spinner would lie about what is being worked on.
-    const voidR2 = within(screen.getByRole("row", { name: /R2/ })).getByRole("button", { name: "void" });
+    const voidR2 = within(screen.getByRole("row", { name: /R2/, hidden: true }))
+      .getByRole("button", { name: "void", hidden: true });
     expect(voidR2).toBeDisabled();
     expect(voidR2).not.toHaveAttribute("aria-busy");
-    const voidOrderButton = screen.getByRole("button", { name: /Void order/ });
+    const voidOrderButton = screen.getByRole("button", { name: /Void order/, hidden: true });
     expect(voidOrderButton).toBeDisabled();
     expect(voidOrderButton).not.toHaveAttribute("aria-busy");
 
     await act(async () => { gate.resolve(); });
-    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
-    expect(screen.getByRole("button", { name: /Void order/ })).toBeEnabled();
+    await waitFor(() => expect(document.querySelector('[aria-busy="true"]')).toBeNull());
+    await waitFor(() => expect(screen.getByRole("button", { name: /Void order/ })).toBeEnabled());
   });
 
   it("spins only the removed line's own verb on a row that carries two", async () => {
@@ -2190,8 +2197,9 @@ describe("SalesPage pending states (#236)", () => {
     await act(async () => { gate.resolve({ id: order.id }); });
 
     // Close + busy-clear land together (React batching, pinned here): no
-    // dialog, no stale pending scope anywhere on the screen.
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // stale pending scope anywhere on the screen, and the dialog itself is
+    // gone once MUI's exit transition finishes.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
     await screen.findByText(new RegExp(order.referenceNumber));
     expect(errorSpy.mock.calls.filter(([first]) => String(first).includes("act("))).toEqual([]);
@@ -2596,6 +2604,9 @@ describe("SalesPage in-dialog errors (#474)", () => {
     fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
     await act(async () => { resolvePay({}); });
+    // MUI defers the abandoned dialog's DOM removal to its exit transition —
+    // wait for it to actually leave before reopening a fresh session.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
 
@@ -2622,6 +2633,9 @@ describe("SalesPage in-dialog errors (#474)", () => {
     fireEvent.click(within(dialog()).getByRole("button", { name: "Record payment" }));
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
     await act(async () => { resolvePay({}); });
+    // MUI defers the abandoned dialog's DOM removal to its exit transition —
+    // wait for it to actually leave before reopening a fresh session.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
 
@@ -2712,12 +2726,14 @@ describe("SalesPage in-dialog errors (#474)", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "void" }));
     });
-    fireEvent.change(within(dialog()).getByLabelText("Reason *"), { target: { value: "wrong order" } });
+    fireEvent.change(within(dialog()).getByRole("textbox", { name: "Reason *" }), { target: { value: "wrong order" } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Void payment" }));
     });
-    // …then open the payment dialog and let the void fail underneath it.
-    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+    // …then open the payment dialog and let the void fail underneath it. The
+    // askReason dialog is still finishing its exit transition, so the page's
+    // own trigger is aria-hidden until it does.
+    fireEvent.click(screen.getByRole("button", { name: "Record payment", hidden: true }));
     await act(async () => { rejectVoid(new ApiError(409, "Conflict", "That payment was already voided.")); });
 
     expect(within(dialog()).queryByText("That payment was already voided.")).not.toBeInTheDocument();
@@ -2740,7 +2756,7 @@ describe("SalesPage in-dialog errors (#474)", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
   });
 
@@ -2776,7 +2792,10 @@ describe("SalesPage in-dialog errors (#474)", () => {
     fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "New order" })); // second session
+    // The abandoned dialog is still finishing its exit transition, so the
+    // page's own trigger is aria-hidden until it does — but the user really
+    // can click it that fast, which is exactly the race this test covers.
+    fireEvent.click(screen.getByRole("button", { name: "New order", hidden: true })); // second session
     await act(async () => {
       rejectCreate(new ApiError(422, "Validation failed", "Order date cannot be in the future."));
     });
@@ -2799,7 +2818,7 @@ describe("SalesPage in-dialog errors (#474)", () => {
     fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "New order" })); // second session
+    fireEvent.click(screen.getByRole("button", { name: "New order", hidden: true })); // second session
     await act(async () => { resolveCreate({ id: DRAFT_TWO.id }); });
 
     // The session the user is in must survive its predecessor landing.
@@ -2832,7 +2851,7 @@ describe("SalesPage in-dialog errors (#474)", () => {
 
     // Only NOW does the user give up and start again.
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
-    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    fireEvent.click(screen.getByRole("button", { name: "New order", hidden: true }));
     await act(async () => { resolveGet(DRAFT_TWO); });
 
     // A REGEX, not the bare string: the panel heading renders
@@ -2864,7 +2883,10 @@ describe("SalesPage in-dialog errors (#474)", () => {
 
     mockCreateOrder.mockResolvedValueOnce({ id: "o9" } as never);
     mockGetOrder.mockResolvedValueOnce(DRAFT_TWO as never);
-    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    // The first dialog stayed open on the failed follow-up read (its own
+    // error, not a dismissal), so the page's trigger behind it is genuinely
+    // aria-hidden.
+    fireEvent.click(screen.getByRole("button", { name: "New order", hidden: true }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
     });
@@ -2891,6 +2913,7 @@ describe("SalesPage in-dialog errors (#474)", () => {
 
     const abandonedKey = mockCreateOrder.mock.calls[0][1];
     mockCreateOrder.mockResolvedValueOnce({ id: "o9" } as never);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "New order" }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
@@ -2914,6 +2937,7 @@ describe("SalesPage in-dialog errors (#474)", () => {
 
     mockCreateOrder.mockRejectedValueOnce(
       new ApiError(422, "Validation failed", "Order date cannot be in the future."));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "New order" }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
@@ -2994,7 +3018,7 @@ describe("SalesPage in-dialog errors (#474)", () => {
 
     // The name promised a dismissal; assert one happened, or this passes with
     // Cancel wired to nothing (internal review of #478).
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByText("Could not load this order's payments.")).toBeInTheDocument();
   });
 
@@ -3011,8 +3035,10 @@ describe("SalesPage in-dialog errors (#474)", () => {
     });
     await openOrder(CONFIRMED_9, /Grade A Dozen/);
     fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
-    fireEvent.click(screen.getByRole("button", { name: "New order" }));
-    const dialogs = screen.getAllByRole("dialog");
+    // The payment dialog is now the topmost of a stack the page's own
+    // trigger sits behind, so it needs `hidden: true` to be found.
+    fireEvent.click(screen.getByRole("button", { name: "New order", hidden: true }));
+    const dialogs = screen.getAllByRole("dialog", { hidden: true });
     expect(dialogs).toHaveLength(2); // the state this fixture exists to cover
 
     const newOrder = dialogs.find((d) => within(d).queryByRole("button", { name: "New draft order" }))!;
@@ -3034,8 +3060,10 @@ describe("SalesPage in-dialog errors (#474)", () => {
     mockRecordPayment.mockRejectedValueOnce(
       new ApiError(422, "Validation failed", "Payment exceeds the outstanding balance."));
     fireEvent.change(within(payment).getByLabelText(/Amount/), { target: { value: "99" } });
+    // `payment` is not the topmost dialog (`newOrder` is still open above
+    // it), so its own controls need `hidden: true` too.
     await act(async () => {
-      fireEvent.click(within(payment).getByRole("button", { name: "Record payment" }));
+      fireEvent.click(within(payment).getByRole("button", { name: "Record payment", hidden: true }));
     });
 
     expect(within(payment).getByText("Payment exceeds the outstanding balance.")).toBeInTheDocument();
@@ -3044,11 +3072,15 @@ describe("SalesPage in-dialog errors (#474)", () => {
 
     // And clearing one entry clears ONE entry: dismissing and reopening the
     // payment form drops its own message and leaves the new-order form's.
-    fireEvent.click(within(payment).getByRole("button", { name: "Cancel" }));
-    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+    fireEvent.click(within(payment).getByRole("button", { name: "Cancel", hidden: true }));
+    // Wait for the dismissed payment dialog to actually leave the DOM (its
+    // exit transition), or its own submit button still matches "Record
+    // payment" alongside the page trigger.
+    await waitFor(() => expect(screen.getAllByRole("dialog", { hidden: true })).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "Record payment", hidden: true }));
 
-    const reopened = screen.getAllByRole("dialog")
-      .find((d) => within(d).queryByRole("button", { name: "New draft order" }) === null)!;
+    const reopened = screen.getAllByRole("dialog", { hidden: true })
+      .find((d) => within(d).queryByRole("button", { name: "New draft order", hidden: true }) === null)!;
     expect(within(reopened).queryByText("Payment exceeds the outstanding balance.")).not.toBeInTheDocument();
     expect(within(newOrder).getByText("Order date cannot be in the future.")).toBeInTheDocument();
   });
@@ -3073,15 +3105,16 @@ describe("SalesPage in-dialog errors (#474)", () => {
     });
     expect(within(dialog()).getByText("Payment exceeds the outstanding balance.")).toBeInTheDocument();
 
-    // Open a different confirmed order while that message is still up.
+    // Open a different confirmed order while that message is still up. The
+    // payment dialog is still open, so the row's own trigger is aria-hidden.
     mockGetOrder.mockResolvedValue({ ...CONFIRMED_9, id: "o10", referenceNumber: "SO-10" });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "open" }));
+      fireEvent.click(screen.getByRole("button", { name: "open", hidden: true }));
     });
 
     expect(screen.queryByText("Payment exceeds the outstanding balance.")).not.toBeInTheDocument();
     // …and the form itself does not reopen on the new order either.
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("opens the next order's payment form without the last order's failure", async () => {
@@ -3108,9 +3141,9 @@ describe("SalesPage in-dialog errors (#474)", () => {
 
     mockGetOrder.mockResolvedValue({ ...CONFIRMED_9, id: "o10", referenceNumber: "SO-10" });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "open" }));
+      fireEvent.click(screen.getByRole("button", { name: "open", hidden: true }));
     });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
 
@@ -3155,10 +3188,13 @@ describe("SalesPage in-dialog errors (#474)", () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "New draft order" }));
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Record payment" })); // the other dialog
+    // The new-order dialog is open, so the page's other trigger is
+    // aria-hidden; once the payment dialog opens on top, new-order itself
+    // becomes the non-topmost (hidden) one.
+    fireEvent.click(screen.getByRole("button", { name: "Record payment", hidden: true })); // the other dialog
 
-    const newOrder = screen.getAllByRole("dialog")
-      .find((d) => within(d).queryByRole("button", { name: "New draft order" }))!;
+    const newOrder = screen.getAllByRole("dialog", { hidden: true })
+      .find((d) => within(d).queryByRole("button", { name: "New draft order", hidden: true }))!;
     expect(within(newOrder).getByText("Order date cannot be in the future.")).toBeInTheDocument();
   });
 
@@ -3176,7 +3212,9 @@ describe("SalesPage in-dialog errors (#474)", () => {
     expect(within(dialog()).getByText("Order date cannot be in the future.")).toBeInTheDocument();
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "New order" }));
+    // The dismissed dialog is still finishing its exit transition, so the
+    // page's own trigger is aria-hidden until it does.
+    fireEvent.click(screen.getByRole("button", { name: "New order", hidden: true }));
 
     expect(within(dialog()).queryByText("Order date cannot be in the future.")).not.toBeInTheDocument();
   });
@@ -3237,13 +3275,17 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
   }
 
   const CONFIRMED: SalesOrder = { ...DRAFT_TWO, status: "Confirmed" };
+  // confirm/void submit through a useConfirm dialog whose exit transition is
+  // still finishing when these run, so the page behind it is genuinely
+  // aria-hidden for a moment — `hidden: true` is harmless for add/update,
+  // which never open one.
   const closePanel = () => {
-    const close = screen.getByRole("button", { name: i18n.t("sales:close") });
+    const close = screen.getByRole("button", { name: i18n.t("sales:close"), hidden: true });
     expect(close).toBeEnabled();
     fireEvent.click(close);
     expect(document.querySelector(".order-panel")).toBeNull();
   };
-  const openButton = () => screen.getByRole("button", { name: i18n.t("sales:open") });
+  const openButton = () => screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true });
 
   async function submit(action: "add" | "update" | "confirm" | "void" | "cancel") {
     if (action === "add") {
@@ -3255,7 +3297,10 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
     } else {
       const trigger = action === "confirm" ? "confirmOrderButton" : action === "void" ? "voidOrderButton" : "cancelDraft";
       const accept = action === "confirm" ? "confirmOrderConfirmLabel" : action === "void" ? "voidOrderConfirmLabel" : "cancelDraft";
-      fireEvent.click(screen.getByRole("button", { name: i18n.t(`sales:${trigger}`) }));
+      // A previous ask-dialog from an earlier `submit()` call in the same
+      // test may still be finishing its exit transition, aria-hiding this
+      // trigger for a moment.
+      fireEvent.click(screen.getByRole("button", { name: i18n.t(`sales:${trigger}`), hidden: true }));
       // DRAFT_TWO is below list, so #721 puts the discount-reason picklist
       // between the trigger and the confirm.
       if (action === "confirm") {
@@ -3263,7 +3308,7 @@ describe("SalesPage panel write contracts (#703 PR 5)", () => {
           "radio", { name: i18n.t("enums:discountReason.Volume") }));
       }
       if (action === "void") {
-        fireEvent.change(within(dialog()).getByLabelText(i18n.t("useConfirm:reasonLabel")), { target: { value: "wrong order" } });
+        fireEvent.change(within(dialog()).getByRole("textbox", { name: i18n.t("useConfirm:reasonLabel") }), { target: { value: "wrong order" } });
       }
       await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: i18n.t(`sales:${accept}`) })); });
     }
@@ -3406,8 +3451,10 @@ describe("SalesPage payment panel contracts (#703 PR 5)", () => {
   }
 
   async function submitVoidPayment() {
-    fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:voidPaymentButton") }));
-    fireEvent.change(within(dialog()).getByLabelText(i18n.t("useConfirm:reasonLabel")), { target: { value: "wrong order" } });
+    // A previous void-payment ask dialog may still be finishing its exit
+    // transition when this runs a second time in the same test.
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:voidPaymentButton"), hidden: true }));
+    fireEvent.change(within(dialog()).getByRole("textbox", { name: i18n.t("useConfirm:reasonLabel") }), { target: { value: "wrong order" } });
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: i18n.t("sales:voidPaymentConfirmLabel") }));
     });
@@ -3450,11 +3497,13 @@ describe("SalesPage payment panel contracts (#703 PR 5)", () => {
       await act(async () => { resolveWrite(undefined as never); });
       expect(mockListOrderPayments).toHaveBeenCalledTimes(2);
     }
-    const close = screen.getByRole("button", { name: i18n.t("sales:close") });
+    // The void-payment ask dialog is still finishing its exit transition, so
+    // the page behind it (Close, Open) is genuinely aria-hidden until it does.
+    const close = screen.getByRole("button", { name: i18n.t("sales:close"), hidden: true });
     expect(close).toBeEnabled();
     fireEvent.click(close);
     expect(document.querySelector(".order-panel")).toBeNull();
-    expect(screen.getByRole("button", { name: i18n.t("sales:open") })).toBeDisabled();
+    expect(screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true })).toBeDisabled();
     await act(async () => { resolveWrite(undefined as never); });
     expect(mockListOrderPayments).toHaveBeenCalledTimes(2);
     expect(mockListOrderPayments).toHaveBeenLastCalledWith(order.id);
@@ -3462,11 +3511,11 @@ describe("SalesPage payment panel contracts (#703 PR 5)", () => {
     expect(screen.getByText(i18n.t("sales:paymentVoided"))).toBeInTheDocument();
     expect(document.querySelector(".order-panel")).toBeNull();
     expect(screen.queryByText("late receipt")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: i18n.t("sales:open") })).toBeEnabled();
+    expect(screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true })).toBeEnabled();
     // DOM absence cannot observe a hidden setPayments overwrite: reopening
     // clears payments in the existing effect. The calls plus success prove
     // the helper completed; M7 records this observation limit separately.
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open") })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: i18n.t("sales:open"), hidden: true })); });
     expect(mockListOrderPayments).toHaveBeenCalledTimes(3);
     expect(screen.getByText("PR5 receipt")).toBeInTheDocument();
     expect(screen.queryByText("late receipt")).not.toBeInTheDocument();

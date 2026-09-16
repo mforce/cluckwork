@@ -26,10 +26,13 @@ const MORE_VALUE = "__more__";
 // already put in the theme. The fifth slot stays a plain button — it opens a
 // sheet, not a route — carrying `aria-haspopup="dialog"`, `aria-expanded` and
 // `aria-current="page"` when the route is under More, none of which
-// `BottomNavigationAction` models on its own. More itself stays on the
-// existing `Dialog` component: #827 (MUI `Dialog` conversion) has not landed,
-// so there is no `SwipeableDrawer` question to answer yet — the alternative
-// §7 names is exactly what this keeps.
+// `BottomNavigationAction` models on its own. More itself stays on the MUI
+// `Dialog` component #827 shipped, rendering `fullScreen` below 900px (the
+// same default every form dialog gets — a twenty-link menu is exactly the
+// case that default exists for) rather than the retired bottom sheet; the
+// `SwipeableDrawer` alternative §7 names is still open and unanswered here —
+// #829 decides it. `anyDialogOpen()` still reads true while More is open,
+// same as before #827: it is a real `Dialog` instance either way.
 export function BottomNav({
   groups, tabs, onLogout,
 }: {

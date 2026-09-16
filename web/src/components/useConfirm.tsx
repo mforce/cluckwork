@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  Button, DialogActions, DialogContentText, FormControl, FormControlLabel,
+  FormHelperText, FormLabel, Radio, RadioGroup, TextField,
+} from "@mui/material";
 import { Dialog } from "./Dialog";
 
 interface AskBase {
@@ -192,104 +196,116 @@ export function useConfirm() {
   };
 
   const ids = useId();
-  const reasonId = `${ids}-reason`;
-  const errorId = `${ids}-error`;
   const bodyId = `${ids}-body`;
   const choiceErrorId = `${ids}-choice-error`;
 
   // Focus lands by DOM order, which puts it in the right place for free:
-  // Cancel for a yes/no (a stray Enter must not deplete a flock), the textarea
+  // Cancel for a yes/no (a stray Enter must not deplete a flock), the field
   // for a reason (there is nothing to decide until they have typed).
+  //
+  // fullScreenOnPhone={false} — a confirmation is prose and one or two
+  // controls, never a form long enough to need a phone's whole screen (D2
+  // pair 2, D3.3); it stays a centred Dialog at every width, unlike the form
+  // dialogs every route screen opens through this same component.
   const confirmDialog = (
     <Dialog
       open={pending !== null}
       title={pending?.title ?? ""}
       onClose={dismiss}
       describedBy={pending ? bodyId : undefined}
+      fullScreenOnPhone={false}
     >
       {pending && (
         <>
-          <div className="confirm-body" id={bodyId}>{pending.body}</div>
+          <DialogContentText id={bodyId} sx={{ mb: pending.kind === "confirm" ? 0 : 2 }}>
+            {pending.body}
+          </DialogContentText>
           {pending.kind === "choice" && (
             <>
-              {/* fieldset + legend, matching SettingsPage's palette picker.
-                  No aria-invalid: a fieldset maps to role="group", which does
-                  not support it, so it would read as accessibility that is not
-                  there. aria-describedby IS global, and carries the error. */}
-              <fieldset
+              {/* component="fieldset"/"legend" — the same fieldset+legend
+                  structure the hand-rolled version used, matching
+                  SettingsPage's palette picker. aria-describedby is manual
+                  because a fieldset (role="group") carries the error text,
+                  which MUI's FormControl does not wire up on its own for an
+                  arbitrary child. */}
+              <FormControl
+                component="fieldset"
                 className="choice-set"
                 aria-describedby={choiceError ? choiceErrorId : undefined}
+                sx={{ mb: 2 }}
               >
-                <legend>{pending.choiceLabel}</legend>
-                {pending.choices.map((option, index) => (
-                  <label key={option.value} className="choice">
-                    <input
-                      type="radio"
-                      name={`${ids}-choice`}
-                      ref={index === 0 ? choiceRef : undefined}
-                      value={option.value}
-                      checked={choice === option.value}
-                      onChange={() => {
-                        setChoice(option.value);
-                        setChoiceError(null);
-                        // The note's requirement follows the option, so an
-                        // error raised against the previous one no longer
-                        // describes anything on screen.
-                        setReasonError(null);
-                      }}
-                    />
-                    {option.label}
-                  </label>
-                ))}
-              </fieldset>
-              {choiceError && <p className="error" id={choiceErrorId}>{choiceError}</p>}
-              <label htmlFor={reasonId}>
-                {pending.noteLabel}
-                <textarea
-                  id={reasonId}
-                  ref={reasonRef}
-                  rows={3}
-                  required={pending.noteRequiredFor.includes(choice)}
-                  value={reason}
-                  aria-invalid={reasonError !== null}
-                  aria-describedby={reasonError ? errorId : undefined}
+                <FormLabel component="legend">{pending.choiceLabel}</FormLabel>
+                <RadioGroup
+                  name={`${ids}-choice`}
+                  value={choice}
                   onChange={(e) => {
-                    setReason(e.target.value);
-                    if (reasonError) setReasonError(null);
+                    setChoice(e.target.value);
+                    setChoiceError(null);
+                    // The note's requirement follows the option, so an error
+                    // raised against the previous one no longer describes
+                    // anything on screen.
+                    setReasonError(null);
                   }}
-                />
-              </label>
-            </>
-          )}
-          {pending.kind === "reason" && (
-            <label htmlFor={reasonId}>
-              {t("reasonLabel")}
-              <textarea
-                id={reasonId}
-                ref={reasonRef}
+                >
+                  {pending.choices.map((option, index) => (
+                    <FormControlLabel
+                      key={option.value}
+                      value={option.value}
+                      label={option.label}
+                      control={
+                        <Radio
+                          slotProps={index === 0 ? { input: { ref: choiceRef } } : undefined}
+                        />
+                      }
+                    />
+                  ))}
+                </RadioGroup>
+                {choiceError && <FormHelperText id={choiceErrorId} error>{choiceError}</FormHelperText>}
+              </FormControl>
+              <TextField
+                inputRef={reasonRef}
+                label={pending.noteLabel}
+                multiline
                 rows={3}
-                required
+                fullWidth
+                required={pending.noteRequiredFor.includes(choice)}
                 value={reason}
-                aria-invalid={reasonError !== null}
-                aria-describedby={reasonError ? errorId : undefined}
+                error={reasonError !== null}
+                helperText={reasonError ?? undefined}
                 onChange={(e) => {
                   setReason(e.target.value);
                   if (reasonError) setReasonError(null);
                 }}
               />
-            </label>
+            </>
           )}
-          {reasonError && <p className="error" id={errorId}>{reasonError}</p>}
-          <div className="dialog-foot">
-            <button type="button" className="link" onClick={dismiss}>{tc("cancel")}</button>
-            <button
-              type="button"
-              className={pending.destructive ? "btn-danger" : undefined}
+          {pending.kind === "reason" && (
+            <TextField
+              inputRef={reasonRef}
+              label={t("reasonLabel")}
+              multiline
+              rows={3}
+              fullWidth
+              required
+              value={reason}
+              error={reasonError !== null}
+              helperText={reasonError ?? undefined}
+              onChange={(e) => {
+                setReason(e.target.value);
+                if (reasonError) setReasonError(null);
+              }}
+            />
+          )}
+          <DialogActions sx={{ px: 0, mt: 2 }}>
+            <Button onClick={dismiss}>{tc("cancel")}</Button>
+            <Button
+              variant="contained"
+              color={pending.destructive ? "error" : "primary"}
               onClick={() => accept(pending)}
             >
               {pending.confirmLabel}
-            </button>
-          </div>
+            </Button>
+          </DialogActions>
         </>
       )}
     </Dialog>

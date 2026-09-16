@@ -410,29 +410,54 @@ export const MUTANTS: Record<string, Mutant> = {
   },
 
   // --- accessibility under a modal (#485/#501, DOM-level — see the header) --
+  // #827 — the KEY NAMES below still say "inert" (mutation-check.sh keys its
+  // GREP_FOR/CHROMIUM_ONLY/EXPECT_MSG_FOR maps and its own comments off these
+  // exact strings, so renaming them is a separate, wider change this PR does
+  // not make); the MECHANISM they imitate moved. `Dialog.tsx` no longer
+  // hand-rolls the background sweep (no more `child.setAttribute("inert",
+  // "")` over `document.body`'s children) — MUI's `Modal`/`ModalManager` does
+  // it now, via real `aria-hidden` on every sibling but the topmost modal
+  // (node_modules/@mui/material/Modal/ModalManager.js's `ariaHidden`/
+  // `ariaHiddenSiblings`), applied to `#root` itself (the SPA's mount div, a
+  // body child and therefore one such sibling) rather than to the `inert`
+  // IDL. Left un-migrated, these four mutants would silently stop imitating
+  // anything: the app never sets or clears `inert` any more, so a
+  // MutationObserver filtered on that attribute name would just sit idle —
+  // an unreachable mutant reads as a passing suite exactly like a working one.
   "a11y-inert-sweep-removed": {
     breaks:
-      "#483's modal inert sweep, so the page behind a dialog stays in the accessibility tree — "
-      + "the state the app was in before #483, and the state #485's premise denies",
+      "#483's modal background-hiding sweep, so the page behind a dialog stays in the "
+      + "accessibility tree — the state the app was in before #483, and the state #485's premise "
+      + "denies",
     caughtBy:
       "a11y-live-regions.spec.ts — the offscreen announcers leave the accessibility tree while "
       + "a dialog is open",
     apply: async (page) => {
       await page.addInitScript(() => {
-        // Strip `inert` as fast as the sweep sets it. Observing the DOCUMENT
-        // with subtree covers body's children, which is what
-        // syncModalBackground() actually marks, including ones added later —
-        // `document.documentElement` does not exist yet at init-script time
-        // (see the header). Removing an absent attribute produces no record,
-        // so this terminates.
+        // Strip `aria-hidden` as fast as the sweep sets it — but ONLY from a
+        // direct child of <body>, which is the exact set `ariaHiddenSiblings`
+        // marks. `aria-hidden` is not this app's own invention the way
+        // `inert` was: it also sits on every decorative icon app-wide (this
+        // very Dialog's own close-button `<svg aria-hidden>`, among many),
+        // nested well below <body>. An unscoped strip would rip THOSE off
+        // too, on every render, which is not the regression this mutant
+        // imitates and would corrupt the accessibility tree at a different
+        // layer than the guarantee under test. `subtree: true` is still
+        // needed to observe new body children as they mount — the record
+        // filter below is what keeps the effect scoped to siblings, not
+        // depth. `document.documentElement` does not exist yet at
+        // init-script time (see the header), so this observes `document`.
         new MutationObserver((records) => {
           for (const record of records) {
-            if (record.target instanceof Element) record.target.removeAttribute("inert");
+            const el = record.target;
+            if (el instanceof Element && el.parentElement === document.body) {
+              el.removeAttribute("aria-hidden");
+            }
           }
         }).observe(document, {
           attributes: true,
           subtree: true,
-          attributeFilter: ["inert"],
+          attributeFilter: ["aria-hidden"],
         });
       });
     },
@@ -486,20 +511,20 @@ export const MUTANTS: Record<string, Mutant> = {
       // by an adversarial review of this PR, not by the harness). This one
       // stays silent until a close transition, so the loop is what catches it.
       await page.addInitScript(() => {
-        let wasInert = false;
+        let wasHidden = false;
         const check = () => {
           const root = document.getElementById("root");
           const banner = document.querySelector(".farm-warning");
           const region = document.querySelector('main.content > p.sr-only[aria-live="assertive"]');
-          const nowInert = root?.hasAttribute("inert") ?? false;
-          if (wasInert && !nowInert && banner && region) region.textContent = banner.textContent;
-          wasInert = nowInert;
+          const nowHidden = root?.hasAttribute("aria-hidden") ?? false;
+          if (wasHidden && !nowHidden && banner && region) region.textContent = banner.textContent;
+          wasHidden = nowHidden;
         };
         new MutationObserver(check).observe(document, {
           attributes: true,
           childList: true,
           subtree: true,
-          attributeFilter: ["inert"],
+          attributeFilter: ["aria-hidden"],
         });
       });
     },
@@ -521,23 +546,23 @@ export const MUTANTS: Record<string, Mutant> = {
       // could not. A write that exists for ~80ms is exactly that case: audible,
       // and invisible to every snapshot in the test.
       await page.addInitScript(() => {
-        let wasInert = false;
+        let wasHidden = false;
         const check = () => {
           const root = document.getElementById("root");
           const banner = document.querySelector(".farm-warning");
           const region = document.querySelector('main.content > p.sr-only[aria-live="assertive"]');
-          const nowInert = root?.hasAttribute("inert") ?? false;
-          if (wasInert && !nowInert && banner && region) {
+          const nowHidden = root?.hasAttribute("aria-hidden") ?? false;
+          if (wasHidden && !nowHidden && banner && region) {
             region.textContent = banner.textContent;
             setTimeout(() => { region.textContent = ""; }, 80);
           }
-          wasInert = nowInert;
+          wasHidden = nowHidden;
         };
         new MutationObserver(check).observe(document, {
           attributes: true,
           childList: true,
           subtree: true,
-          attributeFilter: ["inert"],
+          attributeFilter: ["aria-hidden"],
         });
       });
     },
@@ -545,37 +570,40 @@ export const MUTANTS: Record<string, Mutant> = {
 
   "a11y-inert-never-lifted": {
     breaks:
-      "the RETURN half of #483's sweep — the background is marked inert on open and never "
+      "the RETURN half of #483's sweep — the background is marked hidden on open and never "
       + "un-marked on close, so the announcers stay out of the accessibility tree for good",
     caughtBy:
       "a11y-live-regions.spec.ts — the offscreen announcers leave the accessibility tree while "
       + "a dialog is open (specifically its final 'never returned' assertion)",
     apply: async (page) => {
       // The mirror of `a11y-inert-sweep-removed`, and it exists because that
-      // one does NOT cover this: stripping `inert` as fast as it is set says
-      // nothing about whether the sweep lifts it again. The spec asserted the
-      // return path from the first draft, and no mutant reached that assertion
-      // for four review rounds (found by an agent review of the codex round-1
-      // fixes — the fourth instance on this PR of an assertion whose mutant
-      // died somewhere else, which is why the harness now checks EXPECT_MSG_FOR).
+      // one does NOT cover this: stripping `aria-hidden` as fast as it is set
+      // says nothing about whether the sweep lifts it again. The spec
+      // asserted the return path from the first draft, and no mutant reached
+      // that assertion for four review rounds (found by an agent review of
+      // the codex round-1 fixes — the fourth instance on this PR of an
+      // assertion whose mutant died somewhere else, which is why the harness
+      // now checks EXPECT_MSG_FOR).
       //
       // Re-adding on removal, rather than blocking the removal, keeps the
-      // settling signal intact: `popModal` restores body overflow before it
-      // calls the sweep, so `waitForModalEffect(false)` still resolves and the
-      // test proceeds to the assertion this is aimed at.
+      // settling signal intact: MUI's own `ModalManager.remove()` restores
+      // `document.body.style.overflow` before it un-hides the siblings (the
+      // same ordering `popModal` used to guarantee by hand, pre-#827), so
+      // `waitForModalEffect(false)` still resolves and the test proceeds to
+      // the assertion this is aimed at.
       await page.addInitScript(() => {
-        let sawInert = false;
+        let sawHidden = false;
         new MutationObserver(() => {
           const root = document.getElementById("root");
           if (root === null) return;
-          if (root.hasAttribute("inert")) { sawInert = true; return; }
-          // Only once a dialog has genuinely inerted it — otherwise this would
-          // inert the page at load and break every test for the wrong reason.
-          if (sawInert) root.setAttribute("inert", "");
+          if (root.hasAttribute("aria-hidden")) { sawHidden = true; return; }
+          // Only once a dialog has genuinely hidden it — otherwise this would
+          // hide the page at load and break every test for the wrong reason.
+          if (sawHidden) root.setAttribute("aria-hidden", "true");
         }).observe(document, {
           attributes: true,
           subtree: true,
-          attributeFilter: ["inert"],
+          attributeFilter: ["aria-hidden"],
         });
       });
     },

@@ -132,37 +132,19 @@ function declarationsFor(selector: string): Map<string, string> {
   return decls;
 }
 
-// The nearest enclosing `@media` rule's `params`, or `undefined` at the top
-// level. Same shape as `insideKeyframes` above: walk the parent chain rather
-// than assume one nesting depth.
-function enclosingMediaParams(node: Node | undefined): string | undefined {
-  let current: Node | undefined = node;
-  while (current !== undefined) {
-    if (current.type === "atrule" && (current as AtRule).name === "media") {
-      return (current as AtRule).params;
-    }
-    current = current.parent as Node | undefined;
-  }
-  return undefined;
-}
-
 // `declarationsFor` MERGES every matching rule into one map in document
 // order, so a selector declared once at the top level and again inside a
 // LATER `@media` block silently loses the top-level value to the media one —
-// found by a Codex review of #882 (2026-09-16) against the ".dialog" case
-// below: a mutation of the unconditional `.dialog` radius (styles.css:634)
-// passed the old assertion because it read back the phone media query's
-// value instead. This reads only rules whose nearest `@media` matches
-// `mediaParams` exactly (`undefined` for "not inside any @media").
-function declarationsForAt(selector: string, mediaParams: string | undefined): Map<string, string> {
-  const decls = new Map<string, string>();
-  root.walkRules((rule: Rule) => {
-    if (!rule.selectors.map(clean).flatMap(unwrap).includes(selector)) return;
-    if (enclosingMediaParams(rule) !== mediaParams) return;
-    rule.walkDecls((d) => { decls.set(d.prop, d.value); });
-  });
-  return decls;
-}
+// found by a Codex review of #882 (2026-09-16) against the (now retired by
+// #827) unconditional `.dialog` radius: a mutation of it passed the old
+// assertion because it read back the phone media query's value instead. The
+// media-scoped reader that fixed it (`declarationsForAt` plus
+// `enclosingMediaParams`) is deleted along with the last selector it was
+// built to check — `.dialog` no longer carries a radius in this file at all
+// (MUI's own `MuiDialog.styleOverrides.paper` does, pinned in
+// `farmTheme.policy.test.ts`), and no other selector here has the same
+// unconditional-plus-media-override shape today. Recreate that reader if one
+// does.
 
 // Everything allowed to cast a shadow, and why. Four floats plus one ring.
 //
@@ -179,9 +161,16 @@ function declarationsForAt(selector: string, mediaParams: string | undefined): M
 // the theme's own shadow-index map G2 already pins (#823:
 // `AppBar`/`Snackbar` defaults 4/6 -> `--shadow-bar`) — no new G2 row, since
 // nothing about that mapping changed, only which component now relies on it.
+//
+// `.dialog` retired here in #827: the modal shadow now comes from MUI
+// `Dialog`'s own Paper (`elevation={24}`, hardcoded by Dialog.js regardless
+// of MuiPaper's global `elevation: 0` default), which resolves to
+// `--shadow-dialog` through the same G2 shadow-index map (#823:
+// `Popover`/`Drawer`/`Dialog` defaults 8/16/24 -> `--shadow-dialog`) — an
+// emotion-generated class this static-file walk cannot see, and does not
+// need to: G2's index map already governs it, unchanged by this PR.
 const SHADOW_ALLOWED = [
   ".auth .card",            // the sign-in card, floating on the auth gradient
-  ".dialog",                // a modal, over its backdrop
   ".glossary-entry:target", // not elevation: a spread-only deep-link halo
   ".named-picker-listbox",  // the picker popover, over the form beneath it
   ".update-banner",         // the service-worker update prompt
@@ -269,17 +258,13 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
     expect(declarationsFor(selector).get("border-radius")).toBe("var(--r-panel)");
   });
 
-  // The dialog family is the one place --r-card still belongs: a modal and
-  // its phone-sheet variant. Checked as two SEPARATE declarations, not one
-  // merged lookup — declarationsFor(".dialog") would report only the phone
-  // media query's value here, because it is declared later in the file and
-  // overwrites the unconditional one in the merged map.
-  it("the unconditional dialog radius keeps --r-card", () => {
-    expect(declarationsForAt(".dialog", undefined).get("border-radius")).toBe("var(--r-card)");
-  });
-
-  it("the phone dialog-sheet radius keeps --r-card", () => {
-    expect(declarationsForAt(".dialog", "(max-width: 900px)").get("border-radius"))
-      .toBe("var(--r-card) var(--r-card) 0 0");
-  });
+  // #827 retired both `.dialog` radius rules — MUI `Dialog`'s own paper now
+  // carries `--r-card` through `MuiDialog.styleOverrides.paper.borderRadius`
+  // (FarmThemeProvider.tsx), pinned by `farmTheme.policy.test.ts`'s own
+  // dialog radius assertion (added with the theme in #823, unchanged by
+  // this PR). A selector this file no longer declares would make a
+  // CSS-text lookup here pass vacuously — exactly the trap #822 D4 named
+  // this rule for — so the checks move to where the declaration actually
+  // lives now, rather than staying here as a name that reads like it still
+  // means something.
 });
