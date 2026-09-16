@@ -562,7 +562,7 @@ function TodayRow({ tile, today, fmt, t }: {
       // ruled text with no button chrome to balloon (see below) — an
       // arbitrarily long flock name racing a real action is a residual risk
       // this model accepts, same as the mockup does.
-      gridTemplateColumns: { xs: "1fr auto", md: "150px 1fr auto 110px" },
+      gridTemplateColumns: { xs: "1fr auto", md: "minmax(0,1fr) auto auto 110px" },
       gridTemplateAreas: { xs: '"name num" "meta meta" "act act"', md: '"name meta act num"' },
       columnGap: 1.5, rowGap: { xs: 0.25, md: 0 },
       alignItems: "center",
@@ -573,7 +573,7 @@ function TodayRow({ tile, today, fmt, t }: {
       bgcolor: missing ? { xs: "var(--tint-warn)", md: "transparent" } : "transparent",
     }}
     >
-      <Typography component={Link} to={href} sx={{ gridArea: "name", fontWeight: 500 }}
+      <Typography component={Link} to={href} sx={{ gridArea: "name", fontWeight: 500, overflow: { md: "hidden" }, textOverflow: { md: "ellipsis" }, whiteSpace: { md: "nowrap" } }}
         aria-label={missing
           ? t("tileLinkLabelMissing", { flock: flock.name })
           : t("tileLinkLabel", { flock: flock.name })}
@@ -590,7 +590,7 @@ function TodayRow({ tile, today, fmt, t }: {
           : <StatusDot status={entry.status} label={stateLabel} />}
       </Box>
       {(missing || draft) && (
-        <Box sx={{ gridArea: "act", textAlign: { xs: "stretch", md: "right" } }}>
+        <Box sx={{ gridArea: "act", textAlign: { xs: "stretch", md: "right" }, whiteSpace: { md: "nowrap" } }}>
           {missing && (
             // The single filled button on the page at 1280 (owner amendment,
             // #864) and the 48px full-width phone action (DIRECTION.md).
