@@ -228,7 +228,7 @@ export function Dashboard() {
   const attentionMore = missingHouses.length - attentionShown.length;
 
   return (
-    <Container maxWidth={false} sx={{ maxWidth: 1120, py: { xs: 3, md: 4.5 } }}>
+    <Container maxWidth={false} disableGutters sx={{ maxWidth: 1120, py: { xs: 3, md: 4.5 } }}>
       <Typography variant="h2">{t("title")}</Typography>
       <Typography className="muted"><FarmDate iso={today} /></Typography>
 
