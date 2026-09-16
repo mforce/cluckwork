@@ -310,7 +310,26 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
             // row action (and any other bare `ButtonBase`, e.g. an
             // `IconButton`) gets no transform at all.
             "&.MuiButton-contained, &.MuiButton-outlined": {
-              transition: `transform ${TRANSFORM_TRANSITION_MS}ms ${EASE}`,
+              // `transition` is a shorthand for every property in one
+              // declaration: naming only `transform` here does not ADD a
+              // press transition alongside `Button.js`'s own
+              // `background-color`/`box-shadow`/`border-color`/`color` list
+              // (`duration.short`, i.e. `COLOR_TRANSITION_MS`) — it REPLACES
+              // that whole declaration, because this compound-class selector
+              // has higher specificity than `Button.js`'s own single-class
+              // rule and both target the same `transition` property. Found by
+              // a Codex review of #882 (2026-09-16): a rendered contained
+              // button computed `transition: transform 240ms ...` with no
+              // colour transition at all, silently dropping the "colour
+              // transitions reuse duration.short at 160ms" policy for every
+              // contained/outlined button.
+              transition: [
+                `transform ${TRANSFORM_TRANSITION_MS}ms ${EASE}`,
+                `background-color ${COLOR_TRANSITION_MS}ms ${EASE}`,
+                `box-shadow ${COLOR_TRANSITION_MS}ms ${EASE}`,
+                `border-color ${COLOR_TRANSITION_MS}ms ${EASE}`,
+                `color ${COLOR_TRANSITION_MS}ms ${EASE}`,
+              ].join(", "),
               "&:active": { transform: "scale(0.98)" },
               // `theme.motion.reducedMotion: "system"` above covers every
               // transition MUI itself builds through `getTransitionStyles()`;
@@ -367,6 +386,20 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         },
       },
       // Ledger row heights (DIRECTION.md): 36px desktop, 52px phone.
+      //
+      // KNOWN GAP, flagged by a Codex review of #882 (2026-09-16) and left
+      // open rather than fixed here: `height` on a `table-row` is a floor,
+      // not a ceiling, so a row still grows past it when its cells' content
+      // does not fit. `TableCell` spreads `theme.typography.body2` — 0.95rem
+      // at MUI's default 1.43 line-height (~21.7px), never this theme's
+      // row scale (14/20 desktop, 16/24 phone) — plus MUI's own default 16px
+      // vertical padding and a 1px border, ~54.7px total, comfortably over
+      // both targets. Closing this needs an explicit `MuiTableCell` density
+      // (variant, padding, and whether it should track the row scale at all)
+      // that nothing has reviewed yet, and this slice mounts no real
+      // `Table` on any screen (by design — no screen conversion), so nothing
+      // renders wrong today. Left for whichever slice first puts a ledger on
+      // MUI's `Table`.
       MuiTableRow: {
         styleOverrides: {
           root: { height: 36, [phone]: { height: 52 } },

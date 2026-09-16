@@ -197,4 +197,28 @@ describe("FarmThemeProvider against the real DOM (#871 local review)", () => {
     expect(getComputedStyle(selectedRoot!).boxShadow, "selected tab rule")
       .toBe("inset 0 2px 0 0 #4a154b");
   });
+
+  // Found by a Codex review of #882 (2026-09-16): `transition` is a
+  // shorthand, so the press-feedback override's `&.MuiButton-contained,
+  // &.MuiButton-outlined` rule REPLACED `Button.js`'s own background-color/
+  // box-shadow/border-color/color transition rather than adding a transform
+  // transition alongside it — an object read of the theme (`farmTheme.
+  // policy.test.ts`) can prove the override is declared but not that it
+  // still carries MUI's own properties once the cascade actually resolves.
+  it("keeps MUI's own colour transition on a contained button, not just the added transform", () => {
+    const theme = createFarmTheme(tokensFor(DEFAULT_BRAND, "light"), "light");
+    const { container } = render(
+      <ThemeProvider theme={theme}>
+        <Button variant="contained">Save</Button>
+      </ThemeProvider>,
+    );
+    const button = container.querySelector(".MuiButton-contained");
+    expect(button, "a contained button renders").not.toBeNull();
+    const transition = getComputedStyle(button!).transition;
+    expect(transition, "keeps the added press transform").toContain("transform 240ms");
+    expect(transition, "keeps MUI's own background-color transition").toContain("background-color 160ms");
+    expect(transition, "keeps MUI's own border-color transition").toContain("border-color 160ms");
+    expect(transition, "keeps MUI's own color transition")
+      .toMatch(/(?:^|,\s*)color 160ms/);
+  });
 });

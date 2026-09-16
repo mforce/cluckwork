@@ -209,7 +209,20 @@ describe("farm theme policy (#823 G2)", () => {
     for (const { label, theme } of themes) {
       const root = slot(theme.components?.MuiButtonBase?.styleOverrides?.root, `${label} MuiButtonBase root`);
       const pressed = slot(root["&.MuiButton-contained, &.MuiButton-outlined"], `${label} press-feedback scope`);
-      expect(pressed.transition, `${label} press transition`).toBe("transform 240ms cubic-bezier(.32,.72,0,1)");
+      // `transition` is a shorthand: naming only `transform` here would
+      // REPLACE `Button.js`'s own background-color/box-shadow/border-color/
+      // color transition rather than add to it, because this compound-class
+      // selector outranks `Button.js`'s single-class one. Found by a Codex
+      // review of #882 (2026-09-16) against a real render (see
+      // FarmThemeProvider.render.test.tsx); this pins every property the fix
+      // must keep, not just the one this slice added.
+      expect(pressed.transition, `${label} press transition`).toBe(
+        "transform 240ms cubic-bezier(.32,.72,0,1), "
+        + "background-color 160ms cubic-bezier(.32,.72,0,1), "
+        + "box-shadow 160ms cubic-bezier(.32,.72,0,1), "
+        + "border-color 160ms cubic-bezier(.32,.72,0,1), "
+        + "color 160ms cubic-bezier(.32,.72,0,1)",
+      );
       const active = slot(pressed["&:active"], `${label} press active state`);
       expect(active.transform, `${label} press scale`).toBe("scale(0.98)");
       // This is a plain style object, not one MUI builds through
