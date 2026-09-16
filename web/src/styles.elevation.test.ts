@@ -132,6 +132,38 @@ function declarationsFor(selector: string): Map<string, string> {
   return decls;
 }
 
+// The nearest enclosing `@media` rule's `params`, or `undefined` at the top
+// level. Same shape as `insideKeyframes` above: walk the parent chain rather
+// than assume one nesting depth.
+function enclosingMediaParams(node: Node | undefined): string | undefined {
+  let current: Node | undefined = node;
+  while (current !== undefined) {
+    if (current.type === "atrule" && (current as AtRule).name === "media") {
+      return (current as AtRule).params;
+    }
+    current = current.parent as Node | undefined;
+  }
+  return undefined;
+}
+
+// `declarationsFor` MERGES every matching rule into one map in document
+// order, so a selector declared once at the top level and again inside a
+// LATER `@media` block silently loses the top-level value to the media one —
+// found by a Codex review of #882 (2026-09-16) against the ".dialog" case
+// below: a mutation of the unconditional `.dialog` radius (styles.css:634)
+// passed the old assertion because it read back the phone media query's
+// value instead. This reads only rules whose nearest `@media` matches
+// `mediaParams` exactly (`undefined` for "not inside any @media").
+function declarationsForAt(selector: string, mediaParams: string | undefined): Map<string, string> {
+  const decls = new Map<string, string>();
+  root.walkRules((rule: Rule) => {
+    if (!rule.selectors.map(clean).flatMap(unwrap).includes(selector)) return;
+    if (enclosingMediaParams(rule) !== mediaParams) return;
+    rule.walkDecls((d) => { decls.set(d.prop, d.value); });
+  });
+  return decls;
+}
+
 // Everything allowed to cast a shadow, and why. Six floats plus one ring.
 const SHADOW_ALLOWED = [
   ".auth .card",            // the sign-in card, floating on the auth gradient
@@ -213,8 +245,16 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   });
 
   // The dialog family is the one place --r-card still belongs: a modal and
-  // its phone-sheet variant.
-  it("the dialog and its phone sheet keep --r-card", () => {
-    expect(declarationsFor(".dialog").get("border-radius")).toMatch(/var\(--r-card\)/);
+  // its phone-sheet variant. Checked as two SEPARATE declarations, not one
+  // merged lookup — declarationsFor(".dialog") would report only the phone
+  // media query's value here, because it is declared later in the file and
+  // overwrites the unconditional one in the merged map.
+  it("the unconditional dialog radius keeps --r-card", () => {
+    expect(declarationsForAt(".dialog", undefined).get("border-radius")).toBe("var(--r-card)");
+  });
+
+  it("the phone dialog-sheet radius keeps --r-card", () => {
+    expect(declarationsForAt(".dialog", "(max-width: 900px)").get("border-radius"))
+      .toBe("var(--r-card) var(--r-card) 0 0");
   });
 });
