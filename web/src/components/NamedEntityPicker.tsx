@@ -24,7 +24,7 @@ import Paper from "@mui/material/Paper";
 import InputAdornment from "@mui/material/InputAdornment";
 import type { PaperProps } from "@mui/material/Paper";
 import type { AutocompleteRenderInputParams } from "@mui/material/Autocomplete";
-import { Search } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 // --- Eligibility policy ------------------------------------------------------
 
@@ -1145,7 +1145,11 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
               input: {
                 endAdornment: (
                   <InputAdornment position="end">
-                    <Search size={18} strokeWidth={1.5} aria-hidden focusable={false} />
+                    {/* #864's own Daily Entry mockup (daily-entry-390.png)
+                        draws this affordance as a chevron, not a magnifier —
+                        checked against it before picking between the two
+                        icons the owner's instruction named as acceptable. */}
+                    <ChevronDown size={18} strokeWidth={1.5} aria-hidden focusable={false} />
                   </InputAdornment>
                 ),
               },
