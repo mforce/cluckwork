@@ -4,6 +4,9 @@ import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
+  Box, DialogActions, Divider, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+} from "@mui/material";
+import {
   createInventoryItem, activateInventoryItem, deactivateInventoryItem, getAccount,
   listInventoryItems, listInventoryLots, listInventoryMovements, parseMoneyToMinorUnits,
   recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
@@ -23,6 +26,8 @@ import { useFarmToday } from "../farm/useFarm";
 import { FEEDABLE_CATEGORIES } from "./FeedPage";
 import i18n from "../i18n";
 import { inventoryCategoryLabel, inventoryMovementLabel, statusLabel } from "../i18n/enums";
+
+const NOWRAP = { whiteSpace: "nowrap" as const };
 
 // Feed first (spec §12); the rest of the categories get their features later.
 const CATEGORIES = [
@@ -466,80 +471,98 @@ export function InventoryPage() {
       : "—";
 
   if (errors.page && items === null) {
-    return <section><h2>{t("title")}</h2><p className="error">{errors.page}</p></section>;
+    return <section><Typography variant="h2">{t("title")}</Typography><p className="error">{errors.page}</p></section>;
   }
   if (items === null) {
-    return <section><h2>{t("title")}</h2><p className="muted">{tc("loading")}</p></section>;
+    return <section><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></section>;
   }
 
   const canFeed = active !== null && FEEDABLE_CATEGORIES.includes(active.category);
 
   return (
     <section>
-      <div className="page-head">
-        <h2>{t("title")}</h2>
+      <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
+        <Typography variant="h2">{t("title")}</Typography>
         {isAdmin && (
           <button type="button" onClick={() => { closeEdit(); openDialog("create"); setCreating(true); }}>
             <Plus size={16} aria-hidden /> {t("newItemButton")}
           </button>
         )}
-      </div>
+      </Stack>
       <p className="muted">
         {t("intro")}
       </p>
 
       {/* Gated like the inline form was: a role change mid-edit closes it. */}
       <Dialog open={creating && isAdmin} title={t("newItemDialogTitle")} onClose={closeCreate}>
-        <form className="inline-form" onSubmit={onCreate}>
-          <label>{t("itemNameLabel")}
-            <input value={name} required maxLength={200}
-              onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label>{t("categoryLabel")}
-            <select value={category} onChange={(e) => setCategory(e.target.value)}>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{inventoryCategoryLabel(c)}</option>)}
-            </select>
-          </label>
-          <label>{t("unitLabel")}
-            <input value={unit} required maxLength={20}
-              onChange={(e) => setUnit(e.target.value)} />
-          </label>
-          <label>{t("defaultCostLabel")}
-            <input className="cell" type="number" min={0} step={costStep} value={defaultCost}
-              onChange={(e) => setDefaultCost(e.target.value)} />
-          </label>
+        <Stack component="form" spacing={2} onSubmit={onCreate}>
+          <TextField
+            label={t("itemNameLabel")}
+            value={name}
+            slotProps={{ htmlInput: { required: true, maxLength: 200 } }}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <TextField
+            select
+            label={t("categoryLabel")}
+            value={category}
+            slotProps={{ select: { native: true } }}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            {CATEGORIES.map((c) => <option key={c} value={c}>{inventoryCategoryLabel(c)}</option>)}
+          </TextField>
+          <TextField
+            label={t("unitLabel")}
+            value={unit}
+            slotProps={{ htmlInput: { required: true, maxLength: 20 } }}
+            onChange={(e) => setUnit(e.target.value)}
+          />
+          <TextField
+            type="number"
+            label={t("defaultCostLabel")}
+            value={defaultCost}
+            slotProps={{ htmlInput: { min: 0, step: costStep } }}
+            onChange={(e) => setDefaultCost(e.target.value)}
+          />
           <DialogError errors={errors} scope="create" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("create")} disabled={busy}>{t("addItemButton")}</BusyButton>
-          </div>
-        </form>
+          </DialogActions>
+        </Stack>
       </Dialog>
 
       <Dialog open={editingId !== null && isAdmin} title={t("editItemDialogTitle")} onClose={closeEdit}>
         {/* noValidate: the row's save used to be a plain button, so the browser
             never enforced min/step — toMinorUnits' own message did. */}
-        <form className="inline-form" noValidate onSubmit={onSaveEdit}>
-          <label>{t("editItemNameLabel")}
-            <input value={editName} maxLength={200}
-              onChange={(e) => setEditName(e.target.value)} />
-          </label>
-          <label>{t("editUnitLabel")}
-            <input value={editUnit} maxLength={20}
-              onChange={(e) => setEditUnit(e.target.value)} />
-          </label>
-          <label>{t("defaultCostLabel")}
-            <input className="cell" type="number" min={0} step={costStep} value={editCost}
-              onChange={(e) => setEditCost(e.target.value)} />
-          </label>
+        <Stack component="form" spacing={2} noValidate onSubmit={onSaveEdit}>
+          <TextField
+            label={t("editItemNameLabel")}
+            value={editName}
+            slotProps={{ htmlInput: { maxLength: 200 } }}
+            onChange={(e) => setEditName(e.target.value)}
+          />
+          <TextField
+            label={t("editUnitLabel")}
+            value={editUnit}
+            slotProps={{ htmlInput: { maxLength: 20 } }}
+            onChange={(e) => setEditUnit(e.target.value)}
+          />
+          <TextField
+            type="number"
+            label={t("defaultCostLabel")}
+            value={editCost}
+            slotProps={{ htmlInput: { min: 0, step: costStep } }}
+            onChange={(e) => setEditCost(e.target.value)}
+          />
           <DialogError errors={errors} scope="edit" />
-          <div className="dialog-foot">
+          <DialogActions>
             <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
             <BusyButton type="submit" busy={isPending("edit")} disabled={busy}>
               {tc("save")}
             </BusyButton>
-          </div>
-        </form>
+          </DialogActions>
+        </Stack>
       </Dialog>
 
       {/* Unconditional since #479 — a dialog's failure lives in its own slot
@@ -548,202 +571,257 @@ export function InventoryPage() {
       {message && <p className="success">{message}</p>}
 
       {active && (
-        <div className="order-panel">
-          <h3>{t("itemPanelHeading", { name: active.name, quantity: active.quantityOnHand, unit: active.unit })}</h3>
+        // Pair 15 (#822 D2): the drill-down is a ruled region, not a card —
+        // a Box between two Dividers, an h3, no fill, no radius. Same shape
+        // FlocksPage (#897) and Expenses (#831) already use for their own
+        // `.order-panel` drill-downs.
+        <Box sx={{ my: 3 }}>
+          <Divider />
+          <Box sx={{ py: 3 }}>
+            <Typography variant="h3" component="h3">
+              {t("itemPanelHeading", { name: active.name, quantity: active.quantityOnHand, unit: active.unit })}
+            </Typography>
 
-          {/* One row of actions; each opens its own dialog so the ledger below
-              stays put instead of being pushed down by three stacked forms. */}
-          <div className="panel-actions">
-            <button type="button" onClick={() => { openDialog("purchase"); setPurchasing(true); }}>
-              <Plus size={16} aria-hidden /> {t("recordPurchaseButton")}
-            </button>
-            {canFeed && (
-              // #446 — feed usage lives on its own page now; the deep link
-              // keeps the one thing the old dialog had over it: the item you
-              // are looking at arrives preselected.
-              <Link className="link" to={`/feed?item=${active.id}`}>
-                {t("recordUsageLink")}
-              </Link>
-            )}
-            {isAdmin && lots.length > 0 && (
-              <button type="button" className="link" onClick={() => { openDialog("adjust"); setAdjusting(true); }}>
-                {t("correctStockButton")}
+            {/* One row of actions; each opens its own dialog so the ledger below
+                stays put instead of being pushed down by three stacked forms. */}
+            <Stack direction="row" useFlexGap spacing={1.5} sx={{ flexWrap: "wrap", alignItems: "center", my: 1.5 }}>
+              <button type="button" onClick={() => { openDialog("purchase"); setPurchasing(true); }}>
+                <Plus size={16} aria-hidden /> {t("recordPurchaseButton")}
               </button>
+              {canFeed && (
+                // #446 — feed usage lives on its own page now; the deep link
+                // keeps the one thing the old dialog had over it: the item you
+                // are looking at arrives preselected.
+                <Link className="link" to={`/feed?item=${active.id}`}>
+                  {t("recordUsageLink")}
+                </Link>
+              )}
+              {isAdmin && lots.length > 0 && (
+                <button type="button" className="link" onClick={() => { openDialog("adjust"); setAdjusting(true); }}>
+                  {t("correctStockButton")}
+                </button>
+              )}
+            </Stack>
+
+            {/* Why an action is unavailable, in the place the button would be. */}
+            {!canFeed && (
+              <p className="muted">
+                {t("notFeedableMessage", { category: inventoryCategoryLabel(active.category) })}
+              </p>
             )}
-          </div>
+            {!isAdmin ? (
+              <p className="muted">{t("correctionsNeedAdminMessage")}</p>
+            ) : lots.length === 0 ? (
+              <p className="muted">{t("noLotsMessage")}</p>
+            ) : null}
 
-          {/* Why an action is unavailable, in the place the button would be. */}
-          {!canFeed && (
-            <p className="muted">
-              {t("notFeedableMessage", { category: inventoryCategoryLabel(active.category) })}
-            </p>
-          )}
-          {!isAdmin ? (
-            <p className="muted">{t("correctionsNeedAdminMessage")}</p>
-          ) : lots.length === 0 ? (
-            <p className="muted">{t("noLotsMessage")}</p>
-          ) : null}
-
-          <Dialog open={purchasing} title={t("recordPurchaseDialogTitle", { name: active.name })} onClose={closePurchase}>
-            <form className="form-grid" onSubmit={onPurchase}>
-              <label>{t("receivedLabel")}
-                <input type="date" value={purchaseDate} max={today} required
-                  onChange={(e) => setPurchaseDate(e.target.value)} />
-              </label>
-              <label>{t("quantityLabelWithUnit", { unit: active.unit })}
-                <input type="number" min={0.001} step={0.001} value={purchaseQty} required
-                  onChange={(e) => setPurchaseQty(e.target.value)} />
-              </label>
-              <label>{active.defaultCostCurrencyCode
-                ? t("unitCostWithCurrencyLabel", { code: active.defaultCostCurrencyCode })
-                : t("unitCostLabel")}
-                <input type="number" min={0} step={costStep} value={purchaseCost}
+            <Dialog open={purchasing} title={t("recordPurchaseDialogTitle", { name: active.name })} onClose={closePurchase}>
+              <Stack component="form" spacing={2} onSubmit={onPurchase}>
+                <TextField
+                  type="date"
+                  label={t("receivedLabel")}
+                  value={purchaseDate}
+                  slotProps={{ htmlInput: { max: today, required: true }, inputLabel: { shrink: true } }}
+                  onChange={(e) => setPurchaseDate(e.target.value)}
+                />
+                <TextField
+                  type="number"
+                  label={t("quantityLabelWithUnit", { unit: active.unit })}
+                  value={purchaseQty}
+                  slotProps={{ htmlInput: { min: 0.001, step: 0.001, required: true } }}
+                  onChange={(e) => setPurchaseQty(e.target.value)}
+                />
+                <TextField
+                  type="number"
+                  label={active.defaultCostCurrencyCode
+                    ? t("unitCostWithCurrencyLabel", { code: active.defaultCostCurrencyCode })
+                    : t("unitCostLabel")}
+                  value={purchaseCost}
                   placeholder={active.defaultCostMinorUnits !== null ? t("costPlaceholderItemDefault") : t("costPlaceholderRequired")}
-                  onChange={(e) => setPurchaseCost(e.target.value)} />
-              </label>
-              <label>{t("lotNumberLabel")}
-                <input value={lotNumber} maxLength={100}
-                  onChange={(e) => setLotNumber(e.target.value)} />
-              </label>
-              <label>{t("expiryLabel")}
-                <input type="date" value={expiryDate} min={purchaseDate}
-                  onChange={(e) => setExpiryDate(e.target.value)} />
-              </label>
-              <label>{t("noteLabel")}
-                <input value={purchaseNote} maxLength={500}
-                  onChange={(e) => setPurchaseNote(e.target.value)} />
-              </label>
-              <DialogError errors={errors} scope="purchase" />
-              <div className="dialog-foot">
-                <button type="button" className="link" onClick={closePurchase}>{tc("cancel")}</button>
-                <BusyButton type="submit" busy={isPending("purchase")} disabled={busy}>
-                  {t("recordPurchaseSubmitButton")}
-                </BusyButton>
-              </div>
-            </form>
-          </Dialog>
+                  slotProps={{ htmlInput: { min: 0, step: costStep } }}
+                  onChange={(e) => setPurchaseCost(e.target.value)}
+                />
+                <TextField
+                  label={t("lotNumberLabel")}
+                  value={lotNumber}
+                  slotProps={{ htmlInput: { maxLength: 100 } }}
+                  onChange={(e) => setLotNumber(e.target.value)}
+                />
+                <TextField
+                  type="date"
+                  label={t("expiryLabel")}
+                  value={expiryDate}
+                  slotProps={{ htmlInput: { min: purchaseDate }, inputLabel: { shrink: true } }}
+                  onChange={(e) => setExpiryDate(e.target.value)}
+                />
+                <TextField
+                  label={t("noteLabel")}
+                  value={purchaseNote}
+                  slotProps={{ htmlInput: { maxLength: 500 } }}
+                  onChange={(e) => setPurchaseNote(e.target.value)}
+                />
+                <DialogError errors={errors} scope="purchase" />
+                <DialogActions>
+                  <button type="button" className="link" onClick={closePurchase}>{tc("cancel")}</button>
+                  <BusyButton type="submit" busy={isPending("purchase")} disabled={busy}>
+                    {t("recordPurchaseSubmitButton")}
+                  </BusyButton>
+                </DialogActions>
+              </Stack>
+            </Dialog>
 
-          <Dialog open={adjusting && isAdmin} title={t("correctStockDialogTitle", { name: active.name })} onClose={closeAdjust}>
-            <form className="form-grid" onSubmit={onAdjust}>
-              {/* Disabled during any flight — kept as shipped (#242); since
-                  #703 the spinner reads the fixed "adjust" scope, so the
-                  original re-pointing hazard is gone, and the field stays
-                  inert during a flight like every other trigger here. */}
-              <label>{t("lotFieldLabel")}
-                <select value={adjustLotId} disabled={busy}
-                  onChange={(e) => setAdjustLotId(e.target.value)}>
+            <Dialog open={adjusting && isAdmin} title={t("correctStockDialogTitle", { name: active.name })} onClose={closeAdjust}>
+              <Stack component="form" spacing={2} onSubmit={onAdjust}>
+                {/* Disabled during any flight — kept as shipped (#242); since
+                    #703 the spinner reads the fixed "adjust" scope, so the
+                    original re-pointing hazard is gone, and the field stays
+                    inert during a flight like every other trigger here. */}
+                <TextField
+                  select
+                  label={t("lotFieldLabel")}
+                  value={adjustLotId}
+                  disabled={busy}
+                  slotProps={{ select: { native: true } }}
+                  onChange={(e) => setAdjustLotId(e.target.value)}
+                >
                   {lots.map((l) => <option key={l.id} value={l.id}>{lotLabel(l)}</option>)}
-                </select>
-              </label>
-              <label>{t("typeLabel")}
-                <select value={adjustType} onChange={(e) => setAdjustType(e.target.value)}>
+                </TextField>
+                <TextField
+                  select
+                  label={t("typeLabel")}
+                  value={adjustType}
+                  slotProps={{ select: { native: true } }}
+                  onChange={(e) => setAdjustType(e.target.value)}
+                >
                   <option value="Adjustment">{t("adjustTypeAdjustmentOption")}</option>
                   <option value="Discard">{t("adjustTypeDiscardOption")}</option>
-                </select>
-              </label>
-              <label>{t("quantityLabelWithUnit", { unit: active.unit })}
-                <input type="number" step={0.001} value={adjustQty} required
+                </TextField>
+                <TextField
+                  type="number"
+                  label={t("quantityLabelWithUnit", { unit: active.unit })}
+                  value={adjustQty}
                   placeholder={adjustType === "Discard" ? t("adjustQuantityPlaceholderDiscard") : t("adjustQuantityPlaceholderCorrection")}
-                  onChange={(e) => setAdjustQty(e.target.value)} />
-              </label>
-              <label>{t("reasonLabel")}
-                <input value={adjustReason} maxLength={500} required
-                  onChange={(e) => setAdjustReason(e.target.value)} />
-              </label>
-              <DialogError errors={errors} scope="adjust" />
-              <div className="dialog-foot">
-                <button type="button" className="link" onClick={closeAdjust}>{tc("cancel")}</button>
-                {/* The pending scope is the dialog's; the composite key scope is
-                    the idempotency key's alone since #703. */}
-                <BusyButton type="submit" busy={isPending("adjust")}
-                  disabled={busy || !adjustLotId}>
-                  {t("recordCorrectionButton")}
-                </BusyButton>
-              </div>
-            </form>
-          </Dialog>
+                  slotProps={{ htmlInput: { step: 0.001, required: true } }}
+                  onChange={(e) => setAdjustQty(e.target.value)}
+                />
+                <TextField
+                  label={t("reasonLabel")}
+                  value={adjustReason}
+                  slotProps={{ htmlInput: { maxLength: 500, required: true } }}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                />
+                <DialogError errors={errors} scope="adjust" />
+                <DialogActions>
+                  <button type="button" className="link" onClick={closeAdjust}>{tc("cancel")}</button>
+                  {/* The pending scope is the dialog's; the composite key scope is
+                      the idempotency key's alone since #703. */}
+                  <BusyButton type="submit" busy={isPending("adjust")}
+                    disabled={busy || !adjustLotId}>
+                    {t("recordCorrectionButton")}
+                  </BusyButton>
+                </DialogActions>
+              </Stack>
+            </Dialog>
 
-          {/* #511 round 5 — the error renders BESIDE the rows, never instead of
-              them. usePagedList keeps `rows` and `hasMore` when an EXTENSION
-              fails (only a failed REPLACEMENT empties them), so a branch that
-              swapped the table for the message threw away everything the user
-              had paged to over one transient load-more failure. That is AC3:
-              a failed extension keeps already-loaded rows and permits retry.
-              CustomersPage had this right from the start — it is the shape
-              copied here. A failed REPLACEMENT still shows the message alone,
-              because the hook has emptied `rows` by then and the empty branch
-              below does not fire on `error`. */}
-          {ledger.error && <p className="error">{ledger.error}</p>}
-          {ledger.rows === null || ledger.reloading ? (
-            <p className="muted">{tc("loading")}</p>
-          ) : ledger.rows.length === 0 && !ledger.error ? (
-            <p className="muted">{t("noMovementsMessage")}</p>
-          ) : (
-            <table className="data">
-              <thead>
-                <tr><th>{t("ledgerDateHeader")}</th><th>{t("ledgerTypeHeader")}</th><th className="num">{t("ledgerQuantityHeader")}</th><th>{t("ledgerNoteHeader")}</th></tr>
-              </thead>
-              <tbody>
-                {ledger.rows.map((m) => (
-                  <tr key={m.id}>
-                    <td className="nowrap"><FarmDate iso={m.date} /></td>
-                    <td>{inventoryMovementLabel(m.type)}</td>
-                    <td className="num">{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)} {m.unit}</td>
-                    <td>{m.note ?? ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {ledger.canLoadMore && (
-            <button className="link" onClick={() => void ledger.loadMore()}>
-              {t("loadMoreButton")}
-            </button>
-          )}
-          <div className="actions">
-            <button className="link" onClick={() => setActive(null)}>{t("closeButton")}</button>
-          </div>
-        </div>
+            {/* #511 round 5 — the error renders BESIDE the rows, never instead of
+                them. usePagedList keeps `rows` and `hasMore` when an EXTENSION
+                fails (only a failed REPLACEMENT empties them), so a branch that
+                swapped the table for the message threw away everything the user
+                had paged to over one transient load-more failure. That is AC3:
+                a failed extension keeps already-loaded rows and permits retry.
+                CustomersPage had this right from the start — it is the shape
+                copied here. A failed REPLACEMENT still shows the message alone,
+                because the hook has emptied `rows` by then and the empty branch
+                below does not fire on `error`. */}
+            {ledger.error && <p className="error">{ledger.error}</p>}
+            {ledger.rows === null || ledger.reloading ? (
+              <p className="muted">{tc("loading")}</p>
+            ) : ledger.rows.length === 0 && !ledger.error ? (
+              <p className="muted">{t("noMovementsMessage")}</p>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>{t("ledgerDateHeader")}</TableCell>
+                      <TableCell>{t("ledgerTypeHeader")}</TableCell>
+                      <TableCell align="right">{t("ledgerQuantityHeader")}</TableCell>
+                      <TableCell>{t("ledgerNoteHeader")}</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {ledger.rows.map((m) => (
+                      <TableRow key={m.id}>
+                        <TableCell sx={NOWRAP}><FarmDate iso={m.date} /></TableCell>
+                        <TableCell>{inventoryMovementLabel(m.type)}</TableCell>
+                        <TableCell align="right">{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)} {m.unit}</TableCell>
+                        <TableCell>{m.note ?? ""}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+            {ledger.canLoadMore && (
+              <button className="link" onClick={() => void ledger.loadMore()}>
+                {t("loadMoreButton")}
+              </button>
+            )}
+            <Box sx={{ mt: 2 }}>
+              <button className="link" onClick={() => setActive(null)}>{t("closeButton")}</button>
+            </Box>
+          </Box>
+          <Divider />
+        </Box>
       )}
 
-      <table className="data">
-        <thead>
-          <tr><th>{t("nameHeader")}</th><th>{t("categoryHeader")}</th><th className="num">{t("onHandHeader")}</th><th className="num">{t("defaultCostHeader")}</th><th>{t("statusHeader")}</th><th></th></tr>
-        </thead>
-        <tbody>
-          {items.map((i) => (
-            <tr key={i.id} className={i.active ? undefined : "inactive"}>
-              <td>{i.name}</td>
-              <td>{inventoryCategoryLabel(i.category)}</td>
-              <td className="num">{fmt.count(i.quantityOnHand)} {i.unit}</td>
-              <td className="num">{costText(i)}</td>
-              <td><StatusBadge status={i.active ? "Active" : "Inactive"} label={statusLabel(i.active ? "Active" : "Inactive")} /></td>
-              <td>
-                <button className="link" disabled={busy} onClick={() => void onOpen(i)}>{t("openButton")}</button>
-                {isAdmin && (
-                  <>
-                    {/* Opens the edit dialog — non-mutating, so the spinner
-                        belongs to the dialog's Save, not here (#242). */}
-                    <button className="link" disabled={busy}
-                      onClick={() => startEdit(i)}>{t("editButton")}</button>
-                    {i.active ? (
-                      <BusyButton className="link" busy={isPending(`deactivate:${i.id}`)} disabled={busy}
-                        onClick={() => void run(`deactivate:${i.id}`, () => commit(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key)))}>
-                        {t("deactivateButton")}
-                      </BusyButton>
-                    ) : (
-                      <BusyButton className="link" busy={isPending(`activate:${i.id}`)} disabled={busy}
-                        onClick={() => void run(`activate:${i.id}`, () => commit(`activate:${i.id}`, (key) => activateInventoryItem(i.id, key)))}>
-                        {t("activateButton")}
-                      </BusyButton>
-                    )}
-                  </>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>{t("nameHeader")}</TableCell>
+              <TableCell>{t("categoryHeader")}</TableCell>
+              <TableCell align="right">{t("onHandHeader")}</TableCell>
+              <TableCell align="right">{t("defaultCostHeader")}</TableCell>
+              <TableCell>{t("statusHeader")}</TableCell>
+              <TableCell></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {items.map((i) => (
+              <TableRow key={i.id} sx={i.active ? undefined : { color: "var(--muted)" }}>
+                <TableCell>{i.name}</TableCell>
+                <TableCell>{inventoryCategoryLabel(i.category)}</TableCell>
+                <TableCell align="right">{fmt.count(i.quantityOnHand)} {i.unit}</TableCell>
+                <TableCell align="right">{costText(i)}</TableCell>
+                <TableCell><StatusBadge status={i.active ? "Active" : "Inactive"} label={statusLabel(i.active ? "Active" : "Inactive")} /></TableCell>
+                <TableCell sx={NOWRAP}>
+                  <button className="link" disabled={busy} onClick={() => void onOpen(i)}>{t("openButton")}</button>
+                  {isAdmin && (
+                    <>
+                      {/* Opens the edit dialog — non-mutating, so the spinner
+                          belongs to the dialog's Save, not here (#242). */}
+                      <button className="link" disabled={busy}
+                        onClick={() => startEdit(i)}>{t("editButton")}</button>
+                      {i.active ? (
+                        <BusyButton className="link" busy={isPending(`deactivate:${i.id}`)} disabled={busy}
+                          onClick={() => void run(`deactivate:${i.id}`, () => commit(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key)))}>
+                          {t("deactivateButton")}
+                        </BusyButton>
+                      ) : (
+                        <BusyButton className="link" busy={isPending(`activate:${i.id}`)} disabled={busy}
+                          onClick={() => void run(`activate:${i.id}`, () => commit(`activate:${i.id}`, (key) => activateInventoryItem(i.id, key)))}>
+                          {t("activateButton")}
+                        </BusyButton>
+                      )}
+                    </>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </section>
   );
 }
