@@ -1,3 +1,5 @@
+using Cluckwork.Application.Common;
+
 namespace Cluckwork.Infrastructure.Persistence;
 
 using Cluckwork.Application.Features.Customers.CreateCustomer;
@@ -50,6 +52,7 @@ public sealed class DemoDataSeeder(
     CreateSalesOrderHandler createOrder,
     AddOrderItemHandler addItem,
     ConfirmSaleHandler confirmSale,
+    IFarmClock farmClock,
     ILogger<DemoDataSeeder> logger)
 {
     // `targetAccountId` is the farm to seed, and it is an explicit parameter
@@ -277,7 +280,14 @@ public sealed class DemoDataSeeder(
 
     private async Task SeedDemoAsync(Guid accountId, CancellationToken ct)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        // The farm's own today, not the UTC date: the Dashboard's Today panel
+        // reads by the farm clock, and the demo farm is provisioned in
+        // America/Chicago, so between 00:00 and 05:00 UTC the UTC date is
+        // tomorrow there and House 1's "draft for today" landed on a day the
+        // Dashboard does not show yet. Every e2e smoke run in that window
+        // failed on the draft row (#892, 2026-09-17). Tenant is resolved
+        // above, so the clock reads this farm's TimeZoneId.
+        var today = await farmClock.TodayAsync(ct);
 
         var grades = (await eggGrades.ListActiveAsync(SeedDefaults.FarmId, ct))
             .Where(g => g.IsSaleable)
