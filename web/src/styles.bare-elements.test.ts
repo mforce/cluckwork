@@ -300,8 +300,11 @@ describe("bare element selectors against MUI's DOM (#823)", () => {
   it("is walking a stylesheet it can actually see", () => {
     // Non-vacuity. A broken parse or a renamed file would otherwise turn every
     // assertion below into a walk over nothing. A floor, not a pin: the count
-    // moves with every screen slice and 181 rules name an element today.
-    expect(rules.length).toBeGreaterThan(150);
+    // moves with every screen slice and 149 rules name an element today (down
+    // from 181 — #826 retired the picker's `.named-picker-control input`
+    // family and `button.named-picker-trigger` and its states, seven SCOPED
+    // readings of `input`/`button` that never counted toward `global` here).
+    expect(rules.length).toBeGreaterThan(120);
     expect(rules.filter((rule) => rule.global).length).toBe(DEMOTED.length + DELIBERATE.length);
   });
 

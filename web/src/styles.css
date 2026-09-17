@@ -2944,33 +2944,6 @@ input.locked {
   color: var(--muted);
 }
 
-/* The picker's closed-state trigger: a field-sized control that occupies the
-   normal form slot and swaps for the combobox while open. It takes on the
-   select's visual language so adopting a picker does not restyle the form. */
-.named-picker-trigger {
-  font: inherit;
-  font-size: 0.95rem;
-  color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-input);
-  padding: 0.55rem 0.7rem;
-  text-align: left;
-  cursor: pointer;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.named-picker-trigger:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-}
-
 /* The committed-name retention label: a sibling of the input, shown while
    the visible text differs from the committed name. */
 .named-picker-committed {
@@ -2979,147 +2952,6 @@ input.locked {
   padding: 0.15rem 0.7rem;
   background: var(--surface-2);
   border-radius: var(--r-input);
-}
-
-.named-picker-control {
-  position: relative;
-}
-
-/* #735 — the open input must read as a SEARCH FIELD, not as the first row of
-   the list under it. Same surface, hairline, radius and type as the options
-   made it exactly that (a highlighted "Sim House A" row above "Sim House A").
-   So: the inset surface the app uses for toolbars, a leading magnifier, and
-   the brand hairline while expanded. The glyph is DRAWN here — a bordered
-   circle and a rotated bar on the control's two pseudo-elements — rather than
-   loaded: the API serves this sheet under `img-src 'self' blob:`
-   (SecurityHeaders.cs), which CSP applies to CSS background images too, so a
-   data-URI glyph painted on the Vite dev server and vanished in production
-   (codex review of #736; styles.csp.test.ts now walks every url() for this).
-   Drawing it also lets the colour follow the theme through --muted. */
-.named-picker-control input {
-  width: 100%;
-  padding: 0.55rem 0.7rem 0.55rem 2.1rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-input);
-  font: inherit;
-  font-size: 0.95rem;
-  color: var(--ink);
-  background: var(--surface-2);
-}
-
-/* The magnifier: lens (::before) and handle (::after). The control is
-   position: relative and the input is its only in-flow child, so the
-   control's height IS the input's height and `top: 50%` is the field's
-   vertical centre whatever the input's padding, line-height or the phone
-   breakpoint's own min-height overrides on a page's input make it — a fixed
-   rem offset drifted ~4px on one such override (codex review of #736, round
-   2; the daily-entry context row that reproduced it converted to MUI in
-   #830 and no longer carries one, but the underlying `top: 50%` fix and the
-   class of bug it guards against are unrelated to that page).
-   The input is not positioned, so these paint above it; pointer-events:
-   none keeps the click landing in the field. Lens: 0.6rem + 2×2px border,
-   so its radius is 0.3rem + 2px — kept as that sum, not folded into rem,
-   because the border is in px and a larger root font size would otherwise
-   pull the handle off the lens (round 3). The handle starts at the lens's
-   lower-right point (centre + r·cos45° on each axis) and runs out at 45°. */
-.named-picker-control::before,
-.named-picker-control::after {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  pointer-events: none;
-}
-
-.named-picker-control::before {
-  left: 0.8rem;
-  top: 50%;
-  width: 0.6rem;
-  height: 0.6rem;
-  border: 2px solid var(--muted);
-  border-radius: 50%;
-  transform: translateY(-50%);
-}
-
-.named-picker-control::after {
-  /* lens left + radius (0.3rem + 2px) + radius·cos45° (0.212rem + 1.414px) */
-  left: calc(0.8rem + 0.3rem + 2px + 0.212rem + 1.414px);
-  /* field centre + radius·cos45°, less half the bar's own 2px height */
-  top: calc(50% + 0.212rem + 1.414px - 1px);
-  width: 0.4rem;
-  height: 2px;
-  background: var(--muted);
-  border-radius: 1px;
-  transform: rotate(45deg);
-  transform-origin: 0 50%;
-}
-
-/* Disabled: the input dims itself (below) on top of the whole picker
-   dimming (`.named-picker.disabled`); the glyph is outside the input, so it
-   takes the same second step or it reads darker than its own field. Keyed
-   on the ancestor class rather than `:has(input:disabled)`: the engine sets
-   both from the one `disabled` prop, and `:has()` is dropped whole by
-   Firefox 114–120, which the build still targets (round 3). */
-.named-picker.disabled .named-picker-control::before,
-.named-picker.disabled .named-picker-control::after {
-  opacity: 0.6;
-}
-
-.named-picker-control input[aria-expanded="true"] {
-  border-color: var(--brand);
-}
-
-.named-picker-control input:focus {
-  outline: 2px solid var(--focus);
-  outline-offset: 0;
-  border-color: var(--focus);
-}
-
-.named-picker-control input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  background: var(--surface-2);
-}
-
-/* The listbox overlay: positioned below the input, bounded, scrollable. */
-.named-picker-listbox {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 30;
-  margin: 0.4rem 0 0;
-  padding: 0;
-  list-style: none;
-  max-height: 22rem;
-  overflow-y: auto;
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-input);
-  box-shadow: var(--shadow-dialog);
-}
-
-.named-picker-option {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.9rem;
-  color: var(--ink);
-  cursor: pointer;
-  border-bottom: 1px solid var(--hairline);
-}
-
-.named-picker-option:last-child {
-  border-bottom: none;
-}
-
-.named-picker-option:hover {
-  background: var(--row-hover);
-}
-
-.named-picker-option.active {
-  background: var(--tint-accent);
-}
-
-.named-picker-option[aria-selected="true"] {
-  font-weight: 600;
 }
 
 /* Meta row: loading status, no-results, Load more. */
@@ -3163,50 +2995,6 @@ input.locked {
   text-decoration: underline;
   text-decoration-color: var(--ink);
   text-underline-offset: 2px;
-}
-
-/* Trigger button: the page-owned button that opens the picker. Uses the same
-   metrics as form inputs so it aligns with neighboring date/text fields.
-   The button.named-picker-trigger selectors below are the load-bearing ones:
-   IF a page ever gives the trigger the shared `link` class (none does today —
-   every real caller passes `className="named-picker-trigger"` alone; only a
-   test fixture combines them, salesExpensesUS3.lifecycle.test.tsx), `button.link`
-   (element+class, (0,1,1)) outranks bare `.named-picker-trigger` ((0,1,0)) —
-   without the element-qualified override the link's padding/font-size win
-   and the trigger's box comes out 12px shorter than its adjacent inputs, so
-   the form-grid's bottom alignment leaves its top edge sitting low.
-   #834 (Codex review, round 4): button.link now also sets `text-decoration`
-   at rest, which the SAME bleed-through would apply to the trigger — a form
-   control, not a link — the moment that combination occurs. text-decoration:
-   none below closes it defensively, matching the padding/font-size defense
-   this rule already existed for. */
-button.named-picker-trigger {
-  text-decoration: none;
-  /* The adjacent inputs sit inside <label> wrappers that set font-weight 500
-     (see the form-label rule); matching 500 keeps the trigger's line box —
-     and therefore its total height — identical, or the form-grid's bottom
-     alignment leaves a 2px top-edge drift at the same padding/border.
-     line-height: a native <input>'s normal line box is taller than a
-     <button>'s at identical font/padding/border (Chromium measures 40.59 vs
-     38.59px total); 1.35 (20.52px at .95rem) restores the input's line box
-     so the form-grid's bottom alignment lines the tops up within 1px. */
-  font-weight: 500;
-  line-height: 1.35;
-  letter-spacing: 0;
-}
-
-/* #834 — a form control's hover edge, not a link: --stat-accent for the
-   same reason as .help-open/.help-link's hover rings above. */
-button.named-picker-trigger:hover:not(:disabled) {
-  background: var(--surface);
-  color: var(--ink);
-  border-color: var(--stat-accent);
-  text-decoration: none;
-}
-
-button.named-picker-trigger:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 
 /* The picker root matches form-grid's min-width (8rem) so the picker
@@ -3255,17 +3043,4 @@ button.named-picker-trigger:disabled {
 .named-picker.disabled {
   pointer-events: none;
   opacity: 0.6;
-}
-
-/* Narrow viewport: the listbox takes full width, options get a larger touch
-   target. */
-@media (max-width: 900px) {
-  .named-picker-listbox {
-    max-height: 18rem;
-  }
-
-  .named-picker-option {
-    padding: 0.65rem 0.75rem;
-    font-size: 0.95rem;
-  }
 }

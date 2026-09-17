@@ -169,10 +169,18 @@ function declarationsFor(selector: string): Map<string, string> {
 // `Popover`/`Drawer`/`Dialog` defaults 8/16/24 -> `--shadow-dialog`) — an
 // emotion-generated class this static-file walk cannot see, and does not
 // need to: G2's index map already governs it, unchanged by this PR.
+//
+// `.named-picker-listbox` retired here in #826: the picker popover now comes
+// from MUI `Autocomplete`'s own Paper (no elevation of its own, so it falls
+// to `Paper.js`'s default of 1 — turned "none" by the theme's shadow-index
+// map), which resolves to `--shadow-dialog` through the SAME G2 index map
+// (#823: `Popover`/`Drawer`/`Dialog` defaults 8/16/24 -> `--shadow-dialog`,
+// and `Autocomplete`'s own exception, `MuiAutocomplete.styleOverrides.paper`
+// at index 8, already pinned in `farmTheme.policy.test.ts`) — no new G2 row,
+// unchanged by this PR.
 const SHADOW_ALLOWED = [
   ".auth .card",            // the sign-in card, floating on the auth gradient
   ".glossary-entry:target", // not elevation: a spread-only deep-link halo
-  ".named-picker-listbox",  // the picker popover, over the form beneath it
   ".update-banner",         // the service-worker update prompt
 ].sort();
 
@@ -202,10 +210,13 @@ describe("#651 elevation: only a float casts a shadow", () => {
     expect(toolbar.get("box-shadow")).toBeUndefined();
   });
 
-  it("the picker popover uses the float shadow, not the retired card one", () => {
-    expect(declarationsFor(".named-picker-listbox").get("box-shadow"))
-      .toBe("var(--shadow-dialog)");
-  });
+  // "the picker popover uses the float shadow, not the retired card one"
+  // retires here in #826: `.named-picker-listbox` no longer exists (see the
+  // SHADOW_ALLOWED comment above), and `declarationsFor` on a selector
+  // nothing declares returns an empty map — keeping the assertion would pass
+  // vacuously (822's D4). Its successor is the G2 row already pinning
+  // `MuiAutocomplete.styleOverrides.paper` at index 8 in
+  // `farmTheme.policy.test.ts`, unchanged by this PR.
 
   it("--shadow-card is retired: not declared, and referenced nowhere", () => {
     expect(css).not.toContain("--shadow-card");
@@ -224,8 +235,8 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
     expect(tokenValue("--r-card")).toBe("12px");
   });
 
-  // Every surface this slice owns, INCLUDING two --r-input consumers. Without
-  // those the scale guard would assert nothing about the one token whose value
+  // Every surface this slice owns, INCLUDING a --r-input consumer. Without
+  // it the scale guard would assert nothing about the one token whose value
   // actually changes, and would read as safety it does not provide.
   //
   // #829 retires `.panel` and `.capture-tile` from both lists below: the
@@ -233,14 +244,17 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // so a radius token on a selector nothing renders would be a guard reading
   // as safety it does not provide (AGENTS.md, "writing a guard"). `.card`
   // and `.order-panel` stay — other screens still convert their own cards
-  // in #831 to #833.
+  // in #831 to #833. `.named-picker-trigger` retires here in #826: the
+  // closed-state picker no longer renders the page-owned `<button>` this
+  // class named — it is an MUI outlined field now, themed through
+  // `MuiOutlinedInput` (already asserted elsewhere) — so `input` alone is
+  // this list's remaining `--r-input` consumer.
   it.each([
     ".toolbar",
     ".card",
     ".order-panel",
     ".entry-pane",
     "input",
-    ".named-picker-trigger",
   ])("%s resolves its radius through a token, not a literal", (selector) => {
     const radius = declarationsFor(selector).get("border-radius");
     expect(radius).toMatch(/^var\(--r-[a-z]+\)$/);
