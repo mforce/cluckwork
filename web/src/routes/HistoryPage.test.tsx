@@ -212,7 +212,7 @@ describe("HistoryPage dialog dismissal", () => {
 
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockAdjustDailyEntry).not.toHaveBeenCalled();
   });
 });
@@ -805,7 +805,7 @@ describe("HistoryPage void — reason dialog", () => {
   it("refuses a blank reason inline and keeps the dialog open", async () => {
     await openVoid();
 
-    fireEvent.change(within(voidDialog()).getByLabelText("Reason *"), { target: { value: "   " } });
+    fireEvent.change(within(voidDialog()).getByRole("textbox", { name: "Reason *" }), { target: { value: "   " } });
     await act(async () => {
       fireEvent.click(within(voidDialog()).getByRole("button", { name: "Void entry" }));
     });
@@ -819,7 +819,7 @@ describe("HistoryPage void — reason dialog", () => {
     vi.mocked(voidDailyEntry).mockResolvedValue(undefined as never);
     await openVoid();
 
-    fireEvent.change(within(voidDialog()).getByLabelText("Reason *"),
+    fireEvent.change(within(voidDialog()).getByRole("textbox", { name: "Reason *" }),
       { target: { value: "  miscounted the trays  " } });
     await act(async () => {
       fireEvent.click(within(voidDialog()).getByRole("button", { name: "Void entry" }));
@@ -842,14 +842,14 @@ describe("HistoryPage void — reason dialog", () => {
 
     const row1 = await screen.findByRole("row", { name: /07\/19\/2026/ });
     fireEvent.click(within(row1).getByRole("button", { name: "void" }));
-    fireEvent.change(within(voidDialog()).getByLabelText("Reason *"), { target: { value: "dupe" } });
+    fireEvent.change(within(voidDialog()).getByRole("textbox", { name: "Reason *" }), { target: { value: "dupe" } });
     await act(async () => {
       fireEvent.click(within(voidDialog()).getByRole("button", { name: "Void entry" }));
     });
 
     // The dialog settled BEFORE the request started (useConfirm contract), so
     // the originating row control is the pending indicator.
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     const voiding = within(row1).getByRole("button", { name: "void" });
     expect(voiding).toBeDisabled();
     expect(voiding).toHaveAttribute("aria-busy", "true");
@@ -877,7 +877,7 @@ describe("HistoryPage void — reason dialog", () => {
       fireEvent.click(within(voidDialog()).getByRole("button", { name: "Cancel" }));
     });
 
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(vi.mocked(voidDailyEntry)).not.toHaveBeenCalled();
   });
 });
@@ -1258,7 +1258,7 @@ describe("HistoryPage void conflict messaging (#469)", () => {
     renderWithProviders(<HistoryPage />, { token: ADMIN });
 
     fireEvent.click(await screen.findByRole("button", { name: "void" }));
-    fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Reason *"),
+    fireEvent.change(within(screen.getByRole("dialog")).getByRole("textbox", { name: "Reason *" }),
       { target: { value: "miscounted" } });
     await act(async () => {
       fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Void entry" }));
@@ -1285,7 +1285,7 @@ describe("HistoryPage conflict reload is issued once (#469)", () => {
     renderWithProviders(<HistoryPage />, { token: ADMIN });
 
     fireEvent.click(await screen.findByRole("button", { name: "void" }));
-    fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Reason *"),
+    fireEvent.change(within(screen.getByRole("dialog")).getByRole("textbox", { name: "Reason *" }),
       { target: { value: "miscounted" } });
     await act(async () => {
       fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Void entry" }));
@@ -1294,7 +1294,7 @@ describe("HistoryPage conflict reload is issued once (#469)", () => {
     expect(mockListDailyEntries).toHaveBeenCalledTimes(2);
     expect(screen.getByText(/check the list and retry/i)).toBeInTheDocument();
     // The refresh runWrite performed DID land, so its rows are on screen.
-    expect(screen.getByRole("row", { name: /07\/19\/2026/ })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("row", { name: /07\/19\/2026/ })).toBeInTheDocument());
   });
 });
 
@@ -1386,7 +1386,7 @@ describe("HistoryPage rebind after a dismissed conflict (#491)", () => {
 
     // Dismissed session's failure lands nowhere (#474)...
     const failed = i18n.t("history:conflictRebindFailedMessage");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.queryByText(failed)).not.toBeInTheDocument();
 
     // ...and is not replayed into the next session either.
@@ -1438,7 +1438,7 @@ describe("HistoryPage adjust wiring under the shared dialog session (#703)", () 
       fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
     });
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByText(i18n.t("history:entryAdjustedMessage"))).toBeInTheDocument();
     expect(mockListDailyEntries).toHaveBeenCalledTimes(2); // mount + the post-write refresh
   });
@@ -1454,7 +1454,7 @@ describe("HistoryPage adjust wiring under the shared dialog session (#703)", () 
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "recount" } });
     fireEvent.click(screen.getByRole("button", { name: "Save adjustment" })); // left pending
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await act(async () => { resolveSave({ id: "de1", status: "ManagerAdjusted", version: 2 }); });
 
     expect(mockListDailyEntries).toHaveBeenCalledTimes(2);
@@ -1474,16 +1474,16 @@ describe("HistoryPage adjust wiring under the shared dialog session (#703)", () 
     await openAdjustPanel(); // adjust dialog open for de1
 
     // Reachable behind the backdrop (#480): void the same entry from its row.
-    fireEvent.click(screen.getByRole("button", { name: "void" }));
+    fireEvent.click(screen.getByRole("button", { name: "void", hidden: true }));
     const voidDlg = screen.getByRole("dialog", { name: /Void the/ });
-    fireEvent.change(within(voidDlg).getByLabelText("Reason *"), { target: { value: "spoiled" } });
+    fireEvent.change(within(voidDlg).getByRole("textbox", { name: "Reason *" }), { target: { value: "spoiled" } });
     await act(async () => {
       fireEvent.click(within(voidDlg).getByRole("button", { name: "Void entry" }));
     });
 
     // The void landed and force-closed the same entry's adjust dialog.
     expect(vi.mocked(voidDailyEntry)).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByText(i18n.t("history:entryVoidedMessage"))).toBeInTheDocument();
   });
 });

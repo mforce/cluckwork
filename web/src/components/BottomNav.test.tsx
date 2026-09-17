@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { act, render, screen, fireEvent, within } from "@testing-library/react";
+import { act, render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import i18n from "../i18n";
 import { navGroups, tabEntries } from "../routes/nav";
@@ -51,21 +51,24 @@ describe("BottomNav", () => {
     ).toBeInTheDocument();
   });
 
-  it("closes the More sheet when a destination link is chosen", () => {
+  it("closes the More sheet when a destination link is chosen", async () => {
     renderBottomNav();
     fireEvent.click(tabbar().getByRole("button", { name: "More" }));
 
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("link", { name: "Grades" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    // MUI's Dialog defers the actual unmount to its exit transition
+    // (closeAfterTransition), so the dialog stays in the DOM for a moment
+    // after the close action fires.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("calls onLogout and closes the sheet when Sign out is chosen", () => {
+  it("calls onLogout and closes the sheet when Sign out is chosen", async () => {
     const { onLogout } = renderBottomNav();
     fireEvent.click(tabbar().getByRole("button", { name: "More" }));
 
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Sign out" }));
     expect(onLogout).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("marks More as current when the screen is not one of the tabs", () => {
@@ -87,7 +90,7 @@ describe("BottomNav", () => {
   // exactly 900px the CSS already hides the tab bar under the now-visible
   // sidebar while the listener's own ">900" check stayed false, leaving the
   // sheet open with its trigger hidden underneath. Both now read MD_UP_QUERY.
-  it("closes an open More sheet when the width crosses exactly the md breakpoint (900px)", () => {
+  it("closes an open More sheet when the width crosses exactly the md breakpoint (900px)", async () => {
     const media = stubMatchMedia(false); // starts below md
     renderBottomNav();
     // Pins the actual boundary asked for — a fixed `matches` stub alone
@@ -98,7 +101,7 @@ describe("BottomNav", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     act(() => media.triggerChange(true)); // crosses to >= 900px
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("leaves an open More sheet open on a resize that stays below the md breakpoint", () => {

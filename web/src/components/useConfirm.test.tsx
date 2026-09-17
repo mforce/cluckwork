@@ -5,6 +5,16 @@ import { useConfirm } from "./useConfirm";
 import type { ChoiceResult } from "./useConfirm";
 import i18n from "../i18n";
 
+// #674/#827 — converted onto MUI `Dialog`, `DialogContentText`, `RadioGroup` /
+// `FormControlLabel` / `Radio`, `TextField` and `DialogActions` + `Button`.
+// Every trigger below lives on the PAGE, alongside the dialog it opens — MUI's
+// own `aria-hidden` sweep (#480, now real ARIA rather than the old `inert`,
+// which jsdom never enforced) genuinely removes it from role queries while a
+// dialog is open, so re-asking over an open dialog needs `hidden: true` to
+// find its own trigger. MUI's Fade defers the actual unmount to its exit
+// transition (`closeAfterTransition`), so "the dialog is gone" is `waitFor`,
+// not an immediate assertion, the same adjustment Dialog.test.tsx needed.
+
 // A realistic host: real triggers, so focus has somewhere to return to, and the
 // settled value is reported out rather than scraped from the DOM — that is what
 // callers actually consume, and it survives the host unmounting.
@@ -41,9 +51,9 @@ function Host({
 }
 
 const openConfirm = async (user: ReturnType<typeof userEvent.setup>) =>
-  user.click(screen.getByRole("button", { name: "deplete" }));
+  user.click(screen.getByRole("button", { name: "deplete", hidden: true }));
 const openReason = async (user: ReturnType<typeof userEvent.setup>) =>
-  user.click(screen.getByRole("button", { name: "void" }));
+  user.click(screen.getByRole("button", { name: "void", hidden: true }));
 
 describe("useConfirm", () => {
   it("renders no dialog until something is asked", () => {
@@ -61,7 +71,7 @@ describe("useConfirm", () => {
     await user.click(screen.getByRole("button", { name: "Deplete flock" }));
 
     await waitFor(() => expect(onSettle).toHaveBeenCalledWith(true));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("resolves false on Cancel, Escape and a backdrop click", async () => {
@@ -72,28 +82,55 @@ describe("useConfirm", () => {
     await openConfirm(user);
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(onSettle).toHaveBeenNthCalledWith(1, false));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     await openConfirm(user);
     await user.keyboard("{Escape}");
     await waitFor(() => expect(onSettle).toHaveBeenNthCalledWith(2, false));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     await openConfirm(user);
+    // The backdrop keeps its legacy class name as a compatibility hook
+    // (slotProps.backdrop.className on MUI's own Backdrop).
     await user.click(document.querySelector(".dialog-backdrop")!);
     await waitFor(() => expect(onSettle).toHaveBeenNthCalledWith(3, false));
+  });
+
+  // The locale string already carries the asterisk ("Reason *"), and MUI's
+  // `required` adds a second, aria-hidden one, so the accessible name reads
+  // fine while the eye sees "Reason * *" (Codex review of #892). Pin the
+  // visible label text, not the accessible name.
+  it("shows one asterisk on the required reason label, not two", async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+    await openReason(user);
+    const field = await screen.findByLabelText<HTMLTextAreaElement>("Reason *");
+    expect(field).toBeRequired();
+    const label = field.labels[0];
+    expect(label).not.toBeUndefined();
+    expect(label.textContent?.replace(/\s+/g, " ").trim()).toBe("Reason *");
   });
 
   it("focuses Cancel on a yes/no, so a stray Enter cannot take the action", async () => {
     const user = userEvent.setup();
     render(<Host />);
     await openConfirm(user);
-    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus());
   });
 
   it("focuses the reason field instead, where there is one to fill in", async () => {
     const user = userEvent.setup();
     render(<Host />);
     await openReason(user);
-    expect(screen.getByLabelText("Reason *")).toHaveFocus();
+    // "Reason *" is the translated catalog string itself (en.ts's
+    // `reasonLabel`), not MUI's own `required` asterisk — that one is
+    // `aria-hidden` in this MUI version (checked directly:
+    // FormLabel.js's AsteriskComponent carries `aria-hidden: true`), so it
+    // would never reach the accessible name on its own. The native
+    // `required` attribute is what a screen reader actually announces as
+    // required, asserted separately below.
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Reason *" })).toHaveFocus());
+    expect(screen.getByRole("textbox", { name: "Reason *" })).toBeRequired();
   });
 
   it("resolves the trimmed reason", async () => {
@@ -102,7 +139,7 @@ describe("useConfirm", () => {
     render(<Host onSettle={onSettle} />);
     await openReason(user);
 
-    await user.type(screen.getByLabelText("Reason *"), "  miscounted the tray  ");
+    await user.type(screen.getByRole("textbox", { name: "Reason *" }), "  miscounted the tray  ");
     await user.click(screen.getByRole("button", { name: "Void order" }));
 
     await waitFor(() => expect(onSettle).toHaveBeenCalledWith("miscounted the tray"));
@@ -116,7 +153,7 @@ describe("useConfirm", () => {
 
     // Whitespace only: window.prompt's own check ran after it had closed, which
     // is the failure this replaces — the typed text has to survive the error.
-    await user.type(screen.getByLabelText("Reason *"), "   ");
+    await user.type(screen.getByRole("textbox", { name: "Reason *" }), "   ");
     await user.click(screen.getByRole("button", { name: "Void order" }));
 
     expect(await screen.findByText("A reason is required.")).toBeInTheDocument();
@@ -124,7 +161,7 @@ describe("useConfirm", () => {
     expect(onSettle).not.toHaveBeenCalled();
 
     // The error clears as soon as they start fixing it, not on the next submit.
-    await user.type(screen.getByLabelText("Reason *"), "wrong lot");
+    await user.type(screen.getByRole("textbox", { name: "Reason *" }), "wrong lot");
     expect(screen.queryByText("A reason is required.")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Void order" }));
@@ -139,8 +176,8 @@ describe("useConfirm", () => {
     // Focus goes straight to a button, so without an accessible description a
     // screen reader announces the question and the control and never what the
     // action actually does — which is the only reason the dialog exists.
-    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
-      "The flock stops accepting new entries.");
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      "The flock stops accepting new entries."));
   });
 
   it("wires the blank-reason error to the field and puts the cursor back in it", async () => {
@@ -148,7 +185,7 @@ describe("useConfirm", () => {
     render(<Host />);
     await openReason(user);
 
-    const field = screen.getByLabelText("Reason *");
+    const field = screen.getByRole("textbox", { name: "Reason *" });
     expect(field).toHaveAttribute("aria-invalid", "false");
     expect(field).not.toHaveAttribute("aria-describedby");
 
@@ -167,15 +204,19 @@ describe("useConfirm", () => {
   });
 
   it("paints the action red only when the caller says it is destructive", async () => {
+    // "Red" is `color="error"` on the MUI `Button` (mapped to `--danger` in
+    // FarmThemeProvider), not the hand-rolled `.btn-danger` class — that class
+    // stays alive for the many OTHER raw-button callers this slice does not
+    // touch (SettingsPage, UsersPage), so it is not a guard on this component.
     const user = userEvent.setup();
     const { unmount } = render(<Host destructive />);
     await openConfirm(user);
-    expect(screen.getByRole("button", { name: "Deplete flock" })).toHaveClass("btn-danger");
+    expect(screen.getByRole("button", { name: "Deplete flock" })).toHaveClass("MuiButton-colorError");
     unmount();
 
     render(<Host />);
     await openConfirm(user);
-    expect(screen.getByRole("button", { name: "Deplete flock" })).not.toHaveClass("btn-danger");
+    expect(screen.getByRole("button", { name: "Deplete flock" })).toHaveClass("MuiButton-colorPrimary");
   });
 
   it("clears a stale reason rather than carrying it into the next question", async () => {
@@ -183,11 +224,12 @@ describe("useConfirm", () => {
     render(<Host />);
 
     await openReason(user);
-    await user.type(screen.getByLabelText("Reason *"), "typed then abandoned");
+    await user.type(screen.getByRole("textbox", { name: "Reason *" }), "typed then abandoned");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     await openReason(user);
-    expect(screen.getByLabelText("Reason *")).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Reason *" })).toHaveValue("");
   });
 
   it("settles a pending question when another is asked over it", async () => {
@@ -198,10 +240,13 @@ describe("useConfirm", () => {
     await openConfirm(user);
     // Nothing in the app can do this while the modal has focus, but a stranded
     // promise would hang its caller for ever, so it must not depend on that.
-    await openReason(user);
+    // The dialog stays open the whole time (pending swaps shape, `open` never
+    // goes false), so "void" stays reachable through the SAME aria-hidden
+    // sweep that hides it from an outside trigger otherwise.
+    await user.click(screen.getByRole("button", { name: "void", hidden: true }));
 
     await waitFor(() => expect(onSettle).toHaveBeenCalledWith(false));
-    expect(screen.getByRole("dialog")).toHaveAccessibleName("Void this order?");
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveAccessibleName("Void this order?"));
   });
 
   it("settles a pending question when the screen unmounts under it", async () => {
@@ -244,7 +289,14 @@ describe("useConfirm i18n wiring (#182, Task 9)", () => {
     await withOverride("useConfirm", "reasonLabel", "REASON-LABEL-MARKER", async () => {
       render(<Host />);
       await openReason(user);
-      expect(screen.getByLabelText("REASON-LABEL-MARKER")).toBeInTheDocument();
+      // getByRole, not getByLabelText: this field is always `required`, which
+      // makes MUI render its own `aria-hidden` asterisk `<span>` alongside the
+      // label text -- `getByLabelText`'s association heuristic does not
+      // resolve through that reliably (confirmed directly: it fails to find
+      // ANY required MUI TextField by its label in this suite, while the
+      // identical non-required field resolves fine), where the full
+      // accessible-name algorithm behind `getByRole` does.
+      expect(screen.getByRole("textbox", { name: "REASON-LABEL-MARKER" })).toBeInTheDocument();
     });
   });
 
@@ -316,7 +368,7 @@ function ChoiceHost({
 }
 
 const openChoice = async (user: ReturnType<typeof userEvent.setup>) =>
-  user.click(screen.getByRole("button", { name: "confirm order" }));
+  user.click(screen.getByRole("button", { name: "confirm order", hidden: true }));
 
 describe("useConfirm askChoice (#721)", () => {
   it("resolves the chosen value with a null note when none is typed", async () => {
@@ -329,7 +381,7 @@ describe("useConfirm askChoice (#721)", () => {
     await user.click(screen.getByRole("button", { name: "Confirm order" }));
 
     await waitFor(() => expect(onSettle).toHaveBeenCalledWith({ value: "Volume", note: null }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("trims the note it resolves", async () => {
@@ -339,7 +391,7 @@ describe("useConfirm askChoice (#721)", () => {
     await openChoice(user);
 
     await user.click(screen.getByRole("radio", { name: "Volume" }));
-    await user.type(screen.getByLabelText("Note"), "  bulk order  ");
+    await user.type(screen.getByRole("textbox", { name: "Note" }), "  bulk order  ");
     await user.click(screen.getByRole("button", { name: "Confirm order" }));
 
     await waitFor(() =>
@@ -373,11 +425,11 @@ describe("useConfirm askChoice (#721)", () => {
 
     expect(await screen.findByText("Describe the reason.")).toBeInTheDocument();
     expect(onSettle).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Note")).toHaveFocus();
+    expect(screen.getByRole("textbox", { name: "Note" })).toHaveFocus();
     // The choice survives the refusal — the whole point of settling inline.
     expect(screen.getByRole("radio", { name: "Other" })).toBeChecked();
 
-    await user.type(screen.getByLabelText("Note"), "agreed with the buyer");
+    await user.type(screen.getByRole("textbox", { name: "Note" }), "agreed with the buyer");
     await user.click(screen.getByRole("button", { name: "Confirm order" }));
     await waitFor(() =>
       expect(onSettle).toHaveBeenCalledWith({ value: "Other", note: "agreed with the buyer" }));
@@ -419,11 +471,11 @@ describe("useConfirm askChoice (#721)", () => {
 
     await openChoice(user);
     await user.click(screen.getByRole("radio", { name: "Volume" }));
-    await user.click(screen.getByRole("button", { name: "deplete" }));
+    await user.click(screen.getByRole("button", { name: "deplete", hidden: true }));
 
     // null, not the half-answered choice: they never went through with it.
     await waitFor(() => expect(onSettle).toHaveBeenCalledWith(null));
-    expect(screen.getByRole("dialog")).toHaveAccessibleName("Deplete this flock?");
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveAccessibleName("Deplete this flock?"));
   });
 
   it("settles a pending confirmation when a choice is asked over it", async () => {
@@ -431,14 +483,14 @@ describe("useConfirm askChoice (#721)", () => {
     const onOtherSettle = vi.fn();
     render(<ChoiceHost onOtherSettle={onOtherSettle} />);
 
-    await user.click(screen.getByRole("button", { name: "deplete" }));
+    await user.click(screen.getByRole("button", { name: "deplete", hidden: true }));
     await openChoice(user);
 
     // false, the confirm shape's own dismissal value — the widened union must
     // not leak the incoming shape's null into the outgoing promise.
     await waitFor(() => expect(onOtherSettle).toHaveBeenCalledWith(false));
-    expect(screen.getByRole("dialog")).toHaveAccessibleName(
-      "Why is this order below list price?");
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveAccessibleName(
+      "Why is this order below list price?"));
   });
 
   it("settles a pending choice when the screen unmounts under it", async () => {
@@ -459,10 +511,11 @@ describe("useConfirm askChoice (#721)", () => {
     await openChoice(user);
     await user.click(screen.getByRole("radio", { name: "Volume" }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     await openChoice(user);
 
     expect(screen.getByRole("radio", { name: "Volume" })).not.toBeChecked();
-    expect(screen.getByLabelText("Note")).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Note" })).toHaveValue("");
   });
 });

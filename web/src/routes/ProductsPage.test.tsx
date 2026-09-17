@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act } from "@testing-library/react";
+import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { ProductsPage } from "./ProductsPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account, NO_RECORD_HISTORY } from "../test/fixtures";
@@ -149,7 +149,10 @@ describe("ProductsPage loading + display", () => {
 });
 
 // F131: create/edit moved into dialogs — open first, same assertions after.
-const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New product" }));
+// hidden: true is a no-op when nothing else is open, and load-bearing right
+// after a Cancel/close whose exit transition is still settling — the trigger
+// stays under MUI's aria-hidden sweep until the dialog actually unmounts.
+const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New product", hidden: true }));
 const dialog = () => screen.getByRole("dialog");
 const submitCreate = async () => {
   await act(async () => {
@@ -181,7 +184,7 @@ describe("ProductsPage create", () => {
       notes: "bulk",
     });
     expect(mockCreate.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument()); // success dismisses it
     openCreate();
     expect(within(dialog()).getByLabelText("Name")).toHaveValue(""); // reset on success
     expect(within(dialog()).getByLabelText(/Default price/)).toHaveValue(null);
@@ -337,7 +340,7 @@ describe("ProductsPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
@@ -347,7 +350,7 @@ describe("ProductsPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
@@ -357,7 +360,7 @@ describe("ProductsPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockUpdateConversion).not.toHaveBeenCalled();
   });
 });
@@ -421,8 +424,10 @@ describe("ProductsPage error placement (#479)", () => {
 
     // The row behind the backdrop is not mouse-reachable, but #480 established
     // a screen reader's virtual cursor still gets there — the same door the
-    // per-dialog map exists for.
-    fireEvent.click(within(screen.getByRole("row", { name: /Legacy Tray/ })).getByRole("button", { name: "edit" }));
+    // per-dialog map exists for. It lives outside the still-open first
+    // dialog, so MUI's aria-hidden sweep covers it.
+    fireEvent.click(within(screen.getByRole("row", { name: /Legacy Tray/, hidden: true }))
+      .getByRole("button", { name: "edit", hidden: true }));
 
     // The dialog really did swap records — otherwise the assertion below would
     // pass for the wrong reason.
@@ -445,7 +450,9 @@ describe("ProductsPage error placement (#479)", () => {
     });
     expect(within(dialog()).getByText("boom")).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByRole("row", { name: /Flat/ })).getByRole("button", { name: "edit" }));
+    // Outside the still-open Carton dialog, so it stays under aria-hidden.
+    fireEvent.click(within(screen.getByRole("row", { name: /Flat/, hidden: true }))
+      .getByRole("button", { name: "edit", hidden: true }));
     // Swapped to the Flat conversion (20 eggs), so a leftover would be visible
     // under a heading about a different unit entirely.
     expect(within(dialog()).getByLabelText("Eggs per unit")).toHaveValue(20);
@@ -460,8 +467,10 @@ describe("ProductsPage error placement (#479)", () => {
     await renderReady(ADMIN);
     openCreate();
 
+    // The row lives outside the open create dialog, so aria-hidden covers it.
     await act(async () => {
-      fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "deactivate" }));
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/, hidden: true }))
+        .getByRole("button", { name: "deactivate", hidden: true }));
     });
 
     expect(within(dialog()).queryByText("boom")).not.toBeInTheDocument();
@@ -680,7 +689,7 @@ describe("ProductsPage pending states (#236)", () => {
     expect(submit).toBeDisabled();
 
     await act(async () => { gate.resolve({ id: "p9" }); });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
   });
 });
@@ -711,6 +720,7 @@ describe("ProductsPage abandoned-attempt success (#703)", () => {
     fillCreate("First");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Second" } });
     await act(async () => { gate.resolve({ id: "new" }); });
@@ -727,6 +737,7 @@ describe("ProductsPage abandoned-attempt success (#703)", () => {
     fillCreate("One");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { gate.resolve({ id: "new" }); });
     openCreate();
 
@@ -741,6 +752,7 @@ describe("ProductsPage abandoned-attempt success (#703)", () => {
     fillCreate("One");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { gate.resolve({ id: "new" }); });
     expect(mockListProducts).toHaveBeenCalledTimes(2); // mount + the refresh
 
@@ -781,7 +793,7 @@ describe("ProductsPage abandoned-attempt success (#703)", () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockListProducts).toHaveBeenCalledTimes(2); // mount + the post-edit refresh
   });
 
@@ -796,7 +808,7 @@ describe("ProductsPage abandoned-attempt success (#703)", () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockListProducts).toHaveBeenCalledTimes(2); // mount + the post-edit refresh
     expect(mockListConversions).toHaveBeenCalledTimes(2); // refresh() reloads conversions too
   });

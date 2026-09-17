@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, act, fireEvent } from "@testing-library/react";
+import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { Dialog } from "../components/Dialog";
 import { UpdatePrompt } from "./UpdatePrompt";
@@ -88,7 +88,10 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
-    expect(announcer()).toHaveTextContent(MESSAGE);
+    // MUI's Dialog defers the actual unmount to its exit transition
+    // (closeAfterTransition), so the announcement lands a moment after the
+    // close action fires.
+    await waitFor(() => expect(announcer()).toHaveTextContent(MESSAGE));
   });
 
   it("waits for the LAST dialog, not the first", async () => {
@@ -113,8 +116,11 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     expect(announcer()).toHaveTextContent("");
 
     // One down, one still open — the page is still inert, so still silence.
+    // MUI stacks real dialogs: only the TOPMOST one is outside aria-hidden, so
+    // the background dialog's own Close button needs `hidden: true` to be
+    // found at all; the remaining (topmost) one stays reachable without it.
     await act(async () => {
-      fireEvent.click(screen.getAllByRole("button", { name: "Close" })[0]);
+      fireEvent.click(screen.getAllByRole("button", { name: "Close", hidden: true })[0]);
     });
     expect(announcer()).toHaveTextContent("");
 
@@ -123,7 +129,10 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
-    expect(announcer()).toHaveTextContent(MESSAGE);
+    // MUI's Dialog defers the actual unmount to its exit transition
+    // (closeAfterTransition), so the announcement lands a moment after the
+    // close action fires.
+    await waitFor(() => expect(announcer()).toHaveTextContent(MESSAGE));
   });
 
   it("does not nag: a later dialog cycle over the same banner says nothing new", async () => {
@@ -133,7 +142,7 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
-    expect(announcer()).toHaveTextContent(MESSAGE);
+    await waitFor(() => expect(announcer()).toHaveTextContent(MESSAGE));
 
     // The banner is standing, unchanged. Blanking the region on every dialog
     // open would make the next close re-announce it, over and over.
@@ -144,7 +153,7 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
-    expect(announcer()).toHaveTextContent(MESSAGE);
+    await waitFor(() => expect(announcer()).toHaveTextContent(MESSAGE));
   });
 
   it("stays silent when one dialog is swapped for another in a single commit", async () => {
@@ -171,8 +180,10 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     await announce();
     expect(announcer()).toHaveTextContent("");
 
+    // The Swap trigger sits outside the open (topmost) dialog, so MUI's real
+    // aria-hidden hides it from role queries unless asked for.
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Swap" }));
+      fireEvent.click(screen.getByRole("button", { name: "Swap", hidden: true }));
     });
 
     expect(screen.getByRole("dialog", { name: "B" })).toBeInTheDocument();
@@ -204,7 +215,10 @@ describe("UpdatePrompt announcement survives a dialog's inertness (#485)", () =>
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
-    expect(announcer()).toHaveTextContent(MESSAGE);
+    // MUI's Dialog defers the actual unmount to its exit transition
+    // (closeAfterTransition), so the announcement lands a moment after the
+    // close action fires.
+    await waitFor(() => expect(announcer()).toHaveTextContent(MESSAGE));
   });
 
   it("claims no live ARIA role of its own", async () => {

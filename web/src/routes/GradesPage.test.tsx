@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, act } from "@testing-library/react";
+import { screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { GradesPage } from "./GradesPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
@@ -46,7 +46,10 @@ async function renderReady(token: Record<string, unknown>) {
 
 // F131: add/edit moved out of the page into a dialog. The behavioural
 // assertions below are unchanged — they just open the dialog first.
-const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New grade" }));
+// hidden: true is a no-op when nothing else is open, and load-bearing right
+// after a Cancel/close whose exit transition is still settling — the trigger
+// stays under MUI's aria-hidden sweep until the dialog actually unmounts.
+const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New grade", hidden: true }));
 const dialog = () => screen.getByRole("dialog");
 
 // A promise the test resolves by hand — holds a request open so the busy
@@ -141,7 +144,8 @@ describe("GradesPage admin actions", () => {
       name: "Jumbo", gradeType: "Quality", sortOrder: 3, isSaleable: false,
     });
     expect(mockCreate.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    // success dismisses it; MUI defers the actual removal to its exit transition
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     openCreate();
     expect(within(dialog()).getByLabelText("Name *")).toHaveValue(""); // reset on success
   });
@@ -166,7 +170,7 @@ describe("GradesPage admin actions", () => {
     expect(mockUpdate.mock.calls[0][0]).toBe("g1");
     expect(mockUpdate.mock.calls[0][1]).toEqual({ name: "Large", sortOrder: 5, isSaleable: false });
     expect(mockUpdate.mock.calls[0][2]).toEqual(expect.any(String)); // idempotency key
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("deactivates an active grade and activates an inactive one", async () => {
@@ -206,7 +210,9 @@ describe("GradesPage admin actions", () => {
     fireEvent.change(name(), { target: { value: "One" } });
     await submit();
 
-    openCreate(); // success closed it
+    // success closed it; wait past the exit transition before reopening
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    openCreate();
     fireEvent.change(name(), { target: { value: "Two" } });
     await submit();
 
@@ -262,7 +268,7 @@ describe("GradesPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
@@ -272,7 +278,7 @@ describe("GradesPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 });
@@ -324,14 +330,19 @@ describe("GradesPage error placement (#479)", () => {
     });
     expect(within(dialog()).getByText("Name already exists.")).toBeInTheDocument();
 
-    // Switch straight to Legacy's edit — no Cancel in between.
-    fireEvent.click(within(screen.getByRole("row", { name: /Legacy/ })).getByRole("button", { name: "edit" }));
+    // Switch straight to Legacy's edit — no Cancel in between. The row lives
+    // outside Grade A's still-open dialog, so aria-hidden covers it.
+    fireEvent.click(within(screen.getByRole("row", { name: /Legacy/, hidden: true }))
+      .getByRole("button", { name: "edit", hidden: true }));
     expect(within(dialog()).getByLabelText("Name")).toHaveValue("Legacy");
     expect(screen.queryByText("Name already exists.")).not.toBeInTheDocument();
 
-    // Cancel, then reopen Grade A: a new session, no stale verdict.
+    // Cancel, then reopen Grade A: a new session, no stale verdict. The
+    // dialog's exit transition is still settling, so the row stays under
+    // aria-hidden until it actually unmounts.
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
-    fireEvent.click(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "edit" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A/, hidden: true }))
+      .getByRole("button", { name: "edit", hidden: true }));
     expect(within(dialog()).getByLabelText("Name")).toHaveValue("Grade A");
     expect(screen.queryByText("Name already exists.")).not.toBeInTheDocument();
   });
@@ -348,8 +359,10 @@ describe("GradesPage error placement (#479)", () => {
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Jumbo" } });
 
+    // The row lives outside the open create dialog, so aria-hidden covers it.
     await act(async () => {
-      fireEvent.click(within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "deactivate" }));
+      fireEvent.click(within(screen.getByRole("row", { name: /Grade A/, hidden: true }))
+        .getByRole("button", { name: "deactivate", hidden: true }));
     });
 
     expect(within(dialog()).queryByText(/Server error|boom/)).not.toBeInTheDocument();
@@ -483,6 +496,7 @@ describe("GradesPage abandoned-attempt success (#703)", () => {
     fillCreate("First");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Second" } });
     await act(async () => { gate.resolve({ id: "new" }); });
@@ -499,6 +513,7 @@ describe("GradesPage abandoned-attempt success (#703)", () => {
     fillCreate("One");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { gate.resolve({ id: "new" }); });
     openCreate();
 
@@ -513,6 +528,7 @@ describe("GradesPage abandoned-attempt success (#703)", () => {
     fillCreate("One");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { gate.resolve({ id: "new" }); });
     expect(mockList).toHaveBeenCalledTimes(2); // mount + the refresh
 
@@ -555,7 +571,7 @@ describe("GradesPage abandoned-attempt success (#703)", () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockList).toHaveBeenCalledTimes(2); // mount + the post-edit refresh
   });
 });

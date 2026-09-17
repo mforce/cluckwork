@@ -497,7 +497,11 @@ describe("Login — forgetting a remembered farm", () => {
     await screen.findByRole("button", { name: "Sign in" });
     fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "farm-a" }) }));
     // The trigger click opens the dialog; nothing is removed while it is up.
-    expect(screen.getByRole("group", { name: i18n.t("auth:recentFarms") })).toBeInTheDocument();
+    // The recent-farms group sits outside the now-topmost confirm dialog, so
+    // MUI's real aria-hidden takes it out of the default role query.
+    expect(
+      screen.getByRole("group", { name: i18n.t("auth:recentFarms"), hidden: true }),
+    ).toBeInTheDocument();
     expect(farmField()).toHaveValue("farm-a");
     fireEvent.click(screen.getByRole("button", { name: i18n.t("common:cancel") }));
     // Wait for the dialog to be gone before asserting the roster: the confirm
@@ -505,9 +509,11 @@ describe("Login — forgetting a remembered farm", () => {
     // run) settles with the dismissal, so by the time the dialog has closed
     // any such removal would already be committed. This is what makes the
     // `if (!accepted)` gate falsifiable — verified by mutation M2.
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: i18n.t("common:cancel") })).not.toBeInTheDocument(),
-    );
+    // Checked against the DIALOG role itself, not just its Cancel button:
+    // MUI defers the panel's actual unmount (and the un-hiding of the rest of
+    // the page) to its exit transition, which outlasts the button's own
+    // content clearing.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(JSON.parse(localStorage.getItem("cluckwork.farmCodes") ?? "[]")).toEqual(["farm-a"]);
     expect(screen.getByRole("group", { name: i18n.t("auth:recentFarms") })).toBeInTheDocument();
     expect(farmField()).toHaveValue("farm-a");
@@ -541,7 +547,13 @@ describe("Login — forgetting a remembered farm", () => {
     fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:forgetFarmConfirm") }));
     await waitFor(() => expect(farmField()).toHaveValue("sunny-b"));
     expect(JSON.parse(localStorage.getItem("cluckwork.farmCodes") ?? "[]")).toEqual(["sunny-b"]);
-    expect(screen.getByRole("group", { name: i18n.t("auth:recentFarms") })).toBeInTheDocument();
+    // The confirm dialog's own removal (field/localStorage above) is
+    // synchronous on the confirm click, but MUI defers the dialog's own
+    // unmount to its exit transition — the group can still sit behind a
+    // mid-exit, still-aria-hidden dialog at this exact tick.
+    expect(
+      screen.getByRole("group", { name: i18n.t("auth:recentFarms"), hidden: true }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "sunny-a" }) })).not.toBeInTheDocument();
   });
 

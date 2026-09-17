@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, act, fireEvent, within } from "@testing-library/react";
+import { render, screen, act, fireEvent, within, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { MemoryRouter } from "react-router";
 import { AuthProvider } from "../auth/AuthContext";
@@ -76,8 +76,10 @@ describe("AppLayout farm warning announcement survives a dialog's inertness (#48
 
     // false -> true into an already-inert page: the transition the visible
     // role="alert" cannot announce, and the one never exercised before.
+    // The trigger button sits outside the open (topmost) dialog, so MUI's
+    // real aria-hidden hides it from role queries unless asked for.
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Break the farm read" }));
+      fireEvent.click(screen.getByRole("button", { name: "Break the farm read", hidden: true }));
     });
     expect(visibleWarning()).not.toBeNull();
     expect(announcer()).toHaveTextContent("");
@@ -85,7 +87,10 @@ describe("AppLayout farm warning announcement survives a dialog's inertness (#48
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
-    expect(announcer()).toHaveTextContent(NEVER_LOADED);
+    // MUI's Dialog defers the actual unmount to its exit transition
+    // (closeAfterTransition), so the announcement lands a moment after the
+    // close action fires.
+    await waitFor(() => expect(announcer()).toHaveTextContent(NEVER_LOADED));
   });
 
   it("keeps the warning inside the app's alert vocabulary", async () => {

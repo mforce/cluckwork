@@ -928,7 +928,11 @@ describe("SettingsPage logo", () => {
     // Another admin replaced the logo meanwhile; this screen learns of it on
     // the read-back after its own save.
     mockGetSettings.mockResolvedValue(SETTINGS({ logoContentHash: "second", version: 8 }));
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save settings" })); });
+    // The confirm dialog's exit transition is still settling here, so its
+    // aria-hidden sweep still covers the page underneath it.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save settings", hidden: true }));
+    });
 
     mockRemove.mockResolvedValueOnce(undefined);
     fireEvent.click(await screen.findByRole("button", { name: /Remove/ }));

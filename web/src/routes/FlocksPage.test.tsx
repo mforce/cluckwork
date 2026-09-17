@@ -206,7 +206,7 @@ describe("FlocksPage create", () => {
       name: "Rhode Reds", breed: "Rhode Island Red", placementDate: "2026-05-10", initialCount: 250,
     });
     expect(mockCreate.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument()); // success dismisses it
     openCreate();
     expect(within(dialog()).getByLabelText("Name *")).toHaveValue(""); // reset on success
   });
@@ -293,7 +293,7 @@ describe("FlocksPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
@@ -303,7 +303,7 @@ describe("FlocksPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
@@ -315,7 +315,7 @@ describe("FlocksPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockRecordMovement).not.toHaveBeenCalled();
   });
 });
@@ -379,7 +379,7 @@ describe("FlocksPage error placement (#479)", () => {
     });
     expect(within(dialog()).getByText("Someone else changed this flock.")).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByRole("row", { name: /Depleted Flock/ })).getByRole("button", { name: "edit" }));
+    fireEvent.click(within(screen.getByRole("row", { name: /Depleted Flock/, hidden: true })).getByRole("button", { name: "edit", hidden: true }));
     // The dialog really swapped records — otherwise the absence below could
     // pass for the wrong reason.
     expect(within(dialog()).getByLabelText("Edit name")).toHaveValue("Depleted Flock");
@@ -396,7 +396,7 @@ describe("FlocksPage error placement (#479)", () => {
     openCreate();
 
     await act(async () => {
-      fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "birds" }));
+      fireEvent.click(within(getRowByCellText("Hen House 1")).getByRole("button", { name: "birds", hidden: true }));
     });
 
     const message = i18n.t("flocks:loadMovementsFailed");
@@ -458,7 +458,7 @@ describe("FlocksPage lifecycle", () => {
     });
 
     await answer("Cancel");
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(mockDeplete).not.toHaveBeenCalled(); // dismissal short-circuits the write
   });
 
@@ -502,7 +502,7 @@ describe("FlocksPage pending states (#236)", () => {
 
     // Once the confirmed request is in flight the dialog is gone and the
     // ORIGINATING row control is the pending indicator.
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     const row = screen.getByRole("row", { name: /Hen House 1/ });
     const archiveButton = within(row).getByRole("button", { name: "archive" });
     expect(archiveButton).toBeDisabled();
@@ -556,6 +556,7 @@ describe("FlocksPage idempotency", () => {
 
     // Success closed the dialog and cleared the form → reopen and refill for a
     // genuinely fresh write.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     openCreate();
     fireEvent.change(name(), { target: { value: "Two" } });
     fireEvent.change(breed(), { target: { value: "Hy-Line" } });
@@ -625,7 +626,7 @@ describe("FlocksPage role gating", () => {
 
     view.rerender(tree(false)); // demoted mid-session
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });
 
@@ -983,6 +984,7 @@ describe("FlocksPage abandoned-attempt success (#703)", () => {
     fillCreate("First");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     openCreate(); // the replacement session
     fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Second" } });
     await act(async () => { gate.resolve({ id: "new" }); });
@@ -1003,6 +1005,7 @@ describe("FlocksPage abandoned-attempt success (#703)", () => {
     fillCreate("One");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await act(async () => { gate.resolve({ id: "new" }); });
     openCreate();
 
@@ -1019,6 +1022,7 @@ describe("FlocksPage abandoned-attempt success (#703)", () => {
     fillCreate("One");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await act(async () => { gate.resolve({ id: "new" }); });
     expect(mockListFlocks).toHaveBeenCalledTimes(2); // mount + the refresh
 
@@ -1067,7 +1071,7 @@ describe("FlocksPage abandoned-attempt success (#703)", () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockListFlocks).toHaveBeenCalledTimes(2); // mount + the post-edit refresh
   });
 
@@ -1081,6 +1085,7 @@ describe("FlocksPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Birds" }), { target: { value: "3" } });
     fireEvent.click(within(dialog()).getByRole("button", { name: "Record" }));
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await openRecord(); // the replacement session
     fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Birds" }), { target: { value: "7" } });
     await act(async () => { gate.resolve({ id: "mv-new" }); });

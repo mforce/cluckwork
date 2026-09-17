@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, fireEvent, act } from "@testing-library/react";
+import { render, screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { InventoryPage } from "./InventoryPage";
 import {
@@ -99,7 +99,7 @@ describe("InventoryPage admin-gated dialogs end their session on demotion (#703 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Add item" })); // create in flight
 
     demote(view);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     promote(view);
     // The session ended on the demotion: there is nothing to restore.
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -119,7 +119,7 @@ describe("InventoryPage admin-gated dialogs end their session on demotion (#703 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Save" })); // edit in flight
 
     demote(view);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     promote(view);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
@@ -140,7 +140,7 @@ describe("InventoryPage admin-gated dialogs end their session on demotion (#703 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Record correction" })); // correction in flight
 
     demote(view);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     promote(view);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 

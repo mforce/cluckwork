@@ -97,7 +97,10 @@ describe("CustomersPage customer-name links (#512 US5)", () => {
 });
 
 // F131: create moved into a dialog — open it, then assert the same behaviour.
-const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New customer" }));
+// hidden: true is a no-op when nothing else is open, and load-bearing right
+// after a Cancel/close whose exit transition is still settling — the trigger
+// stays under MUI's aria-hidden sweep until the dialog actually unmounts.
+const openCreate = () => fireEvent.click(screen.getByRole("button", { name: "New customer", hidden: true }));
 const dialog = () => screen.getByRole("dialog");
 const submit = async () => {
   await act(async () => {
@@ -121,7 +124,7 @@ describe("CustomersPage create", () => {
     expect(body.email).toBeUndefined();
     expect(body.address).toBeUndefined();
     expect(body.note).toBeUndefined();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // success dismisses it
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument()); // success dismisses it
     // both required fields clear on success
     openCreate();
     expect(within(dialog()).getByLabelText("Name *")).toHaveValue("");
@@ -185,7 +188,7 @@ describe("CustomersPage double-submit guard (#236)", () => {
 
     await act(async () => resolveCreate({ id: "c9" }));
     expect(mockCreate).toHaveBeenCalledTimes(1); // still exactly one after settle
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // the one create succeeded
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument()); // the one create succeeded
   });
 });
 
@@ -198,7 +201,7 @@ describe("CustomersPage dialog dismissal", () => {
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockCreate).not.toHaveBeenCalled();
   });
 });
@@ -435,7 +438,8 @@ describe("CustomersPage i18n wiring (#182, Task 24)", () => {
 // the session that replaced it"), landed in #489.
 // #625 — edit an existing customer's details.
 const openEdit = (name: string) =>
-  fireEvent.click(within(screen.getByRole("row", { name: new RegExp(name) })).getByRole("button", { name: "edit" }));
+  fireEvent.click(within(screen.getByRole("row", { name: new RegExp(name), hidden: true }))
+    .getByRole("button", { name: "edit", hidden: true }));
 const submitEdit = async () => {
   await act(async () => {
     fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
@@ -503,7 +507,7 @@ describe("CustomersPage edit (#625)", () => {
     expect(body.note).toBeUndefined();
     expect(typeof key).toBe("string");
     expect(mockList).toHaveBeenCalledTimes(2); // mount + post-save refresh
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("leaves the dialog open and renders the exact server conflict message on a 409", async () => {
@@ -545,7 +549,11 @@ describe("CustomersPage edit (#625)", () => {
     const assertDismissalBlocked = () => {
       expect(within(dialog()).getByRole("button", { name: "Close" })).toBeDisabled();
       expect(within(dialog()).getByRole("button", { name: "Cancel" })).toBeDisabled();
-      fireEvent.keyDown(document, { key: "Escape" });
+      // MUI's Modal answers Escape via an onKeyDown prop on its own root, not
+      // a document-level listener (verified against the installed package,
+      // Modal/useModal.js), so the event must bubble up from inside the
+      // dialog to reach it — a document-targeted keydown never arrives.
+      fireEvent.keyDown(dialog(), { key: "Escape" });
       expect(screen.getByRole("dialog")).toBeInTheDocument();
       fireEvent.click(backdrop());
       expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -580,7 +588,7 @@ describe("CustomersPage edit (#625)", () => {
     // Refresh SUCCEEDED here, so the dialog closes itself — dismissal is
     // moot on this instance. The failed-refresh variant below is what proves
     // dismissal actually re-enables on a dialog that stays open.
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(await screen.findByRole("row", { name: /Server value/ })).toBeInTheDocument();
   });
 
@@ -617,8 +625,10 @@ describe("CustomersPage edit (#625)", () => {
     expect(within(dialog()).getByLabelText("Email")).not.toBeDisabled();
     expect(within(dialog()).getByLabelText("Address")).not.toBeDisabled();
     expect(within(dialog()).getByLabelText("Note")).not.toBeDisabled();
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // Same MUI routing note as assertDismissalBlocked above: fire on the
+    // dialog itself so the event bubbles to Modal's own onKeyDown.
+    fireEvent.keyDown(dialog(), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   // #625 review round 1 — the SAME re-entry guard `usePendingAction` already
@@ -706,7 +716,7 @@ describe("CustomersPage edit (#625)", () => {
     // The row's own displayed name is now "New Name" too — the optimistic
     // patch updated the TABLE, not just the dialog that caused it.
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(await screen.findByRole("row", { name: /New Name/ })).toBeInTheDocument();
     mockUpdate.mockResolvedValueOnce(undefined);
     openEdit("New Name");
@@ -957,7 +967,7 @@ describe("CustomersPage paging (#511)", { timeout: 15_000 }, () => {
     expect(mockList.mock.calls.slice(-2).map(([params]) => params?.offset)).toEqual([0, 100]);
     expect(await findRowByCellText("Zulu Farm Updated")).toBeInTheDocument();
     expect(getRowByCellText("p customer 000")).toBeInTheDocument();
-    expect(editDialog).not.toBeInTheDocument();
+    await waitFor(() => expect(editDialog).not.toBeInTheDocument());
   });
 
   it("keeps the loaded rows when EXTENDING fails, and offers the retry", async () => {
@@ -1029,6 +1039,7 @@ describe("CustomersPage abandoned-attempt success (#703)", () => {
     fill("First");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Second" } });
     await act(async () => { gate.resolve({ id: "new" }); });
@@ -1045,6 +1056,7 @@ describe("CustomersPage abandoned-attempt success (#703)", () => {
     fill("One");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { gate.resolve({ id: "new" }); });
     openCreate();
 
@@ -1060,6 +1072,7 @@ describe("CustomersPage abandoned-attempt success (#703)", () => {
     fill("One");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { gate.resolve({ id: "new" }); });
     // The write is a fact about the world: its `runWrite` refreshes the list even
     // though the dialog was dismissed (INV-3 RUN) — not just the key rotation below.
@@ -1084,7 +1097,7 @@ describe("CustomersPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Acme Renamed" } });
     await submitEdit();
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockUpdate).toHaveBeenCalledTimes(1);
   });
 });
