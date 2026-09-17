@@ -804,12 +804,18 @@ export function DailyEntryPage() {
           states makes the whole row jump. 1280 is unchanged: `flexDirection`
           switches to column only below `md`, and Date + "+ new flock" stay
           grouped in their own row (nested Box, `gap` unchanged so their
-          spacing at 1280 is pixel-identical to the old flat three-item row). */}
+          spacing at 1280 is pixel-identical to the old flat three-item row).
+          The date input's underline rule below was `& > label` (direct
+          child); nesting the label inside that inner Box moved it one level
+          deeper, so the rule is now `& label` (descendant) — caught by a
+          390 recapture showing the date field revert to the browser's
+          default boxed style once the direct-child selector stopped
+          matching. */}
       <Box sx={{
         display: "flex", flexDirection: { xs: "column", md: "row" },
         gap: { xs: 2, md: 5 }, mt: 3, pb: 2, alignItems: { xs: "stretch", md: "flex-end" },
         borderBottom: "1px solid var(--rule-strong)",
-        "& > label input[type='date']": {
+        "& label input[type='date']": {
           font: "inherit", fontWeight: 500, color: "var(--ink)", background: "transparent",
           border: 0, borderBottom: "1px solid var(--rule-strong)", borderRadius: 0,
           width: "100%", minHeight: 44, padding: "4px 0",
