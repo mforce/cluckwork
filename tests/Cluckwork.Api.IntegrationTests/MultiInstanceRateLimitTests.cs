@@ -106,7 +106,10 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
         var psi = MakeBaseStartInfo();
         psi.Environment["Database__MigrateOnStartup"] = "false";
         psi.Environment["RateLimiting__Login__PermitLimit"] = PermitLimit.ToString();
-        psi.Environment["RateLimiting__Login__WindowSeconds"] = "900";
+        // 24h window: the bucket boundary is wall-clock inside the limiter script,
+        // and a boundary crossing mid-loop turns the expected 429 into a 401
+        // (#840's 2026-09-16 CI specimens).
+        psi.Environment["RateLimiting__Login__WindowSeconds"] = "86400";
         return ServingSubprocess.StartReadyAsync(psi, ReadyTimeout);
     }
 

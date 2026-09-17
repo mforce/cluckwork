@@ -45,7 +45,10 @@ public sealed class DistributedRateLimiterWiringFactory : CluckworkWebApplicatio
     {
         base.ConfigureWebHost(builder);
         builder.UseSetting("RateLimiting:Login:PermitLimit", LoginLimit.ToString());
-        builder.UseSetting("RateLimiting:Login:WindowSeconds", "900");
+        // 24h window: the bucket boundary is wall-clock inside the limiter script,
+        // and a boundary crossing mid-loop turns the expected 429 into a 401
+        // (#840's 2026-09-16 CI specimens).
+        builder.UseSetting("RateLimiting:Login:WindowSeconds", "86400");
         builder.UseSetting("RateLimiting:TrustedProxies:0", $"{TrustedProxy}/32");
         builder.ConfigureTestServices(services =>
         {

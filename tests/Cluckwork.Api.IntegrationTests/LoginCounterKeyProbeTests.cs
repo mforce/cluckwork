@@ -122,6 +122,10 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         // foreign-spend reading is taken from the loopback bucket and deliberately
         // NOT isolated: that reading is the finding.
         psi.Environment["RateLimiting__TrustedProxies__0"] = "127.0.0.1/32";
+        // 24h window: the bucket boundary is wall-clock inside the limiter script,
+        // and a boundary crossing mid-burst resets the count, so the burst's own
+        // 429s can vanish (#840's 2026-09-16 CI specimens).
+        psi.Environment["RateLimiting__Login__WindowSeconds"] = "86400";
         psi.Environment["Jwt__Issuer"] = "cluckwork-test";
         psi.Environment["Jwt__Audience"] = "cluckwork-api-test";
         psi.Environment["Jwt__PublicKeyPem"] = TestJwtKeys.PublicKeyPem;
