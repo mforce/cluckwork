@@ -806,8 +806,13 @@ export function ExpensesPage() {
                 requestedId resolves it exactly (archived / outside the
                 discovery window included), a failed exact read enters the
                 explicit unavailable state with a Retry, and the picker's
-                clear restores the account-wide (blank) choice. */}
-            <Box sx={PICKER_SX}>
+                clear restores the account-wide (blank) choice.
+                No PICKER_SX here: inside a vertical dialog Stack every child
+                stretches full width by default (flex align-items: stretch),
+                which is the same full-width behaviour the retired
+                `.dialog .form-grid .named-picker` override gave it — the
+                15rem row cap is for a horizontal filter/capture row only. */}
+            <Box>
               <FlockPicker
                 label={t("flockOptionalLabel")}
                 eligibility="all"
