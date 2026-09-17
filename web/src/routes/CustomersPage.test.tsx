@@ -1039,6 +1039,7 @@ describe("CustomersPage abandoned-attempt success (#703)", () => {
     fill("First");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Second" } });
     await act(async () => { gate.resolve({ id: "new" }); });
@@ -1055,6 +1056,7 @@ describe("CustomersPage abandoned-attempt success (#703)", () => {
     fill("One");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { gate.resolve({ id: "new" }); });
     openCreate();
 
@@ -1070,6 +1072,7 @@ describe("CustomersPage abandoned-attempt success (#703)", () => {
     fill("One");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { gate.resolve({ id: "new" }); });
     // The write is a fact about the world: its `runWrite` refreshes the list even
     // though the dialog was dismissed (INV-3 RUN) — not just the key rotation below.

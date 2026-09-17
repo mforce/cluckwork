@@ -1467,6 +1467,7 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Bedding" } });
     submitCategory();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     openNewCategory(); // the replacement session
     await act(async () => { gate.resolve({ id: "cat-new" }); });
 
@@ -1484,6 +1485,7 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Bedding" } });
     submitCategory();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { gate.resolve({ id: "cat-new" }); });
     openNewCategory();
 
@@ -1501,6 +1503,7 @@ describe("ExpensesPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(dialog()).getByLabelText("Category name"), { target: { value: "Bedding" } });
     submitCategory();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { gate.resolve({ id: "cat-new" }); });
     expect(mockListCategories).toHaveBeenCalledTimes(2); // mount + the refresh
 

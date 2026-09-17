@@ -3320,6 +3320,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     expect(mockCreateUser).toHaveBeenCalledTimes(1);
 
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { write.resolve({ id: "u-new" }); });
 
     expect(mockListUsers).toHaveBeenCalledTimes(2); // mount + the refresh: the user exists whoever is watching
@@ -3361,6 +3362,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     expect(mockSetUserPassword).toHaveBeenCalledTimes(1);
 
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { write.resolve(); });
 
     expect(screen.queryByText(/signed out everywhere/i)).not.toBeInTheDocument();
@@ -3401,6 +3403,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     expect(mockChangeUserRole).toHaveBeenCalledTimes(1);
 
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { write.resolve(); });
 
     expect(mockListUsers).toHaveBeenCalledTimes(2);
@@ -3441,6 +3444,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     expect(mockChangeUserEmail).toHaveBeenCalledTimes(1);
 
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { write.resolve(); });
 
     expect(screen.queryByText(/Login email changed to renamed@farm\.test/)).not.toBeInTheDocument();
@@ -3472,6 +3476,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     fillPassword(crypto.randomUUID());
     await submit("Set password");
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { write.resolve(); });
 
     mockSetUserPassword.mockResolvedValueOnce(undefined);
@@ -3493,6 +3498,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     await submit("Change email");
 
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     rowButton(/worker@farm.test/, /change email/i); // the SAME user
     await act(async () => { grant.resolve({ token: "late-grant", expiresAt: "2026-01-01T00:05:00Z" }); });
 
@@ -3511,6 +3517,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     expect(mockChangeUserEmail).toHaveBeenCalledTimes(1);
 
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     rowButton(/worker@farm.test/, /change email/i); // the SAME user
     await act(async () => {
       reject(new ApiError(409, "Users.DuplicateEmail", "A user with this email already exists."));
@@ -3661,6 +3668,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
     await submit("Change email");
 
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     rowButton(/worker@farm.test/, /change email/i); // the SAME user
     expect(within(dialog()).getByLabelText("Login email")).toHaveValue("worker@farm.test");
     await act(async () => { write.resolve(); });
@@ -3698,6 +3706,7 @@ describe("UsersPage abandoned edit's success (#703 PR 4)", () => {
     expect(mockUpdateUser).toHaveBeenCalledTimes(1);
 
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     editRow(/boss@farm.test/); // the SAME user — an id-only guard cannot tell this session from the last
     typeName("Second");
     await act(async () => { write.resolve(); });
@@ -3733,6 +3742,7 @@ describe("UsersPage abandoned edit's success (#703 PR 4)", () => {
     await save();
 
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { write.resolve(); });
 
     expect(screen.queryByText(/Updated boss@farm\.test/)).not.toBeInTheDocument();
@@ -3747,6 +3757,7 @@ describe("UsersPage abandoned edit's success (#703 PR 4)", () => {
     typeName("First");
     await save();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { write.resolve(); });
     expect(mockListUsers).toHaveBeenCalledTimes(2); // mount + the refresh: the name changed whoever is watching
 

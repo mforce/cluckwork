@@ -496,6 +496,7 @@ describe("GradesPage abandoned-attempt success (#703)", () => {
     fillCreate("First");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Name *"), { target: { value: "Second" } });
     await act(async () => { gate.resolve({ id: "new" }); });
@@ -512,6 +513,7 @@ describe("GradesPage abandoned-attempt success (#703)", () => {
     fillCreate("One");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { gate.resolve({ id: "new" }); });
     openCreate();
 
@@ -526,6 +528,7 @@ describe("GradesPage abandoned-attempt success (#703)", () => {
     fillCreate("One");
     submitCreate();
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await act(async () => { gate.resolve({ id: "new" }); });
     expect(mockList).toHaveBeenCalledTimes(2); // mount + the refresh
 

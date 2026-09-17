@@ -1085,6 +1085,7 @@ describe("FlocksPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Birds" }), { target: { value: "3" } });
     fireEvent.click(within(dialog()).getByRole("button", { name: "Record" }));
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     await openRecord(); // the replacement session
     fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Birds" }), { target: { value: "7" } });
     await act(async () => { gate.resolve({ id: "mv-new" }); });

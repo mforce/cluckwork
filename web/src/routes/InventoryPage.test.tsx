@@ -1472,6 +1472,7 @@ describe("InventoryPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(openDialog("Record purchase")).getByLabelText(/Quantity/), { target: { value: "3" } });
     fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     fireEvent.change(within(openDialog("Record purchase")).getByLabelText(/Quantity/), { target: { value: "7" } }); // the replacement session
     await act(async () => { gate.resolve({ lotId: "lot9" }); });
 
@@ -1514,6 +1515,7 @@ describe("InventoryPage abandoned-attempt success (#703)", () => {
     fireEvent.change(within(openDialog("Record purchase")).getByLabelText(/Quantity/), { target: { value: "3" } });
     fireEvent.click(within(dialog()).getByRole("button", { name: "Record purchase" }));
     cancel();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); // the exit transition must finish, or the query below finds the closing dialog's own submit button
     fireEvent.change(within(openDialog("Record purchase")).getByLabelText(/Quantity/), { target: { value: "5" } });
     fireEvent.submit(within(dialog()).getByRole("button", { name: "Record purchase" }).closest("form")!); // Enter, while busy
     await act(async () => { rejectFirst(new ApiError(500, "Server error", "late purchase failure")); });
