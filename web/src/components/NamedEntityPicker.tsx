@@ -727,7 +727,22 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
     const d = stateRef.current.discovery;
     if (d.items.length === 0) return;
     const atEnd = highlightedIdRef.current === d.items[d.items.length - 1].id;
-    if (atEnd && d.hasMore && d.phase === "ready") void loadMore();
+    if (atEnd && d.hasMore && d.phase === "ready") {
+      // Also suppress `Autocomplete`'s own ArrowDown handling for THIS
+      // press: `options` has not grown yet (the extension is async), so its
+      // `changeHighlightedIndex` would move against the STALE, still-short
+      // list — and because `disableListWrap` defaults to `false`, moving
+      // past the last valid index WRAPS to the first option instead of
+      // clamping. Left alone, every boundary press would silently snap the
+      // highlight back to the top of a growing list instead of holding
+      // still for the extension to land — found via
+      // `named-entity-picker.spec.ts`'s real-browser keyboard-paging test,
+      // not reasoned about. The next ArrowDown (after `options` grows) again
+      // gets no special handling and moves forward normally.
+      e.preventDefault();
+      e.defaultMuiPrevented = true;
+      void loadMore();
+    }
   }, [disabled, loadMore, cancelExploration]);
 
   // Exploration (FR-020): the visible text differs from the committed label.
