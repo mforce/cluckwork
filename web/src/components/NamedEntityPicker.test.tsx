@@ -982,6 +982,99 @@ describe("T023: ARIA contract and interaction semantics", () => {
     expect(mockListFlocks.mock.calls.length).toBe(callsBeforeReopenArrow);
   });
 
+  // Codex re-review of #898 (2026-09-18): T023-7c above pins only the
+  // close/reopen clear (`highlightedIdRef.current = null` in the "open
+  // effect"). Three more clear sites exist and were unpinned — removing any
+  // ONE of them stayed green. Each sibling below reuses T023-7c's exact
+  // technique (an intentional id COLLISION between the row highlighted
+  // before the transition and a row in the window that exists after it) so
+  // a stale ref falsely satisfies `atEnd` on the very next ArrowDown, even
+  // though nothing else about the state actually changed to justify it.
+  it("T023-7e: a stale highlightedIdRef does not falsely trigger Load More after typing replaces the discovery window", async () => {
+    const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
+    // The typed-query's own result window reuses "p0-49" — the id
+    // highlighted just before typing — as one of ITS rows (not necessarily
+    // its own last one; the id merely has to exist for a stale ref to
+    // "find" it). 50 rows, so `hasMore` is true for this window too.
+    const searchResults = Array.from({ length: 50 }, (_, i) =>
+      i === 49 ? { ...fiveFlocks[0], id: "p0-49", name: "Search Match 49" }
+        : { ...fiveFlocks[0], id: `s-${i}`, name: `Search Match ${i}` });
+    mockListFlocks.mockImplementation(async (params: any) => {
+      if (params?.search) return searchResults as any;
+      const offset = params.offset ?? 0;
+      if (offset === 0) return page0 as any;
+      return [] as any;
+    });
+    const { input } = openPicker();
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    for (let i = 0; i < 50; i++) {
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    }
+    expect(input.getAttribute("aria-activedescendant")).toBeTruthy();
+    // Type: a brand new discovery generation replaces `items` entirely.
+    fireEvent.change(input, { target: { value: "Search" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    expect(screen.getAllByRole("option")).toHaveLength(50);
+    const callsBeforeArrow = mockListFlocks.mock.calls.length;
+    // First ArrowDown after typing must move the highlight onto the new
+    // window's first option, not request another page — the stale-ref bug
+    // would falsely read "already at the end" via the id-49 collision.
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(mockListFlocks.mock.calls.length).toBe(callsBeforeArrow);
+  });
+
+  it("T023-7f: a stale highlightedIdRef does not falsely trigger Load More after Escape", async () => {
+    const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
+    mockListFlocks.mockImplementation(async (params: any) => {
+      const offset = params.offset ?? 0;
+      if (offset === 0) return page0 as any;
+      return [] as any;
+    });
+    const { input } = openPicker();
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    for (let i = 0; i < 50; i++) {
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    }
+    expect(input.getAttribute("aria-activedescendant")).toBeTruthy();
+    fireEvent.keyDown(input, { key: "Escape" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    const callsBeforeArrow = mockListFlocks.mock.calls.length;
+    // First ArrowDown after Escape must move the highlight normally (the
+    // discovery window is retained, same 50 items, same true last id
+    // "p0-49" — a CORRECTLY cleared ref moves to option 0 first; a stale
+    // one still reading "p0-49" falsely fires loadMore immediately).
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(mockListFlocks.mock.calls.length).toBe(callsBeforeArrow);
+  });
+
+  it("T023-7g: a stale highlightedIdRef does not falsely trigger Load More after an outside click", async () => {
+    const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
+    mockListFlocks.mockImplementation(async (params: any) => {
+      const offset = params.offset ?? 0;
+      if (offset === 0) return page0 as any;
+      return [] as any;
+    });
+    const { input } = openPicker();
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    for (let i = 0; i < 50; i++) {
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    }
+    expect(input.getAttribute("aria-activedescendant")).toBeTruthy();
+    // A genuine outside click: `document.body` is outside the picker's own
+    // `containerRef`.
+    fireEvent.mouseDown(document.body);
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    const callsBeforeArrow = mockListFlocks.mock.calls.length;
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(mockListFlocks.mock.calls.length).toBe(callsBeforeArrow);
+  });
+
   // Codex review of #898 (2026-09-18): T023-7 above only checked that the
   // NEXT FETCH was issued at the right offset — not what happened to the
   // highlight while it was in flight or after it landed with a value already
@@ -993,17 +1086,26 @@ describe("T023: ARIA contract and interaction semantics", () => {
   // below (`clonedSelectedValue`, a `useMemo` keyed on the committed
   // entity's id/name) by memoizing that clone.
   //
-  // No jsdom test for this: two constructions were tried (a full Load-More
-  // round trip, and a simpler forced-incidental-rerender via `rerender()`
-  // with unchanged props) and both were REJECTED after a red/green mutation
-  // check — with `syncHighlightedIndex` instrumented directly, both showed
-  // the SAME final `aria-activedescendant` whether or not `value` was
-  // memoized, tracing back to `usePreviousProps`'s own effect-flush timing
-  // relative to `act()`/fake timers in this exact harness, not to anything
-  // this fix controls. Shipping either would have been a guard that reads as
-  // safety without being one. The real-browser Playwright suite (real
-  // timers, real batching) is the layer that can actually discriminate this
-  // class of bug; `named-entity-picker.spec.ts`'s paging coverage is
+  // No jsdom test for this: THREE constructions were tried and all three were
+  // REJECTED after a red/green mutation check — (1) a full Load-More round
+  // trip using a synchronous mock, (2) a forced-incidental-rerender via
+  // `rerender()` with unchanged props, and (3) a Codex re-review suggestion
+  // (2026-09-18): a DEFERRED extension request (the mock's second page holds
+  // an unresolved promise), asserting the highlight is unchanged while
+  // `phase === "extending"` is genuinely in flight, then resolving it and
+  // asserting the highlight survived. All three showed the SAME final
+  // `aria-activedescendant` whether or not `value` was memoized — (1)/(2)
+  // traced (via direct `syncHighlightedIndex` instrumentation) to
+  // `usePreviousProps`'s own effect-flush timing relative to `act()`/fake
+  // timers in this exact harness; (3) reproduced the identical result even
+  // holding the fetch open by hand, ruling out fake-timer batching as the
+  // sole cause — something about jsdom's own render/effect cadence here
+  // genuinely does not let this construction discriminate the fix, not
+  // merely a fake-timer artifact. Shipping any of the three would have been
+  // a guard that reads as safety without being one. The real-browser
+  // Playwright suite (real timers, real batching) is the layer that can
+  // actually discriminate this class of bug; `named-entity-picker.spec.ts`'s
+  // paging coverage is
   // extended below to commit a value before paging past it, which a stale
   // MUI version reintroducing this issue would visibly break.
 
