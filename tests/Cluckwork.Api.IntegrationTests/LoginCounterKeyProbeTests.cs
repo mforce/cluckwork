@@ -43,6 +43,10 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
     private readonly RedisContainer _redis =
         new RedisBuilder("redis:7.4-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2").Build();
 
+    // The container is private today; keep the host namespace private too, so a
+    // future shared fixture cannot silently reintroduce another counter owner.
+    private readonly string _redisKeyNamespace = $"cluckwork-test-{Guid.NewGuid():N}";
+
     private IConnectionMultiplexer _mux = null!;
 
     public async Task InitializeAsync()
@@ -116,12 +120,17 @@ public sealed class LoginCounterKeyProbeTests : IAsyncLifetime
         psi.Environment["Database__AllowInsecureConnection"] = "true";
         psi.Environment["Database__MigrateOnStartup"] = "false";
         psi.Environment["SharedState__Redis__ConnectionString"] = _redis.GetConnectionString();
+        psi.Environment["SharedState__Redis__KeyNamespace"] = _redisKeyNamespace;
         // #840 — loopback is a trusted proxy here so the burst can be given its own
         // client address, and the counter the probe reads is the one its own requests
         // wrote rather than one shared with every other class on this machine. The
         // foreign-spend reading is taken from the loopback bucket and deliberately
         // NOT isolated: that reading is the finding.
         psi.Environment["RateLimiting__TrustedProxies__0"] = "127.0.0.1/32";
+        // 24h window: the bucket boundary is wall-clock inside the limiter script,
+        // and a boundary crossing mid-burst resets the count, so the burst's own
+        // 429s can vanish (#840's 2026-09-16 CI specimens).
+        psi.Environment["RateLimiting__Login__WindowSeconds"] = "86400";
         psi.Environment["Jwt__Issuer"] = "cluckwork-test";
         psi.Environment["Jwt__Audience"] = "cluckwork-api-test";
         psi.Environment["Jwt__PublicKeyPem"] = TestJwtKeys.PublicKeyPem;

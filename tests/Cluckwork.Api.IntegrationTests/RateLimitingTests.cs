@@ -21,13 +21,20 @@ public sealed class RateLimitFactory : CluckworkWebApplicationFactory
     public const int LoginLimit = 3;
     public const int RefreshLimit = 5;
 
+    // 24h, not the prod 900 s: the bucket boundary is Redis server wall-clock
+    // inside the limiter script (#543/#544, deliberate), and a boundary crossing
+    // inside a status loop resets the count mid-loop, so the expected 429 arrives
+    // as a 401 — #840's 2026-09-16 CI specimens. A crossing inside a sub-10 s
+    // loop at 24h is a ~0.003% event.
+    public const int WindowSeconds = 86_400;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
         builder.UseSetting("RateLimiting:Login:PermitLimit", LoginLimit.ToString());
-        builder.UseSetting("RateLimiting:Login:WindowSeconds", "900");
+        builder.UseSetting("RateLimiting:Login:WindowSeconds", WindowSeconds.ToString());
         builder.UseSetting("RateLimiting:Refresh:PermitLimit", RefreshLimit.ToString());
-        builder.UseSetting("RateLimiting:Refresh:WindowSeconds", "900");
+        builder.UseSetting("RateLimiting:Refresh:WindowSeconds", WindowSeconds.ToString());
         builder.UseSetting("RateLimiting:TrustedProxies:0", $"{TrustedProxy}/32");
         builder.ConfigureTestServices(services =>
             services.AddSingleton<IStartupFilter, FakeRemoteIpStartupFilter>());
@@ -81,7 +88,7 @@ public sealed class RateLimitingTests : IClassFixture<RateLimitFactory>
         Assert.True(limited.Headers.Contains("Retry-After"),
             "429 must carry a Retry-After header");
         var retryAfter = int.Parse(limited.Headers.GetValues("Retry-After").Single());
-        Assert.InRange(retryAfter, 1, 900);
+        Assert.InRange(retryAfter, 1, RateLimitFactory.WindowSeconds);
         Assert.Equal("application/problem+json",
             limited.Content.Headers.ContentType?.MediaType);
         var problem = await limited.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();

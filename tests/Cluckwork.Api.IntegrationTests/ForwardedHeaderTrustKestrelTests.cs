@@ -36,7 +36,10 @@ public sealed class TrustedPeerKestrelFactory : CluckworkWebApplicationFactory
     {
         base.ConfigureWebHost(builder);
         builder.UseSetting("RateLimiting:Login:PermitLimit", LoginLimit.ToString());
-        builder.UseSetting("RateLimiting:Login:WindowSeconds", "900");
+        // 24h window: the bucket boundary is wall-clock inside the limiter script,
+        // and a boundary crossing mid-loop turns the expected 429 into a 401
+        // (#840's 2026-09-16 CI specimens).
+        builder.UseSetting("RateLimiting:Login:WindowSeconds", "86400");
         // The real Kestrel peer (127.0.0.1) IS a trusted proxy.
         builder.UseSetting("RateLimiting:TrustedProxies:0", "127.0.0.1/32");
         builder.ConfigureTestServices(services =>
@@ -57,7 +60,10 @@ public sealed class UntrustedPeerKestrelFactory : CluckworkWebApplicationFactory
     {
         base.ConfigureWebHost(builder);
         builder.UseSetting("RateLimiting:Login:PermitLimit", LoginLimit.ToString());
-        builder.UseSetting("RateLimiting:Login:WindowSeconds", "900");
+        // 24h window: the bucket boundary is wall-clock inside the limiter script,
+        // and a boundary crossing mid-loop turns the expected 429 into a 401
+        // (#840's 2026-09-16 CI specimens).
+        builder.UseSetting("RateLimiting:Login:WindowSeconds", "86400");
         // A network that does NOT include the real Kestrel peer: forwarded
         // headers presented over this connection must be ignored entirely —
         // the negative FakeRemoteIpStartupFilter cannot express, since it can
@@ -84,7 +90,10 @@ public sealed class TrustedTwoHopKestrelFactory : CluckworkWebApplicationFactory
     {
         base.ConfigureWebHost(builder);
         builder.UseSetting("RateLimiting:Login:PermitLimit", LoginLimit.ToString());
-        builder.UseSetting("RateLimiting:Login:WindowSeconds", "900");
+        // 24h window: the bucket boundary is wall-clock inside the limiter script,
+        // and a boundary crossing mid-loop turns the expected 429 into a 401
+        // (#840's 2026-09-16 CI specimens).
+        builder.UseSetting("RateLimiting:Login:WindowSeconds", "86400");
         builder.UseSetting("RateLimiting:TrustedProxies:0", "127.0.0.1/32");
         builder.UseSetting("RateLimiting:TrustedProxies:1", "10.50.0.0/24");
     }

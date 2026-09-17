@@ -20,6 +20,11 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(PostgresImage)
         .Build();
 
+    // Factories can share Redis when a test configures it, but their rate-limit
+    // counters must not. The window stays open for the whole status loop (#840),
+    // so a shared namespace would carry another host's login attempts into it.
+    private readonly string _sharedStateKeyNamespace = $"cluckwork-test-{Guid.NewGuid():N}";
+
     public string ConnectionString => _postgres.GetConnectionString();
 
     // Default true: the suite runs against a migrated schema. A factory can
@@ -74,6 +79,7 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
         // RateLimitingTests derive a factory that tightens them back down.
         builder.UseSetting("RateLimiting:Login:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:Refresh:PermitLimit", "1000000");
+        builder.UseSetting("SharedState:Redis:KeyNamespace", _sharedStateKeyNamespace);
         // A small logo cap (#123) so the size-boundary tests allocate KB, not
         // megabytes. Well under the 5 MB ceiling, so it validates at startup.
         builder.UseSetting("FarmLogo:MaxUploadBytes", LogoUploadCap.ToString());
