@@ -791,24 +791,24 @@ export const MUTANTS: Record<string, Mutant> = {
       // this dies at the wrong assertion again and the harness says so — which
       // is the coupling being visible rather than silent.
       await page.addInitScript(() => {
-        let wasInert = false;
+        let wasHidden = false;
         let closes = 0;
         const check = () => {
           const root = document.getElementById("root");
           const banner = document.querySelector(".farm-warning");
           const region = document.querySelector('main.content > p.sr-only[aria-live="assertive"]');
-          const nowInert = root?.hasAttribute("inert") ?? false;
-          if (wasInert && !nowInert && banner && region && ++closes === 2) {
+          const nowHidden = root?.hasAttribute("aria-hidden") ?? false;
+          if (wasHidden && !nowHidden && banner && region && ++closes === 2) {
             const text = banner.textContent;
             setTimeout(() => { region.textContent = text; }, 600);
           }
-          wasInert = nowInert;
+          wasHidden = nowHidden;
         };
         new MutationObserver(check).observe(document, {
           attributes: true,
           childList: true,
           subtree: true,
-          attributeFilter: ["inert"],
+          attributeFilter: ["aria-hidden"],
         });
       });
     },

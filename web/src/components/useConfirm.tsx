@@ -211,7 +211,10 @@ export function useConfirm() {
     >
       {pending && (
         <>
-          <DialogContentText id={bodyId} sx={{ mb: pending.kind === "confirm" ? 0 : 2 }}>
+          {/* component="div": DialogContentText is a <p> by default and
+              SalesPage's confirm body is itself a <p>, which a <p> cannot
+              contain (CodeRabbit round 1 of #892). */}
+          <DialogContentText id={bodyId} component="div" sx={{ mb: pending.kind === "confirm" ? 0 : 2 }}>
             {pending.body}
           </DialogContentText>
           {pending.kind === "choice" && (

@@ -406,16 +406,25 @@ export function Dialog({
         backdrop: { className: "dialog-backdrop" },
       }}
     >
-      <DialogTitle
-        component="h3"
-        variant="h4"
-        sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}
-      >
+      {/* The close button sits OUTSIDE DialogTitle, positioned over its
+          corner, because DialogTitle is what MUI points aria-labelledby at
+          and accessible-name computation walks that whole subtree: with the
+          button inside it Chromium named the dialog and its heading
+          "New order Close" (probed on the sim stack, CodeRabbit round 1 of
+          #892), so an exact-name query for the title alone found nothing.
+          The right padding keeps the title text clear of the button. */}
+      <DialogTitle component="h3" variant="h4" sx={{ pr: 7 }}>
         {title}
-        <IconButton aria-label={t("close")} disabled={closeDisabled} onClick={onClose} size="small">
-          <X size={18} aria-hidden />
-        </IconButton>
       </DialogTitle>
+      <IconButton
+        aria-label={t("close")}
+        disabled={closeDisabled}
+        onClick={onClose}
+        size="small"
+        sx={{ position: "absolute", right: 12, top: 12 }}
+      >
+        <X size={18} aria-hidden />
+      </IconButton>
       <DialogContent ref={bodyRef}>{children}</DialogContent>
     </MuiDialog>
   );
