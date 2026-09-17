@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.3](https://github.com/mforce/cluckwork/compare/v0.1.2...v0.1.3) (2026-09-17)
+
+
+### Features
+
+* **web:** convert Dialog and useConfirm to MUI Dialog ([#892](https://github.com/mforce/cluckwork/issues/892)) ([647ed64](https://github.com/mforce/cluckwork/commit/647ed64fd75377de2aa5840725e0a830bb978d60))
+* **web:** convert the CRUD lists to MUI ([#897](https://github.com/mforce/cluckwork/issues/897)) ([009db86](https://github.com/mforce/cluckwork/commit/009db86d677336f8b16ddfeb1e50fe750cea87cd))
+* **web:** replace NamedEntityPicker's combobox with MUI Autocomplete ([#898](https://github.com/mforce/cluckwork/issues/898)) ([0f7b966](https://github.com/mforce/cluckwork/commit/0f7b966636570763528d6b84dbd7bd3efce39491))
+
+
+### Bug fixes
+
+* **seed:** date the demo farm's draft by the farm clock, not the UTC date ([#893](https://github.com/mforce/cluckwork/issues/893)) ([ef0f2a9](https://github.com/mforce/cluckwork/commit/ef0f2a9029f023637acb46398695fa872b8b4d23))
+* **web:** stop the customer picker reserving 240px of height inside dialogs, and keep the phone dialog footer side by side ([#896](https://github.com/mforce/cluckwork/issues/896)) ([91e3d65](https://github.com/mforce/cluckwork/commit/91e3d65253e0abc6c8719599a56ecbdf9a8a7cde))
+
 ## [0.1.2](https://github.com/mforce/cluckwork/compare/v0.1.1...v0.1.2) (2026-09-16)
 
 
