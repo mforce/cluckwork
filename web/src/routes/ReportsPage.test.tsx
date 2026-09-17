@@ -99,12 +99,12 @@ describe("ReportsPage production section (renders for every role)", () => {
     // missing, and eggs ÷ Recorded has to reproduce the percentage beside it.
     expect(within(row1).getAllByText("98")).toHaveLength(2); // henDays, recordedHenDays
     within(row1).getByText("91.8"); // henDayPct
-    // #650 — figures are numeric cells: right-aligned tabular nowrap (styles.num.test.ts
-    // pins what the class does; this pins that the screen puts it on the figure and
-    // its header, and keeps it off the date).
-    for (const cell of within(row1).getAllByText("100")) expect(cell).toHaveClass("num");
-    expect(within(row1).getByText("07/19/2026")).not.toHaveClass("num");
-    expect(screen.getByRole("columnheader", { name: "Eggs" })).toHaveClass("num");
+    // #650 — figures are numeric cells: right-aligned, tabular numerals (the
+    // theme's MuiTableCell rule pins tabular-nums globally; this pins that the
+    // screen right-aligns the figure and its header, and keeps the date left).
+    for (const cell of within(row1).getAllByText("100")) expect(cell).toHaveStyle({ textAlign: "right" });
+    expect(within(row1).getByText("07/19/2026")).not.toHaveStyle({ textAlign: "right" });
+    expect(screen.getByRole("columnheader", { name: "Eggs" })).toHaveStyle({ textAlign: "right" });
 
     const row2 = screen.getByRole("row", { name: /07\/18\/2026/ });
     within(row2).getByText("—"); // null henDayPct falls back to the em dash
