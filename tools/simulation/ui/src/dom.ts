@@ -63,30 +63,15 @@ export async function commitNamedPicker(root: Locator | Page, labelText: string,
   }
   await expect(combobox).toBeVisible();
 
-  // Codex review of #898 (2026-09-18): the app builds this query string with
-  // `URLSearchParams.set("search", ...)` (`cluckwork.ts`'s `listFlocks`/
-  // `listCustomers`), which is the `application/x-www-form-urlencoded`
-  // serializer — a space becomes `+`, not `%20`. `encodeURIComponent` used to
-  // be used here, which DOES produce `%20`, so this match never fired for any
-  // multi-word needle (every real call site passes one — "Sim House A", "E2E
-  // Customer <ts>", "E2E Flock <ts>") and `waitForResponse` hung until
-  // timeout. Building the expected fragment with the same `URLSearchParams`
-  // serializer the app uses is what keeps the two in sync by construction,
-  // rather than by matching a specific escaping rule that could drift again.
+  // Same serializer the app uses (`URLSearchParams`, a space is `+`), so the
+  // match cannot drift from the request; `encodeURIComponent`'s `%20` never
+  // matched a multi-word needle and hung `waitForResponse`.
   const expectedSearchParam = new URLSearchParams({ search: needle }).toString();
 
-  // Full-suite run found a SECOND, independent hang (2026-09-18): a picker
-  // can already display `needle` as its own committed text BEFORE this
-  // function ever touches it — a restricted worker's single assigned flock
-  // auto-prefills on open (worker.spec.ts's "records a daily entry... on an
-  // assigned flock"). `fill(needle)` onto a field that already reads
-  // `needle` is not an observable change, so no new discovery request ever
-  // fires and this hangs until timeout — the opposite failure shape from the
-  // encoding bug above (that one fired the WRONG request; this one fires
-  // NONE). Clear the field first whenever it already matches, so the fill
-  // below is always a genuine change; the debounce it starts is cancelled by
-  // the very next keystroke (`onQueryChange`'s own comment), so this costs
-  // no extra wait when the field was already blank or different.
+  // A picker may already show `needle` (a restricted worker's one flock
+  // auto-prefills), and filling an unchanged value fires no request; clear
+  // it first so the fill is a real change. The blank-query debounce is
+  // cancelled by the fill's own keystrokes.
   if ((await combobox.inputValue()) === needle) await combobox.fill("");
 
   const discovery = page.waitForResponse((r) =>

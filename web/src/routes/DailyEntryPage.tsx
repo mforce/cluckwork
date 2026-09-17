@@ -786,44 +786,14 @@ export function DailyEntryPage() {
       )}
 
       {/* Context, not a step: choosing a flock and a date says WHICH day is
-          being recorded, it is not part of recording it. #830 restyled this
-          row to the mockup's underlined selects via a scoped sx override
-          targeting `.named-picker-trigger` — #826 (owner redesign,
-          2026-09-17) retired that class: the closed-state picker is now an
-          outlined MUI field everywhere (label in the border, a search-icon
-          adornment), and #830's `& .named-picker-trigger` override had
-          nothing left to target. Owner decision on #898 (2026-09-17,
-          A/B comparison — outlined vs. the mockup's underlined "standard"
-          variant, both captured at 1280/390): outlined wins for both
-          controls. Date converts from a native `<input type="date">` with
-          its own hand-rolled underline to an outlined MUI `TextField` here,
-          matching the picker's own default variant (no `variant` prop is
-          passed to either — outlined is each component's shipped default,
-          so there is nothing to keep in sync if that default ever moves).
-          The old underline sx rule this comment block used to describe is
-          gone with the native input it targeted — grepped the repo
-          (including tools/simulation/ui) first and found no other consumer
-          of it; it was scoped to this Box's own `sx`, never a shared CSS
-          class, so there was nothing in styles.css to retire alongside it. */}
-      {/* Owner direction (2026-09-17): at 390 a 110px Flock field could not
-          show any flock name at all (#898 review) — stacked full-width
-          above Date instead of the alternative offered (widen the picker
-          on open), since a width that changes between closed and open
-          states makes the whole row jump. 1280 is unchanged in ROW ORDER
-          (`flexDirection` switches to column only below `md`) and in
-          spacing between Date and "+ new flock" (`gap` unchanged, still
-          grouped together) — but NOT pixel-identical to the old flat
-          three-item row, which is a correction of this comment's earlier
-          claim (Codex review of #898, 2026-09-18): the old row's Date
-          `<label>` carried its own `flex: 1`, splitting the row's remaining
-          width with Flock roughly evenly; the nested grouping `Box` below
-          has no `flex` of its own, so at `md` it sizes to its CONTENT
-          (Date's `TextField` plus the button), not to a share of the row —
-          Date is narrower here than it was in the flat row, and Flock takes
-          correspondingly more. This is the layout the owner approved: the
-          1280 frame attached to #898 (`final-1280-committed.png`) is this
-          exact rendering, not the wider, 50/50-split Date the old comment
-          described. */}
+          being recorded, it is not part of recording it. Both fields are
+          outlined (owner decision on #898, 2026-09-17, from an A/B against
+          the mockup's underlined variant); each component's default, so no
+          `variant` is passed. Below `md` the Flock picker stacks full-width
+          above Date, because a 110px field in a two-up row could not show a
+          flock name (owner, #898). At `md` the Date/button group sizes to
+          its content rather than sharing the row 50/50 as the old flat row
+          did; that is the frame the owner approved. */}
       <Box sx={{
         display: "flex", flexDirection: { xs: "column", md: "row" },
         gap: { xs: 2, md: 5 }, mt: 3, pb: 2, alignItems: { xs: "stretch", md: "flex-end" },
@@ -863,15 +833,8 @@ export function DailyEntryPage() {
           />
         </Box>
         <Box sx={{ display: "flex", flexDirection: "row", gap: { xs: 2, md: 5 }, alignItems: "flex-end" }}>
-          {/* Outlined MUI field, same `size="small"` height as the picker
-              (#898 item 2, owner pick: variant A). `slotProps.inputLabel.shrink`
-              is required for a `type="date"` field: MUI's floating label only
-              shrinks on focus or a non-empty value by default, but a native
-              date input always renders its own "mm/dd/yyyy" placeholder even
-              when EMPTY, so an unshrunk label sits on top of it — the same
-              overlap the owner found on #897's Grade select (CodeRabbit
-              round 1 on #898, 2026-09-18). Force it permanently shrunk
-              instead of relying on `value`/focus state. */}
+          {/* A native date input shows its own "mm/dd/yyyy" even when empty,
+              so the label is forced shrunk or it sits on top of that text. */}
           <TextField
             type="date"
             label={t("dateLabel")}
