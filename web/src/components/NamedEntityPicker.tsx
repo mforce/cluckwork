@@ -1004,18 +1004,14 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   // is that it is the SAME node across loading/results/error transitions.
   // `footerRef` carries the latest values the footer reads; the `useRef`
   // lazy-init below creates the component exactly once per picker instance.
-  const footerRef = useRef({
-    t, showLoading, d, disabled, required,
-    committedEntity: state.selection.entity,
-    unavailable: state.selection.phase === "unavailable",
-    retry, loadMore, retryUnavailable, clearSelection, liveMessage,
-  });
-  footerRef.current = {
+  const footerData = {
     t, showLoading, d, disabled, required,
     committedEntity: state.selection.entity,
     unavailable: state.selection.phase === "unavailable",
     retry, loadMore, retryUnavailable, clearSelection, liveMessage,
   };
+  const footerRef = useRef(footerData);
+  footerRef.current = footerData;
   const pickerPaperRef = useRef<((props: PaperProps) => React.ReactElement) | null>(null);
   if (pickerPaperRef.current === null) {
     pickerPaperRef.current = function PickerPaper({ children, ...paperProps }: PaperProps) {
