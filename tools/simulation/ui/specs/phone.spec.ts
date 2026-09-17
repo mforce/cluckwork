@@ -717,3 +717,28 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     ).toBe(clientWidth);
   });
 });
+
+// #833 — successor to the retired `routes/Login.styles.test.ts`. That file
+// read the 44px Forget-control floor out of `styles.css`'s cascade; the
+// control is now an MUI `IconButton` with the floor as a literal `sx`
+// (`minWidth`/`minHeight: 44`), so the cascade-walking guard has nothing left
+// to parse and the geometric claim moves here, per AGENTS.md's guard-fate
+// rule ("Playwright for anything geometric"). A separate `describe` because
+// it is unauthenticated (the farm picker only exists before sign-in) and the
+// "Phone shell" block above signs in on every test via its own `beforeEach`.
+test.describe("Login farm picker at phone width", { tag: "@phone" }, () => {
+  test("the Forget control meets the 44px touch-target floor on both axes", async ({ page }) => {
+    // Seeded before any app script runs: Login reads the roster synchronously
+    // from its initial `useState`, so a `page.evaluate` after `goto` would
+    // land one render too late.
+    await page.addInitScript(([key, codes]) => {
+      window.localStorage.setItem(key as string, JSON.stringify(codes));
+    }, ["cluckwork.farmCodes", ["farm-a"]] as const);
+    await page.goto("/login");
+
+    const forget = page.getByRole("button", { name: tEn("auth:forgetFarm", { farmCode: "farm-a" }) });
+    const box = await rectOf(forget, "the Forget control");
+    expect.soft(box.width, "the Forget control is too narrow to hit").toBeGreaterThanOrEqual(MIN_TARGET_PX);
+    expect.soft(box.height, "the Forget control is too short to hit").toBeGreaterThanOrEqual(MIN_TARGET_PX);
+  });
+});

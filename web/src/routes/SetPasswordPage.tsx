@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Alert, Box, Paper, TextField, Typography } from "@mui/material";
 import { changePassword, ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
@@ -62,46 +63,57 @@ export function SetPasswordPage() {
   }
 
   return (
-    <main className="auth">
-      <ThemeToggle className="auth-theme" showLabel={false} iconSize={18} />
-      <form className="card" onSubmit={onSubmit}>
-        <h1>{t("setPasswordHeading")}</h1>
-        <p className="hint">{t("setPasswordHint")}</p>
-        <label>
-          {t("temporaryPasswordLabel")}
-          <input
-            type="password"
-            value={temporaryPassword}
-            onChange={(e) => setTemporaryPassword(e.target.value)}
-            autoComplete="current-password"
-            maxLength={256}
-            required
-          />
-        </label>
-        <label>
-          {t("setPasswordNewLabel", { min: MIN_LENGTH })}
-          <input
-            type="password"
-            value={next}
-            onChange={(e) => setNext(e.target.value)}
-            autoComplete="new-password"
-            minLength={MIN_LENGTH}
-            maxLength={256}
-            required
-          />
-        </label>
-        <label>
-          {t("setPasswordConfirmLabel")}
-          <input
-            type="password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            autoComplete="new-password"
-            maxLength={256}
-            required
-          />
-        </label>
-        {error && <p className="error">{error}</p>}
+    <Box
+      component="main"
+      sx={{
+        position: "relative", minHeight: "100dvh", display: "grid", placeItems: "center",
+        padding: "1.5rem", backgroundColor: "var(--auth-bg)",
+      }}
+    >
+      <Box sx={{ position: "absolute", top: "1.1rem", right: "1.1rem" }}>
+        <ThemeToggle showLabel={false} iconSize={18} />
+      </Box>
+      <Paper
+        component="form"
+        elevation={0}
+        onSubmit={onSubmit}
+        sx={{
+          width: "min(380px, 100%)", padding: "2.5rem", display: "flex", flexDirection: "column",
+          gap: 2, border: "1px solid var(--auth-card-border)", boxShadow: "var(--auth-card-shadow)",
+        }}
+      >
+        <Typography variant="h1" align="center" sx={{ color: "var(--auth-brand)" }}>
+          {t("setPasswordHeading")}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">{t("setPasswordHint")}</Typography>
+        <TextField
+          label={t("temporaryPasswordLabel")}
+          type="password"
+          value={temporaryPassword}
+          onChange={(e) => setTemporaryPassword(e.target.value)}
+          autoComplete="current-password"
+          required
+          slotProps={{ htmlInput: { maxLength: 256 } }}
+        />
+        <TextField
+          label={t("setPasswordNewLabel", { min: MIN_LENGTH })}
+          type="password"
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          autoComplete="new-password"
+          required
+          slotProps={{ htmlInput: { minLength: MIN_LENGTH, maxLength: 256 } }}
+        />
+        <TextField
+          label={t("setPasswordConfirmLabel")}
+          type="password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          autoComplete="new-password"
+          required
+          slotProps={{ htmlInput: { maxLength: 256 } }}
+        />
+        {error && <Alert severity="error">{error}</Alert>}
         <BusyButton type="submit" busy={busy}>
           {busy ? t("setPasswordSubmitting") : t("setPasswordButton")}
         </BusyButton>
@@ -111,7 +123,7 @@ export function SetPasswordPage() {
         <button type="button" className="link" onClick={() => void logout()}>
           {t("setPasswordSignOut")}
         </button>
-      </form>
-    </main>
+      </Paper>
+    </Box>
   );
 }

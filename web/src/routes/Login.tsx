@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
+import { X } from "lucide-react";
+import { Alert, Box, IconButton, Paper, Stack, TextField, Typography } from "@mui/material";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
@@ -208,22 +210,40 @@ export function Login() {
   }
 
   return (
-    <main className="auth">
-      <ThemeToggle className="auth-theme" showLabel={false} iconSize={18} />
-      <form className="card" onSubmit={onSubmit}>
-        <h1>{t("title")}</h1>
+    <Box
+      component="main"
+      sx={{
+        position: "relative", minHeight: "100dvh", display: "grid", placeItems: "center",
+        padding: "1.5rem", backgroundColor: "var(--auth-bg)",
+      }}
+    >
+      <Box sx={{ position: "absolute", top: "1.1rem", right: "1.1rem" }}>
+        <ThemeToggle showLabel={false} iconSize={18} />
+      </Box>
+      <Paper
+        component="form"
+        elevation={0}
+        onSubmit={onSubmit}
+        sx={{
+          width: "min(380px, 100%)", padding: "2.5rem", display: "flex", flexDirection: "column",
+          gap: 2, border: "1px solid var(--auth-card-border)", boxShadow: "var(--auth-card-shadow)",
+        }}
+      >
+        <Typography variant="h1" align="center" sx={{ color: "var(--auth-brand)" }}>
+          {t("title")}
+        </Typography>
         {needsSetup && (
-          <div className="auth-setup" role="status">
-            {/* No command is shown, deliberately. Earlier drafts printed the
-                setup invocation here and it was wrong twice over: the bare verb
-                was not runnable at all, and the corrected version had to show
-                two forms because the app cannot know how it was deployed. A
-                login screen is also the wrong place to publish deployment shape
-                to anonymous visitors. State the situation and point at the
-                person who can fix it; the exact steps live in the README. */}
-            <p>{t("noAdminYet")}</p>
-            <p>{t("noAdminYetHint")}</p>
-          </div>
+          // No command is shown, deliberately. Earlier drafts printed the setup
+          // invocation here and it was wrong twice over: the bare verb was not
+          // runnable at all, and the corrected version had to show two forms
+          // because the app cannot know how it was deployed. A login screen is
+          // also the wrong place to publish deployment shape to anonymous
+          // visitors. State the situation and point at the person who can fix
+          // it; the exact steps live in the README.
+          <Alert severity="info" role="status" icon={false}>
+            <Typography variant="body2">{t("noAdminYet")}</Typography>
+            <Typography variant="body2">{t("noAdminYetHint")}</Typography>
+          </Alert>
         )}
         {urlFarmCode !== null && (
           // #535 — a same-origin link ?farm=attacker-farm would otherwise silently
@@ -232,98 +252,110 @@ export function Login() {
           // turns a silent substitution into a visible one. NOT a complete fix:
           // the username is still not farm-qualified (epic #530 requires that;
           // tracked in its own issue).
-          <p className="auth-farm-source" role="status">
+          <Alert severity="info" role="status" icon={false}>
             {t("farmFromLink", { farmCode: urlFarmCode })}
-          </p>
+          </Alert>
         )}
         {rememberedCodes.length >= 1 && (
           // #587 — one or more remembered codes. The single-code case previously
           // had no picker at all, which also meant a single remembered farm could
           // never be forgotten without clearing the whole origin.
-          <div className="auth-farm-picker">
-            <p id="farm-picker-label">{t("recentFarms")}</p>
-            <div role="group" aria-labelledby="farm-picker-label">
+          <Stack spacing={0.75}>
+            <Typography id="farm-picker-label" variant="body2" color="text.secondary">
+              {t("recentFarms")}
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }} role="group" aria-labelledby="farm-picker-label">
               {rememberedCodes.map((code) => (
-                <span key={code} className="auth-farm-picker-entry">
+                <Box key={code} sx={{ display: "inline-flex" }}>
                   {/* The selection button's accessible name is EXACTLY the code:
                       tests and password-manager heuristics both key on it, and a
                       prefix match would collide with the Forget control's label.
                       The code is button TEXT — React escapes it, and it has passed
                       the slug regex, so it carries no markup. */}
-                  <button type="button" className="auth-farm-picker-select" onClick={() => setFarmCode(code)}>
+                  <Box
+                    component="button"
+                    type="button"
+                    onClick={() => setFarmCode(code)}
+                    sx={{
+                      padding: "0.35rem 0.7rem", border: "1px solid", borderColor: "divider",
+                      borderRight: "none", borderRadius: "var(--r-pill) 0 0 var(--r-pill)",
+                      background: "var(--surface-2)", color: "var(--ink)", font: "inherit",
+                      fontSize: "0.85rem", cursor: "pointer",
+                    }}
+                  >
                     {code}
-                  </button>
+                  </Box>
                   {/* type="button" so a tap asks rather than submits, and rather
                       than removing: the destructive confirm dialog is the gate. */}
-                  <button
+                  <IconButton
                     type="button"
-                    className="auth-forget-farm"
                     aria-label={t("forgetFarm", { farmCode: code })}
                     onClick={() => void forgetFarm(code)}
+                    sx={{
+                      minWidth: 44, minHeight: 44, borderRadius: "0 var(--r-pill) var(--r-pill) 0",
+                      border: "1px solid", borderColor: "divider", background: "var(--surface-2)",
+                      color: "error.main",
+                      "&:hover": { background: "error.main", color: "error.contrastText" },
+                    }}
                   >
-                    ×
-                  </button>
-                </span>
+                    <X size={16} aria-hidden />
+                  </IconButton>
+                </Box>
               ))}
-            </div>
-          </div>
+            </Stack>
+          </Stack>
         )}
-        <label>
-          {t("farmCode")}
-          <input
-            // #587 — stable identifiers for tests and browser heuristics. There
-            // is no standard autocomplete token for a tenant identifier, so the
-            // field declares its name but no token; the existing tokens on the
-            // email and password fields are unchanged.
-            id="farm-code"
-            name="farmCode"
-            ref={farmCodeInputRef}
-            type="text"
-            value={farmCode}
-            onChange={(e) => setFarmCode(e.target.value)}
-            // #532 — the server folds case, so these only stop the user seeing a
-            // code they did not type. autoCapitalize is the one that matters:
-            // iOS and Android capitalise the first letter of a plain text input
-            // by default, and farm codes are lowercase-only.
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            maxLength={32}
-            required
-          />
-        </label>
-        <label>
-          {t("email")}
-          <input
-            id="email"
-            name="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="username"
-            maxLength={256}
-            required
-          />
-        </label>
-        <label>
-          {t("password")}
-          <input
-            id="current-password"
-            name="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            maxLength={256}
-            required
-          />
-        </label>
-        {error && <p className="error">{error}</p>}
+        <TextField
+          label={t("farmCode")}
+          id="farm-code"
+          name="farmCode"
+          inputRef={farmCodeInputRef}
+          value={farmCode}
+          onChange={(e) => setFarmCode(e.target.value)}
+          required
+          // #587 — stable identifiers for tests and browser heuristics. There
+          // is no standard autocomplete token for a tenant identifier, so the
+          // field declares its name but no token; the existing tokens on the
+          // email and password fields are unchanged.
+          slotProps={{
+            htmlInput: {
+              // #532 — the server folds case, so these only stop the user
+              // seeing a code they did not type. autoCapitalize is the one
+              // that matters: iOS and Android capitalise the first letter of
+              // a plain text input by default, and farm codes are
+              // lowercase-only.
+              autoCapitalize: "none", autoCorrect: "off", spellCheck: false, maxLength: 32,
+            },
+          }}
+        />
+        <TextField
+          label={t("email")}
+          id="email"
+          name="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="username"
+          required
+          slotProps={{ htmlInput: { maxLength: 256 } }}
+        />
+        <TextField
+          label={t("password")}
+          id="current-password"
+          name="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+          required
+          slotProps={{ htmlInput: { maxLength: 256 } }}
+        />
+        {error && <Alert severity="error">{error}</Alert>}
         <BusyButton type="submit" busy={busy}>
           {busy ? t("signingIn") : t("signIn")}
         </BusyButton>
-      </form>
+      </Paper>
       {confirmDialog}
-    </main>
+    </Box>
   );
 }
