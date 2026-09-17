@@ -797,8 +797,17 @@ export function DailyEntryPage() {
           underlined-select language or fold into the new global outlined
           look is a design call, not this slice's to make unilaterally. The
           date input keeps its own underline via the second rule below. */}
+      {/* Owner direction (2026-09-17): at 390 a 110px Flock field could not
+          show any flock name at all (#898 review) — stacked full-width
+          above Date instead of the alternative offered (widen the picker
+          on open), since a width that changes between closed and open
+          states makes the whole row jump. 1280 is unchanged: `flexDirection`
+          switches to column only below `md`, and Date + "+ new flock" stay
+          grouped in their own row (nested Box, `gap` unchanged so their
+          spacing at 1280 is pixel-identical to the old flat three-item row). */}
       <Box sx={{
-        display: "flex", gap: { xs: 2, md: 5 }, mt: 3, pb: 2, alignItems: "flex-end",
+        display: "flex", flexDirection: { xs: "column", md: "row" },
+        gap: { xs: 2, md: 5 }, mt: 3, pb: 2, alignItems: { xs: "stretch", md: "flex-end" },
         borderBottom: "1px solid var(--rule-strong)",
         "& > label input[type='date']": {
           font: "inherit", fontWeight: 500, color: "var(--ink)", background: "transparent",
@@ -839,16 +848,18 @@ export function DailyEntryPage() {
             }
           />
         </Box>
-        <label style={{ flex: 1, minWidth: 0, display: "block" }}>
-          <Typography component="span" variant="caption" className="muted" sx={{ display: "block" }}>{t("dateLabel")}</Typography>
-          <input type="date" value={date} max={today}
-            onChange={(e) => retarget(() => setDate(e.target.value))} />
-        </label>
-        {isAdmin && (
-          <button className="link" type="button" onClick={() => { openDialog("new-flock"); setShowNewFlock(true); }}>
-            {t("newFlockButton")}
-          </button>
-        )}
+        <Box sx={{ display: "flex", flexDirection: "row", gap: { xs: 2, md: 5 }, alignItems: "flex-end" }}>
+          <label style={{ flex: 1, minWidth: 0, display: "block" }}>
+            <Typography component="span" variant="caption" className="muted" sx={{ display: "block" }}>{t("dateLabel")}</Typography>
+            <input type="date" value={date} max={today}
+              onChange={(e) => retarget(() => setDate(e.target.value))} />
+          </label>
+          {isAdmin && (
+            <button className="link" type="button" onClick={() => { openDialog("new-flock"); setShowNewFlock(true); }}>
+              {t("newFlockButton")}
+            </button>
+          )}
+        </Box>
       </Box>
 
       {/* F131: creating a flock is catalog work, not capture — it belongs in a
