@@ -620,14 +620,16 @@ describe("AuditPage filter", () => {
     expect(screen.getByTestId("probe-search").textContent).toBe("?from=2026-08-05");
   });
 
-  // #653/#662 — mirrors Increment 3's StockPage structural guard: the width
-  // cap in styles.css is keyed on `.toolbar input[type="date"]`, so the wrapper
-  // is the only honest thing jsdom (no layout engine) can assert here.
-  it("puts the date range in the bounded toolbar, not a bare filters row", async () => {
+  // #653/#662/#833 — mirrors #831's own StockPage rewrite of this guard: the
+  // width cap moved from `.toolbar input[type="date"]` (12rem) to
+  // FilterDateField's own `sx`, and jsdom computes no layout, so the only
+  // honest assertion here is the wrapper the field renders inside. The
+  // rendered result is checked by the before/after screenshot pair on the PR.
+  it("puts the date range in the bounded FilterBar, not a bare filters row", async () => {
     renderAudit("/audit");
     await waitFor(() => expect(mockListAuditEvents).toHaveBeenCalled());
     const fromInput = screen.getByLabelText("From");
-    expect(fromInput.closest("div.toolbar")).not.toBeNull();
+    expect(fromInput.closest(".MuiPaper-outlined")).not.toBeNull();
   });
 
   // INV-4 — "No audit events yet." is a FALSE statement when a date filter

@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFormat } from "../farm/useFormat";
 import { useSearchParams } from "react-router";
+import {
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
+} from "@mui/material";
 import { listAuditEvents, type AuditEvent } from "../api/cluckwork";
+import { FilterBar, FilterDateField } from "../components/FilterBar";
 import { usePagedList } from "../components/usePagedList";
 import { isIsoCalendarDate } from "../lib/dates";
 import {
@@ -16,6 +20,11 @@ import {
 } from "../i18n/enums";
 
 const PAGE = 100;
+
+// MUI's auto table layout shrinks any wrappable cell below its content width,
+// so short values (the timestamp, the actor, the action, the entity) are
+// pinned; free text (Details) wraps. Matches GradesPage's own NOWRAP (#832).
+const NOWRAP = { whiteSpace: "nowrap" as const };
 
 // Canonical 8-4-4-4-12 hex form only, not full Guid.TryParse permissiveness
 // (which also accepts braced/no-hyphen forms). This is a correctness guard,
@@ -400,45 +409,49 @@ export function AuditPage() {
 
   return (
     <section>
-      <h2>
+      <Typography variant="h2">
         {entityId
           ? (scopedEntityType
               ? t("scopedHeading", { entityType: entityTypeLabel(scopedEntityType) })
               : t("scopedHeadingFallback"))
           : t("heading")}
-      </h2>
+      </Typography>
       <p className="muted">{t("intro")}</p>
 
-      <div className="filters">
-        <label>{t("entityTypeFilterLabel")}
-          <select value={entityTypeFilter} onChange={(e) => updateEntityTypeFilter(e.target.value)}>
-            <option value="">{t("allEntityTypesOption")}</option>
-            {ENTITY_TYPE_VALUES.map((et) => (
-              <option key={et} value={et}>{entityTypeLabel(et)}</option>
-            ))}
-          </select>
-        </label>
-        <label>{t("actionFilterLabel")}
-          <select value={actionFilter} onChange={(e) => updateActionFilter(e.target.value)}>
-            <option value="">{t("allActionsOption")}</option>
-            {availableActions.map((a) => (
-              <option key={a} value={a}>{auditActionLabel(a)}</option>
-            ))}
-          </select>
-        </label>
-        {/* #666/#653 — the date range gets its own bounded toolbar; the two
-            dropdowns above are not date controls and stay outside it. Mirrors
-            FeedPage/WaterPage/HistoryPage. */}
-        <div className="toolbar">
-          <label>{t("fromLabel")}
-            <input type="date" value={fromFilter}
-              onChange={(e) => updateDateFilter("from", e.target.value)} />
-          </label>
-          <label>{t("toLabel")}
-            <input type="date" value={toFilter}
-              onChange={(e) => updateDateFilter("to", e.target.value)} />
-          </label>
-        </div>
+      <FilterBar>
+        <TextField
+          select
+          label={t("entityTypeFilterLabel")}
+          value={entityTypeFilter}
+          size="small"
+          slotProps={{ select: { native: true } }}
+          onChange={(e) => updateEntityTypeFilter(e.target.value)}
+        >
+          <option value="">{t("allEntityTypesOption")}</option>
+          {ENTITY_TYPE_VALUES.map((et) => (
+            <option key={et} value={et}>{entityTypeLabel(et)}</option>
+          ))}
+        </TextField>
+        <TextField
+          select
+          label={t("actionFilterLabel")}
+          value={actionFilter}
+          size="small"
+          slotProps={{ select: { native: true } }}
+          onChange={(e) => updateActionFilter(e.target.value)}
+        >
+          <option value="">{t("allActionsOption")}</option>
+          {availableActions.map((a) => (
+            <option key={a} value={a}>{auditActionLabel(a)}</option>
+          ))}
+        </TextField>
+        {/* #666/#653 — the date range's own bounded width, carried by
+            FilterDateField now rather than a `.toolbar` wrapper. Mirrors
+            FeedPage/WaterPage/HistoryPage/StockPage (#831). */}
+        <FilterDateField label={t("fromLabel")} value={fromFilter}
+          onChange={(e) => updateDateFilter("from", e.target.value)} />
+        <FilterDateField label={t("toLabel")} value={toFilter}
+          onChange={(e) => updateDateFilter("to", e.target.value)} />
         {/* #679 — persistent, and that is the whole point: this screen's empty
             state is a bare muted paragraph by #655's classification, so a
             control living there would appear only once the filters had already
@@ -448,7 +461,7 @@ export function AuditPage() {
             {tc("clearFiltersButton")}
           </button>
         )}
-      </div>
+      </FilterBar>
 
       {events.error && <p className="error" role="alert">{events.error}</p>}
 
@@ -491,29 +504,35 @@ export function AuditPage() {
         </p>
       ) : (
         <>
-          <table className="data">
-            <thead>
-              <tr>
-                <th>{t("whenHeader")}</th><th>{t("whoHeader")}</th><th>{t("actionHeader")}</th>
-                {/* #493, Slice 2 — every row in a scoped view shares the same
-                    entity; repeating it up to 100 times is noise, not a
-                    neutral no-op, so it's hidden rather than left in. */}
-                {!entityId && <th>{t("entityHeader")}</th>}
-                <th>{t("detailsHeader")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.rows.map((e) => (
-                <tr key={e.id} title={e.detailsJson ?? undefined}>
-                  <td>{e.occurredAtUtc.replace("T", " ").slice(0, 19)}</td>
-                  <td>{e.actorEmail}</td>
-                  <td>{auditActionLabel(e.action)}</td>
-                  {!entityId && <td>{entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}</td>}
-                  <td><AuditDetails event={e} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t("whenHeader")}</TableCell>
+                  <TableCell>{t("whoHeader")}</TableCell>
+                  <TableCell>{t("actionHeader")}</TableCell>
+                  {/* #493, Slice 2 — every row in a scoped view shares the same
+                      entity; repeating it up to 100 times is noise, not a
+                      neutral no-op, so it's hidden rather than left in. */}
+                  {!entityId && <TableCell>{t("entityHeader")}</TableCell>}
+                  <TableCell>{t("detailsHeader")}</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {events.rows.map((e) => (
+                  <TableRow key={e.id} title={e.detailsJson ?? undefined}>
+                    <TableCell sx={NOWRAP}>{e.occurredAtUtc.replace("T", " ").slice(0, 19)}</TableCell>
+                    <TableCell sx={NOWRAP}>{e.actorEmail}</TableCell>
+                    <TableCell sx={NOWRAP}>{auditActionLabel(e.action)}</TableCell>
+                    {!entityId && (
+                      <TableCell sx={NOWRAP}>{entityTypeLabel(e.entityType)} {e.entityId.slice(0, 8)}</TableCell>
+                    )}
+                    <TableCell><AuditDetails event={e} /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
           {events.canLoadMore && (
             <button className="link" onClick={() => void events.loadMore()}>
               {t("loadMoreButton")}
