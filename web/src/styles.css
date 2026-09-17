@@ -2622,9 +2622,19 @@ dl.glossary {
   /* `justify-content: flex-end` still applies down the block axis, so the
      buttons need `align-items` to fill the row rather than sit at their
      intrinsic width. `.actions` stretches by default and needs neither. */
+  /* Owner decision 2026-09-17 (#892 mockups): phone form dialogs are centred
+     and sized to content, and their footer keeps Cancel and the action side by
+     side, right-aligned, like the desktop one. The 44px touch target comes
+     from the padding rule below, not from stretching the buttons full-width. */
   .dialog .dialog-foot {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+  }
+
+  .dialog .form-grid label,
+  .dialog .form-grid .numfield-field {
+    flex: 0 0 auto;
   }
 
   /* The padding, not the retired `flex: 1`, is what holds these to a 44px
@@ -3216,6 +3226,17 @@ button.named-picker-trigger:disabled {
   width: 15rem;
   min-width: 8rem;
   max-width: 100%;
+}
+
+/* Inside a dialog the form-grid is a COLUMN (see `.dialog .form-grid`), and
+   there a 15rem flex-basis is a HEIGHT: the picker sat 240px tall in every
+   dialog that holds one, a hole under the customer field on Sales at 1280 and
+   above it at 390 (the phone label rule below grows into the slack). The row
+   basis above exists for the wrapping filter bars only, so the column resets
+   it; the dialog's own `input` rule already makes the field full-width. */
+.dialog .form-grid .named-picker {
+  flex: 0 0 auto;
+  width: 100%;
 }
 
 /* Clear button (optional pickers only). */
