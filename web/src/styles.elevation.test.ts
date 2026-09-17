@@ -268,10 +268,15 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
   // card-like surface reads --r-panel instead. A generic "some r-* token"
   // pattern match (above) would stay green if one of these silently reverted
   // to --r-card, so this pins the SPECIFIC token per surface.
+  //
+  // `.logo-preview`/`.banner-preview`/`.palette-picker` retire here in #833:
+  // SettingsPage renders them through `sx` now (the literal `var(--r-panel)`
+  // moved with the markup, unpinned — the same fate #829 gave `.panel`).
+  // `.help-hero` retires alongside Help's own conversion, same PR.
+  // `.farm-warning` stays: it is AppLayout's shell strip, outside this
+  // slice's seven screens.
   it.each([
-    ".card", ".order-panel", ".entry-pane",
-    ".help-hero", ".logo-preview", ".banner-preview", ".farm-warning",
-    ".palette-picker",
+    ".card", ".order-panel", ".entry-pane", ".farm-warning",
   ])("%s reads --r-panel, not the dialog radius", (selector) => {
     expect(declarationsFor(selector).get("border-radius")).toBe("var(--r-panel)");
   });
