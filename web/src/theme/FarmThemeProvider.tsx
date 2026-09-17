@@ -401,6 +401,26 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
           root: { height: 36, [phone]: { height: 52 } },
         },
       },
+      // #832 — real-device #441 repro, reproduced again on this PR's first
+      // Playwright pass: `TableContainer`'s own default (`width: 100%;
+      // overflow-x: auto`, `TableContainer.js`) correctly scrolls the table
+      // WITHIN itself, but mobile browsers' initial LAYOUT viewport sizing
+      // still measures the un-clipped table's raw content width and inflates
+      // `window.innerWidth` past the visual viewport — `overflow-x` on every
+      // ancestor does not stop it, confirmed on `/flocks` at 390 (measured
+      // `document.documentElement.scrollWidth` 941px against a 390px frame,
+      // `phone.spec.ts`'s "no walked screen overflows" walk). `contain:
+      // layout` is what closes the gap: it tells the browser this element's
+      // internal layout can never affect an ancestor's size. `styles.css`'s
+      // own `table.data` phone rule (§2.2) already carries this for every
+      // unconverted ledger; this is the same fix for MUI's `TableContainer`,
+      // the component D3.2 names as this app's phone table treatment going
+      // forward.
+      MuiTableContainer: {
+        styleOverrides: {
+          root: { [phone]: { contain: "layout" } },
+        },
+      },
       // #832 — closes the gap the comment above used to carry: this is the
       // first slice to mount a real MUI `Table` (Customers/Products/Grades/
       // Flocks/Users). `TableCell` spreads `theme.typography.body2` as its

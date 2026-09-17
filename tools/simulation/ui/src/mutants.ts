@@ -1078,18 +1078,24 @@ export const MUTANTS: Record<string, Mutant> = {
 
   "phone-table-overflow-unclipped": {
     breaks:
-      "#441's containment on wide data tables — `contain: layout` and the block-level scroller are "
-      + "both reverted inside the same media block #441 lives in (web/src/styles.css), so a table "
-      + "lays its full content width out into the page instead of scrolling within itself",
+      "#441's containment on a raw `table.data` table — `contain: layout` and the block-level "
+      + "scroller are both reverted inside the same media block #441 lives in (web/src/styles.css), "
+      + "so an unconverted screen's table lays its full content width out into the page instead of "
+      + "scrolling within itself. #832 gave `Customers`/`Flocks` (and `Products`/`Grades`/`Users`) "
+      + "the same containment through a different mechanism — a `MuiTableContainer` theme override, "
+      + "not this class — so this mutant's `table.data`-scoped rule no longer reaches them; see the "
+      + "note on EXPECT_MSG_FOR in mutation-check.sh.",
     caughtBy: "phone.spec.ts — no walked screen overflows the viewport horizontally",
     apply: (page) =>
-      // Four of the six walked routes overflow under this and two do not —
-      // /daily-entry and /stock render no wide data table. That per-route
-      // spread is why the spec's walk asserts PER ROUTE and asserts SOFTLY: a
-      // hard assertion stops at the first and reports a quarter of the damage.
-      // The exact widths are deliberately not recorded here; they drift with
-      // fixture content, and a stale copy of them in this file is a defect
-      // this file has already had once.
+      // Two of the six walked routes overflow under this now — /sales and
+      // /history — and four do not: /daily-entry and /stock render no wide
+      // data table, and /customers and /flocks moved off `table.data` in
+      // #832 (see `breaks` above). That per-route spread is why the spec's
+      // walk asserts PER ROUTE and asserts SOFTLY: a hard assertion stops at
+      // the first and reports half the damage. The exact widths are
+      // deliberately not recorded here; they drift with fixture content, and
+      // a stale copy of them in this file is a defect this file has already
+      // had once.
       //
       // Desktop-green, stated honestly rather than claimed as containment:
       // the rule is inside `@media (max-width: 900px)`, so it cannot apply at

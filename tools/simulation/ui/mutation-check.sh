@@ -258,12 +258,20 @@ declare -A FALSE_KILLS=(
 # nav gate, and is still counted as a false kill rather than as coverage.
 #
 # The three phone entries were observed the same way. Two of them carry a custom
-# message; `phone-table-overflow-unclipped` declares FOUR lines, one per route it
-# breaks, because the softness of that walk is itself the claim — a hard
-# assertion would stop at /sales and report a quarter of the damage, so requiring
-# all four is what keeps `expect.soft` there honest. /daily-entry and /stock are
+# message; `phone-table-overflow-unclipped` declares TWO lines, one per route it
+# still breaks, because the softness of that walk is itself the claim — a hard
+# assertion would stop at /sales and report half the damage, so requiring both
+# is what keeps `expect.soft` there honest. /daily-entry and /stock are
 # deliberately absent: neither renders a wide data table, and both stayed at
-# exactly 390 under the mutant.
+# exactly 390 under the mutant. /customers and /flocks were also on this list
+# until #832: the mutant's CSS targets `table.data` specifically, and #832
+# moved both routes onto MUI's `TableContainer`, which the mutant's rule does
+# not reach — observed directly (`CLUCKWORK_E2E_MUTANT=phone-table-overflow-unclipped`
+# against a #832 build): only /sales and /history still overflow. This is a
+# real narrowing of what the mutant proves, not a typo; if a later slice moves
+# /sales or /history onto MUI too, this mutant stops proving anything at all
+# and needs a new CSS target (MUI's `TableContainer`, not `table.data`) or
+# retirement, matching #824's "retire only with a named successor" rule.
 #
 # The two phone action mutants split the walk's rule between them, and each
 # declares only what it can actually redden. #823 stacks every action row below
@@ -319,8 +327,6 @@ SIDE 2 — role=alert no longer carries implicit assertive politeness"
 taller than it is wide, so its pill clamps into an ellipse"
   [phone-entry-foot-stacked]="in the daily-entry save bar spans"
   [phone-table-overflow-unclipped]="/sales scrolls sideways at phone width
-/customers scrolls sideways at phone width
-/flocks scrolls sideways at phone width
 /history scrolls sideways at phone width"
 )
 

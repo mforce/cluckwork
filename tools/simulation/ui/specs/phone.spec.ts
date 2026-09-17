@@ -477,8 +477,14 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
       { path: "/", content: "ul.dash-sales-list", what: "the recent-sales list" },
       { path: "/sales", content: "table.data", what: "the orders table" },
       { path: "/daily-entry", content: "footer", what: "the entry form's sticky foot" },
-      { path: "/customers", content: "table.data", what: "the customer book" },
-      { path: "/flocks", content: "table.data", what: "the flock table" },
+      // #832 — Customers and Flocks moved their table onto MUI's `Table`, which
+      // carries no `.data` class (the whole point of the conversion: the
+      // screen's TSX carries no className `styles.css` still declares). A
+      // role locator survives the conversion of the OTHER three routes too,
+      // whenever their turn comes — `role=table` matches a real `<table>`
+      // either way, `table.data` or MUI's.
+      { path: "/customers", content: "role=table", what: "the customer book" },
+      { path: "/flocks", content: "role=table", what: "the flock table" },
       { path: "/stock", content: "table.data", what: "the stock table" },
       { path: "/history", content: "table.data", what: "the entry history table" },
     ];
