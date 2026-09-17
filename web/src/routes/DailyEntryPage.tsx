@@ -853,13 +853,20 @@ export function DailyEntryPage() {
         </Box>
         <Box sx={{ display: "flex", flexDirection: "row", gap: { xs: 2, md: 5 }, alignItems: "flex-end" }}>
           {/* Outlined MUI field, same `size="small"` height as the picker
-              (#898 item 2, owner pick: variant A). */}
+              (#898 item 2, owner pick: variant A). `slotProps.inputLabel.shrink`
+              is required for a `type="date"` field: MUI's floating label only
+              shrinks on focus or a non-empty value by default, but a native
+              date input always renders its own "mm/dd/yyyy" placeholder even
+              when EMPTY, so an unshrunk label sits on top of it — the same
+              overlap the owner found on #897's Grade select (CodeRabbit
+              round 1 on #898, 2026-09-18). Force it permanently shrunk
+              instead of relying on `value`/focus state. */}
           <TextField
             type="date"
             label={t("dateLabel")}
             value={date}
             onChange={(e) => retarget(() => setDate(e.target.value))}
-            slotProps={{ htmlInput: { max: today } }}
+            slotProps={{ htmlInput: { max: today }, inputLabel: { shrink: true } }}
             size="small"
             sx={{ flex: 1, minWidth: 0 }}
           />
