@@ -37,6 +37,10 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
     private readonly RedisContainer _redis =
         new RedisBuilder("redis:7.4-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2").Build();
 
+    // Both serving processes need this ONE namespace to prove their budget is
+    // shared, while every other test host gets its own from the base factory.
+    private readonly string _redisKeyNamespace = $"cluckwork-test-{Guid.NewGuid():N}";
+
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
@@ -71,6 +75,7 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
         // #544 — BOTH processes share ONE Redis, so the auth-rate-limit
         // counter is one shared counter, not two per-process ones.
         psi.Environment["SharedState__Redis__ConnectionString"] = _redis.GetConnectionString();
+        psi.Environment["SharedState__Redis__KeyNamespace"] = _redisKeyNamespace;
         // Same signing key material, issuer and audience on every process —
         // TestJwtKeys is one Lazy<T> per TEST process, so a token minted by
         // instance A is verifiable by instance B even though they are
