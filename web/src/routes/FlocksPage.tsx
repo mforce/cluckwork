@@ -428,20 +428,29 @@ export function FlocksPage() {
                       scroll cue, a hidden-primary-verb regression, not a
                       cosmetic one. */}
                   <ProvenanceCell history={f} auditHref={isAdmin ? `/audit?entityId=${f.id}` : undefined} />
-                  <TableCell sx={NOWRAP}>
-                    <Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap", alignItems: "center" }}>
-                      <button className="link" disabled={busy}
+                  {/* #897 review, round 2 — the coordinator's accepted answer
+                      to the residual ~112px overflow: let this cell wrap the
+                      way `table.data` always did, rather than force it into
+                      one line. The Stack itself now wraps (`flexWrap: "wrap"`,
+                      a 0.5 row gap between the two lines it produces on the
+                      widest row); each individual verb keeps its own nowrap
+                      so a label never breaks mid-word — only the row of verbs
+                      as a whole may flow onto a second line. The outer cell
+                      drops its own NOWRAP for the same reason. */}
+                  <TableCell>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 0.5, alignItems: "center" }}>
+                      <button className="link" style={NOWRAP} disabled={busy}
                         onClick={() => void openLedger(f.id)}>
                         {ledgerFlockId === f.id ? t("closeLedgerButton") : t("openLedgerButton")}
                       </button>
                       {isAdmin && (
                         // Opens the edit dialog — non-mutating, so the spinner
                         // belongs to the dialog's Save, not here (#242).
-                        <button className="link" disabled={busy}
+                        <button className="link" style={NOWRAP} disabled={busy}
                           onClick={() => startEdit(f)}>{t("editButton")}</button>
                       )}
                       {isAdmin && f.status === "Active" && (
-                        <BusyButton className="link" busy={isPending(`deplete:${f.id}`)} disabled={busy}
+                        <BusyButton className="link" style={NOWRAP} busy={isPending(`deplete:${f.id}`)} disabled={busy}
                           onClick={() => void onDeplete(f)}>
                           {t("depleteButton")}
                         </BusyButton>
@@ -449,14 +458,14 @@ export function FlocksPage() {
                       {isAdmin && f.status !== "Archived" && (
                         // After the confirm dialog settles, THIS button is the
                         // pending indicator for the in-flight archive (#236).
-                        <BusyButton className="link" busy={isPending(`archive:${f.id}`)} disabled={busy}
+                        <BusyButton className="link" style={NOWRAP} busy={isPending(`archive:${f.id}`)} disabled={busy}
                           onClick={() => void onArchive(f)}>
                           {t("archiveButton")}
                         </BusyButton>
                       )}
                       {isAdmin && f.status !== "Active" && (
                         // The undo (#57): back to Active, full capture restored.
-                        <BusyButton className="link" busy={isPending(`reactivate:${f.id}`)} disabled={busy}
+                        <BusyButton className="link" style={NOWRAP} busy={isPending(`reactivate:${f.id}`)} disabled={busy}
                           onClick={() => void run(`reactivate:${f.id}`, () => commit(`reactivate:${f.id}`, (key) => reactivateFlock(f.id, key)))}>
                           {t("reactivateButton")}
                         </BusyButton>
