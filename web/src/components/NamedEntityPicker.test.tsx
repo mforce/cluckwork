@@ -801,9 +801,9 @@ describe("T023: ARIA contract and interaction semantics", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    mockListFlocks.mockImplementation(async (params: any) => {
-      const offset = params.offset ?? 0;
-      return fiveFlocks.slice(offset, offset + 5) as any;
+    mockListFlocks.mockImplementation(async (params) => {
+      const offset = params?.offset ?? 0;
+      return fiveFlocks.slice(offset, offset + 5);
     });
   });
 
@@ -911,11 +911,11 @@ describe("T023: ARIA contract and interaction semantics", () => {
     // Override mock: 50 items per page (limit=50), 2 pages
     const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
     const page1 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p1-${i}`, name: `Page1 Flock ${i}` }));
-    mockListFlocks.mockImplementation(async (params: any) => {
-      const offset = params.offset ?? 0;
-      if (offset === 0) return page0 as any;
-      if (offset === 50) return page1 as any;
-      return [] as any;
+    mockListFlocks.mockImplementation(async (params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return page0;
+      if (offset === 50) return page1;
+      return [];
     });
     const { input } = openPicker();
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
@@ -934,26 +934,16 @@ describe("T023: ARIA contract and interaction semantics", () => {
     expect(lastCall[0]).toMatchObject({ offset: 50 });
   });
 
-  // Codex review of #898 (2026-09-18): `highlightedIdRef` (used ONLY by
-  // FR-032's `atEnd` check, above) was set by `onHighlightChange` but never
-  // CLEARED — not on Escape, not on outside-click, not on close. `<Autocomplete>`
-  // itself unmounts every close and mounts fresh every reopen (it only
-  // renders in the open JSX branch), so MUI's own internal highlight always
-  // starts clean on reopen — but this ref lives on the outer component,
-  // which does not unmount across an open/close cycle. With FR-018 retaining
-  // the SAME discovery window across a close (no fetch, no reset, since the
-  // "open effect" only resets on a mid-flight close), reopening after
-  // navigating to the true last option left the ref pointed at that same
-  // option — still the list's actual last item, since nothing changed. The
-  // very first ArrowDown after reopening then falsely read `atEnd` and fired
-  // an unwanted `loadMore()`, instead of moving the highlight from its true,
-  // freshly-reset position (nothing highlighted).
+  // Pins the FR-018/FR-032 interaction: `highlightedIdRef` outlives an
+  // `<Autocomplete>` remount, so a reopen onto a retained window whose end
+  // was already reached must not treat the first ArrowDown as `atEnd` and
+  // load a page instead of moving the highlight.
   it("T023-7c: a stale highlightedIdRef does not falsely trigger Load More on the first ArrowDown after reopening", async () => {
     const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
-    mockListFlocks.mockImplementation(async (params: any) => {
-      const offset = params.offset ?? 0;
-      if (offset === 0) return page0 as any;
-      return [] as any;
+    mockListFlocks.mockImplementation(async (params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return page0;
+      return [];
     });
     const renderPicker = (open: boolean) => (
       <FlockPicker label="Pick" eligibility="active" required open={open} trigger={<button>open</button>} />
@@ -982,14 +972,11 @@ describe("T023: ARIA contract and interaction semantics", () => {
     expect(mockListFlocks.mock.calls.length).toBe(callsBeforeReopenArrow);
   });
 
-  // Codex re-review of #898 (2026-09-18): T023-7c above pins only the
-  // close/reopen clear (`highlightedIdRef.current = null` in the "open
-  // effect"). Three more clear sites exist and were unpinned — removing any
-  // ONE of them stayed green. Each sibling below reuses T023-7c's exact
-  // technique (an intentional id COLLISION between the row highlighted
-  // before the transition and a row in the window that exists after it) so
-  // a stale ref falsely satisfies `atEnd` on the very next ArrowDown, even
-  // though nothing else about the state actually changed to justify it.
+  // `highlightedIdRef` clears on three more transitions besides reopen
+  // (typing, Escape, outside-click); each sibling below reuses T023-7c's
+  // technique — an intentional id collision between the row highlighted
+  // before the transition and a row in the window after it — so a stale ref
+  // falsely satisfies `atEnd` on the very next ArrowDown.
   it("T023-7e: a stale highlightedIdRef does not falsely trigger Load More after typing replaces the discovery window", async () => {
     const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
     // The typed-query's own result window reuses "p0-49" — the id
@@ -999,11 +986,11 @@ describe("T023: ARIA contract and interaction semantics", () => {
     const searchResults = Array.from({ length: 50 }, (_, i) =>
       i === 49 ? { ...fiveFlocks[0], id: "p0-49", name: "Search Match 49" }
         : { ...fiveFlocks[0], id: `s-${i}`, name: `Search Match ${i}` });
-    mockListFlocks.mockImplementation(async (params: any) => {
-      if (params?.search) return searchResults as any;
-      const offset = params.offset ?? 0;
-      if (offset === 0) return page0 as any;
-      return [] as any;
+    mockListFlocks.mockImplementation(async (params) => {
+      if (params?.search) return searchResults;
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return page0;
+      return [];
     });
     const { input } = openPicker();
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
@@ -1027,10 +1014,10 @@ describe("T023: ARIA contract and interaction semantics", () => {
 
   it("T023-7f: a stale highlightedIdRef does not falsely trigger Load More after Escape", async () => {
     const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
-    mockListFlocks.mockImplementation(async (params: any) => {
-      const offset = params.offset ?? 0;
-      if (offset === 0) return page0 as any;
-      return [] as any;
+    mockListFlocks.mockImplementation(async (params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return page0;
+      return [];
     });
     const { input } = openPicker();
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
@@ -1053,10 +1040,10 @@ describe("T023: ARIA contract and interaction semantics", () => {
 
   it("T023-7g: a stale highlightedIdRef does not falsely trigger Load More after an outside click", async () => {
     const page0 = Array.from({ length: 50 }, (_, i) => ({ ...fiveFlocks[0], id: `p0-${i}`, name: `Page0 Flock ${i}` }));
-    mockListFlocks.mockImplementation(async (params: any) => {
-      const offset = params.offset ?? 0;
-      if (offset === 0) return page0 as any;
-      return [] as any;
+    mockListFlocks.mockImplementation(async (params) => {
+      const offset = params?.offset ?? 0;
+      if (offset === 0) return page0;
+      return [];
     });
     const { input } = openPicker();
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
@@ -1075,59 +1062,19 @@ describe("T023: ARIA contract and interaction semantics", () => {
     expect(mockListFlocks.mock.calls.length).toBe(callsBeforeArrow);
   });
 
-  // Codex review of #898 (2026-09-18): T023-7 above only checked that the
-  // NEXT FETCH was issued at the right offset — not what happened to the
-  // highlight while it was in flight or after it landed with a value already
-  // committed. `value={state.selection.entity ? {...} : null}` used to
-  // recreate that clone on EVERY render; `useAutocomplete.js`'s own
-  // `syncHighlightedIndex` — a `useCallback` closing over `value` BY
-  // REFERENCE — got a new identity on every such render, which retriggers
-  // the effect that calls it regardless of why the render happened. Fixed
-  // below (`clonedSelectedValue`, a `useMemo` keyed on the committed
-  // entity's id/name) by memoizing that clone.
-  //
-  // No test pins this directly — FOUR constructions were tried across two
-  // harnesses and all four were REJECTED after a red/green mutation check.
-  // In jsdom: (1) a full Load-More round trip using a synchronous mock, (2)
-  // a forced-incidental-rerender via `rerender()` with unchanged props, and
-  // (3) a Codex re-review suggestion (2026-09-18): a DEFERRED extension
-  // request (the mock's second page holds an unresolved promise), asserting
-  // the highlight is unchanged while `phase === "extending"` is genuinely in
-  // flight, then resolving it and asserting the highlight survived. All
-  // three showed the SAME final `aria-activedescendant` whether or not
-  // `value` was memoized — (1)/(2) traced (via direct `syncHighlightedIndex`
-  // instrumentation) to `usePreviousProps`'s own effect-flush timing
-  // relative to `act()`/fake timers in this exact harness; (3) reproduced
-  // the identical result even holding the fetch open by hand, ruling out
-  // fake-timer batching as the sole cause.
-  //
-  // (4) A second Codex re-review (2026-09-18) asked for the real-browser
-  // version of (3) instead, reasoning that jsdom's own render/effect cadence
-  // — not a fake-timer artifact — might be what defeats the first three.
-  // Built and run in `named-entity-picker.spec.ts` against an isolated
-  // stack at head: commit a flock (the picker stays open, same 50-row
-  // window — verified, not assumed), page to the true end, hold the
-  // extension's own request via `page.route` and a deferred promise, assert
-  // `aria-activedescendant` mid-flight and after the page lands. It PASSED
-  // with the fix in place. The mutation check — `clonedSelectedValue` swapped
-  // back to the inline clone, image rebuilt, spec rerun — ALSO passed,
-  // unchanged. Real React scheduling, not jsdom's, and still vacuous for
-  // this exact scenario (commit-then-page, one committed value, one
-  // extension). Not shipped, per the standing rule against a guard that
-  // reads as safety without being one; the attempt and both real-browser
-  // results are recorded here rather than in the spec file itself, so a
-  // future reader does not have to reconstruct why a fourth attempt is
-  // missing from a file that already tracks the first three.
-  //
-  // The fix itself stays: `clonedSelectedValue` is still the CORRECT
-  // response to the mechanism Codex's first review identified (read
-  // directly from `useAutocomplete.js` — an unmemoized `value` clone
-  // genuinely does give `syncHighlightedIndex` a new identity on every
-  // render and genuinely does retrigger its resync effect on renders
-  // unrelated to the committed value). Four attempts at an OBSERVABLE
-  // regression test for that mechanism, across two harnesses, found none;
-  // that is a fact about how hard this particular symptom is to catch from
-  // the outside, not evidence the fix is unneeded.
+  // `useAutocomplete.js`'s `syncHighlightedIndex` closes over `value` by
+  // reference and re-runs whenever that reference changes; `clonedSelectedValue`
+  // (`useMemo` on id/name, below) holds it stable so an unrelated render —
+  // including one mid page-load — cannot resync the highlight to the
+  // committed row. The mechanism is real in `useAutocomplete.js`, but its
+  // consequence was not observable across any construction tried, in jsdom
+  // or Chromium:
+  // - jsdom, a full Load-More round trip on a synchronous mock
+  // - jsdom, a forced `rerender()` with unchanged props
+  // - jsdom, a deferred extension request held open by hand
+  // - Chromium (`named-entity-picker.spec.ts`), the same deferred-request
+  //   construction, mutation-checked against a rebuilt image
+  // No test pins it.
 
   it("T023-8: optional clear button commits blank and fires onClear", async () => {
     const onClear = vi.fn();
@@ -1224,16 +1171,10 @@ describe("T023: ARIA contract and interaction semantics", () => {
     expect(screen.queryByRole("textbox", { name: "Pick Flock" })).toBeNull();
   });
 
-  // Codex review of #898 (2026-09-18): T023-12 above asserts the closed
-  // field's STATIC open contract (readonly, aria-haspopup, aria-expanded)
-  // but never actually presses a key on it — so a real activation defect
-  // (the `onKeyDown` handler removed, or narrowed to the wrong keys) would
-  // pass every existing assertion. The comment on the closed-state `TextField`
-  // itself ("click, Enter and Space all open it") names two keys nothing in
-  // this file exercised. `activate` is gated on `triggerDisabled`, not
-  // `disabled` alone, so a spy on the trigger's own `onClick` is what proves
-  // the KEY handler actually reached it, not just that the field looks
-  // right.
+  // T023-12 asserts the closed field's static open contract but never
+  // presses a key, so an `onKeyDown` handler removed or narrowed to the
+  // wrong keys would still pass. A spy on the trigger's own `onClick` is
+  // what proves the key handler actually reaches it.
   it("T023-12b: Enter and Space on the closed field both activate the trigger (Enter and Space, not just click)", () => {
     const onTriggerClick = vi.fn();
     render(

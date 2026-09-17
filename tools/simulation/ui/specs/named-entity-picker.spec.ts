@@ -109,17 +109,11 @@ test.describe("Searchable named-entity picker (#512)", () => {
     }
     await expect(combobox).toHaveAttribute("aria-activedescendant", sentinelId!);
 
-    // Codex review of #898 (2026-09-18): `NamedEntityPicker.tsx`'s own
-    // `disableListWrap` comment claims THIS spec proves ArrowDown at the
-    // picker's TRUE final option (hasMore already exhausted) does not wrap
-    // back to the first row — but stopping here and committing immediately,
-    // which this test used to do, never actually pressed ArrowDown past the
-    // sentinel, so that claim went unverified. The sentinel is not
-    // necessarily the true final row either (comment above: other specs may
-    // have added flocks that sort after it), so keep arrowing past it until
-    // the highlight genuinely stops advancing — the true end, wherever it
-    // lands — then confirm one more ArrowDown leaves it exactly there
-    // instead of wrapping to the first option.
+    // Pins `NamedEntityPicker.tsx`'s `disableListWrap`: ArrowDown at the
+    // true final option (hasMore exhausted) must not wrap to the first row.
+    // The sentinel is not necessarily that row (other specs may add flocks
+    // that sort after it), so keep arrowing until the highlight stops
+    // advancing before checking the next press leaves it there.
     let activeId = sentinelId;
     for (let i = 0; i < 260; i++) {
       await combobox.press("ArrowDown");
@@ -145,24 +139,12 @@ test.describe("Searchable named-entity picker (#512)", () => {
     await expect(combobox).toHaveValue(FLOCK_SENTINEL);
   });
 
-  // Codex re-review of #898 (2026-09-18, finding 2): a FOURTH construction
-  // was tried here, in a real browser against an isolated stack at head —
-  // commit a flock first (verified the picker stays open and keeps its
-  // 50-row window afterward, so `state.selection.entity` is non-null for
-  // the rest of the scenario), page to the true end, hold the extension's
-  // own request open via `page.route` and a deferred promise (the same
-  // technique the three jsdom attempts used a mocked fetch for), and assert
-  // `aria-activedescendant` both mid-flight and after the page lands. It
-  // PASSED with the fix in place, then a mutation check — swap
-  // `clonedSelectedValue` back to the inline `state.selection.entity ? {...}
-  // : null` clone, rebuild the image, rerun — also PASSED, unchanged. Real
-  // React scheduling, not jsdom's, and still vacuous for this exact
-  // scenario: not shipped, per the standing rule against a guard that reads
-  // as safety without being one. The full three-jsdom-plus-one-real-browser
-  // account lives in `NamedEntityPicker.test.tsx`, right above the picker's
-  // T023-7 block — this is the fourth entry in that record, not a
-  // duplicate a reader would otherwise wonder why is missing from a file
-  // that already tracks the first three.
+  // A real-browser construction for the `clonedSelectedValue` memoisation
+  // (commit a flock, page to the true end, hold the extension's request via
+  // `page.route`, assert `aria-activedescendant` mid-flight and after)
+  // passed both with the fix and against a rebuilt image with it reverted —
+  // vacuous here too, so it is not shipped. Full account in
+  // `NamedEntityPicker.test.tsx`, above the picker's T023-7 block.
 
   test("a new Sales order's customer picker reaches and commits the page-two sentinel through search", async ({
     page,

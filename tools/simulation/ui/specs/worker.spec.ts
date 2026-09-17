@@ -128,10 +128,9 @@ test.describe("Worker", () => {
     // (here, the assigned default) lives in the field's `value`. Its own
     // server-side scope (#388) means the unassigned flock is unreachable
     // even by an explicit search for it.
-    // Full-suite run found this exact-match wrong (2026-09-18): the trigger's
-    // displayed value is `DailyEntryPage.tsx`'s own `"{name} ({breed})"`
-    // (plus a depleted suffix when relevant), never the bare name alone — a
-    // prefix match is what this assertion actually needs.
+    // The trigger's value is `DailyEntryPage.tsx`'s own `"{name} ({breed})"`
+    // (plus a depleted suffix when relevant), never the bare name, so this
+    // needs a prefix match.
     const flockTrigger = page.getByRole("textbox", { name: tEn("dailyEntry:flockLabel") });
     await expect(flockTrigger).toHaveValue(new RegExp(`^${ASSIGNED_FLOCK} \\(`));
     await flockTrigger.click();

@@ -1379,23 +1379,11 @@ describe("DailyEntryPage farm-local date", () => {
   });
 });
 
-// CodeRabbit round 1 on #898 (2026-09-18): a `type="date"` MUI TextField's
-// floating label only shrinks on focus or a non-empty value BY DEFAULT, but
-// the browser always renders its own "mm/dd/yyyy" placeholder inside a date
-// input even when it is EMPTY — so an unshrunk label sits directly on top of
-// that placeholder, the same overlap the owner found on #897's Grade select.
-// `slotProps.inputLabel.shrink` forces it permanently shrunk instead of
-// relying on focus/value state.
-//
-// The field is never blank on mount (`date` defaults to today), so a naive
-// assertion right after render passes whether or not the fix is present —
-// MUI's own default behaviour already shrinks a label with a non-empty
-// value, which is exactly the case this guard has to rule OUT. A first
-// version of this test did that and a red/green mutation check caught it:
-// removing `inputLabel.shrink` left the test green. The real regression
-// only shows once the value is cleared (a user can clear a native date
-// input to "" without `required` blocking it — see the onChange handler
-// below), so the guard clears it first.
+// A `type="date"` input always shows its own "mm/dd/yyyy" even when empty,
+// so `slotProps.inputLabel.shrink` (#898) keeps the label off it regardless
+// of focus or value. `date` defaults to today, so asserting right after
+// render is vacuous (MUI already shrinks a non-empty value); the guard
+// clears the field first to exercise the case it protects.
 describe("DailyEntryPage date field label", () => {
   it("keeps the Date field's label shrunk even when the value is cleared, so it never overlaps the native mm/dd/yyyy placeholder", async () => {
     render(<MemoryRouter><DailyEntryPage /></MemoryRouter>);
