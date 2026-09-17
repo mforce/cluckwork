@@ -1249,8 +1249,15 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
         // UI, so both are nulled via `slots` (not `disableClearable` — see
         // the generics comment above). `handleHomeEndKeys={false}` keeps
         // Home/End native input behavior (FR-031) — `Autocomplete` jumps to
-        // the first/last option on those keys by default.
+        // the first/last option on those keys by default. `disableListWrap`
+        // stops ArrowDown at the TRUE final option (hasMore already false)
+        // from silently jumping back to the first row — found the same way
+        // as the `handleRootKeyDown` comment above, via
+        // `named-entity-picker.spec.ts`'s real-browser keyboard-paging test:
+        // MUI's default wrap only stops mid-pagination there, not once
+        // discovery is fully exhausted.
         handleHomeEndKeys={false}
+        disableListWrap
         // The popup stays a DOM descendant of `containerRef` (no portal to
         // `document.body`): the engine's own outside-click listener (above)
         // tests `containerRef.current.contains(event.target)`, which a
