@@ -3,6 +3,8 @@ namespace Cluckwork.Api.IntegrationTests;
 using System.Net.Http.Headers;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Domain.Accounts;
+using Cluckwork.Domain.Eggs;
+using Cluckwork.Infrastructure.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,6 +94,53 @@ public sealed class DemoSeedTests(CluckworkWebApplicationFactory factory)
         var client2 = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
         var flocksAfter = await client2.GetFromJsonAsync<List<FlockDto>>("/api/v1/flocks?includeArchived=true");
         Assert.Equal(3, flocksAfter!.Count);
+    }
+
+    // The Dashboard's Today panel reads by the farm clock, and the demo seed
+    // stamps House 1's draft "today". Dated by DateTime.UtcNow instead, the
+    // draft lands on tomorrow's date for any farm west of UTC in the hours
+    // after midnight UTC, and the panel shows no draft: every e2e smoke run
+    // between 00:00 and 05:00 UTC failed on the demo farm (America/Chicago)
+    // on 2026-09-17. This seeds a farm whose calendar date differs from UTC's
+    // at the moment the test runs, whichever half of the UTC day that is, and
+    // pins the draft to the farm's date.
+    [Fact]
+    public async Task DemoSeed_DatesTodaysDraft_ByTheFarmClock_NotUtc()
+    {
+        var utcNow = DateTime.UtcNow;
+        var timeZoneId = utcNow.Hour < 12 ? "Etc/GMT+12" : "Pacific/Kiritimati";
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        var farmToday = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(utcNow, zone));
+        var utcToday = DateOnly.FromDateTime(utcNow);
+        Assert.NotEqual(utcToday, farmToday);
+
+        var slug = $"clock-{Guid.NewGuid():N}"[..20];
+        Guid accountId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var result = await scope.ServiceProvider.GetRequiredService<AccountProvisioner>()
+                .ProvisionAsync(name: "Clock Farm", slug: slug,
+                    ownerEmail: $"{slug}@test.local", locale: "en-US", currencyCode: "USD",
+                    timeZoneId: timeZoneId);
+            Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Description : string.Empty);
+            accountId = result.Value.AccountId;
+        }
+
+        using (var seedScope = factory.Services.CreateScope())
+        {
+            var result = await seedScope.ServiceProvider.GetRequiredService<DemoDataSeeder>().SeedAsync(accountId);
+            Assert.True(result.IsSuccess, result.Message);
+            Assert.Equal(SeedStatus.Seeded, result.Status);
+        }
+
+        using var readScope = factory.Services.CreateScope();
+        var db = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var drafts = await db.DailyEntries.IgnoreQueryFilters()
+            .Where(e => e.AccountId == accountId && e.Status == DailyEntryStatus.Draft)
+            .Select(e => e.Date)
+            .ToListAsync();
+        var draftDate = Assert.Single(drafts);
+        Assert.Equal(farmToday, draftDate);
     }
 
     // #284 review — a real "demo is OFF the boot path" regression test. The
