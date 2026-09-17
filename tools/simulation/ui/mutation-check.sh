@@ -114,6 +114,7 @@ declare -A SPEC_FOR=(
   [phone-tabs-inert]="specs/phone.spec.ts"
   [phone-action-label-wrapped]="specs/phone.spec.ts"
   [phone-entry-foot-stacked]="specs/phone.spec.ts"
+  [phone-dialog-footer-stacked]="specs/phone.spec.ts"
 )
 
 # --- the mutant -> project map ---------------------------------------------
@@ -151,6 +152,7 @@ declare -A PROJECT_FOR=(
   [phone-tabs-inert]="chromium-phone"
   [phone-action-label-wrapped]="chromium-phone"
   [phone-entry-foot-stacked]="chromium-phone"
+  [phone-dialog-footer-stacked]="chromium-phone"
 )
 
 # The project whose WHOLE suite must still be GREEN under this mutant, checked
@@ -164,6 +166,7 @@ declare -A MUST_STAY_GREEN_ON=(
   [phone-tabs-inert]="chromium"
   [phone-action-label-wrapped]="chromium"
   [phone-entry-foot-stacked]="chromium"
+  [phone-dialog-footer-stacked]="chromium"
 )
 
 # The third test in a11y-live-regions.spec.ts (recorded browser facts) has no
@@ -220,6 +223,7 @@ declare -A GREP_FOR=(
   [phone-tabs-inert]="the tab bar is the navigation at this width"
   [phone-action-label-wrapped]="no action control is taller than it is wide"
   [phone-entry-foot-stacked]="no action control is taller than it is wide"
+  [phone-dialog-footer-stacked]="no action control is taller than it is wide"
 )
 
 # Mutants whose RED is known not to prove the guarantee they name. See the header.
@@ -326,6 +330,8 @@ SIDE 2 — role=alert no longer carries implicit assertive politeness"
   [phone-action-label-wrapped]="in the Sales draft-order panel spans
 taller than it is wide, so its pill clamps into an ellipse"
   [phone-entry-foot-stacked]="in the daily-entry save bar spans"
+  [phone-dialog-footer-stacked]="dialog footer's row is not laid out as a row (computed flex-direction: column)
+dialog footer's buttons share no common vertical band"
   [phone-table-overflow-unclipped]="/sales scrolls sideways at phone width
 /history scrolls sideways at phone width"
 )
@@ -345,7 +351,7 @@ if [ ${#MUTANTS[@]} -eq 0 ]; then
            a11y-probe-off-role-dropped
            phone-action-bar-under-tabbar phone-tabbar-removed
            phone-table-overflow-unclipped phone-action-label-wrapped
-           phone-entry-foot-stacked
+           phone-entry-foot-stacked phone-dialog-footer-stacked
            phone-tabs-inert)
 fi
 

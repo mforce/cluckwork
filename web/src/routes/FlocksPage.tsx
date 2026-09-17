@@ -405,12 +405,7 @@ export function FlocksPage() {
                 <TableRow key={f.id} className={f.status === "Archived" ? "inactive" : undefined}>
                   <TableCell sx={NOWRAP}>{f.name}</TableCell>
                   <TableCell sx={NOWRAP}>{f.breed}</TableCell>
-                  {/* #897 review — `short` (2-digit year) trims this column
-                      back after the audit-history move above only got the
-                      widest row's Actions cell partway to fitting; measured
-                      before and after via the TableContainer's own
-                      scrollWidth/clientWidth, not by eye. */}
-                  <TableCell sx={NOWRAP}><FarmDate iso={f.placementDate} short /></TableCell>
+                  <TableCell sx={NOWRAP}><FarmDate iso={f.placementDate} /></TableCell>
                   <TableCell align="right" sx={NOWRAP}>{t("ageWeeksSuffix", { weeks: ageWeeks(f.placementDate) })}</TableCell>
                   <TableCell align="right" sx={NOWRAP}>
                     {fmt.count(f.currentBirds)}

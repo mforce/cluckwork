@@ -224,6 +224,20 @@ describe("ProvenanceCell", () => {
     // #832 — the class this used to assert is gone; the same CSS fact now
     // ships as `sx` on the `TableCell`, so pin the computed style instead.
     expect(getComputedStyle(cell()).whiteSpace).toBe("nowrap");
+    // #897 codex review — `whiteSpace: nowrap` on the outer cell alone does
+    // NOT stop this column growing: it is the width cap + ellipsis on the
+    // inner boxes that do that job (the nowrap only stops the wrap). Both
+    // moved off the `TableCell` in the audit-link-relocation round (round 2)
+    // so a second stacked line would not also get clipped — assert them on
+    // the elements that actually carry them now, or a regression that
+    // deletes the cap/ellipsis and leaves only `nowrap` stays green here.
+    const outerBox = cell().firstElementChild as HTMLElement;
+    // jsdom resolves `getComputedStyle` in px, not the authored unit — 14rem
+    // at the default 16px root.
+    expect(getComputedStyle(outerBox).maxWidth).toBe("224px");
+    const summaryLine = cell().querySelector(".muted") as HTMLElement;
+    expect(getComputedStyle(summaryLine).overflow).toBe("hidden");
+    expect(getComputedStyle(summaryLine).textOverflow).toBe("ellipsis");
   });
 
   describe("on the farm clock", () => {

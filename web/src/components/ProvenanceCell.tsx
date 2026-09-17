@@ -37,9 +37,13 @@ function actorHandle(email: string): string {
 // `auditHref` (#897 review) — #493's full-audit-trail link, admin-gated by
 // the CALLER (it passes the href only when `isAdmin`, so this component
 // stays admin-agnostic), stacked under the provenance summary rather than
-// living in the row's own Actions cell. Grades and Flocks pass it; Sales,
-// Expenses and History (still on a plain `<table className="data">`, #831)
-// do not, so their rendering is byte-for-byte unchanged.
+// living in the row's own Actions cell. Only FlocksPage passes it — its
+// Actions cell was overflowing the container at 1280 with the link inline,
+// which is what motivated the move. GradesPage never had that overflow, so
+// it deliberately keeps its own "Audit history" link inline in Actions (see
+// GradesPage.tsx) rather than moving it here; Sales, Expenses and History
+// (still on a plain `<table className="data">`, #831) don't pass it either,
+// so all four render byte-for-byte unchanged.
 export function ProvenanceCell({
   history,
   official,

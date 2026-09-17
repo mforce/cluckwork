@@ -329,9 +329,10 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
 
       const measured = await row.evaluate((el) => ({
         container: el.getBoundingClientRect().width,
+        flexDirection: getComputedStyle(el).flexDirection,
         buttons: Array.from(el.querySelectorAll("button")).map((b) => {
           const r = b.getBoundingClientRect();
-          return { name: (b.textContent ?? "").trim(), width: r.width, height: r.height };
+          return { name: (b.textContent ?? "").trim(), width: r.width, height: r.height, top: r.top };
         }),
       }));
 
@@ -368,6 +369,43 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
               + "meant to stay side by side (F134, and the confirmed #864 mockup), and it stacked",
           ).toBeLessThan(0.6);
         }
+      }
+
+      // #897 codex review — the width-share checks above are a per-button
+      // ratio and pass for free on a STACKED column of narrow, intrinsic-width
+      // buttons too: a button that does not fill its row is <60% of the
+      // container whether it sits beside its sibling or above it. Neither
+      // half of "side by side" that name actually claims — same row, same
+      // reading order — was ever checked. This asserts the row geometry
+      // directly: the row's own flex-direction is "row", and every button
+      // shares some common vertical band with every other (a real intersection
+      // of their [top, bottom] ranges, not an edge-equality check — Grades'
+      // own footer pairs a text `Cancel` link against a taller pill `Add
+      // grade` button, `alignItems: "center"`, so their TOPS legitimately
+      // differ by several px while they are genuinely on one line; a column
+      // can never produce an intersecting band, however each button aligns
+      // within it). `phone-dialog-footer-stacked` is the mutant for this.
+      if (layout === "side by side" && measured.buttons.length > 1) {
+        // Soft, like every other check in this walk — so a mutant that breaks
+        // both halves reports both, rather than the first throwing and hiding
+        // the second from the log (which EXPECT_MSG_FOR would then declare
+        // wrongly: a message that never gets the chance to appear).
+        expect.soft(
+          measured.flexDirection,
+          `${what}'s row is not laid out as a row (computed flex-direction: ${measured.flexDirection}) `
+            + "— its buttons may still be a narrow stacked column rather than side by side",
+        ).toBe("row");
+
+        const tops = measured.buttons.map((b) => b.top);
+        const bottoms = measured.buttons.map((b) => b.top + b.height);
+        const bandStart = Math.max(...tops);
+        const bandEnd = Math.min(...bottoms);
+        expect.soft(
+          bandEnd - bandStart,
+          `${what}'s buttons share no common vertical band (closest they get is `
+            + `${(bandEnd - bandStart).toFixed(1)}px) — they read as side by side by width alone but `
+            + "are actually stacked",
+        ).toBeGreaterThan(0);
       }
     }
   });
