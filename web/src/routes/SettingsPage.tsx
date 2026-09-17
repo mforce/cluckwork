@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Trash2, Upload } from "lucide-react";
+import { Alert, Box, Stack, TextField, Typography } from "@mui/material";
 import {
   BANNER_ACCEPT, LOGO_ACCEPT, getFarmSettings, listEggUnitConversions, removeFarmBanner,
   removeFarmLogo, updateFarmSettings, uploadFarmBanner, uploadFarmLogo,
@@ -42,6 +43,16 @@ const PALETTE_LABEL_KEYS = {
   slate: "paletteSlate",
   terracotta: "paletteTerracotta",
 } as const satisfies Record<Brand, SettingsKey>;
+
+// Each swatch previews its OWN palette's fill regardless of which palette is
+// currently applied (#149), so these are literal by necessity — not read from
+// the live theme, which only ever resolves the ACTIVE brand.
+const PALETTE_SWATCH_COLORS = {
+  aubergine: "#4a154b",
+  forest: "#14432a",
+  slate: "#1b3a5c",
+  terracotta: "#6b2716",
+} as const satisfies Record<Brand, string>;
 
 // Mirrors the server's validators (UpdateFarmSettingsValidator + Account) so a
 // too-long value is refused by the field rather than by a 400.
@@ -546,52 +557,72 @@ export function SettingsPage() {
 
   if (loadError !== null) return (
     <section>
-      <h2>{t("heading")}</h2>
-      <p className="error" role="alert">{loadError}</p>
+      <Typography variant="h2">{t("heading")}</Typography>
+      <Alert severity="error">{loadError}</Alert>
     </section>
   );
 
   if (loaded === null) return (
     <section>
-      <h2>{t("heading")}</h2>
-      <p className="muted">{tc("loading")}</p>
+      <Typography variant="h2">{t("heading")}</Typography>
+      <Typography variant="body2" color="text.secondary">{tc("loading")}</Typography>
     </section>
   );
 
+  // The pill-shaped label-wrapping-file-input control (#236): it must stay a
+  // real <label> around a real <input type="file"> for keyboard/AT reasons,
+  // so it cannot become a BusyButton or an MUI Button — only its look moves
+  // to sx. Shared by the logo and banner pickers.
+  const fileButtonSx = {
+    display: "inline-flex", alignItems: "center", gap: "0.4rem", cursor: "pointer",
+    fontWeight: 600, fontSize: "0.92rem", color: "primary.contrastText",
+    backgroundColor: "primary.main", borderRadius: "var(--r-pill)", padding: "0.6rem 1.15rem",
+    "&:hover": { backgroundColor: "primary.dark" },
+    "&:has(input:disabled)": { opacity: 0.55, cursor: "default" },
+    "&:focus-within": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: "2px" },
+    "& input[type='file']": {
+      position: "absolute", width: "1px", height: "1px", opacity: 0, pointerEvents: "none",
+    },
+  } as const;
+  const previewImgSx = {
+    height: 72, maxWidth: 240, objectFit: "contain" as const, backgroundColor: "#fff",
+    border: "1px solid var(--hairline)", borderRadius: "var(--r-panel)", padding: "0.5rem",
+  };
+
   return (
     <section>
-      <h2>{t("heading")}</h2>
-      <p className="muted">
+      <Typography variant="h2">{t("heading")}</Typography>
+      <Typography variant="body2" color="text.secondary">
         {t("intro")}
-      </p>
+      </Typography>
 
-      <h3>{t("logoSectionHeading")}</h3>
-      <div className="logo-panel">
+      <Typography variant="h3" sx={{ mt: 3 }}>{t("logoSectionHeading")}</Typography>
+      <Stack direction="row" sx={{ alignItems: "center", gap: "1.25rem", flexWrap: "wrap", my: 1.5 }}>
         {logo.url !== null ? (
-          <img className="logo-preview" src={logo.url} alt={t("logoAlt")} />
+          <Box component="img" src={logo.url} alt={t("logoAlt")} sx={previewImgSx} />
         ) : (
           // Three different reasons there is no image on screen, and only one
           // of them is "no logo set" — saying that while a Remove button sits
           // beside it is a contradiction the reader cannot resolve.
-          <p className="muted logo-empty">
+          <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
             {logo.loading ? t("logoLoadingMessage")
               : logo.failed ? t("logoLoadFailedMessage")
                 : t("logoNoneMessage")}
-          </p>
+          </Typography>
         )}
-        <div className="logo-actions">
+        <Stack direction="row" sx={{ gap: "0.75rem", flexWrap: "wrap" }}>
           {/* A real labelled file input rather than a button driving a hidden
               one: the picker is the control, and wrapping it in its own label
               keeps it reachable by keyboard and by name. */}
           {/* Carve-out (#236): a labelled file input is not a button, so it
               cannot be a BusyButton — it keeps the plain disable and the
               existing logo status region below carries the announcement. */}
-          <label className="logo-file">
+          <Box component="label" sx={fileButtonSx}>
             <Upload size={16} aria-hidden /> {hasLogo ? t("replaceLogoButton") : t("uploadLogoButton")}
             <input ref={uploadInput} type="file" accept={LOGO_ACCEPT} disabled={busy}
               aria-describedby={logoRulesId}
               onChange={(e) => void onPickLogo(e)} />
-          </label>
+          </Box>
           {hasLogo && (
             <BusyButton type="button" className="btn-danger" disabled={busy}
               busy={isPending("logo:remove")}
@@ -599,42 +630,45 @@ export function SettingsPage() {
               <Trash2 size={16} aria-hidden /> {t("removeLogoButton")}
             </BusyButton>
           )}
-        </div>
-      </div>
-      <p className="muted" id={logoRulesId}>
+        </Stack>
+      </Stack>
+      <Typography variant="body2" color="text.secondary" id={logoRulesId}>
         {t("logoRulesHint", { cap: formatByteCap(maxUploadBytes) })}
-      </p>
-      <p className="muted">
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
         <Trans ns="settings" i18nKey="logoSquareHint" components={{ strong: <strong /> }} />
-      </p>
+      </Typography>
       {/* The upload is silent otherwise — a file input cannot be a BusyButton,
           so this region carries its "Working…". The removal is deliberately
           NOT announced here: the Remove BusyButton's own live region already
           says it, and both speaking would double the announcement (#242).
-          Results (logoMessage) still land here for both writes. */}
-      <p className="success" role="status">
+          Results (logoMessage) still land here for both writes. Always
+          mounted, empty or not: a live region inserted at the same moment as
+          its text is not reliably announced. */}
+      <Typography id="logo-status" variant="body2" role="status" color="success.main">
         {isPending("logo:upload") ? t("logoWorkingMessage") : logoMessage ?? ""}
-      </p>
-      {logoError !== null && <p className="error" role="alert">{logoError}</p>}
+      </Typography>
+      {logoError !== null && <Alert severity="error">{logoError}</Alert>}
 
-      <h3>{t("bannerSectionHeading")}</h3>
-      <div className="logo-panel">
+      <Typography variant="h3" sx={{ mt: 3 }}>{t("bannerSectionHeading")}</Typography>
+      <Stack direction="row" sx={{ alignItems: "center", gap: "1.25rem", flexWrap: "wrap", my: 1.5 }}>
         {banner.url !== null ? (
-          <img className="banner-preview" src={banner.url} alt={t("bannerAlt")} />
+          <Box component="img" src={banner.url} alt={t("bannerAlt")}
+            sx={{ ...previewImgSx, maxWidth: "100%", width: 360, maxHeight: 160 }} />
         ) : (
-          <p className="muted logo-empty">
+          <Typography variant="body2" color="text.secondary" sx={{ m: 0 }}>
             {banner.loading ? t("bannerLoadingMessage")
               : banner.failed ? t("bannerLoadFailedMessage")
                 : t("bannerNoneMessage")}
-          </p>
+          </Typography>
         )}
-        <div className="logo-actions">
-          <label className="logo-file">
+        <Stack direction="row" sx={{ gap: "0.75rem", flexWrap: "wrap" }}>
+          <Box component="label" sx={fileButtonSx}>
             <Upload size={16} aria-hidden /> {hasBanner ? t("replaceBannerButton") : t("uploadBannerButton")}
             <input ref={bannerUploadInput} type="file" accept={BANNER_ACCEPT} disabled={busy}
               aria-describedby={bannerRulesId}
               onChange={(e) => void onPickBanner(e)} />
-          </label>
+          </Box>
           {hasBanner && (
             <BusyButton type="button" className="btn-danger" disabled={busy}
               busy={isPending("banner:remove")}
@@ -642,133 +676,146 @@ export function SettingsPage() {
               <Trash2 size={16} aria-hidden /> {t("removeBannerButton")}
             </BusyButton>
           )}
-        </div>
-      </div>
-      <p className="muted" id={bannerRulesId}>
+        </Stack>
+      </Stack>
+      <Typography variant="body2" color="text.secondary" id={bannerRulesId}>
         {t("bannerRulesHint", { cap: formatByteCap(bannerMaxUploadBytes) })}
-      </p>
-      <p className="success" role="status">
+      </Typography>
+      <Typography id="banner-status" variant="body2" role="status" color="success.main">
         {isPending("banner:upload") ? t("bannerWorkingMessage") : bannerMessage ?? ""}
-      </p>
-      {bannerError !== null && <p className="error" role="alert">{bannerError}</p>}
+      </Typography>
+      {bannerError !== null && <Alert severity="error">{bannerError}</Alert>}
 
-      <h3>{t("localizationSectionHeading")}</h3>
-      <form className="form-grid" onSubmit={(e) => void onSave(e)}>
-        <label>{t("farmNameLabel")}
-          <input value={name} required maxLength={MAX_NAME}
-            onChange={(e) => setName(e.target.value)} />
-        </label>
+      <Typography variant="h3" sx={{ mt: 3 }}>{t("localizationSectionHeading")}</Typography>
+      <Stack component="form" spacing={2} sx={{ maxWidth: "40rem", mt: 1 }} onSubmit={(e) => void onSave(e)}>
+        <TextField label={t("farmNameLabel")} value={name} required
+          onChange={(e) => setName(e.target.value)}
+          slotProps={{ htmlInput: { maxLength: MAX_NAME } }} />
 
-        <label>{t("timezoneLabel")}
-          <input list="tz-options" value={timeZoneId} required maxLength={MAX_TIMEZONE}
-            aria-describedby={timeZoneUnknown ? timeZoneNoteId : undefined}
-            onChange={(e) => setTimeZoneId(e.target.value)} />
-          <datalist id="tz-options">
-            {TIME_ZONES.map((tz) => <option key={tz} value={tz} />)}
-          </datalist>
-        </label>
-        {/* Outside the <label>, deliberately: a note nested in one becomes part
-            of the field's accessible NAME, so the control would announce itself
+        <TextField label={t("timezoneLabel")} value={timeZoneId} required
+          onChange={(e) => setTimeZoneId(e.target.value)}
+          slotProps={{
+            htmlInput: {
+              list: "tz-options", maxLength: MAX_TIMEZONE,
+              "aria-describedby": timeZoneUnknown ? timeZoneNoteId : undefined,
+            },
+          }} />
+        <datalist id="tz-options">
+          {TIME_ZONES.map((tz) => <option key={tz} value={tz} />)}
+        </datalist>
+        {/* Outside the field, deliberately: a note nested in the label becomes
+            part of the control's accessible NAME, so it would announce itself
             as "Currency Fixed at USD this farm has already…". aria-describedby
             is how a note reaches a control without renaming it. */}
         {timeZoneUnknown && (
-          <p className="warn field-note" id={timeZoneNoteId}>
+          <Typography variant="body2" color="warning.main" sx={{ fontWeight: 600, mt: "-0.5rem" }} id={timeZoneNoteId}>
             {/* The server validates against ITS tzdata, which can be newer than
                 this browser's. A zone it accepts but the browser cannot format
                 saves fine and then quietly sends every date field back to the
                 device's day — the one thing this whole slice removes. */}
             {t("timezoneUnknownWarning")}
-          </p>
+          </Typography>
         )}
 
-        <label>{t("localeLabel")}
-          <input value={locale} required maxLength={MAX_LOCALE} placeholder="en-US"
-            onChange={(e) => setLocale(e.target.value)} />
-        </label>
+        <TextField label={t("localeLabel")} value={locale} required placeholder="en-US"
+          onChange={(e) => setLocale(e.target.value)}
+          slotProps={{ htmlInput: { maxLength: MAX_LOCALE } }} />
 
-        <label>{t("currencyLabel")}
-          {/* readOnly, not disabled: a disabled input leaves the tab order, so
-              a keyboard user never reaches the field OR the reason it is
-              locked. Read-only keeps both, and aria-describedby carries the
-              reason with the control. */}
-          <input value={currencyCode} required maxLength={3}
-            className={loaded.canChangeCurrency ? undefined : "locked"}
-            readOnly={!loaded.canChangeCurrency}
-            aria-describedby={loaded.canChangeCurrency ? undefined : currencyNoteId}
-            onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())} />
-        </label>
+        {/* readOnly, not disabled: a disabled input leaves the tab order, so a
+            keyboard user never reaches the field OR the reason it is locked.
+            Read-only keeps both, and aria-describedby carries the reason with
+            the control. */}
+        <TextField label={t("currencyLabel")} value={currencyCode} required
+          onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())}
+          slotProps={{
+            htmlInput: {
+              maxLength: 3, readOnly: !loaded.canChangeCurrency,
+              "aria-describedby": loaded.canChangeCurrency ? undefined : currencyNoteId,
+            },
+          }}
+          sx={loaded.canChangeCurrency ? undefined : {
+            "& .MuiOutlinedInput-root": { backgroundColor: "action.disabledBackground" },
+            "& input": { cursor: "not-allowed" },
+          }} />
         {/* §4.6: the rule, at the field it locks, rather than as a 422 after
             the user has typed a new code. */}
         {!loaded.canChangeCurrency && (
-          <p className="warn field-note" id={currencyNoteId}>
+          <Typography variant="body2" color="warning.main" sx={{ fontWeight: 600, mt: "-0.5rem" }} id={currencyNoteId}>
             {t("currencyLockedNote", { code: loaded.settings.currencyCode })}
-          </p>
+          </Typography>
         )}
 
-        <label>{t("unitSystemLabel")}
-          <select value={unitSystem} onChange={(e) => setUnitSystem(e.target.value)}>
-            {UNIT_SYSTEMS.map((u) => <option key={u} value={u}>{unitSystemLabel(u)}</option>)}
-          </select>
-        </label>
+        <TextField select label={t("unitSystemLabel")} value={unitSystem}
+          onChange={(e) => setUnitSystem(e.target.value)}
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}>
+          {UNIT_SYSTEMS.map((u) => <option key={u} value={u}>{unitSystemLabel(u)}</option>)}
+        </TextField>
 
         {/* #444 — the pack unit Daily Entry's steppers bump by, e.g. "+30/-30"
             for Tray, unless a user overrides it for themselves (Header). Codes
             render raw, untranslated, matching ProductsPage's own unitCode cells
             — there is no separate label catalog for this enum anywhere else. */}
-        <label>{t("defaultStepperUnitLabel")}
-          <select value={defaultStepperUnit} onChange={(e) => setDefaultStepperUnit(e.target.value)}>
-            {stepperUnits.filter((u) => u.active).map((u) =>
-              <option key={u.unitCode} value={u.unitCode}>{u.unitCode}</option>)}
-          </select>
-        </label>
-        <p className="hint">{t("defaultStepperUnitHint")}</p>
+        <TextField select label={t("defaultStepperUnitLabel")} value={defaultStepperUnit}
+          onChange={(e) => setDefaultStepperUnit(e.target.value)}
+          helperText={t("defaultStepperUnitHint")}
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}>
+          {stepperUnits.filter((u) => u.active).map((u) =>
+            <option key={u.unitCode} value={u.unitCode}>{u.unitCode}</option>)}
+        </TextField>
 
         {/* #612 — how a restricted plain Worker's sale confirmation may draw
             stock. Owner/Manager/Sales confirmations stay farm-wide regardless
             of this setting (ReadOnly cannot confirm at all). */}
-        <label>{t("workerSaleAllocationPolicyLabel")}
-          <select
-            value={workerSaleAllocationPolicy}
-            onChange={(e) => setWorkerSaleAllocationPolicy(e.target.value)}
-          >
-            {WORKER_SALE_ALLOCATION_POLICY_VALUES.map((p) =>
-              <option key={p} value={p}>{workerSaleAllocationPolicyLabel(p)}</option>)}
-          </select>
-        </label>
-        <p className="hint">{t("workerSaleAllocationPolicyHint")}</p>
+        <TextField select label={t("workerSaleAllocationPolicyLabel")} value={workerSaleAllocationPolicy}
+          onChange={(e) => setWorkerSaleAllocationPolicy(e.target.value)}
+          helperText={t("workerSaleAllocationPolicyHint")}
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}>
+          {WORKER_SALE_ALLOCATION_POLICY_VALUES.map((p) =>
+            <option key={p} value={p}>{workerSaleAllocationPolicyLabel(p)}</option>)}
+        </TextField>
 
         {/* #727 — the ceiling a Sales or Worker user's sale lines are held to.
             Whole percents: this is the screen's only numeric input, and
             type="number" disagrees with itself across browsers about `,`
             versus `.` on a screen that formats every other number by locale.
             Storage is basis points, so finer steps cost no migration. */}
-        <label>{t("maxDiscountPercentLabel")}
-          <input
-            type="number"
-            min={0}
-            max={100}
-            step={1}
-            value={maxDiscountPercent}
-            onChange={(e) => setMaxDiscountPercent(e.target.value)}
-          />
-        </label>
-        <p className="hint">{t("maxDiscountPercentHint")}</p>
+        <TextField
+          label={t("maxDiscountPercentLabel")}
+          type="number"
+          value={maxDiscountPercent}
+          onChange={(e) => setMaxDiscountPercent(e.target.value)}
+          helperText={t("maxDiscountPercentHint")}
+          sx={{ maxWidth: "12rem" }}
+          slotProps={{ htmlInput: { min: 0, max: 100, step: 1 } }}
+        />
 
-        <label>{t("firstDayOfWeekLabel")}
-          <select value={firstDayOfWeek} onChange={(e) => setFirstDayOfWeek(e.target.value)}>
-            <option value="">{t("followLocaleOption")}</option>
-            {WEEKDAYS.map((d) => <option key={d} value={d}>{weekdayLabel(d)}</option>)}
-          </select>
-        </label>
+        <TextField select label={t("firstDayOfWeekLabel")} value={firstDayOfWeek}
+          onChange={(e) => setFirstDayOfWeek(e.target.value)}
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}>
+          <option value="">{t("followLocaleOption")}</option>
+          {WEEKDAYS.map((d) => <option key={d} value={d}>{weekdayLabel(d)}</option>)}
+        </TextField>
 
-        <fieldset className="palette-picker">
-          <legend>{t("paletteLegend")}</legend>
-          <p className="hint" id="palette-hint">
+        {/* Farm palette picker (#149): a colour swatch has no MUI control of
+            its own (pair 21's reasoning), so the fieldset/legend structure
+            stays and only its styling moves to sx. */}
+        <Box component="fieldset" sx={{
+          border: "1px solid", borderColor: "divider", borderRadius: "var(--r-panel)",
+          padding: "1rem", margin: 0,
+        }}>
+          <Typography component="legend" variant="subtitle2">{t("paletteLegend")}</Typography>
+          <Typography variant="body2" color="text.secondary" id="palette-hint">
             {t("paletteHint")}
-          </p>
-          <div className="palette-options" aria-describedby="palette-hint">
+          </Typography>
+          <Stack direction="row" sx={{ flexWrap: "wrap", gap: "0.75rem", mt: 1 }} aria-describedby="palette-hint">
             {BRANDS.map((id) => (
-              <label key={id} className="palette-option">
+              <Box component="label" key={id} sx={{
+                display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem",
+                border: "1px solid", borderColor: brand === id ? "info.main" : "divider",
+                borderRadius: "var(--r-pill)", cursor: saving ? "default" : "pointer",
+                opacity: saving ? 0.6 : 1,
+                boxShadow: brand === id ? (theme) => `inset 0 0 0 1px ${theme.palette.info.main}` : "none",
+              }}>
                 <input
                   type="radio"
                   name="brand"
@@ -779,53 +826,52 @@ export function SettingsPage() {
                 />
                 {/* The swatch is decorative: the visible name is what names the
                     option, so selection never depends on seeing colour. */}
-                <span className={`palette-swatch palette-swatch-${id}`} aria-hidden />
-                <span className="palette-name">{t(PALETTE_LABEL_KEYS[id])}</span>
-              </label>
+                <Box aria-hidden sx={{
+                  width: 18, height: 18, borderRadius: "var(--r-pill)", border: "1px solid",
+                  borderColor: "divider", backgroundColor: PALETTE_SWATCH_COLORS[id],
+                }} />
+                <Typography component="span" variant="body2">{t(PALETTE_LABEL_KEYS[id])}</Typography>
+              </Box>
             ))}
-          </div>
-        </fieldset>
+          </Stack>
+        </Box>
 
-        <label>{t("dateFormatLabel")}
-          <select
-            value={dateFormatCustom ? CUSTOM_FORMAT_OPTION : dateFormat}
-            onChange={(e) => {
-              if (e.target.value === CUSTOM_FORMAT_OPTION) { setDateFormatCustom(true); return; }
-              setDateFormatCustom(false);
-              setDateFormat(e.target.value);
-            }}
-          >
-            <option value="">{t("followLocaleOption")}</option>
-            {DATE_FORMAT_PRESETS.map((p) => <option key={p} value={p}>{p}</option>)}
-            <option value={CUSTOM_FORMAT_OPTION}>{t("customFormatOption")}</option>
-          </select>
-        </label>
+        <TextField select label={t("dateFormatLabel")}
+          value={dateFormatCustom ? CUSTOM_FORMAT_OPTION : dateFormat}
+          onChange={(e) => {
+            if (e.target.value === CUSTOM_FORMAT_OPTION) { setDateFormatCustom(true); return; }
+            setDateFormatCustom(false);
+            setDateFormat(e.target.value);
+          }}
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+        >
+          <option value="">{t("followLocaleOption")}</option>
+          {DATE_FORMAT_PRESETS.map((p) => <option key={p} value={p}>{p}</option>)}
+          <option value={CUSTOM_FORMAT_OPTION}>{t("customFormatOption")}</option>
+        </TextField>
         {dateFormatCustom && (
-          <label>{t("customDateFormatLabel")}
-            <input value={dateFormat} maxLength={MAX_FORMAT}
-              onChange={(e) => setDateFormat(e.target.value)} />
-          </label>
+          <TextField label={t("customDateFormatLabel")} value={dateFormat}
+            onChange={(e) => setDateFormat(e.target.value)}
+            slotProps={{ htmlInput: { maxLength: MAX_FORMAT } }} />
         )}
 
-        <label>{t("timeFormatLabel")}
-          <select
-            value={timeFormatCustom ? CUSTOM_FORMAT_OPTION : timeFormat}
-            onChange={(e) => {
-              if (e.target.value === CUSTOM_FORMAT_OPTION) { setTimeFormatCustom(true); return; }
-              setTimeFormatCustom(false);
-              setTimeFormat(e.target.value);
-            }}
-          >
-            <option value="">{t("followLocaleOption")}</option>
-            {TIME_FORMAT_PRESETS.map((p) => <option key={p} value={p}>{p}</option>)}
-            <option value={CUSTOM_FORMAT_OPTION}>{t("customFormatOption")}</option>
-          </select>
-        </label>
+        <TextField select label={t("timeFormatLabel")}
+          value={timeFormatCustom ? CUSTOM_FORMAT_OPTION : timeFormat}
+          onChange={(e) => {
+            if (e.target.value === CUSTOM_FORMAT_OPTION) { setTimeFormatCustom(true); return; }
+            setTimeFormatCustom(false);
+            setTimeFormat(e.target.value);
+          }}
+          slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+        >
+          <option value="">{t("followLocaleOption")}</option>
+          {TIME_FORMAT_PRESETS.map((p) => <option key={p} value={p}>{p}</option>)}
+          <option value={CUSTOM_FORMAT_OPTION}>{t("customFormatOption")}</option>
+        </TextField>
         {timeFormatCustom && (
-          <label>{t("customTimeFormatLabel")}
-            <input value={timeFormat} maxLength={MAX_FORMAT}
-              onChange={(e) => setTimeFormat(e.target.value)} />
-          </label>
+          <TextField label={t("customTimeFormatLabel")} value={timeFormat}
+            onChange={(e) => setTimeFormat(e.target.value)}
+            slotProps={{ htmlInput: { maxLength: MAX_FORMAT } }} />
         )}
 
         <div className="actions">
@@ -839,24 +885,24 @@ export function SettingsPage() {
             {saving ? t("savingButton") : t("saveButton")}
           </BusyButton>
         </div>
-      </form>
+      </Stack>
 
       {/* What actually acts on a save today. The timezone reaches every date
           field immediately (#123); the rest are stored on the farm and take
           effect as the screens that would render through them adopt them (#45
           carries the display formatting). Saying "everywhere, straight away"
           would be a promise the app does not keep. */}
-      <p className="muted">
+      <Typography variant="body2" color="text.secondary">
         {t("effectNote")}
-      </p>
+      </Typography>
 
-      {saveError !== null && <p className="error" role="alert">{saveError}</p>}
+      {saveError !== null && <Alert severity="error">{saveError}</Alert>}
       {/* Always mounted, like the logo's — a live region inserted at the same
           moment as its text is not reliably announced, and the logo panel two
           sections up already says so. */}
-      <p className="success" role="status">
+      <Typography id="settings-status" variant="body2" role="status" color="success.main">
         {saved && saveError === null ? t("savedMessage") : ""}
-      </p>
+      </Typography>
 
       {confirmDialog}
     </section>
