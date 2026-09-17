@@ -2096,33 +2096,6 @@ dl.glossary {
   line-height: 1.6;
 }
 
-/* The "?" beside a column header (#657): a small ring, muted until hovered. */
-.help-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
-  margin-left: 0.35rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  font-size: 0.7rem;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--muted);
-  text-decoration: none;
-  vertical-align: middle;
-}
-
-/* #834 — a small ring badge (a "?" glyph), not underlined text: the text
-   colour still follows --link (now ink), but the ring is a hover highlight,
-   not a link underline, so its edge takes --stat-accent like .help-open's. */
-.help-link:hover {
-  color: var(--link);
-  border-color: var(--stat-accent);
-  text-decoration: none;
-}
-
 .help-lead {
   font-size: 1.1rem;
   color: var(--muted);
