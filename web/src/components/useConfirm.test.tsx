@@ -96,6 +96,21 @@ describe("useConfirm", () => {
     await waitFor(() => expect(onSettle).toHaveBeenNthCalledWith(3, false));
   });
 
+  // The locale string already carries the asterisk ("Reason *"), and MUI's
+  // `required` adds a second, aria-hidden one, so the accessible name reads
+  // fine while the eye sees "Reason * *" (Codex review of #892). Pin the
+  // visible label text, not the accessible name.
+  it("shows one asterisk on the required reason label, not two", async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+    await openReason(user);
+    const field = await screen.findByLabelText<HTMLTextAreaElement>("Reason *");
+    expect(field).toBeRequired();
+    const label = field.labels[0];
+    expect(label).not.toBeUndefined();
+    expect(label.textContent?.replace(/\s+/g, " ").trim()).toBe("Reason *");
+  });
+
   it("focuses Cancel on a yes/no, so a stray Enter cannot take the action", async () => {
     const user = userEvent.setup();
     render(<Host />);

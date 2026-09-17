@@ -588,4 +588,25 @@ describe("Dialog anyDialogOpen / onModalStateChange (#485)", () => {
 
     await waitFor(() => expect(anyDialogOpen()).toBe(false));
   });
+
+  // #483, the same re-entry: the panel is still mounted during its exit
+  // transition, so reopening focuses the first field synchronously, and a
+  // capture of "what had focus before this dialog opened" taken after that
+  // would record the dialog's own field. Closing would then restore focus to
+  // a node about to unmount, and the trigger never gets it back (Codex review
+  // of #892).
+  it("restores focus to the trigger after a reopen during the exit transition", async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+    const trigger = () => screen.getByRole("button", { name: "New grade", hidden: true });
+
+    await user.click(trigger());
+    await waitFor(() => expect(anyDialogOpen()).toBe(true));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+    await user.click(trigger());
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+
+    await waitFor(() => expect(anyDialogOpen()).toBe(false));
+    await waitFor(() => expect(trigger()).toHaveFocus());
+  });
 });

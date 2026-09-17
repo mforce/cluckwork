@@ -283,7 +283,9 @@ export function useConfirm() {
               multiline
               rows={3}
               fullWidth
-              required
+              // The native attribute only: the locale string already ends in
+              // "*", and MUI's `required` prop paints a second one.
+              slotProps={{ htmlInput: { required: true } }}
               value={reason}
               error={reasonError !== null}
               helperText={reasonError ?? undefined}

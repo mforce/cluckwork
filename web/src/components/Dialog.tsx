@@ -307,6 +307,47 @@ export function Dialog({
     onCloseRef.current();
   };
 
+  // #483 — register with the stack below and remember where focus came from,
+  // so `restoreFocusOnClose` can redirect a stacked close correctly instead
+  // of trusting MUI's own (stacking-unaware, single-attempt) restore. Keyed
+  // on `open` alone: a rebind must not re-capture the trigger.
+  //
+  // `pushed` tracks exactly what got onto `openPanels`, read fresh rather
+  // than closed over once: `panelRef.current` is not reliably populated on
+  // the SAME synchronous pass this effect runs on (the same one-frame gap
+  // `bodyRef` above works around), so the push retries next frame — and
+  // cleanup must remove the SAME reference it pushed, not re-read
+  // `panelRef.current` at close time, which could by then point at nothing
+  // (the panel is already unmounting).
+  useEffect(() => {
+    if (!open) return;
+    // Declared BEFORE the initial-focus effect below, so this runs first in
+    // the same commit and records the trigger, not the field. That still
+    // fails on a reopen during the exit transition: the panel is mounted, so
+    // MUI's own trap may have parked focus inside it. Focus already inside
+    // this panel is never "where focus came from"; keep the earlier capture
+    // (Codex review of #892).
+    const active = document.activeElement;
+    const panel = panelRef.current;
+    if (!(panel !== null && active instanceof Node && panel.contains(active))) {
+      returnFocusTo.current = active;
+    }
+    let pushed: OpenPanel | null = null;
+    const push = () => {
+      if (pushed !== null) return;
+      const panel = panelRef.current;
+      if (panel === null) return;
+      pushed = { panel, content: bodyRef.current };
+      openPanels.push(pushed);
+    };
+    push();
+    const raf = pushed === null ? requestAnimationFrame(push) : null;
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      restoreFocusOnClose(pushed, returnFocusTo.current);
+    };
+  }, [open]);
+
   // Land on the first field rather than the close button — the dialog exists
   // to be filled in, and the heading is announced by aria-labelledby anyway.
   // Re-run when focusKey changes so a swapped-in record gets the cursor back.
@@ -328,37 +369,6 @@ export function Dialog({
     });
     return () => cancelAnimationFrame(raf);
   }, [open, focusKey]);
-
-  // #483 — register with the stack above and remember where focus came from,
-  // so `restoreFocusOnClose` can redirect a stacked close correctly instead
-  // of trusting MUI's own (stacking-unaware, single-attempt) restore. Keyed
-  // on `open` alone: a rebind must not re-capture the trigger.
-  //
-  // `pushed` tracks exactly what got onto `openPanels`, read fresh rather
-  // than closed over once: `panelRef.current` is not reliably populated on
-  // the SAME synchronous pass this effect runs on (the same one-frame gap
-  // `bodyRef` above works around), so the push retries next frame — and
-  // cleanup must remove the SAME reference it pushed, not re-read
-  // `panelRef.current` at close time, which could by then point at nothing
-  // (the panel is already unmounting).
-  useEffect(() => {
-    if (!open) return;
-    returnFocusTo.current = document.activeElement;
-    let pushed: OpenPanel | null = null;
-    const push = () => {
-      if (pushed !== null) return;
-      const panel = panelRef.current;
-      if (panel === null) return;
-      pushed = { panel, content: bodyRef.current };
-      openPanels.push(pushed);
-    };
-    push();
-    const raf = pushed === null ? requestAnimationFrame(push) : null;
-    return () => {
-      if (raf !== null) cancelAnimationFrame(raf);
-      restoreFocusOnClose(pushed, returnFocusTo.current);
-    };
-  }, [open]);
 
   return (
     <MuiDialog
