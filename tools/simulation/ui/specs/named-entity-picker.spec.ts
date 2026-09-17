@@ -95,14 +95,19 @@ test.describe("Searchable named-entity picker (#512)", () => {
     // flocks of their own, so keep arrowing (never assume exactly one more
     // press) until it is genuinely the active option, then commit with
     // Enter — also part of the Keyboard Contract, and never a click.
-    // #826 — MUI Autocomplete marks the keyboard-highlighted option with its
-    // own `Mui-focused` class, not the old engine's hand-rolled `.active`.
-    for (let i = 0; i < 60; i++) {
-      const activeClass = await sentinel.getAttribute("class");
-      if (activeClass?.includes("Mui-focused")) break;
+    // #826 — tracked via `aria-activedescendant` on the combobox, not a CSS
+    // class: `useAutocomplete.js`'s `syncHighlightedIndexToDOM` sets that
+    // attribute unconditionally from the highlighted INDEX, whereas its
+    // `Mui-focused` class is applied by querying the listbox DOM for a
+    // `[data-option-index]` match at sync time — which this suite found is
+    // NOT reliably present yet immediately after an extension's rows commit,
+    // so polling for the class flaked where the attribute does not.
+    const sentinelId = await sentinel.getAttribute("id");
+    for (let i = 0; i < 260; i++) {
+      if ((await combobox.getAttribute("aria-activedescendant")) === sentinelId) break;
       await combobox.press("ArrowDown");
     }
-    await expect(sentinel).toHaveClass(/Mui-focused/);
+    await expect(combobox).toHaveAttribute("aria-activedescendant", sentinelId!);
     await combobox.press("Enter");
     await expect(combobox).toHaveValue(FLOCK_SENTINEL);
   });
