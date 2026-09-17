@@ -253,19 +253,9 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
         },
       },
       MuiChip: { styleOverrides: { root: { borderRadius: pillRadius } } },
-      // #740 / D3.4 originally stacked `DialogActions` at phone width, the
-      // same rule every other `.actions` row follows. #896 (owner,
-      // 2026-09-17, from the #892 mockups) superseded that for dialog
-      // footers specifically: the phone `.dialog .dialog-foot` rule went
-      // from column/stretch to row/right-aligned, so a dialog footer is now
-      // a SECOND exemption from D3.4's stacking rule, alongside the Daily
-      // Entry footer (#830). `DialogActions` already renders row and
-      // right-aligned by default at every width (`justifyContent:
-      // 'flex-end'`, `DialogActions.js`) with its own sibling-margin
-      // spacing, so the fix is to declare no override at all here — the
-      // 44px touch target still comes from `MuiButton`'s own phone floor
-      // above, not from anything this component would otherwise add.
-      // No `MuiDialogActions` entry needed.
+      // No `MuiDialogActions` override: dialog footers stay a right-aligned
+      // row at every width (#896, owner decision 2026-09-17, a D3.4 exception
+      // like the Daily entry footer), which is the component's own default.
       // A raw `<label>` styles.css still targets (§2.3's `:where(label)`
       // demotion neutralises it only where MUI itself declares the property —
       // `FormControlLabel` never declares `flex-direction`/`gap` on its own
@@ -424,17 +414,9 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
       // `body1`, which would also move the `variantMapping` element) reaches
       // every `TableCell` regardless of context.
       //
-      // #897 review — padding is pinned too, to `table.data td`'s own value
-      // (`styles.css`: `0.6rem 1rem 0.6rem 0`), not `size="small"`'s default
-      // (`6px 16px`, symmetric — `TableCell.js`). Measured directly on
-      // Flocks (the widest converted table, 8 columns plus a 5-button
-      // actions cell): the default's extra ~16px/cell of left padding alone
-      // pushed the table's natural width to 1230px against a 948px
-      // container, overflowing the `TableContainer`'s own horizontal scroll
-      // and hiding the tail of the actions row from a plain screenshot even
-      // though no cell wrapped and the page itself stayed exactly 1280px
-      // wide (the `contain: layout` fix above is a different guarantee and
-      // was never in question). The legacy value reclaims that width.
+      // Padding is `table.data td`'s own value rather than `size="small"`'s
+      // symmetric default: the default's extra 16px per cell pushed Flocks'
+      // widest row past its container at 1280.
       MuiTableCell: {
         styleOverrides: {
           root: {

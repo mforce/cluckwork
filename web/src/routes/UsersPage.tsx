@@ -37,10 +37,8 @@ function errText(err: unknown): string {
 // `startLoad` + `openDialog` rather than `openDialog` alone.
 const DIALOG_SCOPES = ["flock-access", "create", "edit-user", "set-password", "change-role", "change-email", "disable-enable"] as const;
 
-// #897 review — a short value (an email, a name, a role, a status chip) must
-// never wrap: MUI's auto table layout treats a wrappable cell as shrinkable
-// and gives it less than its content needs, even with slack elsewhere in the
-// row.
+// MUI's auto table layout shrinks any wrappable cell below its content width,
+// so short values (names, numbers, chips, actions) are pinned; free text wraps.
 const NOWRAP = { whiteSpace: "nowrap" as const };
 
 // #73 — minimal user management: create a worker (or another admin) and see

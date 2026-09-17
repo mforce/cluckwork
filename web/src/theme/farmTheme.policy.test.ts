@@ -297,12 +297,9 @@ describe("farm theme policy (#823 G2)", () => {
   // it is a floor, not a ceiling, so an over-tall cell renders wrong with
   // every one of these assertions still green.
   //
-  // #897 review — padding joined this row after `size="small"`'s own default
-  // (`6px 16px`, symmetric) measured 16px/cell wider per side than
-  // `table.data td`'s legacy value, enough to push Flocks' widest row (8
-  // columns, a 5-button actions cell) past its container and off-screen —
-  // no cell wrapped and the page itself stayed 1280px wide, so neither of
-  // the other guards here would have caught it.
+  // Padding is pinned as well: `size="small"`'s default is 16px per cell
+  // wider than `table.data td`'s, enough to push Flocks' widest row off-screen
+  // at 1280 with no cell wrapping, which no other guard here would catch.
   it("sizes table cells to the row scale, gives every cell tabular numerals, and matches table.data's padding", () => {
     for (const { label, theme } of themes) {
       const root = slot(theme.components?.MuiTableCell?.styleOverrides?.root, `${label} MuiTableCell root`);

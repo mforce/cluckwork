@@ -34,16 +34,9 @@ function actorHandle(email: string): string {
 // grades, expenses) pass nothing and can never render the line, even if a
 // madeOfficialAtUtc somehow arrived.
 //
-// `auditHref` (#897 review) — #493's full-audit-trail link, admin-gated by
-// the CALLER (it passes the href only when `isAdmin`, so this component
-// stays admin-agnostic), stacked under the provenance summary rather than
-// living in the row's own Actions cell. Only FlocksPage passes it — its
-// Actions cell was overflowing the container at 1280 with the link inline,
-// which is what motivated the move. GradesPage never had that overflow, so
-// it deliberately keeps its own "Audit history" link inline in Actions (see
-// GradesPage.tsx) rather than moving it here; Sales, Expenses and History
-// (still on a plain `<table className="data">`, #831) don't pass it either,
-// so all four render byte-for-byte unchanged.
+// `auditHref` (#493) is optional and admin-gated by the caller, so this
+// component stays admin-agnostic. Flocks passes it to keep its Actions cell
+// narrow; the other callers keep their own audit link or pass nothing.
 export function ProvenanceCell({
   history,
   official,
@@ -105,19 +98,10 @@ export function ProvenanceCell({
   const summary = changed ?? created;
 
   return (
-    // #832 — pair 9's two retired classes (`td.nowrap`, `td.provenance-cell`)
-    // become an explicit sx here rather than the density this `TableCell`
-    // would otherwise inherit from a `Table`/`size="small"` ancestor,
-    // because three of this component's five callers (Sales, Expenses,
-    // History — #831) still render it inside a plain `<table className="data">`
-    // with no MUI density context at all. Pinning the padding to
-    // `table.data td`'s own values keeps every caller pixel-identical,
-    // converted or not, until #831 lands and can revisit this.
-    //
-    // #897 review — the nowrap/maxWidth/ellipsis trio moved off the `TableCell`
-    // and onto the summary line alone: with `auditHref` stacking a second
-    // line underneath, forcing single-line ellipsis on the whole cell would
-    // have clipped that line too.
+    // Padding is pinned to `table.data td`'s value because three callers
+    // (Sales, Expenses, History, until #831) still render this inside a plain
+    // `table.data`. The ellipsis sits on the summary line alone so a stacked
+    // audit link is never clipped.
     <TableCell title={fullStamp} sx={{ padding: "0.6rem 1rem 0.6rem 0", whiteSpace: "nowrap" }}>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, maxWidth: "14rem" }}>
         <Box

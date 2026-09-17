@@ -21,10 +21,8 @@ import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
 import i18n from "../i18n";
 
-// #897 review — a short value (a name, a phone number, a money figure) must
-// never wrap: MUI's auto table layout treats a wrappable cell as shrinkable
-// and gives it less than its content needs, even with slack elsewhere in the
-// row. Only genuinely free-text columns (email, address, note) keep wrapping.
+// MUI's auto table layout shrinks any wrappable cell below its content width,
+// so short values (names, numbers, chips, actions) are pinned; free text wraps.
 const NOWRAP = { whiteSpace: "nowrap" as const };
 
 interface EditForm {

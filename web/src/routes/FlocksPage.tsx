@@ -39,10 +39,8 @@ const LEDGER_PAGE = 50;
 // the row buttons — reports to the page and is never superseded.
 const DIALOG_SCOPES = ["create", "edit", "record-movement"] as const;
 
-// #897 review — a short value (a name, a breed, a bird count, a status chip)
-// must never wrap: MUI's auto table layout treats a wrappable cell as
-// shrinkable and gives it less than its content needs, even with slack
-// elsewhere in the row.
+// MUI's auto table layout shrinks any wrappable cell below its content width,
+// so short values (names, numbers, chips, actions) are pinned; free text wraps.
 const NOWRAP = { whiteSpace: "nowrap" as const };
 
 // F7 (#47): manage flocks — create, correct identity fields, deplete, archive.
@@ -413,25 +411,13 @@ export function FlocksPage() {
                       <span className="muted"> / {fmt.count(f.initialCount)}</span>}
                   </TableCell>
                   <TableCell sx={NOWRAP}><StatusBadge status={f.status} label={statusLabel(f.status)} /></TableCell>
-                  {/* #897 review — #493's full audit trail (AdminOnly, so a
-                      non-admin following it would only reach a 403, codex
-                      review of #516) moved out of Actions and into this
-                      column, stacked under the provenance summary: at 1280
-                      an Active, non-archived flock's Actions cell (birds,
-                      edit, deplete, archive — 4 verbs) plus this link left
-                      `deplete`/`archive` past the table's right edge with no
-                      scroll cue, a hidden-primary-verb regression, not a
-                      cosmetic one. */}
+                  {/* The audit link (#493, AdminOnly) lives under the provenance
+                      summary, not in Actions: with it inline, an Active
+                      flock's row ran past the container at 1280 and hid
+                      deplete/archive behind an uncued scroll. */}
                   <ProvenanceCell history={f} auditHref={isAdmin ? `/audit?entityId=${f.id}` : undefined} />
-                  {/* #897 review, round 2 — the coordinator's accepted answer
-                      to the residual ~112px overflow: let this cell wrap the
-                      way `table.data` always did, rather than force it into
-                      one line. The Stack itself now wraps (`flexWrap: "wrap"`,
-                      a 0.5 row gap between the two lines it produces on the
-                      widest row); each individual verb keeps its own nowrap
-                      so a label never breaks mid-word — only the row of verbs
-                      as a whole may flow onto a second line. The outer cell
-                      drops its own NOWRAP for the same reason. */}
+                  {/* The verbs may flow onto a second line, as table.data always
+                      allowed; each verb stays whole. */}
                   <TableCell>
                     <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 0.5, alignItems: "center" }}>
                       <button className="link" style={NOWRAP} disabled={busy}

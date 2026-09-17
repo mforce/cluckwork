@@ -29,9 +29,8 @@ const GRADE_TYPES = ["Size", "Quality", "Custom"];
 // activate/deactivate writes — reports to the page and is never superseded.
 const DIALOG_SCOPES = ["create", "edit"] as const;
 
-// #897 review — a short value (a name, a type, a status chip) must never
-// wrap: MUI's auto table layout treats a wrappable cell as shrinkable and
-// gives it less than its content needs, even with slack elsewhere in the row.
+// MUI's auto table layout shrinks any wrappable cell below its content width,
+// so short values (names, numbers, chips, actions) are pinned; free text wraps.
 const NOWRAP = { whiteSpace: "nowrap" as const };
 
 // F6 (#42): manage the farm's egg grades. No hard delete — grade lines, lots,

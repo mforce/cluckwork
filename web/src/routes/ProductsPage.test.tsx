@@ -191,12 +191,9 @@ describe("ProductsPage create", () => {
     expect(within(dialog()).getByLabelText("Notes")).toHaveValue("");
   });
 
-  // #897 review — the Grade select starts at "" (no grade picked yet) with
-  // a placeholder OPTION ("Pick a grade…"). MUI's floating label only
-  // shrinks out of the way when it reads a non-empty `value`, so without an
-  // explicit shrink it sat on top of that placeholder text — visible on the
-  // real dialog even though this jsdom render cannot show the overlap
-  // itself; the shrink class is the DOM fact that stands in for it.
+  // The Grade select starts at "" with a placeholder option, so without an
+  // explicit shrink the label sat on top of that text. jsdom cannot show the
+  // overlap; the shrink class is the DOM fact that stands in for it.
   it("shrinks the Grade select's label instead of sitting it on top of the placeholder option text", async () => {
     await renderReady(ADMIN);
     openCreate();

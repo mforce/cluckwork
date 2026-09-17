@@ -36,9 +36,8 @@ const EGG_UNITS = ["Egg", "Dozen", "Flat", "Tray", "Carton", "Case"];
 // activate/deactivate writes — reports to the page and is never superseded.
 const DIALOG_SCOPES = ["create", "edit", "edit-conversion"] as const;
 
-// #897 review — a short value (a name, a unit, a money figure) must never
-// wrap: MUI's auto table layout treats a wrappable cell as shrinkable and
-// gives it less than its content needs, even with slack elsewhere in the row.
+// MUI's auto table layout shrinks any wrappable cell below its content width,
+// so short values (names, numbers, chips, actions) are pinned; free text wraps.
 const NOWRAP = { whiteSpace: "nowrap" as const };
 
 function errorMessage(err: unknown): string {
@@ -329,11 +328,8 @@ export function ProductsPage() {
             onChange={(e) => setGradeId(e.target.value)}
             slotProps={{
               select: { native: true }, htmlInput: { required: true },
-              // #897 review — a select's own placeholder OPTION already says
-              // "Pick a grade…"; without this the floating label sits on top
-              // of that text instead of shrinking, because MUI's shrink
-              // heuristic reads the empty string `value` as "nothing to
-              // shrink for" even though the select is visibly showing text.
+              // The placeholder option shows text while `value` is "", so MUI
+              // would leave the label resting on top of it.
               inputLabel: { shrink: true },
             }}
           >
